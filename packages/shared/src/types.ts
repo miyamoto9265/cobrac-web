@@ -186,6 +186,7 @@ export interface RunJobMessage {
 // ---------------------------------------------------------------------------
 
 export type RoiClass = "roi" | "noROI_input" | "noROI_output" | "noROI_both" | "unknown";
+export type EdgeSign = "excitatory" | "inhibitory" | "modulatory" | "unknown";
 
 export interface HcdNode {
   id: string; // Circuit ID without prefix
@@ -219,6 +220,8 @@ export interface HcdEdge {
   pointersOnFigure: string;
   /** Output semantics of the sender circuit (edge label) */
   outputSemantics: string;
+  /** Physiological sign, filled by buildGraphs() from comments + sender transmitter */
+  sign?: EdgeSign;
 }
 
 export interface HcdGraph {
@@ -303,9 +306,64 @@ export interface ListMessagesResponse {
   nextCursor: string | null;
 }
 
-/** User-arranged node positions for a graph view, stored as graph/{kind}.layout.json */
+// ---------------------------------------------------------------------------
+// Graph view customisation (stored as graph/{kind}.layout.json)
+// ---------------------------------------------------------------------------
+
+export type EdgeLineType = "bezier" | "straight" | "smoothstep" | "orthogonal" | "polyline";
+export const EDGE_LINE_TYPES: EdgeLineType[] = ["bezier", "straight", "smoothstep", "orthogonal", "polyline"];
+export const EDGE_LINE_TYPE_LABEL: Record<EdgeLineType, string> = {
+  bezier: "曲線",
+  straight: "直線",
+  smoothstep: "直角（自動）",
+  orthogonal: "直角（折れ点を編集）",
+  polyline: "折れ線（折れ点を編集）",
+};
+
+export type ArrowHead = "none" | "arrow" | "arrowOpen" | "square" | "circle" | "diamond" | "bar";
+export const ARROW_HEADS: ArrowHead[] = ["none", "arrow", "arrowOpen", "square", "circle", "diamond", "bar"];
+export const ARROW_HEAD_LABEL: Record<ArrowHead, string> = {
+  none: "なし",
+  arrow: "矢印",
+  arrowOpen: "矢印（開）",
+  square: "四角",
+  circle: "丸",
+  diamond: "ひし形",
+  bar: "バー",
+};
+
+/** Per-edge visual overrides. Every field is optional; missing fields fall back to the default for the edge kind. */
+export interface EdgeStyle {
+  lineType?: EdgeLineType;
+  color?: string;
+  /** stroke width in px (1–8) */
+  width?: number;
+  dashed?: boolean;
+  markerStart?: ArrowHead;
+  markerEnd?: ArrowHead;
+  /** Bend points in flow coordinates (used by orthogonal / polyline) */
+  waypoints?: { x: number; y: number }[];
+  /** Handle ids ("top-0.5", "right-0.2", …) the edge is attached to; null/undefined = automatic */
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+  showLabel?: boolean;
+  /** rounded corners for orthogonal/polyline */
+  rounded?: boolean;
+}
+
+/** Per-node visual overrides */
+export interface NodeStyle {
+  width?: number;
+  height?: number;
+  color?: string;
+  border?: string;
+}
+
+/** User arrangement of a graph view: positions, sizes/colours and edge styles, keyed by node / edge id. */
 export interface GraphLayout {
   positions: Record<string, { x: number; y: number }>;
+  nodes?: Record<string, NodeStyle>;
+  edges?: Record<string, EdgeStyle>;
   updatedAt: string | null;
 }
 

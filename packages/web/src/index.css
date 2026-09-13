@@ -71,6 +71,44 @@ body,
   text-decoration: underline;
 }
 
+/* Graph editor ------------------------------------------------------------ */
+/* connection handles: hidden until the node is hovered / selected or an edge end is being dragged */
+.react-flow__node .handle-dot {
+  opacity: 0;
+  transition: opacity 120ms;
+  pointer-events: none;
+}
+.react-flow__node:hover .handle-dot,
+.react-flow__node.selected .handle-dot,
+.react-flow__node .connecting .handle-dot {
+  opacity: 1;
+  pointer-events: all;
+}
+.react-flow.connecting .react-flow__node .handle-dot,
+.react-flow.edge-editing .react-flow__node .handle-dot,
+.react-flow__pane.connecting ~ * .handle-dot {
+  opacity: 1;
+  pointer-events: all;
+}
+/* edge end anchors (drag to re-attach the edge to another handle) */
+.react-flow__edgeupdater {
+  fill: transparent;
+  stroke: transparent;
+}
+.react-flow__edge.selected .react-flow__edgeupdater,
+.react-flow__edge:hover .react-flow__edgeupdater {
+  fill: #ffffff;
+  stroke: #1d4ed8;
+  stroke-width: 1.5;
+  cursor: move;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-linecap: round;
+}
+.react-flow__resize-control.line {
+  border-color: #3b82f6;
+}
+
 /* Full-page document rendering (Docs page) */
 .markdown.docs {
   font-size: 0.925rem;

@@ -2,10 +2,34 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildGraphs, parseCsv, parseCsvObjects, proposeProjectId } from "../src/index.js";
+import { buildGraphs, classifyEdgeSign, parseCsv, parseCsvObjects, proposeProjectId } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fx = (name: string) => readFileSync(join(here, "fixtures", name), "utf8");
+
+describe("classifyEdgeSign (VOR sample)", () => {
+  const { hcd } = buildGraphs("VOR", { circuitsCsv: fx("Circuits.csv"), connectionsCsv: fx("Connections.csv"), frgCsv: fx("FRG.csv") });
+  const sign = (s: string, t: string) => {
+    const e = hcd.edges.find((x) => x.source === s && x.target === t)!;
+    return classifyEdgeSign(e, hcd.nodes.find((n) => n.id === s));
+  };
+  it("detects inhibitory GABAergic projections", () => {
+    expect(sign("PC", "MVN")).toBe("inhibitory");
+    expect(sign("BC", "PC")).toBe("inhibitory");
+    expect(sign("GoC", "GC")).toBe("inhibitory");
+  });
+  it("detects excitatory projections", () => {
+    expect(sign("MVN", "GC")).toBe("excitatory");
+    expect(sign("GC", "PC")).toBe("excitatory");
+    // comment mentions "inhibition" as a downstream effect but the projection itself is glutamatergic
+    expect(sign("GC", "GoC")).toBe("excitatory");
+  });
+  it("falls back to the sender's transmitter", () => {
+    expect(classifyEdgeSign({ comments: "projects to X" }, { transmitter: "GABA", modulationType: "Inhibitory" })).toBe("inhibitory");
+    expect(classifyEdgeSign({ comments: "" }, { transmitter: "Dopamine", modulationType: "Modulatory" })).toBe("modulatory");
+    expect(classifyEdgeSign({ comments: "" }, { transmitter: "Glutamate / GABA", modulationType: "Excitatory / Inhibitory" })).toBe("unknown");
+  });
+});
 
 describe("parseCsv", () => {
   it("handles quotes, embedded commas and newlines", () => {
@@ -55,6 +79,8 @@ describe("buildGraphs (VOR sample)", () => {
     expect(gc.projectedCircuits).toEqual(["PC", "GoC", "BC", "SC"]);
     const e = hcd.edges.find((e) => e.source === "GC" && e.target === "PC")!;
     expect(e.outputSemantics).toBe(gc.outputSemantics);
+    expect(hcd.edges.find((x) => x.source === "PC" && x.target === "MVN")?.sign).toBe("inhibitory");
+    expect(e.sign).toBe("excitatory");
   });
 
   it("builds FRG hierarchy with TLF root and levels", () => {

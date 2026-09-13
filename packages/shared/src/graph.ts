@@ -1,5 +1,6 @@
 import { col, parseCsvObjects } from "./csv.js";
 import type {
+  EdgeSign,
   FrgEdge,
   FrgGraph,
   FrgNode,
@@ -24,6 +25,39 @@ const splitList = (s: string) =>
     .split(/[;；]/)
     .map((x) => x.trim())
     .filter(Boolean);
+
+const INHIB_RE = /\binhibit|\bGABA|glycin|抑制/i;
+const EXCIT_RE = /\bexcitat|glutamat|\bAMPA\b|\bNMDA\b|興奮/i;
+const MOD_RE = /modulat|dopamin|serotonin|noradren|norepineph|acetylcholin|cholinerg|histamin|neuropeptide|調節/i;
+
+/**
+ * Classify the physiological sign of a connection. The Connection comment wins (it describes this
+ * projection specifically); otherwise fall back to the sender circuit's Modulation Type / Transmitter.
+ * Mixed senders (e.g. "Excitatory / Inhibitory") stay unknown unless the comment disambiguates.
+ */
+export function classifyEdgeSign(edge: Pick<HcdEdge, "comments">, sender?: Pick<HcdNode, "transmitter" | "modulationType"> | null): EdgeSign {
+  const c = edge.comments ?? "";
+  const inh = INHIB_RE.test(c);
+  const exc = EXCIT_RE.test(c);
+  if (inh && !exc) return "inhibitory";
+  if (exc && !inh) return "excitatory";
+  if (inh && exc) {
+    // Both words present: prefer the one that describes the projection itself ("(GABAergic; inhibitory)" pattern)
+    const m = c.match(/\(([^)]*)\)/g)?.join(" ") ?? "";
+    if (INHIB_RE.test(m) && !EXCIT_RE.test(m)) return "inhibitory";
+    if (EXCIT_RE.test(m) && !INHIB_RE.test(m)) return "excitatory";
+  }
+  if (!inh && !exc && MOD_RE.test(c)) return "modulatory";
+  if (sender) {
+    const s = `${sender.modulationType ?? ""} ${sender.transmitter ?? ""}`;
+    const si = INHIB_RE.test(s);
+    const se = EXCIT_RE.test(s);
+    if (si && !se) return "inhibitory";
+    if (se && !si) return "excitatory";
+    if (!si && !se && MOD_RE.test(s)) return "modulatory";
+  }
+  return "unknown";
+}
 
 /**
  * Build both HCD and FRG graph JSON from the three project CSVs.
@@ -175,7 +209,11 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   }
 
   const osById = new Map(hcdNodes.map((n) => [n.id, n.outputSemantics]));
-  for (const e of hcdEdges) e.outputSemantics = osById.get(e.source) ?? "";
+  const nodeById = new Map(hcdNodes.map((n) => [n.id, n]));
+  for (const e of hcdEdges) {
+    e.outputSemantics = osById.get(e.source) ?? "";
+    e.sign = classifyEdgeSign(e, nodeById.get(e.source));
+  }
 
   const hcd: HcdGraph = { kind: "hcd", projectId, generatedAt, nodes: hcdNodes, edges: hcdEdges, references };
 

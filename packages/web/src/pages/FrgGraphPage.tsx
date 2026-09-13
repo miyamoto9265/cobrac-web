@@ -4,7 +4,6 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { FrgGraph, FrgNodeKind } from "@cobrac/shared";
 import { DetailPanel, Field, Section } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GNode } from "../components/GraphCanvas";
-import { LayoutToolbar } from "../components/LayoutToolbar";
 import { api } from "../lib/api";
 import { useGraphLayout } from "../lib/useGraphLayout";
 
@@ -52,6 +51,7 @@ export function FrgGraphPage() {
           color: KIND_COLOR[n.kind],
           shape: n.kind === "uc" ? "pill" : "rect",
           width: n.kind === "uc" ? 120 : 200,
+          height: n.kind === "uc" ? 36 : 44,
         })) ?? [],
     [graph, visible, collapsed],
   );
@@ -67,7 +67,7 @@ export function FrgGraphPage() {
     });
 
   if (err) return <div className="p-6 text-sm text-rose-600">FRG グラフを読み込めませんでした: {err}</div>;
-  if (!graph || layout.saved === null) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
+  if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
 
   return (
     <div className="flex h-full flex-col">
@@ -95,10 +95,9 @@ export function FrgGraphPage() {
             direction="TB"
             selectedId={selected}
             onSelect={select}
+            layout={layout}
+            exportName={`${projectId}_FRG`}
             legend={(Object.keys(KIND_LABEL) as FrgNodeKind[]).map((k) => ({ color: KIND_COLOR[k], label: KIND_LABEL[k] }))}
-            savedPositions={layout.saved}
-            onMove={layout.update}
-            toolbar={<LayoutToolbar layout={layout} />}
           />
         </div>
         {node && (

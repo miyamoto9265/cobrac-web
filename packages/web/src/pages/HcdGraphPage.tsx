@@ -1,12 +1,15 @@
 import { ArrowLeft, GitFork } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import type { HcdGraph, RoiClass } from "@cobrac/shared";
+import type { EdgeSign, HcdGraph, RoiClass } from "@cobrac/shared";
+import { classifyEdgeSign } from "@cobrac/shared";
 import { DetailPanel, Field, Section } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GNode } from "../components/GraphCanvas";
-import { LayoutToolbar } from "../components/LayoutToolbar";
+import { SIGN_DEFAULTS } from "../components/graph/StyledEdge";
 import { api } from "../lib/api";
 import { useGraphLayout } from "../lib/useGraphLayout";
+
+const SIGN_LABEL: Record<EdgeSign, string> = { excitatory: "興奮性", inhibitory: "抑制性", modulatory: "修飾性", unknown: "分類不明の" };
 
 const ROI_COLORS: Record<RoiClass, string> = {
   roi: "#dbeafe", // blue-100
@@ -38,20 +41,33 @@ export function HcdGraphPage() {
   }, [projectId]);
 
   const nodes = useMemo<GNode[]>(
-    () => graph?.nodes.map((n) => ({ id: n.id, label: n.id, sublabel: n.names, color: ROI_COLORS[n.roiClass], width: 170 })) ?? [],
+    () => graph?.nodes.map((n) => ({ id: n.id, label: n.id, sublabel: n.names, color: ROI_COLORS[n.roiClass], width: 170, height: 48 })) ?? [],
     [graph],
   );
+  const signs = useMemo(() => {
+    const m = new Map<string, EdgeSign>();
+    if (!graph) return m;
+    const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+    for (const e of graph.edges) m.set(e.id, e.sign ?? classifyEdgeSign(e, byId.get(e.source)));
+    return m;
+  }, [graph]);
   const edges = useMemo<GEdge[]>(
     () =>
       graph?.edges.map((e) => ({
         id: e.id,
         source: e.source,
         target: e.target,
-        label: showLabels ? e.outputSemantics.replace(/^\[[^\]]+\]\s*/, "").slice(0, 60) : undefined,
+        label: e.outputSemantics.replace(/^\[[^\]]+\]\s*/, "").slice(0, 60) || undefined,
         title: e.comments,
+        sign: signs.get(e.id) ?? "unknown",
       })) ?? [],
-    [graph, showLabels],
+    [graph, signs],
   );
+  const signCounts = useMemo(() => {
+    const c: Record<EdgeSign, number> = { excitatory: 0, inhibitory: 0, modulatory: 0, unknown: 0 };
+    for (const s of signs.values()) c[s]++;
+    return c;
+  }, [signs]);
 
   const node = graph?.nodes.find((n) => n.id === selected) ?? null;
   const edge = graph?.edges.find((e) => e.id === selectedEdge) ?? null;
@@ -64,7 +80,7 @@ export function HcdGraphPage() {
   };
 
   if (err) return <div className="p-6 text-sm text-rose-600">HCD グラフを読み込めませんでした: {err}</div>;
-  if (!graph || layout.saved === null) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
+  if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
 
   return (
     <div className="flex h-full flex-col">
@@ -93,10 +109,15 @@ export function HcdGraphPage() {
             selectedId={selected}
             onSelect={select}
             onSelectEdge={(id) => setSelectedEdge(id)}
-            savedPositions={layout.saved}
-            onMove={layout.update}
-            toolbar={<LayoutToolbar layout={layout} />}
-            legend={(Object.keys(ROI_LABEL) as RoiClass[]).filter((k) => graph.nodes.some((n) => n.roiClass === k)).map((k) => ({ color: ROI_COLORS[k], label: ROI_LABEL[k] }))}
+            layout={layout}
+            showLabels={showLabels}
+            exportName={`${projectId}_HCD`}
+            legend={[
+              ...(Object.keys(ROI_LABEL) as RoiClass[]).filter((k) => graph.nodes.some((n) => n.roiClass === k)).map((k) => ({ color: ROI_COLORS[k], label: ROI_LABEL[k] })),
+              ...(["excitatory", "inhibitory", "modulatory", "unknown"] as EdgeSign[])
+                .filter((s) => signCounts[s] > 0)
+                .map((s) => ({ color: SIGN_DEFAULTS[s].color, label: `${SIGN_LABEL[s]}投射 (${signCounts[s]})`, kind: "edge" as const, sign: s })),
+            ]}
           />
         </div>
         {node && (
@@ -139,7 +160,7 @@ export function HcdGraphPage() {
           </DetailPanel>
         )}
         {!node && edge && (
-          <DetailPanel title={`${edge.source} → ${edge.target}`} subtitle="Connection" onClose={() => setSelectedEdge(null)}>
+          <DetailPanel title={`${edge.source} → ${edge.target}`} subtitle={`Connection · ${SIGN_LABEL[signs.get(edge.id) ?? "unknown"]}投射`} onClose={() => setSelectedEdge(null)}>
             <Field label="Output Semantics (sender)" value={edge.outputSemantics} />
             <Field label="Comments" value={edge.comments} />
             <Field label="Reference ID" value={edge.referenceId} />

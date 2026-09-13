@@ -85,8 +85,8 @@ export const api = {
   hcd: (id: string) => request<HcdGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/hcd`),
   frg: (id: string) => request<FrgGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/frg`),
   getLayout: (id: string, kind: "hcd" | "frg") => request<GraphLayout>("GET", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),
-  saveLayout: (id: string, kind: "hcd" | "frg", positions: GraphLayout["positions"]) =>
-    request<GraphLayout>("PUT", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`, { positions }),
+  saveLayout: (id: string, kind: "hcd" | "frg", layout: Omit<GraphLayout, "updatedAt">) =>
+    request<GraphLayout>("PUT", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`, layout),
   resetLayout: (id: string, kind: "hcd" | "frg") => request<{ ok: true }>("DELETE", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),

@@ -8,14 +8,18 @@ import type {
   FollowupRequest,
   JobRecord,
   ProjectRecord,
+  EdgeStyle,
   GraphLayout,
+  NodeStyle,
   ReasoningEffort,
   TokenUsage,
   UsageSummary,
   UserRecord,
 } from "@cobrac/shared";
 import {
+  ARROW_HEADS,
   DEFAULT_CODEX_MODEL,
+  EDGE_LINE_TYPES,
   EMPTY_USAGE,
   PRICING,
   PRICING_AS_OF,
@@ -461,16 +465,61 @@ app.put("/projects/:id/graph/:kind/layout", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   const kind = graphKind(c.req.param("kind"));
-  const body = (await c.req.json()) as { positions?: Record<string, { x: number; y: number }> };
-  const positions: Record<string, { x: number; y: number }> = {};
-  const entries = Object.entries(body.positions ?? {});
-  if (entries.length > MAX_LAYOUT_NODES) throw bad("too many nodes");
-  for (const [id, pos] of entries) {
-    if (typeof id !== "string" || id.length > 200) throw bad("invalid node id");
-    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) throw bad(`invalid position for ${id}`);
-    positions[id] = { x: Math.round(pos.x * 100) / 100, y: Math.round(pos.y * 100) / 100 };
+  const raw = await c.req.text();
+  if (raw.length > 2_000_000) throw bad("layout too large");
+  const body = JSON.parse(raw) as Partial<GraphLayout>;
+  const r2 = (v: number) => Math.round(v * 100) / 100;
+  const isXY = (p: unknown): p is { x: number; y: number } => !!p && Number.isFinite((p as { x: number }).x) && Number.isFinite((p as { y: number }).y);
+  const checkId = (id: string) => {
+    if (typeof id !== "string" || id.length === 0 || id.length > 200) throw bad("invalid id");
+  };
+
+  const positions: GraphLayout["positions"] = {};
+  const posEntries = Object.entries(body.positions ?? {});
+  if (posEntries.length > MAX_LAYOUT_NODES) throw bad("too many nodes");
+  for (const [id, pos] of posEntries) {
+    checkId(id);
+    if (!isXY(pos)) throw bad(`invalid position for ${id}`);
+    positions[id] = { x: r2(pos.x), y: r2(pos.y) };
   }
-  const layout: GraphLayout = { positions, updatedAt: nowIso() };
+
+  const nodes: NonNullable<GraphLayout["nodes"]> = {};
+  for (const [id, s] of Object.entries(body.nodes ?? {})) {
+    checkId(id);
+    if (!s || typeof s !== "object") continue;
+    const n: NodeStyle = {};
+    if (Number.isFinite(s.width)) n.width = Math.min(2000, Math.max(40, r2(s.width!)));
+    if (Number.isFinite(s.height)) n.height = Math.min(2000, Math.max(24, r2(s.height!)));
+    if (typeof s.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(s.color)) n.color = s.color;
+    if (typeof s.border === "string" && /^#[0-9a-fA-F]{3,8}$/.test(s.border)) n.border = s.border;
+    if (Object.keys(n).length) nodes[id] = n;
+  }
+
+  const edges: NonNullable<GraphLayout["edges"]> = {};
+  const edgeEntries = Object.entries(body.edges ?? {});
+  if (edgeEntries.length > MAX_LAYOUT_NODES * 4) throw bad("too many edges");
+  for (const [id, s] of edgeEntries) {
+    checkId(id);
+    if (!s || typeof s !== "object") continue;
+    const e: EdgeStyle = {};
+    if (s.lineType && EDGE_LINE_TYPES.includes(s.lineType)) e.lineType = s.lineType;
+    if (typeof s.color === "string" && /^#[0-9a-fA-F]{3,8}$/.test(s.color)) e.color = s.color;
+    if (Number.isFinite(s.width)) e.width = Math.min(12, Math.max(0.5, r2(s.width!)));
+    if (typeof s.dashed === "boolean") e.dashed = s.dashed;
+    if (typeof s.rounded === "boolean") e.rounded = s.rounded;
+    if (typeof s.showLabel === "boolean") e.showLabel = s.showLabel;
+    if (s.markerStart && ARROW_HEADS.includes(s.markerStart)) e.markerStart = s.markerStart;
+    if (s.markerEnd && ARROW_HEADS.includes(s.markerEnd)) e.markerEnd = s.markerEnd;
+    if (Array.isArray(s.waypoints)) {
+      if (s.waypoints.length > 100) throw bad(`too many waypoints for ${id}`);
+      e.waypoints = s.waypoints.filter(isXY).map((p) => ({ x: r2(p.x), y: r2(p.y) }));
+    }
+    if (typeof s.sourceHandle === "string" && s.sourceHandle.length <= 32) e.sourceHandle = s.sourceHandle;
+    if (typeof s.targetHandle === "string" && s.targetHandle.length <= 32) e.targetHandle = s.targetHandle;
+    if (Object.keys(e).length) edges[id] = e;
+  }
+
+  const layout: GraphLayout = { positions, nodes, edges, updatedAt: nowIso() };
   await putObjectText(u.userId, p.projectId, `graph/${kind}.layout.json`, JSON.stringify(layout));
   return c.json(layout);
 });
