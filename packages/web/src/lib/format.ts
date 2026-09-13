@@ -1,4 +1,5 @@
 import type { ProjectStatus, WorkflowStep } from "@cobrac/shared";
+import { dateTagFor } from "../i18n";
 
 export const STATUS_COLOR: Record<ProjectStatus, string> = {
   QUEUED: "bg-slate-200 text-slate-700",
@@ -15,8 +16,7 @@ export const STEP_LABEL: Record<WorkflowStep, string> = { HCD: "HCD", FRG: "FRG"
 export function fmtDate(iso: string | null | undefined, locale: string = "en"): string {
   if (!iso) return "-";
   const d = new Date(iso);
-  const tag = locale === "ja" ? "ja-JP" : "en-US";
-  return d.toLocaleString(tag, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleString(dateTagFor(locale), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 export function fmtBytes(n: number): string {

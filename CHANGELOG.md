@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-13
+
+### Added
+- UI language switcher now includes Simplified Chinese, Traditional Chinese, Korean, German, French, Spanish, Brazilian Portuguese, and Russian (ten locales including English and Japanese). In-app documentation remains English only
+
 ## [0.3.0] - 2026-09-13
 
 ### Added

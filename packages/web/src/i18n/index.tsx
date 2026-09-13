@@ -1,14 +1,40 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { en, type MessageKey } from "./en";
+import { de } from "./de";
+import { es } from "./es";
+import { fr } from "./fr";
 import { ja } from "./ja";
+import { ko } from "./ko";
+import { pt } from "./pt";
+import { ru } from "./ru";
+import { zh } from "./zh";
+import { zhTw } from "./zhTw";
 
 export type { MessageKey } from "./en";
-export type Locale = "en" | "ja";
-export const LOCALES: Locale[] = ["en", "ja"];
+
+export type Locale = "en" | "ja" | "zh" | "zhTw" | "ko" | "de" | "fr" | "es" | "pt" | "ru";
+
+export const LOCALES: { id: Locale; nameKey: MessageKey; htmlLang: string; dateTag: string }[] = [
+  { id: "en", nameKey: "langEn", htmlLang: "en", dateTag: "en-US" },
+  { id: "ja", nameKey: "langJa", htmlLang: "ja", dateTag: "ja-JP" },
+  { id: "zh", nameKey: "langZh", htmlLang: "zh-CN", dateTag: "zh-CN" },
+  { id: "zhTw", nameKey: "langZhTw", htmlLang: "zh-TW", dateTag: "zh-TW" },
+  { id: "ko", nameKey: "langKo", htmlLang: "ko", dateTag: "ko-KR" },
+  { id: "de", nameKey: "langDe", htmlLang: "de", dateTag: "de-DE" },
+  { id: "fr", nameKey: "langFr", htmlLang: "fr", dateTag: "fr-FR" },
+  { id: "es", nameKey: "langEs", htmlLang: "es", dateTag: "es" },
+  { id: "pt", nameKey: "langPt", htmlLang: "pt-BR", dateTag: "pt-BR" },
+  { id: "ru", nameKey: "langRu", htmlLang: "ru", dateTag: "ru-RU" },
+];
+
 export const DEFAULT_LOCALE: Locale = "en";
 const STORAGE = "cobrac-locale";
 
-const CATALOG: Record<Locale, Record<MessageKey, string>> = { en, ja };
+const CATALOG: Record<Locale, Record<MessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
+
+export function dateTagFor(locale: string): string {
+  return LOCALES.find((l) => l.id === locale)?.dateTag ?? "en-US";
+}
 
 export type Vars = Record<string, string | number>;
 export type TFn = (key: MessageKey, vars?: Vars) => string;
@@ -21,7 +47,7 @@ function interpolate(s: string, vars?: Vars): string {
 function readStored(): Locale {
   try {
     const v = localStorage.getItem(STORAGE);
-    if (v === "en" || v === "ja") return v;
+    if (v && LOCALES.some((l) => l.id === v)) return v as Locale;
   } catch {
     /* ignore */
   }
@@ -43,7 +69,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback<TFn>((key, vars) => interpolate(CATALOG[locale][key] ?? CATALOG.en[key] ?? key, vars), [locale]);
 
   useEffect(() => {
-    document.documentElement.lang = locale;
+    document.documentElement.lang = LOCALES.find((l) => l.id === locale)?.htmlLang ?? "en";
   }, [locale]);
 
   const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
@@ -70,8 +96,11 @@ export function LanguageSelect({ className = "", variant = "dark" }: { className
     <label className={`flex items-center gap-2 ${className}`}>
       <span className="sr-only">{t("language")}</span>
       <select value={locale} onChange={(e) => setLocale(e.target.value as Locale)} className={sel} title={t("language")}>
-        <option value="en">{t("langEn")}</option>
-        <option value="ja">{t("langJa")}</option>
+        {LOCALES.map((l) => (
+          <option key={l.id} value={l.id}>
+            {t(l.nameKey)}
+          </option>
+        ))}
       </select>
     </label>
   );
