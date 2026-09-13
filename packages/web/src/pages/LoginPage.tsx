@@ -1,16 +1,18 @@
 import { useState } from "react";
+import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { useAuth } from "../lib/auth";
 
 type Mode = "signin" | "signup" | "confirm" | "reset" | "resetConfirm";
 
 export function LoginPage() {
+  const t = useT();
   const auth = useAuth();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [err, setErr] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfo] = useState<MessageKey | null>(null);
   const [busy, setBusy] = useState(false);
 
   const run = async (fn: () => Promise<void>) => {
@@ -23,7 +25,7 @@ export function LoginPage() {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg === "CONFIRM_SIGN_UP") {
         setMode("confirm");
-        setInfo("メールに送信された確認コードを入力してください。");
+        setInfo("login.infoCode");
       } else setErr(msg);
     } finally {
       setBusy(false);
@@ -40,11 +42,14 @@ export function LoginPage() {
         <div className="mb-5 text-center">
           <div className="text-xl font-semibold tracking-tight">CoBRAC Agents</div>
           <div className="text-xs text-slate-500">
-            {mode === "signin" && "ログイン"}
-            {mode === "signup" && "アカウント作成"}
-            {mode === "confirm" && "メールアドレスの確認"}
-            {mode === "reset" && "パスワードリセット"}
-            {mode === "resetConfirm" && "新しいパスワードの設定"}
+            {mode === "signin" && t("login.signin")}
+            {mode === "signup" && t("login.signup")}
+            {mode === "confirm" && t("login.confirm")}
+            {mode === "reset" && t("login.reset")}
+            {mode === "resetConfirm" && t("login.resetConfirm")}
+          </div>
+          <div className="mt-3 flex justify-center">
+            <LanguageSelect variant="light" />
           </div>
         </div>
 
@@ -60,7 +65,7 @@ export function LoginPage() {
                   const r = await auth.doSignUp(email, password);
                   if (r === "confirm") {
                     setMode("confirm");
-                    setInfo("メールに送信された確認コードを入力してください。");
+                    setInfo("login.infoCode");
                   } else await auth.doSignIn(email, password);
                 });
               case "confirm":
@@ -69,45 +74,45 @@ export function LoginPage() {
                   if (password) await auth.doSignIn(email, password);
                   else {
                     setMode("signin");
-                    setInfo("確認が完了しました。ログインしてください。");
+                    setInfo("login.infoConfirmed");
                   }
                 });
               case "reset":
                 return void run(async () => {
                   await auth.doResetPassword(email);
                   setMode("resetConfirm");
-                  setInfo("メールに送信されたコードと新しいパスワードを入力してください。");
+                  setInfo("login.infoReset");
                 });
               case "resetConfirm":
                 return void run(async () => {
                   await auth.doConfirmResetPassword(email, code, password);
                   setMode("signin");
-                  setInfo("パスワードを更新しました。ログインしてください。");
+                  setInfo("login.infoPwUpdated");
                 });
             }
           }}
         >
-          <input type="email" required placeholder="メールアドレス" value={email} onChange={(e) => setEmail(e.target.value)} className={input} autoComplete="email" />
+          <input type="email" required placeholder={t("login.email")} value={email} onChange={(e) => setEmail(e.target.value)} className={input} autoComplete="email" />
           {(mode === "signin" || mode === "signup" || mode === "resetConfirm") && (
             <input
               type="password"
               required
-              placeholder={mode === "resetConfirm" ? "新しいパスワード（10文字以上）" : "パスワード（10文字以上）"}
+              placeholder={mode === "resetConfirm" ? t("login.newPassword") : t("login.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={input}
               autoComplete={mode === "signin" ? "current-password" : "new-password"}
             />
           )}
-          {(mode === "confirm" || mode === "resetConfirm") && <input required placeholder="確認コード" value={code} onChange={(e) => setCode(e.target.value)} className={input} inputMode="numeric" />}
+          {(mode === "confirm" || mode === "resetConfirm") && <input required placeholder={t("login.code")} value={code} onChange={(e) => setCode(e.target.value)} className={input} inputMode="numeric" />}
           {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{err}</div>}
-          {info && <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">{info}</div>}
+          {info && <div className="rounded-md bg-blue-50 px-3 py-2 text-xs text-blue-700">{t(info)}</div>}
           <button type="submit" disabled={busy} className={btn}>
-            {mode === "signin" && "ログイン"}
-            {mode === "signup" && "アカウント作成"}
-            {mode === "confirm" && "確認"}
-            {mode === "reset" && "コードを送信"}
-            {mode === "resetConfirm" && "パスワードを更新"}
+            {mode === "signin" && t("login.submitSignin")}
+            {mode === "signup" && t("login.submitSignup")}
+            {mode === "confirm" && t("login.submitConfirm")}
+            {mode === "reset" && t("login.submitReset")}
+            {mode === "resetConfirm" && t("login.submitResetConfirm")}
           </button>
         </form>
 
@@ -115,21 +120,21 @@ export function LoginPage() {
           {mode === "signin" && (
             <>
               <button className={link} onClick={() => setMode("signup")}>
-                アカウントを作成
+                {t("login.createAccount")}
               </button>
               <button className={link} onClick={() => setMode("reset")}>
-                パスワードを忘れた
+                {t("login.forgot")}
               </button>
             </>
           )}
           {mode !== "signin" && (
             <button className={link} onClick={() => setMode("signin")}>
-              ログインへ戻る
+              {t("login.back")}
             </button>
           )}
           {mode === "confirm" && (
             <button className={link} onClick={() => void run(() => auth.doResendCode(email))}>
-              コードを再送
+              {t("login.resend")}
             </button>
           )}
         </div>

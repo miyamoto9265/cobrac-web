@@ -1,54 +1,56 @@
-# CoBRAC Agents（リポジトリ: cobrac-web）
+# CoBRAC Agents (repository: cobrac-web)
 
-BRA（Brain Reference Architecture）データ作成ワークフロー（HCD → FRG → CSV → xlsx）を、
-サーバー上の Codex SDK で実行する Web アプリケーション。設計・セキュリティ・インフラの文書は `docs/`（サイトの「ドキュメント」からも閲覧可）、
-変更履歴は `CHANGELOG.md`、作業規約（バージョニング手順を含む）は `AGENTS.md`。
+Web application that runs the BRA (Brain Reference Architecture) data-creation workflow
+(HCD → FRG → CSV → xlsx) with the Codex SDK on the server. Design, security, and infrastructure
+docs live in `docs/` (also available from the site “Documentation” page). Change history is
+`CHANGELOG.md`. Working rules, including versioning, are in `AGENTS.md`.
 
-## バージョンとリリース
+## Versioning and release
 
-版番号はルート `package.json` の `version` が唯一のソースで、サイドバー下部と `GET /health` に表示される。
+The only source of the version number is `version` in the root `package.json`. It is shown in the
+sidebar footer and in `GET /health`.
 
 ```bash
-# 1. CHANGELOG.md の [Unreleased] に変更内容を書く
-# 2. 版を上げて CHANGELOG を確定・コミット・タグ
+# 1. Write the changes under [Unreleased] in CHANGELOG.md
+# 2. Bump the version, finalize CHANGELOG, commit, and tag
 npm run release patch      # or minor / major / 0.2.0
-# 3. デプロイ（版と CHANGELOG の整合チェック付き）
+# 3. Deploy (includes version / CHANGELOG consistency checks)
 npm run deploy
 git push && git push --tags
 ```
 
-## 構成
+## Layout
 
 ```
-package.json                 npm workspaces（build / typecheck / test / deploy）
-prompts/                     コンテナ同梱 instruction 群（改修版）, csv_to_excel.py（引数化）, Project.csv
+package.json                 npm workspaces (build / typecheck / test / deploy)
+prompts/                     container-bundled instructions (revised), csv_to_excel.py (CLI args), Project.csv
 packages/
-  shared/   型定義・CSV パーサ・グラフ JSON 生成（buildGraphs）・ユーティリティ（vitest）
-  worker/   Fargate ワーカー + Dockerfile（Node 22 + @openai/codex-sdk + Python 3）
-            src/index.ts(制御ループ) codex.ts(SDK) s3sync.ts steps.ts finalize.ts
-  api/      Lambda: src/app.ts(Hono) と src/handlers/{http,dispatcher,ws,broadcaster,janitor}.ts
-  web/      React SPA（Vite + Tailwind + React Flow）
-  infra/    AWS CDK スタック `CobracAgents`（Lambda は NodejsFunction/esbuild でバンドル）
+  shared/   types, CSV parser, graph JSON generation (buildGraphs), utilities (vitest)
+  worker/   Fargate worker + Dockerfile (Node 22 + @openai/codex-sdk + Python 3)
+            src/index.ts (control loop) codex.ts (SDK) s3sync.ts steps.ts finalize.ts
+  api/      Lambda: src/app.ts (Hono) and src/handlers/{http,dispatcher,ws,broadcaster,janitor}.ts
+  web/      React SPA (Vite + Tailwind + React Flow)
+  infra/    AWS CDK stack `CobracAgents` (Lambdas bundled with NodejsFunction/esbuild)
 ```
 
-## 必要なもの
+## Requirements
 
-- Node.js 22 以上、npm 10 以上
-- Docker は**不要**（ワーカーイメージはデプロイ時に CodeBuild 上でビルドされる: `@cdklabs/deploy-time-build`）
-- AWS CLI の認証情報（デプロイ先アカウント）、`cdk bootstrap` 済み
-- 各ユーザーの OpenAI API キー（アプリ内の設定画面で登録）
+- Node.js 22 or later, npm 10 or later
+- Docker is **not** required (the worker image is built on CodeBuild at deploy time: `@cdklabs/deploy-time-build`)
+- AWS CLI credentials for the target account, with `cdk bootstrap` already done
+- Each user’s OpenAI API key (registered in the in-app Settings screen)
 
-## セットアップ・検証
+## Setup and verification
 
 ```bash
 npm install
-npm run typecheck     # 全パッケージの型チェック
-npm test              # shared のユニットテスト
-npm run build         # shared(tsc) → api(型チェック) / worker(tsc) / web(vite)
-npm run cdk -- synth  # CloudFormation テンプレート生成（デプロイ前の確認）
+npm run typecheck     # typecheck all packages
+npm test              # shared unit tests
+npm run build         # shared(tsc) → api(typecheck) / worker(tsc) / web(vite)
+npm run cdk -- synth  # generate the CloudFormation template (pre-deploy check)
 ```
 
-`csv_to_excel.py` を単体で試す:
+Try `csv_to_excel.py` on its own:
 
 ```bash
 pip install -r prompts/requirements.txt
@@ -56,47 +58,47 @@ python prompts/csv_to_excel.py --contributor "Your Name" --project-id VOR \
   --base-dir /path/containing/VOR --output ./VOR.bra.xlsx
 ```
 
-## デプロイ
+## Deploy
 
-設定はリポジトリ直下の `.env`（`.env.example` をコピー）または環境変数で渡す。
+Pass settings via `.env` at the repo root (copy `.env.example`) or environment variables.
 
 ```bash
-# 管理者にするメールアドレス（カンマ区切り）。初回ログイン時に admin ロールが付与される
+# Admin email addresses (comma-separated). admin role is granted on first login
 export COBRAC_ADMIN_EMAILS=you@example.com
-# 任意: セルフサインアップ無効化 / 同時実行数 / Codex モデル・推論強度
+# Optional: disable self sign-up / concurrency / Codex model and reasoning effort
 export COBRAC_SELF_SIGNUP=true
 export COBRAC_MAX_CONCURRENT_JOBS=2
 export COBRAC_MAX_CONCURRENT_JOBS_PER_USER=1
-export COBRAC_CODEX_MODEL=            # 空なら Codex CLI の既定
+export COBRAC_CODEX_MODEL=            # empty = Codex CLI default
 export COBRAC_CODEX_REASONING_EFFORT=high
 
 npm run deploy        # build → cdk deploy --all --require-approval never
 ```
 
-出力の `WebUrl`（CloudFront）にアクセス → サインアップ → 設定で API キー登録 → チャット画面で ROI/TLF を入力して実行。
-フロントの接続先（API/WS/Cognito）は CDK が `config.json` として S3 に配置するため環境ごとの再ビルドは不要。
+Open the `WebUrl` output (CloudFront) → sign up → register an API key in Settings → enter ROI/TLF on the chat screen and run.
+Frontend endpoints (API/WS/Cognito) are written by CDK to S3 as `config.json`, so you do not rebuild per environment.
 
-PowerShell の場合は `$env:COBRAC_ADMIN_EMAILS="you@example.com"` のように設定する。
+In PowerShell, set variables like `$env:COBRAC_ADMIN_EMAILS="you@example.com"`.
 
-## ローカル開発（フロントのみ）
+## Local development (frontend only)
 
 ```bash
-cp .env.example packages/web/.env.local   # VITE_API_URL 等をデプロイ済み環境に向ける
+cp .env.example packages/web/.env.local   # point VITE_API_URL and related vars at a deployed environment
 npm run dev:web
 ```
 
-## 主要な設計ポイント
+## Design highlights
 
-- ジョブは SQS → dispatcher Lambda → ECS Fargate **Spot**（不可時は On-Demand にフォールバック）で 1 ジョブ 1 タスク。
-- エージェントが `[QUESTION]...[/QUESTION]` を出力するとワークスペースと `CODEX_HOME` を S3 に保存してタスクを終了（課金停止）。回答すると `resumeThread` で再開。
-- 5 種 CSV がそろうと `csv_to_excel.py` と `buildGraphs()` で xlsx と HCD/FRG グラフ JSON を生成。
-- 完了後は同じスレッドに「フォローアップ指示」を送って成果物を修正・再生成できる。
-- ワーカーのハートビートが 15 分途絶すると janitor が FAILED にし、2 回まで自動リトライ（Spot 中断対策）。
-- ユーザーの OpenAI API キーは KMS で暗号化して DynamoDB に保存し、ワーカー内でのみ復号。エージェントのシェル環境には AWS 認証情報を渡さない。
+- Jobs go SQS → dispatcher Lambda → ECS Fargate **Spot** (On-Demand fallback if Spot is unavailable), one task per job.
+- When the agent emits `[QUESTION]...[/QUESTION]`, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
+- When all five CSVs exist, `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON.
+- After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
+- If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption).
+- User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.
 
-## 運用メモ
+## Operations notes
 
-- ワーカーのログ: CloudFormation 出力 `WorkerLogGroup`（CloudWatch Logs）。
-- 成果物: `ArtifactsBucket` の `users/{userId}/{projectId}/{workspace,thread,output,graph}/`。
-- テーブル・バケット・KMS キー・User Pool は `RemovalPolicy.RETAIN`。スタック削除後も残るので不要なら手動削除。
-- コスト監視のため AWS Budgets で月額アラート（例: $30）の設定を推奨。
+- Worker logs: CloudFormation output `WorkerLogGroup` (CloudWatch Logs).
+- Artifacts: `ArtifactsBucket` at `users/{userId}/{projectId}/{workspace,thread,output,graph}/`.
+- Tables, buckets, KMS keys, and the User Pool use `RemovalPolicy.RETAIN`. They remain after stack deletion; delete manually if no longer needed.
+- For cost monitoring, set an AWS Budgets monthly alert (example: $30).

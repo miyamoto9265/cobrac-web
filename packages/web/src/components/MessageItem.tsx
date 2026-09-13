@@ -1,10 +1,13 @@
 import { AlertTriangle, Bot, Brain, FileEdit, Globe, Info, ListTodo, Package, Terminal, User } from "lucide-react";
 import { useState } from "react";
 import type { MessageRecord } from "@cobrac/shared";
+import { useI18n, useT } from "../i18n";
 import { fmtDate } from "../lib/format";
 import { Markdown } from "./Markdown";
 
 export function MessageItem({ m }: { m: MessageRecord }) {
+  const t = useT();
+  const { locale } = useI18n();
   const [open, setOpen] = useState(false);
 
   if (m.role === "user") {
@@ -12,7 +15,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
       <div className="flex justify-end">
         <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2 text-sm text-white shadow-sm">
           <div className="mb-0.5 flex items-center gap-1 text-[10px] text-blue-100">
-            <User size={10} /> あなた · {fmtDate(m.createdAt)}
+            <User size={10} /> {t("msg.you")} · {fmtDate(m.createdAt, locale)}
           </div>
           <div className="whitespace-pre-wrap">{m.content}</div>
         </div>
@@ -26,7 +29,9 @@ export function MessageItem({ m }: { m: MessageRecord }) {
       <div className="flex gap-2">
         <Avatar />
         <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-amber-200 bg-amber-50 px-4 py-2 shadow-sm">
-          <div className="mb-0.5 text-[10px] text-amber-600">agent · 質問 · {fmtDate(m.createdAt)}</div>
+          <div className="mb-0.5 text-[10px] text-amber-600">
+            agent · {t("msg.question")} · {fmtDate(m.createdAt, locale)}
+          </div>
           <Markdown text={q} />
         </div>
       </div>
@@ -56,7 +61,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
       <div className="flex gap-2">
         <Avatar />
         <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-2 shadow-sm">
-          <div className="mb-0.5 text-[10px] text-slate-400">agent · {fmtDate(m.createdAt)}</div>
+          <div className="mb-0.5 text-[10px] text-slate-400">agent · {fmtDate(m.createdAt, locale)}</div>
           <Markdown text={m.content} />
         </div>
       </div>
@@ -66,7 +71,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
   const icon =
     m.type === "reasoning" ? <Brain size={12} /> : m.type === "command" ? <Terminal size={12} /> : m.type === "file_change" ? <FileEdit size={12} /> : m.type === "web_search" ? <Globe size={12} /> : m.type === "todo" ? <ListTodo size={12} /> : <AlertTriangle size={12} />;
   const label =
-    m.type === "reasoning" ? "思考" : m.type === "command" ? "コマンド" : m.type === "file_change" ? "ファイル変更" : m.type === "web_search" ? "Web検索" : m.type === "todo" ? "TODO" : "エラー";
+    m.type === "reasoning" ? t("msg.reasoning") : m.type === "command" ? t("msg.command") : m.type === "file_change" ? t("msg.fileChange") : m.type === "web_search" ? t("msg.webSearch") : m.type === "todo" ? t("msg.todo") : t("msg.error");
   const firstLine = m.content.split("\n")[0].slice(0, 120);
   const multi = m.content.includes("\n") || m.content.length > 120;
 

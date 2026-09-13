@@ -1,34 +1,34 @@
-# CoBRAC Agents AWS インフラと予算
+# CoBRAC Agents AWS Infrastructure and Budget
 
-| 項目 | 内容 |
-| ---- | ---- |
-| 文書 | 構成、リソース、課金の仕組み、予算感、コスト抑制 |
-| 対象読者 | アカウント管理者・運用者 |
-| 実装 | CDK スタック `CobracAgents`（ap-northeast-1） |
-| 関連 | [01_設計仕様.md](./01_設計仕様.md) / [02_個人情報とセキュリティ.md](./02_個人情報とセキュリティ.md) |
+| Item | Description |
+| ---- | ----------- |
+| Document | Architecture, resources, how billing works, budget ballpark, and cost controls |
+| Audience | Account administrators and operators |
+| Implementation | CDK stack `CobracAgents` (ap-northeast-1) |
+| Related | [01_設計仕様.md](./01_設計仕様.md) / [02_個人情報とセキュリティ.md](./02_個人情報とセキュリティ.md) |
 
-金額は **2026 年時点の東京リージョン目安** であり、公式の見積ではない。実課金は Cost Explorer を正とする。**OpenAI API 料金は AWS 請求に含まれない。**
-
----
-
-## 1. 設計方針
-
-1. **アイドル時の固定費を小さくする**（常時 EC2 / NAT Gateway を置かない）。
-2. **高い部分はジョブ実行時間だけ払う**（Fargate Spot）。
-3. 質問待ち中はタスクを止める（S3 に状態を置いて終了）。
-4. 配信は CloudFront 既定ドメイン。独自ドメイン・証明書は使わない。
-
-スタックは 1 本（`packages/infra/lib/cobrac-stack.ts`）。デプロイ: `npm run deploy`（要 `cdk bootstrap`）。ワーカーイメージはローカル Docker 不要で、デプロイ時に CodeBuild がビルドして ECR へ push する（`@cdklabs/deploy-time-build`）。
+Amounts are **Tokyo-region ballparks as of 2026**, not official estimates. Cost Explorer is the source of truth for actual charges. **OpenAI API fees are not on the AWS bill.**
 
 ---
 
-## 2. 構成図
+## 1. Design principles
+
+1. **Keep idle fixed cost small** (no always-on EC2 / NAT Gateway).
+2. **Pay the expensive part only while jobs run** (Fargate Spot).
+3. Stop the task while waiting for a question (persist state to S3 and exit).
+4. Serve from the default CloudFront domain. No custom domain or certificate.
+
+There is one stack (`packages/infra/lib/cobrac-stack.ts`). Deploy: `npm run deploy` (requires `cdk bootstrap`). The worker image does not need local Docker; CodeBuild builds it at deploy time and pushes to ECR (`@cdklabs/deploy-time-build`).
+
+---
+
+## 2. Architecture
 
 ```
 Internet
   │
-  ├─ CloudFront ── S3 (SPA + config.json)     OAC、公開バケットなし
-  ├─ Cognito User Pool                         メールログイン
+  ├─ CloudFront ── S3 (SPA + config.json)     OAC, no public bucket
+  ├─ Cognito User Pool                         email login
   │
   ├─ HTTP API  ── JWT ── Lambda http
   └─ WebSocket ── JWT ── Lambda ws
@@ -37,215 +37,215 @@ Internet
                       ├─ SQS (+ DLQ) ── Lambda dispatcher ── ECS RunTask
                       ├─ DynamoDB Streams ── Lambda broadcaster ── WS
                       ├─ EventBridge 15min ── Lambda janitor
-                      ├─ KMS (API キー)
+                      ├─ KMS (API keys)
                       └─ S3 Artifacts
 
-VPC（パブリック subnet × 2、NAT なし、IGW あり）
+VPC (public subnet × 2, no NAT, with IGW)
   └─ ECS Fargate Spot
-       パブリック IP で OpenAI / AWS API へ出る
-       セキュリティグループはインバウンドなし
+       reaches OpenAI / AWS APIs via public IP
+       security group has no inbound rules
 ```
 
-NAT Gateway を置かない理由: 東京で AZ あたりおおよそ **$32/月 + データ処理料** が固定で乗るため。ワーカーは一時的なのでパブリック IP で足りる。
+Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus data processing** as a fixed cost. Workers are short-lived, so a public IP is enough.
 
 ---
 
-## 3. リソース一覧
+## 3. Resource inventory
 
-### 3.1 コンピューティング
+### 3.1 Compute
 
-| リソース | スペック | 起動条件 |
-| -------- | -------- | -------- |
-| Lambda × 8 | Node 22 ARM64、メモリ 512 MB。http/ws 30s、dispatcher/broadcaster 60s、janitor 2 分 | リクエスト / SQS / Streams / 15 分周期 |
-| ECS Cluster | Fargate + Fargate Spot、Container Insights オフ | 常時（クラスタ自体はほぼ無料） |
-| Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB、x86_64 | ジョブ 1 件につき 1 タスク |
-| CodeBuild | デプロイ時のイメージビルド | `cdk deploy` のとき |
-| ECR | ワーカーイメージ 1 本（約 0.5 GB 圧縮） | 常時 |
+| Resource | Spec | When it runs |
+| -------- | ---- | ------------ |
+| Lambda × 8 | Node 22 ARM64, 512 MB. http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 15 minutes |
+| ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
+| Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
+| CodeBuild | Image build at deploy | During `cdk deploy` |
+| ECR | One worker image (~0.5 GB compressed) | Always |
 
-### 3.2 データ
+### 3.2 Data
 
-| リソース | 設定 |
-| -------- | ---- |
-| DynamoDB Users / Projects / Jobs / Messages | On-Demand。Projects/Messages は Stream。PITR オフ。RETAIN |
-| DynamoDB WsConnections | On-Demand、TTL、DESTROY |
-| S3 Artifacts | 非公開、SSE-S3、未完了 MPU 3 日で破棄、RETAIN |
-| S3 Web | 非公開、OAC、DESTROY + 自動空削除 |
-| SQS JobQueue | 可視 120s、保持 4 日、DLQ 14 日（5 回失敗） |
+| Resource | Settings |
+| -------- | -------- |
+| DynamoDB Users / Projects / Jobs / Messages | On-Demand. Streams on Projects/Messages. PITR off. RETAIN |
+| DynamoDB WsConnections | On-Demand, TTL, DESTROY |
+| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, RETAIN |
+| S3 Web | Private, OAC, DESTROY + auto-empty |
+| SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
 
-### 3.3 ネットワーク・配信・認証
+### 3.3 Network, delivery, auth
 
-| リソース | 設定 |
-| -------- | ---- |
-| VPC | /16 相当、パブリック /24 × 2 AZ、IGW、NAT 0 |
-| CloudFront | Price Class 200（北米・欧州・アジア）、SPA は 403/404 → index.html |
-| HTTP API | CORS 有効。`/health` のみ匿名 |
-| WebSocket API | stage `prod`。接続上限 2 時間 |
-| Cognito | メール、SRP、ID/Access 2h、Refresh 30d、グループ `admin` |
-| KMS CMK | ローテーション有効、RETAIN |
+| Resource | Settings |
+| -------- | -------- |
+| VPC | ~ /16, public /24 × 2 AZs, IGW, NAT 0 |
+| CloudFront | Price Class 200 (North America, Europe, Asia), SPA 403/404 → index.html |
+| HTTP API | CORS enabled. Anonymous only on `/health` |
+| WebSocket API | stage `prod`. Connection limit 2 hours |
+| Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin` |
+| KMS CMK | Rotation enabled, RETAIN |
 
-### 3.4 ログ
+### 3.4 Logs
 
-Lambda / ワーカーとも CloudWatch Logs **14 日**。Insights は使っていない。
+CloudWatch Logs **14 days** for both Lambda and the worker. Insights is not used.
 
-### 3.5 デプロイ済み（参考、2026-09-13）
+### 3.5 Deployed (reference, 2026-09-13)
 
-| 出力 | 値 |
-| ---- | -- |
-| アカウント | `618703232062` |
-| リージョン | ap-northeast-1 |
+| Output | Value |
+| ------ | ----- |
+| Account | `618703232062` |
+| Region | ap-northeast-1 |
 | WebUrl | `https://d253ipuk9gq4vr.cloudfront.net` |
 | HTTP API | `https://l04ci8f5s5.execute-api.ap-northeast-1.amazonaws.com` |
-| スタック名 | `CobracAgents` |
+| Stack name | `CobracAgents` |
 
 ---
 
-## 4. 課金が動くタイミング
+## 4. When charges move
 
-| 操作 | 主に増えるもの |
-| ---- | -------------- |
-| 誰も使っていない | CloudFront 微量、KMS $1、ECR、DynamoDB ストレージ、VPC 自体は無料に近い |
-| 画面閲覧 | CloudFront、HTTP API、Lambda、DynamoDB RCU 相当（On-Demand） |
-| チャット購読 | WebSocket 接続時間 + メッセージ、Streams Lambda |
-| ジョブ実行 | **Fargate CPU/メモリ時間**、ENI/パブリック IP、ワーカーの CloudWatch、S3 PUT、DynamoDB 書き込み |
-| 質問待ち | 上記 Fargate は止まる。S3 保管料と DynamoDB だけ |
-| `cdk deploy` | CodeBuild（イメージ再ビルド時）、ECR プッシュ、CloudFront invalidation、Lambda 更新 |
+| Action | What mainly increases |
+| ------ | --------------------- |
+| Nobody using it | Tiny CloudFront, KMS $1, ECR, DynamoDB storage; VPC itself is nearly free |
+| Browsing the UI | CloudFront, HTTP API, Lambda, DynamoDB RCU equivalent (On-Demand) |
+| Chat subscription | WebSocket connection time + messages, Streams Lambda |
+| Job execution | **Fargate CPU/memory time**, ENI/public IP, worker CloudWatch, S3 PUT, DynamoDB writes |
+| Waiting for a question | Fargate above stops. Only S3 storage and DynamoDB |
+| `cdk deploy` | CodeBuild (when the image is rebuilt), ECR push, CloudFront invalidation, Lambda update |
 
-同時実行: 全体 `COBRAC_MAX_CONCURRENT_JOBS`（既定 2）、ユーザーあたり 1。超えたメッセージは 60 秒後に再キュー（待ち時間は SQS のみ）。
-
----
-
-## 5. 予算感
-
-### 5.1 アイドル（ユーザー数名、ジョブ 0）
-
-| 項目 | 月額目安 |
-| ---- | -------- |
-| KMS CMK 1 本 | $1.00 |
-| ECR（0.5〜1 GB） | $0.10 前後 |
-| DynamoDB / S3 保管（数 MB〜数百 MB） | $0.10〜0.50 |
-| CloudFront / Cognito（無料枠内） | $0〜0.50 |
-| **小計** | **約 $1.5〜3** |
-
-NAT を足すとここだけで +$32 以上になる。
-
-### 5.2 想定利用（月 50 ジョブ、実行 2〜4 時間/件、質問待ちは停止）
-
-実行時間合計 100〜200 時間。
-
-| サービス | 前提 | 月額目安 |
-| -------- | ---- | -------- |
-| Fargate Spot 1 vCPU / 2 GB | 約 $0.013〜0.020/時間 | $2〜4 |
-| 同上の On-Demand フォールバック | Spot の roughly 2.5〜3 倍 | 混在なら +$1〜3 |
-| CloudFront + フロント S3 | 低トラフィック | $1 |
-| API Gateway HTTP + WS | 数十万リクエスト未満 | $1〜2 |
-| Lambda | ARM、短い実行 | $0〜1 |
-| DynamoDB On-Demand | メッセージ書き込みが中心 | $1〜2 |
-| S3 成果物（数 GB、PUT 多め） | workspace 同期あり | $0.5〜1.5 |
-| CloudWatch Logs | 14 日、ワーカー出力 | $0.5〜2 |
-| KMS | キー + Encrypt/Decrypt | $1〜2 |
-| **AWS 合計** | | **約 $8〜18** |
-
-目標（仕様）は **インフラ $20/月以下 / 月 50 ジョブ**。上記なら余裕がある。Spot が全く取れず常時 On-Demand だと Fargate だけで $8〜15 になり、合計 **$15〜25** まで伸びうる。
-
-### 5.3 ジョブ 1 件あたりの AWS 目安
-
-| 実行時間 | Spot | On-Demand 目安 |
-| -------- | ---- | -------------- |
-| 30 分 | $0.01 前後 | $0.03 前後 |
-| 2 時間 | $0.03〜0.04 | $0.10 前後 |
-| 4 時間 | $0.06〜0.08 | $0.20 前後 |
-| 6 時間（上限） | $0.10 前後 | $0.30 前後 |
-
-S3 同期とログを足しても、**1 ジョブの AWS コストは数十セント以下**が普通。支配項は OpenAI 側である。
-
-### 5.4 デプロイ 1 回
-
-CodeBuild で Node + Python イメージをビルド（実測およそ 2 分）。東京 general1.small 相当なら **$0.1〜0.4/回**。ECR 上書きと CloudFront 無効化が少量乗る。日常の画面利用より、**頻繁な再デプロイの方が目立つ**ことがある。
-
-### 5.5 OpenAI（AWS 外・各自負担）
-
-gpt-5 系 + reasoning 高めで、HCD→FRG→CSV の長時間エージェントは **1 ジョブ数ドル〜数十ドル** になりうる。インフラ $10 台に対してこちらが桁で大きい。モデルと effort を作成画面で下げると効く。
-
-アプリ内でも追跡できる。ジョブごとに使用モデル・入出力トークン・推定料金を記録し、プロジェクト一覧（合計とモデル別内訳）、チャット画面ヘッダー（ジョブ別内訳）、管理画面に表示する。単価は `packages/shared/src/pricing.ts` の表に基づく推定で、OpenAI の請求とは一致しないことがある（特に単価表にないモデルは `$—`）。
+Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user. Excess messages are re-queued after 60 seconds (wait time is SQS only).
 
 ---
 
-## 6. シナリオ比較
+## 5. Budget ballpark
 
-| シナリオ | AWS 月額の感じ | コメント |
-| -------- | -------------- | -------- |
-| 開発のみ（デプロイ済み、ジョブほぼ 0） | $2〜4 | KMS が目立つ |
-| 個人で月 10 ジョブ | $4〜8 | |
-| 数名で月 50 ジョブ | $8〜18 | 設計ターゲット |
-| 月 50 ジョブかつ Spot 不調 | $15〜25 | Budgets $30 なら検知可能 |
-| NAT ありに変更 | 上記 +$32〜 | 非推奨 |
-| 常時 t3.medium | $30 前後 | 質問待ちでも課金。本構成の方が安い |
+### 5.1 Idle (a few users, 0 jobs)
+
+| Item | Monthly ballpark |
+| ---- | ---------------- |
+| 1 KMS CMK | $1.00 |
+| ECR (0.5–1 GB) | around $0.10 |
+| DynamoDB / S3 storage (a few MB to hundreds of MB) | $0.10–0.50 |
+| CloudFront / Cognito (within free tier) | $0–0.50 |
+| **Subtotal** | **about $1.5–3** |
+
+Adding NAT alone adds $32+ here.
+
+### 5.2 Assumed use (50 jobs/month, 2–4 hours each, stopped while waiting)
+
+Total run time 100–200 hours.
+
+| Service | Assumption | Monthly ballpark |
+| ------- | ---------- | ---------------- |
+| Fargate Spot 1 vCPU / 2 GB | about $0.013–0.020/hour | $2–4 |
+| Same, On-Demand fallback | roughly 2.5–3× Spot | +$1–3 if mixed |
+| CloudFront + frontend S3 | Low traffic | $1 |
+| API Gateway HTTP + WS | Under a few hundred thousand requests | $1–2 |
+| Lambda | ARM, short runs | $0–1 |
+| DynamoDB On-Demand | Mostly message writes | $1–2 |
+| S3 artifacts (a few GB, many PUTs) | With workspace sync | $0.5–1.5 |
+| CloudWatch Logs | 14 days, worker output | $0.5–2 |
+| KMS | Key + Encrypt/Decrypt | $1–2 |
+| **AWS total** | | **about $8–18** |
+
+The spec target is **under $20/month of infrastructure for 50 jobs/month**. The table above has headroom. If Spot is never available and everything is On-Demand, Fargate alone can be $8–15 and the total can stretch to **$15–25**.
+
+### 5.3 AWS ballpark per job
+
+| Runtime | Spot | On-Demand ballpark |
+| ------- | ---- | ------------------ |
+| 30 min | around $0.01 | around $0.03 |
+| 2 hours | $0.03–0.04 | around $0.10 |
+| 4 hours | $0.06–0.08 | around $0.20 |
+| 6 hours (cap) | around $0.10 | around $0.30 |
+
+Even with S3 sync and logs, **AWS cost per job is usually well under a few tens of cents**. The dominant term is OpenAI.
+
+### 5.4 One deploy
+
+CodeBuild builds a Node + Python image (about 2 minutes in practice). Tokyo general1.small equivalent is about **$0.1–0.4 per run**. ECR overwrite and CloudFront invalidation add a little. Frequent redeploys can stand out more than everyday UI use.
+
+### 5.5 OpenAI (outside AWS, paid by each user)
+
+A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps.
+
+The app also tracks this. Each job records the model used, input/output tokens, and estimated cost. Totals and per-model breakdown appear on the project list, job breakdown in the chat header, and the admin screen. Estimates use the table in `packages/shared/src/pricing.ts` and may not match the OpenAI invoice (especially models missing from the table, shown as `$—`).
 
 ---
 
-## 7. コストを抑える実装
+## 6. Scenario comparison
 
-- Fargate Spot 優先、容量不足時だけ On-Demand。
-- `[QUESTION]` でタスク終了。回答までコンピュート課金ゼロ。
-- NAT / 独自ドメイン / Container Insights / PITR なし。
-- CloudFront Price Class 200。
-- ログ 14 日。未完了マルチパート 3 日で削除。
-- 同時実行上限で「気づかず何本も Spot が並ぶ」ことを防ぐ。
-- janitor: ハートビート 15 分途絶で自動リトライ最大 2 回、質問待ち 7 日・キュー 24 時間で FAILED。
-
----
-
-## 8. 監視と予算の運用
-
-推奨:
-
-1. **AWS Budgets** をアカウントに作成する（例: AWS 利用 $20 予測、$30 実績でメール）。
-2. Cost Explorer でサービス別に見る。急増の第一候補は **Fargate**、次が **CloudWatch Logs** と **CodeBuild**。
-3. ワーカーログ: スタック出力 `WorkerLogGroup`（現行例: `CobracAgents-WorkerLogsC1193B08-pBa5gactuB1r`）。
-4. ジョブのトークン使用量と推定料金は Jobs.usage / Jobs.costUsd、プロジェクト合算は Projects.usage / Projects.costUsd（OpenAI 側の明細と突き合わせる用）。AWS 料金とは別。
-
-未設定でもアプリは動く。ただし Budgets がないと、Spot フォールバックやログ急増に気づきにくい。
+| Scenario | AWS monthly feel | Comment |
+| -------- | ---------------- | ------- |
+| Dev only (deployed, almost no jobs) | $2–4 | KMS stands out |
+| Individual, 10 jobs/month | $4–8 | |
+| A few people, 50 jobs/month | $8–18 | Design target |
+| 50 jobs/month and Spot is unhealthy | $15–25 | A $30 Budget can detect this |
+| Change to include NAT | above +$32~ | Not recommended |
+| Always-on t3.medium | around $30 | Still billed while waiting. This architecture is cheaper |
 
 ---
 
-## 9. 環境変数（コストと規模に効くもの）
+## 7. Cost-control implementation
 
-`.env`（リポジトリには入れない。`.env.example` が雛形）。
-
-| 変数 | 既定 | 意味 |
-| ---- | ---- | ---- |
-| `COBRAC_ADMIN_EMAILS` | （必須） | 初回ログインで admin |
-| `COBRAC_SELF_SIGNUP` | true | false で招待制 |
-| `COBRAC_MAX_CONCURRENT_JOBS` | 2 | 全体の同時 Fargate 数 |
-| `COBRAC_MAX_CONCURRENT_JOBS_PER_USER` | 1 | ユーザーあたり |
-| `COBRAC_CODEX_MODEL` | 空 | 未指定時のモデル |
-| `COBRAC_CODEX_REASONING_EFFORT` | high | 未指定時の effort |
-
-同時実行を上げると Fargate が線形に増える。モデルを大きいものに固定すると OpenAI 側だけが増える。
+- Prefer Fargate Spot; On-Demand only when capacity is missing.
+- Exit the task on `[QUESTION]`. Zero compute charge until the answer.
+- No NAT / custom domain / Container Insights / PITR.
+- CloudFront Price Class 200.
+- Logs 14 days. Incomplete multipart uploads deleted after 3 days.
+- Concurrency caps prevent unnoticed piles of Spot tasks.
+- Janitor: auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue.
 
 ---
 
-## 10. 削除・残留コスト
+## 8. Monitoring and budget operations
 
-`cdk destroy` しても残るもの（保管料が微量でも続く）:
+Recommended:
 
-- KMS CMK（無効化〜待ち時間のあとでないと消えない）
+1. Create **AWS Budgets** on the account (example: email on $20 AWS forecast, $30 actual).
+2. Review Cost Explorer by service. First suspect for a spike is **Fargate**, then **CloudWatch Logs** and **CodeBuild**.
+3. Worker logs: stack output `WorkerLogGroup` (current example: `CobracAgents-WorkerLogsC1193B08-pBa5gactuB1r`).
+4. Job token usage and estimated cost are Jobs.usage / Jobs.costUsd; project totals are Projects.usage / Projects.costUsd (for reconciling OpenAI invoices). Separate from AWS charges.
+
+The app runs without these. Without Budgets, Spot fallback or a log spike is easy to miss.
+
+---
+
+## 9. Environment variables (cost and scale)
+
+`.env` (not in the repo; `.env.example` is the template).
+
+| Variable | Default | Meaning |
+| -------- | ------- | ------- |
+| `COBRAC_ADMIN_EMAILS` | (required) | Admin on first login |
+| `COBRAC_SELF_SIGNUP` | true | false for invite-only |
+| `COBRAC_MAX_CONCURRENT_JOBS` | 2 | Overall concurrent Fargate tasks |
+| `COBRAC_MAX_CONCURRENT_JOBS_PER_USER` | 1 | Per user |
+| `COBRAC_CODEX_MODEL` | empty | Model when unspecified |
+| `COBRAC_CODEX_REASONING_EFFORT` | high | Effort when unspecified |
+
+Raising concurrency grows Fargate linearly. Pinning a larger model grows only the OpenAI side.
+
+---
+
+## 10. Deletion and leftover cost
+
+These remain after `cdk destroy` (tiny storage charges continue):
+
+- KMS CMK (cannot be deleted until after disable + waiting period)
 - Cognito User Pool
 - DynamoDB Users / Projects / Jobs / Messages
-- S3 Artifacts（オブジェクトが残っているとバケット削除不可）
+- S3 Artifacts (bucket cannot be deleted while objects remain)
 
-捨てる手順の概略: 成果物バケットを空にする → テーブル削除 → User Pool 削除 → KMS を削除予約。ECR イメージと CloudWatch ロググループも確認する。
+Rough teardown: empty the artifacts bucket → delete tables → delete User Pool → schedule KMS deletion. Also check ECR images and CloudWatch log groups.
 
 ---
 
-## 11. 今後コストが増える変更
+## 11. Changes that would raise cost later
 
-| 変更 | 影響 |
-| ---- | ---- |
-| NAT + プライベートサブネット | 固定 +$32〜 |
-| PITR / バージョニング | 保管がおよそ倍近く |
-| ログを無期限・Insights | CloudWatch が主役になりうる |
-| 同時実行を 10 に | ピークの Fargate が 5 倍 |
-| 独自ドメイン + ACM | 金額は小さい。運用が増える |
+| Change | Impact |
+| ------ | ------ |
+| NAT + private subnets | Fixed +$32~ |
+| PITR / versioning | Storage roughly doubles |
+| Unlimited logs / Insights | CloudWatch can become the main cost |
+| Concurrency to 10 | Peak Fargate ×5 |
+| Custom domain + ACM | Small dollars. More operations |
 
-現状の「安さ」は、**使っていない時間にワーカーを落とすこと**と **NAT を置かないこと**に依存する。
+The current cheapness depends on **stopping workers when unused** and **not placing a NAT**.

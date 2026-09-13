@@ -9,6 +9,7 @@ import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
+import { useT } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { isActive } from "../lib/format";
@@ -24,6 +25,7 @@ export function ChatPage() {
 // ---------------------------------------------------------------------------
 
 function NewProject() {
+  const t = useT();
   const navigate = useNavigate();
   const { me } = useAuth();
   const [roi, setRoi] = useState("");
@@ -38,11 +40,11 @@ function NewProject() {
 
   useEffect(() => {
     if (idTouched) return;
-    const t = setTimeout(() => {
+    const id = setTimeout(() => {
       if (!roi && !tlf) return setProjectId("");
       api.proposeId(roi, tlf).then((r) => setProjectId(r.projectId)).catch(() => undefined);
     }, 400);
-    return () => clearTimeout(t);
+    return () => clearTimeout(id);
   }, [roi, tlf, idTouched]);
 
   useEffect(() => {
@@ -62,44 +64,50 @@ function NewProject() {
     }
   };
 
+  const [needKeyBefore, needKeyAfter] = t("chat.needKey").split("{settings}");
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center px-6">
         <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">新しい BRA データを作成</h1>
-          <p className="mt-1 text-sm text-slate-500">ROI（対象脳領域）と TLF（トップレベル機能）を指定してください。どちらか一方のみでも、エージェントが調査して補完します。</p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("chat.newTitle")}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t("chat.newHelp")}</p>
         </div>
         {!me?.apiKeyRegistered && (
           <div className="mb-4 w-full max-w-3xl rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-            OpenAI API キーが未登録です。<Link to="/settings" className="underline">設定画面</Link>で登録してください。
+            {needKeyBefore}
+            <Link to="/settings" className="underline">
+              {t("chat.settingsLink")}
+            </Link>
+            {needKeyAfter}
           </div>
         )}
         <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">ROI — 対象領域</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.roi")}</span>
               <textarea
                 value={roi}
                 onChange={(e) => setRoi(e.target.value)}
                 rows={3}
-                placeholder="例: 小脳フロキュラス（flocculus）"
+                placeholder={t("chat.roiPh")}
                 className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">TLF — トップレベル機能</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.tlf")}</span>
               <textarea
                 value={tlf}
                 onChange={(e) => setTlf(e.target.value)}
                 rows={3}
-                placeholder="例: 前庭動眼反射（VOR）の適応学習"
+                placeholder={t("chat.tlfPh")}
                 className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
             </label>
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Project ID（英数字・自動提案）</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.projectId")}</span>
               <input
                 value={projectId}
                 onChange={(e) => {
@@ -111,7 +119,7 @@ function NewProject() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Contributor</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.contributor")}</span>
               <input value={contributor} onChange={(e) => setContributor(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
             </label>
           </div>
@@ -123,7 +131,7 @@ function NewProject() {
                 setModel(v.model);
                 setEffort(v.effort);
               }}
-              defaultLabel="既定"
+              defaultLabel={t("model.default")}
             />
           </div>
           {err && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
@@ -133,13 +141,11 @@ function NewProject() {
               disabled={busy || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} 実行
+              {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} {t("chat.run")}
             </button>
           </div>
         </div>
-        <p className="mt-4 max-w-3xl text-center text-xs text-slate-400">
-          実行すると HCD → FRG → CSV → xlsx の順にエージェントが作業します（数時間かかることがあります）。途中でエージェントから質問がある場合はチャットで回答してください。
-        </p>
+        <p className="mt-4 max-w-3xl text-center text-xs text-slate-400">{t("chat.runHelp")}</p>
       </div>
     </div>
   );
@@ -150,6 +156,7 @@ function NewProject() {
 // ---------------------------------------------------------------------------
 
 function ProjectChat({ projectId }: { projectId: string }) {
+  const t = useT();
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [showUsage, setShowUsage] = useState(false);
@@ -171,9 +178,9 @@ function ProjectChat({ projectId }: { projectId: string }) {
       if (p.hasArtifacts) api.artifacts(projectId).then((a) => setArtifacts(a.items)).catch(() => undefined);
       setErr(null);
     } catch (e) {
-      setErr(e instanceof ApiError && e.status === 404 ? "プロジェクトが見つかりません" : e instanceof Error ? e.message : String(e));
+      setErr(e instanceof ApiError && e.status === 404 ? t("chat.notFound") : e instanceof Error ? e.message : String(e));
     }
-  }, [projectId]);
+  }, [projectId, t]);
 
   useEffect(() => {
     void load();
@@ -182,8 +189,8 @@ function ProjectChat({ projectId }: { projectId: string }) {
   // polling fallback while active
   useEffect(() => {
     if (!project || !isActive(project.status)) return;
-    const t = setInterval(load, 20_000);
-    return () => clearInterval(t);
+    const id = setInterval(load, 20_000);
+    return () => clearInterval(id);
   }, [project?.status, load, project]);
 
   useProjectSocket(projectId, (ev: WsServerEvent) => {
@@ -230,7 +237,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
   };
 
   if (err && !project) return <div className="p-6 text-sm text-rose-600">{err}</div>;
-  if (!project) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
+  if (!project) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
 
   const active = isActive(project.status);
 
@@ -245,10 +252,10 @@ function ProjectChat({ projectId }: { projectId: string }) {
             {project.hasArtifacts && (
               <>
                 <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
-                  <Network size={14} /> HCD グラフ
+                  <Network size={14} /> {t("chat.hcd")}
                 </Link>
                 <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
-                  <GitFork size={14} /> FRG グラフ
+                  <GitFork size={14} /> {t("chat.frg")}
                 </Link>
                 {xlsx && (
                   <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
@@ -259,27 +266,27 @@ function ProjectChat({ projectId }: { projectId: string }) {
             )}
             {active && (
               <button onClick={() => void act(() => api.cancel(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1.5 text-xs text-rose-700 hover:bg-rose-50 disabled:opacity-50">
-                <Square size={12} /> 停止
+                <Square size={12} /> {t("chat.stop")}
               </button>
             )}
             {(project.status === "FAILED" || project.status === "CANCELLED") && (
               <button onClick={() => void act(() => api.retry(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50">
-                <RotateCcw size={12} /> 続きからリトライ
+                <RotateCcw size={12} /> {t("chat.retry")}
               </button>
             )}
           </div>
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
           <span>
-            <b className="text-slate-700">ROI:</b> {project.roi || "(未指定)"}
+            <b className="text-slate-700">ROI:</b> {project.roi || t("unspecified")}
           </span>
           <span>
-            <b className="text-slate-700">TLF:</b> {project.tlf || "(未指定)"}
+            <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
           </span>
           <span className="font-mono">
-            <b className="font-sans text-slate-700">Model:</b> {project.model ?? "default"} / {project.reasoningEffort ?? "default"}
+            <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
           </span>
-          <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800" title="トークン使用量と推定料金の内訳を表示">
+          <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800" title={t("chat.usageTip")}>
             <UsageBadge usage={project.usage} costUsd={project.costUsd} model={project.usedModels?.join(", ") || project.model} />
             {showUsage ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
@@ -289,20 +296,22 @@ function ProjectChat({ projectId }: { projectId: string }) {
             <table className="w-full text-left text-[11px]">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="px-2 py-1 font-medium">ジョブ</th>
-                  <th className="px-2 py-1 font-medium">モデル</th>
-                  <th className="px-2 py-1 font-medium">状態</th>
-                  <th className="px-2 py-1 text-right font-medium">入力</th>
-                  <th className="px-2 py-1 text-right font-medium">(キャッシュ)</th>
-                  <th className="px-2 py-1 text-right font-medium">出力</th>
-                  <th className="px-2 py-1 text-right font-medium">(推論)</th>
-                  <th className="px-2 py-1 text-right font-medium">推定料金</th>
+                  <th className="px-2 py-1 font-medium">{t("chat.job")}</th>
+                  <th className="px-2 py-1 font-medium">{t("chat.model")}</th>
+                  <th className="px-2 py-1 font-medium">{t("chat.state")}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t("projects.input")}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t("chat.cached")}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t("projects.output")}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t("chat.reasoning")}</th>
+                  <th className="px-2 py-1 text-right font-medium">{t("projects.estCost")}</th>
                 </tr>
               </thead>
               <tbody className="font-mono">
                 {jobs.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-2 py-2 text-center font-sans text-slate-400">ジョブがありません</td>
+                    <td colSpan={8} className="px-2 py-2 text-center font-sans text-slate-400">
+                      {t("chat.noJobs")}
+                    </td>
                   </tr>
                 )}
                 {jobs.map((j) => (
@@ -310,7 +319,10 @@ function ProjectChat({ projectId }: { projectId: string }) {
                     <td className="px-2 py-1">
                       {j.type} <span className="text-slate-400">{j.jobId.slice(0, 8)}</span>
                     </td>
-                    <td className="px-2 py-1">{j.model ?? "—"}{j.reasoningEffort ? ` / ${j.reasoningEffort}` : ""}</td>
+                    <td className="px-2 py-1">
+                      {j.model ?? "—"}
+                      {j.reasoningEffort ? ` / ${j.reasoningEffort}` : ""}
+                    </td>
                     <td className="px-2 py-1 font-sans">{j.status}</td>
                     <td className="px-2 py-1 text-right">{(j.usage?.inputTokens ?? 0).toLocaleString()}</td>
                     <td className="px-2 py-1 text-right text-slate-400">{(j.usage?.cachedInputTokens ?? 0).toLocaleString()}</td>
@@ -321,7 +333,9 @@ function ProjectChat({ projectId }: { projectId: string }) {
                 ))}
                 {jobs.length > 0 && (
                   <tr className="border-t border-slate-300 bg-white font-semibold">
-                    <td className="px-2 py-1 font-sans" colSpan={3}>合計</td>
+                    <td className="px-2 py-1 font-sans" colSpan={3}>
+                      {t("chat.total")}
+                    </td>
                     <td className="px-2 py-1 text-right">{(project.usage?.inputTokens ?? 0).toLocaleString()}</td>
                     <td className="px-2 py-1 text-right text-slate-400">{(project.usage?.cachedInputTokens ?? 0).toLocaleString()}</td>
                     <td className="px-2 py-1 text-right">{(project.usage?.outputTokens ?? 0).toLocaleString()}</td>
@@ -331,7 +345,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
                 )}
               </tbody>
             </table>
-            <div className="px-2 py-1 font-sans text-[10px] text-slate-400">料金は OpenAI 公開単価（{PRICING_AS_OF} 時点）に基づく推定値です。実際の請求額は OpenAI ダッシュボードで確認してください。</div>
+            <div className="px-2 py-1 font-sans text-[10px] text-slate-400">{t("chat.costNote", { date: PRICING_AS_OF })}</div>
           </div>
         )}
         <div className="mt-2">
@@ -347,7 +361,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
         ))}
         {active && project.status !== "WAITING_USER_INPUT" && (
           <div className="flex items-center gap-2 pl-9 text-xs text-slate-400">
-            <Loader2 size={12} className="animate-spin" /> エージェントが作業中…
+            <Loader2 size={12} className="animate-spin" /> {t("chat.working")}
           </div>
         )}
         <div ref={bottomRef} />
@@ -373,17 +387,15 @@ function ProjectChat({ projectId }: { projectId: string }) {
               value={followup}
               onChange={(e) => setFollowup(e.target.value)}
               rows={2}
-              placeholder="フォローアップ指示を入力（例: ○○の UC を追加し、Connection を再検討して CSV を再生成してください）"
+              placeholder={t("chat.followupPh")}
               className="flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
             <button type="submit" disabled={busy || !followup.trim()} className="flex items-center gap-1 self-end rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              <Send size={14} /> 送信
+              <Send size={14} /> {t("send")}
             </button>
           </form>
         ) : (
-          <div className="text-center text-xs text-slate-400">
-            {active ? "実行中はフォローアップできません。完了後にチャットで修正指示を送れます。" : "失敗・中止したプロジェクトは「続きからリトライ」で再開できます。"}
-          </div>
+          <div className="text-center text-xs text-slate-400">{active ? t("chat.noFollowupActive") : t("chat.noFollowupIdle")}</div>
         )}
       </footer>
     </div>

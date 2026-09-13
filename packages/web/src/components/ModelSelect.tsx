@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ReasoningEffort } from "@cobrac/shared";
-import { REASONING_EFFORTS, REASONING_EFFORT_LABEL } from "@cobrac/shared";
+import { REASONING_EFFORTS } from "@cobrac/shared";
+import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 
 const CUSTOM = "__custom__";
@@ -14,13 +15,15 @@ interface Props {
   model: string | null;
   effort: ReasoningEffort | null;
   onChange: (v: { model: string | null; effort: ReasoningEffort | null }) => void;
-  /** Label for the "default" option, e.g. "既定（ユーザー設定）" */
+  /** Label for the "default" option */
   defaultLabel?: string;
   compact?: boolean;
 }
 
 /** Model + reasoning-effort picker. Model list comes from the user's registered OpenAI key. */
-export function ModelSelect({ model, effort, onChange, defaultLabel = "既定", compact = false }: Props) {
+export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false }: Props) {
+  const t = useT();
+  const fallbackLabel = defaultLabel ?? t("model.default");
   const [models, setModels] = useState<string[]>([]);
   const [priced, setPriced] = useState<string[]>([]);
   const [envDefault, setEnvDefault] = useState<string | null>(null);
@@ -44,7 +47,7 @@ export function ModelSelect({ model, effort, onChange, defaultLabel = "既定", 
   return (
     <div className={`grid gap-4 ${compact ? "" : "md:grid-cols-2"}`}>
       <label className="block">
-        <span className={lbl}>モデル</span>
+        <span className={lbl}>{t("model.label")}</span>
         <select
           value={custom ? CUSTOM : model ?? ""}
           onChange={(e) => {
@@ -58,31 +61,35 @@ export function ModelSelect({ model, effort, onChange, defaultLabel = "既定", 
           }}
           className={sel}
         >
-          <option value="">{defaultLabel}{envDefault ? `（${envDefault}）` : "（Codex 既定）"}</option>
+          <option value="">
+            {fallbackLabel}
+            {envDefault ? t("model.defaultWith", { model: envDefault }) : t("model.codexDefault")}
+          </option>
           {models.map((m) => (
             <option key={m} value={m}>
-              {m}{priced.length > 0 && !isPriced(m, priced) ? "（単価未登録）" : ""}
+              {m}
+              {priced.length > 0 && !isPriced(m, priced) ? t("model.unpriced") : ""}
             </option>
           ))}
-          <option value={CUSTOM}>その他（手入力）…</option>
+          <option value={CUSTOM}>{t("model.custom")}</option>
         </select>
         {custom && (
           <input
             value={model ?? ""}
             onChange={(e) => onChange({ model: e.target.value.trim() || null, effort })}
-            placeholder="例: gpt-5.5"
+            placeholder={t("model.customPh")}
             className={`${sel} mt-2 font-mono`}
           />
         )}
-        {models.length === 0 && <span className="mt-1 block text-[11px] text-slate-400">API キーを登録すると利用可能なモデル一覧が表示されます</span>}
+        {models.length === 0 && <span className="mt-1 block text-[11px] text-slate-400">{t("model.needKey")}</span>}
       </label>
       <label className="block">
-        <span className={lbl}>Reasoning effort</span>
+        <span className={lbl}>{t("model.effort")}</span>
         <select value={effort ?? ""} onChange={(e) => onChange({ model, effort: (e.target.value || null) as ReasoningEffort | null })} className={sel}>
-          <option value="">{defaultLabel}</option>
+          <option value="">{fallbackLabel}</option>
           {REASONING_EFFORTS.map((x) => (
             <option key={x} value={x}>
-              {REASONING_EFFORT_LABEL[x]}
+              {t(`effort.${x}` as MessageKey)}
             </option>
           ))}
         </select>

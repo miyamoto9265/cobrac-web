@@ -92,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       doSignIn: async (e, p) => {
         const r = await signIn({ username: e, password: p });
         if (r.nextStep.signInStep === "CONFIRM_SIGN_UP") throw new Error("CONFIRM_SIGN_UP");
-        if (!r.isSignedIn) throw new Error(`追加ステップが必要です: ${r.nextStep.signInStep}`);
+        if (!r.isSignedIn) throw new Error(`Additional sign-in step required: ${r.nextStep.signInStep}`);
         await check();
       },
       doSignUp: async (e, p) => {

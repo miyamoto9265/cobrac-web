@@ -1,15 +1,5 @@
 import type { ProjectStatus, WorkflowStep } from "@cobrac/shared";
 
-export const STATUS_LABEL: Record<ProjectStatus, string> = {
-  QUEUED: "待機中",
-  RUNNING: "実行中",
-  WAITING_USER_INPUT: "回答待ち",
-  FINALIZING: "仕上げ中",
-  COMPLETED: "完了",
-  FAILED: "失敗",
-  CANCELLED: "中止",
-};
-
 export const STATUS_COLOR: Record<ProjectStatus, string> = {
   QUEUED: "bg-slate-200 text-slate-700",
   RUNNING: "bg-blue-100 text-blue-700",
@@ -22,10 +12,11 @@ export const STATUS_COLOR: Record<ProjectStatus, string> = {
 
 export const STEP_LABEL: Record<WorkflowStep, string> = { HCD: "HCD", FRG: "FRG", CSV: "CSV", XLSX: "xlsx" };
 
-export function fmtDate(iso: string | null | undefined): string {
+export function fmtDate(iso: string | null | undefined, locale: string = "en"): string {
   if (!iso) return "-";
   const d = new Date(iso);
-  return d.toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const tag = locale === "ja" ? "ja-JP" : "en-US";
+  return d.toLocaleString(tag, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
 export function fmtBytes(n: number): string {

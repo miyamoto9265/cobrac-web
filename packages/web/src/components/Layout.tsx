@@ -2,12 +2,14 @@ import { BookOpen, FolderKanban, LogOut, MessageSquarePlus, Settings, Shield } f
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
+import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { StatusBadge } from "./StatusBadge";
 
 export function Layout() {
+  const t = useT();
   const { me, doSignOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,8 +23,8 @@ export function Layout() {
   }, [location.pathname]);
 
   useEffect(() => {
-    const t = setInterval(reload, 30_000);
-    return () => clearInterval(t);
+    const id = setInterval(reload, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
@@ -40,12 +42,12 @@ export function Layout() {
             onClick={() => navigate("/chat")}
             className="flex w-full items-center gap-2 rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
           >
-            <MessageSquarePlus size={16} /> 新規プロジェクト
+            <MessageSquarePlus size={16} /> {t("nav.newProject")}
           </button>
         </div>
-        <div className="mt-3 px-3 text-xs uppercase tracking-wide text-slate-500">履歴</div>
+        <div className="mt-3 px-3 text-xs uppercase tracking-wide text-slate-500">{t("nav.history")}</div>
         <nav className="flex-1 overflow-y-auto px-2 py-1">
-          {projects.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">まだプロジェクトがありません</div>}
+          {projects.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
           {projects.map((p) => (
             <button
               key={p.projectId}
@@ -65,22 +67,25 @@ export function Layout() {
         </nav>
         <div className="border-t border-slate-800 p-2">
           <NavLink to="/projects" className={navCls}>
-            <FolderKanban size={16} /> プロジェクト一覧
+            <FolderKanban size={16} /> {t("nav.projects")}
           </NavLink>
           <NavLink to="/settings" className={navCls}>
-            <Settings size={16} /> 設定
+            <Settings size={16} /> {t("nav.settings")}
           </NavLink>
           <NavLink to="/docs" className={navCls}>
-            <BookOpen size={16} /> ドキュメント
+            <BookOpen size={16} /> {t("nav.docs")}
           </NavLink>
           {me?.role === "admin" && (
             <NavLink to="/admin" className={navCls}>
-              <Shield size={16} /> 管理
+              <Shield size={16} /> {t("nav.admin")}
             </NavLink>
           )}
           <button onClick={() => void doSignOut()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60">
-            <LogOut size={16} /> ログアウト
+            <LogOut size={16} /> {t("nav.signOut")}
           </button>
+          <div className="px-3 pt-1">
+            <LanguageSelect />
+          </div>
           <div className="truncate px-3 pt-1 text-xs text-slate-500">{me?.email}</div>
           <Link to="/docs/CHANGELOG" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
             {APP_VERSION_LABEL}

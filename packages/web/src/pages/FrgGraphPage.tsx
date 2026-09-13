@@ -4,13 +4,15 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { FrgGraph, FrgNodeKind } from "@cobrac/shared";
 import { DetailPanel, Field, Section } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GNode } from "../components/GraphCanvas";
+import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useGraphLayout } from "../lib/useGraphLayout";
 
 const KIND_COLOR: Record<FrgNodeKind, string> = { tlf: "#fde68a", gn: "#e9d5ff", uc: "#dbeafe" };
-const KIND_LABEL: Record<FrgNodeKind, string> = { tlf: "TLF（最上位機能）", gn: "GN（グループノード）", uc: "UC（Uniform Circuit）" };
+const KIND_KEYS: FrgNodeKind[] = ["tlf", "gn", "uc"];
 
 export function FrgGraphPage() {
+  const t = useT();
   const { projectId = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const [graph, setGraph] = useState<FrgGraph | null>(null);
@@ -47,13 +49,13 @@ export function FrgGraphPage() {
         .map((n) => ({
           id: n.id,
           label: n.id,
-          sublabel: n.kind === "uc" ? undefined : collapsed.has(n.id) ? `▸ ${n.subnodes.length} 子ノード（折りたたみ）` : `L${n.level}`,
+          sublabel: n.kind === "uc" ? undefined : collapsed.has(n.id) ? t("graph.collapsedN", { n: n.subnodes.length }) : `L${n.level}`,
           color: KIND_COLOR[n.kind],
           shape: n.kind === "uc" ? "pill" : "rect",
           width: n.kind === "uc" ? 120 : 200,
           height: n.kind === "uc" ? 36 : 44,
         })) ?? [],
-    [graph, visible, collapsed],
+    [graph, visible, collapsed, t],
   );
   const edges = useMemo<GEdge[]>(() => graph?.edges.filter((e) => visible.has(e.source) && visible.has(e.target)).map((e) => ({ id: e.id, source: e.source, target: e.target })) ?? [], [graph, visible]);
 
@@ -66,14 +68,14 @@ export function FrgGraphPage() {
       return next;
     });
 
-  if (err) return <div className="p-6 text-sm text-rose-600">FRG グラフを読み込めませんでした: {err}</div>;
-  if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">読み込み中…</div>;
+  if (err) return <div className="p-6 text-sm text-rose-600">{t("graph.frgFail", { err })}</div>;
+  if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">{t("graph.loading")}</div>;
 
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
         <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
-          <ArrowLeft size={14} /> チャットへ
+          <ArrowLeft size={14} /> {t("graph.backChat")}
         </Link>
         <h1 className="font-mono text-sm font-semibold">{projectId}</h1>
         <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">FRG</span>
@@ -81,10 +83,10 @@ export function FrgGraphPage() {
           {graph.nodes.filter((n) => n.kind !== "uc").length} GN · {graph.nodes.filter((n) => n.kind === "uc").length} UC
         </span>
         <button onClick={() => setCollapsed(new Set())} className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-          すべて展開
+          {t("graph.expandAll")}
         </button>
         <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-          <Network size={13} /> HCD へ
+          <Network size={13} /> {t("graph.toHcd")}
         </Link>
       </header>
       <div className="flex min-h-0 flex-1">
@@ -97,18 +99,18 @@ export function FrgGraphPage() {
             onSelect={select}
             layout={layout}
             exportName={`${projectId}_FRG`}
-            legend={(Object.keys(KIND_LABEL) as FrgNodeKind[]).map((k) => ({ color: KIND_COLOR[k], label: KIND_LABEL[k] }))}
+            legend={KIND_KEYS.map((k) => ({ color: KIND_COLOR[k], label: t(`frg.${k}` as MessageKey) }))}
           />
         </div>
         {node && (
-          <DetailPanel title={node.id} subtitle={KIND_LABEL[node.kind]} onClose={() => select(null)}>
+          <DetailPanel title={node.id} subtitle={t(`frg.${node.kind}` as MessageKey)} onClose={() => select(null)}>
             {node.kind !== "uc" && node.subnodes.length > 0 && (
               <button onClick={() => toggleCollapse(node.id)} className="mb-3 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
-                {collapsed.has(node.id) ? "子ノードを展開" : "子ノードを折りたたむ"}
+                {collapsed.has(node.id) ? t("graph.expand") : t("graph.collapse")}
               </button>
             )}
             <Field label="Comment" value={node.comments} />
-            <Section title="構造" />
+            <Section title={t("graph.structure")} />
             <Field label="Level" value={String(node.level)} />
             {node.parents.length > 0 && (
               <div className="mb-3">
@@ -145,7 +147,7 @@ export function FrgGraphPage() {
                 <Field label="Output Semantics" value={node.outputSemantics} />
                 <div className="mt-4">
                   <Link to={`/projects/${encodeURIComponent(projectId)}/hcd?node=${encodeURIComponent(node.circuitId ?? "")}`} className="text-xs text-blue-600 hover:underline">
-                    HCD でこの UC を表示 →
+                    {t("graph.openInHcd")}
                   </Link>
                 </div>
               </>

@@ -2,6 +2,7 @@ import { BookOpen } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
+import { useT, type MessageKey } from "../i18n";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 
 // Markdown documents are bundled at build time from the repository root (see vite.config.ts server.fs.allow).
@@ -19,7 +20,11 @@ interface Doc {
 }
 
 const REPO_ORDER: Record<string, number> = { CHANGELOG: 0, README: 1, AGENTS: 2 };
-const REPO_TITLE: Record<string, string> = { CHANGELOG: "リリースノート", README: "README", AGENTS: "AGENTS.md（作業規約）" };
+const REPO_TITLE_KEY: Record<string, MessageKey> = {
+  CHANGELOG: "docs.changelog",
+  README: "docs.readme",
+  AGENTS: "docs.agents",
+};
 
 const DOCS: Doc[] = Object.entries(files)
   .map(([path, text]) => {
@@ -28,7 +33,7 @@ const DOCS: Doc[] = Object.entries(files)
     const h1 = text.match(/^#\s+(.+)$/m)?.[1]?.trim();
     return {
       slug: base,
-      title: isRepo ? REPO_TITLE[base] : h1 ?? base.replace(/^\d+_/, ""),
+      title: isRepo ? base : h1 ?? base.replace(/^\d+_/, ""),
       text,
       group: isRepo ? "repo" : "docs",
       order: isRepo ? REPO_ORDER[base] : Number(base.match(/^(\d+)_/)?.[1] ?? 99),
@@ -37,6 +42,7 @@ const DOCS: Doc[] = Object.entries(files)
   .sort((a, b) => (a.group === b.group ? a.order - b.order : a.group === "docs" ? -1 : 1));
 
 export function DocsPage() {
+  const t = useT();
   const { slug } = useParams();
   const doc = useMemo(() => DOCS.find((d) => d.slug === slug) ?? DOCS[0], [slug]);
 
@@ -45,22 +51,23 @@ export function DocsPage() {
   }, [slug]);
 
   const linkCls = (d: Doc) => `block rounded-md px-3 py-1.5 text-sm ${d.slug === doc?.slug ? "bg-blue-50 font-medium text-blue-700" : "text-slate-700 hover:bg-slate-100"}`;
+  const repoTitle = (d: Doc) => (REPO_TITLE_KEY[d.slug] ? t(REPO_TITLE_KEY[d.slug]) : d.title);
 
   return (
     <div className="flex h-full">
       <nav className="w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3">
         <div className="mb-2 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
-          <BookOpen size={14} /> ドキュメント
+          <BookOpen size={14} /> {t("docs.title")}
         </div>
         {DOCS.filter((d) => d.group === "docs").map((d) => (
           <Link key={d.slug} to={`/docs/${encodeURIComponent(d.slug)}`} className={linkCls(d)}>
             {d.title}
           </Link>
         ))}
-        <div className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">リポジトリ</div>
+        <div className="mb-2 mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("docs.repo")}</div>
         {DOCS.filter((d) => d.group === "repo").map((d) => (
           <Link key={d.slug} to={`/docs/${encodeURIComponent(d.slug)}`} className={linkCls(d)}>
-            {d.title}
+            {repoTitle(d)}
           </Link>
         ))}
         <div className="mt-6 px-3 text-[11px] text-slate-400">
@@ -74,7 +81,7 @@ export function DocsPage() {
             <Markdown text={doc.text} className="docs" />
           </article>
         ) : (
-          <div className="p-6 text-sm text-slate-500">ドキュメントがありません</div>
+          <div className="p-6 text-sm text-slate-500">{t("docs.empty")}</div>
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Layout } from "./components/Layout";
+import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
 import { AdminPage } from "./pages/AdminPage";
 import { ChatPage } from "./pages/ChatPage";
@@ -12,10 +13,11 @@ import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   const { ready, signedIn } = useAuth();
+  const t = useT();
   if (!ready) {
     return (
       <div className="flex h-full items-center justify-center text-slate-500">
-        <div className="animate-pulse">読み込み中…</div>
+        <div className="animate-pulse">{t("loading")}</div>
       </div>
     );
   }

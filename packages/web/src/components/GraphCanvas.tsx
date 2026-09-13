@@ -21,6 +21,7 @@ import { toPng } from "html-to-image";
 import { Check, Grid3x3, ImageDown, LayoutGrid, Loader2, Redo2, TriangleAlert, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EdgeSign, EdgeStyle } from "@cobrac/shared";
+import { useT } from "../i18n";
 import type { GraphLayoutController, XY } from "../lib/useGraphLayout";
 import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
 import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
@@ -98,6 +99,7 @@ function autoHandles(a: XY & Size, b: XY & Size): { source: string; target: stri
 }
 
 function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, onSelectEdge, legend, highlightIds, layout, showLabels = false, exportName = "graph", headerExtra }: Props) {
+  const t = useT();
   const rf = useReactFlow();
   const [search, setSearch] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
@@ -342,31 +344,31 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
       <MiniMap pannable zoomable nodeColor={(n) => (n.data as NodeData).style?.color ?? (n.data as NodeData).g.color} className="!bg-white" />
 
       <Panel position="top-left" className="flex flex-wrap items-center gap-2">
-        <input value={search} onChange={(e) => doSearch(e.target.value)} placeholder="ノード検索…" className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-        <button onClick={layout.undo} disabled={!layout.canUndo} className={btn} title="元に戻す (Ctrl+Z)">
+        <input value={search} onChange={(e) => doSearch(e.target.value)} placeholder={t("graph.search")} className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+        <button onClick={layout.undo} disabled={!layout.canUndo} className={btn} title={t("graph.undo")}>
           <Undo2 size={12} />
         </button>
-        <button onClick={layout.redo} disabled={!layout.canRedo} className={btn} title="やり直す (Ctrl+Shift+Z)">
+        <button onClick={layout.redo} disabled={!layout.canRedo} className={btn} title={t("graph.redo")}>
           <Redo2 size={12} />
         </button>
-        <button onClick={() => setSnap((v) => !v)} className={`${btn} ${snap ? "!border-blue-400 !bg-blue-50 text-blue-700" : ""}`} title="グリッドにスナップ">
-          <Grid3x3 size={12} /> スナップ
+        <button onClick={() => setSnap((v) => !v)} className={`${btn} ${snap ? "!border-blue-400 !bg-blue-50 text-blue-700" : ""}`} title={t("graph.snapTip")}>
+          <Grid3x3 size={12} /> {t("graph.snap")}
         </button>
         <button
           onClick={() => {
             const next = direction === "TB" ? "LR" : "TB";
-            if (!layout.hasCustom || window.confirm("ノード位置を自動レイアウトで再配置します（スタイルは保持）。よろしいですか？")) {
+            if (!layout.hasCustom || window.confirm(t("graph.relayoutConfirm"))) {
               setDirection(next);
               layout.resetPositions();
             }
           }}
           className={btn}
-          title="自動レイアウトの向きを切り替えて再配置"
+          title={t("graph.relayoutTip")}
         >
-          <LayoutGrid size={12} /> 整列 {direction === "TB" ? "↓" : "→"}
+          <LayoutGrid size={12} /> {t("graph.align")} {direction === "TB" ? "↓" : "→"}
         </button>
-        <button onClick={() => void exportPng()} disabled={exporting} className={btn} title="PNG 画像として保存">
-          {exporting ? <Loader2 size={12} className="animate-spin" /> : <ImageDown size={12} />} PNG
+        <button onClick={() => void exportPng()} disabled={exporting} className={btn} title={t("graph.pngTip")}>
+          {exporting ? <Loader2 size={12} className="animate-spin" /> : <ImageDown size={12} />} {t("graph.png")}
         </button>
         {headerExtra}
       </Panel>
@@ -375,30 +377,30 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
         <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[11px] text-slate-600 shadow-sm">
           {layout.saving === "saving" && (
             <span className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin" /> 保存中…
+              <Loader2 size={11} className="animate-spin" /> {t("graph.saving")}
             </span>
           )}
           {layout.saving === "saved" && (
             <span className="flex items-center gap-1 text-emerald-700">
-              <Check size={11} /> 保存しました
+              <Check size={11} /> {t("graph.saved")}
             </span>
           )}
           {layout.saving === "error" && (
             <span className="flex items-center gap-1 text-rose-700">
-              <TriangleAlert size={11} /> 保存に失敗
+              <TriangleAlert size={11} /> {t("graph.saveFail")}
             </span>
           )}
-          {layout.saving === "idle" && <span className="text-slate-400">{layout.hasCustom ? "配置・スタイルは自動保存" : "ノード・エッジをクリックして編集"}</span>}
+          {layout.saving === "idle" && <span className="text-slate-400">{layout.hasCustom ? t("graph.autoSave") : t("graph.clickEdit")}</span>}
           <button
             type="button"
             onClick={() => {
-              if (window.confirm("保存した配置とスタイルをすべて破棄して既定に戻しますか？")) void layout.reset();
+              if (window.confirm(t("graph.resetConfirm"))) void layout.reset();
             }}
             disabled={!layout.hasCustom || layout.saving === "saving"}
             className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-50 disabled:opacity-40"
-            title="配置とスタイルをすべて既定に戻す"
+            title={t("graph.resetTip")}
           >
-            すべてリセット
+            {t("graph.resetAll")}
           </button>
         </div>
       </Panel>
@@ -441,7 +443,7 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
 
       {legend && (
         <Panel position="bottom-left" className="rounded-md border border-slate-200 bg-white/90 p-2 text-[11px] shadow-sm">
-          <div className="mb-1 font-semibold text-slate-600">凡例</div>
+          <div className="mb-1 font-semibold text-slate-600">{t("graph.legend")}</div>
           {legend.map((l) => (
             <div key={l.label} className="flex items-center gap-1.5">
               {l.kind === "edge" ? (

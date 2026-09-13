@@ -1,6 +1,7 @@
 import { BaseEdge, EdgeLabelRenderer, Position, getBezierPath, getSmoothStepPath, getStraightPath, useReactFlow, type Edge, type EdgeProps } from "@xyflow/react";
 import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArrowHead, EdgeLineType, EdgeSign, EdgeStyle } from "@cobrac/shared";
+import { useT } from "../../i18n";
 import { markerUrl } from "./markers";
 
 export type XY = { x: number; y: number };
@@ -187,6 +188,7 @@ const EDITABLE: EdgeLineType[] = ["orthogonal", "polyline"];
 // ---------------------------------------------------------------------------
 
 function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, selected }: EdgeProps<StyledEdgeType>) {
+  const t = useT();
   const rf = useReactFlow();
   const d = data!;
   const s = d.style;
@@ -289,7 +291,7 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
               className="nodrag nopan absolute flex h-3.5 w-3.5 cursor-copy items-center justify-center rounded-full border border-blue-500 bg-white text-[10px] font-bold leading-none text-blue-600 shadow"
               style={{ transform: `translate(-50%, -50%) translate(${m.x}px, ${m.y}px)`, pointerEvents: "all", zIndex: 1000 }}
               onPointerDown={(e) => beginDrag(e, m.insertAt, m.insertAt)}
-              title="ドラッグして折れ点を追加"
+              title={t("edge.addBend")}
             >
               +
             </div>
@@ -304,7 +306,7 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
                 e.stopPropagation();
                 removeWaypoint(i);
               }}
-              title="ドラッグで移動 / ダブルクリックで削除"
+              title={t("edge.moveBend")}
             />
           ))}
         </EdgeLabelRenderer>

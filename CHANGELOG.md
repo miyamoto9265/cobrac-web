@@ -1,77 +1,86 @@
-# リリースノート
+# Release notes
 
-CoBRAC Agents の変更履歴。形式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/)、バージョンは [Semantic Versioning](https://semver.org/lang/ja/) に従う。
-`[Unreleased]` に変更を書き溜め、デプロイ時に `npm run release <patch|minor|major>` で版番号を確定する（手順は `AGENTS.md`）。
+Change history for CoBRAC Agents. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/).
+Accumulate changes under `[Unreleased]`, then finalize the version at deploy time with `npm run release <patch|minor|major>` (see `AGENTS.md`).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-13
+
+### Added
+- UI language switcher (English default, Japanese). Choice is stored in the browser
+- In-app documentation is English only (`docs/`, README, this changelog)
+
+### Changed
+- Default UI language is English
+
 ## [0.2.1] - 2026-09-13
 
-### 修正
-- エッジ選択時の端点ハンドルを小さくした（半径 10 → 3.5）
+### Fixed
+- Made endpoint handles smaller when an edge is selected (radius 10 → 3.5)
 
 ## [0.2.0] - 2026-09-13
 
-### 追加
-- HCD / FRG グラフでエッジをクリックしてスタイルを編集（線種・色・太さ・破線・角丸・始点/終点の矢印）。draw.io 相当の線種として曲線・直線・直角（自動）・**直角（折れ点を何個でも追加）**・折れ線を選択可能
-- 直角・折れ線エッジは線上の「+」をドラッグして折れ点を追加し、折れ点のドラッグ移動・ダブルクリック削除ができる
-- エッジ両端をノード辺上のハンドルへドラッグして、起点・終点の位置を調節
-- ノードを四隅・辺のハンドルで自由にリサイズ。塗りと枠線の色も変更可能
-- 抑制性投射は既定で青・終点四角、興奮性は灰・三角矢印、修飾性は紫破線・丸。凡例に投射分類を表示
-- 同じ分類のエッジへスタイルを一括適用、Undo/Redo（Ctrl+Z / Ctrl+Y）、グリッドスナップ、向きを切り替えて再整列、PNG 書き出し
-- 配置・サイズ・スタイル・折れ点はプロジェクトごとに自動保存（`graph/{kind}.layout.json`）
+### Added
+- Click an edge on HCD / FRG graphs to edit style (line type, color, width, dash, corner radius, start/end markers). Line types comparable to draw.io: curve, straight, orthogonal (auto), **orthogonal (add as many waypoints as needed)**, and polyline
+- Orthogonal and polyline edges can add waypoints by dragging “+” on the path, move waypoints by dragging, and delete them with a double-click
+- Drag both ends of an edge onto handles on the node sides to adjust start and end positions
+- Freely resize nodes from corner and edge handles. Fill and border colors are also editable
+- Inhibitory projections default to blue with a square end; excitatory to gray with a triangle arrow; modulatory to purple dashed with a circle. The legend shows projection classes
+- Apply style in bulk to edges of the same class, Undo/Redo (Ctrl+Z / Ctrl+Y), grid snap, flip direction and re-layout, PNG export
+- Position, size, style, and waypoints are auto-saved per project (`graph/{kind}.layout.json`)
 
-### 変更
-- HCD エッジの既定線種を直角（折れ点編集可）に変更。曲線はスタイルパネルから選べる
+### Changed
+- Default HCD edge line type is now orthogonal (waypoints editable). Curve remains available from the style panel
 
 ## [0.1.3] - 2026-09-13
 
-### 追加
-- サイドバー下部にアプリのバージョン（`vX.Y.Z · コミット短縮ハッシュ`）を表示。API の `GET /health` もバージョンを返す
-- `docs/` 配下の設計・セキュリティ・インフラ文書、README、本リリースノートをサイト内「ドキュメント」ページ（`/docs`）から閲覧可能に
-- HCD / FRG グラフのノードをドラッグで移動でき、位置をプロジェクトごとに保存（S3 `graph/{hcd,frg}.layout.json`）。「配置をリセット」で自動レイアウトに戻す
-- リリース手順の自動化: `scripts/release.mjs`（版番号の一括更新・CHANGELOG の確定・git tag）、`AGENTS.md` にバージョニング規約を明記
+### Added
+- App version in the sidebar footer (`vX.Y.Z · short commit hash`). `GET /health` also returns the version
+- Design, security, and infrastructure docs under `docs/`, plus README and these release notes, are readable from the in-site Documentation page (`/docs`)
+- HCD / FRG graph nodes can be dragged; positions are saved per project (S3 `graph/{hcd,frg}.layout.json`). “Reset layout” restores the automatic layout
+- Automated release steps: `scripts/release.mjs` (bulk version bump, CHANGELOG finalization, git tag); versioning rules documented in `AGENTS.md`
 
-### 変更
-- リポジトリ名を `cobrac-web` に変更（GitHub: `miyamoto9265/cobrac-web`）。アプリ名は引き続き「CoBRAC Agents」
-- `npm run deploy` は版番号と CHANGELOG の整合チェック（`release:check`）を通ってからビルド・デプロイする
+### Changed
+- Repository renamed to `cobrac-web` (GitHub: `miyamoto9265/cobrac-web`). App name remains “CoBRAC Agents”
+- `npm run deploy` runs a version / CHANGELOG consistency check (`release:check`) before build and deploy
 
 ## [0.1.2] - 2026-09-13
 
-### 追加
-- ジョブごとに使用モデル・入出力トークン数・推定料金（USD）を記録し、プロジェクト単位に合算
-- プロジェクト一覧に合計料金カードとモデル別内訳、各行にモデル／トークン／料金列
-- チャット画面ヘッダーにトークン／料金バッジ。クリックでジョブ別内訳表を表示
-- 管理画面のプロジェクト表にモデル・料金列
-- `GET /users/me/usage`（合計／モデル別／プロジェクト別集計）、`GET /users/me/models` に単価表登録済みモデル一覧を追加
-- `packages/shared/src/pricing.ts` に OpenAI 単価表（USD / 1M tokens）と `estimateCostUsd()`
+### Added
+- Record model used, input/output token counts, and estimated cost (USD) per job, and roll them up per project
+- Project list: total-cost card and per-model breakdown; model / tokens / cost columns on each row
+- Chat header: token / cost badges. Click to open a per-job breakdown table
+- Admin project table: model and cost columns
+- `GET /users/me/usage` (totals / by model / by project); `GET /users/me/models` now includes models present in the rate table
+- OpenAI rate table (USD / 1M tokens) and `estimateCostUsd()` in `packages/shared/src/pricing.ts`
 
-### 変更
-- プロジェクト作成時に必ず具体的なモデル名を確定する（指定 → ユーザー既定 → `CODEX_MODEL` → `gpt-5.3-codex`）。「Codex 既定」の不明モデルが残らないようにした
+### Changed
+- Project create always resolves a concrete model name (specified → user default → `CODEX_MODEL` → `gpt-5.3-codex`). An unknown “Codex default” model is no longer left behind
 
 ## [0.1.1] - 2026-09-13
 
-### 追加
-- Codex モデルと reasoning effort をプロジェクト作成時に選択可能に。設定画面でユーザー既定値を保存
-- API キー登録時に OpenAI の `/v1/models` から利用可能なモデル一覧を取得して保存
-- Fargate Spot 起動失敗時に On-Demand へフォールバック
-- janitor によるハートビート途絶ジョブの自動リトライ（最大 2 回）
+### Added
+- Codex model and reasoning effort can be chosen at project create. User defaults are saved on the Settings screen
+- On API key registration, fetch and store the available model list from OpenAI `/v1/models`
+- Fall back to On-Demand when Fargate Spot fails to start
+- Janitor auto-retries jobs whose heartbeat has stopped (up to 2 times)
 
-### 修正
-- API キー登録で「Failed to fetch」になる問題。API Gateway の `/{proxy+}` ルートから `OPTIONS` を外し、CORS プリフライトを JWT オーソライザーに通さないようにした
+### Fixed
+- “Failed to fetch” on API key registration. Removed `OPTIONS` from the API Gateway `/{proxy+}` route so CORS preflight does not go through the JWT authorizer
 
-### 変更
-- Lambda ランタイムを Node.js 22 に更新。`logRetention` の非推奨警告を `logGroup` 明示で解消
-- Codex SDK を 0.154.0 に更新
+### Changed
+- Lambda runtime updated to Node.js 22. Resolved the deprecated `logRetention` warning by declaring `logGroup` explicitly
+- Codex SDK updated to 0.154.0
 
 ## [0.1.0] - 2026-09-13
 
-### 追加
-- 初回デプロイ（ap-northeast-1）。CloudFront + S3 の React SPA、API Gateway（HTTP / WebSocket）+ Lambda（Hono）、SQS → ECS Fargate ワーカー、DynamoDB、Cognito、KMS
-- ROI / TLF の 2 入力から HCD → FRG → CSV → xlsx を生成するワークフローを Codex SDK で実行
-- `[QUESTION]` による質問→回答ループ。質問待ちの間はワーカーを停止し、回答時に `resumeThread` で再開
-- 完了後のフォローアップ指示（同一スレッドで成果物を修正）
-- HCD / FRG のインタラクティブなグラフ表示（ノードクリックで詳細）
-- プロジェクト履歴サイドバー、プロジェクト一覧、xlsx ダウンロード
-- ユーザー管理（Cognito）、各ユーザーの OpenAI API キーを KMS で暗号化保存、管理者画面
-- ワーカーイメージは CodeBuild でデプロイ時にビルド（ローカル Docker 不要）
+### Added
+- First deploy (ap-northeast-1). CloudFront + S3 React SPA, API Gateway (HTTP / WebSocket) + Lambda (Hono), SQS → ECS Fargate worker, DynamoDB, Cognito, KMS
+- Workflow that generates HCD → FRG → CSV → xlsx from ROI / TLF via the Codex SDK
+- Question → answer loop via `[QUESTION]`. The worker stops while waiting and resumes with `resumeThread` on answer
+- Follow-up instructions after completion (revise artifacts on the same thread)
+- Interactive HCD / FRG graphs (click a node for details)
+- Project-history sidebar, project list, xlsx download
+- User management (Cognito), per-user OpenAI API keys stored with KMS encryption, admin screen
+- Worker image built on CodeBuild at deploy time (no local Docker)
