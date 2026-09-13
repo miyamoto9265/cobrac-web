@@ -5,6 +5,11 @@ CoBRAC Agents の変更履歴。形式は [Keep a Changelog](https://keepachange
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-13
+
+### 修正
+- エッジ選択時の端点ハンドルを小さくした（半径 10 → 3.5）
+
 ## [0.2.0] - 2026-09-13
 
 ### 追加
