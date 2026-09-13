@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+**/cdk.out
+.git
+.env
+.env.*
+# other workspaces: only their package.json is needed so `npm install --workspace` can resolve the tree
+packages/web/**
+!packages/web/package.json
+packages/infra/**
+!packages/infra/package.json
+packages/api/**
+!packages/api/package.json

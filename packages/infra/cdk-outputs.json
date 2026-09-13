@@ -1,0 +1,11 @@
+{
+  "CobracAgents": {
+    "UserPoolClientId": "41utvaladqmf25bce7g1vds3s6",
+    "ApiUrl": "https://l04ci8f5s5.execute-api.ap-northeast-1.amazonaws.com",
+    "UserPoolId": "ap-northeast-1_Goiu51T4a",
+    "ArtifactsBucket": "cobracagents-artifacts82dd59a1-fqzfo6v6oft5",
+    "WebUrl": "https://d253ipuk9gq4vr.cloudfront.net",
+    "WorkerLogGroup": "CobracAgents-WorkerLogsC1193B08-pBa5gactuB1r",
+    "WsUrl": "wss://ly2slhvo08.execute-api.ap-northeast-1.amazonaws.com/prod"
+  }
+}

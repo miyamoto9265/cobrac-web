@@ -1,0 +1,38 @@
+{
+  "name": "cobrac-web",
+  "version": "0.1.3",
+  "private": true,
+  "description": "CoBRAC Agents - BRA data generation web application powered by Codex SDK",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:miyamoto9265/cobrac-web.git"
+  },
+  "workspaces": [
+    "packages/shared",
+    "packages/api",
+    "packages/worker",
+    "packages/web",
+    "packages/infra"
+  ],
+  "scripts": {
+    "build": "npm run build -w @cobrac/shared && npm run build -w @cobrac/api -w @cobrac/worker -w @cobrac/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:web": "npm run dev -w @cobrac/web",
+    "cdk": "npm run cdk -w @cobrac/infra --",
+    "release": "node scripts/release.mjs",
+    "release:check": "node scripts/release.mjs --check",
+    "deploy": "npm run release:check && npm run build && npm run cdk -- deploy --all --require-approval never"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "esbuild@0.24.2": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  }
+}

@@ -1,0 +1,222 @@
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import {
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
+import type { JobRecord, MessageRecord, MessageRole, MessageType, ProjectRecord, UserRecord, WorkflowStep } from "@cobrac/shared";
+import { newId, nowIso } from "@cobrac/shared";
+import { env } from "../env.js";
+
+export const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region }), {
+  marshallOptions: { removeUndefinedValues: true },
+});
+
+// --- generic ----------------------------------------------------------------
+
+export async function updateItem(table: string, key: Record<string, string>, values: Record<string, unknown>) {
+  const entries = Object.entries({ ...values, updatedAt: nowIso() }).filter(([, v]) => v !== undefined);
+  const names: Record<string, string> = {};
+  const vals: Record<string, unknown> = {};
+  const sets: string[] = [];
+  entries.forEach(([k, v], i) => {
+    names[`#k${i}`] = k;
+    vals[`:v${i}`] = v;
+    sets.push(`#k${i} = :v${i}`);
+  });
+  await ddb.send(
+    new UpdateCommand({
+      TableName: table,
+      Key: key,
+      UpdateExpression: `SET ${sets.join(", ")}`,
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: vals,
+    }),
+  );
+}
+
+export function encodeCursor(key: Record<string, unknown> | undefined): string | null {
+  return key ? Buffer.from(JSON.stringify(key)).toString("base64url") : null;
+}
+export function decodeCursor(cursor: string | undefined | null): Record<string, unknown> | undefined {
+  if (!cursor) return undefined;
+  try {
+    return JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+// --- users ------------------------------------------------------------------
+
+export async function getUser(userId: string): Promise<UserRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.users, Key: { userId } }));
+  return (r.Item as UserRecord) ?? null;
+}
+export async function putUser(u: UserRecord) {
+  await ddb.send(new PutCommand({ TableName: env.tables.users, Item: u }));
+}
+export function updateUser(userId: string, values: Partial<UserRecord>) {
+  return updateItem(env.tables.users, { userId }, values);
+}
+export async function listUsers(): Promise<UserRecord[]> {
+  const r = await ddb.send(new ScanCommand({ TableName: env.tables.users }));
+  return (r.Items as UserRecord[]) ?? [];
+}
+
+// --- projects ---------------------------------------------------------------
+
+export async function getProject(userId: string, projectId: string): Promise<ProjectRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.projects, Key: { userId, projectId } }));
+  return (r.Item as ProjectRecord) ?? null;
+}
+export async function putProject(p: ProjectRecord, ifNotExists = false) {
+  await ddb.send(
+    new PutCommand({
+      TableName: env.tables.projects,
+      Item: p,
+      ...(ifNotExists ? { ConditionExpression: "attribute_not_exists(projectId)" } : {}),
+    }),
+  );
+}
+export function updateProject(userId: string, projectId: string, values: Partial<ProjectRecord>) {
+  return updateItem(env.tables.projects, { userId, projectId }, values);
+}
+export async function listProjects(userId: string, limit = 50, cursor?: string) {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.projects,
+      KeyConditionExpression: "userId = :u",
+      ExpressionAttributeValues: { ":u": userId },
+      Limit: limit,
+      ExclusiveStartKey: decodeCursor(cursor),
+    }),
+  );
+  const items = ((r.Items as ProjectRecord[]) ?? []).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  return { items, nextCursor: encodeCursor(r.LastEvaluatedKey) };
+}
+export async function listAllProjects(): Promise<ProjectRecord[]> {
+  const r = await ddb.send(new ScanCommand({ TableName: env.tables.projects }));
+  return (r.Items as ProjectRecord[]) ?? [];
+}
+
+// --- jobs -------------------------------------------------------------------
+
+export async function getJob(projectId: string, jobId: string): Promise<JobRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.jobs, Key: { projectId, jobId } }));
+  return (r.Item as JobRecord) ?? null;
+}
+export async function putJob(j: JobRecord) {
+  await ddb.send(new PutCommand({ TableName: env.tables.jobs, Item: j }));
+}
+export function updateJob(projectId: string, jobId: string, values: Partial<JobRecord>) {
+  return updateItem(env.tables.jobs, { projectId, jobId }, values);
+}
+export async function listJobsByStatus(status: JobRecord["status"]): Promise<JobRecord[]> {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.jobs,
+      IndexName: "status-index",
+      KeyConditionExpression: "#s = :s",
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: { ":s": status },
+    }),
+  );
+  return (r.Items as JobRecord[]) ?? [];
+}
+export async function listJobsForProject(projectId: string): Promise<JobRecord[]> {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.jobs,
+      KeyConditionExpression: "projectId = :p",
+      ExpressionAttributeValues: { ":p": projectId },
+    }),
+  );
+  return (r.Items as JobRecord[]) ?? [];
+}
+
+// --- messages ---------------------------------------------------------------
+
+export async function listMessages(projectId: string, limit = 200, cursor?: string, reverse = false) {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.messages,
+      KeyConditionExpression: "projectId = :p",
+      ExpressionAttributeValues: { ":p": projectId },
+      Limit: limit,
+      ScanIndexForward: !reverse,
+      ExclusiveStartKey: decodeCursor(cursor),
+    }),
+  );
+  return { items: (r.Items as MessageRecord[]) ?? [], nextCursor: encodeCursor(r.LastEvaluatedKey) };
+}
+
+export async function putMessage(
+  projectId: string,
+  jobId: string,
+  role: MessageRole,
+  type: MessageType,
+  content: string,
+  opts: { step?: WorkflowStep | null; meta?: Record<string, unknown> } = {},
+): Promise<MessageRecord> {
+  const createdAt = nowIso();
+  const msg: MessageRecord = {
+    projectId,
+    sk: `${createdAt}#${Math.floor(Math.random() * 99999).toString().padStart(5, "0")}`,
+    messageId: newId("m_"),
+    jobId,
+    role,
+    type,
+    content,
+    step: opts.step ?? null,
+    meta: opts.meta,
+    createdAt,
+  };
+  await ddb.send(new PutCommand({ TableName: env.tables.messages, Item: msg }));
+  return msg;
+}
+
+// --- websocket connections --------------------------------------------------
+
+export interface WsConnectionItem {
+  connectionId: string;
+  projectId: string; // "_" for the base connection record
+  userId: string;
+  ttl: number;
+}
+
+export async function putWsConnection(item: WsConnectionItem) {
+  await ddb.send(new PutCommand({ TableName: env.tables.wsConnections, Item: item }));
+}
+export async function deleteWsConnection(connectionId: string, projectId: string) {
+  await ddb.send(new DeleteCommand({ TableName: env.tables.wsConnections, Key: { connectionId, projectId } }));
+}
+export async function getWsConnection(connectionId: string, projectId = "_"): Promise<WsConnectionItem | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.wsConnections, Key: { connectionId, projectId } }));
+  return (r.Item as WsConnectionItem) ?? null;
+}
+export async function listWsConnectionRows(connectionId: string): Promise<WsConnectionItem[]> {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.wsConnections,
+      KeyConditionExpression: "connectionId = :c",
+      ExpressionAttributeValues: { ":c": connectionId },
+    }),
+  );
+  return (r.Items as WsConnectionItem[]) ?? [];
+}
+export async function listSubscribers(projectId: string): Promise<WsConnectionItem[]> {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.wsConnections,
+      IndexName: "project-index",
+      KeyConditionExpression: "projectId = :p",
+      ExpressionAttributeValues: { ":p": projectId },
+    }),
+  );
+  return (r.Items as WsConnectionItem[]) ?? [];
+}
