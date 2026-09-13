@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-13
+
+### Fixed
+- System notices in chat (step completed, queued, cancelled, token usage, and similar) now follow the selected UI language, including messages already stored in Japanese
+
 ## [0.3.1] - 2026-09-13
 
 ### Added

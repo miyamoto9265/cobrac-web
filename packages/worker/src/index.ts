@@ -62,7 +62,7 @@ async function main() {
   const codex = createCodex(apiKey);
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
-    await log("スレッド状態が見つからないため、新しいスレッドで再開します。");
+    await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
     threadId = null;
   }
   const settings = resolveModelSettings(project);
@@ -78,13 +78,13 @@ async function main() {
       const j = await getJob(projectId, jobId);
       if (j?.status === "CANCELLED" && !cancelled) {
         cancelled = true;
-        await log("キャンセル要求を受信しました。状態を保存して終了します。");
+        await log("Cancel request received. Saving state and exiting.", { i18n: "sys.cancelReceived" });
         abort.abort();
         return;
       }
       await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
       if (Date.now() - startedAt > env.workflowTimeoutMs) {
-        await fail("最大実行時間（6時間）を超過しました。リトライで続きから再開できます。");
+        await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
         process.exit(1);
       }
     } catch (e) {
@@ -140,7 +140,7 @@ async function main() {
         await persistState();
         await updateJob(projectId, jobId, { status: "WAITING_USER_INPUT", pendingAnswer: null });
         await updateProject(userId, projectId, { status: "WAITING_USER_INPUT", pendingQuestion: turn.question });
-        await log("エージェントからの質問に回答すると作業が再開されます。");
+        await log("Answer the agent’s question to resume work.", { i18n: "sys.waitingAnswer" });
         console.log("[worker] waiting for user input; exiting");
         return;
       }
@@ -150,7 +150,7 @@ async function main() {
 
       if (nudges >= env.maxNudges) {
         await persistState();
-        await fail("エージェントが所定回数の続行指示後も CSV を生成しませんでした。フォローアップ指示またはリトライで続きを実行してください。");
+        await fail("The agent did not produce the CSVs after the allowed continue attempts. Use a follow-up or retry.", { i18n: "sys.csvMissing" });
         return;
       }
       nudges++;
@@ -159,7 +159,7 @@ async function main() {
         `作業がまだ完了していません（続行 ${nudges}/${env.maxNudges}）。instruction_0.md の手順のうち残っている作業を続行し、` +
         `最終的に ${projectId}/${projectId}_CSV/ 内に 5 種類の CSV をすべて作成してください。\n` +
         `現在存在する成果物:\n${have.length ? have.map((h) => `- ${h}`).join("\n") : "(なし)"}`;
-      await putMessage(projectId, jobId, "system", "status", "作業が未完了のため、続行を指示しました。");
+      await putMessage(projectId, jobId, "system", "status", "Work was incomplete; a continue instruction was sent.", { meta: { i18n: "sys.nudged" } });
     }
 
     // --- finalize -------------------------------------------------------------
@@ -171,8 +171,8 @@ async function main() {
       const r = await finalizeProject(paths, userId, projectId, project.contributor, (m) => log(m));
       xlsxDone = true;
       await syncStepStates();
-      await putMessage(projectId, jobId, "system", "artifact", `${projectId}.bra.xlsx を生成しました。`, {
-        meta: { xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
+      await putMessage(projectId, jobId, "system", "artifact", `Generated ${projectId}.bra.xlsx.`, {
+        meta: { i18n: "sys.xlsxReady", name: `${projectId}.bra.xlsx`, xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
       });
     }
     await persistState();
@@ -185,7 +185,9 @@ async function main() {
       completedAt: nowIso(),
       pendingQuestion: null,
     });
-    await log(mode === "followup" ? "フォローアップが完了しました。" : "BRA データの作成が完了しました。");
+    await log(mode === "followup" ? "Follow-up completed." : "BRA data generation completed.", {
+      i18n: mode === "followup" ? "sys.followupDone" : "sys.braDone",
+    });
     console.log("[worker] completed");
   } catch (e) {
     console.error("[worker] fatal", e);
@@ -238,7 +240,7 @@ async function prepareWorkspace(project: ProjectRecord) {
   await cp(env.promptsDir, env.workDir, { recursive: true, force: true });
 
   if (mode !== "initial" || project.codexThreadId) {
-    await log("前回の作業状態を復元しています…");
+    await log("Restoring previous workspace…", { i18n: "sys.restoring" });
     const n1 = await downloadDir(`${prefix}workspace/`, paths.root);
     const n2 = await downloadDir(`${prefix}thread/`, env.codexHome);
     console.log(`[worker] restored workspace=${n1} thread=${n2}`);
@@ -262,7 +264,7 @@ async function syncStepStates() {
   await updateProject(userId, projectId, { stepStates: states, currentStep: currentStepOf(states) });
   for (const s of ["HCD", "FRG", "CSV", "XLSX"] as WorkflowStep[]) {
     if (states[s] === "done" && prev?.[s] !== "done") {
-      await putMessage(projectId, jobId, "system", "status", `ステップ ${s} が完了しました。`, { step: s, meta: { stepDone: s } });
+      await putMessage(projectId, jobId, "system", "status", `Step ${s} completed.`, { step: s, meta: { i18n: "sys.stepDone", step: s, stepDone: s } });
     }
   }
 }
@@ -286,16 +288,21 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
     reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
   });
   await refreshProjectUsage(userId, projectId);
-  await putMessage(projectId, jobId, "system", "status", `トークン: 入力 ${formatTokens(usage.inputTokens)}（キャッシュ ${formatTokens(usage.cachedInputTokens)}）/ 出力 ${formatTokens(usage.outputTokens)} · 推定 ${formatUsd(costUsd)}`, {
-    meta: { kind: "usage", usage, costUsd, model: resolvedModel },
-  });
+  await putMessage(
+    projectId,
+    jobId,
+    "system",
+    "status",
+    `Tokens: in ${formatTokens(usage.inputTokens)} (cached ${formatTokens(usage.cachedInputTokens)}) / out ${formatTokens(usage.outputTokens)} · est. ${formatUsd(costUsd)}`,
+    { meta: { i18n: "sys.usage", kind: "usage", usage, costUsd, model: resolvedModel } },
+  );
 }
 
-async function fail(message: string) {
+async function fail(message: string, meta?: Record<string, unknown>) {
   if (cancelled) return;
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
   await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null });
-  await putMessage(projectId, jobId, "system", "error", message);
+  await putMessage(projectId, jobId, "system", "error", message, { meta });
 }
 
 async function decryptApiKey(ciphertextB64: string, uid: string): Promise<string> {

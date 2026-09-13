@@ -25,7 +25,7 @@ export async function finalizeProject(
   userId: string,
   projectId: string,
   contributor: string,
-  log: (msg: string) => Promise<void>,
+  log: (msg: string, meta?: Record<string, unknown>) => Promise<void>,
 ): Promise<FinalizeResult> {
   if (!csvComplete(p)) {
     const missing = CSV_FILES.filter((f) => !existsSync(join(p.csv, f)));
@@ -34,7 +34,7 @@ export async function finalizeProject(
 
   // 1. xlsx ------------------------------------------------------------------
   const xlsxPath = join(p.csv, `${projectId}.bra.xlsx`);
-  await log("csv_to_excel.py を実行して xlsx を生成しています…");
+  await log("Running csv_to_excel.py to generate the xlsx…", { i18n: "sys.xlsxBuilding" });
   await runPython(
     join(env.promptsDir, "csv_to_excel.py"),
     ["--contributor", contributor, "--project-id", projectId, "--base-dir", env.workDir, "--output", xlsxPath],
@@ -47,7 +47,7 @@ export async function finalizeProject(
   await putObject(xlsxKey, await readFile(xlsxPath));
 
   // 2. graphs ----------------------------------------------------------------
-  await log("HCD / FRG グラフデータを生成しています…");
+  await log("Generating HCD / FRG graph data…", { i18n: "sys.graphBuilding" });
   const read = (f: string) => readFile(join(p.csv, f), "utf8");
   const { hcd, frg } = buildGraphs(projectId, {
     circuitsCsv: await read("Circuits.csv"),

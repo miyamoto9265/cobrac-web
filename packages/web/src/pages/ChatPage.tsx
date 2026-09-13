@@ -2,14 +2,14 @@ import { ChevronDown, ChevronUp, Download, GitFork, Loader2, Network, Play, Rota
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, ReasoningEffort, WsServerEvent } from "@cobrac/shared";
-import { PRICING_AS_OF, formatUsd } from "@cobrac/shared";
+import { PRICING_AS_OF, formatUsd, resolveSystemMessage } from "@cobrac/shared";
 import { MessageItem } from "../components/MessageItem";
 import { UsageBadge } from "../components/UsageBadge";
 import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
-import { useT } from "../i18n";
+import { useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { isActive } from "../lib/format";
@@ -351,7 +351,14 @@ function ProjectChat({ projectId }: { projectId: string }) {
         <div className="mt-2">
           <Stepper states={project.stepStates} />
         </div>
-        {project.errorMessage && <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{project.errorMessage}</div>}
+        {project.errorMessage && (
+          <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">
+            {(() => {
+              const r = resolveSystemMessage(project.errorMessage);
+              return r ? t(r.key as MessageKey, r.vars) : project.errorMessage;
+            })()}
+          </div>
+        )}
       </header>
 
       {/* messages */}

@@ -267,11 +267,13 @@ app.post("/projects", async (c) => {
     updatedAt: now,
   };
   await putJob(job);
-  await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(未指定)"}\nTLF: ${tlf || "(未指定)"}`, {
+  await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(not set)"}\nTLF: ${tlf || "(not set)"}`, {
     meta: { kind: "create", roi, tlf, projectId, model, reasoningEffort },
   });
-  await putMessage(projectId, jobId, "system", "status", `モデル: ${model ?? "既定"} / reasoning effort: ${reasoningEffort ?? "既定"}`);
-  await putMessage(projectId, jobId, "system", "status", "ジョブをキューに登録しました。ワーカーの起動を待っています…");
+  await putMessage(projectId, jobId, "system", "status", `Model: ${model ?? "default"} / reasoning effort: ${reasoningEffort ?? "default"}`, {
+    meta: { i18n: "sys.model", model: model ?? "", effort: reasoningEffort ?? "" },
+  });
+  await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return c.json(project, 201);
 });
@@ -308,7 +310,7 @@ app.post("/projects/:id/cancel", async (c) => {
   if (job) {
     await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by user");
-    await putMessage(p.projectId, job.jobId, "system", "status", "ユーザーによりジョブがキャンセルされました。");
+    await putMessage(p.projectId, job.jobId, "system", "status", "Job cancelled by the user.", { meta: { i18n: "sys.cancelled" } });
   }
   await updateProject(u.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
   return c.json({ ok: true });
@@ -326,7 +328,7 @@ app.post("/projects/:id/answer", async (c) => {
   await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text });
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
   await putMessage(p.projectId, job.jobId, "user", "prompt", text, { meta: { kind: "answer" } });
-  await putMessage(p.projectId, job.jobId, "system", "status", "回答を受け付けました。ワーカーを再起動しています…");
+  await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { meta: { i18n: "sys.answered" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId: job.jobId, mode: "resume" });
   return c.json({ ok: true });
 });
@@ -366,7 +368,7 @@ app.post("/projects/:id/followup", async (c) => {
     stepStates: { ...p.stepStates, XLSX: "pending" },
   });
   await putMessage(p.projectId, jobId, "user", "prompt", text, { meta: { kind: "followup" } });
-  await putMessage(p.projectId, jobId, "system", "status", "フォローアップジョブをキューに登録しました。");
+  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { meta: { i18n: "sys.followupQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return c.json({ ok: true, jobId });
 });
@@ -399,7 +401,7 @@ app.post("/projects/:id/retry", async (c) => {
   };
   await putJob(job);
   await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, pendingQuestion: null });
-  await putMessage(p.projectId, jobId, "system", "status", "リトライをキューに登録しました。前回の成果物から続きを実行します。");
+  await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { meta: { i18n: "sys.retryQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
   return c.json({ ok: true, jobId });
 });
@@ -569,7 +571,7 @@ app.post("/admin/projects/:userId/:id/cancel", async (c) => {
   if (job) {
     await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by admin");
-    await putMessage(p.projectId, job.jobId, "system", "status", "管理者によりジョブが停止されました。");
+    await putMessage(p.projectId, job.jobId, "system", "status", "Job stopped by an admin.", { meta: { i18n: "sys.adminStopped" } });
   }
   await updateProject(p.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
   return c.json({ ok: true });

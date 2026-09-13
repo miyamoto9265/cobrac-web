@@ -1,9 +1,25 @@
 import { AlertTriangle, Bot, Brain, FileEdit, Globe, Info, ListTodo, Package, Terminal, User } from "lucide-react";
 import { useState } from "react";
 import type { MessageRecord } from "@cobrac/shared";
-import { useI18n, useT } from "../i18n";
+import { resolveSystemMessage } from "@cobrac/shared";
+import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { fmtDate } from "../lib/format";
 import { Markdown } from "./Markdown";
+
+function localizeStored(content: string, meta: Record<string, unknown> | undefined, t: TFn): string {
+  const r = resolveSystemMessage(content, meta);
+  if (!r) return content;
+  const vars = { ...(r.vars ?? {}) };
+  if (r.key === "msg.roiTlf") {
+    vars.roi = String(vars.roi || t("unspecified"));
+    vars.tlf = String(vars.tlf || t("unspecified"));
+  }
+  if (r.key === "sys.model") {
+    vars.model = String(vars.model || t("sys.default"));
+    vars.effort = String(vars.effort || t("sys.default"));
+  }
+  return t(r.key as MessageKey, vars);
+}
 
 export function MessageItem({ m }: { m: MessageRecord }) {
   const t = useT();
@@ -17,7 +33,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
           <div className="mb-0.5 flex items-center gap-1 text-[10px] text-blue-100">
             <User size={10} /> {t("msg.you")} · {fmtDate(m.createdAt, locale)}
           </div>
-          <div className="whitespace-pre-wrap">{m.content}</div>
+          <div className="whitespace-pre-wrap">{m.meta?.kind === "create" ? localizeStored(m.content, m.meta, t) : m.content}</div>
         </div>
       </div>
     );
@@ -49,7 +65,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
           }`}
         >
           {isErr ? <AlertTriangle size={12} /> : isArtifact ? <Package size={12} /> : <Info size={12} />}
-          <span className="whitespace-pre-wrap">{m.content}</span>
+          <span className="whitespace-pre-wrap">{localizeStored(m.content, m.meta, t)}</span>
         </div>
       </div>
     );
