@@ -49,7 +49,7 @@ export function filterCodexModels(ids: string[]): string[] {
   return ids
     .filter((id) => /^gpt-(?:5\.6|6)(?:-|$)/.test(id))
     .filter((id) => !/-\d{4}-\d{2}-\d{2}$/.test(id))
-    .filter((id) => !/audio|realtime|tts|transcribe|image|search|embedding|chat-latest|instruct|deep-research/.test(id))
+    .filter((id) => !/cyber|audio|realtime|tts|transcribe|image|search|embedding|chat-latest|instruct|deep-research/.test(id))
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 }
 

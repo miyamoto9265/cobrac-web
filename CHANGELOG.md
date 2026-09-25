@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-09-25
+
+### Changed
+- gpt-5.6-cyber is no longer offered in the model picker and has no cost estimate
+
 ## [0.4.0] - 2026-09-25
 
 ### Changed
