@@ -44,6 +44,6 @@ docs/               設計仕様・個人情報とセキュリティ・AWS イ�
 
 ## デプロイ先
 
-- AWS アカウント `618703232062` / `ap-northeast-1`、スタック `CobracAgents`
-- Web: https://d253ipuk9gq4vr.cloudfront.net
+- AWS アカウント `765959262011` / `ap-northeast-1`、スタック `CobracAgents`
+- Web: https://d2l8xn9p9omh33.cloudfront.net
 - 設定は `.env`（`COBRAC_ADMIN_EMAILS` など）。詳細は `README.md` と `docs/03_AWSインフラと予算.md`

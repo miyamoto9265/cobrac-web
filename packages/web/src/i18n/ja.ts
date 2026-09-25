@@ -160,7 +160,7 @@ export const ja: Record<MessageKey, string> = {
   "chat.noJobs": "ジョブがありません",
   "chat.total": "合計",
   "chat.costNote":
-    "料金は OpenAI 公開単価（{date} 時点）に基づく推定値です。実際の請求額は OpenAI ダッシュボードで確認してください。",
+    "料金は OpenAI の標準・短コンテキスト単価（{date} 時点）に基づく推定値です。入力が 272K トークンを超えるリクエストはより高くなります。実際の請求額は OpenAI ダッシュボードで確認してください。",
   "chat.working": "エージェントが作業中…",
   "chat.followupPh": "フォローアップ指示を入力（例: ○○の UC を追加し、Connection を再検討して CSV を再生成してください）",
   "chat.noFollowupActive": "実行中はフォローアップできません。完了後にチャットで修正指示を送れます。",

@@ -35,28 +35,21 @@ export interface ModelPrice {
 }
 
 /** Model used when neither the project, the user nor the deployment picks one. */
-export const DEFAULT_CODEX_MODEL = "gpt-5.3-codex";
+export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
 
-export const PRICING_AS_OF = "2026-09-13";
+/** Standard short-context rates from https://developers.openai.com/api/docs/pricing (USD / 1M tokens). */
+export const PRICING_AS_OF = "2026-09-25";
 
 export const PRICING: Record<string, ModelPrice> = {
-  "gpt-5": { input: 1.25, cachedInput: 0.125, output: 10 },
-  "gpt-5-mini": { input: 0.25, cachedInput: 0.025, output: 2 },
-  "gpt-5-nano": { input: 0.05, cachedInput: 0.005, output: 0.4 },
-  "gpt-5-codex": { input: 1.25, cachedInput: 0.125, output: 10 },
-  "gpt-5-pro": { input: 15, cachedInput: null, output: 120 },
-  "gpt-5.1": { input: 1.25, cachedInput: 0.125, output: 10 },
-  "gpt-5.1-codex": { input: 1.25, cachedInput: 0.125, output: 10 },
-  "gpt-5.1-codex-max": { input: 1.25, cachedInput: 0.125, output: 10 },
-  "gpt-5.1-codex-mini": { input: 0.25, cachedInput: 0.025, output: 2 },
-  "gpt-5.2": { input: 1.75, cachedInput: 0.175, output: 14 },
-  "gpt-5.2-codex": { input: 1.75, cachedInput: 0.175, output: 14 },
-  "gpt-5.2-pro": { input: 21, cachedInput: null, output: 168 },
-  "gpt-5.3-codex": { input: 1.75, cachedInput: 0.175, output: 14 },
-  "gpt-5.4": { input: 2.5, cachedInput: 0.25, output: 15 },
-  "gpt-5.4-mini": { input: 0.75, cachedInput: 0.075, output: 4.5 },
-  "gpt-5.4-nano": { input: 0.2, cachedInput: 0.02, output: 1.25 },
-  "gpt-5.4-pro": { input: 30, cachedInput: null, output: 180 },
+  // gpt-5.6 alias routes to Sol
+  "gpt-5.6": { input: 4, cachedInput: 0.4, output: 20 },
+  "gpt-5.6-sol": { input: 4, cachedInput: 0.4, output: 20 },
+  "gpt-5.6-terra": { input: 2, cachedInput: 0.2, output: 12 },
+  "gpt-5.6-luna": { input: 0.2, cachedInput: 0.02, output: 1.2 },
+  "gpt-5.6-cyber": { input: 12.5, cachedInput: 1.25, output: 75 },
+  "gpt-6-astra": { input: 10, cachedInput: 1, output: 50 },
+  "gpt-6-sol": { input: 2, cachedInput: 0.2, output: 10 },
+  "gpt-6-luna": { input: 0.1, cachedInput: 0.01, output: 0.5 },
 };
 
 /** Strip a dated snapshot suffix and look up the price; returns null when unknown. */

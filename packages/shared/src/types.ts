@@ -44,10 +44,10 @@ export const REASONING_EFFORT_LABEL: Record<ReasoningEffort, string> = {
   persistent: "persistent",
 };
 
-/** Keep only models that make sense for the Codex agent (gpt-5 family, no dated snapshots / non-text variants). */
+/** GPT-5.6 and GPT-6 text models only. Dated snapshots and non-text variants are dropped. */
 export function filterCodexModels(ids: string[]): string[] {
   return ids
-    .filter((id) => /^gpt-5/.test(id))
+    .filter((id) => /^gpt-(?:5\.6|6)(?:-|$)/.test(id))
     .filter((id) => !/-\d{4}-\d{2}-\d{2}$/.test(id))
     .filter((id) => !/audio|realtime|tts|transcribe|image|search|embedding|chat-latest|instruct|deep-research/.test(id))
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));

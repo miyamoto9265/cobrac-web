@@ -5,6 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-25
+
+### Changed
+- Model picker lists GPT-5.6 and GPT-6 text models only. Older models are no longer offered
+- Default model when none is chosen is gpt-5.6-sol
+- Cost estimates use OpenAI standard short-context prices for those models (as of 2026-09-25)
+
 ## [0.3.2] - 2026-09-13
 
 ### Fixed

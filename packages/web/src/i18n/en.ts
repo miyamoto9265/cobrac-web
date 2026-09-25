@@ -158,7 +158,7 @@ export const en = {
   "chat.noJobs": "No jobs",
   "chat.total": "Total",
   "chat.costNote":
-    "Costs are estimates from OpenAI list prices (as of {date}). Check the OpenAI dashboard for actual invoices.",
+    "Costs are estimates from OpenAI standard short-context prices (as of {date}). Requests over 272K input tokens cost more. Check the OpenAI dashboard for actual invoices.",
   "chat.working": "The agent is working…",
   "chat.followupPh": "Follow-up instruction (e.g. add a UC for …, revisit Connections, and regenerate CSVs)",
   "chat.noFollowupActive": "Follow-up is unavailable while a job is running. You can send edits after it completes.",

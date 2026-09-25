@@ -3,19 +3,20 @@ import { EMPTY_USAGE, addUsage, estimateCostUsd, formatTokens, formatUsd, resolv
 
 describe("pricing", () => {
   it("resolves exact and dated model ids", () => {
-    expect(resolvePricing("gpt-5.3-codex")).toBeTruthy();
-    expect(resolvePricing("gpt-5.4-2026-03-05")).toEqual(resolvePricing("gpt-5.4"));
+    expect(resolvePricing("gpt-5.6-sol")).toBeTruthy();
+    expect(resolvePricing("gpt-5.6-sol-2026-09-01")).toEqual(resolvePricing("gpt-5.6-sol"));
     expect(resolvePricing("totally-unknown")).toBeNull();
     expect(resolvePricing(null)).toBeNull();
   });
 
   it("estimates cost with cached-input discount", () => {
-    // gpt-5: $1.25 in, $0.125 cached, $10 out per 1M
+    // gpt-5.6-sol: $4 in, $0.40 cached, $20 out per 1M
     const usage = { inputTokens: 1_000_000, cachedInputTokens: 400_000, outputTokens: 100_000, reasoningOutputTokens: 50_000 };
-    // 600k * 1.25 + 400k * 0.125 + 100k * 10 = 0.75 + 0.05 + 1.0
-    expect(estimateCostUsd("gpt-5", usage)).toBeCloseTo(1.8, 6);
+    // 600k * 4 + 400k * 0.40 + 100k * 20 = 2.4 + 0.16 + 2.0
+    expect(estimateCostUsd("gpt-5.6-sol", usage)).toBeCloseTo(4.56, 6);
     expect(estimateCostUsd("nope", usage)).toBeNull();
-    expect(estimateCostUsd("gpt-5", EMPTY_USAGE)).toBe(0);
+    expect(estimateCostUsd("gpt-5.4", usage)).toBeNull();
+    expect(estimateCostUsd("gpt-5.6-sol", EMPTY_USAGE)).toBe(0);
   });
 
   it("adds usage and formats", () => {

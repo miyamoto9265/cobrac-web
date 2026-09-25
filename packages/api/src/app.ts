@@ -114,7 +114,7 @@ app.put("/users/me", async (c) => {
 app.get("/users/me/models", (c) => {
   const u = c.get("user");
   return c.json({
-    models: u.availableModels ?? [],
+    models: filterCodexModels(u.availableModels ?? []),
     efforts: REASONING_EFFORTS,
     envDefaultModel: env.codexModel || DEFAULT_CODEX_MODEL,
     pricedModels: Object.keys(PRICING),

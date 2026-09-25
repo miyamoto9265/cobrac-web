@@ -91,10 +91,10 @@ CloudWatch Logs **14 days** for both Lambda and the worker. Insights is not used
 
 | Output | Value |
 | ------ | ----- |
-| Account | `618703232062` |
+| Account | `765959262011` |
 | Region | ap-northeast-1 |
-| WebUrl | `https://d253ipuk9gq4vr.cloudfront.net` |
-| HTTP API | `https://l04ci8f5s5.execute-api.ap-northeast-1.amazonaws.com` |
+| WebUrl | `https://d2l8xn9p9omh33.cloudfront.net` |
+| HTTP API | `https://uemi23ymn8.execute-api.ap-northeast-1.amazonaws.com` |
 | Stack name | `CobracAgents` |
 
 ---
