@@ -35,7 +35,7 @@ export interface ModelPrice {
 }
 
 /** Model used when neither the project, the user nor the deployment picks one. */
-export const DEFAULT_CODEX_MODEL = "gpt-5.6-sol";
+export const DEFAULT_CODEX_MODEL = "gpt-6-luna";
 
 /** Standard short-context rates from https://developers.openai.com/api/docs/pricing (USD / 1M tokens). */
 export const PRICING_AS_OF = "2026-09-25";

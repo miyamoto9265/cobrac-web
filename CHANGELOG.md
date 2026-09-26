@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-26
+
+### Changed
+- Default model when none is chosen is gpt-6-luna
+
 ## [0.4.1] - 2026-09-25
 
 ### Changed
