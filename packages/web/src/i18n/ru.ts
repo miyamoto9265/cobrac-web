@@ -201,6 +201,11 @@ export const ru: Record<MessageKey, string> = {
   "sys.braDone": "Создание данных BRA завершено.",
   "sys.usage": "Токены: вх. {input} (кэш {cached}) / вых. {output} · оценка {cost}",
   "sys.csvMissing": "Агент не создал CSV после допустимого числа продолжений. Используйте доработку или повтор.",
+  "sys.validationFailed": "Проверка нашла проблем в {step}: {count}; агенту поручено их исправить.",
+  "sys.validationWarn": "В {step} осталось нерешённых замечаний проверки: {count}; продолжаем.",
+  "sys.phaseIncomplete": "Шаг {step} не удалось завершить за допустимое число исправлений. Используйте доработку или повтор.",
+  "sys.csvFallback": "Автоматическое преобразование в CSV не удалось; агенту поручено написать CSV.",
+  "sys.csvBuilt": "CSV созданы из таблиц HCD/FRG.",
 
   "admin.denied": "Только для администраторов.",
   "admin.title": "Админ",

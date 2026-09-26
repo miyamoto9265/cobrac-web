@@ -63,7 +63,7 @@ function usageFromMeta(meta: Record<string, unknown>): ResolvedSysMsg | null {
 
 function varsFromMeta(meta: Record<string, unknown>): Record<string, string | number> | undefined {
   const vars: Record<string, string | number> = {};
-  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf"] as const) {
+  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count"] as const) {
     const v = meta[k];
     if (typeof v === "string" || typeof v === "number") vars[k] = v;
   }

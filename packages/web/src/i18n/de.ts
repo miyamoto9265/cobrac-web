@@ -201,6 +201,11 @@ export const de: Record<MessageKey, string> = {
   "sys.braDone": "BRA-Datenerzeugung abgeschlossen.",
   "sys.usage": "Token: ein {input} (Cache {cached}) / aus {output} · ca. {cost}",
   "sys.csvMissing": "Der Agent hat nach den erlaubten Fortsetzungsversuchen keine CSVs erzeugt. Follow-up oder Retry verwenden.",
+  "sys.validationFailed": "Die Prüfung fand {count} Problem(e) in {step}; der Agent wurde um Korrektur gebeten.",
+  "sys.validationWarn": "{step} hat noch {count} ungelöste Prüfpunkt(e); es wird fortgefahren.",
+  "sys.phaseIncomplete": "Der Schritt {step} konnte nach den erlaubten Korrekturversuchen nicht abgeschlossen werden. Follow-up oder Retry verwenden.",
+  "sys.csvFallback": "Automatische CSV-Konvertierung fehlgeschlagen; der Agent wurde gebeten, die CSVs zu schreiben.",
+  "sys.csvBuilt": "CSVs aus den HCD/FRG-Tabellen erzeugt.",
 
   "admin.denied": "Nur für Admins.",
   "admin.title": "Admin",

@@ -199,6 +199,11 @@ export const en = {
   "sys.braDone": "BRA data generation completed.",
   "sys.usage": "Tokens: in {input} (cached {cached}) / out {output} · est. {cost}",
   "sys.csvMissing": "The agent did not produce the CSVs after the allowed continue attempts. Use a follow-up or retry.",
+  "sys.validationFailed": "Checks found {count} issue(s) in {step}; asked the agent to fix them.",
+  "sys.validationWarn": "{step} still has {count} unresolved check issue(s); continuing.",
+  "sys.phaseIncomplete": "The {step} step could not be completed after the allowed fix attempts. Use a follow-up or retry.",
+  "sys.csvFallback": "Automatic CSV conversion failed; asked the agent to write the CSVs.",
+  "sys.csvBuilt": "CSVs generated from the HCD/FRG tables.",
 
   "admin.denied": "Admins only.",
   "admin.title": "Admin",

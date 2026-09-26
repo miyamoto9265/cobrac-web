@@ -23,7 +23,7 @@ git push && git push --tags
 
 ```
 package.json                 npm workspaces (build / typecheck / test / deploy)
-prompts/                     container-bundled instructions (revised), csv_to_excel.py (CLI args), Project.csv
+prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args)
 packages/
   shared/   types, CSV parser, graph JSON generation (buildGraphs), utilities (vitest)
   worker/   Fargate worker + Dockerfile (Node 22 + @openai/codex-sdk + Python 3)
@@ -90,8 +90,9 @@ npm run dev:web
 ## Design highlights
 
 - Jobs go SQS → dispatcher Lambda → ECS Fargate **Spot** (On-Demand fallback if Spot is unavailable), one task per job.
-- When the agent emits `[QUESTION]...[/QUESTION]`, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
-- When all five CSVs exist, `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON.
+- The worker drives the phases (HCD → FRG), validates each phase's markdown tables with deterministic checks, and sends problems back to the agent to fix.
+- When the agent ends a turn with a question, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
+- The worker converts the HCD/FRG tables into the five CSVs itself, then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON.
 - After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
 - If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption).
 - User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.

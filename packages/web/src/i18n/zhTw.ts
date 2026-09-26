@@ -201,6 +201,11 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.braDone": "BRA 資料產生已完成。",
   "sys.usage": "Token：輸入 {input}（快取 {cached}）/ 輸出 {output} · 估計 {cost}",
   "sys.csvMissing": "在允許的繼續次數內代理未產生 CSV。請使用後續指示或重試。",
+  "sys.validationFailed": "{step} 檢查發現 {count} 個問題，已請代理修正。",
+  "sys.validationWarn": "{step} 仍有 {count} 個未解決的檢查問題；繼續執行。",
+  "sys.phaseIncomplete": "在允許的修正次數內未能完成 {step} 步驟。請使用後續指示或重試。",
+  "sys.csvFallback": "CSV 自動轉換失敗，已請代理撰寫 CSV。",
+  "sys.csvBuilt": "已根據 HCD/FRG 表格產生 CSV。",
 
   "admin.denied": "僅限管理員。",
   "admin.title": "管理",

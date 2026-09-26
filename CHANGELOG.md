@@ -5,6 +5,22 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-26
+
+### Changed
+- The agent now runs as a dedicated CoBRAC harness. The worker drives HCD and FRG one phase at a time with compact English phase specs, instead of having the agent read the old instruction files in order
+- Each phase is checked automatically: missing files and columns, unknown circuits, interface and connection mismatches, references, and the FRG rules (one root, no cycles, at most 2 UCs per GN and 2 GNs per UC, every ROI UC attached). Problems go back to the agent, which gets up to 3 fix attempts per phase
+- The worker generates the five CSVs from the HCD/FRG tables. The agent writes them only when that conversion fails (for example, older Japanese projects)
+- New artifacts are written in English, so they no longer need translating for the CSVs. Questions and summaries follow the language of your input
+- The agent's questions and completion now come back as structured output, so they are no longer missed or misread
+- An ROI or TLF left empty at creation is filled in on the project once the agent decides it
+
+### Added
+- Check results in chat can be expanded to show each issue
+
+### Removed
+- The HCD beginner explainer (`7_EasyToUnderstand.md`) and the Mermaid diagram files; the web graphs replace them. Ask for an explainer in a follow-up if you need one
+
 ## [0.4.2] - 2026-09-26
 
 ### Changed

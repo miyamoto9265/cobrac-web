@@ -201,6 +201,11 @@ export const pt: Record<MessageKey, string> = {
   "sys.braDone": "Geração dos dados BRA concluída.",
   "sys.usage": "Tokens: ent. {input} (cache {cached}) / saí. {output} · est. {cost}",
   "sys.csvMissing": "O agente não gerou os CSVs após as continuações permitidas. Use um acompanhamento ou nova tentativa.",
+  "sys.validationFailed": "A verificação encontrou {count} problema(s) em {step}; o agente foi solicitado a corrigi-los.",
+  "sys.validationWarn": "{step} ainda tem {count} problema(s) de verificação não resolvido(s); continuando.",
+  "sys.phaseIncomplete": "Não foi possível concluir a etapa {step} após as tentativas de correção permitidas. Use um acompanhamento ou nova tentativa.",
+  "sys.csvFallback": "A conversão automática para CSV falhou; o agente foi solicitado a escrever os CSVs.",
+  "sys.csvBuilt": "CSVs gerados a partir das tabelas HCD/FRG.",
 
   "admin.denied": "Somente administradores.",
   "admin.title": "Admin",

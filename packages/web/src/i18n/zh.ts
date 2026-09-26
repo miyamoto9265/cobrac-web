@@ -201,6 +201,11 @@ export const zh: Record<MessageKey, string> = {
   "sys.braDone": "BRA 数据生成已完成。",
   "sys.usage": "Token：输入 {input}（缓存 {cached}）/ 输出 {output} · 估算 {cost}",
   "sys.csvMissing": "在允许的继续次数内智能体未生成 CSV。请使用跟进或重试。",
+  "sys.validationFailed": "{step} 检查发现 {count} 个问题，已请智能体修复。",
+  "sys.validationWarn": "{step} 仍有 {count} 个未解决的检查问题；继续执行。",
+  "sys.phaseIncomplete": "在允许的修复次数内未能完成 {step} 步骤。请使用跟进或重试。",
+  "sys.csvFallback": "CSV 自动转换失败，已请智能体编写 CSV。",
+  "sys.csvBuilt": "已根据 HCD/FRG 表格生成 CSV。",
 
   "admin.denied": "仅限管理员。",
   "admin.title": "管理",

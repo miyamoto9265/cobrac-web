@@ -397,9 +397,8 @@ export type WsClientEvent =
 
 export const PROJECT_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{2,63}$/;
 
+/** Legacy free-text question marker; kept for threads started before structured turn output. */
 export const QUESTION_REGEX = /\[QUESTION\]([\s\S]*?)\[\/QUESTION\]/;
-
-export const STEP_COMPLETE_REGEX = /\[STEP_COMPLETE\]\s*(HCD|FRG|CSV)/g;
 
 export const WORKFLOW_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
 export const WAITING_INPUT_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000; // 7 days

@@ -57,16 +57,25 @@ export function MessageItem({ m }: { m: MessageRecord }) {
   if (m.role === "system") {
     const isErr = m.type === "error";
     const isArtifact = m.type === "artifact";
+    const details = typeof m.meta?.details === "string" && m.meta.details ? m.meta.details : null;
     return (
-      <div className="flex justify-center">
-        <div
-          className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${
+      <div className="flex flex-col items-center">
+        <button
+          type="button"
+          onClick={() => details && setOpen((o) => !o)}
+          className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${details ? "cursor-pointer" : "cursor-default"} ${
             isErr ? "bg-rose-50 text-rose-700" : isArtifact ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
           }`}
         >
           {isErr ? <AlertTriangle size={12} /> : isArtifact ? <Package size={12} /> : <Info size={12} />}
-          <span className="whitespace-pre-wrap">{localizeStored(m.content, m.meta, t)}</span>
-        </div>
+          <span className="whitespace-pre-wrap text-left">{localizeStored(m.content, m.meta, t)}</span>
+          {details && <span className="shrink-0 opacity-60">{open ? "▲" : "▼"}</span>}
+        </button>
+        {details && open && (
+          <pre className="mt-1 max-h-72 w-full max-w-3xl overflow-auto whitespace-pre-wrap rounded-md bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-100">
+            {details}
+          </pre>
+        )}
       </div>
     );
   }

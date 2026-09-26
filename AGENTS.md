@@ -9,7 +9,7 @@
 package.json        npm workspaces。version がアプリ全体の版番号（唯一のソース）
 CHANGELOG.md        リリースノート（Keep a Changelog 形式）
 scripts/release.mjs 版番号更新・CHANGELOG 確定・git tag
-prompts/            ワーカー同梱の instruction 群と csv_to_excel.py
+prompts/            エージェント共通ルール（AGENTS.md）、フェーズ仕様（phases/）、Project.csv テンプレート、csv_to_excel.py
 packages/shared     型・CSV パーサ・グラフ JSON・単価表（pricing.ts）
 packages/worker     Fargate ワーカー（Codex SDK）
 packages/api        Lambda（Hono）+ dispatcher / ws / broadcaster / janitor
@@ -38,7 +38,7 @@ docs/               設計仕様・個人情報とセキュリティ・AWS イ�
 - 型チェック（`npm run typecheck`）とテスト（`npm test`）を通してからコミットする。
 - `packages/shared` の型を変えたら api / worker / web すべてをビルドして影響を確認する。
 - インフラ変更（`packages/infra`）は `npm run cdk -- diff` で差分を確認してからデプロイする。RETAIN 指定のリソース（DynamoDB / S3 / KMS / Cognito）を置き換える変更は必ず人間に確認する。
-- ワークフロー（`prompts/`）の骨格（HCD → FRG → CSV → xlsx、`[QUESTION]` / `[STEP_COMPLETE]` マーカー）は変えない。文言の調整は可。
+- ワークフローの骨格（HCD → FRG → CSV → xlsx の順、ワーカーがフェーズを進めて検証する方式、ターン終了時の JSON 出力 `{status, message, question}`）は相談なしに変えない。フェーズ仕様（`prompts/phases/*.md`）の文言調整は可。ただし表の列名を変えるときは `packages/shared/src/harness.ts` の検証・CSV 変換も同時に直す。
 - 機密（API キー、`.env`）はコミットしない。`.env.example` のみ追跡する。
 - ドキュメント（`docs/*.md`）は挙動を変えたら同じコミットで更新する。サイトの「ドキュメント」ページは `docs/*.md`・`README.md`・`CHANGELOG.md` をビルド時に取り込むため、追加・改名すればそのまま反映される。
 

@@ -1,13 +1,12 @@
 import { Codex, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
-import type { MessageType, WorkflowStep } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, QUESTION_REGEX, STEP_COMPLETE_REGEX } from "@cobrac/shared";
+import type { MessageType } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
 import { env } from "./env.js";
 
 export interface TurnResult {
   threadId: string | null;
   finalMessage: string;
   question: string | null;
-  markers: WorkflowStep[];
   failed: boolean;
   errorMessage: string | null;
   usage: { input: number; cachedInput: number; output: number; reasoningOutput: number };
@@ -70,13 +69,12 @@ export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, si
     threadId: thread.id ?? null,
     finalMessage: "",
     question: null,
-    markers: [],
     failed: false,
     errorMessage: null,
     usage: { input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 },
   };
 
-  const { events } = await thread.runStreamed(prompt, signal ? { signal } : undefined);
+  const { events } = await thread.runStreamed(prompt, { outputSchema: TURN_OUTPUT_SCHEMA, ...(signal ? { signal } : {}) });
   let lastHeartbeat = Date.now();
 
   for await (const ev of events) {
@@ -88,8 +86,9 @@ export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, si
   }
 
   result.threadId = thread.id ?? result.threadId;
-  const q = QUESTION_REGEX.exec(result.finalMessage);
-  if (q) result.question = q[1].trim();
+  const structured = parseTurnOutput(result.finalMessage);
+  if (structured) result.question = structured.status === "question" ? (structured.question ?? structured.message) : null;
+  else result.question = QUESTION_REGEX.exec(result.finalMessage)?.[1].trim() ?? null;
   return result;
 }
 
@@ -109,12 +108,12 @@ async function handleEvent(ev: ThreadEvent, result: TurnResult, sink: TurnSink) 
     case "turn.failed":
       result.failed = true;
       result.errorMessage = ev.error.message;
-      await sink.onMessage("error", `ターンが失敗しました: ${ev.error.message}`);
+      await sink.onMessage("error", `Turn failed: ${ev.error.message}`);
       return;
     case "error":
       result.failed = true;
       result.errorMessage = ev.message;
-      await sink.onMessage("error", `エラー: ${ev.message}`);
+      await sink.onMessage("error", `Error: ${ev.message}`);
       return;
     case "item.completed":
       await handleItem(ev.item, result, sink);
@@ -133,9 +132,14 @@ async function handleItem(item: ThreadItem, result: TurnResult, sink: TurnSink) 
   switch (item.type) {
     case "agent_message": {
       result.finalMessage = item.text;
-      for (const m of item.text.matchAll(STEP_COMPLETE_REGEX)) result.markers.push(m[1] as WorkflowStep);
-      const isQuestion = QUESTION_REGEX.test(item.text);
-      await sink.onMessage(isQuestion ? "question" : "agent_message", item.text);
+      const structured = parseTurnOutput(item.text);
+      if (structured?.status === "question") {
+        await sink.onMessage("question", structured.question ?? structured.message);
+      } else if (structured) {
+        if (structured.message.trim()) await sink.onMessage("agent_message", structured.message);
+      } else {
+        await sink.onMessage(QUESTION_REGEX.test(item.text) ? "question" : "agent_message", item.text);
+      }
       return;
     }
     case "reasoning":

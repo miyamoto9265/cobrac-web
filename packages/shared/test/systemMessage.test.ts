@@ -20,6 +20,13 @@ describe("resolveSystemMessage", () => {
     expect(resolveSystemMessage("anything", { i18n: "sys.queued" })).toEqual({ key: "sys.queued" });
   });
 
+  it("passes count/step from validation meta", () => {
+    expect(resolveSystemMessage("ignored", { i18n: "sys.validationFailed", step: "HCD", count: 3 })).toEqual({
+      key: "sys.validationFailed",
+      vars: { step: "HCD", count: 3 },
+    });
+  });
+
   it("maps queued / cancelled Japanese status lines", () => {
     expect(resolveSystemMessage("ジョブをキューに登録しました。ワーカーの起動を待っています…")).toEqual({ key: "sys.queued" });
     expect(resolveSystemMessage("ユーザーによりジョブがキャンセルされました。")).toEqual({ key: "sys.cancelled" });

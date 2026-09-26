@@ -201,6 +201,11 @@ export const ja: Record<MessageKey, string> = {
   "sys.braDone": "BRA データの作成が完了しました。",
   "sys.usage": "トークン: 入力 {input}（キャッシュ {cached}）/ 出力 {output} · 推定 {cost}",
   "sys.csvMissing": "エージェントが所定回数の続行指示後も CSV を生成しませんでした。フォローアップ指示またはリトライで続きを実行してください。",
+  "sys.validationFailed": "{step} の検査で {count} 件の問題が見つかったため、エージェントに修正を依頼しました。",
+  "sys.validationWarn": "{step} に未解決の検査項目が {count} 件残っていますが、先に進みます。",
+  "sys.phaseIncomplete": "所定回数の修正後も {step} ステップを完了できませんでした。フォローアップ指示またはリトライで続きを実行してください。",
+  "sys.csvFallback": "CSV の自動変換に失敗したため、エージェントに CSV の作成を依頼しました。",
+  "sys.csvBuilt": "HCD/FRG の表から CSV を生成しました。",
 
   "admin.denied": "管理者のみアクセスできます。",
   "admin.title": "管理",

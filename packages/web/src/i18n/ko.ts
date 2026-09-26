@@ -201,6 +201,11 @@ export const ko: Record<MessageKey, string> = {
   "sys.braDone": "BRA 데이터 생성이 완료되었습니다.",
   "sys.usage": "토큰: 입력 {input}(캐시 {cached}) / 출력 {output} · 추정 {cost}",
   "sys.csvMissing": "허용된 계속 횟수 안에 에이전트가 CSV를 만들지 못했습니다. 후속 지시나 재시도를 사용하세요.",
+  "sys.validationFailed": "{step} 검사에서 문제 {count}건을 발견해 에이전트에게 수정을 요청했습니다.",
+  "sys.validationWarn": "{step}에 해결되지 않은 검사 항목이 {count}건 남아 있지만 계속 진행합니다.",
+  "sys.phaseIncomplete": "허용된 수정 횟수 안에 {step} 단계를 완료하지 못했습니다. 후속 지시나 재시도를 사용하세요.",
+  "sys.csvFallback": "CSV 자동 변환에 실패해 에이전트에게 CSV 작성을 요청했습니다.",
+  "sys.csvBuilt": "HCD/FRG 표에서 CSV를 생성했습니다.",
 
   "admin.denied": "관리자만 이용할 수 있습니다.",
   "admin.title": "관리",
