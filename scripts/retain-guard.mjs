@@ -23,13 +23,15 @@ export const GUARDED_TYPES = [
 const STACK = "CobracAgents";
 // `[~] AWS::Type construct/path LogicalId <impact>` — impact wording from the aws-cdk diff formatter
 const RESOURCE_LINE = /^\[(.)\] (AWS::\S+) (.+?)(?: (may be replaced|replace|destroy|orphan))?(?: \(OR move .*\))?$/;
+// `Stack CobracAgents`, or `Stack CobracAgents (aws://<account>/<region>)` when the stack env is explicit
+const STACK_LINE = new RegExp(`^Stack ${STACK}(?: \\(aws://[^)]*\\))?$`);
 
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
 
 /** @returns {{ recognised: boolean, risks: { type: string, resource: string, change: string }[] }} */
 export function findRetainRisks(diffText) {
   const lines = stripAnsi(diffText).split(/\r?\n/);
-  const recognised = lines.some((l) => l.trim() === `Stack ${STACK}`);
+  const recognised = lines.some((l) => STACK_LINE.test(l.trim()));
   const risks = [];
   for (const line of lines) {
     const m = RESOURCE_LINE.exec(line.trimEnd());
