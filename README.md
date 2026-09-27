@@ -24,6 +24,7 @@ git push && git push --tags
 ```
 package.json                 npm workspaces (build / typecheck / test / deploy)
 prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args)
+archive/v0/                  legacy desktop instructions, specs, v0 sample artifacts, user guide (reference only)
 packages/
   shared/   types, CSV parser, graph JSON generation (buildGraphs), utilities (vitest)
   worker/   Fargate worker + Dockerfile (Node 22 + @openai/codex-sdk + Python 3)

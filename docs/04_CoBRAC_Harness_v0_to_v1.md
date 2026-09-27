@@ -180,7 +180,7 @@ The prompts shrink to about a quarter. Roughly a third of the reduction comes fr
 
 ### 5.3 Artifact output (estimated from real v0 projects)
 
-We measured the final artifacts of five v0-era projects in the repository archive (VOR learning, deductive reasoning, associative memory, and two perceptual-speed projects). Average per project:
+We measured the final artifacts of five v0-era projects kept in `archive/v0/samples/` (VOR learning, deductive reasoning, associative memory, and two perceptual-speed projects). Average per project:
 
 | Item | Tokens | In v1 |
 | ---- | -----: | ----- |

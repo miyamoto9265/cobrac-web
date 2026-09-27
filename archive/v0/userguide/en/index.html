@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoBRAC User Guide</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>CoBRAC<br>User Guide</h1>
+    <p class="subtitle">Brain Reference Architecture workflow</p>
+    <div class="lang-switch">
+      <a href="../ja/index.html">日本語</a>
+      <a href="index.html" class="active">English</a>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="#ch1">1. Introduction</a></li>
+        <li><a href="#ch2">2. Core concepts</a></li>
+        <li><a href="#ch3">3. Prerequisites</a></li>
+        <li><a href="#ch4">4. Overall workflow</a></li>
+        <li><a href="#ch5">5. Phase 0 — Start</a></li>
+        <li><a href="#ch6">6. Phase 1 — HCD</a></li>
+        <li><a href="#ch7">7. Phase 2 — FRG</a></li>
+        <li><a href="#ch8">8. Phase 3 — CSV</a></li>
+        <li><a href="#ch9">9. Phase 4 — xlsx</a></li>
+        <li><a href="#ch10">10. AI agents</a></li>
+        <li><a href="#ch11">11. Quality checklist</a></li>
+        <li><a href="#ch12">12. Troubleshooting</a></li>
+        <li><a href="#appendix">Appendix</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="doc-header">
+      <h1>CoBRAC User Guide</h1>
+      <p class="meta">Version: CoBRAC-v1-0</p>
+    </header>
+
+    <section id="ch1">
+      <h2>1. Introduction</h2>
+      <div class="callout">
+        <strong>Related files</strong>
+        CoBRAC files (instruction documents, conversion scripts, etc.) are available on GitHub: <a href="https://github.com/miyamoto9265/CoBRAC">https://github.com/miyamoto9265/CoBRAC</a>.
+      </div>
+      <h3>What is CoBRAC?</h3>
+      <p><strong>CoBRAC</strong> (Collaborative Brain Reference Architecture Compiler) is a workflow for structurally describing information processing in a brain region (ROI) that implements a computational function (TLF), based on neuroscientific evidence. The final deliverable is <strong>BRA</strong> (<strong>B</strong>rain <strong>R</strong>eference <strong>A</strong>rchitecture) data, exported as an Excel file with the extension <code>.bra.xlsx</code>.</p>
+
+      <div class="diagram">
+        <div class="flow-row">
+          <div class="flow-box">TLF / ROI<small>input</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">HCD<small>UC + Connection</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">FRG<small>GN hierarchy + UC</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">CSV<small>5 files</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box output">.bra.xlsx<small>BRA output</small></div>
+        </div>
+        <p class="diagram-caption">Figure 1-1 — CoBRAC overall flow</p>
+      </div>
+
+      <h3>Final deliverable (.bra.xlsx)</h3>
+      <p>The Excel file contains five sheets:</p>
+      <table>
+        <thead><tr><th>Sheet</th><th>Content</th></tr></thead>
+        <tbody>
+          <tr><td>Project</td><td>Project metadata (Contributor, Project ID, etc.)</td></tr>
+          <tr><td>References</td><td>Reference list</td></tr>
+          <tr><td>Circuits</td><td>Uniform Circuit (UC) definitions</td></tr>
+          <tr><td>Connections</td><td>Connections between UCs</td></tr>
+          <tr><td>FRG</td><td>Function Realization Graph integrated with UC data</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="screenshot" id="ss-1-2">
+        <div class="screenshot-missing">
+          <strong>Screenshot 1-2 (not attached)</strong>
+          <p>Open a completed <code>.bra.xlsx</code> in Excel and capture all five sheet tabs at the bottom (Project / References / Circuits / Connections / FRG).</p>
+          <span class="path">userguide/images/1-2-xlsx-tabs.png</span>
+        </div>
+        <img src="../images/1-2-xlsx-tabs.png" alt="Completed .bra.xlsx sheet tabs" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>Figure 1-2 — Completed .bra.xlsx sheet structure</figcaption>
+      </figure>
+
+      <h3>How to use this guide</h3>
+      <ol>
+        <li>First-time users: read Chapters 2–4 for concepts and workflow</li>
+        <li>Start work: follow Chapters 5 onward in Phase order</li>
+        <li>Detailed writing rules: have your AI agent read the relevant <code>instruction_*.md</code> files</li>
+        <li>Before submission: use the checklist in Chapter 11</li>
+      </ol>
+    </section>
+
+    <section id="ch2">
+      <h2>2. Core concepts</h2>
+      <table>
+        <thead><tr><th>Term</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>TLF</strong> (Top Level Function)</td><td>The computational function to describe (e.g., VOR learning, spatial navigation)</td></tr>
+          <tr><td><strong>ROI</strong> (Region of Interest)</td><td>Brain region where the TLF is implemented (e.g., cerebellum, hippocampus)</td></tr>
+          <tr><td><strong>UC</strong> (Uniform Circuit)</td><td>Basic unit of HCD (neural population). “Circuit” is a project-specific term, not a synaptic circuit</td></tr>
+          <tr><td><strong>BIF</strong> (Brain Information Flow)</td><td>Anatomical projection data supporting connections</td></tr>
+          <tr><td><strong>Connection</strong></td><td>Information transfer between UCs based on BIF</td></tr>
+          <tr><td><strong>Interface</strong></td><td>UC input/output relation: <code>([outputs], ...) = UC-name([inputs], ...)</code></td></tr>
+          <tr><td><strong>Output Semantics</strong></td><td>Meaning of information coded by a UC</td></tr>
+          <tr><td><strong>GN</strong> (Group Node)</td><td>Intermediate FRG node representing a sub-function of the TLF</td></tr>
+          <tr><td><strong>HCD</strong></td><td>Hypothetical Component Graph — information-processing graph of UCs and Connections</td></tr>
+          <tr><td><strong>FRG</strong></td><td>Function Realization Graph — hierarchical decomposition of TLF grounded in UCs</td></tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">
+        <div class="compare-grid">
+          <div class="compare-panel">
+            <h4>HCD — “Who connects to whom”</h4>
+            <div class="hcd-graph">
+              <div class="node roi-out-in">noROI(input)</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">UC-A</div>
+                <span class="hcd-arrow">→</span>
+                <div class="node roi-in">UC-B</div>
+                <span class="hcd-arrow">→</span>
+                <div class="node roi-in">UC-C</div>
+              </div>
+              <span class="edge-down">↓</span>
+              <div class="node roi-out-out">noROI(output)</div>
+            </div>
+          </div>
+          <div class="compare-panel">
+            <h4>FRG — “How function decomposes into UCs”</h4>
+            <div class="frg-tree">
+              <div class="node tlf">TLF</div>
+              <span class="edge-down">↓</span>
+              <div class="node gn">R.GN-1</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node gn">R.GN-2</div>
+                <div class="node gn">R.GN-3</div>
+              </div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.UC-A</div>
+                <div class="node roi-in">U.UC-B</div>
+                <div class="node roi-in">U.UC-C</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-in)"></span> UC inside ROI</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-in)"></span> noROI(input)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-out)"></span> noROI(output)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#f3e8ff"></span> GN</span>
+        </div>
+        <p class="diagram-caption">Figure 2-1 — HCD vs FRG (the same UCs appear in both)</p>
+      </div>
+
+      <div class="diagram">
+        <p><strong>Interface notation example</strong></p>
+        <div class="interface-diagram">
+          (<span class="out">[UC-E]</span>, <span class="out">[UC-H]</span>) = <span class="uc">UC-B</span>(<span class="in">[UC-F]</span>, <span class="in">[UC-G]</span>, <span class="in">[UC-I]</span>)
+        </div>
+        <p class="diagram-caption">Figure 2-2 — UC-B takes UC-F, UC-G, UC-I as inputs and outputs to UC-E and UC-H</p>
+      </div>
+    </section>
+
+    <section id="ch3">
+      <h2>3. Prerequisites</h2>
+      <h3>Required software</h3>
+      <ul>
+        <li><strong>Python 3.x</strong> — for CSV → xlsx conversion</li>
+        <li><strong>pandas, openpyxl</strong> — <code>pip install -r requirements.txt</code></li>
+        <li><strong>AI agent</strong> — Cursor, Claude Code, Codex, etc. (see Chapter 10)</li>
+        <li><strong>Web browser</strong> — for literature search</li>
+        <li><strong>(Optional) draw.io</strong> — for HCD diagram visualization</li>
+      </ul>
+
+      <h3>Repository layout (_latest_version)</h3>
+      <pre><code>_latest_version/
+├── instruction_0.md      # Folder setup
+├── instruction_1_HCD.md  # HCD (8 steps)
+├── instruction_2_FRG.md  # FRG (6 steps)
+├── instruction_3_csv.md  # CSV creation
+├── csv_to_excel.py       # xlsx generation
+└── {ProjectName}/        # Per-project folders</code></pre>
+
+      <figure class="screenshot" id="ss-3-1">
+        <div class="screenshot-missing">
+          <strong>Screenshot 3-1 (not attached)</strong>
+          <p>Show the <code>_latest_version</code> folder in Explorer or an IDE file tree, with instruction files visible.</p>
+          <span class="path">userguide/images/3-1-folder-tree.png</span>
+        </div>
+        <img src="../images/3-1-folder-tree.png" alt="_latest_version folder tree" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>Figure 3-1 — _latest_version folder layout</figcaption>
+      </figure>
+
+      <h3>Information to decide before starting</h3>
+      <ul>
+        <li><strong>Contributor</strong> — author name (English)</li>
+        <li><strong>Project ID</strong> — project name (English, reflecting TLF/ROI)</li>
+        <li><strong>TLF</strong> and <strong>ROI</strong> — target function and brain region</li>
+      </ul>
+    </section>
+
+    <section id="ch4">
+      <h2>4. Overall workflow</h2>
+      <ol>
+        <li><code>instruction_0.md</code> — create project folders</li>
+        <li><code>instruction_1_HCD.md</code> — create HCD</li>
+        <li><code>instruction_2_FRG.md</code> — create FRG</li>
+        <li><code>instruction_3_csv.md</code> — create CSV files</li>
+        <li><code>csv_to_excel.py</code> — generate .bra.xlsx</li>
+      </ol>
+
+      <pre><code>{ProjectName}/
+├── {ProjectName}_HCD/    ← HCD outputs (8 md files)
+├── {ProjectName}_FRG/    ← FRG outputs (5 md files)
+└── {ProjectName}_CSV/    ← 5 CSV + output xlsx</code></pre>
+
+      <div class="diagram">
+        <div class="timeline">
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 0</div>
+            <strong>Start</strong>
+            <ul><li>instruction_0</li><li>folders</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 1</div>
+            <strong>HCD</strong>
+            <ul><li>1_Thinking … 8_diagram</li><li>3_UC, 4_Connection</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 2</div>
+            <strong>FRG</strong>
+            <ul><li>1_初期分解 … report</li><li>3_最終FRG</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 3</div>
+            <strong>CSV</strong>
+            <ul><li>5 CSV files</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 4</div>
+            <strong>xlsx</strong>
+            <ul><li>csv_to_excel.py</li><li>.bra.xlsx</li></ul>
+          </div>
+        </div>
+        <p class="diagram-caption">Figure 4-1 — Phase timeline</p>
+      </div>
+
+      <figure class="screenshot" id="ss-4-2">
+        <div class="screenshot-missing">
+          <strong>Screenshot 4-2 (not attached)</strong>
+          <p>Explorer view of a completed project folder with <code>_HCD</code>, <code>_FRG</code>, and <code>_CSV</code> subfolders and key files.</p>
+          <span class="path">userguide/images/4-2-project-folder.png</span>
+        </div>
+        <img src="../images/4-2-project-folder.png" alt="Example project folder" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>Figure 4-2 — Example completed project folder</figcaption>
+      </figure>
+
+      <table>
+        <thead><tr><th>Phase</th><th>Input</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>TLF, ROI</td><td>3 subfolders</td></tr>
+          <tr><td>1 HCD</td><td>TLF, ROI, literature</td><td>8 md files</td></tr>
+          <tr><td>2 FRG</td><td>TLF, UCs from HCD</td><td>5 md files</td></tr>
+          <tr><td>3 CSV</td><td>HCD + FRG md</td><td>5 CSV files</td></tr>
+          <tr><td>4 xlsx</td><td>5 CSV files</td><td>.bra.xlsx</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="ch5">
+      <h2>5. Phase 0 — Project start</h2>
+      <h3>Project ID naming</h3>
+      <ul>
+        <li>English ID reflecting TLF/ROI (e.g. <code>Cerebellum-VOR-Learning</code>)</li>
+        <li>No spaces; Kebab-case recommended</li>
+      </ul>
+
+      <h3>Example prompt to an AI agent</h3>
+      <pre><code>Following instruction_0.md, create project folders with
+Project ID: Cerebellum-VOR-Learning,
+ROI: cerebellum (flocculus), TLF: VOR learning.</code></pre>
+
+      <figure class="screenshot" id="ss-5-1">
+        <div class="screenshot-missing">
+          <strong>Screenshot 5-1 (not attached)</strong>
+          <p>Chat in your AI agent (Cursor / Claude Code / Codex, etc.) referencing <code>instruction_0.md</code> with ROI, TLF, and a folder-creation request.</p>
+          <span class="path">userguide/images/5-1-ai-prompt.png</span>
+        </div>
+        <img src="../images/5-1-ai-prompt.png" alt="Initial AI prompt" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>Figure 5-1 — Example Phase 0 AI prompt</figcaption>
+      </figure>
+
+    </section>
+
+    <section id="ch6">
+      <h2>6. Phase 1 — Creating HCD</h2>
+      <p>For detailed writing rules, refer to <code>instruction_1_HCD.md</code>. This chapter summarizes each step only.</p>
+
+      <table>
+        <thead><tr><th>Step</th><th>Output</th><th>Summary</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>1_Thinking.md</code></td><td>Validate ROI/TLF; organize ROI inputs/outputs</td></tr>
+          <tr><td>2</td><td><code>2_BIF.md</code></td><td>Literature survey of neural connections; reference list</td></tr>
+          <tr><td>3</td><td><code>3_UC.md</code></td><td>Define UCs (Kebab-case; inside/outside ROI)</td></tr>
+          <tr><td>4</td><td><code>4_Connection.md</code> + <code>3_UC.md</code></td><td>Define Connections; add Interfaces</td></tr>
+          <tr><td>5</td><td><code>3_UC.md</code></td><td>Output Semantics</td></tr>
+          <tr><td>6</td><td><code>3_UC.md</code></td><td>Requirement / Capability / Mechanism / Implementation — see instruction</td></tr>
+          <tr><td>7</td><td><code>5_Verification.md</code></td><td>Consistency verification</td></tr>
+          <tr><td>8</td><td><code>6_FinalPaper.md</code> etc.</td><td>Report, tutorial, Mermaid diagram</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>About Step 6</strong>
+        Writing Requirement, Capability, Mechanism, and Implementation is complex. Always have your AI agent read Step 6 in <code>instruction_1_HCD.md</code> and follow it.
+      </div>
+
+      <h3>Key points</h3>
+      <ul class="checklist">
+        <li>Wrap UC names in backticks (`) in markdown</li>
+        <li>Mark outside-ROI UCs with <code>noROI(input)</code> / <code>noROI(output)</code> in comments</li>
+        <li>Connections must match Interfaces</li>
+        <li>Every Connection must cite literature</li>
+      </ul>
+
+      <div class="diagram">
+        <div class="roi-flow">
+          <div class="box input-box">ROI_Input<br><small>noROI(input) UCs</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="box process-box">UCs inside ROI<br><small>processing graph</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="box output-box">ROI_Output<br><small>noROI(output) UCs</small></div>
+        </div>
+        <p class="diagram-caption">Figure 6-2 — Information flow in HCD (ROI input → internal processing → ROI output)</p>
+      </div>
+
+      <div class="diagram">
+        <div class="compare-panel" style="max-width:28rem;margin:0 auto">
+          <h4>HCD structure (as in 8_diagram.md)</h4>
+          <div class="hcd-graph">
+            <div class="node roi-out-in">ext-input</div>
+            <span class="edge-down">↓</span>
+            <div class="hcd-row">
+              <div class="node roi-in">UC-1</div>
+              <span class="hcd-arrow">—→</span>
+              <div class="node roi-in">UC-2</div>
+            </div>
+            <span class="edge-down">↓</span>
+            <div class="node roi-out-out">ext-output</div>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-in)"></span> Inside ROI</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-in)"></span> noROI(input)</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-out)"></span> noROI(output)</span>
+          </div>
+        </div>
+        <p class="diagram-caption">Figure 6-3 — HCD color legend (actual diagram from 8_diagram.md Mermaid via draw.io, etc.)</p>
+      </div>
+    </section>
+
+    <section id="ch7">
+      <h2>7. Phase 2 — Creating FRG</h2>
+      <p>See <code>instruction_2_FRG.md</code>. Use only UCs inside the ROI as defined in HCD.</p>
+
+      <table>
+        <thead><tr><th>Step</th><th>Output</th><th>Summary</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>1_初期分解結果.md</code></td><td>Decompose TLF (no UC linking yet)</td></tr>
+          <tr><td>2</td><td><code>2_最適化FRG.md</code></td><td>Merge redundant GNs</td></tr>
+          <tr><td>3</td><td><code>3_最終FRG.md</code></td><td>Link UCs; add Interfaces</td></tr>
+          <tr><td>4</td><td><code>4_機能詳細.md</code></td><td>TLF/GN Requirement etc. — see instruction</td></tr>
+          <tr><td>5</td><td><code>5_FRG作成レポート.md</code></td><td>Document rationale</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>GN–UC connection constraints (required)</strong>
+        <ul>
+          <li>Each GN must decompose into <strong>multiple UCs</strong></li>
+          <li>At most <strong>2 UCs</strong> per GN</li>
+          <li>At most <strong>2 GNs</strong> per UC</li>
+          <li>If violated, return to Step 1 and refine TLF decomposition</li>
+        </ul>
+      </div>
+
+      <div class="diagram frg-hierarchy">
+        <svg viewBox="0 0 420 200" width="100%" aria-label="FRG hierarchy">
+          <defs>
+            <marker id="arr-en" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#64748b"/>
+            </marker>
+          </defs>
+          <rect x="165" y="8" width="90" height="28" rx="6" fill="#fef9c3" stroke="#ca8a04"/>
+          <text x="210" y="26" text-anchor="middle" font-size="11" font-family="Segoe UI,sans-serif">TLF</text>
+          <line x1="210" y1="36" x2="210" y2="52" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <rect x="155" y="54" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="210" y="72" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.parent-GN</text>
+          <line x1="170" y1="82" x2="100" y2="98" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <line x1="250" y1="82" x2="320" y2="98" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <rect x="45" y="100" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="100" y="118" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.child-GN-1</text>
+          <rect x="265" y="100" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="320" y="118" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.child-GN-2</text>
+          <line x1="80" y1="128" x2="60" y2="148" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <line x1="120" y1="128" x2="140" y2="148" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <line x1="300" y1="128" x2="280" y2="148" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <line x1="340" y1="128" x2="360" y2="148" stroke="#64748b" marker-end="url(#arr-en)"/>
+          <rect x="20" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="60" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-A</text>
+          <rect x="110" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="150" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-B</text>
+          <rect x="240" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="280" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-C</text>
+          <rect x="330" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="370" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-D</text>
+        </svg>
+        <p class="diagram-caption">Figure 7-1 — FRG hierarchy (TLF → GN → UC)</p>
+      </div>
+
+      <div class="diagram">
+        <div class="constraint-grid">
+          <div class="constraint-panel ok">
+            <div class="label">OK — 1 GN → at most 2 UCs</div>
+            <div class="mini-tree">
+              <div class="node gn">R.GN-X</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.UC-A</div>
+                <div class="node roi-in">U.UC-B</div>
+              </div>
+            </div>
+          </div>
+          <div class="constraint-panel ng">
+            <div class="label">NG — 1 GN → 3 UCs</div>
+            <div class="mini-tree">
+              <div class="node gn">R.GN-X</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.A</div>
+                <div class="node roi-in">U.B</div>
+                <div class="node roi-in">U.C</div>
+              </div>
+            </div>
+            <p style="font-size:0.75rem;margin:0.5rem 0 0">→ Return to Step 1 and refine decomposition</p>
+          </div>
+        </div>
+        <p class="diagram-caption">Figure 7-2 — GN–UC connection constraints</p>
+      </div>
+
+      <p>GN naming: <code>R.</code> + Kebab-case. UC reference: <code>U.</code> + Circuit ID.</p>
+    </section>
+
+    <section id="ch8">
+      <h2>8. Phase 3 — Creating CSV files</h2>
+      <p>See <code>instruction_3_csv.md</code>.</p>
+
+      <h3>Prerequisite files</h3>
+      <ul>
+        <li>HCD: <code>2_BIF.md</code>, <code>3_UC.md</code>, <code>4_Connection.md</code></li>
+        <li>FRG: <code>3_最終FRG.md</code>, <code>4_機能詳細.md</code></li>
+      </ul>
+
+      <table>
+        <thead><tr><th>CSV</th><th>Main data sources</th></tr></thead>
+        <tbody>
+          <tr><td>Project.csv</td><td>Template + metadata</td></tr>
+          <tr><td>References.csv</td><td>2_BIF.md, 4_Connection.md</td></tr>
+          <tr><td>Circuits.csv</td><td>3_UC.md</td></tr>
+          <tr><td>Connections.csv</td><td>4_Connection.md</td></tr>
+          <tr><td>FRG.csv</td><td>FRG + HCD integration</td></tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">
+        <div class="mapping-flow">
+          <div class="mapping-row"><div class="mapping-src">2_BIF.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">References.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">3_UC.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">Circuits.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">4_Connection.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">Connections.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">3_最終FRG.md + 4_機能詳細.md + 3_UC.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">FRG.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">Metadata</div><div class="mapping-arrow">→</div><div class="mapping-dst">Project.csv</div></div>
+        </div>
+        <p class="diagram-caption">Figure 8-1 — Mapping from md files to CSV</p>
+      </div>
+
+      <ul>
+        <li>CSV content must be in <strong>English</strong></li>
+        <li>Remove backticks (`) from markdown</li>
+        <li>Add <code>U.</code> prefix to UC Node IDs in FRG.csv</li>
+      </ul>
+
+    </section>
+
+    <section id="ch9">
+      <h2>9. Phase 4 — Generating .bra.xlsx</h2>
+      <p>Run the Python script from the <code>_latest_version</code> folder.</p>
+      <pre><code>cd _latest_version
+python csv_to_excel.py</code></pre>
+      <p>Interactive input: <strong>Contributor</strong> and <strong>Project ID</strong></p>
+      <p>Output: <code>{ProjectName}/{ProjectName}_CSV/{ProjectID}.bra.xlsx</code></p>
+
+      <h3>Processing performed by the script (summary)</h3>
+      <ul>
+        <li><strong>Circuits</strong> — insert columns (Sub-Circuits, Uniform=TRUE, etc.); add Contributor / Project ID</li>
+        <li><strong>Connections</strong> — add relation and Notation columns</li>
+        <li><strong>FRG</strong> — merge Capability and Mechanism into <code>Capability&amp;Mechanism</code></li>
+      </ul>
+
+    </section>
+
+    <section id="ch10">
+      <h2>10. Using AI agents</h2>
+
+      <div class="callout">
+        <strong>Supported tools</strong>
+        CoBRAC work is done with an <strong>AI agent</strong> (Cursor, Claude Code, Codex, or any tool with agent capabilities). Have the agent read each <code>instruction_*.md</code> and perform tasks according to those instructions.
+      </div>
+
+      <div class="callout warn">
+        <strong>Output quality</strong>
+        HCD, FRG, and CSV content generated by AI agents <strong>depends heavily on the model you use</strong>. Higher-capability models tend to produce better literature surveys, consistency checks, and complex functional descriptions. However, <strong>neuroscientific validity and citation accuracy must always be verified by a human</strong>.
+      </div>
+
+      <h3>Basic workflow</h3>
+      <ol>
+        <li>Open the CoBRAC repository (<code>_latest_version</code>) as the agent working directory</li>
+        <li>Explicitly reference the instruction file for the current Phase</li>
+        <li>Always specify TLF, ROI, Project ID, and other parameters</li>
+      </ol>
+
+      <h3>Prompt examples</h3>
+      <h4>Start Phase 1</h4>
+      <pre><code>Following instruction_1_HCD.md, start HCD creation with
+ROI: hippocampus, TLF: spatial navigation.
+Project folders are already created.</code></pre>
+
+      <h4>HCD complete → start FRG</h4>
+      <pre><code>HCD is complete. Following instruction_2_FRG.md, start FRG creation
+using the TLF and UCs from HCD outputs.</code></pre>
+
+      <h4>FRG complete → create CSV</h4>
+      <pre><code>FRG is complete. Following instruction_3_csv.md,
+create all five CSV files.</code></pre>
+
+      <h3>What humans must verify</h3>
+      <ul>
+        <li>Citation accuracy (DOI, author-year)</li>
+        <li>Neuroscientific validity of ROI/TLF</li>
+        <li>UC naming rules and GN–UC constraints</li>
+        <li>Consistency between Connections and Interfaces</li>
+      </ul>
+
+    </section>
+
+    <section id="ch11">
+      <h2>11. Quality checklist</h2>
+      <h3>HCD</h3>
+      <ul class="checklist">
+        <li>Information path from ROI_Input to ROI_Output is valid</li>
+        <li>Every Connection has a Reference ID</li>
+        <li>Connections match Interfaces</li>
+        <li>UC names use Kebab-case and backticks in markdown</li>
+        <li>Outside-ROI UCs have noROI comments</li>
+        <li>5_Verification.md completed</li>
+        <li>8_diagram.md Mermaid diagram created</li>
+      </ul>
+
+      <h3>FRG</h3>
+      <ul class="checklist">
+        <li>Only inside-ROI UCs used</li>
+        <li>Each GN decomposed into multiple UCs</li>
+        <li>GN–UC constraints satisfied (max 2 each)</li>
+        <li>TLF Interface consistent with noROI I/O</li>
+        <li>4_機能詳細.md complete</li>
+      </ul>
+
+      <h3>CSV / xlsx</h3>
+      <ul class="checklist">
+        <li>All five CSV files in English</li>
+        <li>No duplicate or missing entries in References.csv</li>
+        <li>Correct Node ID format in FRG.csv (R.* / U.*)</li>
+        <li>.bra.xlsx has five sheets</li>
+        <li>Contributor / Project ID reflected in Circuits and Connections</li>
+      </ul>
+    </section>
+
+    <section id="ch12">
+      <h2>12. Troubleshooting</h2>
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause and fix</th></tr></thead>
+        <tbody>
+          <tr><td><code>CSVフォルダが見つかりません</code></td><td>Check Project ID matches folder name. Path: <code>{ProjectID}/{ProjectID}_CSV/</code></td></tr>
+          <tr><td><code>Project.csv が見つかりません</code></td><td>Phase 3 (CSV) not completed</td></tr>
+          <tr><td>FRG GN–UC constraint violation</td><td>Return to instruction_2 Step 1; refine TLF decomposition</td></tr>
+          <tr><td>Connection / Interface mismatch</td><td>Re-run 5_Verification.md; fix 3_UC.md and 4_Connection.md</td></tr>
+          <tr><td><code>ModuleNotFoundError: pandas</code></td><td>Re-run <code>pip install -r requirements.txt</code></td></tr>
+          <tr><td>Low AI output quality</td><td>Switch to a more capable model; re-reference instructions; review incrementally</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="appendix">
+      <h2>Appendix</h2>
+      <h3>A. Deliverable file list</h3>
+      <table>
+        <thead><tr><th>File</th><th>Phase</th><th>Required</th></tr></thead>
+        <tbody>
+          <tr><td>1_Thinking.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>2_BIF.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>3_UC.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>4_Connection.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>5_Verification.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>6_FinalPaper.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>7_EasyToUnderstand.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>8_diagram.md</td><td>HCD</td><td>Yes</td></tr>
+          <tr><td>1_初期分解結果.md</td><td>FRG</td><td>Yes</td></tr>
+          <tr><td>2_最適化FRG.md</td><td>FRG</td><td>Yes</td></tr>
+          <tr><td>3_最終FRG.md</td><td>FRG</td><td>Yes</td></tr>
+          <tr><td>4_機能詳細.md</td><td>FRG</td><td>Yes</td></tr>
+          <tr><td>5_FRG作成レポート.md</td><td>FRG</td><td>Yes</td></tr>
+          <tr><td>5 × CSV</td><td>CSV</td><td>Yes</td></tr>
+          <tr><td>{ProjectID}.bra.xlsx</td><td>xlsx</td><td>Yes</td></tr>
+        </tbody>
+      </table>
+
+      <h3>B. Naming conventions</h3>
+      <ul>
+        <li><strong>UC</strong> — Kebab-case, no spaces (e.g. <code>flocculus-purkinje</code>)</li>
+        <li><strong>GN</strong> — <code>R.</code> + Kebab-case (e.g. <code>R.error-computation</code>)</li>
+        <li><strong>UC in FRG.csv</strong> — <code>U.</code> + Circuit ID</li>
+      </ul>
+
+    </section>
+  </main>
+</div>
+</body>
+</html>

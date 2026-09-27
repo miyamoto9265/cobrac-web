@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CoBRAC ユーザーガイド</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <h1>CoBRAC<br>ユーザーガイド</h1>
+    <p class="subtitle">Brain Reference Architecture 作成ワークフロー</p>
+    <div class="lang-switch">
+      <a href="index.html" class="active">日本語</a>
+      <a href="../en/index.html">English</a>
+    </div>
+    <nav>
+      <ul>
+        <li><a href="#ch1">1. はじめに</a></li>
+        <li><a href="#ch2">2. 基本概念</a></li>
+        <li><a href="#ch3">3. 事前準備</a></li>
+        <li><a href="#ch4">4. 全体ワークフロー</a></li>
+        <li><a href="#ch5">5. Phase 0 — 開始</a></li>
+        <li><a href="#ch6">6. Phase 1 — HCD</a></li>
+        <li><a href="#ch7">7. Phase 2 — FRG</a></li>
+        <li><a href="#ch8">8. Phase 3 — CSV</a></li>
+        <li><a href="#ch9">9. Phase 4 — xlsx</a></li>
+        <li><a href="#ch10">10. AI エージェント</a></li>
+        <li><a href="#ch11">11. 品質チェック</a></li>
+        <li><a href="#ch12">12. トラブルシューティング</a></li>
+        <li><a href="#appendix">付録</a></li>
+      </ul>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="doc-header">
+      <h1>CoBRAC ユーザーガイド</h1>
+      <p class="meta">バージョン: CoBRAC-v1-0 対応</p>
+    </header>
+
+    <!-- Chapter 1 -->
+    <section id="ch1">
+      <h2>1. はじめに</h2>
+      <div class="callout">
+        <strong>関連ファイル</strong>
+        instruction ファイル、変換スクリプト等の CoBRAC 関連ファイルは、GitHub リポジトリ <a href="https://github.com/miyamoto9265/CoBRAC">https://github.com/miyamoto9265/CoBRAC</a> で公開しています。
+      </div>
+      <h3>CoBRAC とは</h3>
+      <p><strong>CoBRAC</strong>（Collaborative Brain Reference Architecture Compiler）は、特定の脳領域（ROI）が実行する計算機能（TLF）について、神経科学的知見に基づき情報処理を構造化して記述するワークフローです。最終成果物は <strong>BRA</strong>（<strong>B</strong>rain <strong>R</strong>eference <strong>A</strong>rchitecture）データであり、拡張子 <code>.bra.xlsx</code> の Excel ファイルとして出力されます。</p>
+
+      <div class="diagram">
+        <div class="flow-row">
+          <div class="flow-box">TLF / ROI<small>入力指定</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">HCD<small>UC + Connection</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">FRG<small>GN 階層 + UC</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box">CSV<small>5 ファイル</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-box output">.bra.xlsx<small>BRA 成果物</small></div>
+        </div>
+        <p class="diagram-caption">図 1-1 — CoBRAC 全体フロー</p>
+      </div>
+
+      <h3>最終成果物 (.bra.xlsx)</h3>
+      <p>Excel ファイルには次の 5 シートが含まれます。</p>
+      <table>
+        <thead><tr><th>シート名</th><th>内容</th></tr></thead>
+        <tbody>
+          <tr><td>Project</td><td>プロジェクトメタデータ（Contributor, Project ID 等）</td></tr>
+          <tr><td>References</td><td>使用文献一覧</td></tr>
+          <tr><td>Circuits</td><td>Uniform Circuit（UC）定義</td></tr>
+          <tr><td>Connections</td><td>UC 間の Connection</td></tr>
+          <tr><td>FRG</td><td>Function Realization Graph と UC の統合データ</td></tr>
+        </tbody>
+      </table>
+
+      <figure class="screenshot" id="ss-1-2">
+        <div class="screenshot-missing">
+          <strong>スクリーンショット 1-2（未添付）</strong>
+          <p>完成した <code>.bra.xlsx</code> を Excel で開き、下部の 5 シートタブ（Project / References / Circuits / Connections / FRG）がすべて見える状態でキャプチャしてください。</p>
+          <span class="path">userguide/images/1-2-xlsx-tabs.png</span>
+        </div>
+        <img src="../images/1-2-xlsx-tabs.png" alt="完成 .bra.xlsx のシートタブ" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>図 1-2 — 完成 .bra.xlsx のシート構成</figcaption>
+      </figure>
+
+      <h3>本ガイドの読み方</h3>
+      <ol>
+        <li>初めての方: 第 2〜4 章で概念と流れを把握</li>
+        <li>作業開始: 第 5 章以降を Phase 順に実行</li>
+        <li>詳細な記述ルール: 各 Phase で参照する <code>instruction_*.md</code> を AI エージェントに読ませる</li>
+        <li>提出前: 第 11 章のチェックリストで確認</li>
+      </ol>
+    </section>
+
+    <!-- Chapter 2 -->
+    <section id="ch2">
+      <h2>2. CoBRAC の基本概念</h2>
+      <table>
+        <thead><tr><th>用語</th><th>説明</th></tr></thead>
+        <tbody>
+          <tr><td><strong>TLF</strong> (Top Level Function)</td><td>記述対象の計算機能（例: VOR 学習、空間ナビゲーション）</td></tr>
+          <tr><td><strong>ROI</strong> (Region of Interest)</td><td>TLF が実現される脳領域（例: 小脳、海馬）</td></tr>
+          <tr><td><strong>UC</strong> (Uniform Circuit)</td><td>HCD の基本単位（神経集団）。※「Circuit」は独自用法で、シナプス回路とは無関係</td></tr>
+          <tr><td><strong>BIF</strong> (Brain Information Flow)</td><td>解剖学的投射に基づく接続の根拠データ</td></tr>
+          <tr><td><strong>Connection</strong></td><td>BIF に基づく UC 間の情報の受け渡し</td></tr>
+          <tr><td><strong>Interface</strong></td><td>UC の入出力関係。形式: <code>([出力], ...) = UC名([入力], ...)</code></td></tr>
+          <tr><td><strong>Output Semantics</strong></td><td>UC がコードする情報の意味</td></tr>
+          <tr><td><strong>GN</strong> (Group Node)</td><td>FRG の中間ノード。TLF の部分機能を表す</td></tr>
+          <tr><td><strong>HCD</strong></td><td>Hypothetical Component Graph — UC と Connection による情報処理グラフ</td></tr>
+          <tr><td><strong>FRG</strong></td><td>Function Realization Graph — TLF を階層分解し UC に接地するグラフ</td></tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">
+        <div class="compare-grid">
+          <div class="compare-panel">
+            <h4>HCD — 「誰が誰につながるか」</h4>
+            <div class="hcd-graph">
+              <div class="node roi-out-in">noROI(input)</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">UC-A</div>
+                <span class="hcd-arrow">→</span>
+                <div class="node roi-in">UC-B</div>
+                <span class="hcd-arrow">→</span>
+                <div class="node roi-in">UC-C</div>
+              </div>
+              <span class="edge-down">↓</span>
+              <div class="node roi-out-out">noROI(output)</div>
+            </div>
+          </div>
+          <div class="compare-panel">
+            <h4>FRG — 「機能がどう分解され UC に接地するか」</h4>
+            <div class="frg-tree">
+              <div class="node tlf">TLF</div>
+              <span class="edge-down">↓</span>
+              <div class="node gn">R.GN-1</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node gn">R.GN-2</div>
+                <div class="node gn">R.GN-3</div>
+              </div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.UC-A</div>
+                <div class="node roi-in">U.UC-B</div>
+                <div class="node roi-in">U.UC-C</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-in)"></span> ROI 内 UC</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-in)"></span> noROI(input)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-out)"></span> noROI(output)</span>
+          <span class="legend-item"><span class="legend-swatch" style="background:#f3e8ff"></span> GN</span>
+        </div>
+        <p class="diagram-caption">図 2-1 — HCD と FRG の対比（同じ UC が両方に登場）</p>
+      </div>
+
+      <div class="diagram">
+        <p><strong>Interface 記法の例</strong></p>
+        <div class="interface-diagram">
+          (<span class="out">[UC-E]</span>, <span class="out">[UC-H]</span>) = <span class="uc">UC-B</span>(<span class="in">[UC-F]</span>, <span class="in">[UC-G]</span>, <span class="in">[UC-I]</span>)
+        </div>
+        <p class="diagram-caption">図 2-2 — UC-B は UC-F, UC-G, UC-I を入力とし、UC-E と UC-H へ出力する</p>
+      </div>
+    </section>
+
+    <!-- Chapter 3 -->
+    <section id="ch3">
+      <h2>3. 事前準備</h2>
+      <h3>必要なソフトウェア</h3>
+      <ul>
+        <li><strong>Python 3.x</strong> — CSV → xlsx 変換用</li>
+        <li><strong>pandas, openpyxl</strong> — <code>pip install -r requirements.txt</code></li>
+        <li><strong>AI エージェント</strong> — Cursor, Claude Code, Codex 等（後述）</li>
+        <li><strong>Web ブラウザ</strong> — 文献調査用</li>
+        <li><strong>（任意）draw.io</strong> — HCD 図の可視化</li>
+      </ul>
+
+      <h3>リポジトリ構成（_latest_version）</h3>
+      <pre><code>_latest_version/
+├── instruction_0.md      # フォルダ作成
+├── instruction_1_HCD.md  # HCD 作成（8 ステップ）
+├── instruction_2_FRG.md  # FRG 作成（6 ステップ）
+├── instruction_3_csv.md  # CSV 作成
+├── csv_to_excel.py       # xlsx 生成
+└── {ProjectName}/        # 各プロジェクト</code></pre>
+
+      <figure class="screenshot" id="ss-3-1">
+        <div class="screenshot-missing">
+          <strong>スクリーンショット 3-1（未添付）</strong>
+          <p>エクスプローラーまたは IDE のファイルツリーで <code>_latest_version</code> フォルダを表示。instruction ファイルが見える状態。</p>
+          <span class="path">userguide/images/3-1-folder-tree.png</span>
+        </div>
+        <img src="../images/3-1-folder-tree.png" alt="_latest_version フォルダツリー" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>図 3-1 — _latest_version フォルダ構成</figcaption>
+      </figure>
+
+      <h3>作業開始前に決める情報</h3>
+      <ul>
+        <li><strong>Contributor</strong> — 作成者名（英語）</li>
+        <li><strong>Project ID</strong> — プロジェクト名（英語、TLF/ROI がわかる ID）</li>
+        <li><strong>TLF</strong> と <strong>ROI</strong> — 記述対象の機能と脳領域</li>
+      </ul>
+    </section>
+
+    <!-- Chapter 4 -->
+    <section id="ch4">
+      <h2>4. 全体ワークフロー</h2>
+      <ol>
+        <li><code>instruction_0.md</code> — プロジェクトフォルダ作成</li>
+        <li><code>instruction_1_HCD.md</code> — HCD 作成</li>
+        <li><code>instruction_2_FRG.md</code> — FRG 作成</li>
+        <li><code>instruction_3_csv.md</code> — CSV 作成</li>
+        <li><code>csv_to_excel.py</code> — .bra.xlsx 生成</li>
+      </ol>
+
+      <pre><code>{ProjectName}/
+├── {ProjectName}_HCD/    ← HCD 成果物（8 md ファイル）
+├── {ProjectName}_FRG/    ← FRG 成果物（5 md ファイル）
+└── {ProjectName}_CSV/    ← 5 CSV + 出力 xlsx</code></pre>
+
+      <div class="diagram">
+        <div class="timeline">
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 0</div>
+            <strong>開始</strong>
+            <ul><li>instruction_0</li><li>フォルダ作成</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 1</div>
+            <strong>HCD</strong>
+            <ul><li>1_Thinking … 8_diagram</li><li>3_UC, 4_Connection</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 2</div>
+            <strong>FRG</strong>
+            <ul><li>1_初期分解 … 5_レポート</li><li>3_最終FRG</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 3</div>
+            <strong>CSV</strong>
+            <ul><li>5 CSV ファイル</li></ul>
+          </div>
+          <div class="timeline-phase">
+            <div class="phase-num">Phase 4</div>
+            <strong>xlsx</strong>
+            <ul><li>csv_to_excel.py</li><li>.bra.xlsx</li></ul>
+          </div>
+        </div>
+        <p class="diagram-caption">図 4-1 — フェーズ別タイムライン</p>
+      </div>
+
+      <figure class="screenshot" id="ss-4-2">
+        <div class="screenshot-missing">
+          <strong>スクリーンショット 4-2（未添付）</strong>
+          <p>完成したプロジェクトフォルダ（<code>{ProjectName}_HCD</code>, <code>_FRG</code>, <code>_CSV</code> サブフォルダと主要ファイル）をエクスプローラーで表示。</p>
+          <span class="path">userguide/images/4-2-project-folder.png</span>
+        </div>
+        <img src="../images/4-2-project-folder.png" alt="プロジェクトフォルダ例" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>図 4-2 — プロジェクトフォルダの完成例</figcaption>
+      </figure>
+
+      <table>
+        <thead><tr><th>フェーズ</th><th>入力</th><th>出力</th></tr></thead>
+        <tbody>
+          <tr><td>0</td><td>TLF, ROI</td><td>3 サブフォルダ</td></tr>
+          <tr><td>1 HCD</td><td>TLF, ROI, 文献</td><td>8 md ファイル</td></tr>
+          <tr><td>2 FRG</td><td>TLF, HCD の UC</td><td>5 md ファイル</td></tr>
+          <tr><td>3 CSV</td><td>HCD + FRG md</td><td>5 CSV</td></tr>
+          <tr><td>4 xlsx</td><td>5 CSV</td><td>.bra.xlsx</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Chapter 5 -->
+    <section id="ch5">
+      <h2>5. Phase 0 — プロジェクト開始</h2>
+      <h3>Project ID の命名</h3>
+      <ul>
+        <li>英語で、TLF や ROI の内容がわかる ID（例: <code>Cerebellum-VOR-Learning</code>）</li>
+        <li>スペース不可。Kebab-case 推奨</li>
+      </ul>
+
+      <h3>AI エージェントへの依頼例</h3>
+      <pre><code>instruction_0.md に従い、Project ID: Cerebellum-VOR-Learning、
+ROI: 小脳（フロキュラス）、TLF: VOR 学習 で
+プロジェクトフォルダを作成してください。</code></pre>
+
+      <figure class="screenshot" id="ss-5-1">
+        <div class="screenshot-missing">
+          <strong>スクリーンショット 5-1（未添付）</strong>
+          <p>使用中の AI エージェント（Cursor / Claude Code / Codex 等）で <code>instruction_0.md</code> を参照し、ROI・TLF を指定してフォルダ作成を依頼しているチャット画面。</p>
+          <span class="path">userguide/images/5-1-ai-prompt.png</span>
+        </div>
+        <img src="../images/5-1-ai-prompt.png" alt="AI 初回プロンプト" class="screenshot-img" onload="this.parentElement.classList.add('has-image')">
+        <figcaption>図 5-1 — Phase 0 の AI プロンプト例</figcaption>
+      </figure>
+
+    </section>
+
+    <!-- Chapter 6 -->
+    <section id="ch6">
+      <h2>6. Phase 1 — HCD の作成</h2>
+      <p>詳細な記述ルールは <code>instruction_1_HCD.md</code> を参照してください。本章では各ステップの概要のみ示します。</p>
+
+      <table>
+        <thead><tr><th>ステップ</th><th>成果物</th><th>要点</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>1_Thinking.md</code></td><td>ROI/TLF の妥当性検証、ROI 入出力整理</td></tr>
+          <tr><td>2</td><td><code>2_BIF.md</code></td><td>神経接続の文献調査、参考文献リスト</td></tr>
+          <tr><td>3</td><td><code>3_UC.md</code></td><td>UC 定義（Kebab-case、ROI 内外の区別）</td></tr>
+          <tr><td>4</td><td><code>4_Connection.md</code> + <code>3_UC.md</code></td><td>Connection 定義、Interface 追加</td></tr>
+          <tr><td>5</td><td><code>3_UC.md</code></td><td>Output Semantics</td></tr>
+          <tr><td>6</td><td><code>3_UC.md</code></td><td>Requirement / Capability / Mechanism / Implementation ※詳細は instruction 参照</td></tr>
+          <tr><td>7</td><td><code>5_Verification.md</code></td><td>整合性検証</td></tr>
+          <tr><td>8</td><td><code>6_FinalPaper.md</code> 等</td><td>報告・解説・Mermaid 図</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        <strong>ステップ 6 について</strong>
+        Requirement, Capability, Mechanism, Implementation の書き方は複雑です。必ず <code>instruction_1_HCD.md</code> の「ステップ6」を AI エージェントに読ませ、そこに従って作成してください。
+      </div>
+
+      <h3>注意点</h3>
+      <ul class="checklist">
+        <li>md 内の UC 名はバッククォート（`）で囲む</li>
+        <li>ROI 外 UC はコメントに <code>noROI(input)</code> / <code>noROI(output)</code></li>
+        <li>Connection と Interface が一致していること</li>
+        <li>すべての Connection に文献引用があること</li>
+      </ul>
+
+      <div class="diagram">
+        <div class="roi-flow">
+          <div class="box input-box">ROI_Input<br><small>noROI(input) UC</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="box process-box">ROI 内 UC<br><small>情報処理グラフ</small></div>
+          <span class="flow-arrow">→</span>
+          <div class="box output-box">ROI_Output<br><small>noROI(output) UC</small></div>
+        </div>
+        <p class="diagram-caption">図 6-2 — HCD における情報フロー（ROI 入力 → 内部処理 → ROI 出力）</p>
+      </div>
+
+      <div class="diagram">
+        <div class="compare-panel" style="max-width:28rem;margin:0 auto">
+          <h4>HCD 構造図（8_diagram.md のイメージ）</h4>
+          <div class="hcd-graph">
+            <div class="node roi-out-in">ext-input</div>
+            <span class="edge-down">↓</span>
+            <div class="hcd-row">
+              <div class="node roi-in">UC-1</div>
+              <span class="hcd-arrow">—→</span>
+              <div class="node roi-in">UC-2</div>
+            </div>
+            <span class="edge-down">↓</span>
+            <div class="node roi-out-out">ext-output</div>
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-in)"></span> ROI 内</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-in)"></span> noROI(input)</span>
+            <span class="legend-item"><span class="legend-swatch" style="background:var(--roi-out-out)"></span> noROI(output)</span>
+          </div>
+        </div>
+        <p class="diagram-caption">図 6-3 — HCD 図の色分け凡例（実際の図は 8_diagram.md の Mermaid から draw.io 等で生成）</p>
+      </div>
+    </section>
+
+    <!-- Chapter 7 -->
+    <section id="ch7">
+      <h2>7. Phase 2 — FRG の作成</h2>
+      <p>詳細は <code>instruction_2_FRG.md</code> を参照。HCD で定義した ROI 内 UC のみを使用します。</p>
+
+      <table>
+        <thead><tr><th>ステップ</th><th>成果物</th><th>要点</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><code>1_初期分解結果.md</code></td><td>TLF の機能分解（UC 紐づけはまだしない）</td></tr>
+          <tr><td>2</td><td><code>2_最適化FRG.md</code></td><td>冗長 GN のマージ</td></tr>
+          <tr><td>3</td><td><code>3_最終FRG.md</code></td><td>UC 紐づけ、Interface 追加</td></tr>
+          <tr><td>4</td><td><code>4_機能詳細.md</code></td><td>TLF/GN の Requirement 等 ※詳細は instruction 参照</td></tr>
+          <tr><td>5</td><td><code>5_FRG作成レポート.md</code></td><td>判断根拠の記録</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>GN–UC 接続数制約（必須）</strong>
+        <ul>
+          <li>各 GN は <strong>複数の UC</strong> に分解される</li>
+          <li>1 つの GN に接続する UC は <strong>最大 2 つ</strong></li>
+          <li>1 つの UC に接続する GN は <strong>最大 2 つ</strong></li>
+          <li>違反時はステップ 1 に戻り、TLF の分解を見直す</li>
+        </ul>
+      </div>
+
+      <div class="diagram frg-hierarchy">
+        <svg viewBox="0 0 420 200" width="100%" aria-label="FRG 階層図">
+          <defs>
+            <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#64748b"/>
+            </marker>
+          </defs>
+          <rect x="165" y="8" width="90" height="28" rx="6" fill="#fef9c3" stroke="#ca8a04"/>
+          <text x="210" y="26" text-anchor="middle" font-size="11" font-family="Segoe UI,sans-serif">TLF</text>
+          <line x1="210" y1="36" x2="210" y2="52" stroke="#64748b" marker-end="url(#arr)"/>
+          <rect x="155" y="54" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="210" y="72" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.parent-GN</text>
+          <line x1="170" y1="82" x2="100" y2="98" stroke="#64748b" marker-end="url(#arr)"/>
+          <line x1="250" y1="82" x2="320" y2="98" stroke="#64748b" marker-end="url(#arr)"/>
+          <rect x="45" y="100" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="100" y="118" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.child-GN-1</text>
+          <rect x="265" y="100" width="110" height="28" rx="6" fill="#f3e8ff" stroke="#9333ea"/>
+          <text x="320" y="118" text-anchor="middle" font-size="10" font-family="Segoe UI,sans-serif">R.child-GN-2</text>
+          <line x1="80" y1="128" x2="60" y2="148" stroke="#64748b" marker-end="url(#arr)"/>
+          <line x1="120" y1="128" x2="140" y2="148" stroke="#64748b" marker-end="url(#arr)"/>
+          <line x1="300" y1="128" x2="280" y2="148" stroke="#64748b" marker-end="url(#arr)"/>
+          <line x1="340" y1="128" x2="360" y2="148" stroke="#64748b" marker-end="url(#arr)"/>
+          <rect x="20" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="60" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-A</text>
+          <rect x="110" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="150" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-B</text>
+          <rect x="240" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="280" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-C</text>
+          <rect x="330" y="150" width="80" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6"/>
+          <text x="370" y="166" text-anchor="middle" font-size="9" font-family="Segoe UI,sans-serif">U.UC-D</text>
+        </svg>
+        <p class="diagram-caption">図 7-1 — FRG 階層（TLF → GN → UC）</p>
+      </div>
+
+      <div class="diagram">
+        <div class="constraint-grid">
+          <div class="constraint-panel ok">
+            <div class="label">OK — 1 GN → 2 UC 以下</div>
+            <div class="mini-tree">
+              <div class="node gn">R.GN-X</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.UC-A</div>
+                <div class="node roi-in">U.UC-B</div>
+              </div>
+            </div>
+          </div>
+          <div class="constraint-panel ng">
+            <div class="label">NG — 1 GN → 3 UC</div>
+            <div class="mini-tree">
+              <div class="node gn">R.GN-X</div>
+              <span class="edge-down">↓</span>
+              <div class="hcd-row">
+                <div class="node roi-in">U.A</div>
+                <div class="node roi-in">U.B</div>
+                <div class="node roi-in">U.C</div>
+              </div>
+            </div>
+            <p style="font-size:0.75rem;margin:0.5rem 0 0">→ ステップ 1 に戻り分解を見直す</p>
+          </div>
+        </div>
+        <p class="diagram-caption">図 7-2 — GN–UC 接続数制約</p>
+      </div>
+
+      <p>GN 命名: <code>R.</code> + Kebab-case。UC 参照: <code>U.</code> + Circuit ID。</p>
+    </section>
+
+    <!-- Chapter 8 -->
+    <section id="ch8">
+      <h2>8. Phase 3 — CSV ファイルの作成</h2>
+      <p>詳細は <code>instruction_3_csv.md</code> を参照。</p>
+
+      <h3>前提ファイル</h3>
+      <ul>
+        <li>HCD: <code>2_BIF.md</code>, <code>3_UC.md</code>, <code>4_Connection.md</code></li>
+        <li>FRG: <code>3_最終FRG.md</code>, <code>4_機能詳細.md</code></li>
+      </ul>
+
+      <table>
+        <thead><tr><th>CSV</th><th>主なデータソース</th></tr></thead>
+        <tbody>
+          <tr><td>Project.csv</td><td>テンプレート + メタデータ</td></tr>
+          <tr><td>References.csv</td><td>2_BIF.md, 4_Connection.md</td></tr>
+          <tr><td>Circuits.csv</td><td>3_UC.md</td></tr>
+          <tr><td>Connections.csv</td><td>4_Connection.md</td></tr>
+          <tr><td>FRG.csv</td><td>FRG + HCD 統合</td></tr>
+        </tbody>
+      </table>
+
+      <div class="diagram">
+        <div class="mapping-flow">
+          <div class="mapping-row"><div class="mapping-src">2_BIF.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">References.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">3_UC.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">Circuits.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">4_Connection.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">Connections.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">3_最終FRG.md + 4_機能詳細.md + 3_UC.md</div><div class="mapping-arrow">→</div><div class="mapping-dst">FRG.csv</div></div>
+          <div class="mapping-row"><div class="mapping-src">メタデータ</div><div class="mapping-arrow">→</div><div class="mapping-dst">Project.csv</div></div>
+        </div>
+        <p class="diagram-caption">図 8-1 — md ファイルと CSV の対応</p>
+      </div>
+
+      <ul>
+        <li>CSV の内容は <strong>英語</strong> で記述</li>
+        <li>md 内のバッククォート（`）は除去</li>
+        <li>FRG.csv の UC Node ID には <code>U.</code> プレフィックスを付加</li>
+      </ul>
+
+    </section>
+
+    <!-- Chapter 9 -->
+    <section id="ch9">
+      <h2>9. Phase 4 — .bra.xlsx の生成</h2>
+      <p><code>_latest_version</code> フォルダで Python スクリプトを実行します。</p>
+      <pre><code>cd _latest_version
+python csv_to_excel.py</code></pre>
+      <p>対話入力: <strong>Contributor</strong> と <strong>Project ID</strong></p>
+      <p>出力先: <code>{ProjectName}/{ProjectName}_CSV/{ProjectID}.bra.xlsx</code></p>
+
+      <h3>スクリプトが行う加工（概要）</h3>
+      <ul>
+        <li><strong>Circuits</strong> — 列の挿入（Sub-Circuits, Uniform=TRUE 等）、Contributor / Project ID 追加</li>
+        <li><strong>Connections</strong> — relation 列、Notation 列等の追加</li>
+        <li><strong>FRG</strong> — Capability と Mechanism を <code>Capability&amp;Mechanism</code> 列に結合</li>
+      </ul>
+
+    </section>
+
+    <!-- Chapter 10 -->
+    <section id="ch10">
+      <h2>10. AI エージェントの使い方</h2>
+
+      <div class="callout">
+        <strong>使用可能なツール</strong>
+        CoBRAC の作業は <strong>AI エージェント</strong>（Cursor, Claude Code, Codex 等、エージェント機能を持つツールであれば種類を問いません）を用いて進めます。各 <code>instruction_*.md</code> をエージェントに読ませ、指示に従った作業を依頼してください。
+      </div>
+
+      <div class="callout warn">
+        <strong>出力品質について</strong>
+        AI エージェントが生成する HCD / FRG / CSV の内容は、<strong>使用するモデルの性能に大きく依存</strong>します。高性能なモデルほど文献調査・整合性チェック・複雑な機能記述の品質が向上する傾向がありますが、<strong>神経科学的妥当性と文献の正確性は必ず人間が確認</strong>してください。
+      </div>
+
+      <h3>基本的な依頼の仕方</h3>
+      <ol>
+        <li>CoBRAC リポジトリ（<code>_latest_version</code>）をエージェントの作業ディレクトリとして開く</li>
+        <li>該当 Phase の instruction ファイルを明示的に参照させる</li>
+        <li>TLF, ROI, Project ID 等のパラメータを毎回明示する</li>
+      </ol>
+
+      <h3>プロンプト例</h3>
+      <h4>Phase 1 開始</h4>
+      <pre><code>instruction_1_HCD.md に従い、ROI: 海馬、TLF: 空間ナビゲーション
+で HCD 作成を開始してください。Project フォルダは既に作成済みです。</code></pre>
+
+      <h4>HCD 完了 → FRG 開始</h4>
+      <pre><code>HCD 作業が完了しました。instruction_2_FRG.md に従い FRG 作成を
+開始してください。TLF と UC は HCD の成果物を使用してください。</code></pre>
+
+      <h4>FRG 完了 → CSV 作成</h4>
+      <pre><code>FRG 作業が完了しました。instruction_3_csv.md に従い
+5 つの CSV ファイルを作成してください。</code></pre>
+
+      <h3>人間が必ず確認すべき点</h3>
+      <ul>
+        <li>文献引用の正確性（DOI, 著者年）</li>
+        <li>ROI/TLF の神経科学的妥当性</li>
+        <li>UC 命名規則、GN–UC 制約</li>
+        <li>Connection と Interface の整合</li>
+      </ul>
+
+    </section>
+
+    <!-- Chapter 11 -->
+    <section id="ch11">
+      <h2>11. 品質チェックリスト</h2>
+      <h3>HCD</h3>
+      <ul class="checklist">
+        <li>ROI_Input から ROI_Output への情報経路が成立している</li>
+        <li>すべての Connection に Reference ID がある</li>
+        <li>Connection と Interface が一致している</li>
+        <li>UC 名は Kebab-case、md 内はバッククォートで囲まれている</li>
+        <li>ROI 外 UC に noROI コメントがある</li>
+        <li>5_Verification.md で検証済み</li>
+        <li>8_diagram.md の Mermaid 図が作成されている</li>
+      </ul>
+
+      <h3>FRG</h3>
+      <ul class="checklist">
+        <li>ROI 内 UC のみ使用している</li>
+        <li>各 GN は複数 UC に分解されている</li>
+        <li>GN–UC 接続数制約（各最大 2）を満たしている</li>
+        <li>TLF の Interface が noROI 入出力と整合している</li>
+        <li>4_機能詳細.md が揃っている</li>
+      </ul>
+
+      <h3>CSV / xlsx</h3>
+      <ul class="checklist">
+        <li>5 CSV がすべて英語で記述されている</li>
+        <li>References.csv に重複・欠落がない</li>
+        <li>FRG.csv の Node ID 形式が正しい（R.* / U.*）</li>
+        <li>.bra.xlsx に 5 シートがある</li>
+        <li>Contributor / Project ID が Circuits, Connections に反映されている</li>
+      </ul>
+    </section>
+
+    <!-- Chapter 12 -->
+    <section id="ch12">
+      <h2>12. トラブルシューティング</h2>
+      <table>
+        <thead><tr><th>症状</th><th>原因と対処</th></tr></thead>
+        <tbody>
+          <tr><td><code>CSVフォルダが見つかりません</code></td><td>Project ID がフォルダ名と一致しているか確認。パスは <code>{ProjectID}/{ProjectID}_CSV/</code></td></tr>
+          <tr><td><code>Project.csv が見つかりません</code></td><td>Phase 3（CSV 作成）が未完了</td></tr>
+          <tr><td>FRG で GN–UC 制約違反</td><td>instruction_2 のステップ 1 に戻り TLF 分解を細分化</td></tr>
+          <tr><td>Connection と Interface 不整合</td><td>5_Verification.md の検証を再実施し 3_UC.md / 4_Connection.md を修正</td></tr>
+          <tr><td><code>ModuleNotFoundError: pandas</code></td><td><code>pip install -r requirements.txt</code> を再実行</td></tr>
+          <tr><td>AI 出力の品質が低い</td><td>より高性能なモデルに変更、instruction を再参照させる、人間が段階的にレビュー</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Appendix -->
+    <section id="appendix">
+      <h2>付録</h2>
+      <h3>A. 成果物ファイル一覧</h3>
+      <table>
+        <thead><tr><th>ファイル</th><th>フェーズ</th><th>必須</th></tr></thead>
+        <tbody>
+          <tr><td>1_Thinking.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>2_BIF.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>3_UC.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>4_Connection.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>5_Verification.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>6_FinalPaper.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>7_EasyToUnderstand.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>8_diagram.md</td><td>HCD</td><td>○</td></tr>
+          <tr><td>1_初期分解結果.md</td><td>FRG</td><td>○</td></tr>
+          <tr><td>2_最適化FRG.md</td><td>FRG</td><td>○</td></tr>
+          <tr><td>3_最終FRG.md</td><td>FRG</td><td>○</td></tr>
+          <tr><td>4_機能詳細.md</td><td>FRG</td><td>○</td></tr>
+          <tr><td>5_FRG作成レポート.md</td><td>FRG</td><td>○</td></tr>
+          <tr><td>5 × CSV</td><td>CSV</td><td>○</td></tr>
+          <tr><td>{ProjectID}.bra.xlsx</td><td>xlsx</td><td>○</td></tr>
+        </tbody>
+      </table>
+
+      <h3>B. 命名規則</h3>
+      <ul>
+        <li><strong>UC</strong> — Kebab-case、スペース不可（例: <code>flocculus-purkinje</code>）</li>
+        <li><strong>GN</strong> — <code>R.</code> + Kebab-case（例: <code>R.error-computation</code>）</li>
+        <li><strong>FRG.csv の UC</strong> — <code>U.</code> + Circuit ID</li>
+      </ul>
+
+    </section>
+  </main>
+</div>
+</body>
+</html>

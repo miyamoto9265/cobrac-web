@@ -166,7 +166,7 @@ export class CobracAgentsStack extends Stack {
       file: "packages/worker/Dockerfile",
       platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,
       // keep in sync with .dockerignore (asset upload only; the Docker build itself honours .dockerignore)
-      exclude: ["**/node_modules", "**/dist", "**/cdk.out", ".git", ".env", ".env.*", "packages/web/src", "packages/web/index.html", "packages/infra/lib", "packages/infra/bin", "packages/api/src"],
+      exclude: ["**/node_modules", "**/dist", "**/cdk.out", ".git", ".env", ".env.*", "archive", "packages/web/src", "packages/web/index.html", "packages/infra/lib", "packages/infra/bin", "packages/api/src"],
     });
     const container = taskDef.addContainer("worker", {
       image: workerImage.toEcsDockerImageCode(),

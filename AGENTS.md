@@ -15,7 +15,8 @@ packages/worker     Fargate ワーカー（Codex SDK）
 packages/api        Lambda（Hono）+ dispatcher / ws / broadcaster / janitor
 packages/web        React SPA（Vite）
 packages/infra      AWS CDK
-docs/               設計仕様・個人情報とセキュリティ・AWS インフラと予算（サイトの /docs から閲覧可）
+docs/               設計仕様・個人情報とセキュリティ・AWS インフラと予算・ハーネス解説（サイトの /docs から閲覧可）
+archive/v0/         旧デスクトップ版の指示書・仕様書・成果物サンプル・ユーザーガイド（参照専用。アプリでは使わない）
 ```
 
 ## バージョニング（必須）
