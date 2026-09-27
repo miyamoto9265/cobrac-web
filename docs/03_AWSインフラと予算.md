@@ -18,7 +18,7 @@ Amounts are **Tokyo-region ballparks as of 2026**, not official estimates. Cost 
 3. Stop the task while waiting for a question (persist state to S3 and exit).
 4. Serve from the default CloudFront domain. No custom domain or certificate.
 
-There is one stack (`packages/infra/lib/cobrac-stack.ts`). Deploy: `npm run deploy` (requires `cdk bootstrap`). The worker image does not need local Docker; CodeBuild builds it at deploy time and pushes to ECR (`@cdklabs/deploy-time-build`).
+There is one stack (`packages/infra/lib/cobrac-stack.ts`). Deploys run from GitHub Actions when a version-bumped PR is merged to `main` (§12); `npm run deploy` from a local machine is the emergency path (requires `cdk bootstrap`). The worker image does not need local Docker; CodeBuild builds it at deploy time and pushes to ECR (`@cdklabs/deploy-time-build`).
 
 ---
 
@@ -162,6 +162,8 @@ Even with S3 sync and logs, **AWS cost per job is usually well under a few tens 
 
 CodeBuild builds a Node + Python image (about 2 minutes in practice). Tokyo general1.small equivalent is about **$0.1–0.4 per run**. ECR overwrite and CloudFront invalidation add a little. Frequent redeploys can stand out more than everyday UI use.
 
+The GitHub Actions runs themselves (PR checks and the deploy workflow) use the private repository's Actions minutes, not AWS. Merges that do not bump the version skip the deploy job.
+
 ### 5.5 OpenAI (outside AWS, paid by each user)
 
 A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps.
@@ -210,7 +212,7 @@ The app runs without these. Without Budgets, Spot fallback or a log spike is eas
 
 ## 9. Environment variables (cost and scale)
 
-`.env` (not in the repo; `.env.example` is the template).
+The source of truth is the GitHub repository's Actions **Variables** (and the **Secret** `COBRAC_ADMIN_EMAILS`). A local `.env` (not in the repo; `.env.example` is the template) is a copy for emergency deploys and must be kept in sync. The defaults below apply only when a variable is absent locally; the deploy workflow requires every value except `COBRAC_CODEX_MODEL` and fails if one is empty.
 
 | Variable | Default | Meaning |
 | -------- | ------- | ------- |
@@ -249,3 +251,35 @@ Rough teardown: empty the artifacts bucket → delete tables → delete User Poo
 | Custom domain + ACM | Small dollars. More operations |
 
 The current cheapness depends on **stopping workers when unused** and **not placing a NAT**.
+
+---
+
+## 12. Deploy pipeline (GitHub Actions)
+
+```
+work branch ── PR ── ci.yml (no AWS credentials) ── merge ──▶ main
+                                                               │ push
+                                  deploy.yml: is tag v<version> missing?  ── no ──▶ done (nothing to deploy)
+                                                               │ yes
+          settings check → build / typecheck / test / release:check
+          → OIDC: sts:AssumeRoleWithWebIdentity → gha-cobrac-web-deploy (1 hour)
+          → cdk diff → RETAIN guard → npm run deploy (via CDK bootstrap roles)
+          → push tag vX.Y.Z → GET /health reports X.Y.Z, WebUrl returns 200
+```
+
+| Item | Setting |
+| ---- | ------- |
+| IAM role | `gha-cobrac-web-deploy`. Trust: GitHub OIDC, `sub` = `repo:miyamoto9265/cobrac-web:ref:refs/heads/main` only (PR branches, forks, tags cannot assume it). Permissions: assume the `cdk-hnb659fds-*` bootstrap roles and `cloudformation:DescribeStacks` on `CobracAgents`, plus a deny guardrail on IAM / billing / secrets / personal-data reads |
+| Long-lived keys | None |
+| Workflow permissions | Default `read`. `id-token: write` only on the deploy job, `contents: write` only on the tag job, none on the health job |
+| Settings | Actions Variables and Secret `COBRAC_ADMIN_EMAILS` (§9). Validated before any AWS call; admin addresses are masked in the log |
+| Approval | Merging a PR that bumps the version (`npm run release -- <patch/minor/major> --no-git`) |
+| RETAIN guard | `scripts/retain-guard.mjs` reads `cdk diff`. Replace / may be replaced / destroy / orphan / removal of `AWS::DynamoDB::Table`, `AWS::DynamoDB::GlobalTable`, `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::Cognito::UserPool` stops the job before deploy. To proceed after review: `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` |
+| Serialisation | `concurrency: deploy-cobrac-agents`, runs never cancelled mid-deploy |
+| Actions | Pinned by commit SHA |
+
+The CDK deploy itself runs as `cdk-hnb659fds-cfn-exec-role`, which has `AdministratorAccess` by default. Anyone who can merge to `main` can therefore deploy any change to this account; narrowing that requires re-bootstrapping with `--cloudformation-execution-policies` and is not done yet.
+
+Emergency path: when Actions is unavailable, deploy locally with `npm run deploy` (profile `rcs-org`, `.env` in sync with GitHub), then bring the same change to `main` through a PR and push the tag so the workflow does not deploy it again.
+
+To stop CI deploys immediately: disable the `deploy` workflow in GitHub, or change the role's trust policy `sub` (local IAM work).
