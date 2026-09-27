@@ -47,6 +47,17 @@ test("detects may-be-replaced, destroy, and bare removal; strips colour codes", 
   ]);
 });
 
+test("recognises the stack header with an explicit environment", () => {
+  const text = [
+    "Stack CobracAgents (aws://123456789012/ap-northeast-1)",
+    "Resources",
+    "[~] AWS::ECS::TaskDefinition WorkerTask WorkerTaskCBB1FEE3 may be replaced",
+    "[~] AWS::Lambda::Function ApiFn ApiFnE0725F78",
+  ].join("\n");
+  assert.deepEqual(findRetainRisks(text), { recognised: true, risks: [] });
+  assert.equal(findRetainRisks("Stack CobracAgentsOther (aws://123456789012/ap-northeast-1)\n").recognised, false);
+});
+
 test("CLI: exit 0 when safe, 1 when risky, 0 when allowed, 2 when unrecognised", () => {
   assert.equal(run(fixture("cdk-diff-no-changes.txt")).status, 0);
 
