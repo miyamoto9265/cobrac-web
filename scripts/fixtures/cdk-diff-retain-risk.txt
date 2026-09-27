@@ -1,0 +1,46 @@
+Stack CobracAgents
+Resources
+[-] AWS::S3::Bucket Artifacts Artifacts82DD59A1 orphan
+[-] AWS::S3::BucketPolicy Artifacts/Policy ArtifactsPolicy6E9058CC destroy
+[+] AWS::S3::Bucket Artifacts2 Artifacts24F95BEEC
+[+] AWS::S3::BucketPolicy Artifacts2/Policy Artifacts2Policy170B0D9C
+[~] AWS::KMS::Key ApiKeyKmsKey ApiKeyKmsKey5E63B04E
+ └─ [~] Description
+     ├─ [-] CoBRAC Agents - encrypts user OpenAI API keys
+     └─ [+] CoBRAC Agents - encrypts user OpenAI API keys (v2)
+[~] AWS::DynamoDB::GlobalTable Users Users0A0EEA89 replace
+ ├─ [~] AttributeDefinitions
+ │   └─ @@ -1,6 +1,6 @@
+ │      [ ] [
+ │      [ ]   {
+ │      [-]     "AttributeName": "userId",
+ │      [+]     "AttributeName": "uid",
+ │      [ ]     "AttributeType": "S"
+ │      [ ]   }
+ │      [ ] ]
+ └─ [~] KeySchema (requires replacement)
+     └─ @@ -1,6 +1,6 @@
+        [ ] [
+        [ ]   {
+        [-]     "AttributeName": "userId",
+        [+]     "AttributeName": "uid",
+        [ ]     "KeyType": "HASH"
+        [ ]   }
+        [ ] ]
+[~] AWS::Cognito::UserPool UserPool UserPool6BA7E5F2
+ ├─ [+] AliasAttributes
+ │   └─ ["email"]
+ └─ [-] UsernameAttributes
+     └─ ["email"]
+[~] AWS::Lambda::Function ApiFn ApiFnE0725F78
+ ├─ [~] Environment
+ │   └─ [~] .Variables:
+ │       └─ [~] .ARTIFACTS_BUCKET:
+ │           └─ [~] .Ref:
+ │               ├─ [-] Artifacts82DD59A1
+ │               └─ [+] Artifacts24F95BEEC
+ └─ [~] MemorySize
+     ├─ [-] 512
+     └─ [+] 1024
+
+✨  Number of stacks with differences: 1
