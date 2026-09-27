@@ -1,0 +1,6 @@
+Stack CobracAgents
+There were no differences
+
+
+✨  Number of stacks with differences: 0
+

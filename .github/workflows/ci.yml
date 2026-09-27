@@ -1,0 +1,59 @@
+# PR checks. No AWS credentials: `cdk synth` runs from cdk.context.json and placeholder settings.
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CDK_DISABLE_CLI_TELEMETRY: "true"
+      # Without credentials the CDK CLI falls back to us-east-1 and overrides CDK_DEFAULT_REGION.
+      AWS_REGION: ${{ vars.CDK_DEFAULT_REGION || 'ap-northeast-1' }}
+      CDK_DEFAULT_ACCOUNT: ${{ vars.CDK_DEFAULT_ACCOUNT || '765959262011' }}
+      CDK_DEFAULT_REGION: ${{ vars.CDK_DEFAULT_REGION || 'ap-northeast-1' }}
+      COBRAC_ADMIN_EMAILS: ci@example.invalid
+      COBRAC_SELF_SIGNUP: ${{ vars.COBRAC_SELF_SIGNUP || 'true' }}
+      COBRAC_MAX_CONCURRENT_JOBS: ${{ vars.COBRAC_MAX_CONCURRENT_JOBS || '2' }}
+      COBRAC_MAX_CONCURRENT_JOBS_PER_USER: ${{ vars.COBRAC_MAX_CONCURRENT_JOBS_PER_USER || '1' }}
+      COBRAC_CODEX_MODEL: ${{ vars.COBRAC_CODEX_MODEL }}
+      COBRAC_CODEX_REASONING_EFFORT: ${{ vars.COBRAC_CODEX_REASONING_EFFORT || 'high' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # typecheck resolves @cobrac/shared from its build output, so build first
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run release:check
+      - name: cdk synth
+        run: npm run cdk -- synth --quiet
+      - name: Will merging deploy?
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null
+          code=$?
+          set -e
+          case "$code" in
+            0) msg="v$version is already tagged. Merging this PR does **not** deploy (bump the version with \`npm run release -- patch --no-git\` to release)." ;;
+            2) msg="v$version is not tagged yet. Merging this PR **deploys v$version** to production." ;;
+            *) echo "::error::git ls-remote failed ($code)"; exit 1 ;;
+          esac
+          echo "$msg"
+          echo "### Deploy on merge" >> "$GITHUB_STEP_SUMMARY"
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"

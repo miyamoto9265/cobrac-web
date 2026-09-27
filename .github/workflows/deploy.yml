@@ -1,0 +1,197 @@
+# Production deploy of the CobracAgents stack. Runs on main only and deploys only when
+# v<package.json version> is not tagged yet, so merging a version-bumped PR is the approval.
+# The IAM role trusts `repo:miyamoto9265/cobrac-web:ref:refs/heads/main` only; do not add a
+# GitHub `environment:` to these jobs (it changes the OIDC subject and AssumeRole fails).
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      allow_retain_replacement:
+        description: Deploy even if cdk diff replaces or removes DynamoDB / S3 / KMS / Cognito resources
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: deploy-cobrac-agents
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.plan.outputs.version }}
+      deploy: ${{ steps.plan.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: plan
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null
+          code=$?
+          set -e
+          case "$code" in
+            0) deploy=false; msg="v$version is already tagged; nothing to deploy." ;;
+            2) deploy=true; msg="v$version is not tagged yet; deploying." ;;
+            *) echo "::error::git ls-remote failed ($code)"; exit 1 ;;
+          esac
+          echo "$msg"
+          { echo "version=$version"; echo "deploy=$deploy"; } >> "$GITHUB_OUTPUT"
+          { echo "### Plan"; echo "$msg"; } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: plan
+    if: needs.plan.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      api_url: ${{ steps.outputs.outputs.api_url }}
+      web_url: ${{ steps.outputs.outputs.web_url }}
+    env:
+      CDK_DISABLE_CLI_TELEMETRY: "true"
+      CDK_DEFAULT_ACCOUNT: ${{ vars.CDK_DEFAULT_ACCOUNT }}
+      CDK_DEFAULT_REGION: ${{ vars.CDK_DEFAULT_REGION }}
+      COBRAC_SELF_SIGNUP: ${{ vars.COBRAC_SELF_SIGNUP }}
+      COBRAC_MAX_CONCURRENT_JOBS: ${{ vars.COBRAC_MAX_CONCURRENT_JOBS }}
+      COBRAC_MAX_CONCURRENT_JOBS_PER_USER: ${{ vars.COBRAC_MAX_CONCURRENT_JOBS_PER_USER }}
+      COBRAC_CODEX_MODEL: ${{ vars.COBRAC_CODEX_MODEL }}
+      COBRAC_CODEX_REASONING_EFFORT: ${{ vars.COBRAC_CODEX_REASONING_EFFORT }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # An unset variable reaches the CDK app as "" (not undefined), which would turn off
+      # self sign-up or set concurrency to 0, so every value is required and validated here.
+      - name: Check deploy settings
+        env:
+          AWS_DEPLOY_ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          COBRAC_ADMIN_EMAILS: ${{ secrets.COBRAC_ADMIN_EMAILS }}
+        run: |
+          IFS=',' read -ra emails <<< "$COBRAC_ADMIN_EMAILS"
+          for e in "${emails[@]}"; do
+            e="$(xargs <<< "$e")"
+            if [ -n "$e" ]; then echo "::add-mask::$e"; fi
+          done
+          fail=0
+          err() { echo "::error::$1"; fail=1; }
+          for name in AWS_DEPLOY_ROLE_ARN CDK_DEFAULT_ACCOUNT CDK_DEFAULT_REGION COBRAC_SELF_SIGNUP \
+                      COBRAC_MAX_CONCURRENT_JOBS COBRAC_MAX_CONCURRENT_JOBS_PER_USER COBRAC_CODEX_REASONING_EFFORT; do
+            [ -n "${!name}" ] || err "Actions variable $name is empty (Settings > Secrets and variables > Actions > Variables)"
+          done
+          [ -n "$COBRAC_ADMIN_EMAILS" ] || err "Actions secret COBRAC_ADMIN_EMAILS is empty"
+          [ "$fail" = 0 ] || exit 1
+          [[ "$CDK_DEFAULT_ACCOUNT" =~ ^[0-9]{12}$ ]] || err "CDK_DEFAULT_ACCOUNT must be a 12-digit account ID"
+          [[ "$AWS_DEPLOY_ROLE_ARN" == "arn:aws:iam::$CDK_DEFAULT_ACCOUNT:role/"* ]] || err "AWS_DEPLOY_ROLE_ARN is not a role in CDK_DEFAULT_ACCOUNT"
+          [[ "$COBRAC_SELF_SIGNUP" =~ ^(true|false)$ ]] || err "COBRAC_SELF_SIGNUP must be true or false"
+          [[ "$COBRAC_MAX_CONCURRENT_JOBS" =~ ^[1-9][0-9]*$ ]] || err "COBRAC_MAX_CONCURRENT_JOBS must be a positive integer"
+          [[ "$COBRAC_MAX_CONCURRENT_JOBS_PER_USER" =~ ^[1-9][0-9]*$ ]] || err "COBRAC_MAX_CONCURRENT_JOBS_PER_USER must be a positive integer"
+          [[ "$COBRAC_CODEX_REASONING_EFFORT" =~ ^(minimal|low|medium|high|xhigh)$ ]] || err "COBRAC_CODEX_REASONING_EFFORT must be minimal, low, medium, high, or xhigh"
+          for e in "${emails[@]}"; do
+            e="$(xargs <<< "$e")"
+            [[ -z "$e" || "$e" == ?*@?* ]] || err "COBRAC_ADMIN_EMAILS has an entry that is not an e-mail address"
+          done
+          exit "$fail"
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run release:check
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: GitHubActions-cobrac-web-${{ github.run_id }}
+          role-duration-seconds: 3600
+          aws-region: ${{ vars.CDK_DEFAULT_REGION }}
+          allowed-account-ids: ${{ vars.CDK_DEFAULT_ACCOUNT }}
+
+      - name: cdk diff
+        env:
+          COBRAC_ADMIN_EMAILS: ${{ secrets.COBRAC_ADMIN_EMAILS }}
+        run: |
+          set -o pipefail
+          npm run -s cdk -- diff CobracAgents --no-color 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
+
+      - name: RETAIN guard
+        env:
+          ALLOW_RETAIN_REPLACEMENT: ${{ inputs.allow_retain_replacement == true && 'true' || 'false' }}
+        run: node scripts/retain-guard.mjs "$RUNNER_TEMP/cdk-diff.txt"
+
+      - name: Deploy
+        env:
+          COBRAC_ADMIN_EMAILS: ${{ secrets.COBRAC_ADMIN_EMAILS }}
+        run: npm run deploy -- --no-color
+
+      - id: outputs
+        name: Stack outputs
+        run: |
+          out() { aws cloudformation describe-stacks --stack-name CobracAgents \
+            --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" --output text; }
+          api_url="$(out ApiUrl)"
+          web_url="$(out WebUrl)"
+          { echo "api_url=$api_url"; echo "web_url=$web_url"; } >> "$GITHUB_OUTPUT"
+
+  tag:
+    needs: [plan, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - env:
+          TAG: v${{ needs.plan.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          echo "### Tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pushed \`$TAG\` at \`${GITHUB_SHA::7}\`." >> "$GITHUB_STEP_SUMMARY"
+
+  health:
+    needs: [plan, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          EXPECTED: ${{ needs.plan.outputs.version }}
+          API_URL: ${{ needs.deploy.outputs.api_url }}
+          WEB_URL: ${{ needs.deploy.outputs.web_url }}
+        run: |
+          got=""
+          for _ in $(seq 1 12); do
+            got="$(curl -fsS --max-time 10 "$API_URL/health" | jq -r '.version // empty' || true)"
+            [ "$got" = "$EXPECTED" ] && break
+            sleep 10
+          done
+          web="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$WEB_URL/" || true)"
+          {
+            echo "### Health"
+            echo "| Check | Result |"
+            echo "| ----- | ------ |"
+            echo "| \`GET $API_URL/health\` version | \`${got:-none}\` (expected \`$EXPECTED\`) |"
+            echo "| \`GET $WEB_URL/\` | HTTP $web |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$got" = "$EXPECTED" ] || { echo "::error::/health reports '${got:-none}', expected '$EXPECTED'"; exit 1; }
+          [ "$web" = "200" ] || { echo "::error::$WEB_URL/ returned HTTP $web"; exit 1; }
+          echo "OK: /health reports v$got, web returns 200"

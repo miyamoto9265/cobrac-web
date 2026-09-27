@@ -10,19 +10,31 @@ docs live in `docs/` (also available from the site “Documentation” page). Ch
 The only source of the version number is `version` in the root `package.json`. It is shown in the
 sidebar footer and in `GET /health`.
 
+Releases go through a pull request; GitHub Actions deploys when it is merged to `main`.
+
 ```bash
 # 1. Write the changes under [Unreleased] in CHANGELOG.md
-# 2. Bump the version, finalize CHANGELOG, commit, and tag
-npm run release patch      # or minor / major / 0.2.0
-# 3. Deploy (includes version / CHANGELOG consistency checks)
-npm run deploy
-git push && git push --tags
+# 2. On a work branch, bump the version and finalize CHANGELOG (no commit / tag)
+npm run release -- patch --no-git   # or minor / major / 0.2.0
+# 3. Commit, push, and open a PR. Merging it deploys vX.Y.Z and pushes the tag.
 ```
+
+| Workflow | Trigger | What it does |
+| -------- | ------- | ------------ |
+| `.github/workflows/ci.yml` | Pull requests | `npm ci` → build → typecheck → test → `release:check` → `cdk synth` (no AWS credentials). The job summary says whether merging deploys |
+| `.github/workflows/deploy.yml` | Push to `main`, manual run | Deploys only when tag `v<version>` does not exist yet: settings check → build / typecheck / test → OIDC role → `cdk diff` → RETAIN guard → `npm run deploy` → push tag → check `GET /health` reports the new version |
+
+- A merge that does not bump the version (docs only, for example) does not deploy; it ships with the next release.
+- **RETAIN guard** (`scripts/retain-guard.mjs`): if `cdk diff` would replace, remove, or orphan a DynamoDB table, S3 bucket, KMS key, or Cognito User Pool, the deploy stops before touching the stack. After reviewing the diff in the job log, deploy anyway with `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` (a plain "Re-run" stops again).
+- Deploys run one at a time (`concurrency`). The workflow never prints the admin e-mail secret; it is masked in the log.
+- Local `npm run deploy` is for emergencies only (see [Deploy](#deploy)); afterwards bring the same change to `main` through a PR and push the tag.
 
 ## Layout
 
 ```
 package.json                 npm workspaces (build / typecheck / test / deploy)
+.github/workflows/           ci.yml (pull requests) / deploy.yml (main → AWS via OIDC)
+scripts/                     release.mjs (version + CHANGELOG), retain-guard.mjs (stops risky deploys)
 prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args)
 archive/v0/                  legacy desktop instructions, specs, v0 sample artifacts, user guide (reference only)
 packages/
@@ -38,16 +50,16 @@ packages/
 
 - Node.js 22 or later, npm 10 or later
 - Docker is **not** required (the worker image is built on CodeBuild at deploy time: `@cdklabs/deploy-time-build`)
-- AWS CLI credentials for the target account, with `cdk bootstrap` already done
+- `cdk bootstrap` already done in the target account. AWS CLI credentials are needed only for an emergency deploy from your machine
 - Each user’s OpenAI API key (registered in the in-app Settings screen)
 
 ## Setup and verification
 
 ```bash
 npm install
-npm run typecheck     # typecheck all packages
-npm test              # shared unit tests
 npm run build         # shared(tsc) → api(typecheck) / worker(tsc) / web(vite)
+npm run typecheck     # typecheck all packages (needs the shared build output)
+npm test              # shared unit tests + scripts/*.test.mjs
 npm run cdk -- synth  # generate the CloudFormation template (pre-deploy check)
 ```
 
@@ -61,7 +73,20 @@ python prompts/csv_to_excel.py --contributor "Your Name" --project-id VOR \
 
 ## Deploy
 
-Pass settings via `.env` at the repo root (copy `.env.example`) or environment variables.
+Normal deploys run from GitHub Actions (see [Versioning and release](#versioning-and-release)). The source of truth for
+deploy settings is the repository's Actions configuration:
+
+| Kind | Names |
+| ---- | ----- |
+| Variables | `AWS_DEPLOY_ROLE_ARN`, `CDK_DEFAULT_ACCOUNT`, `CDK_DEFAULT_REGION`, `COBRAC_SELF_SIGNUP`, `COBRAC_MAX_CONCURRENT_JOBS`, `COBRAC_MAX_CONCURRENT_JOBS_PER_USER`, `COBRAC_CODEX_REASONING_EFFORT`, optional `COBRAC_CODEX_MODEL` |
+| Secret | `COBRAC_ADMIN_EMAILS` |
+
+The deploy workflow fails before any AWS call if a required value is empty or malformed (an empty value would
+otherwise reach CDK as `""`, for example turning self sign-up off or setting concurrency to 0). The AWS side is an IAM
+role trusted through GitHub OIDC for `main` only, allowed to assume the CDK bootstrap roles; there are no long-lived keys.
+
+For an emergency deploy from your machine, keep a local `.env` at the repo root (copy `.env.example`) with the same
+values as GitHub, or pass environment variables. When a value changes, update both.
 
 ```bash
 # Admin email addresses (comma-separated). admin role is granted on first login
