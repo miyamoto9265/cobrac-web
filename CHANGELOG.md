@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version at deploy tim
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-09-27
+
+### Added
+- Documentation article explaining how the agent harness changed from the legacy instruction files (v0) to the CoBRAC harness (v1), with architecture diagrams and a cost comparison, in English and Japanese
+
 ## [0.5.0] - 2026-09-26
 
 ### Changed
