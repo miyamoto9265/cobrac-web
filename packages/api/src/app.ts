@@ -13,6 +13,8 @@ import type {
   NodeStyle,
   ReasoningEffort,
   TokenUsage,
+  UpdateProjectRequest,
+  UpdateProjectResponse,
   UsageSummary,
   UserRecord,
 } from "@cobrac/shared";
@@ -25,23 +27,31 @@ import {
   PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
+  braDownloadFileName,
   filterCodexModels,
-  isValidProjectId,
+  formatProjectId,
+  isProjectIdLike,
   newId,
+  normalizeProjectName,
   nowIso,
-  proposeProjectId,
+  projectNameKey,
+  proposeProjectName,
 } from "@cobrac/shared";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
 import { deleteObject, encryptApiKey, enqueueRun, getObjectText, listArtifacts, presignDownload, putObjectText, stopEcsTask } from "./lib/aws.js";
 import {
+  assignUserKey,
+  findProjectByLegacyId,
   getJob,
   getProject,
   listAllProjects,
   listJobsForProject,
   listMessages,
   listProjects,
+  listUserProjects,
   listUsers,
+  nextProjectSeq,
   putJob,
   putMessage,
   putProject,
@@ -49,6 +59,7 @@ import {
   updateProject,
   updateUser,
 } from "./lib/db.js";
+import { ownedMessages } from "./lib/ownership.js";
 
 type Bindings = { event: LambdaEvent; lambdaContext: LambdaContext };
 type Variables = { user: UserRecord };
@@ -131,7 +142,7 @@ app.get("/users/me/usage", async (c) => {
   let cost = 0;
   let priced = false;
   for (const p of items) {
-    const jobs = await listJobsForProject(p.projectId);
+    const jobs = await listJobsForProject(p.projectId, u.userId);
     const models = new Set<string>();
     for (const j of jobs) {
       if (!j.usage) continue;
@@ -151,7 +162,7 @@ app.get("/users/me/usage", async (c) => {
       cost += p.costUsd;
       priced = true;
     }
-    summary.byProject.push({ projectId: p.projectId, usage: p.usage ?? EMPTY_USAGE, costUsd: p.costUsd ?? null, models: [...models] });
+    summary.byProject.push({ projectId: p.projectId, name: p.name, usage: p.usage ?? EMPTY_USAGE, costUsd: p.costUsd ?? null, models: [...models] });
   }
   summary.costUsd = priced ? Math.round(cost * 1_000_000) / 1_000_000 : null;
   summary.byModel = [...byModel.entries()]
@@ -197,7 +208,7 @@ app.get("/projects", async (c) => {
   const { items, nextCursor } = await listProjects(u.userId, Number(c.req.query("limit") ?? 100), c.req.query("cursor"));
   const filtered = items.filter((p) => {
     if (status && p.status !== status) return false;
-    if (q && ![p.projectId, p.roi, p.tlf].some((s) => (s ?? "").toLowerCase().includes(q))) return false;
+    if (q && ![p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((s) => (s ?? "").toLowerCase().includes(q))) return false;
     return true;
   });
   return c.json({ items: filtered, nextCursor });
@@ -210,8 +221,14 @@ app.post("/projects", async (c) => {
   const roi = (body.roi ?? "").trim();
   const tlf = (body.tlf ?? "").trim();
   if (!roi && !tlf) throw bad("ROI と TLF のどちらか一方は必須です");
-  const projectId = (body.projectId ?? "").trim() || proposeProjectId(roi, tlf);
-  if (!isValidProjectId(projectId)) throw bad("Project ID は英字で始まる 3〜64 文字の英数字・_・- のみ使用できます");
+  const proposed = proposeProjectName(roi, tlf);
+  let name = proposed;
+  if (typeof body.name === "string" && body.name.trim()) {
+    const n = normalizeProjectName(body.name);
+    if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
+    name = n.name;
+  }
+  const nameSource = name === proposed ? "auto" : "user";
   const contributor = (body.contributor ?? "").trim() || u.contributorName || u.displayName;
   // Always persist a concrete model so usage can be priced (project → user default → env → DEFAULT_CODEX_MODEL)
   const model = ("model" in body ? normModel(body.model) : null) || u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL;
@@ -221,11 +238,16 @@ app.post("/projects", async (c) => {
     reasoningEffort = body.reasoningEffort ?? null;
   }
 
+  const userKey = u.userKey ?? (await assignUserKey(u.userId));
+  const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
   const now = nowIso();
   const jobId = newId("job_");
   const project: ProjectRecord = {
     userId: u.userId,
     projectId,
+    name,
+    nameSource,
+    revision: 0,
     roi,
     tlf,
     contributor,
@@ -246,7 +268,7 @@ app.post("/projects", async (c) => {
   try {
     await putProject(project, true);
   } catch (e) {
-    if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "同じ Project ID が既に存在します" });
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "Project ID の採番が衝突しました。もう一度作成してください" });
     throw e;
   }
   const job: JobRecord = {
@@ -267,21 +289,34 @@ app.post("/projects", async (c) => {
     updatedAt: now,
   };
   await putJob(job);
+  const owner = { userId: u.userId };
   await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(not set)"}\nTLF: ${tlf || "(not set)"}`, {
-    meta: { kind: "create", roi, tlf, projectId, model, reasoningEffort },
+    ...owner,
+    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort },
   });
   await putMessage(projectId, jobId, "system", "status", `Model: ${model ?? "default"} / reasoning effort: ${reasoningEffort ?? "default"}`, {
+    ...owner,
     meta: { i18n: "sys.model", model: model ?? "", effort: reasoningEffort ?? "" },
   });
-  await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { meta: { i18n: "sys.queued" } });
+  await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return c.json(project, 201);
 });
 
-app.get("/projects/propose-id", (c) => {
+app.get("/projects/propose-name", (c) => {
   const roi = c.req.query("roi") ?? "";
   const tlf = c.req.query("tlf") ?? "";
-  return c.json({ projectId: proposeProjectId(roi, tlf) });
+  return c.json({ name: proposeProjectName(roi, tlf) });
+});
+
+/** Current Project ID for a URL segment: the ID itself, or the new ID of a migrated legacy ID. */
+app.get("/projects/resolve/:id", async (c) => {
+  const u = c.get("user");
+  const id = c.req.param("id");
+  if (!isProjectIdLike(id)) throw notFound();
+  const p = (await getProject(u.userId, id)) ?? (await findProjectByLegacyId(u.userId, id));
+  if (!p) throw notFound();
+  return c.json({ projectId: p.projectId });
 });
 
 async function loadOwnProject(u: UserRecord, projectId: string): Promise<ProjectRecord> {
@@ -291,15 +326,36 @@ async function loadOwnProject(u: UserRecord, projectId: string): Promise<Project
 }
 
 app.get("/projects/:id", async (c) => {
-  const p = await loadOwnProject(c.get("user"), c.req.param("id"));
-  const jobs = await listJobsForProject(p.projectId);
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const jobs = await listJobsForProject(p.projectId, u.userId);
   return c.json({ ...p, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
 });
 
+app.put("/projects/:id", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const body = (await c.req.json()) as UpdateProjectRequest;
+  if (body.name === undefined) throw bad("name is required");
+  const n = normalizeProjectName(body.name);
+  if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
+  await updateProject(u.userId, p.projectId, { name: n.name, nameSource: "user" });
+  const key = projectNameKey(n.name);
+  const duplicates = (await listUserProjects(u.userId))
+    .filter((o) => o.projectId !== p.projectId && projectNameKey(o.name ?? o.projectId) === key)
+    .map((o) => ({ projectId: o.projectId, name: o.name ?? o.projectId }));
+  const res: UpdateProjectResponse = { project: { ...p, name: n.name, nameSource: "user", updatedAt: nowIso() }, duplicates };
+  return c.json(res);
+});
+
 app.get("/projects/:id/messages", async (c) => {
-  const p = await loadOwnProject(c.get("user"), c.req.param("id"));
-  const r = await listMessages(p.projectId, Number(c.req.query("limit") ?? 500), c.req.query("cursor"));
-  return c.json(r);
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const [r, jobs] = await Promise.all([
+    listMessages(p.projectId, Number(c.req.query("limit") ?? 500), c.req.query("cursor")),
+    listJobsForProject(p.projectId, u.userId),
+  ]);
+  return c.json({ ...r, items: ownedMessages(r.items, u.userId, new Set(jobs.map((j) => j.jobId))) });
 });
 
 app.post("/projects/:id/cancel", async (c) => {
@@ -310,7 +366,7 @@ app.post("/projects/:id/cancel", async (c) => {
   if (job) {
     await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by user");
-    await putMessage(p.projectId, job.jobId, "system", "status", "Job cancelled by the user.", { meta: { i18n: "sys.cancelled" } });
+    await putMessage(p.projectId, job.jobId, "system", "status", "Job cancelled by the user.", { userId: p.userId, meta: { i18n: "sys.cancelled" } });
   }
   await updateProject(u.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
   return c.json({ ok: true });
@@ -327,8 +383,8 @@ app.post("/projects/:id/answer", async (c) => {
   if (!job) throw notFound();
   await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text });
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
-  await putMessage(p.projectId, job.jobId, "user", "prompt", text, { meta: { kind: "answer" } });
-  await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { meta: { i18n: "sys.answered" } });
+  await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
+  await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { userId: p.userId, meta: { i18n: "sys.answered" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId: job.jobId, mode: "resume" });
   return c.json({ ok: true });
 });
@@ -367,8 +423,8 @@ app.post("/projects/:id/followup", async (c) => {
     errorMessage: null,
     stepStates: { ...p.stepStates, XLSX: "pending" },
   });
-  await putMessage(p.projectId, jobId, "user", "prompt", text, { meta: { kind: "followup" } });
-  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { meta: { i18n: "sys.followupQueued" } });
+  await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
+  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return c.json({ ok: true, jobId });
 });
@@ -378,7 +434,7 @@ app.post("/projects/:id/retry", async (c) => {
   if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
-  const jobs = await listJobsForProject(p.projectId);
+  const jobs = await listJobsForProject(p.projectId, u.userId);
   const last = jobs.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const now = nowIso();
   const jobId = newId("job_");
@@ -401,7 +457,7 @@ app.post("/projects/:id/retry", async (c) => {
   };
   await putJob(job);
   await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, pendingQuestion: null });
-  await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { meta: { i18n: "sys.retryQueued" } });
+  await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { userId: p.userId, meta: { i18n: "sys.retryQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
   return c.json({ ok: true, jobId });
 });
@@ -419,7 +475,8 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
-  const url = await presignDownload(u.userId, p.projectId, key);
+  const fileName = key === `output/${p.projectId}.bra.xlsx` ? braDownloadFileName(p.name, p.projectId) : undefined;
+  const url = await presignDownload(u.userId, p.projectId, key, fileName);
   return c.json({ url, expiresIn: 900 });
 });
 
@@ -571,7 +628,7 @@ app.post("/admin/projects/:userId/:id/cancel", async (c) => {
   if (job) {
     await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by admin");
-    await putMessage(p.projectId, job.jobId, "system", "status", "Job stopped by an admin.", { meta: { i18n: "sys.adminStopped" } });
+    await putMessage(p.projectId, job.jobId, "system", "status", "Job stopped by an admin.", { userId: p.userId, meta: { i18n: "sys.adminStopped" } });
   }
   await updateProject(p.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
   return c.json({ ok: true });

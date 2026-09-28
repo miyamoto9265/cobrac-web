@@ -57,12 +57,14 @@ async function autoRetry(prev: JobRecord) {
   };
   await putJob(job);
   await updateProject(prev.userId, prev.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null });
-  await putMessage(prev.projectId, jobId, "system", "status", `ワーカーからの応答が途絶えたため、自動で再開します（${job.retryCount}/${MAX_AUTO_RETRY}）。`);
+  await putMessage(prev.projectId, jobId, "system", "status", `ワーカーからの応答が途絶えたため、自動で再開します（${job.retryCount}/${MAX_AUTO_RETRY}）。`, {
+    userId: prev.userId,
+  });
   await enqueueRun({ version: 1, userId: prev.userId, projectId: prev.projectId, jobId, mode: "retry" });
 }
 
 async function failJob(projectId: string, jobId: string, userId: string, reason: string) {
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: reason, endedAt: nowIso() });
   await updateProject(userId, projectId, { status: "FAILED", errorMessage: reason, activeJobId: null });
-  await putMessage(projectId, jobId, "system", "error", reason);
+  await putMessage(projectId, jobId, "system", "error", reason, { userId });
 }
