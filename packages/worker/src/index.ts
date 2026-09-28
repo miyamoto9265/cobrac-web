@@ -22,6 +22,7 @@ import type { FrgModel, HcdModel, JobRecord, ProjectRecord, StepState, WorkflowS
 import {
   HCD_FILES,
   addUsage,
+  braDownloadFileName,
   buildCsvs,
   buildGraphs,
   buildProjectCsv,
@@ -34,7 +35,17 @@ import {
   nowIso,
 } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
-import { getJob, getProject, getUser, putMessage, refreshProjectUsage, updateJob, updateProject } from "./db.js";
+import {
+  getJob,
+  getProject,
+  getUser,
+  incrementProjectRevision,
+  putMessage,
+  refreshProjectUsage,
+  updateAutoProjectName,
+  updateJob,
+  updateProject,
+} from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
@@ -267,13 +278,15 @@ async function main() {
       const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta));
       xlsxDone = true;
       await syncStepStates();
-      await putMessage(projectId, jobId, "system", "artifact", `Generated ${projectId}.bra.xlsx.`, {
-        meta: { i18n: "sys.xlsxReady", name: `${projectId}.bra.xlsx`, xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
+      const fileName = braDownloadFileName(project.name, projectId).utf8;
+      await putMessage(projectId, jobId, "system", "artifact", `Generated ${fileName}.`, {
+        meta: { i18n: "sys.xlsxReady", name: fileName, xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
       });
     }
     await persistState();
 
     await updateJob(projectId, jobId, { status: "COMPLETED", endedAt: nowIso() });
+    await incrementProjectRevision(userId, projectId);
     await updateProject(userId, projectId, {
       status: "COMPLETED",
       activeJobId: null,
@@ -326,13 +339,16 @@ async function acceptPhase(phase: Phase, ctx: PhaseContext): Promise<PhaseCheck>
   ctx.frg = frg.model;
   if (phase === "FRG") return { errors: frg.errors, fatal: frg.fatal };
 
-  // CSV: deterministic conversion first
+  // CSV: deterministic conversion first (the user may have renamed the project during the run)
+  const latest = await getProject(userId, projectId);
+  if (latest) ctx.project.name = latest.name;
   const opts = {
     projectId,
     contributor: ctx.project.contributor,
     projectTemplate: await readFile(join(env.promptsDir, "Project.csv"), "utf8"),
     roi: ctx.project.roi,
     tlf: ctx.project.tlf,
+    name: ctx.project.name,
   };
   const errors: string[] = [];
   if (frg.model) {
@@ -410,8 +426,16 @@ async function graphParseError(): Promise<string | null> {
   }
 }
 
-/** Store ROI/TLF decided by the agent when the user left them empty. */
-async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: string }) {
+/** Store ROI/TLF decided by the agent when the user left them empty, and the agent's name unless the user named the project. */
+async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: string; name?: string }) {
+  if (meta.name && project.nameSource === "auto" && meta.name !== project.name) {
+    if (await updateAutoProjectName(userId, projectId, meta.name)) project.name = meta.name;
+    else {
+      const latest = await getProject(userId, projectId);
+      project.name = latest?.name;
+      project.nameSource = latest?.nameSource;
+    }
+  }
   const patch: Partial<ProjectRecord> = {};
   if (!project.roi?.trim() && meta.roi) patch.roi = meta.roi;
   if (!project.tlf?.trim() && meta.tlf) patch.tlf = meta.tlf;

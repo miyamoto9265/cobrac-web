@@ -74,11 +74,12 @@ export async function refreshProjectUsage(userId: string, projectId: string): Pr
       TableName: env.tables.jobs,
       KeyConditionExpression: "projectId = :p",
       ExpressionAttributeValues: { ":p": projectId },
-      ProjectionExpression: "#u, #m, costUsd",
+      ProjectionExpression: "#u, #m, costUsd, userId",
       ExpressionAttributeNames: { "#u": "usage", "#m": "model" },
     }),
   );
-  const jobs = (r.Items ?? []) as Pick<JobRecord, "usage" | "model" | "costUsd">[];
+  // legacy Project IDs were unique per user only
+  const jobs = ((r.Items ?? []) as Pick<JobRecord, "usage" | "model" | "costUsd" | "userId">[]).filter((j) => j.userId === userId);
   let usage: TokenUsage = EMPTY_USAGE;
   let cost = 0;
   let unpriced = false;
@@ -97,6 +98,37 @@ export async function refreshProjectUsage(userId: string, projectId: string): Pr
   });
 }
 
+/** Store the agent's name unless the user has named the project (nameSource "user" or a legacy project). */
+export async function updateAutoProjectName(userId: string, projectId: string, name: string): Promise<boolean> {
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.projects,
+        Key: { userId, projectId },
+        UpdateExpression: "SET #n = :n, updatedAt = :t",
+        ConditionExpression: "nameSource = :auto",
+        ExpressionAttributeNames: { "#n": "name" },
+        ExpressionAttributeValues: { ":n": name, ":t": nowIso(), ":auto": "auto" },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
+
+export async function incrementProjectRevision(userId: string, projectId: string): Promise<void> {
+  await ddb.send(
+    new UpdateCommand({
+      TableName: env.tables.projects,
+      Key: { userId, projectId },
+      UpdateExpression: "ADD revision :one",
+      ExpressionAttributeValues: { ":one": 1 },
+    }),
+  );
+}
+
 let seq = 0;
 
 export async function putMessage(
@@ -111,6 +143,7 @@ export async function putMessage(
   seq = (seq + 1) % 100000;
   const msg: MessageRecord = {
     projectId,
+    userId: env.job.userId,
     sk: `${createdAt}#${String(seq).padStart(5, "0")}`,
     messageId: newId("m_"),
     jobId,
