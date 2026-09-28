@@ -19,6 +19,7 @@ import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
+import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { ContainerImageBuild } from "@cdklabs/deploy-time-build";
 import type { Construct } from "constructs";
@@ -33,6 +34,10 @@ export interface CobracAgentsStackProps extends StackProps {
   maxConcurrentJobsPerUser: number;
   codexModel: string;
   codexReasoningEffort: string;
+  /** RCS MCP endpoint for the agent's SABRA lookups; empty disables RCS */
+  rcsMcpUrl: string;
+  /** Secrets Manager secret (same account) holding the accepted RCS bearer tokens, owned by rosetta-candidate-search */
+  rcsMcpSecretName: string;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -179,6 +184,8 @@ export class CobracAgentsStack extends Stack {
         ARTIFACTS_BUCKET: artifacts.bucketName,
         CODEX_MODEL: props.codexModel,
         CODEX_REASONING_EFFORT: props.codexReasoningEffort,
+        RCS_MCP_URL: props.rcsMcpUrl,
+        RCS_MCP_SECRET_ID: props.rcsMcpUrl ? props.rcsMcpSecretName : "",
         // Overridden per run by the dispatcher:
         JOB_USER_ID: "",
         JOB_PROJECT_ID: "",
@@ -189,6 +196,8 @@ export class CobracAgentsStack extends Stack {
     for (const t of [users, projects, jobs, messages]) t.grantReadWriteData(taskDef.taskRole);
     artifacts.grantReadWrite(taskDef.taskRole);
     key.grantDecrypt(taskDef.taskRole);
+    // read at run time (not injected by ECS) so a missing secret only disables RCS instead of failing task start
+    if (props.rcsMcpUrl) secretsmanager.Secret.fromSecretNameV2(this, "RcsMcpToken", props.rcsMcpSecretName).grantRead(taskDef.taskRole);
 
     // -----------------------------------------------------------------------
     // Lambdas

@@ -15,15 +15,29 @@
  * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
  */
 import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
-import { existsSync, readdirSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { FrgModel, HcdModel, JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { addUsage, buildCsvs, buildGraphs, buildProjectCsv, checkFrg, checkHcd, estimateCostUsd, formatTokens, formatUsd, nowIso } from "@cobrac/shared";
+import {
+  HCD_FILES,
+  addUsage,
+  buildCsvs,
+  buildGraphs,
+  buildProjectCsv,
+  checkFrg,
+  checkHcd,
+  estimateCostUsd,
+  formatTokens,
+  formatUsd,
+  hombaAnchorIds,
+  nowIso,
+} from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import { getJob, getProject, getUser, putMessage, refreshProjectUsage, updateJob, updateProject } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
+import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { downloadDir, projectPrefix, uploadDir } from "./s3sync.js";
 import { csvComplete, csvWrittenSince, currentStepOf, detectStepStates, loadFrgFiles, loadHcdFiles, projectPaths } from "./steps.js";
 
@@ -43,6 +57,9 @@ let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let workspaceReadyAt = 0;
+let rcs: RcsClient | null = null;
+/** New projects follow the UC naming convention; older workspaces only when their 3_UC.md already has the column. */
+let ucNaming = false;
 
 const log = async (content: string, meta?: Record<string, unknown>): Promise<void> => {
   await putMessage(projectId, jobId, "system", "status", content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
@@ -66,6 +83,12 @@ async function main() {
   if (!user.encryptedApiKey) throw new Error("OpenAI API key is not registered for this user");
 
   const apiKey = await decryptApiKey(user.encryptedApiKey, userId);
+  const rcsConn = await resolveRcsConnection(
+    { url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region },
+    (m) => console.warn(`[worker] ${m}`),
+  );
+  rcs = rcsConn ? new RcsClient(rcsConn) : null;
+  console.log(`[worker] rcs=${rcsConn ? rcsConn.url : "(disabled)"}`);
 
   await updateJob(projectId, jobId, { status: "RUNNING", startedAt: job.startedAt ?? nowIso(), lastHeartbeat: nowIso(), ecsTaskArn: await taskArn() });
   await updateProject(userId, projectId, { status: "RUNNING", activeJobId: jobId, pendingQuestion: null, errorMessage: null });
@@ -73,6 +96,8 @@ async function main() {
   // --- workspace ------------------------------------------------------------
   await prepareWorkspace(project);
   workspaceReadyAt = Date.now();
+  ucNaming = followsUcNaming();
+  if (ucNaming && !rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
   const carryOver = mode === "resume" || mode === "retry";
   xlsxDone = carryOver && project.stepStates?.XLSX === "done";
@@ -80,7 +105,7 @@ async function main() {
   await syncStepStates();
 
   // --- codex ----------------------------------------------------------------
-  const codex = createCodex(apiKey);
+  const codex = createCodex(apiKey, rcsConn);
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
@@ -123,6 +148,9 @@ async function main() {
     },
     onHeartbeat: async () => {
       await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+    },
+    onMcpCall: async (item) => {
+      if (item.server === "rcs") await recordRcsCall(item);
     },
   };
 
@@ -286,7 +314,7 @@ interface PhaseCheck {
 
 async function acceptPhase(phase: Phase, ctx: PhaseContext): Promise<PhaseCheck> {
   const { files, meta } = loadHcdFiles(paths);
-  const hcd = checkHcd(files, meta);
+  const hcd = await checkHcdWithRcs(files, meta);
   ctx.hcd = hcd.model;
   if (phase === "HCD") {
     if (hcd.model?.meta && hcd.errors.length === 0) await adoptMeta(ctx.project, hcd.model.meta);
@@ -331,6 +359,36 @@ async function acceptPhase(phase: Phase, ctx: PhaseContext): Promise<PhaseCheck>
   return { errors, fatal: true };
 }
 
+/** checkHcd, with the HOMBA anchors of the UC Descriptors looked up in RCS for the anchor-abbreviation check. */
+async function checkHcdWithRcs(files: ReturnType<typeof loadHcdFiles>["files"], meta: string | null) {
+  const opts = { ucNaming: ucNaming || undefined };
+  const first = checkHcd(files, meta, opts);
+  const ids = first.model ? hombaAnchorIds(first.model.ucs.map((u) => u.descriptor).filter(Boolean)) : [];
+  if (!rcs || !ids.length) return first;
+  return checkHcd(files, meta, { ...opts, sabra: await rcs.lookupHomba(ids) });
+}
+
+function followsUcNaming(): boolean {
+  const uc = HCD_FILES.uc.map((f) => join(paths.hcd, f)).find((f) => existsSync(f));
+  if (!uc) return true;
+  return /\|\s*UC Descriptor\s*\|/i.test(readFileSync(uc, "utf8"));
+}
+
+const RCS_LOG_MAX_RESULT = 20_000;
+/** Evidence for the UC ↔ SABRA mapping: every RCS call of the agent, one JSON line each, kept with the project. */
+async function recordRcsCall(item: { tool: string; arguments: unknown; status: string; result?: { structured_content: unknown }; error?: { message: string } }) {
+  if (item.status === "in_progress") return;
+  let result = item.result?.structured_content ?? null;
+  const text = JSON.stringify(result);
+  if (text && text.length > RCS_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, RCS_LOG_MAX_RESULT) };
+  const line = { at: nowIso(), tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
+  try {
+    await appendFile(join(paths.root, "rcs_mcp_calls.jsonl"), JSON.stringify(line) + "\n", "utf8");
+  } catch (e) {
+    console.warn("[worker] rcs log failed", e);
+  }
+}
+
 function phaseHasFiles(phase: Phase): boolean {
   const dir = phase === "HCD" ? paths.hcd : phase === "FRG" ? paths.frg : paths.csv;
   return existsSync(dir) && readdirSync(dir).length > 0;
@@ -366,7 +424,15 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
 
 const specCache = new Map<Phase, string>();
 async function phaseSpec(phase: Phase): Promise<string> {
-  if (!specCache.has(phase)) specCache.set(phase, (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8")).replaceAll("{P}", projectId));
+  if (!specCache.has(phase)) {
+    let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8")).replaceAll("{P}", projectId);
+    if (phase === "HCD" && !rcs) {
+      spec +=
+        "\n\nNote for this run: the RCS MCP server is not available. Still anchor every UC on a SABRA unit from your best knowledge " +
+        "(HOMBA/DHBA or BNA IDs), keep UC Descriptors and Circuit IDs in the same format, and state in 1_Thinking.md that the anchors were not checked with RCS.\n";
+    }
+    specCache.set(phase, spec);
+  }
   return specCache.get(phase)!;
 }
 

@@ -1,7 +1,8 @@
-import { Codex, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { Codex, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
 import type { MessageType } from "@cobrac/shared";
 import { DEFAULT_CODEX_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
 import { env } from "./env.js";
+import { RCS_TOKEN_ENV, rcsCodexConfig, type RcsConnection } from "./rcs.js";
 
 export interface TurnResult {
   threadId: string | null;
@@ -16,9 +17,10 @@ export interface TurnSink {
   onMessage(type: MessageType, content: string, meta?: Record<string, unknown>): Promise<void>;
   onFileChange(paths: string[]): Promise<void>;
   onHeartbeat(): Promise<void>;
+  onMcpCall?(item: McpToolCallItem): Promise<void>;
 }
 
-export function createCodex(apiKey: string): Codex {
+export function createCodex(apiKey: string, rcs: RcsConnection | null = null): Codex {
   return new Codex({
     apiKey,
     env: {
@@ -30,8 +32,14 @@ export function createCodex(apiKey: string): Codex {
       AWS_SESSION_TOKEN: "",
       AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: "",
       AWS_CONTAINER_CREDENTIALS_FULL_URI: "",
+      // Codex itself sends it as the MCP bearer token; shell_environment_policy keeps it out of agent commands
+      [RCS_TOKEN_ENV]: rcs?.token ?? "",
     },
-    config: { show_raw_agent_reasoning: false },
+    config: {
+      show_raw_agent_reasoning: false,
+      shell_environment_policy: { exclude: [RCS_TOKEN_ENV] },
+      ...(rcs ? rcsCodexConfig(rcs) : {}),
+    },
   });
 }
 
@@ -170,9 +178,13 @@ async function handleItem(item: ThreadItem, result: TurnResult, sink: TurnSink) 
         item.items.map((t) => `${t.completed ? "[x]" : "[ ]"} ${t.text}`).join("\n"),
       );
       return;
-    case "mcp_tool_call":
-      await sink.onMessage("command", `MCP ${item.server}.${item.tool} (${item.status})`);
+    case "mcp_tool_call": {
+      const query = (item.arguments as { query?: unknown; homba_id?: unknown } | null) ?? {};
+      const what = typeof query.query === "string" ? ` "${query.query}"` : typeof query.homba_id === "string" ? ` ${query.homba_id}` : "";
+      await sink.onMessage("command", `MCP ${item.server}.${item.tool}${what} (${item.status})${item.error ? `: ${item.error.message}` : ""}`);
+      await sink.onMcpCall?.(item);
       return;
+    }
     case "error":
       await sink.onMessage("error", item.message);
       return;

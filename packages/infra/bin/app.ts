@@ -21,4 +21,7 @@ new CobracAgentsStack(app, "CobracAgents", {
   maxConcurrentJobsPerUser: Number(process.env.COBRAC_MAX_CONCURRENT_JOBS_PER_USER ?? "1"),
   codexModel: process.env.COBRAC_CODEX_MODEL ?? "",
   codexReasoningEffort: process.env.COBRAC_CODEX_REASONING_EFFORT ?? "",
+  // rosetta-candidate-search rcs-mcp (docs/aws_operations_guide.md 4-1b); set COBRAC_RCS_MCP_URL="" to disable
+  rcsMcpUrl: process.env.COBRAC_RCS_MCP_URL ?? "https://hg2se72l61.execute-api.ap-northeast-1.amazonaws.com/mcp",
+  rcsMcpSecretName: process.env.COBRAC_RCS_MCP_SECRET_NAME || "rcs/mcp-bearer-token",
 });
