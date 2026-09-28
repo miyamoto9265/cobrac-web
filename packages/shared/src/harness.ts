@@ -4,6 +4,7 @@
  */
 import { normalizeHeader, parseCsv, toCsv } from "./csv.js";
 import { cell, collectRecords, collectRows } from "./markdown.js";
+import { normalizeProjectName } from "./projectId.js";
 import { checkUcNaming, splitTopLevel, type SabraLookup } from "./ucNaming.js";
 
 /** Artifact file names per phase; later entries are accepted for workspaces created by the legacy prompts. */
@@ -31,6 +32,8 @@ export interface ProjectMeta {
   roi: string;
   tlf: string;
   description: string;
+  /** Project name proposed by the agent ("<TLF> in <ROI>"); optional for workspaces written before v0.7 */
+  name?: string;
 }
 
 export type UcRoi = "roi" | "input" | "output" | "both";
@@ -218,6 +221,11 @@ function parseMeta(text: string | null | undefined, errors: string[]): ProjectMe
     const j = JSON.parse(text) as Partial<ProjectMeta>;
     const meta = { roi: String(j.roi ?? "").trim(), tlf: String(j.tlf ?? "").trim(), description: String(j.description ?? "").trim() };
     for (const k of ["roi", "tlf", "description"] as const) if (!meta[k]) errors.push(`meta.json: "${k}" is empty.`);
+    if (j.name !== undefined && j.name !== null && j.name !== "") {
+      const n = normalizeProjectName(j.name);
+      if ("error" in n) errors.push(`meta.json: "name" is invalid (${n.error}).`);
+      else return { ...meta, name: n.name };
+    }
     return meta;
   } catch {
     errors.push("meta.json is not valid JSON.");
@@ -545,6 +553,8 @@ export interface BuildCsvOptions {
   /** Used when meta.json has no description */
   roi?: string;
   tlf?: string;
+  /** Project name, prepended to the Description (skipped when it is not English) */
+  name?: string;
 }
 
 /** Project.csv from the fixed template (row 2 = project metadata). */
@@ -552,7 +562,10 @@ export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null): s
   const rows = parseCsv(o.projectTemplate);
   const roi = meta?.roi || o.roi || "";
   const tlf = meta?.tlf || o.tlf || "";
-  const description = meta?.description || (tlf && roi ? `${tlf} in the ${roi}.` : tlf || roi);
+  const base = meta?.description || (tlf && roi ? `${tlf} in the ${roi}.` : tlf || roi);
+  const name = o.name?.trim();
+  const description =
+    name && !CJK_RE.test(name) && !base.toLowerCase().startsWith(name.toLowerCase()) ? (base ? `${name}: ${base}` : name) : base;
   const data = rows[1] ?? [];
   rows[1] = [o.contributor, o.projectId, o.contributor, description, data[4] || "CoBRAC-v1-0"];
   return toCsv(rows) + "\n";

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { buildGraphs, classifyEdgeSign, parseCsv, parseCsvObjects, proposeProjectId } from "../src/index.js";
+import { buildGraphs, classifyEdgeSign, parseCsv, parseCsvObjects, proposeProjectName } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fx = (name: string) => readFileSync(join(here, "fixtures", name), "utf8");
@@ -102,9 +102,9 @@ describe("buildGraphs (VOR sample)", () => {
   });
 });
 
-describe("proposeProjectId", () => {
-  it("creates ASCII ids", () => {
-    expect(proposeProjectId("Cerebellum flocculus", "VOR learning")).toBe("VORLearning_CerebellumFlocculus");
-    expect(proposeProjectId("小脳", "VOR学習")).toMatch(/^(VOR|Project_)/);
+describe("proposeProjectName", () => {
+  it("creates ASCII names", () => {
+    expect(proposeProjectName("Cerebellum flocculus", "VOR learning")).toBe("VORLearning_CerebellumFlocculus");
+    expect(proposeProjectName("小脳", "VOR学習")).toBe("VOR");
   });
 });
