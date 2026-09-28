@@ -37,6 +37,8 @@ export const ko: Record<MessageKey, string> = {
   "nav.docs": "문서",
   "nav.admin": "관리",
   "nav.signOut": "로그아웃",
+  "nav.openMenu": "메뉴 열기",
+  "nav.closeMenu": "메뉴 닫기",
 
   "login.signin": "로그인",
   "login.signup": "계정 만들기",

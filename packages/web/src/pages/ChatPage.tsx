@@ -67,9 +67,9 @@ function NewProject() {
   const [needKeyBefore, needKeyAfter] = t("chat.needKey").split("{settings}");
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center px-6">
-        <div className="mb-8 text-center">
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-6">
+        <div className="mb-6 text-center sm:mb-8">
           <h1 className="text-2xl font-semibold tracking-tight">{t("chat.newTitle")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t("chat.newHelp")}</p>
         </div>
@@ -82,7 +82,7 @@ function NewProject() {
             {needKeyAfter}
           </div>
         )}
-        <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.roi")}</span>
@@ -139,7 +139,7 @@ function NewProject() {
             <button
               onClick={() => void submit()}
               disabled={busy || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto coarse:py-3"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} {t("chat.run")}
             </button>
@@ -244,56 +244,56 @@ function ProjectChat({ projectId }: { projectId: string }) {
   return (
     <div className="flex h-full flex-col">
       {/* header */}
-      <header className="border-b border-slate-200 bg-white px-5 py-3">
+      <header className="max-h-[45%] shrink-0 overflow-y-auto border-b border-slate-200 bg-white px-3 py-3 sm:px-5 lg:max-h-none">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-mono text-base font-semibold">{project.projectId}</h1>
+          <h1 className="min-w-0 break-all font-mono text-base font-semibold">{project.projectId}</h1>
           <StatusBadge status={project.status} />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {project.hasArtifacts && (
               <>
-                <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
+                <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50">
                   <Network size={14} /> {t("chat.hcd")}
                 </Link>
-                <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50">
+                <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50">
                   <GitFork size={14} /> {t("chat.frg")}
                 </Link>
                 {xlsx && (
-                  <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-                    <Download size={14} /> {xlsx.name}
+                  <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs coarse:min-h-11 font-medium text-white hover:bg-emerald-700">
+                    <Download size={14} /> <span className="max-w-[14rem] truncate">{xlsx.name}</span>
                   </button>
                 )}
               </>
             )}
             {active && (
-              <button onClick={() => void act(() => api.cancel(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1.5 text-xs text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+              <button onClick={() => void act(() => api.cancel(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1.5 text-xs coarse:min-h-11 text-rose-700 hover:bg-rose-50 disabled:opacity-50">
                 <Square size={12} /> {t("chat.stop")}
               </button>
             )}
             {(project.status === "FAILED" || project.status === "CANCELLED") && (
-              <button onClick={() => void act(() => api.retry(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs hover:bg-slate-50 disabled:opacity-50">
+              <button onClick={() => void act(() => api.retry(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50 disabled:opacity-50">
                 <RotateCcw size={12} /> {t("chat.retry")}
               </button>
             )}
           </div>
         </div>
-        <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-slate-500">
-          <span>
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span className="min-w-0 break-words">
             <b className="text-slate-700">ROI:</b> {project.roi || t("unspecified")}
           </span>
-          <span>
+          <span className="min-w-0 break-words">
             <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
           </span>
           <span className="font-mono">
             <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
           </span>
-          <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800" title={t("chat.usageTip")}>
+          <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800 coarse:py-1.5" title={t("chat.usageTip")}>
             <UsageBadge usage={project.usage} costUsd={project.costUsd} model={project.usedModels?.join(", ") || project.model} />
             {showUsage ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
           </button>
         </div>
         {showUsage && (
           <div className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-slate-50">
-            <table className="w-full text-left text-[11px]">
+            <table className="w-full whitespace-nowrap text-left text-[11px]">
               <thead className="text-slate-500">
                 <tr>
                   <th className="px-2 py-1 font-medium">{t("chat.job")}</th>
@@ -348,7 +348,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
             <div className="px-2 py-1 font-sans text-[10px] text-slate-400">{t("chat.costNote", { date: PRICING_AS_OF })}</div>
           </div>
         )}
-        <div className="mt-2">
+        <div className="mt-2 overflow-x-auto">
           <Stepper states={project.stepStates} />
         </div>
         {project.errorMessage && (
@@ -362,7 +362,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
       </header>
 
       {/* messages */}
-      <div ref={listRef} onScroll={onScroll} className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
+      <div ref={listRef} onScroll={onScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5">
         {messages.map((m) => (
           <MessageItem key={m.messageId} m={m} />
         ))}
@@ -375,7 +375,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
       </div>
 
       {/* footer */}
-      <footer className="border-t border-slate-200 bg-white px-5 py-3">
+      <footer className="shrink-0 border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         {err && <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
         {project.status === "WAITING_USER_INPUT" && project.pendingQuestion ? (
           <QuestionCard question={project.pendingQuestion} busy={busy} onAnswer={(a) => act(() => api.answer(projectId, a))} />
@@ -397,7 +397,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
               placeholder={t("chat.followupPh")}
               className="flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <button type="submit" disabled={busy || !followup.trim()} className="flex items-center gap-1 self-end rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+            <button type="submit" disabled={busy || !followup.trim()} className="flex items-center gap-1 self-end rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11">
               <Send size={14} /> {t("send")}
             </button>
           </form>

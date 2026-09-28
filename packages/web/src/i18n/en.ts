@@ -35,6 +35,8 @@ export const en = {
   "nav.docs": "Docs",
   "nav.admin": "Admin",
   "nav.signOut": "Sign out",
+  "nav.openMenu": "Open menu",
+  "nav.closeMenu": "Close menu",
 
   "login.signin": "Sign in",
   "login.signup": "Create account",

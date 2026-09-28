@@ -37,6 +37,8 @@ export const es: Record<MessageKey, string> = {
   "nav.docs": "Docs",
   "nav.admin": "Admin",
   "nav.signOut": "Cerrar sesión",
+  "nav.openMenu": "Abrir menú",
+  "nav.closeMenu": "Cerrar menú",
 
   "login.signin": "Iniciar sesión",
   "login.signup": "Crear cuenta",

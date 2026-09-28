@@ -73,19 +73,19 @@ export function FrgGraphPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
-        <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+        <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
           <ArrowLeft size={14} /> {t("graph.backChat")}
         </Link>
-        <h1 className="font-mono text-sm font-semibold">{projectId}</h1>
+        <h1 className="min-w-0 truncate font-mono text-sm font-semibold">{projectId}</h1>
         <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">FRG</span>
-        <span className="text-xs text-slate-500">
+        <span className="hidden text-xs text-slate-500 sm:inline">
           {graph.nodes.filter((n) => n.kind !== "uc").length} GN · {graph.nodes.filter((n) => n.kind === "uc").length} UC
         </span>
-        <button onClick={() => setCollapsed(new Set())} className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+        <button onClick={() => setCollapsed(new Set())} className="ml-auto rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           {t("graph.expandAll")}
         </button>
-        <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+        <Link to={`/projects/${encodeURIComponent(projectId)}/hcd`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           <Network size={13} /> {t("graph.toHcd")}
         </Link>
       </header>
@@ -105,7 +105,7 @@ export function FrgGraphPage() {
         {node && (
           <DetailPanel title={node.id} subtitle={t(`frg.${node.kind}` as MessageKey)} onClose={() => select(null)}>
             {node.kind !== "uc" && node.subnodes.length > 0 && (
-              <button onClick={() => toggleCollapse(node.id)} className="mb-3 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+              <button onClick={() => toggleCollapse(node.id)} className="mb-3 rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
                 {collapsed.has(node.id) ? t("graph.expand") : t("graph.collapse")}
               </button>
             )}
@@ -117,7 +117,7 @@ export function FrgGraphPage() {
                 <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Parents</div>
                 <div className="flex flex-wrap gap-1">
                   {node.parents.map((p) => (
-                    <button key={p} onClick={() => select(p)} className="rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs hover:bg-slate-50">
+                    <button key={p} onClick={() => select(p)} className="rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs hover:bg-slate-50 coarse:min-h-11">
                       {p}
                     </button>
                   ))}
@@ -129,7 +129,7 @@ export function FrgGraphPage() {
                 <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Subnodes</div>
                 <div className="flex flex-wrap gap-1">
                   {node.subnodes.map((s) => (
-                    <button key={s} onClick={() => select(s)} className="rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs hover:bg-slate-50">
+                    <button key={s} onClick={() => select(s)} className="rounded border border-slate-300 px-1.5 py-0.5 font-mono text-xs hover:bg-slate-50 coarse:min-h-11">
                       {s}
                     </button>
                   ))}
@@ -146,7 +146,7 @@ export function FrgGraphPage() {
                 <Field label="Implementation" value={node.implementation} mono />
                 <Field label="Output Semantics" value={node.outputSemantics} />
                 <div className="mt-4">
-                  <Link to={`/projects/${encodeURIComponent(projectId)}/hcd?node=${encodeURIComponent(node.circuitId ?? "")}`} className="text-xs text-blue-600 hover:underline">
+                  <Link to={`/projects/${encodeURIComponent(projectId)}/hcd?node=${encodeURIComponent(node.circuitId ?? "")}`} className="inline-block text-xs text-blue-600 hover:underline coarse:py-3.5">
                     {t("graph.openInHcd")}
                   </Link>
                 </div>

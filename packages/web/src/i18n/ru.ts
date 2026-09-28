@@ -37,6 +37,8 @@ export const ru: Record<MessageKey, string> = {
   "nav.docs": "Документы",
   "nav.admin": "Админ",
   "nav.signOut": "Выйти",
+  "nav.openMenu": "Открыть меню",
+  "nav.closeMenu": "Закрыть меню",
 
   "login.signin": "Вход",
   "login.signup": "Создать аккаунт",

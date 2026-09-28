@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 import type { EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../i18n";
 import type { GraphLayoutController, XY } from "../lib/useGraphLayout";
+import { BELOW_LG, BELOW_MD, useMediaQuery } from "../lib/useMediaQuery";
 import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
 import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
 import { EdgeStylePanel, NodeStylePanel } from "./graph/StylePanel";
@@ -106,6 +107,9 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
   const [snap, setSnap] = useState(false);
   const [direction, setDirection] = useState<"TB" | "LR">(dirProp);
   const [exporting, setExporting] = useState(false);
+  const compact = useMediaQuery(BELOW_MD);
+  // < lg the page's DetailPanel is a bottom sheet that would cover the style panels and the minimap
+  const sheetDetail = useMediaQuery(BELOW_LG);
   const L = layout.layout ?? { positions: {}, nodes: {}, edges: {} };
 
   // --- sizes ------------------------------------------------------------------
@@ -296,7 +300,39 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
   const selEdgeResolved = selEdge ? resolveEdgeStyle(selEdge.sign, L.edges[selEdge.id], selEdge.dashed) : null;
   const selNode = selectedId ? nodes.find((n) => n.id === selectedId) : null;
 
-  const btn = "flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 disabled:opacity-40";
+  const btn = "flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 disabled:opacity-40 coarse:min-h-11 coarse:min-w-11";
+
+  const status = (
+    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[11px] text-slate-600 shadow-sm">
+      {layout.saving === "saving" && (
+        <span className="flex items-center gap-1">
+          <Loader2 size={11} className="animate-spin" /> {t("graph.saving")}
+        </span>
+      )}
+      {layout.saving === "saved" && (
+        <span className="flex items-center gap-1 text-emerald-700">
+          <Check size={11} /> {t("graph.saved")}
+        </span>
+      )}
+      {layout.saving === "error" && (
+        <span className="flex items-center gap-1 text-rose-700">
+          <TriangleAlert size={11} /> {t("graph.saveFail")}
+        </span>
+      )}
+      {layout.saving === "idle" && !compact && <span className="text-slate-400">{layout.hasCustom ? t("graph.autoSave") : t("graph.clickEdit")}</span>}
+      <button
+        type="button"
+        onClick={() => {
+          if (window.confirm(t("graph.resetConfirm"))) void layout.reset();
+        }}
+        disabled={!layout.hasCustom || layout.saving === "saving"}
+        className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-50 disabled:opacity-40 coarse:min-h-11"
+        title={t("graph.resetTip")}
+      >
+        {t("graph.resetAll")}
+      </button>
+    </div>
+  );
 
   return (
     <ReactFlow<BoxNodeType, StyledEdgeType>
@@ -340,11 +376,11 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
     >
       <MarkerDefs markers={markers} />
       <Background gap={snap ? 10 : 20} color="#e2e8f0" />
-      <Controls showInteractive={false} />
-      <MiniMap pannable zoomable nodeColor={(n) => (n.data as NodeData).style?.color ?? (n.data as NodeData).g.color} className="!bg-white" />
+      <Controls showInteractive={false} position={sheetDetail ? "bottom-right" : "bottom-left"} />
+      {!sheetDetail && <MiniMap pannable zoomable nodeColor={(n) => (n.data as NodeData).style?.color ?? (n.data as NodeData).g.color} className="!bg-white" />}
 
-      <Panel position="top-left" className="flex flex-wrap items-center gap-2">
-        <input value={search} onChange={(e) => doSearch(e.target.value)} placeholder={t("graph.search")} className="w-44 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+      <Panel position="top-left" className="flex flex-wrap items-center gap-2" style={sheetDetail ? { maxWidth: "calc(100% - 30px)" } : undefined}>
+        <input value={search} onChange={(e) => doSearch(e.target.value)} placeholder={t("graph.search")} className="w-32 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 sm:w-44 coarse:py-2" />
         <button onClick={layout.undo} disabled={!layout.canUndo} className={btn} title={t("graph.undo")}>
           <Undo2 size={12} />
         </button>
@@ -371,41 +407,16 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
           {exporting ? <Loader2 size={12} className="animate-spin" /> : <ImageDown size={12} />} {t("graph.png")}
         </button>
         {headerExtra}
+        {sheetDetail && status}
       </Panel>
 
-      <Panel position="top-right" className="flex items-center gap-2">
-        <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[11px] text-slate-600 shadow-sm">
-          {layout.saving === "saving" && (
-            <span className="flex items-center gap-1">
-              <Loader2 size={11} className="animate-spin" /> {t("graph.saving")}
-            </span>
-          )}
-          {layout.saving === "saved" && (
-            <span className="flex items-center gap-1 text-emerald-700">
-              <Check size={11} /> {t("graph.saved")}
-            </span>
-          )}
-          {layout.saving === "error" && (
-            <span className="flex items-center gap-1 text-rose-700">
-              <TriangleAlert size={11} /> {t("graph.saveFail")}
-            </span>
-          )}
-          {layout.saving === "idle" && <span className="text-slate-400">{layout.hasCustom ? t("graph.autoSave") : t("graph.clickEdit")}</span>}
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(t("graph.resetConfirm"))) void layout.reset();
-            }}
-            disabled={!layout.hasCustom || layout.saving === "saving"}
-            className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-50 disabled:opacity-40"
-            title={t("graph.resetTip")}
-          >
-            {t("graph.resetAll")}
-          </button>
-        </div>
-      </Panel>
+      {!sheetDetail && (
+        <Panel position="top-right" className="flex items-center gap-2">
+          {status}
+        </Panel>
+      )}
 
-      {selEdge && selEdgeResolved && (
+      {!sheetDetail && selEdge && selEdgeResolved && (
         <Panel position="bottom-right">
           <EdgeStylePanel
             edgeId={selEdge.id}
@@ -427,7 +438,7 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
           />
         </Panel>
       )}
-      {selNode && !selEdge && (
+      {!sheetDetail && selNode && !selEdge && (
         <Panel position="bottom-right">
           <NodeStylePanel
             nodeId={selNode.id}
