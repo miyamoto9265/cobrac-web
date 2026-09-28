@@ -132,6 +132,7 @@ Codex は作業ディレクトリの `AGENTS.md` を自動で読みます。ワ�
 - ROI 内の各 UC のインターフェースの入力・出力が、`4_Connection.md` の送り手・受け手と一致するか
 - FRG：根がちょうど 1 つ、循環なし、GN の UC の子は 2 つまで、UC だけでできた GN は UC がちょうど 2 つ、UC の親 GN は 2 つまで、ROI 内の UC がすべてどこかにつながっているか
 - CSV の中身が英語か
+- UC の命名（`UC Descriptor` 列があるプロジェクト。v0.7 以降に作ったものはすべて）：記述子の構文とファセットの順、Circuit ID の構文 `<SABRA 略称>[@L|@R][(項目,項目)]`、Circuit ID の先頭がアンカーの正式略称と一致するか（BNA は組み込みの表、HOMBA/DHBA はワーカーが RCS の `get_homba_term` で照会）、括弧内の項目がファセットと対応するか（アンカーのみの UC は括弧なしで、これが通常）、記述子が重複しないか。Interface と Subnodes は括弧の外の区切りだけで分けるので、`NAC(shell,DRD1+)` のような ID も読める
 
 問題は一覧としてエージェントに返します（例：「`PC`: Interface inputs [GC] differ from the senders in 4_Connection.md [GC, IO]」）。チャットでは検査結果の通知を開くと、指摘を 1 件ずつ確認できます。3 回直しても残った場合は警告を出して先に進みます。出力がまったく使えない場合はジョブを失敗にします。
 
