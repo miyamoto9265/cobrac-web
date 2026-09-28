@@ -126,7 +126,7 @@ describe("UC naming convention", () => {
   });
 
   it("rejects HOMBA anchors that are not SABRA units, with the fix", () => {
-    expect(errorsFor("CH10(purkinje)", "HOMBA:AA30423/cell:purkinje")).toMatch(/no DHBA name.*HOMBA:12852 \(FNCb\).*part:/);
+    expect(errorsFor("CH10(purkinje)", "HOMBA:AA30423/cell:purkinje")).toMatch(/no DHBA name.*HOMBA:12852 \(FNCb\); add part:HOMBA:AA30423 only if/);
     expect(errorsFor("NAC", "HOMBA:10339")).toMatch(/BNA territory/);
     expect(errorsFor("X", "HOMBA:99999")).toMatch(/not a HOMBA term known to RCS/);
   });

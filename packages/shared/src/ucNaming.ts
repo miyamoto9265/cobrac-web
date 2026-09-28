@@ -175,10 +175,12 @@ function anchorHead(a: UcAnchor, sabra: SabraLookup | undefined): { head: string
   if (!sabra?.has(a.id)) return { unknown: true };
   const info = sabra.get(a.id);
   if (!info) return { error: `${a.id} is not a HOMBA term known to RCS` };
-  if (info.atlas === "BNA") return { error: `${a.id} lies in BNA territory of SABRA: anchor on a BNA label/pair or BNAG group (search_bna_candidates) and keep ${a.id} as part:` };
+  if (info.atlas === "BNA") {
+    return { error: `${a.id} lies in BNA territory of SABRA: anchor on the BNA area (BNA:<label>, BNA:<l>-<r> or BNAG:<L2> from search_bna_candidates); add part:${a.id} only if the UC is finer than that area` };
+  }
   if (!info.dhbaExact || !info.dhbaAcronym) {
     const alt = info.dhbaHombaId ? ` ${info.dhbaHombaId} (${info.dhbaAncestorAcronym})` : " the nearest ancestor with a DHBA name";
-    return { error: `${a.id} has no DHBA name, so it is not a SABRA unit: anchor on${alt} and move ${a.id} to part:` };
+    return { error: `${a.id} has no DHBA name, so it is not a SABRA unit: anchor on${alt}; add part:${a.id} only if the UC needs that finer region` };
   }
   return { head: sabraAbbr(info.dhbaAcronym), l2: null };
 }
