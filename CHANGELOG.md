@@ -5,6 +5,21 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The chat screen has Report and Decision log buttons once a project has them: they open `report.md` / `decision_log.md` in a viewer with a download button
+- Each data file the agent writes has a JSON Schema; the agent can read it in `schemas/`, and validation problems point at the exact field (for example `uc.json: /ucs/3/implementation is required`)
+
+### Changed
+- The agent writes its HCD / FRG data as JSON instead of markdown tables: `references.json`, `uc.json` and `connections.json` (tissue-level BIF and UC connections together) in `{ID}_HCD/`, and `frg.json` (TLF and GNs with their function details) in `{ID}_FRG/`. The five CSVs, the xlsx and the graphs are generated from these files by code
+- External UCs are marked by a `roi` value (`noROI(input)` etc.) instead of a tag typed into Comments; the tag is still written to Circuits.csv
+- The HCD and FRG reports are one `report.md` (`## HCD` and `## FRG` sections) at the project root, and `1_Thinking.md` is now `decision_log.md`: the decisions the agent took and why, without copies of RCS queries (every RCS call is kept in `rcs_mcp_calls.jsonl`)
+- Values that are not in English are reported by the checks of the phase that wrote them
+
+### Removed
+- `1_InitialDecomposition.md`, `2_OptimizedFRG.md` (their rationale goes into the report) and `5_Verification.md` (the checks cover the structure; open points go into the report's Limitations)
+- The fallback in which the agent typed the CSVs by hand; problems now go back as fixes to the JSON files
+- Reading of the markdown formats used before this version. Existing projects keep their xlsx and graphs, but follow-ups and retries on them stop with a message to start a new project
+
 ## [0.7.0] - 2026-09-28
 
 ### Added

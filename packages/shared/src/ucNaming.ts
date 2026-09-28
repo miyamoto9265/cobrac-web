@@ -209,46 +209,46 @@ export interface NamedUc {
   descriptor: string;
 }
 
-/** Circuit ID / UC Descriptor checks for one 3_UC.md (syntax, head = anchor abbreviation, uniqueness). */
+/** Circuit ID / UC Descriptor checks for one uc.json (syntax, head = anchor abbreviation, uniqueness). */
 export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
   const errors: string[] = [];
   const byNorm = new Map<string, string>();
   for (const u of ucs) {
     if (!CIRCUIT_ID_RE.test(u.id)) {
-      errors.push(`3_UC.md: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[@L|@R][(item,item)] (e.g. \`NAC(shell,DRD1+)\`).`);
+      errors.push(`uc.json: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[@L|@R][(item,item)] (e.g. \`NAC(shell,DRD1+)\`).`);
     }
     if (!u.descriptor) {
-      errors.push(`3_UC.md: \`${u.id}\` has no UC Descriptor.`);
+      errors.push(`uc.json: \`${u.id}\` has no UC Descriptor.`);
       continue;
     }
     const parsed = parseUcDescriptor(u.descriptor);
     if ("errors" in parsed) {
-      for (const e of parsed.errors) errors.push(`3_UC.md: UC Descriptor of \`${u.id}\`: ${e}.`);
+      for (const e of parsed.errors) errors.push(`uc.json: UC Descriptor of \`${u.id}\`: ${e}.`);
       continue;
     }
     const norm = normalizeUcDescriptor(u.descriptor);
     const dup = byNorm.get(norm);
-    if (dup) errors.push(`3_UC.md: \`${dup}\` and \`${u.id}\` have the same UC Descriptor \`${u.descriptor}\` (one UC per descriptor; merge them or add a facet).`);
+    if (dup) errors.push(`uc.json: \`${dup}\` and \`${u.id}\` have the same UC Descriptor \`${u.descriptor}\` (one UC per descriptor; merge them or add a facet).`);
     else byNorm.set(norm, u.id);
 
     const got = parseCircuitId(u.id);
     const values = parsed.descriptor.facets.reduce((n, f) => n + f.values.length, 0);
     if (values === 0 && got.items.length) {
-      errors.push(`3_UC.md: \`${u.id}\` has no facets in its UC Descriptor, so its Circuit ID is the anchor abbreviation alone (drop the parenthesized items, or add the facets if the UC really is finer than the SABRA unit).`);
+      errors.push(`uc.json: \`${u.id}\` has no facets in its UC Descriptor, so its Circuit ID is the anchor abbreviation alone (drop the parenthesized items, or add the facets if the UC really is finer than the SABRA unit).`);
     } else if (values !== got.items.length) {
-      errors.push(`3_UC.md: Circuit ID \`${u.id}\` has ${got.items.length} parenthesized item(s) but its UC Descriptor has ${values} facet value(s); write one item per facet value, in facet order.`);
+      errors.push(`uc.json: Circuit ID \`${u.id}\` has ${got.items.length} parenthesized item(s) but its UC Descriptor has ${values} facet value(s); write one item per facet value, in facet order.`);
     }
 
     const exp = expectedCircuitHead(parsed.descriptor, sabra);
     if ("error" in exp) {
-      errors.push(`3_UC.md: UC Descriptor of \`${u.id}\`: ${exp.error}.`);
+      errors.push(`uc.json: UC Descriptor of \`${u.id}\`: ${exp.error}.`);
       continue;
     }
     if ("unknown" in exp) continue;
     const want = exp.head + (exp.laterality ? `@${exp.laterality}` : "");
     const have = got.head + (got.laterality ? `@${got.laterality}` : "");
     if (have !== want) {
-      errors.push(`3_UC.md: Circuit ID \`${u.id}\` must start with \`${want}\` (the SABRA abbreviation of its anchor \`${u.descriptor.split("/")[0]}\`, exact case${exp.laterality ? ", with laterality" : ""}).`);
+      errors.push(`uc.json: Circuit ID \`${u.id}\` must start with \`${want}\` (the SABRA abbreviation of its anchor \`${u.descriptor.split("/")[0]}\`, exact case${exp.laterality ? ", with laterality" : ""}).`);
     }
   }
   return errors;

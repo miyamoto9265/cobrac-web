@@ -10,28 +10,32 @@ Build the HCD for the given ROI and TLF in `{P}/{P}_HCD/`. The HCD is a graph th
 
 ## Steps and files
 
-1. **ROI/TLF validation -> `1_Thinking.md`, `../meta.json`.** Check with literature that the ROI can realize the TLF. If ROI or TLF is missing, determine a plausible one by research. If the ROI looks inappropriate, or there are several candidates the user must choose from, ask (turn protocol) with evidence and alternatives. Identify ROI_Input (information that must enter the ROI) and ROI_Output (information it must emit). Log research and reasoning in `1_Thinking.md`; write `meta.json` including `name` (see AGENTS.md).
+Files are in `{P}/` (`meta.json`, `decision_log.md`, `report.md`) and `{P}/{P}_HCD/` (`references.json`, `uc.json`, `connections.json`); formats at the end.
 
-2. **BIF -> `2_BIF.md`.** Survey projections relevant to the ROI thoroughly. Two tables, in this order:
-   - `## References`: `| Reference ID | DOI |`
-   - `## Connections`: `| Sender | Receiver | Comment | Reference ID |` (tissue names; note tissue outside the ROI in Comment; prefer connections confirmed by several papers; note strength and excitatory/inhibitory nature when known).
+1. **ROI/TLF validation -> `decision_log.md`, `meta.json`.** Check with literature that the ROI can realize the TLF. If ROI or TLF is missing, determine a plausible one by research. If the ROI looks inappropriate, or there are several candidates the user must choose from, ask (turn protocol) with evidence and alternatives. Identify ROI_Input (information that must enter the ROI) and ROI_Output (information it must emit). Record the conclusion, ROI_Input / ROI_Output and their evidence in `decision_log.md`; write `meta.json` including `name` (see AGENTS.md).
 
-3. **UCs -> `3_UC.md`.** Define UCs from the BIF. Criteria: involved in the TLF; encodes homogeneous information; appropriate mesoscopic granularity; **distinguish ROI-internal from external UCs (most important)**: write `noROI(input)` or `noROI(output)` in Comments for every external UC. Name every UC (internal and external) by the UC naming rules below, using the `rcs` MCP tools.
+2. **BIF -> `references.json`, `connections.json` `bif`.** Survey projections relevant to the ROI thoroughly. List each projection between tissues (tissue names; note tissue outside the ROI, strength and excitatory/inhibitory nature in `comment`; prefer connections confirmed by several papers) and add every cited paper to `references.json`.
 
-4. **Connections -> `4_Connection.md`; interfaces in `3_UC.md`.** Map BIF projections onto UC-to-UC connections (one BIF entry may yield several connections and vice versa). For every ROI-internal UC, fill Interface as `([Out1], [Out2]) = UC([In1], [In2])`, where outputs are the receivers and inputs the senders of its connections. External UCs: leave Interface empty.
+3. **UCs -> `uc.json`.** Define UCs from the BIF. Criteria: involved in the TLF; encodes homogeneous information; appropriate mesoscopic granularity; **distinguish ROI-internal from external UCs (most important)**: set `roi` to `internal`, or to `noROI(input)` / `noROI(output)` / `noROI(input,output)` for every external UC. Name every UC (internal and external) by the UC naming rules below, using the `rcs` MCP tools.
 
-5. **Output Semantics in `3_UC.md`.** For every UC (internal or external, except external sinks without output) describe what information it encodes, as `[UC]content;`. Use computational terms (reward prediction, action selection, sensory feature, internal state), prefer experimentally identified representations, and consider what downstream UCs need.
+4. **Connections -> `connections.json` `connections`; interfaces in `uc.json`.** Map BIF projections onto UC-to-UC connections (one BIF entry may yield several connections and vice versa). For every ROI-internal UC, fill `interface` as `([Out1], [Out2]) = <Circuit ID>([In1], [In2])`, where outputs are the receivers and inputs the senders of its connections (e.g. `([U.PC]) = GC([U.VN])`). External UCs: `interface` is `""`.
 
-6. **Function items in `3_UC.md`** (ROI-internal UCs only; external: empty). Inside these five items refer to UCs as `[U.Name]` and state inputs/outputs explicitly as "input: [U.X]", "output: [U.Y]" (except Implementation). This demands careful academic interpretation.
-   - **Requirement**: the computational function this UC must perform for the TLF (a decomposition of the TLF); describe the input-to-output transformation and name the involved UCs together with their Output Semantics.
-   - **Requirement realization by interface**: how the Requirement is realized by the Interface; verify the two do not contradict.
-   - **Capability**: the Requirement generalized by removing Output Semantics (task-independent); cite the prior work, biology or computational models it is based on.
-   - **Mechanism**: how the Capability is carried out as a mechanism.
-   - **Implementation**: only equations relating inputs to outputs, necessary and sufficient for the Mechanism (e.g. `[U.A] = [U.B]/[U.C]`, `[U.A] = P([U.B]\|[U.C])`). No prose, no code.
+5. **Output Semantics in `uc.json`.** For every UC (internal or external, except external sinks without output) describe in `outputSemantics` what information it encodes, as `[UC]content;`. Use computational terms (reward prediction, action selection, sensory feature, internal state), prefer experimentally identified representations, and consider what downstream UCs need.
 
-7. **Verification -> `5_Verification.md`.** Check and fix: connections vs interfaces; a processing path from ROI_Input to ROI_Output; no duplicated/missing UCs and suitable granularity; every connection cited; the HCD can realize the TLF. Record findings and fixes.
+6. **Function items in `uc.json`** (ROI-internal UCs only; external: `""`). Inside these five items refer to UCs as `[U.Name]` and state inputs/outputs explicitly as "input: [U.X]", "output: [U.Y]" (except `implementation`). This demands careful academic interpretation.
+   - `requirement`: the computational function this UC must perform for the TLF (a decomposition of the TLF); describe the input-to-output transformation and name the involved UCs together with their Output Semantics.
+   - `requirementRealization` (Requirement realization by interface): how the Requirement is realized by the Interface; verify the two do not contradict.
+   - `capability`: the Requirement generalized by removing Output Semantics (task-independent); cite the prior work, biology or computational models it is based on.
+   - `mechanism`: how the Capability is carried out as a mechanism.
+   - `implementation`: only equations relating inputs to outputs, necessary and sufficient for the Mechanism (e.g. `[U.A] = [U.B]/[U.C]`, `[U.A] = P([U.B]|[U.C])`). No prose, no code.
 
-8. **Report -> `6_FinalReport.md`.** A paper-style report: title naming TLF and ROI; TLF/ROI overview; each UC's role and evidence; the processing flow from ROI_Input to ROI_Output; key findings; limitations and future work; full bibliography.
+7. **Verification.** The worker checks the schemas, IDs, references and interface/connection consistency itself. Check what it cannot and fix the files: a processing path from ROI_Input to ROI_Output; no duplicated/missing UCs and suitable granularity; the HCD can realize the TLF. Note what remains uncertain for the report's limitations.
+
+8. **Report -> `report.md`.** A paper-style report the user reads in the app. Write it with these sections (the FRG phase adds `## FRG` later):
+   - `# <title naming TLF and ROI>`, then `## Overview` (TLF/ROI, ROI_Input and ROI_Output);
+   - `## HCD`: each UC's role and evidence, the processing flow from ROI_Input to ROI_Output, key findings;
+   - `## Limitations`: open questions from step 7 and future work;
+   - `## References`: full bibliography of the cited Reference IDs.
 
 ## UC naming (SABRA)
 
@@ -39,7 +43,7 @@ Every UC is anchored on exactly one unit of SABRA, the organisation's mixed atla
 
 **The anchor alone is the normal case.** When a UC is a whole SABRA unit, its descriptor is just the anchor and its Circuit ID just the anchor's abbreviation (`HOMBA:12261` / `VTA`, `BNA:223-224` / `NAC`, `BNA:57` / `A4ul@L`). Add a facet only when the HCD needs a population finer than the unit (e.g. two UCs in the same unit with different connections or Output Semantics, or a sub-population defined by its projection). Do not add facets to describe a UC: the transmitter goes in Transmitter, the content in Output Semantics, the evidence in Source of ID.
 
-Anchor procedure (log each UC's query and choice in `1_Thinking.md`; the worker also keeps every RCS call):
+Anchor procedure (record each UC's anchor choice and reason in `decision_log.md`; the worker keeps every RCS call in `rcs_mcp_calls.jsonl`):
 
 1. Take only the region words of the UC (drop cell type, layer, transmitter, gene, projection and response words; those become facets if needed).
 2. `search_homba_candidates` with them (`context`: ROI/TLF/species). Read `ai.results` (else the top `candidates`):
@@ -71,24 +75,42 @@ Circuit ID = `<anchor abbreviation>[@L|@R][(<item>,<item>)]`:
 | VTA DA cells projecting to NAc, encoding RPE | `HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe` | `VTA(DA,out:NAC,rpe)` |
 | hippocampal CA1 pyramidal cells (rostral + caudal) | `BNAG:Hipp/part:HOMBA:10297/cell:pyr` | `Hipp(CA1,pyr)` |
 
-The validator checks the syntax, that the head (and side) equals the anchor's abbreviation from RCS / BNA, that items match the facets, and that no two UCs share a descriptor. Two UCs may not share a descriptor: if they are really different populations, add the facet that separates them. In markdown always wrap Circuit IDs in backticks; references stay `[U.<Circuit ID>]` (e.g. `[U.NAC(shell,DRD1+)]`).
+The validator checks the syntax, that the head (and side) equals the anchor's abbreviation from RCS / BNA, that items match the facets, and that no two UCs share a descriptor. Two UCs may not share a descriptor: if they are really different populations, add the facet that separates them. In JSON write them without backticks, in markdown wrap them in backticks; references inside text stay `[U.<Circuit ID>]` (e.g. `[U.NAC(shell,DRD1+)]`).
 
-If `3_UC.md` of an existing project has no `UC Descriptor` column (made before these rules), keep its Circuit IDs unless the user asks to rename them.
+## File formats
 
-## Table formats
+Every key is required (use `""` for an empty value); schemas: `schemas/references.schema.json`, `schemas/uc.schema.json`, `schemas/connections.schema.json`.
 
-`3_UC.md` holds exactly one UC table with these columns (fill progressively through steps 3-6):
+`references.json` - every reference cited anywhere in the project, each once:
 
-| Circuit ID | UC Descriptor | Names | Source of ID | Transmitter | Modulation Type | Comments | Interface | Output Semantics | Requirement | Requirement realization by interface | Capability | Mechanism | Implementation |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+```json
+{ "references": [ { "id": "[Ito, 1982]", "doi": "10.1146/annurev.ne.05.030182.001423" } ] }
+```
 
-- Circuit ID and UC Descriptor: by the UC naming rules (both in backticks); Names: formal name; Source of ID: main supporting `[Author, Year]`; Transmitter and Modulation Type (`Excitatory` / `Inhibitory` / `Modulatory`): empty when unknown; Comments: role and corresponding tissue (+ `noROI(...)` tag when external).
+`uc.json` - one entry per UC (fill progressively through steps 3-6). `sourceOfId`: main supporting Reference IDs; `names`: formal name; `transmitter` and `modulationType` (`Excitatory` / `Inhibitory` / `Modulatory`): `""` when unknown; `comments`: role and corresponding tissue (the worker adds the `noROI(...)` tag to the CSV from `roi`):
 
-`4_Connection.md` holds exactly one connection table:
+```json
+{ "ucs": [ {
+  "circuitId": "VTA(DA,out:NAC,rpe)", "descriptor": "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe",
+  "names": "VTA dopamine neurons projecting to the nucleus accumbens", "roi": "internal",
+  "sourceOfId": ["[Schultz, 1997]"], "transmitter": "Dopamine", "modulationType": "Modulatory", "comments": "...",
+  "interface": "([U.NAC(shell,DRD1+)]) = VTA(DA,out:NAC,rpe)([U.NAC(shell,DRD1+)])",
+  "outputSemantics": "[VTA(DA,out:NAC,rpe)]reward prediction error;",
+  "requirement": "...", "requirementRealization": "...", "capability": "...", "mechanism": "...", "implementation": "..."
+} ] }
+```
 
-| Sender Circuit ID (sCID) | Receiver Circuit ID (rCID) | Comment | Reference ID | Taxon | Measurement method | Pointers on literature | Pointers on figure |
-|---|---|---|---|---|---|---|---|
+`connections.json` - `bif`: tissue-level projections from step 2; `connections`: UC-to-UC edges from step 4, whose `sender` / `receiver` are Circuit IDs from `uc.json` (not tissue names). `comment`: property and information carried; the pointers are short locations in the paper and its figures:
 
-- Sender/Receiver are UC IDs defined in `3_UC.md` (not tissue names); Comment: property and information carried; the pointers are short locations in the paper and its figures.
+```json
+{
+  "bif": [ { "sender": "ventral tegmental area", "receiver": "nucleus accumbens shell", "comment": "dopaminergic, strong", "referenceIds": ["[Schultz, 1997]"] } ],
+  "connections": [ {
+    "sender": "VTA(DA,out:NAC,rpe)", "receiver": "NAC(shell,DRD1+)", "comment": "reward prediction error",
+    "referenceIds": ["[Schultz, 1997]"], "taxon": "Macaca mulatta", "measurementMethod": "single-unit recording",
+    "pointersOnLiterature": "p.1594", "pointersOnFigure": "Fig. 1"
+  } ]
+}
+```
 
 Finish the turn with `status: "done"` once all eight steps are complete.

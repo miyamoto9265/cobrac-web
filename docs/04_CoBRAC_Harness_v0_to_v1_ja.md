@@ -4,7 +4,7 @@
 | ---- | ---- |
 | 文書 | 旧指示書方式（v0）から CoBRAC 専用ハーネス（v1）への変更点の解説と、コスト比較 |
 | 対象読者 | 利用者、運用者、BRA の品質や OpenAI の利用料を確認する人 |
-| 対象バージョン | v0 = アプリ 0.4.2 まで / v1 = アプリ 0.5.0 以降 |
+| 対象バージョン | v0 = アプリ 0.4.2 まで / v1 = アプリ 0.5.0 以降。3〜5 章は導入時の v1（md の表）の説明。0.8.0 以降はデータファイルが JSON になった（[8 章](#8-v08json-のデータファイル)） |
 | 関連 | [01_設計仕様.md](./01_設計仕様.md) / [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / English: [04_CoBRAC_Harness_v0_to_v1.md](./04_CoBRAC_Harness_v0_to_v1.md) |
 
 ---
@@ -219,19 +219,39 @@ CSV   █████████████▉ 13.9k                        �
 
 ## 6. 互換性
 
-- v0 で作ったプロジェクトもそのまま開け、フォローアップもできます。バリデータは旧ファイル名（`6_FinalPaper.md`、`1_初期分解結果.md`、`3_最終FRG.md` など）や、分割された表、縦型の表も読み取ります。
-- 旧成果物が日本語の場合、自動 CSV 変換は英語以外の内容を受け付けないため、予備フェーズでエージェントが CSV を書きます。
-- v1 より前に始まったスレッド向けに、`[QUESTION]` マーカーも引き続き認識します。
+- 0.8.0 以降、ハーネスは JSON のデータファイルだけを読みます。0.8.0 より前に作ったワークスペース（md の表。v0 のプロジェクトを含む）は読みません。xlsx とグラフは引き続き閲覧・ダウンロードできますが、フォローアップやリトライは、新しいプロジェクトを作るよう案内してすぐに止まります。
+- v1 より前に始めたスレッドでは、`[QUESTION]` マーカーも引き続き認識します。
 
 ---
 
 ## 7. コードの場所
 
-| 部分 | 場所 |
+| 内容 | 場所 |
 | ---- | ---- |
-| 共通ルール | `prompts/AGENTS.md` |
-| フェーズ仕様 | `prompts/phases/HCD.md`、`FRG.md`、`CSV.md` |
-| 制御ループ | `packages/worker/src/index.ts` |
+| エージェント共通ルール | `prompts/AGENTS.md` |
+| フェーズ仕様 | `prompts/phases/HCD.md`、`FRG.md` |
+| ジョブ制御 | `packages/worker/src/index.ts` |
+| フェーズのループとフェーズごとの検査 | `packages/worker/src/pipeline.ts` |
 | ターン実行と構造化出力 | `packages/worker/src/codex.ts` |
-| バリデータと CSV 変換 | `packages/shared/src/harness.ts`、`markdown.ts` |
-| テスト | `packages/shared/test/harness.test.ts` |
+| JSON Schema・バリデータ・CSV 生成 | `packages/shared/src/harness.ts`、`jsonSchema.ts` |
+| テスト | `packages/shared/test/harness.test.ts`、`packages/worker/test/pipeline.test.ts`（モックのエージェントで HCD → FRG → CSV → xlsx） |
+
+---
+
+## 8. v0.8：JSON のデータファイル
+
+v1 でもエージェントはデータを md の表で書き、ワーカーがそれをパースし直していました（`\|` や `<br>` のエスケープ、列名のゆれや分割された表を救済するコード）。さらに、エージェントが CSV を手で書く予備フェーズもありました。0.8.0 からは次のとおりです。
+
+| 以前（0.5〜0.7） | 0.8.0 以降 | 理由 |
+| ---------------- | ---------- | ---- |
+| `2_BIF.md` の References 表 | `{P}_HCD/references.json` | References.csv にパースするだけで、md である必要がない |
+| `2_BIF.md` の Connections 表 + `4_Connection.md` | `{P}_HCD/connections.json`（`bif[]` + `connections[]`） | UC 間の接続は Connections.csv の写し。組織レベルの BIF はその根拠なので同じファイルに置く |
+| `3_UC.md`（14 列の表） | `{P}_HCD/uc.json` | 最も大きく壊れやすい表で、1 プロジェクトで何度も書き直される。長文セルは JSON 文字列の方が安全。外部 UC は Comments のタグではなく `roi` の値で明示する |
+| `3_FinalFRG.md` + `4_FunctionDetails.md` | `{P}_FRG/frg.json` | 同じノードをキーにした 2 つの表を、ノードごとの 1 エントリにまとめた |
+| `1_InitialDecomposition.md`、`2_OptimizedFRG.md` | 廃止（作業手順。統合の理由はレポートへ） | 書いた後に誰も読まず、存在確認だけで、ユーザーにも見えなかった |
+| `5_Verification.md` | 廃止（構造はバリデータが検査。残る論点はレポートの Limitations へ） | 検査の大半はバリデータと重複し、残りはレポートに書くべき内容 |
+| `6_FinalReport.md` + `5_Report.md` | `report.md`（`## HCD` と `## FRG` の節） | ユーザー向けのレポートを 1 本にし、チャット画面で閲覧・ダウンロードできる |
+| `1_Thinking.md` | `decision_log.md`（プロジェクト直下） | 役に立つのは判断とその理由の記録。RCS 照会の転記は、ワーカーが全呼び出しを `rcs_mcp_calls.jsonl` に残すので削った |
+| CSV の予備フェーズ（`phases/CSV.md`） | 廃止 | CSV はコードだけが生成する。問題は JSON ファイルの修正依頼として返す |
+
+JSON ファイルにはそれぞれ JSON Schema（`HARNESS_SCHEMAS`）があり、エージェント用に `schemas/` に書き出し、バリデータも同じものを使います。問題は JSON ポインタ付きで返します（`uc.json: /ucs/3/implementation is required`）。UC の命名規則の検査（UC Descriptor・Circuit ID）と RCS 照会は変わりません。

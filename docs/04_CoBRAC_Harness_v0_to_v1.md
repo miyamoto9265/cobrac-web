@@ -4,7 +4,7 @@
 | ---- | ----------- |
 | Document | Explainer: how the agent harness moved from the legacy instruction files (v0) to the dedicated CoBRAC harness (v1), with a cost comparison |
 | Audience | Users, operators, and anyone reviewing BRA output quality or OpenAI spend |
-| Applies to | v0 = app up to 0.4.2 / v1 = app 0.5.0 and later |
+| Applies to | v0 = app up to 0.4.2 / v1 = app 0.5.0 and later. Sections 3–5 describe v1 as introduced (markdown tables); since 0.8.0 the data files are JSON, see [section 8](#8-v08-json-data-files) |
 | Related | [01_設計仕様.md](./01_設計仕様.md) / [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / 日本語版: [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md) |
 
 ---
@@ -218,8 +218,7 @@ Reasoning tokens depend mostly on the model and the reasoning effort, not on the
 
 ## 6. Compatibility
 
-- Projects created with v0 still open, and follow-ups work on them. The validator also reads the legacy file names (`6_FinalPaper.md`, `1_初期分解結果.md`, `3_最終FRG.md`, …) and split or vertical table layouts.
-- If legacy artifacts are in Japanese, automatic CSV conversion refuses non-English content and the agent writes the CSVs through the fallback phase.
+- Since 0.8.0 the harness reads only the JSON data files. Workspaces made before 0.8.0 (markdown tables, including v0 projects) are not read: their xlsx and graphs stay viewable and downloadable, but a follow-up or retry stops at once with a message to start a new project.
 - The `[QUESTION]` marker is still recognized for threads started before v1.
 
 ---
@@ -229,8 +228,29 @@ Reasoning tokens depend mostly on the model and the reasoning effort, not on the
 | Piece | Location |
 | ----- | -------- |
 | Shared agent rules | `prompts/AGENTS.md` |
-| Phase specs | `prompts/phases/HCD.md`, `FRG.md`, `CSV.md` |
-| Control loop | `packages/worker/src/index.ts` |
+| Phase specs | `prompts/phases/HCD.md`, `FRG.md` |
+| Job control | `packages/worker/src/index.ts` |
+| Phase loop and checks per phase | `packages/worker/src/pipeline.ts` |
 | Turn runner and structured output | `packages/worker/src/codex.ts` |
-| Validators and CSV conversion | `packages/shared/src/harness.ts`, `markdown.ts` |
-| Tests | `packages/shared/test/harness.test.ts` |
+| JSON Schemas, validators and CSV generation | `packages/shared/src/harness.ts`, `jsonSchema.ts` |
+| Tests | `packages/shared/test/harness.test.ts`, `packages/worker/test/pipeline.test.ts` (HCD → FRG → CSV → xlsx with a mock agent) |
+
+---
+
+## 8. v0.8: JSON data files
+
+In v1 the agent still wrote its data as markdown tables that the worker parsed back (with escapes such as `\|` and `<br>`, and repair code for column-name drift and split tables), and a fallback phase let the agent type the CSVs by hand. Since 0.8.0:
+
+| Before (0.5–0.7) | Since 0.8.0 | Why |
+| ---------------- | ----------- | --- |
+| `2_BIF.md` References table | `{P}_HCD/references.json` | Parsed into References.csv; no reason to be markdown |
+| `2_BIF.md` Connections table + `4_Connection.md` | `{P}_HCD/connections.json` (`bif[]` + `connections[]`) | The UC connections were a copy of Connections.csv; the tissue-level BIF is their evidence and lives next to them |
+| `3_UC.md` (14-column table) | `{P}_HCD/uc.json` | The largest and most fragile table, rewritten several times per project; long cells are safer as JSON strings. External UCs have an explicit `roi` value instead of a tag in Comments |
+| `3_FinalFRG.md` + `4_FunctionDetails.md` | `{P}_FRG/frg.json` | Two tables keyed by the same node; one entry per node now |
+| `1_InitialDecomposition.md`, `2_OptimizedFRG.md` | removed (working steps; merge rationale goes into the report) | Nobody read them after they were written; only their presence was checked, and the user could not see them |
+| `5_Verification.md` | removed (the validator checks structure; open points go into the report's Limitations) | Most of its checks are the validator's; the rest belongs in the report |
+| `6_FinalReport.md` + `5_Report.md` | `report.md` (`## HCD` and `## FRG` sections) | One report for the user, readable and downloadable in the chat screen |
+| `1_Thinking.md` | `decision_log.md` (project root) | Its useful part is the record of decisions and their reasons; the copy of RCS queries is dropped because the worker keeps every call in `rcs_mcp_calls.jsonl` |
+| CSV fallback phase (`phases/CSV.md`) | removed | CSVs are generated only by code; problems go back as fixes to the JSON files |
+
+Each JSON file has a JSON Schema (`HARNESS_SCHEMAS`), written to `schemas/` for the agent and used by the validator, which reports problems with a JSON pointer (`uc.json: /ucs/3/implementation is required`). The UC naming checks (UC Descriptor, Circuit ID) and the RCS lookups are unchanged.

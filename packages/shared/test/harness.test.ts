@@ -1,63 +1,129 @@
 import { describe, expect, it } from "vitest";
-import { buildCsvs, buildGraphs, checkFrg, checkHcd, parseCsvObjects, parseInterface, parseMdTables, parseTurnOutput } from "../src/index.js";
+import {
+  HARNESS_SCHEMAS,
+  buildCsvs,
+  buildGraphs,
+  checkFrg,
+  checkHcd,
+  parseCsvObjects,
+  parseInterface,
+  parseTurnOutput,
+  validateJsonSchema,
+  type HcdInputs,
+} from "../src/index.js";
 
-const META = JSON.stringify({ roi: "Cerebellar flocculus", tlf: "VOR adaptation", description: "HCD/FRG of VOR adaptation in the cerebellar flocculus." });
+const META = { roi: "Cerebellar flocculus", tlf: "VOR adaptation", description: "HCD/FRG of VOR adaptation in the cerebellar flocculus.", name: "VOR adaptation in cerebellar flocculus" };
 
-const BIF = `# BIF
-## References
-| Reference ID | DOI |
-|---|---|
-| [Ito, 1982] | 10.1146/annurev.ne.05.030182.001423 |
-| [Lisberger, 1994] | N/A |
+const REFS = {
+  references: [
+    { id: "[Ito, 1982]", doi: "10.1146/annurev.ne.05.030182.001423" },
+    { id: "[Lisberger, 1994]", doi: "N/A" },
+  ],
+};
 
-## Connections
-| Sender | Receiver | Comment | Reference ID |
-|---|---|---|---|
-| vestibular nerve | granule cells | mossy fibres | [Ito, 1982] |
-`;
+const fn = (id: string) => ({
+  requirement: `req of [U.${id}]`,
+  requirementRealization: `real of [U.${id}]`,
+  capability: "cap",
+  mechanism: "mech",
+  implementation: `[U.${id}] = f([U.x])`,
+});
+const noFn = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
+const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown>) => ({
+  circuitId,
+  descriptor,
+  names: circuitId,
+  roi: "internal",
+  sourceOfId: ["[Ito, 1982]"],
+  transmitter: "Glutamate",
+  modulationType: "Excitatory",
+  comments: "",
+  outputSemantics: `[${circuitId}]content;`,
+  ...noFn,
+  ...extra,
+});
 
-const UC_HEADER =
-  "| Circuit ID | Names | Source of ID | Transmitter | Modulation Type | Comments | Interface | Output Semantics | Requirement | Requirement realization by interface | Capability | Mechanism | Implementation |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n";
-const fn = (id: string) => `req of [U.${id}] | real of [U.${id}] | cap | mech | [U.${id}] = f([U.x])`;
-const UC =
-  "# UC\n" +
-  UC_HEADER +
-  "| `VN` | Vestibular nucleus input | [Ito, 1982] | Glutamate | Excitatory | head velocity; noROI(input) |  | [VN]head velocity; |  |  |  |  |  |\n" +
-  `| \`GC\` | Granule cells | [Ito, 1982] | Glutamate | Excitatory | parallel fibres | ([PC]) = GC([VN]) | [GC]expanded context; | ${fn("GC")} |\n` +
-  `| \`PC\` | Purkinje cells | [Ito, 1982] | GABA | Inhibitory | output | ([FTN]) = PC([GC], [IO]) | [PC]gain signal; | ${fn("PC")} |\n` +
-  `| \`IO\` | Inferior olive | [Lisberger, 1994] | Glutamate | Excitatory | retinal slip | ([PC]) = IO([VN]) | [IO]error; | ${fn("IO")} |\n` +
-  "| `FTN` | Flocculus target neurons | [Lisberger, 1994] | GABA | Inhibitory | eye motor; noROI(output) |  |  |  |  |  |  |  |\n";
+const UC = {
+  ucs: [
+    uc("VN", "HOMBA:12950", { roi: "noROI(input)", comments: "head velocity" }),
+    uc("GC(granule)", "HOMBA:12852/cell:granule", { comments: "parallel fibres", interface: "([U.PC(purkinje)]) = GC(granule)([U.VN])", ...fn("GC") }),
+    uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC") }),
+    uc("IO", "HOMBA:12500", { sourceOfId: ["[Lisberger, 1994]"], interface: "([U.PC(purkinje)]) = IO([U.VN])", ...fn("IO") }),
+    uc("FTN", "HOMBA:12951", { roi: "noROI(output)", transmitter: "GABA", modulationType: "Inhibitory", outputSemantics: "" }),
+  ],
+};
 
-const CONN =
-  "| Sender Circuit ID (sCID) | Receiver Circuit ID (rCID) | Comment | Reference ID | Taxon | Measurement method | Pointers on literature | Pointers on figure |\n|---|---|---|---|---|---|---|---|\n" +
-  "| `VN` | `GC` | mossy fibres | [Ito, 1982] | rabbit | tracing | p.3 | Fig. 1 |\n" +
-  "| `VN` | `IO` | slip | [Lisberger, 1994] | monkey | recording | p.5 | Fig. 2 |\n" +
-  "| `GC` | `PC` | parallel fibres, P(a\\|b) | [Ito, 1982] | rabbit | recording | p.4 | Fig. 3 |\n" +
-  "| `IO` | `PC` | climbing fibres | [Lisberger, 1994] | monkey | recording | p.6 | Fig. 4 |\n" +
-  "| `PC` | `FTN` | inhibition | [Lisberger, 1994] | monkey | recording | p.7 | Fig. 5 |\n";
+const conn = (sender: string, receiver: string, comment: string, ref = "[Ito, 1982]") => ({
+  sender,
+  receiver,
+  comment,
+  referenceIds: [ref],
+  taxon: "rabbit",
+  measurementMethod: "tracing",
+  pointersOnLiterature: "p.3",
+  pointersOnFigure: "Fig. 1",
+});
+const CONN = {
+  bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"] }],
+  connections: [
+    conn("VN", "GC(granule)", "mossy fibres"),
+    conn("VN", "IO", "slip", "[Lisberger, 1994]"),
+    conn("GC(granule)", "PC(purkinje)", "parallel fibres, P(a|b)"),
+    conn("IO", "PC(purkinje)", "climbing fibres", "[Lisberger, 1994]"),
+    conn("PC(purkinje)", "FTN", "inhibition", "[Lisberger, 1994]"),
+  ],
+};
 
-const HCD = { thinking: "log", bif: BIF, uc: UC, connection: CONN, verification: "ok", report: "report" };
+const REPORT_HCD = "# VOR adaptation\n\n## HCD\n\ntext\n";
+const REPORT = REPORT_HCD + "\n## FRG\n\ntext\n";
+const j = (v: unknown) => JSON.stringify(v, null, 2);
+const HCD: HcdInputs = { meta: j(META), decisionLog: "# Decision log\n", report: REPORT_HCD, references: j(REFS), uc: j(UC), connections: j(CONN) };
 
-const FINAL =
-  "| Node ID | Subnodes | Comment | Interface |\n|---|---|---|---|\n" +
-  "| `R.VOR-Adaptation` | `R.Context`;`R.Learning` | TLF | ([U.FTN]) = R.VOR-Adaptation([U.VN]) |\n" +
-  "| `R.Context` | `U.GC`;`U.PC` | context | ([U.FTN]) = R.Context([U.VN], [U.IO]) |\n" +
-  "| `R.Learning` | `U.IO`;`U.PC` | error learning | ([U.FTN]) = R.Learning([U.VN], [U.GC]) |\n";
-const DETAILS =
-  "| Node ID | Requirement | Requirement realization by interface | Capability | Mechanism |\n|---|---|---|---|---|\n" +
-  ["R.VOR-Adaptation", "R.Context", "R.Learning"].map((id) => `| \`${id}\` | r | rr | c | m |`).join("\n") +
-  "\n";
-const FRG = { init: "x", optimized: "x", final: FINAL, details: DETAILS, report: "x" };
+const node = (id: string, subnodes: string[], itf: string) => ({
+  id,
+  subnodes,
+  comment: `${id} comment`,
+  interface: itf,
+  requirement: "r",
+  requirementRealization: "rr",
+  capability: "c",
+  mechanism: "m",
+});
+const FRG_JSON = {
+  nodes: [
+    node("R.VOR-Adaptation", ["R.Context", "R.Learning"], "([U.FTN]) = R.VOR-Adaptation([U.VN])"),
+    node("R.Context", ["U.GC(granule)", "U.PC(purkinje)"], "([U.FTN]) = R.Context([U.VN], [U.IO])"),
+    node("R.Learning", ["U.IO", "U.PC(purkinje)"], "([U.FTN]) = R.Learning([U.VN], [U.GC(granule)])"),
+  ],
+};
+const FRG = { report: REPORT, frg: j(FRG_JSON) };
 
-const TEMPLATE = 'Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-0\n,,,,\nSheet Name,Review End Line,,,\n';
+const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-0\n,,,,\nSheet Name,Review End Line,,,\n";
 
-describe("markdown tables", () => {
-  it("parses escaped pipes and ignores fenced code", () => {
-    const t = parseMdTables("```\n| a | b |\n|---|---|\n```\n| x | y |\n|---|---|\n| 1\\|2 | 3 |\n");
-    expect(t).toHaveLength(1);
-    expect(t[0].rows[0]).toEqual(["1|2", "3"]);
+describe("JSON schema validator", () => {
+  it("reports types, required keys, enums, patterns and extra keys", () => {
+    const bad = { ucs: [{ ...UC.ucs[1], roi: "inside", circuitId: "has space", extra: 1 }], more: true };
+    delete (bad.ucs[0] as Record<string, unknown>).names;
+    const msg = validateJsonSchema(HARNESS_SCHEMAS["uc.json"], bad).join("\n");
+    expect(msg).toMatch(/\/ucs\/0\/names is required/);
+    expect(msg).toMatch(/\/ucs\/0\/roi must be one of "internal"/);
+    expect(msg).toMatch(/\/ucs\/0\/circuitId .* must match/);
+    expect(msg).toMatch(/\/ucs\/0\/extra is not allowed/);
+    expect(msg).toMatch(/\/more is not allowed/);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], { ucs: "x" })).toEqual(["/ucs must be array (got string)"]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["connections.json"], { bif: [], connections: [] }).join("\n")).toMatch(/\/bif needs at least 1 item/);
   });
 
+  it("accepts the fixtures", () => {
+    expect(validateJsonSchema(HARNESS_SCHEMAS["meta.json"], META)).toEqual([]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["references.json"], REFS)).toEqual([]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], UC)).toEqual([]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["connections.json"], CONN)).toEqual([]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["frg.json"], FRG_JSON)).toEqual([]);
+  });
+});
+
+describe("parseInterface", () => {
   it("parses interfaces", () => {
     expect(parseInterface("([PC], [FTN]) = GC([VN])")).toEqual({ name: "GC", outputs: ["PC", "FTN"], inputs: ["VN"] });
     expect(parseInterface("no interface")).toBeNull();
@@ -70,7 +136,6 @@ describe("markdown tables", () => {
       inputs: ["A9/46d@L(L3)", "VTA(DA,out:NAC,rpe)"],
     });
     expect(parseInterface("[U.NAC(shell)] = `U.VTA(DA)`([U.NAC(shell)])")).toEqual({ name: "VTA(DA)", outputs: ["NAC(shell)"], inputs: ["NAC(shell)"] });
-    expect(parseInterface("(U.NAC(shell), U.Arc(AGRP+)) = VTA\n([VTA])")).toEqual({ name: "VTA", outputs: ["NAC(shell)", "Arc(AGRP+)"], inputs: ["VTA"] });
     expect(parseInterface("([A]) = B()")).toEqual({ name: "B", outputs: ["A"], inputs: [] });
     expect(parseInterface("([A]) = f(x) = B([C])")).toBeNull();
     expect(parseInterface("([A]) = B([C]")).toBeNull();
@@ -79,63 +144,76 @@ describe("markdown tables", () => {
 
 describe("checkHcd", () => {
   it("accepts a consistent HCD", () => {
-    const r = checkHcd(HCD, META);
+    const r = checkHcd(HCD);
     expect(r.errors).toEqual([]);
     expect(r.model?.ucs.map((u) => u.roi)).toEqual(["input", "roi", "roi", "roi", "output"]);
+    expect(r.model?.bif).toHaveLength(1);
+    expect(r.model?.meta?.name).toBe("VOR adaptation in cerebellar flocculus");
   });
 
-  it("reports interface mismatches, unknown circuits and missing files", () => {
-    const uc = UC.replace("([FTN]) = PC([GC], [IO])", "([FTN]) = PC([GC])");
-    const conn = CONN + "| `XX` | `PC` | ghost | [Ito, 1982] | rat | x | x | x |\n";
-    const r = checkHcd({ ...HCD, uc, connection: conn, report: null }, null);
+  it("reports interface mismatches, unknown circuits, unknown references and missing files", () => {
+    const ucs = structuredClone(UC);
+    ucs.ucs[2].interface = "([U.FTN]) = PC(purkinje)([U.GC(granule)])";
+    const c = structuredClone(CONN);
+    c.connections.push(conn("XX", "PC(purkinje)", "ghost", "[Nobody, 2000]"));
+    const r = checkHcd({ ...HCD, uc: j(ucs), connections: j(c), report: null, decisionLog: "", meta: null });
     expect(r.fatal).toBe(false);
-    expect(r.errors.join("\n")).toMatch(/6_FinalReport\.md is missing/);
-    expect(r.errors.join("\n")).toMatch(/meta\.json is missing/);
-    expect(r.errors.join("\n")).toMatch(/`XX`.*not a Circuit ID/);
-    expect(r.errors.join("\n")).toMatch(/`PC`: Interface inputs/);
+    const msg = r.errors.join("\n");
+    expect(msg).toMatch(/report\.md is missing/);
+    expect(msg).toMatch(/decision_log\.md is missing/);
+    expect(msg).toMatch(/meta\.json is missing/);
+    expect(msg).toMatch(/sender `XX`.*not a Circuit ID in uc\.json/);
+    expect(msg).toMatch(/Reference ID \[Nobody, 2000\] is not in references\.json/);
+    expect(msg).toMatch(/`PC\(purkinje\)`: interface inputs/);
   });
 
-  it("merges legacy layouts: split tables and vertical per-UC tables", () => {
-    const legacy =
-      "| Circuit ID | Names | Source of ID | Transmitter | Modulation Type | Comments |\n|---|---|---|---|---|---|\n" +
-      "| `GC` | Granule cells | [Ito, 1982] | Glutamate | Excitatory | parallel fibres |\n" +
-      "| `VN` | Vestibular nucleus | [Ito, 1982] | Glutamate | Excitatory | noROI(input) |\n" +
-      "| Circuit ID | Comment | Interface | Output Semantics |\n|---|---|---|---|\n" +
-      "| `GC` | x | ([PC]) = GC([VN]) | [GC]context; |\n\n" +
-      "### `GC` - Granule Cell\n\n| Field | Value |\n|---|---|\n| **Requirement** | req |\n| **Capability** | cap |\n| **Mechanism** | mech |\n";
-    const ucs = checkHcd({ ...HCD, uc: legacy }, META).model!.ucs;
-    const gc = ucs.find((u) => u.id === "GC")!;
-    expect(ucs).toHaveLength(2);
-    expect(gc).toMatchObject({ names: "Granule cells", interfaceText: "([PC]) = GC([VN])", requirement: "req", capability: "cap", comments: "parallel fibres" });
+  it("requires the HCD section of the report and English values", () => {
+    const ucs = structuredClone(UC);
+    ucs.ucs[1].comments = "平行線維";
+    const msg = checkHcd({ ...HCD, report: "# Report\n", uc: j(ucs) }).errors.join("\n");
+    expect(msg).toMatch(/report\.md: add the `## HCD` section/);
+    expect(msg).toMatch(/uc\.json: write every value in English; non-English text at \/ucs\/1\/comments/);
   });
 
-  it("is fatal without a UC table", () => {
-    expect(checkHcd({ ...HCD, uc: "nothing" }, META).fatal).toBe(true);
+  it("reports schema problems with a pointer and still checks the rest", () => {
+    const ucs = structuredClone(UC) as { ucs: Record<string, unknown>[] };
+    delete ucs.ucs[3].implementation;
+    const msg = checkHcd({ ...HCD, uc: j(ucs) }).errors.join("\n");
+    expect(msg).toMatch(/uc\.json: \/ucs\/3\/implementation is required \(see schemas\/uc\.schema\.json\)/);
+    expect(msg).toMatch(/ROI-internal `IO` has empty implementation/);
+  });
+
+  it("is fatal without usable UC or connection data", () => {
+    expect(checkHcd({ ...HCD, uc: "not json" }).fatal).toBe(true);
+    expect(checkHcd({ ...HCD, uc: "not json" }).errors.join("\n")).toMatch(/uc\.json is not valid JSON/);
+    expect(checkHcd({ ...HCD, connections: j({ bif: [] }) }).fatal).toBe(true);
   });
 });
 
 describe("checkFrg", () => {
-  const hcd = checkHcd(HCD, META).model!;
+  const hcd = checkHcd(HCD).model!;
 
   it("accepts a valid FRG", () => {
     expect(checkFrg(FRG, hcd).errors).toEqual([]);
   });
 
-  it("enforces the GN-UC constraints and a single root", () => {
-    const bad =
-      FINAL.replace("`U.GC`;`U.PC`", "`U.GC`;`U.PC`;`U.IO`;`U.VN`") + "| `R.Orphan` | `U.PC` | lone | ([U.FTN]) = R.Orphan([U.GC]) |\n";
-    const msg = checkFrg({ ...FRG, final: bad }, hcd).errors.join("\n");
+  it("enforces the GN-UC constraints, a single root and filled function items", () => {
+    const bad = structuredClone(FRG_JSON);
+    bad.nodes[1].subnodes = ["U.GC(granule)", "U.PC(purkinje)", "U.IO", "U.VN"];
+    bad.nodes.push({ ...node("R.Orphan", ["U.PC(purkinje)"], "([U.FTN]) = R.Orphan([U.GC(granule)])"), mechanism: "" });
+    const msg = checkFrg({ report: REPORT_HCD, frg: j(bad) }, hcd).errors.join("\n");
     expect(msg).toMatch(/R\.Context` has 4 UC subnodes/);
     expect(msg).toMatch(/U\.VN` is outside the ROI/);
-    expect(msg).toMatch(/U\.PC` belongs to 3 GNs/);
+    expect(msg).toMatch(/U\.PC\(purkinje\)` belongs to 3 GNs/);
     expect(msg).toMatch(/single UC/);
     expect(msg).toMatch(/exactly one root/);
-    expect(msg).toMatch(/no row for `R\.Orphan`/);
+    expect(msg).toMatch(/`R\.Orphan` has empty mechanism/);
+    expect(msg).toMatch(/report\.md: add the `## FRG` section/);
   });
 });
 
 describe("buildCsvs", () => {
-  const hcd = checkHcd(HCD, META).model!;
+  const hcd = checkHcd(HCD).model!;
   const frg = checkFrg(FRG, hcd).model!;
   const opts = { projectId: "VOR", contributor: "Tester", projectTemplate: TEMPLATE };
 
@@ -145,9 +223,15 @@ describe("buildCsvs", () => {
     const project = parseCsvObjects(files!["Project.csv"])[0];
     expect(project).toMatchObject({ Contributor: "Tester", "Project ID": "VOR", "BRA version": "CoBRAC-v1-0" });
     expect(project.Description).toContain("VOR adaptation");
+    expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor");
+    const circuits = parseCsvObjects(files!["Circuits.csv"]);
+    expect(circuits.find((c) => c["Circuit ID"] === "VN")?.Comments).toBe("head velocity; noROI(input)");
+    expect(circuits.find((c) => c["Circuit ID"] === "FTN")?.Comments).toBe("noROI(output)");
     const frgRows = parseCsvObjects(files!["FRG.csv"]);
-    expect(frgRows.find((r) => r["Node ID"] === "U.VN")?.["Projected Circuits"]).toBe("GC;IO");
+    expect(frgRows.find((r) => r["Node ID"] === "U.VN")?.["Projected Circuits"]).toBe("GC(granule);IO");
+    expect(frgRows.find((r) => r["Node ID"] === "R.Context")).toMatchObject({ Subnodes: "U.GC(granule);U.PC(purkinje)", Capability: "c", Requirements: "r" });
     expect(parseCsvObjects(files!["Connections.csv"])[2].Comments).toBe("parallel fibres, P(a|b)");
+    expect(parseCsvObjects(files!["References.csv"]).map((r) => r["Reference ID"])).toEqual(["[Ito, 1982]", "[Lisberger, 1994]"]);
     const g = buildGraphs("VOR", {
       circuitsCsv: files!["Circuits.csv"],
       connectionsCsv: files!["Connections.csv"],
@@ -159,8 +243,13 @@ describe("buildCsvs", () => {
     expect(g.frg.nodes.find((n) => n.id === "R.VOR-Adaptation")?.kind).toBe("tlf");
   });
 
+  it("is deterministic", () => {
+    expect(buildCsvs(hcd, frg, opts)).toEqual(buildCsvs(checkHcd(HCD).model!, checkFrg(FRG, hcd).model!, opts));
+  });
+
   it("refuses non-English content", () => {
-    const jp = checkHcd({ ...HCD, uc: UC.replace("parallel fibres", "平行線維") }, META).model!;
+    const jp = structuredClone(hcd);
+    jp.ucs[1].comments = "平行線維";
     const r = buildCsvs(jp, frg, opts);
     expect(r.files).toBeNull();
     expect(r.errors[0]).toMatch(/Circuits\.csv would contain non-English text/);
@@ -175,17 +264,16 @@ describe("parseTurnOutput", () => {
   });
 });
 
-describe("meta.json name", () => {
-  it("reads and normalises the optional name", () => {
-    const meta = JSON.stringify({ ...JSON.parse(META), name: "  VOR adaptation   in cerebellar flocculus " });
-    const r = checkHcd(HCD, meta);
+describe("meta.json", () => {
+  it("normalises the name", () => {
+    const r = checkHcd({ ...HCD, meta: j({ ...META, name: "  VOR adaptation   in cerebellar flocculus " }) });
     expect(r.errors).toEqual([]);
     expect(r.model?.meta?.name).toBe("VOR adaptation in cerebellar flocculus");
-    expect(checkHcd(HCD, META).model?.meta?.name).toBeUndefined();
   });
 
-  it("reports a name with a line break", () => {
-    const r = checkHcd(HCD, JSON.stringify({ ...JSON.parse(META), name: "a\nb" }));
-    expect(r.errors.join("\n")).toMatch(/meta\.json: "name" is invalid/);
+  it("requires every field and reports a name with a line break", () => {
+    const { name: _name, ...noName } = META;
+    expect(checkHcd({ ...HCD, meta: j(noName) }).errors.join("\n")).toMatch(/meta\.json: \/name is required/);
+    expect(checkHcd({ ...HCD, meta: j({ ...META, name: "a\nb" }) }).errors.join("\n")).toMatch(/meta\.json: "name" is invalid/);
   });
 });

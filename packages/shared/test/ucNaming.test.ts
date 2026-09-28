@@ -151,33 +151,73 @@ describe("UC naming convention", () => {
 
 // --- a whole project with convention names -------------------------------------------------------------------
 
-const META = JSON.stringify({ roi: "Mesolimbic system", tlf: "Reward learning", description: "HCD/FRG of reward learning." });
-const BIF = "## References\n| Reference ID | DOI |\n|---|---|\n| [Schultz, 1997] | 10.1126/science.275.5306.1593 |\n";
-const fn = (id: string) => `req of [U.${id}] | real | cap | mech | [U.${id}] = f([U.x])`;
-const UC =
-  "| Circuit ID | UC Descriptor | Names | Source of ID | Transmitter | Modulation Type | Comments | Interface | Output Semantics | Requirement | Requirement realization by interface | Capability | Mechanism | Implementation |\n" +
-  "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n" +
-  "| `A9/46d@L(L3)` | `BNA:15/lay:L3` | left dorsal 9/46 layer III | [Schultz, 1997] | Glutamate | Excitatory | noROI(input) |  | [A9/46d@L(L3)]context; |  |  |  |  |  |\n" +
-  `| \`VTA(DA,out:NAC,rpe)\` | \`HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe\` | VTA DA neurons | [Schultz, 1997] | DA | Modulatory | RPE | ([U.NAC(shell,DRD1+)]) = VTA(DA,out:NAC,rpe)([U.NAC(shell,DRD1+)]) | [VTA]RPE; | ${fn("VTA(DA,out:NAC,rpe)")} |\n` +
-  `| \`NAC(shell,DRD1+)\` | \`BNA:223-224/part:HOMBA:10341/mol:DRD1+\` | NAc shell D1 | [Schultz, 1997] | GABA | Inhibitory | value | ([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)]) | [NAC]value; | ${fn("NAC(shell,DRD1+)")} |\n` +
-  "| `Arc(AGRP+)` | `HOMBA:10492/mol:AGRP+` | arcuate AgRP | [Schultz, 1997] | GABA | Inhibitory | noROI(output) |  |  |  |  |  |  |  |\n";
-const CONN =
-  "| Sender Circuit ID (sCID) | Receiver Circuit ID (rCID) | Comment | Reference ID | Taxon | Measurement method | Pointers on literature | Pointers on figure |\n|---|---|---|---|---|---|---|---|\n" +
-  "| `A9/46d@L(L3)` | `NAC(shell,DRD1+)` | cortex | [Schultz, 1997] | human | fMRI | p.1 | Fig. 1 |\n" +
-  "| `VTA(DA,out:NAC,rpe)` | `NAC(shell,DRD1+)` | DA | [Schultz, 1997] | monkey | recording | p.2 | Fig. 2 |\n" +
-  "| `NAC(shell,DRD1+)` | `VTA(DA,out:NAC,rpe)` | feedback | [Schultz, 1997] | rat | tracing | p.3 | Fig. 3 |\n" +
-  "| `NAC(shell,DRD1+)` | `Arc(AGRP+)` | feeding | [Schultz, 1997] | mouse | tracing | p.4 | Fig. 4 |\n";
-const HCD = { thinking: "log", bif: BIF, uc: UC, connection: CONN, verification: "ok", report: "report" };
-const FINAL =
-  "| Node ID | Subnodes | Comment | Interface |\n|---|---|---|---|\n" +
-  "| `R.Reward` | `U.VTA(DA,out:NAC,rpe)`, `U.NAC(shell,DRD1+)` | TLF | ([U.Arc(AGRP+)]) = R.Reward([U.A9/46d@L(L3)]) |\n";
-const DETAILS = "| Node ID | Requirement | Requirement realization by interface | Capability | Mechanism |\n|---|---|---|---|---|\n| `R.Reward` | r | rr | c | m |\n";
-const FRG = { init: "x", optimized: "x", final: FINAL, details: DETAILS, report: "x" };
+const j = (v: unknown) => JSON.stringify(v);
+const META = j({ roi: "Mesolimbic system", tlf: "Reward learning", description: "HCD/FRG of reward learning.", name: "Reward learning in mesolimbic system" });
+const REFS = j({ references: [{ id: "[Schultz, 1997]", doi: "10.1126/science.275.5306.1593" }] });
+const fn = (id: string) => ({ requirement: `req of [U.${id}]`, requirementRealization: "real", capability: "cap", mechanism: "mech", implementation: `[U.${id}] = f([U.x])` });
+const empty = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
+const base = { sourceOfId: ["[Schultz, 1997]"], transmitter: "", modulationType: "", comments: "" };
+const UCS = [
+  { ...base, ...empty, circuitId: "A9/46d@L(L3)", descriptor: "BNA:15/lay:L3", names: "left dorsal 9/46 layer III", roi: "noROI(input)", outputSemantics: "[A9/46d@L(L3)]context;" },
+  {
+    ...base,
+    ...fn("VTA(DA,out:NAC,rpe)"),
+    circuitId: "VTA(DA,out:NAC,rpe)",
+    descriptor: "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe",
+    names: "VTA DA neurons",
+    roi: "internal",
+    interface: "([U.NAC(shell,DRD1+)]) = VTA(DA,out:NAC,rpe)([U.NAC(shell,DRD1+)])",
+    outputSemantics: "[VTA]RPE;",
+  },
+  {
+    ...base,
+    ...fn("NAC(shell,DRD1+)"),
+    circuitId: "NAC(shell,DRD1+)",
+    descriptor: "BNA:223-224/part:HOMBA:10341/mol:DRD1+",
+    names: "NAc shell D1",
+    roi: "internal",
+    interface: "([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)])",
+    outputSemantics: "[NAC]value;",
+  },
+  { ...base, ...empty, circuitId: "Arc(AGRP+)", descriptor: "HOMBA:10492/mol:AGRP+", names: "arcuate AgRP", roi: "noROI(output)", outputSemantics: "" },
+];
+const conn = (sender: string, receiver: string) => ({
+  sender,
+  receiver,
+  comment: "c",
+  referenceIds: ["[Schultz, 1997]"],
+  taxon: "rat",
+  measurementMethod: "tracing",
+  pointersOnLiterature: "p.1",
+  pointersOnFigure: "Fig. 1",
+});
+const CONNS = [
+  conn("A9/46d@L(L3)", "NAC(shell,DRD1+)"),
+  conn("VTA(DA,out:NAC,rpe)", "NAC(shell,DRD1+)"),
+  conn("NAC(shell,DRD1+)", "VTA(DA,out:NAC,rpe)"),
+  conn("NAC(shell,DRD1+)", "Arc(AGRP+)"),
+];
+const BIF = [{ sender: "VTA", receiver: "NAc", comment: "", referenceIds: ["[Schultz, 1997]"] }];
+const REPORT = "# Reward\n\n## HCD\n\nx\n\n## FRG\n\nx\n";
+const hcdFiles = (ucs: unknown[], conns: unknown[]) => ({
+  meta: META,
+  decisionLog: "log",
+  report: REPORT,
+  references: REFS,
+  uc: j({ ucs }),
+  connections: j({ bif: BIF, connections: conns }),
+});
+const HCD = hcdFiles(UCS, CONNS);
+const frgFiles = (subnodes: string[]) => ({
+  report: REPORT,
+  frg: j({ nodes: [{ id: "R.Reward", subnodes, comment: "TLF", interface: "([U.Arc(AGRP+)]) = R.Reward([U.A9/46d@L(L3)])", requirement: "r", requirementRealization: "rr", capability: "c", mechanism: "m" }] }),
+});
+const FRG = frgFiles(["U.VTA(DA,out:NAC,rpe)", "U.NAC(shell,DRD1+)"]);
 const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-0\n";
 
 describe("a project named by the convention", () => {
   it("validates, converts to CSV and renders", () => {
-    const hcd = checkHcd(HCD, META, { ucNaming: true, sabra: SABRA });
+    const hcd = checkHcd(HCD, { sabra: SABRA });
     expect(hcd.errors).toEqual([]);
     expect(hcd.model!.ucs.map((u) => u.descriptor)).toContain("BNA:223-224/part:HOMBA:10341/mol:DRD1+");
     const frg = checkFrg(FRG, hcd.model!);
@@ -201,16 +241,10 @@ describe("a project named by the convention", () => {
   });
 
   it("accepts a project whose UCs are all whole SABRA units (anchor only)", () => {
-    const uc =
-      "| Circuit ID | UC Descriptor | Names | Source of ID | Transmitter | Modulation Type | Comments | Interface | Output Semantics | Requirement | Requirement realization by interface | Capability | Mechanism | Implementation |\n" +
-      "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n" +
-      "| `A9/46d@L` | `BNA:15` | left dorsal area 9/46 | [Schultz, 1997] | Glutamate | Excitatory | noROI(input) |  | [A9/46d@L]context; |  |  |  |  |  |\n" +
-      `| \`VTA\` | \`HOMBA:12261\` | ventral tegmental area | [Schultz, 1997] | DA | Modulatory | RPE | ([U.NAC]) = VTA([U.NAC]) | [VTA]RPE; | ${fn("VTA")} |\n` +
-      `| \`NAC\` | \`BNA:223-224\` | nucleus accumbens | [Schultz, 1997] | GABA | Inhibitory | value | ([U.VTA], [U.Arc]) = NAC([U.A9/46d@L], [U.VTA]) | [NAC]value; | ${fn("NAC")} |\n` +
-      "| `Arc` | `HOMBA:10492` | arcuate nucleus | [Schultz, 1997] | GABA | Inhibitory | noROI(output) |  |  |  |  |  |  |  |\n";
-    const rename = (s: string) =>
-      s.replaceAll("A9/46d@L(L3)", "A9/46d@L").replaceAll("VTA(DA,out:NAC,rpe)", "VTA").replaceAll("NAC(shell,DRD1+)", "NAC").replaceAll("Arc(AGRP+)", "Arc");
-    const hcd = checkHcd({ ...HCD, uc, connection: rename(CONN) }, META, { ucNaming: true, sabra: SABRA });
+    const rename = (x: string) =>
+      x.replaceAll("A9/46d@L(L3)", "A9/46d@L").replaceAll("VTA(DA,out:NAC,rpe)", "VTA").replaceAll("NAC(shell,DRD1+)", "NAC").replaceAll("Arc(AGRP+)", "Arc");
+    const ucs = (JSON.parse(rename(j(UCS))) as { descriptor: string }[]).map((u, i) => ({ ...u, descriptor: ["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i] }));
+    const hcd = checkHcd(hcdFiles(ucs, JSON.parse(rename(j(CONNS)))), { sabra: SABRA });
     expect(hcd.errors).toEqual([]);
     expect(hcd.model!.ucs.map((u) => [u.id, u.descriptor])).toEqual([
       ["A9/46d@L", "BNA:15"],
@@ -218,29 +252,26 @@ describe("a project named by the convention", () => {
       ["NAC", "BNA:223-224"],
       ["Arc", "HOMBA:10492"],
     ]);
-    const frg = checkFrg({ ...FRG, final: rename(FINAL) }, hcd.model!);
+    const frg = checkFrg(frgFiles(["U.VTA", "U.NAC"]), hcd.model!);
     expect(frg.errors).toEqual([]);
     const { files } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
     expect(parseCsvObjects(files!["Circuits.csv"]).map((c) => c["UC Descriptor"])).toEqual(["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"]);
   });
 
-  it("reports naming problems and an Interface that names another UC", () => {
-    const uc = UC.replace("| `Arc(AGRP+)` | `HOMBA:10492/mol:AGRP+` |", "| `Arc(AGRP+)` | `HOMBA:10492/mol:AGRP` |").replace(
-      "= VTA(DA,out:NAC,rpe)([U.NAC",
-      "= VTA([U.NAC",
-    );
-    const msg = checkHcd({ ...HCD, uc }, META, { ucNaming: true, sabra: SABRA }).errors.join("\n");
+  it("reports naming problems and an interface that names another UC", () => {
+    const ucs = structuredClone(UCS);
+    ucs[3].descriptor = "HOMBA:10492/mol:AGRP";
+    ucs[1].interface = "([U.NAC(shell,DRD1+)]) = VTA([U.NAC(shell,DRD1+)])";
+    const msg = checkHcd(hcdFiles(ucs, CONNS), { sabra: SABRA }).errors.join("\n");
     expect(msg).toMatch(/mol value `AGRP` needs a polarity/);
-    expect(msg).toMatch(/Interface of `VTA\(DA,out:NAC,rpe\)` names `VTA`/);
+    expect(msg).toMatch(/interface of `VTA\(DA,out:NAC,rpe\)` names `VTA`/);
   });
 
-  it("enforces the convention when the UC Descriptor column is present, and requires it when asked", () => {
-    const noDescriptor = UC.replace("`HOMBA:10492/mol:AGRP+`", "");
-    expect(checkHcd({ ...HCD, uc: noDescriptor }, META, { sabra: SABRA }).errors.join("\n")).toMatch(/`Arc\(AGRP\+\)` has no UC Descriptor/);
-    const legacyUc = UC.split("\n")
-      .map((l) => l.split("|").filter((_, i) => i !== 2).join("|"))
-      .join("\n");
-    expect(checkHcd({ ...HCD, uc: legacyUc }, META).errors).toEqual([]);
-    expect(checkHcd({ ...HCD, uc: legacyUc }, META, { ucNaming: true }).errors.join("\n")).toMatch(/lacks columns: UC Descriptor/);
+  it("always enforces the convention", () => {
+    const ucs = structuredClone(UCS);
+    ucs[3].descriptor = "";
+    const msg = checkHcd(hcdFiles(ucs, CONNS), { sabra: SABRA }).errors.join("\n");
+    expect(msg).toMatch(/uc\.json: \/ucs\/3\/descriptor must not be empty/);
+    expect(msg).toMatch(/`Arc\(AGRP\+\)` has no UC Descriptor/);
   });
 });

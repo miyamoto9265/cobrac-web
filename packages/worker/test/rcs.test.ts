@@ -67,26 +67,44 @@ describe("RcsClient against a mock RCS MCP server", () => {
 });
 
 describe("harness + RCS lookups (integration)", () => {
-  const UC =
-    "| Circuit ID | UC Descriptor | Names | Source of ID | Transmitter | Modulation Type | Comments | Interface | Output Semantics | Requirement | Requirement realization by interface | Capability | Mechanism | Implementation |\n" +
-    "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n" +
-    "| `VTA` | `HOMBA:12261` | ventral tegmental area | [A, 2000] | DA | Modulatory | x | ([U.Arc]) = VTA([U.Arc]) | [VTA]x; | r | rr | c | m | [U.VTA] = f([U.Arc]) |\n" +
-    "| `Arc` | `HOMBA:10492` | arcuate nucleus | [A, 2000] | GABA | Inhibitory | noROI(input) |  | [Arc]y; |  |  |  |  |  |\n";
-  const CONN =
-    "| Sender Circuit ID (sCID) | Receiver Circuit ID (rCID) | Comment | Reference ID | Taxon | Measurement method | Pointers on literature | Pointers on figure |\n|---|---|---|---|---|---|---|---|\n" +
-    "| `Arc` | `VTA` | a | [A, 2000] | mouse | tracing | p.1 | Fig. 1 |\n| `VTA` | `Arc` | b | [A, 2000] | mouse | tracing | p.2 | Fig. 2 |\n";
-  const files = { thinking: "t", bif: "| Reference ID | DOI |\n|---|---|\n| [A, 2000] | N/A |\n", uc: UC, connection: CONN, verification: "v", report: "r" };
-  const meta = JSON.stringify({ roi: "r", tlf: "t", description: "d" });
+  const empty = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
+  const ucs = (vta: string, arc: string) => [
+    {
+      circuitId: vta,
+      descriptor: "HOMBA:12261",
+      names: "ventral tegmental area",
+      roi: "internal",
+      sourceOfId: ["[A, 2000]"],
+      transmitter: "DA",
+      modulationType: "Modulatory",
+      comments: "x",
+      interface: `([U.${arc}]) = ${vta}([U.${arc}])`,
+      outputSemantics: `[${vta}]x;`,
+      requirement: "r",
+      requirementRealization: "rr",
+      capability: "c",
+      mechanism: "m",
+      implementation: `[U.${vta}] = f([U.${arc}])`,
+    },
+    { ...empty, circuitId: arc, descriptor: "HOMBA:10492", names: "arcuate nucleus", roi: "noROI(input)", sourceOfId: ["[A, 2000]"], transmitter: "GABA", modulationType: "Inhibitory", comments: "", outputSemantics: `[${arc}]y;` },
+  ];
+  const conn = (s: string, r: string) => ({ sender: s, receiver: r, comment: "a", referenceIds: ["[A, 2000]"], taxon: "mouse", measurementMethod: "tracing", pointersOnLiterature: "p.1", pointersOnFigure: "Fig. 1" });
+  const files = (arc: string) => ({
+    meta: JSON.stringify({ roi: "r", tlf: "t", description: "d", name: "t in r" }),
+    decisionLog: "log",
+    report: "# R\n\n## HCD\n",
+    references: JSON.stringify({ references: [{ id: "[A, 2000]", doi: "N/A" }] }),
+    uc: JSON.stringify({ ucs: ucs("VTA", arc) }),
+    connections: JSON.stringify({ bif: [{ sender: "a", receiver: "b", comment: "", referenceIds: ["[A, 2000]"] }], connections: [conn(arc, "VTA"), conn("VTA", arc)] }),
+  });
 
   it("accepts anchor-only UCs whose Circuit IDs are the DHBA acronyms returned by RCS", async () => {
     const sabra = await new RcsClient({ url: mock.url, token: TOKEN }).lookupHomba(["HOMBA:12261", "HOMBA:10492"]);
-    expect(checkHcd(files, meta, { ucNaming: true, sabra }).errors).toEqual([]);
+    expect(checkHcd(files("Arc"), { sabra }).errors).toEqual([]);
   });
 
   it("rejects the HOMBA acronym where the DHBA acronym is required", async () => {
     const sabra = await new RcsClient({ url: mock.url, token: TOKEN }).lookupHomba(["HOMBA:12261", "HOMBA:10492"]);
-    const uc = UC.replaceAll("`Arc`", "`ArH`").replaceAll("[U.Arc]", "[U.ArH]");
-    const conn = CONN.replaceAll("`Arc`", "`ArH`");
-    expect(checkHcd({ ...files, uc, connection: conn }, meta, { ucNaming: true, sabra }).errors.join("\n")).toMatch(/`ArH` must start with `Arc`/);
+    expect(checkHcd(files("ArH"), { sabra }).errors.join("\n")).toMatch(/`ArH` must start with `Arc`/);
   });
 });

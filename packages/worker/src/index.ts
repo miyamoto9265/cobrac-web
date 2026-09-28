@@ -2,9 +2,10 @@
  * CoBRAC Agents worker (ECS Fargate task) — the "CoBRAC harness".
  *
  * The worker drives the workflow phase by phase instead of letting the agent read instruction files:
- *   HCD (agent turn → validator → fix turns) → FRG (same) → CSV (deterministic from the markdown tables;
- *   agent fallback only when that fails) → xlsx + graphs (deterministic).
- * Shared rules live in prompts/AGENTS.md (auto-loaded by Codex); each phase prompt inlines prompts/phases/<PHASE>.md.
+ *   HCD (agent turn → validator → fix turns) → FRG (same) → CSV (generated from the JSON data files; problems go
+ *   back to the agent as fixes to those files) → xlsx + graphs (deterministic). The loop itself is in pipeline.ts.
+ * Shared rules live in prompts/AGENTS.md (auto-loaded by Codex); each phase prompt inlines prompts/phases/<PHASE>.md,
+ * and the JSON Schemas of the data files are written to schemas/ next to AGENTS.md.
  *
  * Run modes:
  *   - initial : fresh workspace, start at HCD
@@ -15,25 +16,11 @@
  * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
  */
 import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { FrgModel, HcdModel, JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import {
-  HCD_FILES,
-  addUsage,
-  braDownloadFileName,
-  buildCsvs,
-  buildGraphs,
-  buildProjectCsv,
-  checkFrg,
-  checkHcd,
-  estimateCostUsd,
-  formatTokens,
-  formatUsd,
-  hombaAnchorIds,
-  nowIso,
-} from "@cobrac/shared";
+import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
+import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, nowIso } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -50,11 +37,12 @@ import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { downloadDir, projectPrefix, uploadDir } from "./s3sync.js";
-import { csvComplete, csvWrittenSince, currentStepOf, detectStepStates, loadFrgFiles, loadHcdFiles, projectPaths } from "./steps.js";
+import { PHASES, checkPhase, runPhases, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt } from "./pipeline.js";
+import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
-type Phase = "HCD" | "FRG" | "CSV";
-const PHASES: Phase[] = ["HCD", "FRG", "CSV"];
 const MAX_REPORTED_ERRORS = 30;
+const LEGACY_WORKSPACE_MESSAGE =
+  "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.";
 
 const { userId, projectId, jobId, mode } = env.job;
 const prefix = projectPrefix(userId, projectId);
@@ -67,21 +55,11 @@ const accepted = new Set<WorkflowStep>();
 let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
-let workspaceReadyAt = 0;
 let rcs: RcsClient | null = null;
-/** New projects follow the UC naming convention; older workspaces only when their 3_UC.md already has the column. */
-let ucNaming = false;
 
 const log = async (content: string, meta?: Record<string, unknown>): Promise<void> => {
   await putMessage(projectId, jobId, "system", "status", content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
 };
-
-interface Prompt {
-  /** What the chat shows */
-  shown: string;
-  /** Appended for the agent only (phase specs) */
-  hidden?: string;
-}
 
 async function main() {
   console.log(`[worker] start job=${jobId} project=${projectId} mode=${mode}`);
@@ -106,9 +84,11 @@ async function main() {
 
   // --- workspace ------------------------------------------------------------
   await prepareWorkspace(project);
-  workspaceReadyAt = Date.now();
-  ucNaming = followsUcNaming();
-  if (ucNaming && !rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
+  if (mode !== "initial" && isLegacyWorkspace(paths)) {
+    await fail(LEGACY_WORKSPACE_MESSAGE, { i18n: "sys.legacyWorkspace" });
+    return;
+  }
+  if (!rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
   const carryOver = mode === "resume" || mode === "retry";
   xlsxDone = carryOver && project.stepStates?.XLSX === "done";
@@ -203,70 +183,55 @@ async function main() {
   };
 
   try {
-    const ctx: PhaseContext = { project, hcd: null, frg: null };
+    const ctx: PhaseContext = { hcd: null, frg: null };
     const firstOpen = PHASES.findIndex((p) => !accepted.has(p));
     const startIdx = firstOpen === -1 ? PHASES.length - 1 : firstOpen;
-    let pending = await firstPrompt(project, job, PHASES[startIdx], freshThread);
-    if (pending) await putMessage(projectId, jobId, "user", "prompt", pending.shown, { meta: { mode } });
+    const first = await firstPrompt(project, job, PHASES[startIdx], freshThread);
+    if (first) await putMessage(projectId, jobId, "user", "prompt", first.shown, { meta: { mode } });
 
-    const requestFix = async (phase: Phase, errors: string[], attempt: number): Promise<Prompt> => {
-      const details = errors.join("\n");
-      if (phase === "CSV") {
-        await log("Automatic CSV conversion failed; asked the agent to write the CSVs.", { i18n: "sys.csvFallback", details });
-        return csvFallbackPrompt(errors);
-      }
-      await log(`Checks found ${errors.length} issue(s) in ${phase}; asked the agent to fix them.`, {
-        i18n: "sys.validationFailed",
-        step: phase,
-        count: errors.length,
-        details,
-      });
-      return fixPrompt(phase, errors, attempt);
-    };
-
-    for (let i = startIdx; i < PHASES.length; i++) {
-      const phase = PHASES[i];
-      let attempts = 0;
-      if (i > startIdx && phase !== "CSV") {
-        // existing files (follow-ups, resumed runs) are only fixed, never rebuilt
-        const pre = await acceptPhase(phase, ctx);
-        if (pre.errors.length) {
-          pending = phaseHasFiles(phase)
-            ? { ...(await requestFix(phase, pre.errors, ++attempts)), hidden: await phaseSpec(phase) }
-            : await phasePrompt(project, phase);
-        }
-      }
-      for (;;) {
-        if (pending) {
-          const p = pending;
-          pending = null;
-          if (!(await agentTurn(p))) return;
-        }
-        const r = await acceptPhase(phase, ctx);
-        if (r.errors.length === 0) break;
-        if (attempts >= env.maxNudges) {
-          if (r.fatal) {
-            await persistState();
-            await fail(`The ${phase} step could not be completed after the allowed fix attempts. Use a follow-up or retry.`, {
-              i18n: "sys.phaseIncomplete",
-              step: phase,
-              details: r.errors.join("\n"),
-            });
-            return;
-          }
-          await log(`${phase} still has ${r.errors.length} unresolved check issue(s); continuing.`, {
+    const run = await runPhases(
+      {
+        maxNudges: env.maxNudges,
+        turn: agentTurn,
+        check: (phase) => acceptPhase(phase, project, ctx),
+        hasFiles: phaseHasFiles,
+        phasePrompt: (phase) => phasePrompt(project, phase),
+        fixPrompt: async (phase, errors, attempt, withSpec) => {
+          await log(`Checks found ${errors.length} issue(s) in ${phase}; asked the agent to fix them.`, {
+            i18n: "sys.validationFailed",
+            step: phase,
+            count: errors.length,
+            details: errors.join("\n"),
+          });
+          const p = fixPrompt(phase, errors, attempt);
+          return withSpec ? { ...p, hidden: await phaseSpec(phase) } : p;
+        },
+        onWarn: async (phase, errors) => {
+          await log(`${phase} still has ${errors.length} unresolved check issue(s); continuing.`, {
             i18n: "sys.validationWarn",
             step: phase,
-            count: r.errors.length,
-            details: r.errors.join("\n"),
+            count: errors.length,
+            details: errors.join("\n"),
           });
-          break;
-        }
-        pending = await requestFix(phase, r.errors, ++attempts);
-      }
-      accepted.add(phase);
-      await syncStepStates();
+        },
+        onAccepted: async (phase) => {
+          accepted.add(phase);
+          await syncStepStates();
+          await persistState();
+        },
+      },
+      startIdx,
+      first,
+    );
+    if (run.result === "stopped") return;
+    if (run.result === "failed") {
       await persistState();
+      await fail(`The ${run.phase} step could not be completed after the allowed fix attempts. Use a follow-up or retry.`, {
+        i18n: "sys.phaseIncomplete",
+        step: run.phase,
+        details: run.errors.join("\n"),
+      });
+      return;
     }
 
     // --- finalize -------------------------------------------------------------
@@ -314,80 +279,27 @@ async function main() {
 
 // --- phases ------------------------------------------------------------------
 
-interface PhaseContext {
-  project: ProjectRecord;
-  hcd: HcdModel | null;
-  frg: FrgModel | null;
-}
-
-interface PhaseCheck {
-  errors: string[];
-  fatal: boolean;
-}
-
-async function acceptPhase(phase: Phase, ctx: PhaseContext): Promise<PhaseCheck> {
-  const { files, meta } = loadHcdFiles(paths);
-  const hcd = await checkHcdWithRcs(files, meta);
-  ctx.hcd = hcd.model;
-  if (phase === "HCD") {
-    if (hcd.model?.meta && hcd.errors.length === 0) await adoptMeta(ctx.project, hcd.model.meta);
-    return { errors: hcd.errors, fatal: hcd.fatal };
-  }
-  if (!hcd.model) return { errors: ["The HCD files cannot be parsed:", ...hcd.errors], fatal: true };
-
-  const frg = checkFrg(loadFrgFiles(paths), hcd.model);
-  ctx.frg = frg.model;
-  if (phase === "FRG") return { errors: frg.errors, fatal: frg.fatal };
-
-  // CSV: deterministic conversion first (the user may have renamed the project during the run)
-  const latest = await getProject(userId, projectId);
-  if (latest) ctx.project.name = latest.name;
-  const opts = {
-    projectId,
-    contributor: ctx.project.contributor,
-    projectTemplate: await readFile(join(env.promptsDir, "Project.csv"), "utf8"),
-    roi: ctx.project.roi,
-    tlf: ctx.project.tlf,
-    name: ctx.project.name,
+/** checkPhase with this run's RCS client, meta adoption and Project.csv options. */
+async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseContext): Promise<PhaseCheck> {
+  const deps: CheckDeps = {
+    lookupSabra: rcs ? (ids) => rcs!.lookupHomba(ids) : undefined,
+    onMetaAccepted: (meta) => adoptMeta(project, meta),
+    csvOptions: async () => {
+      const latest = await getProject(userId, projectId);
+      if (latest) project.name = latest.name;
+      return {
+        projectId,
+        contributor: project.contributor,
+        projectTemplate: await readFile(join(env.promptsDir, "Project.csv"), "utf8"),
+        roi: project.roi,
+        tlf: project.tlf,
+        name: project.name,
+      };
+    },
   };
-  const errors: string[] = [];
-  if (frg.model) {
-    const built = buildCsvs(hcd.model, frg.model, opts);
-    if (built.files) {
-      await mkdir(paths.csv, { recursive: true });
-      for (const [name, text] of Object.entries(built.files)) await writeFile(join(paths.csv, name), text, "utf8");
-      const parseError = await graphParseError();
-      if (!parseError) {
-        await log("CSVs generated from the HCD/FRG tables.", { i18n: "sys.csvBuilt" });
-        return { errors: [], fatal: false };
-      }
-      errors.push(parseError);
-    } else errors.push(...built.errors);
-  } else errors.push("The FRG files cannot be parsed:", ...frg.errors);
-
-  // agent-written CSVs (fallback phase) are accepted when they were produced during this run
-  if (csvComplete(paths) && csvWrittenSince(paths, workspaceReadyAt)) {
-    await writeFile(join(paths.csv, "Project.csv"), buildProjectCsv(opts, hcd.model.meta), "utf8");
-    const parseError = await graphParseError();
-    if (!parseError) return { errors: [], fatal: false };
-    errors.push(parseError);
-  }
-  return { errors, fatal: true };
-}
-
-/** checkHcd, with the HOMBA anchors of the UC Descriptors looked up in RCS for the anchor-abbreviation check. */
-async function checkHcdWithRcs(files: ReturnType<typeof loadHcdFiles>["files"], meta: string | null) {
-  const opts = { ucNaming: ucNaming || undefined };
-  const first = checkHcd(files, meta, opts);
-  const ids = first.model ? hombaAnchorIds(first.model.ucs.map((u) => u.descriptor).filter(Boolean)) : [];
-  if (!rcs || !ids.length) return first;
-  return checkHcd(files, meta, { ...opts, sabra: await rcs.lookupHomba(ids) });
-}
-
-function followsUcNaming(): boolean {
-  const uc = HCD_FILES.uc.map((f) => join(paths.hcd, f)).find((f) => existsSync(f));
-  if (!uc) return true;
-  return /\|\s*UC Descriptor\s*\|/i.test(readFileSync(uc, "utf8"));
+  const r = await checkPhase(phase, paths, deps, ctx);
+  if (phase === "CSV" && r.errors.length === 0) await log("CSVs generated from the HCD/FRG data files.", { i18n: "sys.csvBuilt" });
+  return r;
 }
 
 const RCS_LOG_MAX_RESULT = 20_000;
@@ -399,7 +311,7 @@ async function recordRcsCall(item: { tool: string; arguments: unknown; status: s
   if (text && text.length > RCS_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, RCS_LOG_MAX_RESULT) };
   const line = { at: nowIso(), tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
   try {
-    await appendFile(join(paths.root, "rcs_mcp_calls.jsonl"), JSON.stringify(line) + "\n", "utf8");
+    await appendFile(paths.rcsLog, JSON.stringify(line) + "\n", "utf8");
   } catch (e) {
     console.warn("[worker] rcs log failed", e);
   }
@@ -408,22 +320,6 @@ async function recordRcsCall(item: { tool: string; arguments: unknown; status: s
 function phaseHasFiles(phase: Phase): boolean {
   const dir = phase === "HCD" ? paths.hcd : phase === "FRG" ? paths.frg : paths.csv;
   return existsSync(dir) && readdirSync(dir).length > 0;
-}
-
-async function graphParseError(): Promise<string | null> {
-  try {
-    const read = (f: string) => readFile(join(paths.csv, f), "utf8");
-    const { hcd, frg } = buildGraphs(projectId, {
-      circuitsCsv: await read("Circuits.csv"),
-      connectionsCsv: await read("Connections.csv"),
-      frgCsv: await read("FRG.csv"),
-      referencesCsv: await read("References.csv"),
-    });
-    if (!hcd.nodes.length || !frg.nodes.length) return "The CSVs produce an empty HCD or FRG graph.";
-    return null;
-  } catch (e) {
-    return `The CSVs cannot be parsed: ${e instanceof Error ? e.message : String(e)}`;
-  }
 }
 
 /** Store ROI/TLF decided by the agent when the user left them empty, and the agent's name unless the user named the project. */
@@ -453,7 +349,7 @@ async function phaseSpec(phase: Phase): Promise<string> {
     if (phase === "HCD" && !rcs) {
       spec +=
         "\n\nNote for this run: the RCS MCP server is not available. Still anchor every UC on a SABRA unit from your best knowledge " +
-        "(HOMBA/DHBA or BNA IDs), keep UC Descriptors and Circuit IDs in the same format, and state in 1_Thinking.md that the anchors were not checked with RCS.\n";
+        `(HOMBA/DHBA or BNA IDs), keep UC Descriptors and Circuit IDs in the same format, and state in ${PROJECT_FILES.decisionLog} that the anchors were not checked with RCS.\n`;
     }
     specCache.set(phase, spec);
   }
@@ -490,12 +386,11 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
         hidden: await spec(),
       };
     case "followup":
-      // specs are always attached: threads from the legacy prompts have never seen the current table formats
+      // specs are always attached: the thread may be new, and follow-ups can touch every file
       return {
         shown: `${header(project)}\n\nFollow-up instruction:\n${job.instruction ?? ""}`,
         hidden:
-          `Apply the follow-up instruction to the HCD/FRG files (see "Follow-up instructions" in AGENTS.md). ` +
-          `If the files use an older format, the validator will report what to adapt. Reference specs:\n\n` +
+          `Apply the follow-up instruction to the project files (see "Follow-up instructions" in AGENTS.md). Reference specs:\n\n` +
           `${await phaseSpec("HCD")}\n\n---\n\n${await phaseSpec("FRG")}`,
       };
   }
@@ -504,17 +399,9 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
 function fixPrompt(phase: Phase, errors: string[], attempt: number): Prompt {
   const list = errors.slice(0, MAX_REPORTED_ERRORS).map((e) => `- ${e}`);
   if (errors.length > MAX_REPORTED_ERRORS) list.push(`- …and ${errors.length - MAX_REPORTED_ERRORS} more of the same kinds`);
+  const where = phase === "CSV" ? "while generating the CSVs from the HCD/FRG data files" : `in phase ${phase}`;
   return {
-    shown: `The validator found ${errors.length} problem(s) in phase ${phase} (fix attempt ${attempt}/${env.maxNudges}):\n${list.join("\n")}\n\nFix them in the files and finish with status "done".`,
-  };
-}
-
-async function csvFallbackPrompt(errors: string[]): Promise<Prompt> {
-  return {
-    shown: `${await phaseSpec("CSV")}\n\nWhy the automatic conversion failed:\n${errors
-      .slice(0, MAX_REPORTED_ERRORS)
-      .map((e) => `- ${e}`)
-      .join("\n")}`,
+    shown: `The validator found ${errors.length} problem(s) ${where} (fix attempt ${attempt}/${env.maxNudges}):\n${list.join("\n")}\n\nFix them in the files and finish with status "done".`,
   };
 }
 
@@ -526,6 +413,7 @@ async function prepareWorkspace(project: ProjectRecord) {
   // harness rules at the workspace root (Codex loads AGENTS.md from its working directory)
   const agents = (await readFile(join(env.promptsDir, "AGENTS.md"), "utf8")).replaceAll("{P}", projectId);
   await writeFile(join(env.workDir, "AGENTS.md"), agents, "utf8");
+  await writeSchemas(env.workDir);
 
   if (mode !== "initial" || project.codexThreadId) {
     await log("Restoring previous workspace…", { i18n: "sys.restoring" });
