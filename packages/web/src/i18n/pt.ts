@@ -239,6 +239,9 @@ export const pt: Record<MessageKey, string> = {
   "docs.changelog": "Notas da versão",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (guia de Contributor)",
+  "docs.toc": "Nesta página",
+  "docs.figureHint": "Role para o lado para ver a figura inteira. Toque para abri-la em tamanho real.",
+  "docs.docLanguage": "Idioma do documento",
 
   "graph.search": "Buscar nós…",
   "graph.undo": "Desfazer (Ctrl+Z)",

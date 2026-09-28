@@ -239,6 +239,9 @@ export const ru: Record<MessageKey, string> = {
   "docs.changelog": "Заметки о выпуске",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (руководство участника)",
+  "docs.toc": "На этой странице",
+  "docs.figureHint": "Прокрутите вбок, чтобы увидеть рисунок целиком. Нажмите, чтобы открыть его в полном размере.",
+  "docs.docLanguage": "Язык документа",
 
   "graph.search": "Поиск узлов…",
   "graph.undo": "Отменить (Ctrl+Z)",

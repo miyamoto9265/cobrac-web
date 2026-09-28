@@ -239,6 +239,9 @@ export const zhTw: Record<MessageKey, string> = {
   "docs.changelog": "發行說明",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md（貢獻者指南）",
+  "docs.toc": "本頁目錄",
+  "docs.figureHint": "左右滑動可查看完整圖示，點按可開啟原尺寸圖片。",
+  "docs.docLanguage": "文件語言",
 
   "graph.search": "搜尋節點…",
   "graph.undo": "復原 (Ctrl+Z)",

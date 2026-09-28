@@ -239,6 +239,9 @@ export const ja: Record<MessageKey, string> = {
   "docs.changelog": "リリースノート",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md（作業規約）",
+  "docs.toc": "目次",
+  "docs.figureHint": "図は横にスクロールできます。タップすると原寸で開きます。",
+  "docs.docLanguage": "文書の言語",
 
   "graph.search": "ノード検索…",
   "graph.undo": "元に戻す (Ctrl+Z)",
