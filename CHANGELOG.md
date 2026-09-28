@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-09-28
+
 ### Changed
 - The "CoBRAC Harness v0 → v1" article draws its architecture as figures instead of text art: a v0/v1 overview, the v0 and v1 flows, instruction tokens per phase, and the artifact output breakdown. A new table maps each v0 weak point to the change that fixes it. Phones get one-column versions of the figures
 - Documentation pages show a table of contents under the open document (a collapsible list on phones) that follows the scroll position, and headings have link anchors. Links between documents and to headings stay on the site
