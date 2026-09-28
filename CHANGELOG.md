@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The site now works on phones and tablets. Below 1024px the sidebar opens from a menu button in a top bar, and every screen fits the width without horizontal scrolling
+- On phones the project list shows cards, the docs page picks a document from a dropdown, and graph node/edge details slide up from the bottom. Tablets show two cards per row and details in a floating card
+- On touch screens buttons and links are larger (about 44px), and form fields no longer make iOS zoom in when focused. Content stays clear of the notch and the home indicator
+
+### Fixed
+- Long project IDs, paths, and table headers in chat and the usage table no longer overflow or wrap one character per line
+- In graphs the legend no longer covers the zoom buttons on small screens
+
 ## [0.5.2] - 2026-09-27
 
 ### Changed
