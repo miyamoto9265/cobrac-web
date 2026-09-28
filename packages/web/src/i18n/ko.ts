@@ -242,6 +242,9 @@ export const ko: Record<MessageKey, string> = {
   "docs.changelog": "릴리스 노트",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (기여자 가이드)",
+  "docs.toc": "이 페이지의 목차",
+  "docs.figureHint": "그림 전체를 보려면 옆으로 스크롤하세요. 누르면 원래 크기로 열립니다.",
+  "docs.docLanguage": "문서 언어",
 
   "graph.search": "노드 검색…",
   "graph.undo": "실행 취소 (Ctrl+Z)",

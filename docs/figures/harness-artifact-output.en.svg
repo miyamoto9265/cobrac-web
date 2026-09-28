@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 368" width="860" height="368" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Artifact output (estimated from five real v0 projects, average)</title>
+<desc id="d">All HCD/FRG artifacts written by the agent, 62,400 tokens, minus the beginner explainer and Mermaid diagram file (9,100), Mermaid blocks inside FRG files (1,000), CSVs typed by the agent (6,300) and the difference from writing the Japanese text in English (10,300) gives an estimated v1 artifact output of about 35,700 tokens (about −43%).</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="368" fill="#ffffff"/>
+<line x1="270" y1="20" x2="270" y2="320" stroke="#e2e8f0"/>
+<text x="270" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>0k</tspan></text>
+<line x1="343.84615384615387" y1="20" x2="343.84615384615387" y2="320" stroke="#e2e8f0"/>
+<text x="343.84615384615387" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>10k</tspan></text>
+<line x1="417.69230769230774" y1="20" x2="417.69230769230774" y2="320" stroke="#e2e8f0"/>
+<text x="417.69230769230774" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>20k</tspan></text>
+<line x1="491.53846153846155" y1="20" x2="491.53846153846155" y2="320" stroke="#e2e8f0"/>
+<text x="491.53846153846155" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>30k</tspan></text>
+<line x1="565.3846153846155" y1="20" x2="565.3846153846155" y2="320" stroke="#e2e8f0"/>
+<text x="565.3846153846155" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>40k</tspan></text>
+<line x1="639.2307692307693" y1="20" x2="639.2307692307693" y2="320" stroke="#e2e8f0"/>
+<text x="639.2307692307693" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>50k</tspan></text>
+<line x1="713.0769230769231" y1="20" x2="713.0769230769231" y2="320" stroke="#e2e8f0"/>
+<text x="713.0769230769231" y="338" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="middle"><tspan>60k</tspan></text>
+<text x="750" y="356" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>tokens</tspan></text>
+<text x="250" y="42" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>v0: all HCD/FRG artifacts</tspan></text>
+<text x="250" y="58" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>written by the agent</tspan></text>
+<rect x="270.0" y="32" width="460.8" height="24" rx="3" fill="#f59e0b"/>
+<text x="738.8" y="49" font-size="12.5" font-weight="700" fill="#92400e" text-anchor="start"><tspan>62,400</tspan></text>
+<text x="250" y="92" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="end"><tspan>Beginner explainer + Mermaid</tspan></text>
+<text x="250" y="108" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>diagram file (not generated)</tspan></text>
+<rect x="663.6" y="82" width="67.2" height="24" rx="3" fill="#fca5a5"/>
+<line x1="730.8" y1="56" x2="730.8" y2="82" stroke="#94a3b8" stroke-dasharray="3 3"/>
+<text x="738.8" y="99" font-size="12.5" font-weight="700" fill="#991b1b" text-anchor="start"><tspan>−9,100</tspan></text>
+<text x="250" y="142" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="end"><tspan>Mermaid blocks inside</tspan></text>
+<text x="250" y="158" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>FRG files (not generated)</tspan></text>
+<rect x="656.2" y="132" width="7.4" height="24" rx="3" fill="#fca5a5"/>
+<line x1="663.6" y1="106" x2="663.6" y2="132" stroke="#94a3b8" stroke-dasharray="3 3"/>
+<text x="671.5999999999999" y="149" font-size="12.5" font-weight="700" fill="#991b1b" text-anchor="start"><tspan>−1,000</tspan></text>
+<text x="250" y="192" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="end"><tspan>CSVs typed by the agent</tspan></text>
+<text x="250" y="208" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>(generated by code)</tspan></text>
+<rect x="609.7" y="182" width="46.5" height="24" rx="3" fill="#fca5a5"/>
+<line x1="656.2" y1="156" x2="656.2" y2="182" stroke="#94a3b8" stroke-dasharray="3 3"/>
+<text x="664.2153846153847" y="199" font-size="12.5" font-weight="700" fill="#991b1b" text-anchor="start"><tspan>−6,300</tspan></text>
+<text x="250" y="242" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="end"><tspan>Japanese text rewritten</tspan></text>
+<text x="250" y="258" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>in English (shorter)</tspan></text>
+<rect x="533.6" y="232" width="76.1" height="24" rx="3" fill="#fca5a5"/>
+<line x1="609.7" y1="206" x2="609.7" y2="232" stroke="#94a3b8" stroke-dasharray="3 3"/>
+<text x="617.6923076923077" y="249" font-size="12.5" font-weight="700" fill="#991b1b" text-anchor="start"><tspan>−10,300</tspan></text>
+<text x="250" y="292" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Estimated v1 artifact output</tspan></text>
+<line x1="533.6" y1="256" x2="533.6" y2="282" stroke="#94a3b8" stroke-dasharray="3 3"/>
+<rect x="270" y="282" width="263.6" height="24" rx="3" fill="#3b82f6"/>
+<text x="541.6307692307691" y="299" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>≈ 35,700  (≈ −43%)</tspan></text>
+</svg>

@@ -242,6 +242,9 @@ export const zh: Record<MessageKey, string> = {
   "docs.changelog": "发行说明",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md（贡献者指南）",
+  "docs.toc": "本页目录",
+  "docs.figureHint": "左右滑动可查看完整图示，点按可打开原尺寸图片。",
+  "docs.docLanguage": "文档语言",
 
   "graph.search": "搜索节点…",
   "graph.undo": "撤销 (Ctrl+Z)",

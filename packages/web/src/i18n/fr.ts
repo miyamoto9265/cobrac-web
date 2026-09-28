@@ -242,6 +242,9 @@ export const fr: Record<MessageKey, string> = {
   "docs.changelog": "Notes de version",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (guide du Contributor)",
+  "docs.toc": "Sur cette page",
+  "docs.figureHint": "Faites défiler horizontalement pour voir toute la figure. Touchez-la pour l’ouvrir en taille réelle.",
+  "docs.docLanguage": "Langue du document",
 
   "graph.search": "Rechercher des nœuds…",
   "graph.undo": "Annuler (Ctrl+Z)",

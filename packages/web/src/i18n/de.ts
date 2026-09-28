@@ -242,6 +242,9 @@ export const de: Record<MessageKey, string> = {
   "docs.changelog": "Release Notes",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (Leitfaden für Contributor)",
+  "docs.toc": "Auf dieser Seite",
+  "docs.figureHint": "Zum Ansehen der ganzen Abbildung seitlich scrollen. Tippen öffnet sie in voller Größe.",
+  "docs.docLanguage": "Sprache des Dokuments",
 
   "graph.search": "Knoten suchen…",
   "graph.undo": "Rückgängig (Ctrl+Z)",

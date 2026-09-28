@@ -1,6 +1,6 @@
 {
   "name": "cobrac-web",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "CoBRAC Agents - BRA data generation web application powered by Codex SDK",
   "repository": {
@@ -22,6 +22,7 @@
     "cdk": "npm run cdk -w @cobrac/infra --",
     "release": "node scripts/release.mjs",
     "release:check": "node scripts/release.mjs --check",
+    "docs:figures": "node scripts/docs-figures.mjs",
     "deploy": "npm run release:check && npm run build && npm run cdk -- deploy --all --require-approval never"
   },
   "engines": {
