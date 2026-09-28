@@ -215,7 +215,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.validationWarn": "{step} に未解決の検査項目が {count} 件残っていますが、先に進みます。",
   "sys.phaseIncomplete": "所定回数の修正後も {step} ステップを完了できませんでした。フォローアップ指示またはリトライで続きを実行してください。",
   "sys.legacyWorkspace": "このプロジェクトは v0.8 より前のファイル形式で作られているため、続きを実行できません。xlsx とグラフは引き続き利用できます。作業を続けるには新しいプロジェクトを作成してください。",
-  "sys.csvBuilt": "HCD/FRG の表から CSV を生成しました。",
+  "sys.csvBuilt": "HCD/FRG のデータファイルから CSV を生成しました。",
 
   "admin.denied": "管理者のみアクセスできます。",
   "admin.title": "管理",

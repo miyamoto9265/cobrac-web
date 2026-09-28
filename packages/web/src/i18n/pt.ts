@@ -215,7 +215,7 @@ export const pt: Record<MessageKey, string> = {
   "sys.validationWarn": "{step} ainda tem {count} problema(s) de verificação não resolvido(s); continuando.",
   "sys.phaseIncomplete": "Não foi possível concluir a etapa {step} após as tentativas de correção permitidas. Use um acompanhamento ou nova tentativa.",
   "sys.legacyWorkspace": "Este projeto usa o formato de arquivos anterior à v0.8 e não pode mais ser continuado. O xlsx e os gráficos continuam disponíveis; crie um novo projeto para continuar.",
-  "sys.csvBuilt": "CSVs gerados a partir das tabelas HCD/FRG.",
+  "sys.csvBuilt": "CSVs gerados a partir dos arquivos de dados HCD/FRG.",
 
   "admin.denied": "Somente administradores.",
   "admin.title": "Admin",

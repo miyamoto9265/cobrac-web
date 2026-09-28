@@ -213,7 +213,7 @@ export const en = {
   "sys.validationWarn": "{step} still has {count} unresolved check issue(s); continuing.",
   "sys.phaseIncomplete": "The {step} step could not be completed after the allowed fix attempts. Use a follow-up or retry.",
   "sys.legacyWorkspace": "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.",
-  "sys.csvBuilt": "CSVs generated from the HCD/FRG tables.",
+  "sys.csvBuilt": "CSVs generated from the HCD/FRG data files.",
 
   "admin.denied": "Admins only.",
   "admin.title": "Admin",

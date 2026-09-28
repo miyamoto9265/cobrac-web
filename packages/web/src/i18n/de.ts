@@ -215,7 +215,7 @@ export const de: Record<MessageKey, string> = {
   "sys.validationWarn": "{step} hat noch {count} ungelöste Prüfpunkt(e); es wird fortgefahren.",
   "sys.phaseIncomplete": "Der Schritt {step} konnte nach den erlaubten Korrekturversuchen nicht abgeschlossen werden. Follow-up oder Retry verwenden.",
   "sys.legacyWorkspace": "Dieses Projekt verwendet das Dateiformat vor v0.8 und kann nicht fortgesetzt werden. xlsx und Graphen bleiben verfügbar; starte ein neues Projekt, um weiterzuarbeiten.",
-  "sys.csvBuilt": "CSVs aus den HCD/FRG-Tabellen erzeugt.",
+  "sys.csvBuilt": "CSVs aus den HCD/FRG-Datendateien erzeugt.",
 
   "admin.denied": "Nur für Admins.",
   "admin.title": "Admin",

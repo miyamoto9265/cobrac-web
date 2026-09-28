@@ -215,7 +215,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.validationWarn": "{step} 仍有 {count} 個未解決的檢查問題；繼續執行。",
   "sys.phaseIncomplete": "在允許的修正次數內未能完成 {step} 步驟。請使用後續指示或重試。",
   "sys.legacyWorkspace": "此專案使用 v0.8 之前的檔案格式，無法繼續執行。xlsx 與圖仍可使用；如需繼續，請建立新專案。",
-  "sys.csvBuilt": "已根據 HCD/FRG 表格產生 CSV。",
+  "sys.csvBuilt": "已根據 HCD/FRG 資料檔產生 CSV。",
 
   "admin.denied": "僅限管理員。",
   "admin.title": "管理",

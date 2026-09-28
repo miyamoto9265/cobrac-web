@@ -215,7 +215,7 @@ export const ko: Record<MessageKey, string> = {
   "sys.validationWarn": "{step}에 해결되지 않은 검사 항목이 {count}건 남아 있지만 계속 진행합니다.",
   "sys.phaseIncomplete": "허용된 수정 횟수 안에 {step} 단계를 완료하지 못했습니다. 후속 지시나 재시도를 사용하세요.",
   "sys.legacyWorkspace": "이 프로젝트는 v0.8 이전 파일 형식으로 만들어져 더 이상 이어서 실행할 수 없습니다. xlsx와 그래프는 계속 사용할 수 있습니다. 작업을 계속하려면 새 프로젝트를 만드세요.",
-  "sys.csvBuilt": "HCD/FRG 표에서 CSV를 생성했습니다.",
+  "sys.csvBuilt": "HCD/FRG 데이터 파일에서 CSV를 생성했습니다.",
 
   "admin.denied": "관리자만 이용할 수 있습니다.",
   "admin.title": "관리",
