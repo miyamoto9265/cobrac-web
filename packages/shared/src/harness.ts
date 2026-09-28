@@ -4,6 +4,7 @@
  */
 import { normalizeHeader, parseCsv, toCsv } from "./csv.js";
 import { cell, collectRecords, collectRows } from "./markdown.js";
+import { checkUcNaming, splitTopLevel, type SabraLookup } from "./ucNaming.js";
 
 /** Artifact file names per phase; later entries are accepted for workspaces created by the legacy prompts. */
 export const HCD_FILES = {
@@ -36,6 +37,8 @@ export type UcRoi = "roi" | "input" | "output" | "both";
 
 export interface UcRow {
   id: string;
+  /** UC Descriptor (empty for workspaces made before the naming convention) */
+  descriptor: string;
   names: string;
   sourceOfId: string;
   transmitter: string;
@@ -120,6 +123,7 @@ const UC_COLUMNS = [
   ["Mechanism"],
   ["Implementation", "Implementation of Uniform Circuit"],
 ];
+const UC_DESCRIPTOR = "UC Descriptor";
 const FRG_COLUMNS = [["Node ID"], ["Subnodes"], ["Comment", "Comments"], ["Interface"]];
 const DETAIL_COLUMNS = [
   ["Node ID", "Node Name"],
@@ -147,12 +151,8 @@ const CONN_COLUMNS = [
 const FUNCTION_ITEMS = ["Requirement", "Requirement realization by interface", "Capability", "Mechanism"] as const;
 
 const stripUc = (s: string) => s.replace(/`/g, "").trim().replace(/^U\./, "");
-const splitIds = (s: string) =>
-  s
-    .replace(/`/g, "")
-    .split(/[;；,、]/)
-    .map((x) => x.trim())
-    .filter(Boolean);
+/** Circuit IDs may contain `(a,b)`, so `,` only separates outside brackets. */
+const splitIds = (s: string) => splitTopLevel(s.replace(/`/g, ""), ";；,、");
 const hasSpace = (s: string) => /\s/.test(s);
 
 function roiOf(comments: string): UcRoi {
@@ -161,16 +161,52 @@ function roiOf(comments: string): UcRoi {
   return i && o ? "both" : i ? "input" : o ? "output" : "roi";
 }
 
-/** `([A], [B]) = X([C])` → outputs/inputs as bare circuit IDs; null when the text does not have that shape. */
-export function parseInterface(text: string): { outputs: string[]; inputs: string[] } | null {
-  const m = /^\s*(.*?)\s*=\s*[^\s=(]+\s*\(([\s\S]*)\)\s*$/.exec(text.replace(/\n/g, " "));
-  if (!m) return null;
-  const ids = (s: string) =>
-    s
-      .split(",")
-      .map((x) => stripUc(x.replace(/[[\]()]/g, "")))
-      .filter(Boolean);
-  return { outputs: ids(m[1]), inputs: ids(m[2]) };
+/** Index of the `(` matching the `)` at `close`, or -1. */
+function matchingOpen(s: string, close: number): number {
+  let depth = 0;
+  for (let i = close; i >= 0; i--) {
+    if (s[i] === ")") depth++;
+    else if (s[i] === "(" && --depth === 0) return i;
+  }
+  return -1;
+}
+
+/** Index of the first `=` outside brackets, or -1. */
+function topLevelEquals(s: string): number {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "(" || c === "[") depth++;
+    else if ((c === ")" || c === "]") && depth > 0) depth--;
+    else if (c === "=" && depth === 0) return i;
+  }
+  return -1;
+}
+
+const interfaceIds = (s: string) =>
+  splitTopLevel(s, ",").map((x) => {
+    const t = x.trim();
+    return stripUc(t.startsWith("[") && t.endsWith("]") ? t.slice(1, -1) : t);
+  });
+
+/**
+ * `([A], [B]) = X([C])` → outputs/inputs as bare circuit IDs; null when the text does not have that shape.
+ * Circuit IDs may themselves contain brackets (`[U.NAC(shell,DRD1+)]`), so the input list is the last balanced
+ * `(…)` and every list is split on top-level commas only.
+ */
+export function parseInterface(text: string): { name: string; outputs: string[]; inputs: string[] } | null {
+  const s = text.replace(/`/g, "").replace(/\n/g, " ").trim();
+  const eq = topLevelEquals(s);
+  if (eq < 0) return null;
+  let lhs = s.slice(0, eq).trim();
+  const rhs = s.slice(eq + 1).trim();
+  if (!rhs.endsWith(")")) return null;
+  const open = matchingOpen(rhs, rhs.length - 1);
+  if (open <= 0) return null;
+  const name = stripUc(rhs.slice(0, open));
+  if (!name || /[\s=]/.test(name)) return null;
+  if (lhs.startsWith("(") && matchingOpen(lhs, lhs.length - 1) === 0) lhs = lhs.slice(1, -1);
+  return { name, outputs: interfaceIds(lhs), inputs: interfaceIds(rhs.slice(open + 1, -1)) };
 }
 
 function parseMeta(text: string | null | undefined, errors: string[]): ProjectMeta | null {
@@ -195,7 +231,17 @@ function sameSet(a: string[], b: string[]): boolean {
   return sa.size === sb.size && [...sa].every((x) => sb.has(x));
 }
 
-export function checkHcd(files: Files<HcdFileKey>, metaText: string | null | undefined): CheckResult<HcdModel> {
+export interface CheckHcdOptions {
+  /**
+   * Enforce the UC naming convention (UC Descriptor column, Circuit ID syntax and anchor abbreviation).
+   * Default: only when 3_UC.md already has a `UC Descriptor` column, so workspaces made before the convention still load.
+   */
+  ucNaming?: boolean;
+  /** RCS facts for HOMBA anchors; without an entry the anchor-abbreviation check of that UC is skipped. */
+  sabra?: SabraLookup;
+}
+
+export function checkHcd(files: Files<HcdFileKey>, metaText: string | null | undefined, opts: CheckHcdOptions = {}): CheckResult<HcdModel> {
   const errors: string[] = [];
   for (const k of Object.keys(HCD_FILES) as HcdFileKey[]) {
     if (!files[k]?.trim()) errors.push(`${HCD_FILES[k][0]} is missing or empty.`);
@@ -219,18 +265,20 @@ export function checkHcd(files: Files<HcdFileKey>, metaText: string | null | und
 
   // UCs
   const ucs: UcRow[] = [];
-  const ucRecs = files.uc ? collectRecords(files.uc, ["Circuit ID"], UC_COLUMNS.flat()) : null;
+  const ucRecs = files.uc ? collectRecords(files.uc, ["Circuit ID"], [...UC_COLUMNS.flat(), UC_DESCRIPTOR]) : null;
   if (files.uc && !ucRecs?.records.length) errors.push("3_UC.md: no UC table with a `Circuit ID` column.");
+  const ucNaming = opts.ucNaming ?? (ucRecs ? missingColumns(ucRecs.columns, [[UC_DESCRIPTOR]]).length === 0 : false);
   if (ucRecs?.records.length) {
-    const missing = missingColumns(ucRecs.columns, UC_COLUMNS);
+    const missing = missingColumns(ucRecs.columns, ucNaming ? [UC_COLUMNS[0], [UC_DESCRIPTOR], ...UC_COLUMNS.slice(1)] : UC_COLUMNS);
     if (missing.length) errors.push(`3_UC.md: the UC table lacks columns: ${missing.join(", ")}.`);
     for (const r of ucRecs.records) {
       const id = stripUc(cell(r, "Circuit ID"));
       if (!id) continue;
-      if (hasSpace(id)) errors.push(`3_UC.md: Circuit ID \`${id}\` contains spaces (use kebab-case).`);
+      if (hasSpace(id)) errors.push(`3_UC.md: Circuit ID \`${id}\` contains spaces${ucNaming ? "" : " (use kebab-case)"}.`);
       const comments = cell(r, "Comments", "Comment");
       ucs.push({
         id,
+        descriptor: cell(r, UC_DESCRIPTOR).replace(/\s+/g, ""),
         names: cell(r, "Names", "Name"),
         sourceOfId: cell(r, "Source of ID"),
         transmitter: cell(r, "Transmitter"),
@@ -247,6 +295,7 @@ export function checkHcd(files: Files<HcdFileKey>, metaText: string | null | und
       });
     }
     if (!ucs.length) errors.push("3_UC.md: the UC table has no rows.");
+    if (ucNaming) errors.push(...checkUcNaming(ucs, opts.sabra));
     else if (!ucs.some((u) => u.roi === "roi")) errors.push("3_UC.md: no ROI-internal UC (every row is tagged noROI).");
   }
 
@@ -316,6 +365,7 @@ export function checkHcd(files: Files<HcdFileKey>, metaText: string | null | und
         errors.push(`3_UC.md: Interface of \`${u.id}\` is not in the form ([Out1], [Out2]) = ${u.id}([In1], [In2]).`);
         continue;
       }
+      if (ucNaming && itf.name !== u.id) errors.push(`3_UC.md: Interface of \`${u.id}\` names \`${itf.name}\`; write it as (…) = ${u.id}(…).`);
       const ins = senders.get(u.id) ?? [];
       const outs = receivers.get(u.id) ?? [];
       if (!sameSet(itf.inputs, ins)) {
@@ -522,12 +572,14 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
     if (!list.includes(c.receiver)) list.push(c.receiver);
   }
   const details = new Map(frg.details.map((d) => [d.id, d]));
+  // appended last so the BRA columns keep their positions; omitted for projects made before the naming convention
+  const withDescriptor = hcd.ucs.some((u) => u.descriptor);
 
   const tables: Record<Exclude<CsvFileName, "Project.csv">, string[][]> = {
     "References.csv": [["Reference ID", "DOI"], ...[...refs].map(([id, doi]) => [id, doi])],
     "Circuits.csv": [
-      ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments"],
-      ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, u.comments]),
+      ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", ...(withDescriptor ? [UC_DESCRIPTOR] : [])],
+      ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, u.comments, ...(withDescriptor ? [u.descriptor] : [])]),
     ],
     "Connections.csv": [
       CONN_COLUMNS.map((c) => (c === "Comment" ? "Comments" : c)),
