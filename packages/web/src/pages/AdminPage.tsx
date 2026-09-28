@@ -99,7 +99,10 @@ export function AdminPage() {
           <tbody className="divide-y divide-slate-100">
             {projects.map((p) => (
               <tr key={`${p.userId}/${p.projectId}`}>
-                <td className="px-4 py-2 font-mono text-xs">{p.projectId}</td>
+                <td className="px-4 py-2 text-xs">
+                  {p.name ?? p.projectId}
+                  <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+                </td>
                 <td className="px-4 py-2 text-xs">{emailOf(p.userId)}</td>
                 <td className="px-4 py-2">
                   <StatusBadge status={p.status} />

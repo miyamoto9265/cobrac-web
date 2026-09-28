@@ -108,7 +108,7 @@ export const ko: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "프로젝트",
-  "projects.search": "Project ID / ROI / TLF로 검색",
+  "projects.search": "Name / Project ID / ROI / TLF로 검색",
   "projects.allStatus": "모든 상태",
   "projects.status": "상태",
   "projects.model": "모델",
@@ -143,7 +143,12 @@ export const ko: Record<MessageKey, string> = {
   "chat.roiPh": "예: cerebellar flocculus",
   "chat.tlf": "TLF — 최상위 기능",
   "chat.tlfPh": "예: 전정안구반사(VOR)의 적응 학습",
-  "chat.projectId": "Project ID (영숫자, 자동 제안)",
+  "chat.name": "프로젝트 이름 (변경 가능, Project ID는 자동 부여)",
+  "chat.nameHelp": "자동 제안을 그대로 두면 에이전트가 시작할 때 영어 이름을 붙입니다. 직접 입력한 이름은 유지됩니다.",
+  "chat.nameDup": "“{name}” 이름의 프로젝트가 이미 있습니다 (중복 허용).",
+  "chat.rename": "이름 변경",
+  "chat.renameCancel": "취소",
+  "chat.redirecting": "새 Project ID로 이동 중…",
   "chat.contributor": "Contributor",
   "chat.run": "실행",
   "chat.runHelp":

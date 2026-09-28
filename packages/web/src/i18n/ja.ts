@@ -108,7 +108,7 @@ export const ja: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "プロジェクト一覧",
-  "projects.search": "Project ID / ROI / TLF で検索",
+  "projects.search": "名前 / Project ID / ROI / TLF で検索",
   "projects.allStatus": "すべてのステータス",
   "projects.status": "ステータス",
   "projects.model": "モデル",
@@ -143,7 +143,12 @@ export const ja: Record<MessageKey, string> = {
   "chat.roiPh": "例: 小脳フロキュラス（flocculus）",
   "chat.tlf": "TLF — トップレベル機能",
   "chat.tlfPh": "例: 前庭動眼反射（VOR）の適応学習",
-  "chat.projectId": "Project ID（英数字・自動提案）",
+  "chat.name": "プロジェクト名（あとで変更可。Project ID は自動で付きます）",
+  "chat.nameHelp": "空欄や自動提案のままなら、エージェントが開始時に英語の名前を付けます。入力した名前はそのまま使います。",
+  "chat.nameDup": "「{name}」という名前のプロジェクトがすでにあります（重複しても作成できます）。",
+  "chat.rename": "名前を変更",
+  "chat.renameCancel": "キャンセル",
+  "chat.redirecting": "新しい Project ID に移動しています…",
   "chat.contributor": "Contributor",
   "chat.run": "実行",
   "chat.runHelp":
