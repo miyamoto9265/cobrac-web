@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-28
+
 ### Changed
 - The site now works on phones and tablets. Below 1024px the sidebar opens from a menu button in a top bar, and every screen fits the width without horizontal scrolling
 - On phones the project list shows cards, the docs page picks a document from a dropdown, and graph node/edge details slide up from the bottom. Tablets show two cards per row and details in a floating card
