@@ -117,7 +117,7 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor }: Props) {
       ),
       th: ({ node, children, style }) => {
         const label = nodeText(node as HastNode | undefined).trim();
-        const version = label === "v0" || label === "v1" ? label : null;
+        const version = label === "v0" || label === "v1" || label === "v1.1" ? label.replace(".", "-") : null;
         return <th style={style}>{version ? <span className={`version-pill version-${version}`}>{children}</span> : children}</th>;
       },
     };

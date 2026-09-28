@@ -5,6 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Documentation article "CoBRAC Harness v1 → v1.1" (English and Japanese): the JSON data files, UC names based on SABRA and RCS, the report and decision log in the app, and the instruction size, with figures for the data flow, the file mapping and how a UC Descriptor and Circuit ID are built
+
+### Changed
+- The harness of app 0.8.0 and later is called CoBRAC harness v1.1 in the documentation; the v0 → v1 article and the design spec point to the new article
+- Tables with a `v1.1` column header show it as a badge, like `v0` and `v1`
+
 ## [0.8.0] - 2026-09-28
 
 ### Added

@@ -265,6 +265,9 @@ html {
 .markdown.docs .version-v1 {
   background: #3b82f6;
 }
+.markdown.docs .version-v1-1 {
+  background: #0d9488;
+}
 .markdown.docs blockquote {
   border-left: 3px solid #cbd5e1;
   color: #475569;

@@ -4,7 +4,7 @@
 | ---- | ----------- |
 | Document | Explainer: how the agent harness moved from the legacy instruction files (v0) to the dedicated CoBRAC harness (v1), with a cost comparison |
 | Audience | Users, operators, and anyone reviewing BRA output quality or OpenAI spend |
-| Applies to | v0 = app up to 0.4.2 / v1 = app 0.5.0 and later. Sections 3–5 describe v1 as introduced (markdown tables); since 0.8.0 the data files are JSON, see [section 8](#8-v08-json-data-files) |
+| Applies to | v0 = app up to 0.4.2 / v1 = app 0.5.0–0.6.0. Sections 3–5 describe v1 (markdown tables); since 0.8.0 the harness is v1.1 and the data files are JSON, see [section 8](#8-v08-json-data-files) and [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) |
 | Related | [01_設計仕様.md](./01_設計仕様.md) / [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / 日本語版: [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md) |
 
 ---
@@ -207,7 +207,7 @@ Reasoning tokens depend mostly on the model and the reasoning effort, not on the
 
 ## 8. v0.8: JSON data files
 
-In v1 the agent still wrote its data as markdown tables that the worker parsed back (with escapes such as `\|` and `<br>`, and repair code for column-name drift and split tables), and a fallback phase let the agent type the CSVs by hand. Since 0.8.0:
+In v1 the agent still wrote its data as markdown tables that the worker parsed back (with escapes such as `\|` and `<br>`, and repair code for column-name drift and split tables), and a fallback phase let the agent type the CSVs by hand. Since 0.8.0 (harness v1.1; the full explainer, including the UC naming rules and RCS, is [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md)):
 
 | Before (0.5–0.7) | Since 0.8.0 | Why |
 | ---------------- | ----------- | --- |
