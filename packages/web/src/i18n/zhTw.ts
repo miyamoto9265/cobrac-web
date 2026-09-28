@@ -37,6 +37,8 @@ export const zhTw: Record<MessageKey, string> = {
   "nav.docs": "文件",
   "nav.admin": "管理",
   "nav.signOut": "登出",
+  "nav.openMenu": "開啟選單",
+  "nav.closeMenu": "關閉選單",
 
   "login.signin": "登入",
   "login.signup": "建立帳號",

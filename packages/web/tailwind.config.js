@@ -9,5 +9,8 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // `coarse:` = touch-first devices (phones, tablets): larger tap targets without changing desktop density.
+    ({ addVariant }) => addVariant("coarse", "@media (pointer: coarse)"),
+  ],
 };

@@ -78,19 +78,19 @@ export function HcdGraphPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2">
-        <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+        <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
           <ArrowLeft size={14} /> {t("graph.backChat")}
         </Link>
-        <h1 className="font-mono text-sm font-semibold">{projectId}</h1>
+        <h1 className="min-w-0 truncate font-mono text-sm font-semibold">{projectId}</h1>
         <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">HCD</span>
-        <span className="text-xs text-slate-500">
+        <span className="hidden text-xs text-slate-500 sm:inline">
           {graph.nodes.length} UC · {graph.edges.length} Connection
         </span>
-        <label className="ml-auto flex items-center gap-1 text-xs text-slate-600">
+        <label className="ml-auto flex items-center gap-1 text-xs text-slate-600 coarse:min-h-11">
           <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} /> {t("graph.showLabels")}
         </label>
-        <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+        <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           <GitFork size={13} /> {t("graph.toFrg")}
         </Link>
       </header>
@@ -135,19 +135,19 @@ export function HcdGraphPage() {
             <Field label="Implementation" value={node.implementation} mono />
             <Section title={`Connections (in ${incoming.length} / out ${outgoing.length})`} />
             {incoming.map((e) => (
-              <button key={e.id} onClick={() => select(e.source)} className="mb-1 block w-full rounded border border-slate-200 px-2 py-1 text-left text-xs hover:bg-slate-50">
+              <button key={e.id} onClick={() => select(e.source)} className="mb-1 block w-full rounded border border-slate-200 px-2 py-1 text-left text-xs hover:bg-slate-50 coarse:py-2">
                 <span className="font-mono">{e.source}</span> → <span className="font-mono font-semibold">{node.id}</span>
                 <div className="truncate text-slate-500">{e.comments}</div>
               </button>
             ))}
             {outgoing.map((e) => (
-              <button key={e.id} onClick={() => select(e.target)} className="mb-1 block w-full rounded border border-slate-200 px-2 py-1 text-left text-xs hover:bg-slate-50">
+              <button key={e.id} onClick={() => select(e.target)} className="mb-1 block w-full rounded border border-slate-200 px-2 py-1 text-left text-xs hover:bg-slate-50 coarse:py-2">
                 <span className="font-mono font-semibold">{node.id}</span> → <span className="font-mono">{e.target}</span>
                 <div className="truncate text-slate-500">{e.comments}</div>
               </button>
             ))}
             <div className="mt-4">
-              <Link to={`/projects/${encodeURIComponent(projectId)}/frg?node=${encodeURIComponent(`U.${node.id}`)}`} className="text-xs text-blue-600 hover:underline">
+              <Link to={`/projects/${encodeURIComponent(projectId)}/frg?node=${encodeURIComponent(`U.${node.id}`)}`} className="inline-block text-xs text-blue-600 hover:underline coarse:py-3.5">
                 {t("graph.openInFrg")}
               </Link>
             </div>
@@ -162,11 +162,11 @@ export function HcdGraphPage() {
             <Field label="Measurement method" value={edge.measurementMethod} />
             <Field label="Pointers on literature" value={edge.pointersOnLiterature} />
             <Field label="Pointers on figure" value={edge.pointersOnFigure} />
-            <div className="mt-3 flex gap-2 text-xs">
-              <button onClick={() => select(edge.source)} className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50">
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <button onClick={() => select(edge.source)} className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 coarse:min-h-11">
                 {t("graph.showNode", { id: edge.source })}
               </button>
-              <button onClick={() => select(edge.target)} className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50">
+              <button onClick={() => select(edge.target)} className="rounded border border-slate-300 px-2 py-1 hover:bg-slate-50 coarse:min-h-11">
                 {t("graph.showNode", { id: edge.target })}
               </button>
             </div>

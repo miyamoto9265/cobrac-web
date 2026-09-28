@@ -7,7 +7,27 @@ body,
 #root {
   height: 100%;
 }
+/* dvh follows the mobile browser toolbar, so the chat footer stays on screen */
+#root {
+  height: 100dvh;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
+/* iOS Safari zooms into any focused field under 16px; keep desktop density on fine pointers. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+.markdown {
+  overflow-wrap: break-word;
+}
 .markdown :where(h1, h2, h3) {
   font-weight: 600;
   margin-top: 0.75rem;
@@ -166,4 +186,11 @@ body,
 .markdown.docs hr {
   margin: 1.5rem 0;
   border-color: #e2e8f0;
+}
+
+@media (pointer: coarse) {
+  .react-flow__controls-button {
+    width: 44px;
+    height: 44px;
+  }
 }

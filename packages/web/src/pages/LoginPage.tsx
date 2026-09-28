@@ -33,11 +33,11 @@ export function LoginPage() {
   };
 
   const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
-  const btn = "w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50";
-  const link = "text-xs text-blue-600 hover:underline";
+  const btn = "w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:py-3";
+  const link = "text-xs text-blue-600 hover:underline coarse:py-3.5";
 
   return (
-    <div className="flex h-full items-center justify-center bg-slate-100 px-4">
+    <div className="flex h-full items-center justify-center overflow-y-auto bg-slate-100 px-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 text-center">
           <div className="text-xl font-semibold tracking-tight">CoBRAC Agents</div>
@@ -116,7 +116,7 @@ export function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-4 flex flex-wrap justify-between gap-2">
+        <div className="mt-4 flex flex-wrap justify-between gap-x-2 coarse:mt-2">
           {mode === "signin" && (
             <>
               <button className={link} onClick={() => setMode("signup")}>

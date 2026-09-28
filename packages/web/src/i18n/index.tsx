@@ -90,8 +90,8 @@ export function LanguageSelect({ className = "", variant = "dark" }: { className
   const { locale, setLocale, t } = useI18n();
   const sel =
     variant === "light"
-      ? "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-400"
-      : "rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-400";
+      ? "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
+      : "rounded-md border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-200 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400";
   return (
     <label className={`flex items-center gap-2 ${className}`}>
       <span className="sr-only">{t("language")}</span>

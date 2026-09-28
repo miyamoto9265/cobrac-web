@@ -1,4 +1,4 @@
-import { BookOpen, FolderKanban, LogOut, MessageSquarePlus, Settings, Shield } from "lucide-react";
+import { BookOpen, FolderKanban, LogOut, Menu, MessageSquarePlus, Settings, Shield, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
@@ -15,11 +15,14 @@ export function Layout() {
   const location = useLocation();
   const { projectId } = useParams();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  // Below lg the sidebar is an off-canvas drawer.
+  const [navOpen, setNavOpen] = useState(false);
 
   const reload = () => api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
 
   useEffect(() => {
     void reload();
+    setNavOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -27,20 +30,38 @@ export function Layout() {
     return () => clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setNavOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen]);
+
   const navCls = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-md px-3 py-2 text-sm ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
+    `flex items-center gap-2 rounded-md px-3 py-2 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-200 hover:bg-slate-800";
 
   return (
     <div className="flex h-full">
-      <aside className="flex w-64 shrink-0 flex-col bg-slate-900 text-slate-100">
-        <div className="px-4 py-4">
-          <div className="text-lg font-semibold tracking-tight">CoBRAC Agents</div>
-          <div className="text-xs text-slate-400">BRA data generation</div>
+      {navOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden" onClick={() => setNavOpen(false)} aria-hidden />}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none ${
+          navOpen ? "translate-x-0" : "-translate-x-full max-lg:invisible"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-2 py-4 pl-4 pr-2 lg:pr-4">
+          <div>
+            <div className="text-lg font-semibold tracking-tight">CoBRAC Agents</div>
+            <div className="text-xs text-slate-400">BRA data generation</div>
+          </div>
+          <button type="button" onClick={() => setNavOpen(false)} className={`${iconBtn} -mt-2 lg:hidden`} aria-label={t("nav.closeMenu")} title={t("nav.closeMenu")}>
+            <X size={20} />
+          </button>
         </div>
         <div className="px-3">
           <button
             onClick={() => navigate("/chat")}
-            className="flex w-full items-center gap-2 rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800"
+            className="flex w-full items-center gap-2 rounded-md border border-slate-700 px-3 py-2 text-sm hover:bg-slate-800 coarse:py-3"
           >
             <MessageSquarePlus size={16} /> {t("nav.newProject")}
           </button>
@@ -51,7 +72,10 @@ export function Layout() {
           {projects.map((p) => (
             <button
               key={p.projectId}
-              onClick={() => navigate(`/chat/${encodeURIComponent(p.projectId)}`)}
+              onClick={() => {
+                navigate(`/chat/${encodeURIComponent(p.projectId)}`);
+                setNavOpen(false);
+              }}
               className={`mb-0.5 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-800 ${
                 projectId === p.projectId ? "bg-slate-800" : ""
               }`}
@@ -80,21 +104,34 @@ export function Layout() {
               <Shield size={16} /> {t("nav.admin")}
             </NavLink>
           )}
-          <button onClick={() => void doSignOut()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60">
+          <button onClick={() => void doSignOut()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60 coarse:py-3">
             <LogOut size={16} /> {t("nav.signOut")}
           </button>
           <div className="px-3 pt-1">
             <LanguageSelect />
           </div>
           <div className="truncate px-3 pt-1 text-xs text-slate-500">{me?.email}</div>
-          <Link to="/docs/CHANGELOG" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
+          <Link to="/docs/CHANGELOG" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
             {APP_VERSION_LABEL}
           </Link>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 overflow-hidden">
-        <Outlet />
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex shrink-0 items-center gap-1 bg-slate-900 px-1 pt-[env(safe-area-inset-top)] text-slate-100 lg:hidden">
+          <button type="button" data-testid="nav-toggle" onClick={() => setNavOpen(true)} className={iconBtn} aria-label={t("nav.openMenu")} aria-expanded={navOpen} title={t("nav.openMenu")}>
+            <Menu size={20} />
+          </button>
+          <Link to="/chat" className="min-w-0 flex-1 truncate px-1 py-2.5 text-base font-semibold tracking-tight">
+            CoBRAC Agents
+          </Link>
+          <button type="button" onClick={() => navigate("/chat")} className={iconBtn} aria-label={t("nav.newProject")} title={t("nav.newProject")}>
+            <MessageSquarePlus size={20} />
+          </button>
+        </header>
+        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

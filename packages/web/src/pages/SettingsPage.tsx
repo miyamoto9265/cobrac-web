@@ -44,11 +44,11 @@ export function SettingsPage() {
   };
 
   const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
-  const card = "rounded-xl border border-slate-200 bg-white p-5";
-  const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50";
+  const card = "min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5";
+  const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-4 text-xl font-semibold">{t("settings.title")}</h1>
       {msg && <div className={`mb-4 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div className="grid max-w-4xl gap-5 md:grid-cols-2">
@@ -62,7 +62,7 @@ export function SettingsPage() {
             {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
           </div>
           <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className={input} autoComplete="off" />
-          <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             <button
               disabled={busy || apiKey.trim().length < 20}
               className={btn}
@@ -80,7 +80,7 @@ export function SettingsPage() {
             {keyStatus?.registered && (
               <button
                 disabled={busy}
-                className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
                 onClick={() =>
                   void run(async () => {
                     await api.deleteApiKey();

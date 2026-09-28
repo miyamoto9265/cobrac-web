@@ -7,7 +7,7 @@ export function QuestionCard({ question, onAnswer, busy }: { question: string; o
   const t = useT();
   const [text, setText] = useState("");
   return (
-    <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm">
+    <div className="max-h-[50dvh] overflow-y-auto rounded-xl border-2 border-amber-300 bg-amber-50 p-3 shadow-sm sm:p-4">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-800">
         <HelpCircle size={16} /> {t("question.title")}
       </div>
@@ -28,7 +28,7 @@ export function QuestionCard({ question, onAnswer, busy }: { question: string; o
           placeholder={t("question.ph")}
           className="flex-1 resize-y rounded-md border border-amber-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
         />
-        <button type="submit" disabled={busy || !text.trim()} className="flex items-center gap-1 rounded-md bg-amber-600 px-3 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
+        <button type="submit" disabled={busy || !text.trim()} className="flex items-center gap-1 self-end rounded-md bg-amber-600 px-3 py-2 coarse:min-h-11 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50">
           <Send size={14} /> {t("question.submit")}
         </button>
       </form>

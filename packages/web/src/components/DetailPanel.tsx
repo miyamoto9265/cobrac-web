@@ -1,15 +1,25 @@
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useT } from "../i18n";
 
 export function DetailPanel({ title, subtitle, onClose, children }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode }) {
+  const t = useT();
   return (
-    <aside className="flex w-[26rem] shrink-0 flex-col border-l border-slate-200 bg-white">
+    <aside
+      className={
+        "flex flex-col border-slate-200 bg-white " +
+        // < lg: bottom sheet over the graph (full width on phones, floating card on tablets)
+        "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-30 max-lg:max-h-[60dvh] max-lg:rounded-t-2xl max-lg:border-t max-lg:pb-[env(safe-area-inset-bottom)] max-lg:shadow-2xl " +
+        "md:max-lg:bottom-3 md:max-lg:left-auto md:max-lg:right-3 md:max-lg:max-h-[70dvh] md:max-lg:w-[26rem] md:max-lg:rounded-2xl md:max-lg:border " +
+        "lg:w-[26rem] lg:shrink-0 lg:border-l"
+      }
+    >
       <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <div className="min-w-0">
           <div className="truncate font-mono text-sm font-semibold">{title}</div>
           {subtitle && <div className="truncate text-xs text-slate-500">{subtitle}</div>}
         </div>
-        <button onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-100">
+        <button onClick={onClose} aria-label={t("close")} title={t("close")} className="flex shrink-0 items-center justify-center rounded p-1 text-slate-500 hover:bg-slate-100 coarse:-my-2 coarse:-mr-2 coarse:h-11 coarse:w-11">
           <X size={16} />
         </button>
       </div>

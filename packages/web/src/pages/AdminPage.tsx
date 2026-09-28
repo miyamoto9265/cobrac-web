@@ -32,13 +32,13 @@ export function AdminPage() {
   const emailOf = (uid: string) => users.find((u) => u.userId === uid)?.email ?? uid;
 
   return (
-    <div className="h-full overflow-y-auto p-6">
+    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-4 text-xl font-semibold">{t("admin.title")}</h1>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
       <h2 className="mb-2 text-sm font-semibold">{t("admin.users", { n: users.length })}</h2>
-      <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2">{t("admin.email")}</th>
@@ -60,7 +60,7 @@ export function AdminPage() {
                     value={u.role}
                     disabled={u.userId === me.userId}
                     onChange={(e) => void api.adminUpdateUser(u.userId, { role: e.target.value as "user" | "admin" }).then(load)}
-                    className="rounded border border-slate-300 px-2 py-1 text-xs"
+                    className="rounded border border-slate-300 px-2 py-1 text-xs coarse:min-h-11"
                   >
                     <option value="user">user</option>
                     <option value="admin">admin</option>
@@ -71,7 +71,7 @@ export function AdminPage() {
                 <td className="px-4 py-2 text-xs text-slate-500">{fmtDate(u.createdAt, locale)}</td>
                 <td className="px-4 py-2 text-right">
                   {u.userId !== me.userId && (
-                    <button onClick={() => void api.adminUpdateUser(u.userId, { disabled: !u.disabled }).then(load)} className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50">
+                    <button onClick={() => void api.adminUpdateUser(u.userId, { disabled: !u.disabled }).then(load)} className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
                       {u.disabled ? t("admin.enable") : t("admin.disable")}
                     </button>
                   )}
@@ -83,8 +83,8 @@ export function AdminPage() {
       </div>
 
       <h2 className="mb-2 text-sm font-semibold">{t("admin.allProjects", { n: projects.length })}</h2>
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-2">Project ID</th>
@@ -111,7 +111,7 @@ export function AdminPage() {
                 <td className="px-4 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
                 <td className="px-4 py-2 text-right">
                   {isActive(p.status) && (
-                    <button onClick={() => void api.adminCancel(p.userId, p.projectId).then(load)} className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50">
+                    <button onClick={() => void api.adminCancel(p.userId, p.projectId).then(load)} className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 coarse:min-h-11">
                       {t("admin.forceStop")}
                     </button>
                   )}

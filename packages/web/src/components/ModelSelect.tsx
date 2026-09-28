@@ -41,7 +41,7 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
       .catch(() => undefined);
   }, [model]);
 
-  const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
+  const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
   const lbl = "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   return (

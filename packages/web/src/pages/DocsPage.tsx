@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Markdown } from "../components/Markdown";
 import { useT, type MessageKey } from "../i18n";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
@@ -44,6 +44,7 @@ const DOCS: Doc[] = Object.entries(files)
 export function DocsPage() {
   const t = useT();
   const { slug } = useParams();
+  const navigate = useNavigate();
   const doc = useMemo(() => DOCS.find((d) => d.slug === slug) ?? DOCS[0], [slug]);
 
   useEffect(() => {
@@ -54,8 +55,32 @@ export function DocsPage() {
   const repoTitle = (d: Doc) => (REPO_TITLE_KEY[d.slug] ? t(REPO_TITLE_KEY[d.slug]) : d.title);
 
   return (
-    <div className="flex h-full">
-      <nav className="w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3">
+    <div className="flex h-full flex-col lg:flex-row">
+      <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 bg-white px-4 py-2 lg:hidden">
+        <BookOpen size={16} className="shrink-0 text-slate-500" />
+        <select
+          value={doc?.slug ?? ""}
+          onChange={(e) => navigate(`/docs/${encodeURIComponent(e.target.value)}`)}
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm coarse:py-2.5"
+          aria-label={t("docs.title")}
+        >
+          <optgroup label={t("docs.title")}>
+            {DOCS.filter((d) => d.group === "docs").map((d) => (
+              <option key={d.slug} value={d.slug}>
+                {d.title}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label={t("docs.repo")}>
+            {DOCS.filter((d) => d.group === "repo").map((d) => (
+              <option key={d.slug} value={d.slug}>
+                {repoTitle(d)}
+              </option>
+            ))}
+          </optgroup>
+        </select>
+      </div>
+      <nav className="hidden w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3 lg:block">
         <div className="mb-2 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
           <BookOpen size={14} /> {t("docs.title")}
         </div>
@@ -75,9 +100,9 @@ export function DocsPage() {
           {APP_BUILD_TIME && <div>build {APP_BUILD_TIME.replace("T", " ").slice(0, 16)} UTC</div>}
         </div>
       </nav>
-      <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
         {doc ? (
-          <article className="mx-auto max-w-4xl px-8 py-6">
+          <article className="mx-auto max-w-4xl px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-6">
             <Markdown text={doc.text} className="docs" />
           </article>
         ) : (
