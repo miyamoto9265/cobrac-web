@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 512" width="860" height="512" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">UC 記述子と Circuit ID の組み立て方</title>
+<desc id="d">UC Descriptor の例 HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe は、アンカー HOMBA:12261（腹側被蓋野、DHBA 略称 VTA）に、伝達物質 nt:DA、投射先 out:BNA:223-224（側坐核、BNA 略称 NAC）、応答 resp:rpe のファセットを足したもの。Circuit ID はアンカーの略称を先頭に、ファセットを括弧内に並べて VTA(DA,out:NAC,rpe) になる。ふつうはアンカーだけで、HOMBA:12261 なら VTA。アンカーは、領域の語だけを取り出し、RCS で候補を検索し、DHBA 語なら HOMBA の ID、BNA の領域なら BNA のラベルに決め、必要なときだけファセットを足す。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="512" fill="#ffffff"/>
+<rect x="20" y="10" width="330" height="30" rx="8" fill="#8b5cf6"/><text x="185" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>UC Descriptor（キー）</tspan></text>
+<rect x="540" y="10" width="300" height="30" rx="8" fill="#0d9488"/><text x="690" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>Circuit ID（読みやすい別名）</tspan></text>
+<rect x="20" y="50" width="330" height="34" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="185" y="71.6875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe</tspan></text>
+<rect x="540" y="50" width="300" height="34" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="690" y="71.875" font-size="13" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">VTA(DA,out:NAC,rpe)</tspan></text>
+<path d="M350 67 L540 67" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="20" y="100" width="330" height="46" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="118.8" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">HOMBA:12261</tspan></text>
+<text x="32" y="136.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>アンカー：腹側被蓋野</tspan></text>
+<rect x="540" y="100" width="300" height="46" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="552" y="118.8" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">VTA</tspan></text>
+<text x="552" y="136.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>見出し = DHBA 略称</tspan></text>
+<path d="M350 123 L540 123" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="20" y="156" width="330" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="32" y="174.79999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">/nt:DA</tspan></text>
+<text x="32" y="192.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>伝達物質</tspan></text>
+<rect x="540" y="156" width="300" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="552" y="174.79999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">DA</tspan></text>
+<text x="552" y="192.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>括弧内の項目</tspan></text>
+<path d="M350 179 L540 179" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="212" width="330" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="32" y="230.79999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">/out:BNA:223-224</tspan></text>
+<text x="32" y="248.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>投射先：側坐核</tspan></text>
+<rect x="540" y="212" width="300" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="552" y="230.79999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">out:NAC</tspan></text>
+<text x="552" y="248.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>相手の SABRA 略称</tspan></text>
+<path d="M350 235 L540 235" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="268" width="330" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="32" y="286.8" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">/resp:rpe</tspan></text>
+<text x="32" y="304.2" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>応答</tspan></text>
+<rect x="540" y="268" width="300" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="552" y="295.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">rpe</tspan></text>
+<path d="M350 291 L540 291" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<text x="430" y="340" font-size="12.5" font-weight="600" fill="#0f172a" text-anchor="middle"><tspan>ふつうはアンカーだけ：</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">HOMBA:12261</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">VTA</tspan><tspan>、</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">BNA:223-224</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">NAC</tspan><tspan>、</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">BNA:57</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">A4ul@L</tspan></text>
+<text x="20" y="378" font-size="13.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>アンカーの決め方</tspan></text>
+<rect x="20" y="388" width="193" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="412.425" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>1. 領域の語だけ</tspan></text>
+<text x="32" y="429.52500000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>細胞・層・伝達物質などの</tspan></text>
+<text x="32" y="445.475" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>語を外す</tspan></text>
+<path d="M213 424 L229 424" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="229" y="388" width="193" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="241" y="412.425" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>2. RCS で検索</tspan></text>
+<text x="241" y="429.52500000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">search_homba_candidates</tspan></text>
+<text x="241" y="445.475" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>結果の </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">sabra.atlas</tspan><tspan> を見る</tspan></text>
+<path d="M422 424 L438 424" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="438" y="388" width="193" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="450" y="412.425" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>3. アンカーを決める</tspan></text>
+<text x="450" y="429.52500000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>DHBA 語 → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">HOMBA:&lt;id&gt;</tspan></text>
+<text x="450" y="445.475" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>BNA 領域 → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNA:&lt;n&gt;</tspan></text>
+<path d="M631 424 L647 424" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="647" y="388" width="193" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="659" y="412.425" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>4. 必要なら細分</tspan></text>
+<text x="659" y="429.52500000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ファセットを足す</tspan></text>
+<text x="659" y="445.475" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>（</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">part</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">nt</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">out</tspan><tspan> など）</tspan></text>
+<rect x="111.6" y="476" width="636.8" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="121.59999999999991" y="492.32" font-size="12" font-weight="600" fill="#065f46" text-anchor="start"><tspan>ワーカーの検査：構文とファセットの順・略称の一致（RCS / BNA 表）・項目とファセットの対応・記述子の重複</tspan></text>
+</svg>

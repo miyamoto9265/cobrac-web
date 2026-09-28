@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 1000" width="430" height="1000" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Data flow of harness v1 (app 0.5–0.6)</title>
+<desc id="d">The agent writes six HCD markdown files plus meta.json and five FRG markdown files. The worker parses the tables of 2_BIF.md, 3_UC.md, 4_Connection.md, 3_FinalFRG.md and 4_FunctionDetails.md with markdown.ts, checks them with checkHcd and checkFrg, and builds five CSVs with buildCsvs. The other markdown files are only checked for existence. When the CSVs could not be built, the agent typed them by hand following phases/CSV.md. Only the xlsx and graphs were visible in the app.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="1000" fill="#ffffff"/>
+<text x="12" y="26" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>Files the agent writes</tspan></text>
+<rect x="10" y="38" width="410" height="272" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="58" font-size="12.5" font-weight="700" fill="#8b5cf6" text-anchor="start"><tspan>HCD (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">{P}_HCD/</tspan><tspan>)</tspan></text>
+<rect x="20" y="68" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="86.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">../meta.json</tspan></text>
+<text x="400" y="86.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>JSON</tspan></text>
+<rect x="20" y="102" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="120.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">1_Thinking.md</tspan></text>
+<text x="400" y="120.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<rect x="20" y="136" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="154.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">2_BIF.md</tspan></text>
+<text x="400" y="154.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>tables parsed</tspan></text>
+<rect x="20" y="170" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="188.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">3_UC.md</tspan></text>
+<text x="400" y="188.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>tables parsed</tspan></text>
+<rect x="20" y="204" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="222.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">4_Connection.md</tspan></text>
+<text x="400" y="222.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>tables parsed</tspan></text>
+<rect x="20" y="238" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="256.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">5_Verification.md</tspan></text>
+<text x="400" y="256.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<rect x="20" y="272" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="290.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">6_FinalReport.md</tspan></text>
+<text x="400" y="290.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<rect x="10" y="324" width="410" height="204" rx="10" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="344" font-size="12.5" font-weight="700" fill="#8b5cf6" text-anchor="start"><tspan>FRG (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">{P}_FRG/</tspan><tspan>)</tspan></text>
+<rect x="20" y="354" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="372.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">1_InitialDecomposition.md</tspan></text>
+<text x="400" y="372.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<rect x="20" y="388" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="406.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">2_OptimizedFRG.md</tspan></text>
+<text x="400" y="406.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<rect x="20" y="422" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="440.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">3_FinalFRG.md</tspan></text>
+<text x="400" y="440.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>tables parsed</tspan></text>
+<rect x="20" y="456" width="390" height="28" rx="6" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.3"/>
+<text x="30" y="474.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">4_FunctionDetails.md</tspan></text>
+<text x="400" y="474.5" font-size="11" font-weight="400" fill="#4c1d95" text-anchor="end"><tspan>tables parsed</tspan></text>
+<rect x="20" y="490" width="390" height="28" rx="6" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.3" stroke-dasharray="5 3"/>
+<text x="30" y="508.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">5_Report.md</tspan></text>
+<text x="400" y="508.5" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>existence only</tspan></text>
+<circle cx="90.368" cy="184" r="11" fill="#ef4444"/><text x="90.368" y="188.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>3</tspan></text>
+<circle cx="412" cy="356" r="11" fill="#ef4444"/><text x="412" y="360.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>2</tspan></text>
+<text x="12" y="576" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Worker</tspan></text>
+<rect x="10" y="588" width="278" height="70" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5"/>
+<text x="22" y="611.5999999999999" font-size="13" font-weight="700" fill="#991b1b" text-anchor="start"><tspan>Parse markdown tables (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">markdown.ts</tspan><tspan>)</tspan></text>
+<text x="22" y="628.9" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>code that rescues </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">\|</tspan><tspan> and </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">&lt;br&gt;</tspan><tspan> escapes,</tspan></text>
+<text x="22" y="644.85" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>column-name drift, split and vertical tables</tspan></text>
+<path d="M149 658 L149 682" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="682" width="278" height="52" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="704.5749999999999" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Checks (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">checkHcd</tspan><tspan>, </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">checkFrg</tspan><tspan>)</tspan></text>
+<text x="22" y="721.875" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>columns, IDs, refs, interfaces, FRG rules</tspan></text>
+<path d="M149 734 L149 758" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="758" width="278" height="40" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="782.55" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">buildCsvs</tspan><tspan> → 5 CSVs</tspan></text>
+<path d="M149 798 L149 822" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="822" width="278" height="40" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="846.55" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">csv_to_excel.py</tspan><tspan> → xlsx, graphs</tspan></text>
+<path d="M149 862 L149 886" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="886" width="278" height="52" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="908.5749999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>App</tspan></text>
+<text x="22" y="925.875" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>xlsx and graphs only (no markdown)</tspan></text>
+<circle cx="280" cy="590" r="11" fill="#ef4444"/><text x="280" y="594.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>1</tspan></text>
+<path d="M215 528 L215 550 L149 550 L149 588" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="306" y="752" width="114" height="86" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="363" y="774.3" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>if it fails,</tspan></text>
+<text x="363" y="790.9749999999999" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>the agent types</tspan></text>
+<text x="363" y="807.6499999999999" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>the CSVs</tspan></text>
+<text x="363" y="824.3249999999998" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">phases/CSV.md</tspan></text>
+<path d="M288 778 L306 778" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-f59e0b)"/>
+<path d="M363 838 L363 842 L288 842" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-f59e0b)"/>
+<circle cx="414" cy="754" r="11" fill="#ef4444"/><text x="414" y="758.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>4</tspan></text>
+<text x="12" y="968" font-size="12" font-weight="400" fill="#991b1b" text-anchor="start"><tspan>① fragile table parsing</tspan></text>
+<text x="162.88000000000002" y="968" font-size="12" font-weight="400" fill="#991b1b" text-anchor="start"><tspan>② drafts nobody reads</tspan></text>
+<text x="12" y="988" font-size="12" font-weight="400" fill="#991b1b" text-anchor="start"><tspan>③ free-form Circuit IDs</tspan></text>
+<text x="176.32" y="988" font-size="12" font-weight="400" fill="#991b1b" text-anchor="start"><tspan>④ hand-typed CSV fallback</tspan></text>
+</svg>
