@@ -154,6 +154,9 @@ export const en = {
   "chat.notFound": "Project not found",
   "chat.hcd": "HCD graph",
   "chat.frg": "FRG graph",
+  "chat.report": "Report",
+  "chat.decisionLog": "Decision log",
+  "chat.download": "Download",
   "chat.stop": "Stop",
   "chat.retry": "Retry from here",
   "chat.usageTip": "Show token usage and estimated cost",
@@ -209,7 +212,7 @@ export const en = {
   "sys.validationFailed": "Checks found {count} issue(s) in {step}; asked the agent to fix them.",
   "sys.validationWarn": "{step} still has {count} unresolved check issue(s); continuing.",
   "sys.phaseIncomplete": "The {step} step could not be completed after the allowed fix attempts. Use a follow-up or retry.",
-  "sys.csvFallback": "Automatic CSV conversion failed; asked the agent to write the CSVs.",
+  "sys.legacyWorkspace": "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.",
   "sys.csvBuilt": "CSVs generated from the HCD/FRG tables.",
 
   "admin.denied": "Admins only.",

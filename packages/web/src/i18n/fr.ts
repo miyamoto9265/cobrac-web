@@ -156,6 +156,9 @@ export const fr: Record<MessageKey, string> = {
   "chat.notFound": "Projet introuvable",
   "chat.hcd": "Graphe HCD",
   "chat.frg": "Graphe FRG",
+  "chat.report": "Rapport",
+  "chat.decisionLog": "Journal des décisions",
+  "chat.download": "Télécharger",
   "chat.stop": "Arrêter",
   "chat.retry": "Réessayer à partir d’ici",
   "chat.usageTip": "Afficher l’utilisation des tokens et le coût estimé",
@@ -211,7 +214,7 @@ export const fr: Record<MessageKey, string> = {
   "sys.validationFailed": "La vérification a trouvé {count} problème(s) dans {step} ; l’agent a été chargé de les corriger.",
   "sys.validationWarn": "{step} comporte encore {count} point(s) de contrôle non résolu(s) ; poursuite.",
   "sys.phaseIncomplete": "L’étape {step} n’a pas pu être terminée après le nombre autorisé de corrections. Utilisez un suivi ou une nouvelle tentative.",
-  "sys.csvFallback": "La conversion CSV automatique a échoué ; l’agent a été chargé d’écrire les CSV.",
+  "sys.legacyWorkspace": "Ce projet utilise le format de fichiers antérieur à v0.8 et ne peut plus être poursuivi. Le xlsx et les graphes restent disponibles ; créez un nouveau projet pour continuer.",
   "sys.csvBuilt": "CSV générés à partir des tableaux HCD/FRG.",
 
   "admin.denied": "Réservé aux admins.",

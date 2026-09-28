@@ -185,6 +185,20 @@ describe("project IDs", () => {
     await json(call(A, "GET", `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv")}`));
     expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv", undefined);
   });
+
+  it("returns the report text for the viewer and refuses non-text keys", async () => {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR", nameSource: "user" });
+    const aws = await import("../src/lib/aws.js");
+    vi.mocked(aws.getObjectText).mockResolvedValueOnce("# Report\n\n## HCD\n");
+    const r = await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe("# Report\n\n## HCD\n");
+    expect(aws.getObjectText).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "workspace/report.md");
+    expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`)).status).toBe(400);
+    expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("../x.md")}`)).status).toBe(400);
+    expect((await call(B, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`)).status).toBe(404);
+  });
 });
 
 describe("legacy Project IDs shared by two users (project-index cross-talk)", () => {

@@ -156,6 +156,9 @@ export const es: Record<MessageKey, string> = {
   "chat.notFound": "Proyecto no encontrado",
   "chat.hcd": "Gráfico HCD",
   "chat.frg": "Gráfico FRG",
+  "chat.report": "Informe",
+  "chat.decisionLog": "Registro de decisiones",
+  "chat.download": "Descargar",
   "chat.stop": "Detener",
   "chat.retry": "Reintentar desde aquí",
   "chat.usageTip": "Mostrar uso de tokens y costo estimado",
@@ -211,7 +214,7 @@ export const es: Record<MessageKey, string> = {
   "sys.validationFailed": "La verificación encontró {count} problema(s) en {step}; se pidió al agente que los corrija.",
   "sys.validationWarn": "{step} aún tiene {count} problema(s) de verificación sin resolver; se continúa.",
   "sys.phaseIncomplete": "No se pudo completar el paso {step} tras los intentos de corrección permitidos. Usa un seguimiento o un reintento.",
-  "sys.csvFallback": "La conversión automática a CSV falló; se pidió al agente que escriba los CSV.",
+  "sys.legacyWorkspace": "Este proyecto usa el formato de archivos anterior a v0.8 y ya no se puede continuar. El xlsx y los gráficos siguen disponibles; crea un proyecto nuevo para continuar.",
   "sys.csvBuilt": "CSV generados a partir de las tablas HCD/FRG.",
 
   "admin.denied": "Solo administradores.",

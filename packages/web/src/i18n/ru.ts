@@ -156,6 +156,9 @@ export const ru: Record<MessageKey, string> = {
   "chat.notFound": "Проект не найден",
   "chat.hcd": "Граф HCD",
   "chat.frg": "Граф FRG",
+  "chat.report": "Отчёт",
+  "chat.decisionLog": "Журнал решений",
+  "chat.download": "Скачать",
   "chat.stop": "Остановить",
   "chat.retry": "Повторить отсюда",
   "chat.usageTip": "Показать расход токенов и оценку стоимости",
@@ -211,7 +214,7 @@ export const ru: Record<MessageKey, string> = {
   "sys.validationFailed": "Проверка нашла проблем в {step}: {count}; агенту поручено их исправить.",
   "sys.validationWarn": "В {step} осталось нерешённых замечаний проверки: {count}; продолжаем.",
   "sys.phaseIncomplete": "Шаг {step} не удалось завершить за допустимое число исправлений. Используйте доработку или повтор.",
-  "sys.csvFallback": "Автоматическое преобразование в CSV не удалось; агенту поручено написать CSV.",
+  "sys.legacyWorkspace": "Проект создан в формате файлов до v0.8, и его нельзя продолжить. xlsx и графы остаются доступными; чтобы продолжить работу, создайте новый проект.",
   "sys.csvBuilt": "CSV созданы из таблиц HCD/FRG.",
 
   "admin.denied": "Только для администраторов.",

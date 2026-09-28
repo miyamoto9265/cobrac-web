@@ -156,6 +156,9 @@ export const zhTw: Record<MessageKey, string> = {
   "chat.notFound": "找不到專案",
   "chat.hcd": "HCD 圖",
   "chat.frg": "FRG 圖",
+  "chat.report": "報告",
+  "chat.decisionLog": "決策紀錄",
+  "chat.download": "下載",
   "chat.stop": "停止",
   "chat.retry": "從此處重試",
   "chat.usageTip": "顯示 Token 用量與預估費用",
@@ -211,7 +214,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.validationFailed": "{step} 檢查發現 {count} 個問題，已請代理修正。",
   "sys.validationWarn": "{step} 仍有 {count} 個未解決的檢查問題；繼續執行。",
   "sys.phaseIncomplete": "在允許的修正次數內未能完成 {step} 步驟。請使用後續指示或重試。",
-  "sys.csvFallback": "CSV 自動轉換失敗，已請代理撰寫 CSV。",
+  "sys.legacyWorkspace": "此專案使用 v0.8 之前的檔案格式，無法繼續執行。xlsx 與圖仍可使用；如需繼續，請建立新專案。",
   "sys.csvBuilt": "已根據 HCD/FRG 表格產生 CSV。",
 
   "admin.denied": "僅限管理員。",

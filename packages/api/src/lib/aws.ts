@@ -56,6 +56,7 @@ function categorize(rel: string): ArtifactInfo["category"] {
   if (rel.includes("_CSV/")) return "csv";
   if (rel.includes("_HCD/")) return "hcd";
   if (rel.includes("_FRG/")) return "frg";
+  if (/^workspace\/[^/]+\.md$/.test(rel)) return "doc";
   return "other";
 }
 

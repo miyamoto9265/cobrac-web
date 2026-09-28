@@ -156,6 +156,9 @@ export const ja: Record<MessageKey, string> = {
   "chat.notFound": "プロジェクトが見つかりません",
   "chat.hcd": "HCD グラフ",
   "chat.frg": "FRG グラフ",
+  "chat.report": "レポート",
+  "chat.decisionLog": "判断ログ",
+  "chat.download": "ダウンロード",
   "chat.stop": "停止",
   "chat.retry": "続きからリトライ",
   "chat.usageTip": "トークン使用量と推定料金の内訳を表示",
@@ -211,7 +214,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.validationFailed": "{step} の検査で {count} 件の問題が見つかったため、エージェントに修正を依頼しました。",
   "sys.validationWarn": "{step} に未解決の検査項目が {count} 件残っていますが、先に進みます。",
   "sys.phaseIncomplete": "所定回数の修正後も {step} ステップを完了できませんでした。フォローアップ指示またはリトライで続きを実行してください。",
-  "sys.csvFallback": "CSV の自動変換に失敗したため、エージェントに CSV の作成を依頼しました。",
+  "sys.legacyWorkspace": "このプロジェクトは v0.8 より前のファイル形式で作られているため、続きを実行できません。xlsx とグラフは引き続き利用できます。作業を続けるには新しいプロジェクトを作成してください。",
   "sys.csvBuilt": "HCD/FRG の表から CSV を生成しました。",
 
   "admin.denied": "管理者のみアクセスできます。",
