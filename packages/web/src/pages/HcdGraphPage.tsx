@@ -119,6 +119,7 @@ export function HcdGraphPage() {
             <span className="mb-3 inline-block rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ background: ROI_COLORS[node.roiClass] }}>
               {t(`roi.${node.roiClass}` as MessageKey)}
             </span>
+            <Field label="UC Descriptor" value={node.ucDescriptor} mono />
             <Field label="Source of ID" value={node.sourceOfId} />
             <Field label="Transmitter" value={node.transmitter} />
             <Field label="Modulation Type" value={node.modulationType} />

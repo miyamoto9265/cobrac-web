@@ -124,6 +124,7 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
         L Comments              (元 F)
         M Contributor           (入力値)
         N Project ID            (入力値)
+        O UC Descriptor         (元 G。列がある場合だけ。BRA の A〜N 列の位置を変えないよう最後に置く)
     """
     df = pd.read_csv(
         os.path.join(csv_dir, "Circuits.csv"),
@@ -131,6 +132,7 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
         keep_default_na=False,
     )
     n = len(df)
+    descriptor = df.pop("UC Descriptor") if "UC Descriptor" in df.columns else None
 
     df.insert(3, "Sub-Circuits", [""] * n)
     df.insert(4, "Super Class",  [""] * n)
@@ -142,6 +144,8 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
 
     df["Contributor"] = contributor
     df["Project ID"]  = project_id
+    if descriptor is not None:
+        df["UC Descriptor"] = descriptor
 
     return df
 

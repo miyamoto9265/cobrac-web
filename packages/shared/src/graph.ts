@@ -155,6 +155,7 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
       return {
         id,
         label: id,
+        ucDescriptor: col(c, "UC Descriptor") || undefined,
         names: col(c, "Names", "Name"),
         sourceOfId: col(c, "Source of ID"),
         transmitter: col(c, "Transmitter"),

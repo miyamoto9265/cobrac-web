@@ -222,6 +222,8 @@ The source of truth is the GitHub repository's Actions **Variables** (and the **
 | `COBRAC_MAX_CONCURRENT_JOBS_PER_USER` | 1 | Per user |
 | `COBRAC_CODEX_MODEL` | empty | Model when unspecified |
 | `COBRAC_CODEX_REASONING_EFFORT` | high | Effort when unspecified |
+| `COBRAC_RCS_MCP_URL` | production `rcs-mcp` endpoint | RCS MCP server for SABRA lookups; empty disables RCS. Optional, not in Actions Variables |
+| `COBRAC_RCS_MCP_SECRET_NAME` | `rcs/mcp-bearer-token` | Secret with the accepted RCS tokens (owned by rosetta-candidate-search). The worker task role gets `GetSecretValue` on it |
 
 Raising concurrency grows Fargate linearly. Pinning a larger model grows only the OpenAI side.
 

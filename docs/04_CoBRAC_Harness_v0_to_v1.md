@@ -130,7 +130,8 @@ After each turn the worker parses the markdown tables and checks, among other th
 - every connection endpoint is a UC defined in `3_UC.md`, and every Reference ID exists in `2_BIF.md`;
 - each ROI-internal UC's interface inputs and outputs match its senders and receivers in `4_Connection.md`;
 - FRG: exactly one root, no cycles, a GN has at most 2 UC children, a GN made only of UCs has exactly 2, a UC has at most 2 GN parents, and every ROI-internal UC is attached;
-- the CSV content is English.
+- the CSV content is English;
+- UC naming (projects with a `UC Descriptor` column, i.e. every project created from v0.7): the descriptor syntax and facet order, the Circuit ID syntax `<SABRA abbreviation>[@L|@R][(item,item)]`, that the Circuit ID starts with the official abbreviation of the anchor (BNA areas from a built-in table, HOMBA/DHBA terms looked up by the worker with RCS `get_homba_term`), that the parenthesized items match the facets (none for an anchor-only UC, the normal case), and that no two UCs share a descriptor. Interfaces and Subnodes are split only on separators outside brackets, so IDs such as `NAC(shell,DRD1+)` parse.
 
 Problems go back to the agent as a list ("`PC`: Interface inputs [GC] differ from the senders in 4_Connection.md [GC, IO]"). In the chat, the check notice can be expanded to show every issue. After 3 fix attempts the phase continues with a warning, or fails if the output cannot be used at all.
 

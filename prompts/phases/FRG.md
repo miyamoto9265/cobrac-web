@@ -5,7 +5,7 @@ Build the FRG in `{P}/{P}_FRG/` from the TLF and the ROI-internal UCs of the fin
 ## Concepts
 
 - Root: the TLF node. Intermediate: **GN**s, sub-functions over several levels; each is necessary for its parent and sufficiently realized by the combination of its children. Leaves: **UC**s (the HCD's ROI-internal Uniform Circuits, called Uniform Components here).
-- Node IDs: kebab-case, no spaces, prefix `R.` for the TLF and GNs (e.g. `R.Motor-Learning`), `U.` for UCs (e.g. `U.PC`).
+- Node IDs: kebab-case, no spaces, prefix `R.` for the TLF and GNs (e.g. `R.Motor-Learning`), `U.` + Circuit ID for UCs (e.g. `U.VTA`, `U.NAC(shell,DRD1+)`; Circuit IDs keep their own format). Separate Subnodes with `;`.
 
 ## Steps and files
 

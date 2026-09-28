@@ -59,8 +59,21 @@ describe("markdown tables", () => {
   });
 
   it("parses interfaces", () => {
-    expect(parseInterface("([PC], [FTN]) = GC([VN])")).toEqual({ outputs: ["PC", "FTN"], inputs: ["VN"] });
+    expect(parseInterface("([PC], [FTN]) = GC([VN])")).toEqual({ name: "GC", outputs: ["PC", "FTN"], inputs: ["VN"] });
     expect(parseInterface("no interface")).toBeNull();
+  });
+
+  it("parses interfaces whose Circuit IDs contain brackets and commas", () => {
+    expect(parseInterface("([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)])")).toEqual({
+      name: "NAC(shell,DRD1+)",
+      outputs: ["VTA(DA,out:NAC,rpe)", "Arc(AGRP+)"],
+      inputs: ["A9/46d@L(L3)", "VTA(DA,out:NAC,rpe)"],
+    });
+    expect(parseInterface("[U.NAC(shell)] = `U.VTA(DA)`([U.NAC(shell)])")).toEqual({ name: "VTA(DA)", outputs: ["NAC(shell)"], inputs: ["NAC(shell)"] });
+    expect(parseInterface("(U.NAC(shell), U.Arc(AGRP+)) = VTA\n([VTA])")).toEqual({ name: "VTA", outputs: ["NAC(shell)", "Arc(AGRP+)"], inputs: ["VTA"] });
+    expect(parseInterface("([A]) = B()")).toEqual({ name: "B", outputs: ["A"], inputs: [] });
+    expect(parseInterface("([A]) = f(x) = B([C])")).toBeNull();
+    expect(parseInterface("([A]) = B([C]")).toBeNull();
   });
 });
 

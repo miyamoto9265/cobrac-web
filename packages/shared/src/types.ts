@@ -191,6 +191,8 @@ export type EdgeSign = "excitatory" | "inhibitory" | "modulatory" | "unknown";
 export interface HcdNode {
   id: string; // Circuit ID without prefix
   label: string;
+  /** UC Descriptor (Circuits.csv of projects made before the naming convention have none) */
+  ucDescriptor?: string;
   names: string;
   sourceOfId: string;
   transmitter: string;

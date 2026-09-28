@@ -25,7 +25,8 @@ Work only inside the project folder named after the Project ID in the prompt (us
   - one header row, one `|---|` separator row, one row per record; no merged or wrapped rows;
   - escape a literal pipe inside a cell as `\|` (e.g. `P([U.B]\|[U.C])`); use `<br>` for line breaks inside a cell;
   - use the exact column headers given in the phase spec.
-- Circuit IDs and node IDs: no spaces (kebab-case), well-known abbreviations allowed (`VTA`, `DMT`). Wrap them in backticks in markdown.
+- Circuit IDs follow the UC naming rules of the HCD phase (SABRA abbreviation, e.g. `VTA`, `NAC(shell,DRD1+)`); GN node IDs (`R.`) have no spaces (kebab-case). Wrap both in backticks in markdown.
+- The `rcs` MCP server (ROSETTA Candidate Search) resolves region names to SABRA units (HOMBA/DHBA and BNA). Use it to anchor UCs; send it only region names and a short context (ROI, TLF, species).
 - Cite literature as `[Author, Year]` Reference IDs that exist in `2_BIF.md`'s reference table. Use web search actively; do not invent DOIs (use `N/A` when unknown).
 - Where scientific accuracy cannot be guaranteed, say so inside the cell rather than overstating.
 
