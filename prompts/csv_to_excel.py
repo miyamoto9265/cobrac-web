@@ -9,6 +9,8 @@ CoBRAC CSV → xlsx 変換スクリプト（CoBRAC Agents 版）
 
 {base-dir}/{ProjectID}/{ProjectID}_CSV/ フォルダから以下のCSVを読み込む:
     Project.csv, References.csv, Circuits.csv, Connections.csv, FRG.csv
+これらはワーカーがエージェントの JSON（uc.json / connections.json / references.json / frg.json）から
+決定的に生成したもの（packages/shared/src/harness.ts の buildCsvs）。
 Project.csv の A2 / B2 には入力値を設定して xlsx に出力する。
 出力: {base-dir}/{ProjectID}/{ProjectID}_CSV/{ProjectID}.bra.xlsx（--output で変更可）
 """
@@ -107,7 +109,7 @@ def process_references(csv_dir: str) -> pd.DataFrame:
 def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.DataFrame:
     """
     元の列構成: A Circuit ID / B Source of ID / C Names /
-                D Transmitter / E Modulation Type / F Comments
+                D Transmitter / E Modulation Type / F Comments / G UC Descriptor
 
     処理後の列構成:
         A Circuit ID
@@ -124,7 +126,7 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
         L Comments              (元 F)
         M Contributor           (入力値)
         N Project ID            (入力値)
-        O UC Descriptor         (元 G。列がある場合だけ。BRA の A〜N 列の位置を変えないよう最後に置く)
+        O UC Descriptor         (元 G。BRA の A〜N 列の位置を変えないよう最後に置く)
     """
     df = pd.read_csv(
         os.path.join(csv_dir, "Circuits.csv"),
@@ -132,7 +134,7 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
         keep_default_na=False,
     )
     n = len(df)
-    descriptor = df.pop("UC Descriptor") if "UC Descriptor" in df.columns else None
+    descriptor = df.pop("UC Descriptor")
 
     df.insert(3, "Sub-Circuits", [""] * n)
     df.insert(4, "Super Class",  [""] * n)
@@ -144,8 +146,7 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
 
     df["Contributor"] = contributor
     df["Project ID"]  = project_id
-    if descriptor is not None:
-        df["UC Descriptor"] = descriptor
+    df["UC Descriptor"] = descriptor
 
     return df
 

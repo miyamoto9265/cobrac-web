@@ -9,6 +9,14 @@ describe("resolveSystemMessage", () => {
     });
   });
 
+  it("maps the legacy-workspace error stored on the project", () => {
+    expect(
+      resolveSystemMessage(
+        "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.",
+      ),
+    ).toEqual({ key: "sys.legacyWorkspace" });
+  });
+
   it("parses Japanese step notices without meta", () => {
     expect(resolveSystemMessage("ステップ FRG が完了しました。")).toEqual({
       key: "sys.stepDone",

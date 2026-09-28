@@ -322,7 +322,8 @@ export interface ArtifactInfo {
   name: string;
   size: number;
   lastModified: string;
-  category: "output" | "csv" | "hcd" | "frg" | "graph" | "other";
+  /** `doc` = the free-text markdown at the workspace root (report.md, decision_log.md) */
+  category: "output" | "csv" | "hcd" | "frg" | "graph" | "doc" | "other";
 }
 
 export interface ListProjectsResponse {

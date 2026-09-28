@@ -1,13 +1,16 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { FrgFileKey, HcdFileKey, StepState, WorkflowStep } from "@cobrac/shared";
-import { CSV_FILE_NAMES, FRG_FILES, HCD_FILES } from "@cobrac/shared";
+import type { FrgInputs, HcdInputs, StepState, WorkflowStep } from "@cobrac/shared";
+import { CSV_FILE_NAMES, FRG_FILES, HCD_FILES, PROJECT_FILES } from "@cobrac/shared";
 
 export const CSV_FILES: readonly string[] = CSV_FILE_NAMES;
 
 export interface ProjectPaths {
   root: string; // {workDir}/{projectId}
   meta: string;
+  decisionLog: string;
+  report: string;
+  rcsLog: string;
   hcd: string;
   frg: string;
   csv: string;
@@ -17,7 +20,10 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
   const root = join(workDir, projectId);
   return {
     root,
-    meta: join(root, "meta.json"),
+    meta: join(root, PROJECT_FILES.meta),
+    decisionLog: join(root, PROJECT_FILES.decisionLog),
+    report: join(root, PROJECT_FILES.report),
+    rcsLog: join(root, PROJECT_FILES.rcsLog),
     hcd: join(root, `${projectId}_HCD`),
     frg: join(root, `${projectId}_FRG`),
     csv: join(root, `${projectId}_CSV`),
@@ -57,19 +63,6 @@ export function currentStepOf(states: Record<WorkflowStep, StepState>): Workflow
   return null;
 }
 
-export function listArtifactsSummary(p: ProjectPaths): string[] {
-  const out: string[] = [];
-  for (const [label, dir] of [
-    ["HCD", p.hcd],
-    ["FRG", p.frg],
-    ["CSV", p.csv],
-  ] as const) {
-    if (!existsSync(dir)) continue;
-    for (const f of readdirSync(dir)) out.push(`${label}/${f}`);
-  }
-  return out;
-}
-
 function readIfExists(path: string): string | null {
   try {
     return existsSync(path) ? readFileSync(path, "utf8") : null;
@@ -78,33 +71,30 @@ function readIfExists(path: string): string | null {
   }
 }
 
-function readFirst(dir: string, names: readonly string[]): string | null {
-  for (const n of names) {
-    const t = readIfExists(join(dir, n));
-    if (t !== null) return t;
+export function loadHcdFiles(p: ProjectPaths): HcdInputs {
+  return {
+    meta: readIfExists(p.meta),
+    decisionLog: readIfExists(p.decisionLog),
+    report: readIfExists(p.report),
+    references: readIfExists(join(p.hcd, HCD_FILES.references)),
+    uc: readIfExists(join(p.hcd, HCD_FILES.uc)),
+    connections: readIfExists(join(p.hcd, HCD_FILES.connections)),
+  };
+}
+
+export function loadFrgFiles(p: ProjectPaths): FrgInputs {
+  return { report: readIfExists(p.report), frg: readIfExists(join(p.frg, FRG_FILES.frg)) };
+}
+
+/**
+ * A workspace made before v0.8 (markdown tables such as `3_UC.md`, no `uc.json`). The harness no longer reads it,
+ * so follow-ups and retries stop instead of spending tokens on a project that cannot be validated.
+ */
+export function isLegacyWorkspace(p: ProjectPaths): boolean {
+  if (existsSync(join(p.hcd, HCD_FILES.uc))) return false;
+  try {
+    return [p.hcd, p.frg].some((d) => existsSync(d) && readdirSync(d).some((f) => f.endsWith(".md")));
+  } catch {
+    return false;
   }
-  return null;
-}
-
-export function loadHcdFiles(p: ProjectPaths): { files: Partial<Record<HcdFileKey, string | null>>; meta: string | null } {
-  const files: Partial<Record<HcdFileKey, string | null>> = {};
-  for (const k of Object.keys(HCD_FILES) as HcdFileKey[]) files[k] = readFirst(p.hcd, HCD_FILES[k]);
-  return { files, meta: readIfExists(p.meta) };
-}
-
-export function loadFrgFiles(p: ProjectPaths): Partial<Record<FrgFileKey, string | null>> {
-  const files: Partial<Record<FrgFileKey, string | null>> = {};
-  for (const k of Object.keys(FRG_FILES) as FrgFileKey[]) files[k] = readFirst(p.frg, FRG_FILES[k]);
-  return files;
-}
-
-/** True when every CSV except Project.csv was written after `since` (epoch ms). */
-export function csvWrittenSince(p: ProjectPaths, since: number): boolean {
-  return CSV_FILES.filter((f) => f !== "Project.csv").every((f) => {
-    try {
-      return statSync(join(p.csv, f)).mtimeMs > since;
-    } catch {
-      return false;
-    }
-  });
 }

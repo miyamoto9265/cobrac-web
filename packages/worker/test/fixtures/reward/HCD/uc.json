@@ -1,0 +1,80 @@
+{
+  "ucs": [
+    {
+      "circuitId": "A9/46d@L",
+      "descriptor": "BNA:15",
+      "names": "left dorsal area 9/46",
+      "roi": "noROI(input)",
+      "sourceOfId": [
+        "[Haber, 2010]"
+      ],
+      "transmitter": "Glutamate",
+      "modulationType": "Excitatory",
+      "comments": "Prefrontal context input to the striatum",
+      "interface": "",
+      "requirement": "",
+      "requirementRealization": "",
+      "capability": "",
+      "mechanism": "",
+      "implementation": "",
+      "outputSemantics": "[A9/46d@L]task context;"
+    },
+    {
+      "circuitId": "VTA",
+      "descriptor": "HOMBA:12261",
+      "names": "ventral tegmental area",
+      "roi": "internal",
+      "sourceOfId": [
+        "[Schultz, 1997]"
+      ],
+      "transmitter": "Dopamine",
+      "modulationType": "Modulatory",
+      "comments": "Dopamine neurons signalling reward prediction error",
+      "interface": "([U.NAC]) = VTA([U.NAC])",
+      "outputSemantics": "[VTA]reward prediction error;",
+      "requirement": "Compute the reward prediction error. input: [U.NAC] (expected value); output: [U.NAC] (prediction error).",
+      "requirementRealization": "The single input [U.NAC] supplies the expected value that is subtracted from the received reward; the output returns the error to [U.NAC].",
+      "capability": "Temporal-difference error computation [Schultz, 1997].",
+      "mechanism": "Phasic firing rises above baseline for unexpected reward and dips below baseline when an expected reward is omitted.",
+      "implementation": "[U.VTA] = r + gamma*V(t+1) - [U.NAC]"
+    },
+    {
+      "circuitId": "NAC",
+      "descriptor": "BNA:223-224",
+      "names": "nucleus accumbens",
+      "roi": "internal",
+      "sourceOfId": [
+        "[Haber, 2010]"
+      ],
+      "transmitter": "GABA",
+      "modulationType": "Inhibitory",
+      "comments": "Ventral striatum storing state values",
+      "interface": "([U.VTA], [U.Arc]) = NAC([U.A9/46d@L], [U.VTA])",
+      "outputSemantics": "[NAC]state value;",
+      "requirement": "Learn state values. input: [U.A9/46d@L] (task context), [U.VTA] (prediction error); output: [U.VTA] (expected value), [U.Arc] (value-based drive).",
+      "requirementRealization": "Context from [U.A9/46d@L] selects the state, the error from [U.VTA] updates its value, and the value is sent to [U.VTA] and [U.Arc].",
+      "capability": "Value learning by a three-factor plasticity rule [Haber, 2010].",
+      "mechanism": "Dopamine-gated plasticity of cortico-striatal synapses stores the value of each context.",
+      "implementation": "[U.NAC] = V([U.A9/46d@L]); dV = alpha*[U.VTA]"
+    },
+    {
+      "circuitId": "Arc",
+      "descriptor": "HOMBA:10492",
+      "names": "arcuate nucleus",
+      "roi": "noROI(output)",
+      "sourceOfId": [
+        "[Luo, 2011]"
+      ],
+      "transmitter": "GABA",
+      "modulationType": "Inhibitory",
+      "comments": "Hypothalamic target receiving value-based drive",
+      "interface": "",
+      "requirement": "",
+      "requirementRealization": "",
+      "capability": "",
+      "mechanism": "",
+      "implementation": "",
+      "outputSemantics": ""
+    }
+  ]
+}

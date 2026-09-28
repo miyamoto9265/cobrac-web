@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronUp, Download, GitFork, Loader2, Network, Play, RotateCcw, Send, Square } from "lucide-react";
+import { ChevronDown, ChevronUp, Download, FileText, GitFork, Loader2, Network, NotebookPen, Play, RotateCcw, Send, Square } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, ReasoningEffort, WsServerEvent } from "@cobrac/shared";
-import { PRICING_AS_OF, braDownloadFileName, formatUsd, projectDisplayName, projectNameKey, resolveSystemMessage } from "@cobrac/shared";
+import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, projectNameKey, resolveSystemMessage } from "@cobrac/shared";
+import { DocViewer } from "../components/DocViewer";
 import { MessageItem } from "../components/MessageItem";
 import { UsageBadge } from "../components/UsageBadge";
 import { ModelSelect } from "../components/ModelSelect";
@@ -179,6 +180,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState(false);
   const [followup, setFollowup] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
+  const [viewing, setViewing] = useState<{ key: string; title: string } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -243,6 +245,19 @@ function ProjectChat({ projectId }: { projectId: string }) {
   };
 
   const xlsx = useMemo(() => artifacts.find((a) => a.category === "output" && a.name.endsWith(".xlsx")), [artifacts]);
+  const docs = useMemo(
+    () =>
+      (
+        [
+          [PROJECT_FILES.report, "chat.report", FileText],
+          [PROJECT_FILES.decisionLog, "chat.decisionLog", NotebookPen],
+        ] as const
+      ).flatMap(([file, label, Icon]) => {
+        const a = artifacts.find((x) => x.category === "doc" && x.name === file);
+        return a ? [{ key: a.key, label, Icon }] : [];
+      }),
+    [artifacts],
+  );
 
   const download = async (key: string) => {
     const { url } = await api.downloadUrl(projectId, key);
@@ -256,6 +271,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex h-full flex-col">
+      {viewing && <DocViewer projectId={projectId} artifactKey={viewing.key} title={viewing.title} onClose={() => setViewing(null)} />}
       {/* header */}
       <header className="max-h-[45%] shrink-0 overflow-y-auto border-b border-slate-200 bg-white px-3 py-3 sm:px-5 lg:max-h-none">
         <div className="flex flex-wrap items-center gap-3">
@@ -270,6 +286,15 @@ function ProjectChat({ projectId }: { projectId: string }) {
                 <Link to={`/projects/${encodeURIComponent(projectId)}/frg`} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50">
                   <GitFork size={14} /> {t("chat.frg")}
                 </Link>
+                {docs.map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    onClick={() => setViewing({ key, title: t(label) })}
+                    className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50"
+                  >
+                    <Icon size={14} /> {t(label)}
+                  </button>
+                ))}
                 {xlsx && (
                   <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs coarse:min-h-11 font-medium text-white hover:bg-emerald-700">
                     <Download size={14} /> <span className="max-w-[14rem] truncate">{braDownloadFileName(project.name, project.projectId).utf8}</span>

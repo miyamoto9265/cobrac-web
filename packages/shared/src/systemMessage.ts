@@ -40,6 +40,7 @@ const EXACT: Record<string, string> = {
   "Generating HCD / FRG graph data…": "sys.graphBuilding",
   "エージェントが所定回数の続行指示後も CSV を生成しませんでした。フォローアップ指示またはリトライで続きを実行してください。": "sys.csvMissing",
   "The agent did not produce the CSVs after the allowed continue attempts. Use a follow-up or retry.": "sys.csvMissing",
+  "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.": "sys.legacyWorkspace",
 };
 
 const STEP_RE = /^(?:ステップ |Step )(HCD|FRG|CSV|XLSX)(?: が完了しました。| completed\.)$/;

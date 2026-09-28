@@ -1,0 +1,87 @@
+{
+  "bif": [
+    {
+      "sender": "prefrontal cortex",
+      "receiver": "nucleus accumbens",
+      "comment": "glutamatergic cortico-striatal projection",
+      "referenceIds": [
+        "[Haber, 2010]"
+      ]
+    },
+    {
+      "sender": "ventral tegmental area",
+      "receiver": "nucleus accumbens",
+      "comment": "dopaminergic, strong",
+      "referenceIds": [
+        "[Schultz, 1997]",
+        "[Haber, 2010]"
+      ]
+    },
+    {
+      "sender": "nucleus accumbens",
+      "receiver": "ventral tegmental area",
+      "comment": "GABAergic feedback",
+      "referenceIds": [
+        "[Haber, 2010]"
+      ]
+    },
+    {
+      "sender": "nucleus accumbens",
+      "receiver": "arcuate nucleus",
+      "comment": "outside the ROI",
+      "referenceIds": [
+        "[Luo, 2011]"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "sender": "A9/46d@L",
+      "receiver": "NAC",
+      "comment": "task context",
+      "referenceIds": [
+        "[Haber, 2010]"
+      ],
+      "taxon": "Macaca mulatta",
+      "measurementMethod": "anterograde tracing",
+      "pointersOnLiterature": "Results",
+      "pointersOnFigure": "Fig. 1"
+    },
+    {
+      "sender": "VTA",
+      "receiver": "NAC",
+      "comment": "reward prediction error",
+      "referenceIds": [
+        "[Schultz, 1997]"
+      ],
+      "taxon": "Macaca mulatta",
+      "measurementMethod": "single-unit recording",
+      "pointersOnLiterature": "Results",
+      "pointersOnFigure": "Fig. 1"
+    },
+    {
+      "sender": "NAC",
+      "receiver": "VTA",
+      "comment": "expected value",
+      "referenceIds": [
+        "[Haber, 2010]"
+      ],
+      "taxon": "Macaca mulatta",
+      "measurementMethod": "tracing",
+      "pointersOnLiterature": "Results",
+      "pointersOnFigure": "Fig. 1"
+    },
+    {
+      "sender": "NAC",
+      "receiver": "Arc",
+      "comment": "value-based drive",
+      "referenceIds": [
+        "[Luo, 2011]"
+      ],
+      "taxon": "Mus musculus",
+      "measurementMethod": "optogenetics",
+      "pointersOnLiterature": "Results",
+      "pointersOnFigure": "Fig. 1"
+    }
+  ]
+}

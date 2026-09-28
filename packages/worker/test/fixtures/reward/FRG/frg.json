@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "id": "R.Reward-Prediction-Error-Learning",
+      "subnodes": [
+        "R.Value-Learning"
+      ],
+      "comment": "TLF: learn to predict reward from context",
+      "interface": "([U.Arc]) = R.Reward-Prediction-Error-Learning([U.A9/46d@L])",
+      "requirement": "Requirement of [R.Reward-Prediction-Error-Learning] using [U.VTA] (reward prediction error) and [U.NAC] (state value).",
+      "requirementRealization": "The interface receives [U.A9/46d@L] and emits [U.Arc]; [U.VTA] and [U.NAC] close the learning loop.",
+      "capability": "Temporal-difference learning [Schultz, 1997].",
+      "mechanism": "Dopamine-gated plasticity updates values until the prediction error vanishes."
+    },
+    {
+      "id": "R.Value-Learning",
+      "subnodes": [
+        "U.VTA",
+        "U.NAC"
+      ],
+      "comment": "Update state values from prediction errors",
+      "interface": "([U.Arc]) = R.Value-Learning([U.A9/46d@L])",
+      "requirement": "Requirement of [R.Value-Learning] using [U.VTA] (reward prediction error) and [U.NAC] (state value).",
+      "requirementRealization": "The interface receives [U.A9/46d@L] and emits [U.Arc]; [U.VTA] and [U.NAC] close the learning loop.",
+      "capability": "Temporal-difference learning [Schultz, 1997].",
+      "mechanism": "Dopamine-gated plasticity updates values until the prediction error vanishes."
+    }
+  ]
+}
