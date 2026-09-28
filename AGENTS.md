@@ -47,6 +47,7 @@ archive/v0/         旧デスクトップ版の指示書・仕様書・成果物
 - ワークフローの骨格（HCD → FRG → CSV → xlsx の順、ワーカーがフェーズを進めて検証する方式、ターン終了時の JSON 出力 `{status, message, question}`）は相談なしに変えない。フェーズ仕様（`prompts/phases/*.md`）の文言調整は可。ただし表の列名を変えるときは `packages/shared/src/harness.ts` の検証・CSV 変換も同時に直す。
 - 機密（API キー、`.env`）はコミットしない。`.env.example` のみ追跡する。
 - ドキュメント（`docs/*.md`）は挙動を変えたら同じコミットで更新する。サイトの「ドキュメント」ページは `docs/*.md`・`README.md`・`CHANGELOG.md` をビルド時に取り込むため、追加・改名すればそのまま反映される。
+- 文書の図は `docs/figures/*.svg`（日英それぞれ、PC 用と `*.narrow.svg` のスマホ用）。`scripts/docs-figures.mjs` が生成するので手で編集せず、スクリプトを直して `npm run docs:figures` で書き出す。`npm test` が生成結果とコミット済みファイルの一致を検査する。Markdown からは `![代替テキスト](./figures/<名前>.ja.svg "図のキャプション")` で参照する。
 
 ## デプロイ先
 
