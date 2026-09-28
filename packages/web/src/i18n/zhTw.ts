@@ -108,7 +108,7 @@ export const zhTw: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "專案",
-  "projects.search": "依 Project ID / ROI / TLF 搜尋",
+  "projects.search": "依 Name / Project ID / ROI / TLF 搜尋",
   "projects.allStatus": "全部狀態",
   "projects.status": "狀態",
   "projects.model": "模型",
@@ -143,7 +143,12 @@ export const zhTw: Record<MessageKey, string> = {
   "chat.roiPh": "例如：小腦絨球（flocculus）",
   "chat.tlf": "TLF — 頂層功能",
   "chat.tlfPh": "例如：前庭眼反射（VOR）的適應性學習",
-  "chat.projectId": "Project ID（英數字、自動建議）",
+  "chat.name": "專案名稱（可修改；Project ID 自動分配）",
+  "chat.nameHelp": "保留自動建議時，代理會在開始時以英文命名；您輸入的名稱會被保留。",
+  "chat.nameDup": "已有名為「{name}」的專案（允許重名）。",
+  "chat.rename": "重新命名",
+  "chat.renameCancel": "取消",
+  "chat.redirecting": "正在前往新的 Project ID…",
   "chat.contributor": "Contributor",
   "chat.run": "執行",
   "chat.runHelp":

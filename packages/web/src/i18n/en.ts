@@ -106,7 +106,7 @@ export const en = {
   "effort.persistent": "persistent",
 
   "projects.title": "Projects",
-  "projects.search": "Search by Project ID / ROI / TLF",
+  "projects.search": "Search by Name / Project ID / ROI / TLF",
   "projects.allStatus": "All statuses",
   "projects.status": "Status",
   "projects.model": "Model",
@@ -141,7 +141,12 @@ export const en = {
   "chat.roiPh": "e.g. cerebellar flocculus",
   "chat.tlf": "TLF — top-level function",
   "chat.tlfPh": "e.g. adaptive learning of the vestibulo-ocular reflex (VOR)",
-  "chat.projectId": "Project ID (alphanumeric, auto-suggested)",
+  "chat.name": "Project name (editable; the Project ID is assigned automatically)",
+  "chat.nameHelp": "The agent names the project in English when it starts; a name you type is kept.",
+  "chat.nameDup": "You already have a project named “{name}” (names may repeat).",
+  "chat.rename": "Rename",
+  "chat.renameCancel": "Cancel",
+  "chat.redirecting": "Redirecting to the new Project ID…",
   "chat.contributor": "Contributor",
   "chat.run": "Run",
   "chat.runHelp":

@@ -2,7 +2,7 @@ import { Coins, Download, GitFork, MessageSquare, Network, Search } from "lucide
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared";
-import { formatTokens, formatUsd } from "@cobrac/shared";
+import { formatTokens, formatUsd, projectDisplayName } from "@cobrac/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
 import { useI18n, useT, type MessageKey } from "../i18n";
@@ -98,7 +98,7 @@ export function ProjectsPage() {
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return items.filter((p) => (!status || p.status === status) && (!s || [p.projectId, p.roi, p.tlf].some((x) => x.toLowerCase().includes(s))));
+    return items.filter((p) => (!status || p.status === status) && (!s || [p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((x) => (x ?? "").toLowerCase().includes(s))));
   }, [items, q, status]);
 
   const downloadXlsx = async (p: ProjectRecord) => {
@@ -132,8 +132,9 @@ export function ProjectsPage() {
         {filtered.map((p) => (
           <li key={p.projectId} className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="flex items-start justify-between gap-2">
-              <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-all py-1 font-mono text-sm font-medium text-blue-700 coarse:py-3">
-                {p.projectId}
+              <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-words py-1 text-sm font-medium text-blue-700 coarse:py-3">
+                {projectDisplayName(p)}
+                <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
               <StatusBadge status={p.status} />
             </div>
@@ -186,10 +187,11 @@ export function ProjectsPage() {
             )}
             {filtered.map((p) => (
               <tr key={p.projectId} className="hover:bg-slate-50">
-                <td className="px-4 py-2 font-mono text-xs">
-                  <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="text-blue-700 hover:underline">
-                    {p.projectId}
+                <td className="max-w-[20rem] px-4 py-2 text-xs">
+                  <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="break-words font-medium text-blue-700 hover:underline">
+                    {projectDisplayName(p)}
                   </Link>
+                  <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
                 </td>
                 <td className="max-w-[16rem] truncate px-4 py-2" title={p.roi}>
                   {p.roi || "-"}

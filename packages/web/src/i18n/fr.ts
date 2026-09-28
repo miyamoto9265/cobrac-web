@@ -108,7 +108,7 @@ export const fr: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "Projets",
-  "projects.search": "Rechercher par Project ID / ROI / TLF",
+  "projects.search": "Rechercher par Name / Project ID / ROI / TLF",
   "projects.allStatus": "Tous les statuts",
   "projects.status": "Statut",
   "projects.model": "Modèle",
@@ -143,7 +143,12 @@ export const fr: Record<MessageKey, string> = {
   "chat.roiPh": "ex. cerebellar flocculus",
   "chat.tlf": "TLF — top-level function",
   "chat.tlfPh": "ex. apprentissage adaptatif du réflexe vestibulo-oculaire (VOR)",
-  "chat.projectId": "Project ID (alphanumérique, suggestion automatique)",
+  "chat.name": "Nom du projet (modifiable ; la Project ID est attribuée automatiquement)",
+  "chat.nameHelp": "Si la suggestion est conservée, l’agent nomme le projet en anglais au démarrage ; un nom saisi est conservé.",
+  "chat.nameDup": "Un projet nommé « {name} » existe déjà (les doublons sont autorisés).",
+  "chat.rename": "Renommer",
+  "chat.renameCancel": "Annuler",
+  "chat.redirecting": "Redirection vers la nouvelle Project ID…",
   "chat.contributor": "Contributor",
   "chat.run": "Lancer",
   "chat.runHelp":

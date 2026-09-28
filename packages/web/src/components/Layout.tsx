@@ -2,6 +2,7 @@ import { BookOpen, FolderKanban, LogOut, Menu, MessageSquarePlus, Settings, Shie
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
+import { projectDisplayName } from "@cobrac/shared";
 import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -79,10 +80,10 @@ export function Layout() {
               className={`mb-0.5 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-800 ${
                 projectId === p.projectId ? "bg-slate-800" : ""
               }`}
-              title={`ROI: ${p.roi}\nTLF: ${p.tlf}`}
+              title={`${p.projectId}\nROI: ${p.roi}\nTLF: ${p.tlf}`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate">{p.projectId}</span>
+                <span className="truncate">{projectDisplayName(p)}</span>
                 <StatusBadge status={p.status} compact />
               </div>
               <div className="truncate text-xs text-slate-400">{p.tlf || p.roi}</div>

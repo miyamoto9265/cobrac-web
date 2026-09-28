@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { CanonicalProjectId } from "./components/CanonicalProjectId";
 import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
@@ -35,10 +36,10 @@ export default function App() {
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/login" element={<Navigate to="/chat" replace />} />
         <Route path="/chat" element={<ChatPage />} />
-        <Route path="/chat/:projectId" element={<ChatPage />} />
+        <Route path="/chat/:projectId" element={<CanonicalProjectId><ChatPage /></CanonicalProjectId>} />
         <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:projectId/hcd" element={<HcdGraphPage />} />
-        <Route path="/projects/:projectId/frg" element={<FrgGraphPage />} />
+        <Route path="/projects/:projectId/hcd" element={<CanonicalProjectId><HcdGraphPage /></CanonicalProjectId>} />
+        <Route path="/projects/:projectId/frg" element={<CanonicalProjectId><FrgGraphPage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />

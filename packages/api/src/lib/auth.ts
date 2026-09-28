@@ -2,7 +2,7 @@ import type { APIGatewayProxyEventV2WithJWTAuthorizer } from "aws-lambda";
 import type { UserRecord } from "@cobrac/shared";
 import { nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
-import { getUser, putUser, updateUser } from "./db.js";
+import { assignUserKey, getUser, newUniqueUserKey, putUser, updateUser } from "./db.js";
 
 export interface AuthContext {
   userId: string;
@@ -33,6 +33,7 @@ export async function ensureUser(auth: AuthContext): Promise<UserRecord> {
       await updateUser(auth.userId, { role: "admin" });
       existing.role = "admin";
     }
+    if (!existing.userKey) existing.userKey = await assignUserKey(auth.userId);
     return existing;
   }
   const now = nowIso();
@@ -44,11 +45,20 @@ export async function ensureUser(auth: AuthContext): Promise<UserRecord> {
     contributorName: displayName,
     role: isAdmin ? "admin" : "user",
     disabled: false,
+    userKey: await newUniqueUserKey(),
+    projectSeq: 0,
     apiKeyRegistered: false,
     createdAt: now,
     updatedAt: now,
   };
-  await putUser(user);
+  try {
+    await putUser(user, true);
+  } catch (e) {
+    if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e;
+    const raced = await getUser(auth.userId);
+    if (raced) return raced;
+    throw e;
+  }
   return user;
 }
 

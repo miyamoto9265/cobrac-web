@@ -9,12 +9,18 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - The agent looks up brain regions in ROSETTA Candidate Search (RCS) and names each UC after a SABRA unit: a UC Descriptor (e.g. `HOMBA:12261`, `BNA:223-224/part:HOMBA:10341/mol:DRD1+`) and a Circuit ID starting with the unit's official abbreviation (e.g. `VTA`, `NAC(shell,DRD1+)`). Most UCs are a whole SABRA unit and use the abbreviation alone
 - `3_UC.md` has a `UC Descriptor` column after `Circuit ID`; `Circuits.csv` and the xlsx Circuits sheet add it as their last column, and the HCD graph shows it in the node details
 - The checks verify the Circuit ID format, that it starts with the anchor's abbreviation (looked up in RCS / the BNA table), that its items match the descriptor, and that descriptors are unique. Every RCS call of the agent is kept in `rcs_mcp_calls.jsonl` in the project workspace
-
-### Fixed
-- Interfaces and FRG Subnodes whose Circuit IDs contain brackets or commas (e.g. `[U.NAC(shell,DRD1+)]`) are parsed correctly
+- Links with an old Project ID open the project under its new ID after the one-off migration (`scripts/migrate-project-ids.mjs`, dry run by default)
 
 ### Changed
 - Projects created before this version (no `UC Descriptor` column) keep their Circuit IDs and are validated as before
+- Project IDs are now assigned by the system as `<user key>-<number>` (for example `u7m2q9xa-12`). They are unique across all users and never change, so URLs, storage paths, and the `Project ID` column of the xlsx stay stable
+- Projects have a separate name that can be written in any language and changed at any time from the chat header. Lists, the sidebar, chat, and graph screens show the name first and the ID below it; search also matches the name. Names may repeat; a warning appears when another of your projects has the same name
+- When a project starts, the agent gives it an English name such as `VOR learning in cerebellar flocculus` unless you typed your own name
+- The xlsx downloads as `{name}_{ID}.bra.xlsx` (unsafe characters replaced; non-ASCII names kept), and its Description starts with the English name
+
+### Fixed
+- Interfaces and FRG Subnodes whose Circuit IDs contain brackets or commas (e.g. `[U.NAC(shell,DRD1+)]`) are parsed correctly
+- When two users had used the same Project ID, one user's chat history, live updates, and token usage could include the other user's. Each user now sees only their own
 
 ## [0.6.0] - 2026-09-28
 

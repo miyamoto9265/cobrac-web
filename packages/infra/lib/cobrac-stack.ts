@@ -78,6 +78,14 @@ export class CobracAgentsStack extends Stack {
     const users = new dynamodb.TableV2(this, "Users", {
       ...tableDefaults,
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
+      // Project ID namespace (`<userKey>-<seq>`): uniqueness check on issue, ID → owner lookup
+      globalSecondaryIndexes: [
+        {
+          indexName: "userKey-index",
+          partitionKey: { name: "userKey", type: dynamodb.AttributeType.STRING },
+          projectionType: dynamodb.ProjectionType.KEYS_ONLY,
+        },
+      ],
     });
     const projects = new dynamodb.TableV2(this, "Projects", {
       ...tableDefaults,

@@ -9,6 +9,7 @@ import type {
   ProjectRecord,
   GraphLayout,
   ReasoningEffort,
+  UpdateProjectResponse,
   UsageSummary,
   UserPublic,
 } from "@cobrac/shared";
@@ -68,8 +69,10 @@ export const api = {
     return request<ListProjectsResponse>("GET", `/projects${qs ? `?${qs}` : ""}`);
   },
   createProject: (b: CreateProjectRequest) => request<ProjectRecord>("POST", "/projects", b),
-  proposeId: (roi: string, tlf: string) =>
-    request<{ projectId: string }>("GET", `/projects/propose-id?roi=${encodeURIComponent(roi)}&tlf=${encodeURIComponent(tlf)}`),
+  proposeName: (roi: string, tlf: string) =>
+    request<{ name: string }>("GET", `/projects/propose-name?roi=${encodeURIComponent(roi)}&tlf=${encodeURIComponent(tlf)}`),
+  resolveProject: (id: string) => request<{ projectId: string }>("GET", `/projects/resolve/${encodeURIComponent(id)}`),
+  renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
   getProject: (id: string) => request<ProjectRecord & { jobs: JobRecord[] }>("GET", `/projects/${encodeURIComponent(id)}`),
   listMessages: (id: string, cursor?: string) =>
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),

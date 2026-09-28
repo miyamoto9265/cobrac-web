@@ -2,10 +2,11 @@ import { ChevronDown, ChevronUp, Download, GitFork, Loader2, Network, Play, Rota
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, ReasoningEffort, WsServerEvent } from "@cobrac/shared";
-import { PRICING_AS_OF, formatUsd, resolveSystemMessage } from "@cobrac/shared";
+import { PRICING_AS_OF, braDownloadFileName, formatUsd, projectDisplayName, projectNameKey, resolveSystemMessage } from "@cobrac/shared";
 import { MessageItem } from "../components/MessageItem";
 import { UsageBadge } from "../components/UsageBadge";
 import { ModelSelect } from "../components/ModelSelect";
+import { ProjectTitle } from "../components/ProjectTitle";
 import { QuestionCard } from "../components/QuestionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
@@ -30,8 +31,9 @@ function NewProject() {
   const { me } = useAuth();
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [idTouched, setIdTouched] = useState(false);
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [existingNames, setExistingNames] = useState<Set<string>>(new Set());
   const [contributor, setContributor] = useState(me?.contributorName ?? "");
   const [model, setModel] = useState<string | null>(me?.defaultModel ?? null);
   const [effort, setEffort] = useState<ReasoningEffort | null>(me?.defaultReasoningEffort ?? null);
@@ -39,13 +41,21 @@ function NewProject() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (idTouched) return;
+    if (nameTouched) return;
     const id = setTimeout(() => {
-      if (!roi && !tlf) return setProjectId("");
-      api.proposeId(roi, tlf).then((r) => setProjectId(r.projectId)).catch(() => undefined);
+      if (!roi && !tlf) return setName("");
+      api.proposeName(roi, tlf).then((r) => setName(r.name)).catch(() => undefined);
     }, 400);
     return () => clearTimeout(id);
-  }, [roi, tlf, idTouched]);
+  }, [roi, tlf, nameTouched]);
+
+  useEffect(() => {
+    api
+      .listProjects()
+      .then((r) => setExistingNames(new Set(r.items.map((p) => projectNameKey(projectDisplayName(p))))))
+      .catch(() => undefined);
+  }, []);
+  const duplicateName = name.trim() && existingNames.has(projectNameKey(name)) ? name.trim() : null;
 
   useEffect(() => {
     if (me && !contributor) setContributor(me.contributorName);
@@ -55,7 +65,7 @@ function NewProject() {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, projectId: projectId || undefined, contributor: contributor || undefined, model, reasoningEffort: effort });
+      const p = await api.createProject({ roi, tlf, name: name.trim() || undefined, contributor: contributor || undefined, model, reasoningEffort: effort });
       navigate(`/chat/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -107,16 +117,19 @@ function NewProject() {
           </div>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.projectId")}</span>
+              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.name")}</span>
               <input
-                value={projectId}
+                value={name}
+                maxLength={400}
                 onChange={(e) => {
-                  setIdTouched(true);
-                  setProjectId(e.target.value);
+                  setNameTouched(true);
+                  setName(e.target.value);
                 }}
-                placeholder="VORLearning_Flocculus"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                placeholder="VOR learning in cerebellar flocculus"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
+              <span className="mt-1 block text-xs text-slate-400">{t("chat.nameHelp")}</span>
+              {duplicateName && <span className="mt-1 block text-xs text-amber-700">{t("chat.nameDup", { name: duplicateName })}</span>}
             </label>
             <label className="block">
               <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.contributor")}</span>
@@ -246,7 +259,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
       {/* header */}
       <header className="max-h-[45%] shrink-0 overflow-y-auto border-b border-slate-200 bg-white px-3 py-3 sm:px-5 lg:max-h-none">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="min-w-0 break-all font-mono text-base font-semibold">{project.projectId}</h1>
+          <ProjectTitle project={project} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
           <StatusBadge status={project.status} />
           <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {project.hasArtifacts && (
@@ -259,7 +272,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
                 </Link>
                 {xlsx && (
                   <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs coarse:min-h-11 font-medium text-white hover:bg-emerald-700">
-                    <Download size={14} /> <span className="max-w-[14rem] truncate">{xlsx.name}</span>
+                    <Download size={14} /> <span className="max-w-[14rem] truncate">{braDownloadFileName(project.name, project.projectId).utf8}</span>
                   </button>
                 )}
               </>

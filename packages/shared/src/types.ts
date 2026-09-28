@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { TokenUsage } from "./pricing.js";
+import type { ProjectNameSource } from "./projectId.js";
 
 export type UserRole = "user" | "admin";
 
@@ -13,6 +14,10 @@ export interface UserRecord {
   contributorName: string;
   role: UserRole;
   disabled: boolean;
+  /** Pseudonymous key issued once (`u` + 7 base32 chars); namespace of the user's Project IDs */
+  userKey?: string;
+  /** Atomic counter for the `<userKey>-<seq>` Project IDs (last issued seq) */
+  projectSeq?: number;
   /** KMS-encrypted OpenAI API key (base64). Never returned to clients. */
   encryptedApiKey?: string;
   apiKeyRegistered: boolean;
@@ -70,7 +75,16 @@ export type StepState = "pending" | "running" | "done";
 
 export interface ProjectRecord {
   userId: string;
+  /** `<userKey>-<seq>`: globally unique, never changed or reused (not-yet-migrated projects keep their legacy slug) */
   projectId: string;
+  /** Display name; any language, may repeat. Absent on projects created before v0.7 (use projectId) */
+  name?: string;
+  /** "auto" = proposed / written by the agent (may be replaced from meta.json); "user" = edited by the user */
+  nameSource?: ProjectNameSource;
+  /** Number of COMPLETED jobs (artifact revisions) */
+  revision?: number;
+  /** Project ID before the migration to `<userKey>-<seq>` */
+  legacyId?: string;
   roi: string;
   tlf: string;
   contributor: string;
@@ -154,6 +168,8 @@ export type MessageType =
 
 export interface MessageRecord {
   projectId: string;
+  /** Owner of the project (set since v0.7; older messages are attributed through their job) */
+  userId?: string;
   /** Sort key: `${isoTimestamp}#${seq}` */
   sk: string;
   messageId: string;
@@ -276,10 +292,21 @@ export interface FrgGraph {
 export interface CreateProjectRequest {
   roi: string;
   tlf: string;
-  projectId?: string;
+  /** Display name; defaults to the proposal from ROI/TLF */
+  name?: string;
   contributor?: string;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+}
+
+export interface UpdateProjectRequest {
+  name?: string;
+}
+
+export interface UpdateProjectResponse {
+  project: ProjectRecord;
+  /** Other projects of the same user with the same name (case-insensitive) */
+  duplicates: { projectId: string; name: string }[];
 }
 
 export interface AnswerRequest {
@@ -376,7 +403,7 @@ export interface UsageSummary {
   /** Number of projects whose cost could not be estimated (unpriced model) */
   unpricedProjects: number;
   byModel: { model: string; usage: TokenUsage; costUsd: number | null; jobs: number }[];
-  byProject: { projectId: string; usage: TokenUsage; costUsd: number | null; models: string[] }[];
+  byProject: { projectId: string; name?: string; usage: TokenUsage; costUsd: number | null; models: string[] }[];
   pricingAsOf: string;
 }
 
@@ -396,8 +423,6 @@ export type WsClientEvent =
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-export const PROJECT_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{2,63}$/;
 
 /** Legacy free-text question marker; kept for threads started before structured turn output. */
 export const QUESTION_REGEX = /\[QUESTION\]([\s\S]*?)\[\/QUESTION\]/;

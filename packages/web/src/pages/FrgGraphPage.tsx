@@ -7,6 +7,7 @@ import { GraphCanvas, type GEdge, type GNode } from "../components/GraphCanvas";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useGraphLayout } from "../lib/useGraphLayout";
+import { useProjectName } from "../lib/useProjectName";
 
 const KIND_COLOR: Record<FrgNodeKind, string> = { tlf: "#fde68a", gn: "#e9d5ff", uc: "#dbeafe" };
 const KIND_KEYS: FrgNodeKind[] = ["tlf", "gn", "uc"];
@@ -20,6 +21,7 @@ export function FrgGraphPage() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const selected = params.get("node");
   const layout = useGraphLayout(projectId, "frg");
+  const projectName = useProjectName(projectId);
 
   useEffect(() => {
     api.frg(projectId).then(setGraph).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
@@ -77,7 +79,9 @@ export function FrgGraphPage() {
         <Link to={`/chat/${encodeURIComponent(projectId)}`} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
           <ArrowLeft size={14} /> {t("graph.backChat")}
         </Link>
-        <h1 className="min-w-0 truncate font-mono text-sm font-semibold">{projectId}</h1>
+        <h1 className="min-w-0 truncate text-sm font-semibold" title={projectId}>
+          {projectName} <span className="font-mono text-[11px] font-normal text-slate-400">{projectId}</span>
+        </h1>
         <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">FRG</span>
         <span className="hidden text-xs text-slate-500 sm:inline">
           {graph.nodes.filter((n) => n.kind !== "uc").length} GN · {graph.nodes.filter((n) => n.kind === "uc").length} UC

@@ -10,7 +10,7 @@ Build the HCD for the given ROI and TLF in `{P}/{P}_HCD/`. The HCD is a graph th
 
 ## Steps and files
 
-1. **ROI/TLF validation -> `1_Thinking.md`, `../meta.json`.** Check with literature that the ROI can realize the TLF. If ROI or TLF is missing, determine a plausible one by research. If the ROI looks inappropriate, or there are several candidates the user must choose from, ask (turn protocol) with evidence and alternatives. Identify ROI_Input (information that must enter the ROI) and ROI_Output (information it must emit). Log research and reasoning in `1_Thinking.md`; write `meta.json`.
+1. **ROI/TLF validation -> `1_Thinking.md`, `../meta.json`.** Check with literature that the ROI can realize the TLF. If ROI or TLF is missing, determine a plausible one by research. If the ROI looks inappropriate, or there are several candidates the user must choose from, ask (turn protocol) with evidence and alternatives. Identify ROI_Input (information that must enter the ROI) and ROI_Output (information it must emit). Log research and reasoning in `1_Thinking.md`; write `meta.json` including `name` (see AGENTS.md).
 
 2. **BIF -> `2_BIF.md`.** Survey projections relevant to the ROI thoroughly. Two tables, in this order:
    - `## References`: `| Reference ID | DOI |`

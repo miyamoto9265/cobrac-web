@@ -16,8 +16,10 @@ Work only inside the project folder named after the Project ID in the prompt (us
 `<ProjectID>/meta.json` (written in HCD step 1, keep it current):
 
 ```json
-{ "roi": "<ROI in English>", "tlf": "<TLF in English>", "description": "<one English sentence describing the project>" }
+{ "roi": "<ROI in English>", "tlf": "<TLF in English>", "description": "<one English sentence describing the project>", "name": "<TLF> in <ROI>" }
 ```
+
+`name` is the project's display name (the Project ID stays fixed): English, `<TLF> in <ROI>` in that order, sentence case with spaces (no slug or PascalCase), about 60 characters (max 200). Well-known abbreviations (`VOR`, `VTA`, `PFC`) are fine; spell out obscure ones; use a common English region name rather than atlas abbreviations. No version, date, user name, ID or prefix; no line breaks and preferably none of `/ \ : * ? " < > |`. Example: `VOR learning in cerebellar flocculus`.
 
 ## Language and format
 

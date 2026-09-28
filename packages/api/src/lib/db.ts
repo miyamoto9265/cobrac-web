@@ -9,8 +9,9 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { JobRecord, MessageRecord, MessageRole, MessageType, ProjectRecord, UserRecord, WorkflowStep } from "@cobrac/shared";
-import { newId, nowIso } from "@cobrac/shared";
+import { generateUserKey, newId, nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
+import { ownedJobs } from "./ownership.js";
 
 export const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region }), {
   marshallOptions: { removeUndefinedValues: true },
@@ -57,12 +58,73 @@ export async function getUser(userId: string): Promise<UserRecord | null> {
   const r = await ddb.send(new GetCommand({ TableName: env.tables.users, Key: { userId } }));
   return (r.Item as UserRecord) ?? null;
 }
-export async function putUser(u: UserRecord) {
-  await ddb.send(new PutCommand({ TableName: env.tables.users, Item: u }));
+export async function putUser(u: UserRecord, ifNotExists = false) {
+  await ddb.send(
+    new PutCommand({ TableName: env.tables.users, Item: u, ...(ifNotExists ? { ConditionExpression: "attribute_not_exists(userId)" } : {}) }),
+  );
 }
 export function updateUser(userId: string, values: Partial<UserRecord>) {
   return updateItem(env.tables.users, { userId }, values);
 }
+export async function findUserByKey(userKey: string): Promise<UserRecord | null> {
+  const r = await ddb.send(
+    new QueryCommand({
+      TableName: env.tables.users,
+      IndexName: "userKey-index",
+      KeyConditionExpression: "userKey = :k",
+      ExpressionAttributeValues: { ":k": userKey },
+      Limit: 1,
+    }),
+  );
+  return ((r.Items as UserRecord[]) ?? [])[0] ?? null;
+}
+
+/** A userKey that no other user holds (checked through the GSI; collisions are practically impossible). */
+export async function newUniqueUserKey(): Promise<string> {
+  for (let i = 0; i < 5; i++) {
+    const key = generateUserKey();
+    if (!(await findUserByKey(key))) return key;
+  }
+  throw new Error("could not issue a unique userKey");
+}
+
+/** Issue the user's key once; returns the key already stored when another request won the race. */
+export async function assignUserKey(userId: string): Promise<string> {
+  const key = await newUniqueUserKey();
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.users,
+        Key: { userId },
+        UpdateExpression: "SET userKey = :k, updatedAt = :t",
+        ConditionExpression: "attribute_exists(userId) AND attribute_not_exists(userKey)",
+        ExpressionAttributeValues: { ":k": key, ":t": nowIso() },
+      }),
+    );
+    return key;
+  } catch (e) {
+    if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e;
+    const u = await getUser(userId);
+    if (!u?.userKey) throw e;
+    return u.userKey;
+  }
+}
+
+/** Atomic per-user counter for Project IDs. Numbers lost to failed creations are never reused. */
+export async function nextProjectSeq(userId: string): Promise<number> {
+  const r = await ddb.send(
+    new UpdateCommand({
+      TableName: env.tables.users,
+      Key: { userId },
+      UpdateExpression: "ADD projectSeq :one",
+      ConditionExpression: "attribute_exists(userId)",
+      ExpressionAttributeValues: { ":one": 1 },
+      ReturnValues: "UPDATED_NEW",
+    }),
+  );
+  return Number(r.Attributes?.projectSeq);
+}
+
 export async function listUsers(): Promise<UserRecord[]> {
   const r = await ddb.send(new ScanCommand({ TableName: env.tables.users }));
   return (r.Items as UserRecord[]) ?? [];
@@ -99,6 +161,29 @@ export async function listProjects(userId: string, limit = 50, cursor?: string) 
   const items = ((r.Items as ProjectRecord[]) ?? []).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   return { items, nextCursor: encodeCursor(r.LastEvaluatedKey) };
 }
+/** Every project of one user (paginated Query). */
+export async function listUserProjects(userId: string): Promise<ProjectRecord[]> {
+  const out: ProjectRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(
+      new QueryCommand({
+        TableName: env.tables.projects,
+        KeyConditionExpression: "userId = :u",
+        ExpressionAttributeValues: { ":u": userId },
+        ExclusiveStartKey: start,
+      }),
+    );
+    out.push(...((r.Items as ProjectRecord[]) ?? []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
+}
+
+export async function findProjectByLegacyId(userId: string, legacyId: string): Promise<ProjectRecord | null> {
+  return (await listUserProjects(userId)).find((p) => p.legacyId === legacyId) ?? null;
+}
+
 export async function listAllProjects(): Promise<ProjectRecord[]> {
   const r = await ddb.send(new ScanCommand({ TableName: env.tables.projects }));
   return (r.Items as ProjectRecord[]) ?? [];
@@ -128,7 +213,8 @@ export async function listJobsByStatus(status: JobRecord["status"]): Promise<Job
   );
   return (r.Items as JobRecord[]) ?? [];
 }
-export async function listJobsForProject(projectId: string): Promise<JobRecord[]> {
+/** Jobs of one project owned by `userId` (legacy Project IDs could be shared by several users). */
+export async function listJobsForProject(projectId: string, userId: string): Promise<JobRecord[]> {
   const r = await ddb.send(
     new QueryCommand({
       TableName: env.tables.jobs,
@@ -136,7 +222,7 @@ export async function listJobsForProject(projectId: string): Promise<JobRecord[]
       ExpressionAttributeValues: { ":p": projectId },
     }),
   );
-  return (r.Items as JobRecord[]) ?? [];
+  return ownedJobs((r.Items as JobRecord[]) ?? [], userId);
 }
 
 // --- messages ---------------------------------------------------------------
@@ -161,11 +247,12 @@ export async function putMessage(
   role: MessageRole,
   type: MessageType,
   content: string,
-  opts: { step?: WorkflowStep | null; meta?: Record<string, unknown> } = {},
+  opts: { userId?: string; step?: WorkflowStep | null; meta?: Record<string, unknown> } = {},
 ): Promise<MessageRecord> {
   const createdAt = nowIso();
   const msg: MessageRecord = {
     projectId,
+    userId: opts.userId,
     sk: `${createdAt}#${Math.floor(Math.random() * 99999).toString().padStart(5, "0")}`,
     messageId: newId("m_"),
     jobId,

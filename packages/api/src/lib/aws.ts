@@ -4,6 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import type { ArtifactInfo, RunJobMessage } from "@cobrac/shared";
+import { contentDisposition } from "@cobrac/shared";
 import { env } from "../env.js";
 
 const kms = new KMSClient({ region: env.region });
@@ -58,16 +59,22 @@ function categorize(rel: string): ArtifactInfo["category"] {
   return "other";
 }
 
-export async function presignDownload(userId: string, projectId: string, rel: string, expiresIn = 900): Promise<string> {
+export async function presignDownload(
+  userId: string,
+  projectId: string,
+  rel: string,
+  fileName?: { ascii: string; utf8: string },
+  expiresIn = 900,
+): Promise<string> {
   if (rel.includes("..") || rel.startsWith("thread/") || rel.startsWith("/")) throw new Error("invalid key");
   const key = projectPrefix(userId, projectId) + rel;
-  const filename = rel.split("/").pop() ?? "download";
+  const base = rel.split("/").pop() ?? "download";
   return getSignedUrl(
     s3,
     new GetObjectCommand({
       Bucket: env.artifactsBucket,
       Key: key,
-      ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      ResponseContentDisposition: contentDisposition(fileName?.ascii ?? base, fileName?.utf8 ?? base),
     }),
     { expiresIn },
   );

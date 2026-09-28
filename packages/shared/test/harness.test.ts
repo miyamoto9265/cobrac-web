@@ -174,3 +174,18 @@ describe("parseTurnOutput", () => {
     expect(parseTurnOutput("plain text")).toBeNull();
   });
 });
+
+describe("meta.json name", () => {
+  it("reads and normalises the optional name", () => {
+    const meta = JSON.stringify({ ...JSON.parse(META), name: "  VOR adaptation   in cerebellar flocculus " });
+    const r = checkHcd(HCD, meta);
+    expect(r.errors).toEqual([]);
+    expect(r.model?.meta?.name).toBe("VOR adaptation in cerebellar flocculus");
+    expect(checkHcd(HCD, META).model?.meta?.name).toBeUndefined();
+  });
+
+  it("reports a name with a line break", () => {
+    const r = checkHcd(HCD, JSON.stringify({ ...JSON.parse(META), name: "a\nb" }));
+    expect(r.errors.join("\n")).toMatch(/meta\.json: "name" is invalid/);
+  });
+});

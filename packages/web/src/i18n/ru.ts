@@ -108,7 +108,7 @@ export const ru: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "Проекты",
-  "projects.search": "Поиск по Project ID / ROI / TLF",
+  "projects.search": "Поиск по Name / Project ID / ROI / TLF",
   "projects.allStatus": "Все статусы",
   "projects.status": "Статус",
   "projects.model": "Модель",
@@ -143,7 +143,12 @@ export const ru: Record<MessageKey, string> = {
   "chat.roiPh": "напр. cerebellar flocculus",
   "chat.tlf": "TLF — функция верхнего уровня",
   "chat.tlfPh": "напр. адаптивное обучение вестибуло-окулярного рефлекса (VOR)",
-  "chat.projectId": "Project ID (латиница и цифры, предлагается автоматически)",
+  "chat.name": "Название проекта (можно изменить; Project ID назначается автоматически)",
+  "chat.nameHelp": "Если оставить предложение, агент назовёт проект по-английски при запуске; введённое название сохраняется.",
+  "chat.nameDup": "Проект с названием «{name}» уже есть (повторы допустимы).",
+  "chat.rename": "Переименовать",
+  "chat.renameCancel": "Отмена",
+  "chat.redirecting": "Переход к новому Project ID…",
   "chat.contributor": "Contributor",
   "chat.run": "Запустить",
   "chat.runHelp":

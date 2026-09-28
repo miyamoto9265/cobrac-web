@@ -108,7 +108,7 @@ export const zh: Record<MessageKey, string> = {
   "effort.persistent": "persistent",
 
   "projects.title": "项目",
-  "projects.search": "按 Project ID / ROI / TLF 搜索",
+  "projects.search": "按 Name / Project ID / ROI / TLF 搜索",
   "projects.allStatus": "全部状态",
   "projects.status": "状态",
   "projects.model": "模型",
@@ -143,7 +143,12 @@ export const zh: Record<MessageKey, string> = {
   "chat.roiPh": "例如：小脑绒球（flocculus）",
   "chat.tlf": "TLF — 顶层功能",
   "chat.tlfPh": "例如：前庭眼反射（VOR）的适应性学习",
-  "chat.projectId": "Project ID（字母数字、自动建议）",
+  "chat.name": "项目名称（可修改；Project ID 自动分配）",
+  "chat.nameHelp": "保留自动建议时，智能体会在开始时用英文命名；您输入的名称会被保留。",
+  "chat.nameDup": "已存在名为“{name}”的项目（允许重名）。",
+  "chat.rename": "重命名",
+  "chat.renameCancel": "取消",
+  "chat.redirecting": "正在跳转到新的 Project ID…",
   "chat.contributor": "Contributor",
   "chat.run": "运行",
   "chat.runHelp":
