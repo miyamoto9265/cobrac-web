@@ -237,6 +237,9 @@ export const en = {
   "docs.changelog": "Release notes",
   "docs.readme": "README",
   "docs.agents": "AGENTS.md (contributor guide)",
+  "docs.toc": "On this page",
+  "docs.figureHint": "Scroll sideways to see the whole figure. Tap to open it full size.",
+  "docs.docLanguage": "Document language",
 
   "graph.search": "Search nodes…",
   "graph.undo": "Undo (Ctrl+Z)",

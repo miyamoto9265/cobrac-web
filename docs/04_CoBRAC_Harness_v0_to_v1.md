@@ -13,6 +13,8 @@
 
 v0 was the desktop Cursor workflow moved onto a server as-is. The agent received a single instruction ("read `instruction_0.md` and follow it") and had to read four Japanese instruction files in order, decide by itself when each phase was finished, print text markers such as `[STEP_COMPLETE] HCD`, and finally translate everything into five CSVs. v1 turns this around. **The worker drives the workflow.** It hands the agent one compact English phase spec at a time, checks the files with code after every turn, sends back an exact list of problems, and builds the CSVs, xlsx, and graphs itself. The agent does what only an LLM can do: literature research and scientific interpretation.
 
+![In v0 the agent reads the instruction files and runs everything, and "done" only means the CSV files exist. In v1 the worker runs one phase at a time, checks the files with code after every turn, returns an exact problem list, and builds the CSVs, xlsx and graphs itself](./figures/harness-overview.en.svg "Figure 1. v0 vs v1: who drives the workflow")
+
 ---
 
 ## 2. Terms
@@ -31,58 +33,18 @@ v0 was the desktop Cursor workflow moved onto a server as-is. The agent received
 
 ### 3.1 v0: the agent reads the manual and runs everything
 
-```
- Worker                               Codex agent (one long turn)
- ──────                               ─────────────────────────────────────────────
- "Read instruction_0.md               read instruction_0.md  (JA, 1.4k tokens)
-  and follow it"          ───────▶    read instruction_1_HCD.md (JA, 4.8k)
-                                        └─ write 8 HCD files (incl. explainer + Mermaid)
-                                      "[STEP_COMPLETE] HCD"
-                                      read instruction_2_FRG.md (JA, 5.3k)
-                                        └─ write 5 FRG files (tables + Mermaid)
-                                      "[STEP_COMPLETE] FRG"
-                                      read instruction_3_csv.md (JA, 2.4k)
-                                        └─ re-read the markdown, translate to English,
-                                           write 5 CSVs by hand
-                                      "[STEP_COMPLETE] CSV"
- CSV files present?  ◀───────────────
-   no  → "continue" nudge (max 3), same prompt again
-   yes → csv_to_excel.py → graphs
-```
+![v0 architecture. The worker only says "read instruction_0.md and follow it". In one long turn the agent reads the four instruction files, writes HCD, FRG and CSV files, and prints a marker after each phase. The worker only checks whether CSV files exist and otherwise sends the same nudge](./figures/harness-v0-flow.en.svg "Figure 2. v0: the agent reads the manual and runs everything (circled numbers match the weak points below)")
 
 Weak points:
 
-- **Nobody checked the content.** "Done" meant "the CSV files exist". A missing column, an unknown circuit ID, or a broken FRG only showed up later in the graph or the xlsx.
-- **Progress relied on free text.** A missed or misspelled marker, or a `[QUESTION]` block inside a longer message, confused the step display.
-- **The CSV phase was manual translation.** The agent read all markdown again, translated Japanese to English, and typed five CSVs. This was slow and expensive, and the output was sometimes inconsistent.
-- **All instructions stayed in the context.** By the CSV phase, about 13.9k tokens of instructions were re-sent with every model request.
+- **① Nobody checked the content.** "Done" meant "the CSV files exist". A missing column, an unknown circuit ID, or a broken FRG only showed up later in the graph or the xlsx.
+- **② Progress relied on free text.** A missed or misspelled marker, or a `[QUESTION]` block inside a longer message, confused the step display.
+- **③ The CSV phase was manual translation.** The agent read all markdown again, translated Japanese to English, and typed five CSVs. This was slow and expensive, and the output was sometimes inconsistent.
+- **④ All instructions stayed in the context.** By the CSV phase, about 13.9k tokens of instructions were re-sent with every model request.
 
 ### 3.2 v1: the worker drives the phases and verifies them
 
-```
- Worker (CoBRAC harness)                                   Codex agent
- ───────────────────────                                   ───────────
- prepare workspace: folders, AGENTS.md (auto-loaded rules)
-                                                           
- ┌─ Phase HCD ───────────────────────────────────────┐
- │ prompt = header + phases/HCD.md (EN, 1.3k) ─────▶ │ research, write 6 HCD files + meta.json
- │ checkHcd()  ◀──────────────────── JSON {status}   │
- │   problems? → fix prompt with exact list (≤3) ──▶ │ fix only those problems
- └───────────────────────────────────────────────────┘
- ┌─ Phase FRG ───────────────────────────────────────┐
- │ prompt = phases/FRG.md (EN, 1.0k) ──────────────▶ │ write 5 FRG files
- │ checkFrg()  (1 root, no cycle, ≤2 UC per GN, …)   │
- │   problems? → fix prompt (≤3) ──────────────────▶ │
- └───────────────────────────────────────────────────┘
- ┌─ Phase CSV (no agent) ────────────────────────────┐
- │ buildCsvs(): markdown tables → 5 CSVs             │
- │   fails (e.g. legacy Japanese files)?             │
- │   → fallback prompt phases/CSV.md ──────────────▶ │ write the CSVs
- └───────────────────────────────────────────────────┘
- csv_to_excel.py → .bra.xlsx, buildGraphs() → HCD/FRG JSON → S3
-
- At any turn: {status:"question"} → save state to S3, stop the task, wait for the user
-```
+![v1 architecture. The worker runs the HCD, FRG and CSV phases in order, checks the files with a validator after every turn, and sends up to 3 fix prompts with the exact problem list. The CSVs are generated by code; the agent writes them only as a fallback](./figures/harness-v1-flow.en.svg "Figure 3. v1: the worker drives the phases and verifies them")
 
 ### 3.3 Side by side
 
@@ -103,6 +65,15 @@ Weak points:
 ---
 
 ## 4. The five changes in detail
+
+How the weak points in 3.1 map to the changes:
+
+| v0 weak point | Change in v1 | Details |
+| ------------- | ------------ | ------- |
+| ① Nobody checked the content | A validator checks the files after every turn and returns a problem list | [4.4](#44-validation-with-exact-feedback) |
+| ② Progress relied on free text | Every turn ends with JSON that matches a schema | [4.5](#45-structured-turn-output-and-english-artifacts) |
+| ③ The CSV phase was manual translation | Artifacts are written in English from the start, and code generates the CSVs | [4.3](#43-deterministic-work-is-done-by-code), [4.5](#45-structured-turn-output-and-english-artifacts) |
+| ④ All instructions stayed in the context | Fixed rules move to `AGENTS.md`, and phase specs are sent one at a time | [4.1](#41-fixed-rules-move-to-agentsmd), [4.2](#42-the-worker-runs-one-phase-at-a-time) |
 
 ### 4.1 Fixed rules move to `AGENTS.md`
 
@@ -170,12 +141,7 @@ Measured with the `o200k_base` tokenizer:
 
 Instructions in the context of every request, by phase:
 
-```
-            v0 (tokens)                                 v1 (tokens)
-HCD   ██████ 6.1k                                 ██ 2.0k
-FRG   ███████████▌ 11.5k                          ███ 3.1k
-CSV   █████████████▉ 13.9k                        ███ 3.1k (no agent unless fallback)
-```
+![Instructions in the context by phase. v0: HCD 6.1k, FRG 11.5k, CSV 13.9k tokens. v1: HCD 2.0k, FRG 3.1k, CSV 3.1k tokens](./figures/harness-instruction-tokens.en.svg "Figure 4. Instructions in the context of every request, by phase")
 
 The prompts shrink to about a quarter. Roughly a third of the reduction comes from writing them in English: the same sentence costs about 1.75× more tokens in Japanese (42 vs 24 tokens in our sample). The rest comes from removing duplicated explanations and the steps that code now does.
 
@@ -191,6 +157,8 @@ We measured the final artifacts of five v0-era projects kept in `archive/v0/samp
 | CSVs typed by the agent | −6,300 | generated by code |
 | Japanese text in the remaining markdown, rewritten in English | −10,300 | English is shorter |
 | **Estimated v1 artifact output** | **≈35,700** | **≈ −43%** |
+
+![Breakdown of the artifact output: 62,400 tokens minus 9,100, 1,000, 6,300 and 10,300 gives about 35,700 tokens (about −43%)](./figures/harness-artifact-output.en.svg "Figure 5. Artifact output (estimated from five real v0 projects, average)")
 
 These are the sizes of the final files, so this is a lower bound. The agent usually rewrites `3_UC.md` several times while filling steps 3–6, and each rewrite is output again.
 
