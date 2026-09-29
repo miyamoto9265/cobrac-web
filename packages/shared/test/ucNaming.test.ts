@@ -183,7 +183,11 @@ const UCS = [
 ];
 const conn = (sender: string, receiver: string) => ({
   sender,
+  senderRelation: "=",
+  senderInLiterature: "s",
   receiver,
+  receiverRelation: "=",
+  receiverInLiterature: "r",
   comment: "c",
   referenceIds: ["[Schultz, 1997]"],
   taxon: "Rat",
@@ -247,7 +251,7 @@ describe("a project named by the convention", () => {
       ...u,
       descriptor: ["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i],
       names: ["left dorsal area 9/46", "ventral tegmental area; VTA", "nucleus accumbens", "arcuate nucleus"][i],
-      sourceOfId: ["[Schultz, 1997]", "DHBA", "[Schultz, 1997]", "DHBA"][i],
+      sourceOfId: ["BNA", "DHBA", "BNA", "DHBA"][i],
     }));
     const hcd = checkHcd(hcdFiles(ucs, JSON.parse(rename(j(CONNS)))), { sabra: SABRA });
     expect(hcd.errors).toEqual([]);
@@ -262,9 +266,9 @@ describe("a project named by the convention", () => {
     const { files } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
     expect(parseCsvObjects(files!["Circuits.csv"]).map((c) => [c["UC Descriptor"], c["Source of ID"]])).toEqual([
       ["", "collection"],
-      ["BNA:15", "[Schultz, 1997]"],
+      ["BNA:15", "BNA"],
       ["HOMBA:12261", "DHBA"],
-      ["BNA:223-224", "[Schultz, 1997]"],
+      ["BNA:223-224", "BNA"],
       ["HOMBA:10492", "DHBA"],
     ]);
     const bad = ucs.map((u, i) => (i === 1 ? { ...u, names: "VTA" } : u));

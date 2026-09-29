@@ -37,7 +37,11 @@
   "connections": [
     {
       "sender": "A9/46d@L",
+      "senderRelation": "<",
+      "senderInLiterature": "dorsolateral prefrontal cortex",
       "receiver": "NAC",
+      "receiverRelation": "<",
+      "receiverInLiterature": "ventral striatum",
       "comment": "task context",
       "referenceIds": [
         "[Haber, 2010]"
@@ -49,7 +53,11 @@
     },
     {
       "sender": "VTA",
+      "senderRelation": "<",
+      "senderInLiterature": "midbrain dopamine neurons",
       "receiver": "NAC",
+      "receiverRelation": "<",
+      "receiverInLiterature": "ventral striatum",
       "comment": "reward prediction error",
       "referenceIds": [
         "[Schultz, 1997]"
@@ -61,7 +69,11 @@
     },
     {
       "sender": "NAC",
+      "senderRelation": "<",
+      "senderInLiterature": "ventral striatum",
       "receiver": "VTA",
+      "receiverRelation": "<",
+      "receiverInLiterature": "midbrain dopamine neurons",
       "comment": "expected value",
       "referenceIds": [
         "[Haber, 2010]"
@@ -73,7 +85,11 @@
     },
     {
       "sender": "NAC",
+      "senderRelation": "<",
+      "senderInLiterature": "ventral striatum",
       "receiver": "Arc",
+      "receiverRelation": "=",
+      "receiverInLiterature": "arcuate nucleus",
       "comment": "value-based drive",
       "referenceIds": [
         "[Luo, 2011]"

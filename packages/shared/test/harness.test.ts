@@ -58,7 +58,11 @@ const UC = {
 
 const conn = (sender: string, receiver: string, comment: string, ref = "[Ito, 1982]") => ({
   sender,
+  senderRelation: "=",
+  senderInLiterature: `${sender} of the paper`,
   receiver,
+  receiverRelation: "<",
+  receiverInLiterature: "cerebellar cortex",
   comment,
   referenceIds: [ref],
   taxon: "Rabbit",
@@ -204,6 +208,15 @@ describe("BRA value rules in checkHcd", () => {
     expect(msg).toMatch(/`VN` -> `IO` is listed more than once for \[Lisberger, 1994\]/);
   });
 
+  it("checks the relation and literature notation of both ends", () => {
+    const c = structuredClone(CONN);
+    Object.assign(c.connections[0], { receiverRelation: "<", receiverInLiterature: "GC(granule)" });
+    Object.assign(c.connections[1], { senderRelation: "~" });
+    const msg = checkHcd({ ...HCD, connections: j(c) }).errors.join("\n");
+    expect(msg).toMatch(/receiverInLiterature is the Circuit ID `GC\(granule\)`, but receiverRelation is "<"/);
+    expect(msg).toMatch(/\/connections\/1\/senderRelation must be one of "<", "=", ">"/);
+  });
+
   it("checks the pointers of every connection", () => {
     const c = structuredClone(CONN);
     Object.assign(c.connections[1], { pointersOnLiterature: "p.1594", pointersOnFigure: "" });
@@ -272,7 +285,7 @@ describe("BRA value rules in checkHcd", () => {
     for (const x of u.ucs) x.interface = x.interface.replaceAll("[U.VN]", "[U.A44d@L]");
     for (const x of u.ucs) x.implementation = x.implementation.replaceAll("[U.VN]", "[U.A44d@L]");
     u.ucs[0].outputSemantics = "[A44d@L] content;";
-    u.ucs[0].sourceOfId = "[Ito, 1982]";
+    u.ucs[0].sourceOfId = "BNA";
     const msg = checkHcd({ ...HCD, uc: j(u), connections: j(c) }).errors;
     expect(msg).toEqual([expect.stringMatching(/names of `A44d@L` must start with its SABRA official name "dorsal area 44"/)]);
     u.ucs[0].names = "left dorsal area 44; Broca's area pars opercularis";
@@ -343,6 +356,12 @@ describe("buildCsvs", () => {
       { "Reference ID": "[Lisberger, 1994]", DOI: "N/A", "Literature type": "Experimental results", "Alternative URL": "https://example.org/lisberger-1994" },
     ]);
     expect(parseCsvObjects(files!["Connections.csv"])[0]["Pointers on figure"]).toBe("Fig. 1B");
+    expect(parseCsvObjects(files!["Connections.csv"])[0]).toMatchObject({
+      "sCID relation": "=",
+      "Notation of sCID in Literature": "VN of the paper",
+      "rCID relation": "<",
+      "Notation of rCID in Literature": "cerebellar cortex",
+    });
     const g = buildGraphs("VOR", {
       circuitsCsv: files!["Circuits.csv"],
       connectionsCsv: files!["Connections.csv"],

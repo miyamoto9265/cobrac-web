@@ -53,8 +53,18 @@ export const BRA_TRANSMITTERS = ["Acetylcholine", "Dopamine", "GABA", "Glutamate
 
 export const BRA_MODULATION_TYPES = ["Excitatory", "Inhibitory", "Modulatory"] as const;
 
-/** Source of ID values other than a Reference ID (ontology §4.1.3). */
-export const SOURCE_OF_ID_KEYWORDS = ["DHBA", "MBA", "UBERON", "collection", "makeshift"] as const;
+/**
+ * Source of ID values other than a Reference ID: the ontology §4.1.3 enumeration plus `BNA`, a CoBRAC extension for
+ * UCs that are a whole Brainnetome area (SABRA's BNA side has no value upstream; adding it has been requested).
+ */
+export const SOURCE_OF_ID_KEYWORDS = ["DHBA", "MBA", "UBERON", "BNA", "collection", "makeshift"] as const;
+
+/**
+ * sCID / rCID relation (manual table 9): how the UC relates to the circuit the paper names, read as
+ * `<UC> <relation> <notation in the literature>`. `<`: the UC is part of the paper's (coarser) circuit;
+ * `>`: the UC contains the paper's (finer) circuit; `=`: the same circuit.
+ */
+export const CIRCUIT_RELATIONS = ["<", "=", ">"] as const;
 
 /** Capability&Mechanism of the FRG rows of UCs outside the ROI (Template-v2-2). */
 export const OUT_OF_ROI_CAPABILITY = "No need for description due to input/output circuit";
@@ -63,41 +73,30 @@ export const OUT_OF_ROI_CAPABILITY = "No need for description due to input/outpu
 export const roiCircuitId = (projectId: string) => `ROI_${projectId}`;
 export const isRoiCircuitId = (id: string) => /^ROI_/.test(id);
 
-/**
- * Source of ID of a UC that is a whole BNA area (or BNA group). BNA is not in the BRA enumeration.
- * - `reference`: any Reference ID from references.json (the behaviour before the enumeration was enforced)
- * - `fan-2016`: the Brainnetome atlas paper `[Fan, 2016]`
- * TODO(BNA Source of ID): pending the user's decision (D3 of the Yamakawa feedback response); keep `reference`
- * as the default until it is agreed.
- */
-export type BnaSourceOfIdPolicy = "reference" | "fan-2016";
-export const BNA_ATLAS_REFERENCE_ID = "[Fan, 2016]";
-
 export interface BraRules {
   /**
    * Minimum words of Pointers on literature. Provisional: the "10 words" rule comes from reviewer feedback and is
    * not written in the manual, the ontology or the template.
    */
   minQuoteWords: number;
-  bnaSourceOfId: BnaSourceOfIdPolicy;
 }
 
-export const DEFAULT_BRA_RULES: BraRules = { minQuoteWords: 10, bnaSourceOfId: "reference" };
+export const DEFAULT_BRA_RULES: BraRules = { minQuoteWords: 10 };
 
 const REF_ID_RE = /^\[[^[\]]+\]$/;
 export const isReferenceId = (x: string) => REF_ID_RE.test(x);
 
 /**
- * Problem with the Source of ID of one UC, or null. Anchor-only UCs on one HOMBA/DHBA term use `DHBA`; anchor-only
- * BNA UCs follow `rules.bnaSourceOfId`; faceted (finer than SABRA) or multi-anchor UCs cite the one paper that
- * defines the population, or `makeshift` when none does.
+ * Problem with the Source of ID of one UC, or null. Anchor-only UCs on one HOMBA/DHBA term use `DHBA`, anchor-only
+ * BNA UCs (areas or groups) `BNA`; faceted (finer than SABRA) or mixed-atlas UCs cite the one paper that defines the
+ * population, or `makeshift` when none does.
  */
-export function sourceOfIdProblem(u: { id: string; descriptor: string; sourceOfId: string }, rules: BraRules): string | null {
+export function sourceOfIdProblem(u: { id: string; descriptor: string; sourceOfId: string }): string | null {
   const v = u.sourceOfId;
   const where = `uc.json: sourceOfId of \`${u.id}\``;
   if (!v) return `${where} is empty.`;
   if (!isReferenceId(v) && !(SOURCE_OF_ID_KEYWORDS as readonly string[]).includes(v)) {
-    return `${where} is "${v}"; write one value: DHBA, MBA, UBERON, collection, makeshift or one Reference ID [Author, Year].`;
+    return `${where} is "${v}"; write one value: DHBA, BNA, MBA, UBERON, collection, makeshift or one Reference ID [Author, Year].`;
   }
   const parsed = u.descriptor ? parseUcDescriptor(u.descriptor) : null;
   if (!parsed || "errors" in parsed) return null;
@@ -107,10 +106,7 @@ export function sourceOfIdProblem(u: { id: string; descriptor: string; sourceOfI
     return v === "DHBA" ? null : `${where} is "${v}"; the UC is a whole DHBA term (anchor only), so write DHBA.`;
   }
   if (anchorOnly && d.anchors.every((a) => a.kind !== "homba")) {
-    if (rules.bnaSourceOfId === "fan-2016") {
-      return v === BNA_ATLAS_REFERENCE_ID ? null : `${where} is "${v}"; the UC is a whole BNA area, so write ${BNA_ATLAS_REFERENCE_ID} (the Brainnetome atlas).`;
-    }
-    return isReferenceId(v) ? null : `${where} is "${v}"; the UC is a whole BNA area (BNA is not a Source of ID value), so write the one Reference ID that defines it.`;
+    return v === "BNA" ? null : `${where} is "${v}"; the UC is a whole BNA area (anchor only), so write BNA.`;
   }
   if (isReferenceId(v) || v === "makeshift") return null;
   return `${where} is "${v}"; the UC is finer than its SABRA unit, so write the one Reference ID that defines the population, or makeshift when no paper does.`;
@@ -118,6 +114,19 @@ export function sourceOfIdProblem(u: { id: string; descriptor: string; sourceOfI
 
 const wordCount = (x: string) => x.split(/\s+/).filter((w) => /[A-Za-z]/.test(w)).length;
 const LOCATOR_RE = /^["'“‘]?\s*(?:pp?\.\s*\d|pages?\s+\d|§\s*\d|sections?\s+\d)/i;
+
+/** Problems with the relation and literature notation of one end of a connection (`end`: sender / receiver). */
+export function relationProblems(where: string, end: "sender" | "receiver", circuitId: string, relation: string, notation: string): string[] {
+  const out: string[] = [];
+  const key = `${end}InLiterature`;
+  if (!(CIRCUIT_RELATIONS as readonly string[]).includes(relation)) out.push(`${where}: ${end}Relation must be <, = or >.`);
+  if (!notation) {
+    out.push(`${where}: ${key} is empty; write the name the paper uses for the ${end} circuit.`);
+  } else if (relation !== "=" && notation.replace(/^U\./, "") === circuitId) {
+    out.push(`${where}: ${key} is the Circuit ID \`${circuitId}\`, but ${end}Relation is "${relation}"; write the paper's own name for the circuit it reports.`);
+  }
+  return out;
+}
 
 /** Problems with the two Pointers of one connection (`where` names it). */
 export function pointerProblems(where: string, literature: string, figure: string, rules: BraRules): string[] {

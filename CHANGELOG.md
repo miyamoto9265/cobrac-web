@@ -13,11 +13,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - Pointers on literature is a sentence quoted verbatim from the cited paper (at least 10 words for now; the threshold is a provisional setting), not a page or section; Pointers on figure is a figure number, written as `Fig. 3B`. At least one of the two is required. The agent is told to quote only text it has read
-- Source of ID is one value — `DHBA` for a UC that is a whole DHBA term, one defining paper (or `makeshift`) for a finer UC — instead of a list of supporting papers. For a UC that is a whole BNA area it stays one Reference ID until the BNA policy is decided
+- Source of ID is one value — `DHBA` for a UC that is a whole DHBA term, `BNA` for a whole Brainnetome area, one defining paper (or `makeshift`) for a finer UC — instead of a list of supporting papers. `BNA` is a CoBRAC extension of the BRA list, pending a request to add it upstream
+- Connections record how each UC relates to the circuit the paper reports: sCID / rCID relation (`<` when the paper reports a coarser unit that contains the UC, `>` for a finer unit, `=` for the same) and the paper's own name for it in the Notation columns, instead of always `=` and a copy of the Circuit ID
 - Each connection cites one paper: the same sender → receiver is recorded once per paper, with that paper's species, method and pointers. The HCD graph still draws one edge and lists every paper on it
 - Taxon, Measurement method, Transmitter, Modulation Type and Literature type must be values of the BRA template lists (e.g. `Macaque`, `Anterograde tracing`); details go in the comment
 - Output Semantics of a UC is checked to be exactly one item `[<its Circuit ID>] content;`
 - Circuit names start with the SABRA official name (BNA area name or DHBA name) followed by synonyms, and the agent refers to tissue as `[U.<Circuit ID>]` in function descriptions and the report; references to unknown UCs or FRG nodes go back to the agent
+- The xlsx Capability&Mechanism cell no longer ends with the CoBRAC-only tag `<<mechanism realized by grainest coding scheme>>`, which is not in the BRA template or manual
 - The BRA version in the xlsx is `CoBRAC-v1-1`: columns were only appended, so existing column positions are unchanged. Projects created before this version are checked with the new rules on their next follow-up and the agent is asked to fix what does not conform; their xlsx is still produced meanwhile
 
 ## [0.9.0] - 2026-09-29

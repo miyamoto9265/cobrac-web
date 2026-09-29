@@ -88,7 +88,7 @@ describe("harness + RCS lookups (integration)", () => {
     },
     { ...empty, circuitId: arc, descriptor: "HOMBA:10492", names: "arcuate nucleus", roi: "noROI(input)", sourceOfId: "DHBA", transmitter: "GABA", modulationType: "Inhibitory", comments: "", outputSemantics: `[${arc}] y;` },
   ];
-  const conn = (s: string, r: string) => ({ sender: s, receiver: r, comment: "a", referenceIds: ["[A, 2000]"], taxon: "Mouse", measurementMethod: "Anterograde tracing", pointersOnLiterature: "", pointersOnFigure: "Fig. 1" });
+  const conn = (s: string, r: string) => ({ sender: s, senderRelation: "=", senderInLiterature: s, receiver: r, receiverRelation: "=", receiverInLiterature: r, comment: "a", referenceIds: ["[A, 2000]"], taxon: "Mouse", measurementMethod: "Anterograde tracing", pointersOnLiterature: "", pointersOnFigure: "Fig. 1" });
   const files = (arc: string) => ({
     meta: JSON.stringify({ roi: "r", tlf: "t", description: "d", name: "t in r" }),
     decisionLog: "log",

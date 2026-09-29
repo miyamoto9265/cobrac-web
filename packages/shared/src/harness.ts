@@ -7,6 +7,7 @@ import {
   BRA_MEASUREMENT_METHODS,
   BRA_MODULATION_TYPES,
   BRA_TAXA,
+  CIRCUIT_RELATIONS,
   BRA_TRANSMITTERS,
   DEFAULT_BRA_RULES,
   OUT_OF_ROI_CAPABILITY,
@@ -14,6 +15,7 @@ import {
   normalizeFigurePointer,
   parseOutputSemantics,
   pointerProblems,
+  relationProblems,
   roiCircuitId,
   sourceOfIdProblem,
   type BraRules,
@@ -104,6 +106,11 @@ export interface ConnRow {
   method: string;
   pointersOnLiterature: string;
   pointersOnFigure: string;
+  /** How the UC relates to the circuit the paper names (`<` `=` `>`), and that name; "=" / "" in files written before 0.10 */
+  senderRelation: string;
+  senderInLiterature: string;
+  receiverRelation: string;
+  receiverInLiterature: string;
 }
 
 export interface RefRow {
@@ -174,9 +181,9 @@ const REF_ID: JsonSchema = { type: "string", pattern: "^\\[[^\\[\\]]+\\]$", desc
 const refIds = (description: string): JsonSchema => ({ type: "array", minItems: 1, items: REF_ID, description });
 const SOURCE_OF_ID: JsonSchema = {
   type: "string",
-  pattern: "^(DHBA|MBA|UBERON|collection|makeshift|\\[[^\\[\\]]+\\])$",
+  pattern: "^(DHBA|BNA|MBA|UBERON|collection|makeshift|\\[[^\\[\\]]+\\])$",
   description:
-    "One value: DHBA for a UC that is a whole DHBA term (anchor only); for a whole BNA area, one Reference ID; for a UC finer than its SABRA unit, the one Reference ID that defines the population, or makeshift",
+    "One value: DHBA for a UC that is a whole DHBA term (anchor only); BNA for a whole BNA area or group (anchor only); for a UC finer than its SABRA unit, the one Reference ID that defines the population, or makeshift",
 };
 
 function record(properties: Record<string, JsonSchema>): JsonSchema {
@@ -265,7 +272,11 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       description: "Directed UC-to-UC connections (HCD step 4)",
       item: record({
         sender: nonEmpty("Sender Circuit ID (sCID) from uc.json"),
+        senderRelation: { enum: CIRCUIT_RELATIONS, description: "`<` the sender UC is part of the circuit the paper reports (paper coarser), `>` it contains it (paper finer), `=` the same" },
+        senderInLiterature: nonEmpty("The paper's own name for the sending circuit (not the Circuit ID)"),
         receiver: nonEmpty("Receiver Circuit ID (rCID) from uc.json"),
+        receiverRelation: { enum: CIRCUIT_RELATIONS, description: "`<` the receiver UC is part of the circuit the paper reports, `>` it contains it, `=` the same" },
+        receiverInLiterature: nonEmpty("The paper's own name for the receiving circuit (not the Circuit ID)"),
         comment: str("Property and information carried"),
         referenceIds: { ...refIds("The one Reference ID of this record; repeat the connection for each further paper"), maxItems: 1 },
         taxon: { enum: BRA_TAXA, description: "Species of the evidence in that paper; (Mixed) for several, details in comment" },
@@ -478,7 +489,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     if (seen.has(u.id)) errors.push(`uc.json: Circuit ID \`${u.id}\` is used by more than one UC.`);
     seen.add(u.id);
     if (/^\[/.test(u.sourceOfId)) checkRefs(`uc.json: sourceOfId of \`${u.id}\``, [u.sourceOfId]);
-    const src = sourceOfIdProblem(u, rules);
+    const src = sourceOfIdProblem(u);
     if (src) errors.push(src);
     const official = sabraOfficialName(u.descriptor, opts.sabra);
     if (official && u.names && !namesStartWithOfficial(u.names, official)) {
@@ -509,6 +520,10 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       method: s(c.measurementMethod),
       pointersOnLiterature: s(c.pointersOnLiterature),
       pointersOnFigure: s(c.pointersOnFigure),
+      senderRelation: s(c.senderRelation),
+      senderInLiterature: s(c.senderInLiterature),
+      receiverRelation: s(c.receiverRelation),
+      receiverInLiterature: s(c.receiverInLiterature),
     }))
     .filter((c) => c.sender || c.receiver);
 
@@ -529,6 +544,10 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
         records.add(key);
       }
       errors.push(...pointerProblems(`${where} (${c.referenceIds.join("; ")})`, c.pointersOnLiterature, c.pointersOnFigure, rules));
+      if (c.senderRelation || c.senderInLiterature || c.receiverRelation || c.receiverInLiterature) {
+        errors.push(...relationProblems(where, "sender", c.sender, c.senderRelation, c.senderInLiterature));
+        errors.push(...relationProblems(where, "receiver", c.receiver, c.receiverRelation, c.receiverInLiterature));
+      }
       for (const [end, id] of [
         ["sender", c.sender],
         ["receiver", c.receiver],
@@ -800,6 +819,10 @@ export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null, da
 const circuitComments = (u: UcRow) =>
   u.roi === "roi" || /noroi/i.test(u.comments) ? u.comments : [u.comments, ROI_TAG[u.roi]].filter(Boolean).join("; ");
 
+/** Relation and notation of one end; files written before 0.10 keep the old `=` + Circuit ID. */
+const literatureEnd = (relation: string, notation: string, circuitId: string) =>
+  relation || notation ? [relation || "=", notation] : ["=", circuitId];
+
 const isNoDoi = (doi: string) => !doi || /^n\/?a$/i.test(doi);
 
 /**
@@ -864,7 +887,20 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
       ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, circuitComments(u), u.descriptor, "", "TRUE"]),
     ],
     "Connections.csv": [
-      ["Sender Circuit ID (sCID)", "Receiver Circuit ID (rCID)", "Comments", "Reference ID", "Taxon", "Measurement method", "Pointers on literature", "Pointers on figure"],
+      [
+        "Sender Circuit ID (sCID)",
+        "Receiver Circuit ID (rCID)",
+        "Comments",
+        "Reference ID",
+        "Taxon",
+        "Measurement method",
+        "Pointers on literature",
+        "Pointers on figure",
+        "sCID relation",
+        "Notation of sCID in Literature",
+        "rCID relation",
+        "Notation of rCID in Literature",
+      ],
       ...hcd.connections.flatMap((c) =>
         (c.referenceIds.length ? c.referenceIds : [""]).map((ref) => [
           c.sender,
@@ -875,6 +911,8 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
           c.method,
           c.pointersOnLiterature,
           c.pointersOnFigure ? (normalizeFigurePointer(c.pointersOnFigure) ?? c.pointersOnFigure) : "",
+          ...literatureEnd(c.senderRelation, c.senderInLiterature, c.sender),
+          ...literatureEnd(c.receiverRelation, c.receiverInLiterature, c.receiver),
         ]),
       ),
     ],

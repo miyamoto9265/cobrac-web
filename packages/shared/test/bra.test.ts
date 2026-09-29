@@ -1,24 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BRA_RULES, normalizeFigurePointer, parseOutputSemantics, pointerProblems, sourceOfIdProblem } from "../src/index.js";
+import { DEFAULT_BRA_RULES, normalizeFigurePointer, parseOutputSemantics, pointerProblems, relationProblems, sourceOfIdProblem } from "../src/index.js";
 
 const rules = DEFAULT_BRA_RULES;
 const QUOTE = "Dopamine neurons of the ventral tegmental area project densely to the shell of the nucleus accumbens.";
 
 describe("sourceOfIdProblem", () => {
-  const p = (descriptor: string, sourceOfId: string, r = rules) => sourceOfIdProblem({ id: "X", descriptor, sourceOfId }, r);
+  const p = (descriptor: string, sourceOfId: string) => sourceOfIdProblem({ id: "X", descriptor, sourceOfId });
 
   it("asks for DHBA on a UC that is a whole DHBA term", () => {
     expect(p("HOMBA:12261", "DHBA")).toBeNull();
     expect(p("HOMBA:12261", "[Schultz, 1997]")).toMatch(/whole DHBA term .* write DHBA/);
   });
 
-  it("keeps any Reference ID for a whole BNA area by default and requires [Fan, 2016] only when that policy is chosen", () => {
-    expect(p("BNA:223-224", "[Haber, 2010]")).toBeNull();
-    expect(p("BNAG:Hipp", "[Haber, 2010]")).toBeNull();
-    expect(p("BNA:223-224", "DHBA")).toMatch(/whole BNA area/);
-    const fan = { ...rules, bnaSourceOfId: "fan-2016" as const };
-    expect(p("BNA:223-224", "[Haber, 2010]", fan)).toMatch(/\[Fan, 2016\]/);
-    expect(p("BNA:223-224", "[Fan, 2016]", fan)).toBeNull();
+  it("asks for BNA (CoBRAC extension) on a UC that is a whole BNA area or group", () => {
+    expect(p("BNA:223-224", "BNA")).toBeNull();
+    expect(p("BNAG:Hipp", "BNA")).toBeNull();
+    expect(p("BNA:215-216&BNA:217-218", "BNA")).toBeNull();
+    expect(p("BNA:223-224", "[Fan, 2016]")).toMatch(/whole BNA area \(anchor only\), so write BNA/);
+    expect(p("BNA:223-224", "DHBA")).toMatch(/write BNA/);
   });
 
   it("asks a UC finer than its SABRA unit for one defining paper or makeshift", () => {
@@ -29,9 +28,20 @@ describe("sourceOfIdProblem", () => {
   });
 
   it("rejects values outside the enumeration and empty values", () => {
-    expect(p("HOMBA:12261", "BNA")).toMatch(/write one value: DHBA, MBA, UBERON, collection, makeshift or one Reference ID/);
+    expect(p("HOMBA:12261", "Brainnetome")).toMatch(/write one value: DHBA, BNA, MBA, UBERON, collection, makeshift or one Reference ID/);
+    expect(p("HOMBA:12261", "BNA")).toMatch(/whole DHBA term/);
     expect(p("HOMBA:12261", "[A, 2000]; [B, 2001]")).toMatch(/write one value/);
     expect(p("HOMBA:12261", "")).toMatch(/is empty/);
+  });
+});
+
+describe("relationProblems", () => {
+  it("requires a relation and the paper's own name for the circuit", () => {
+    expect(relationProblems("c", "sender", "NAC", "<", "ventral striatum")).toEqual([]);
+    expect(relationProblems("c", "sender", "NAC", "=", "NAC")).toEqual([]);
+    expect(relationProblems("c", "receiver", "NAC", "~", "ventral striatum").join("\n")).toMatch(/receiverRelation must be <, = or >/);
+    expect(relationProblems("c", "sender", "NAC", "<", "").join("\n")).toMatch(/senderInLiterature is empty/);
+    expect(relationProblems("c", "sender", "NAC", "<", "NAC").join("\n")).toMatch(/senderInLiterature is the Circuit ID `NAC`, but senderRelation is "<"/);
   });
 });
 

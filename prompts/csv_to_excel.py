@@ -180,15 +180,18 @@ def process_connections(csv_dir: str, contributor: str, project_id: str) -> pd.D
     元の列構成:
         A Sender Circuit ID (sCID) / B Receiver Circuit ID (rCID) / C Comments /
         D Reference ID / E Taxon / F Measurement method /
-        G Pointers on literature / H Pointers on figure
+        G Pointers on literature / H Pointers on figure /
+        I sCID relation / J Notation of sCID in Literature /
+        K rCID relation / L Notation of rCID in Literature
+        （I〜L は CoBRAC-v1-1 から。無い CSV は relation "="、Notation は Circuit ID のコピー）
 
     処理後の列構成:
         A Sender Circuit ID (sCID)
-        B sCID relation                    (全行 "=")
-        C Notation of sCID in Literature   (元 A のコピー)
+        B sCID relation                    (元 I)
+        C Notation of sCID in Literature   (元 J)
         D Receiver Circuit ID (rCID)
-        E rCID relation                    (全行 "=")
-        F Notation of rCID in Literature   (元 B のコピー)
+        E rCID relation                    (元 K)
+        F Notation of rCID in Literature   (元 L)
         G Size                             (空欄)
         H Comments                         (元 C)
         I Reference ID                     (元 D)
@@ -207,13 +210,18 @@ def process_connections(csv_dir: str, contributor: str, project_id: str) -> pd.D
     )
     n = len(df)
 
-    scid_col = df.iloc[:, 0].copy()
-    rcid_col = df.iloc[:, 1].copy()
+    def pop_or(name, default):
+        return df.pop(name).values if name in df.columns else default
 
-    df.insert(1, "sCID relation", ["="] * n)
-    df.insert(2, "Notation of sCID in Literature", scid_col.values)
-    df.insert(4, "rCID relation", ["="] * n)
-    df.insert(5, "Notation of rCID in Literature", rcid_col.values)
+    s_rel = pop_or("sCID relation", ["="] * n)
+    s_not = pop_or("Notation of sCID in Literature", df.iloc[:, 0].values)
+    r_rel = pop_or("rCID relation", ["="] * n)
+    r_not = pop_or("Notation of rCID in Literature", df.iloc[:, 1].values)
+
+    df.insert(1, "sCID relation", s_rel)
+    df.insert(2, "Notation of sCID in Literature", s_not)
+    df.insert(4, "rCID relation", r_rel)
+    df.insert(5, "Notation of rCID in Literature", r_not)
     df.insert(6, "Size", [""] * n)
 
     df["In-depth literature"] = ""
@@ -239,7 +247,7 @@ def process_frg(csv_dir: str) -> pd.DataFrame:
         B Subnodes
         C Circuit ID
         D Projected Circuits
-        E Capability&Mechanism  (E+改行+タグ+改行+F+改行+タグ。ROI 外 UC の行は E の定型文だけ)
+        E Capability&Mechanism  (E+改行+タグ+改行+F。タグはテンプレートの既定値。ROI 外 UC の行は E の定型文だけ)
         F Implementation of Uniform Circuit  (元 G)
         G Requirements Realization by Interface  (元 H)
         H Requirements  (元 I)
@@ -255,12 +263,7 @@ def process_frg(csv_dir: str) -> pd.DataFrame:
     capability = df.iloc[:, 4].astype(str)
     mechanism  = df.iloc[:, 5].astype(str)
 
-    merged = (
-        capability
-        + "\n<<mechanism to realize the capability>>\n"
-        + mechanism
-        + "\n<<mechanism realized by grainest coding scheme>>"
-    )
+    merged = capability + "\n<<mechanism to realize the capability>>\n" + mechanism
     # ROI 外 UC の定型文（harness.ts の OUT_OF_ROI_CAPABILITY）はタグを付けずにそのまま出す
     fixed = (capability == OUT_OF_ROI_CAPABILITY) & (mechanism.str.strip() == "")
     merged = merged.where(~fixed, capability)

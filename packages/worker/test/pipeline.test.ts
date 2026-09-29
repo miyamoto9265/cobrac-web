@@ -176,6 +176,7 @@ describe("phase pipeline with a mock agent", () => {
             "print([[x.value for x in r][:2] for r in wb['Project'].iter_rows(min_row=4, max_row=8)])",
             "f=wb['FRG']",
             "print([[x.value for x in r][4] for r in f.iter_rows(min_row=2) if r[0].value in ('U.A9/46d@L','U.VTA')])",
+            "print([x.value for x in wb['Connections'][2]][:6])",
           ].join("\n"),
           out,
         ],
@@ -185,10 +186,12 @@ describe("phase pipeline with a mock agent", () => {
       const lines = sheets.stdout.trim().split("\n");
       expect(lines[0]).toBe("['Project', 'References', 'Circuits', 'Connections', 'FRG']");
       expect(lines[1]).toMatch(/^\['Circuit ID', 'Source of ID', 'Names', 'Sub-Circuits', 'Super Class', 'Uniform', .*'Project ID', 'UC Descriptor'\]$/);
-      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'VTA;NAC', None, False], ['A9/46d@L', '[Haber, 2010]', 'left dorsal area 9/46', None, None, True]]`);
+      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'VTA;NAC', None, False], ['A9/46d@L', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
       expect(lines[3]).toBe("['Reference ID', 'DOI', 'Literature type', 'Alternative URL']");
       expect(lines[4]).toBe("[['Sheet Name', 'Review End Line'], ['References', 4], ['Circuits', 6], ['Connections', 5], ['FRG', 7]]");
       expect(lines[5]).toMatch(/^\['No need for description due to input\/output circuit', 'Temporal-difference/);
+      expect(lines[5]).not.toMatch(/grainest/);
+      expect(lines[6]).toBe("['A9/46d@L', '<', 'dorsolateral prefrontal cortex', 'NAC', '<', 'ventral striatum']");
     }
     rmSync(p.root, { recursive: true, force: true });
   });
@@ -235,6 +238,7 @@ describe("projects written before the BRA value rules (0.9 format)", () => {
     writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
     const c = JSON.parse(fixture("HCD/connections.json"));
     Object.assign(c.connections[1], { referenceIds: ["[Schultz, 1997]", "[Haber, 2010]"], taxon: "Macaca mulatta", pointersOnLiterature: "p.1594" });
+    for (const x of c.connections) for (const k of ["senderRelation", "senderInLiterature", "receiverRelation", "receiverInLiterature"]) delete x[k];
     writeFileSync(join(p.hcd, "connections.json"), JSON.stringify(c, null, 2));
   }
 
@@ -254,12 +258,14 @@ describe("projects written before the BRA value rules (0.9 format)", () => {
     expect(fix).toMatch(/`VTA` -> `NAC` cites 2 references; write one connection per reference/);
     expect(fix).toMatch(/\/connections\/1\/taxon must be one of/);
     expect(fix).toMatch(/pointersOnLiterature starts with a page or section locator/);
+    expect(fix).toMatch(/\/connections\/0\/senderRelation is required/);
     expect(warnings).toHaveLength(1);
 
     const csv = (f: string) => parseCsvObjects(readFileSync(join(p.csv, f), "utf8"));
     expect(csv("Circuits.csv").find((r) => r["Circuit ID"] === "VTA")?.["Source of ID"]).toBe("[Schultz, 1997]");
     const vtaNac = csv("Connections.csv").filter((r) => r["Sender Circuit ID (sCID)"] === "VTA" && r["Receiver Circuit ID (rCID)"] === "NAC");
     expect(vtaNac.map((r) => r["Reference ID"])).toEqual(["[Schultz, 1997]", "[Haber, 2010]"]);
+    expect(vtaNac[0]).toMatchObject({ "sCID relation": "=", "Notation of sCID in Literature": "VTA", "rCID relation": "=", "Notation of rCID in Literature": "NAC" });
     rmSync(p.root, { recursive: true, force: true });
   });
 });
