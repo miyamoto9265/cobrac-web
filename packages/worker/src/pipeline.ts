@@ -5,8 +5,22 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, SabraLookup } from "@cobrac/shared";
-import { HARNESS_SCHEMAS, SCHEMA_DIR, buildCsvs, buildGraphs, checkFrg, checkHcd, hombaAnchorIds, schemaFileName } from "@cobrac/shared";
+import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, RefCheck, RefRow, RefStatus, SabraLookup } from "@cobrac/shared";
+import {
+  HARNESS_SCHEMAS,
+  SCHEMA_DIR,
+  buildCsvs,
+  buildGraphs,
+  checkCitations,
+  checkFrg,
+  checkHcd,
+  frgCitedIds,
+  hombaAnchorIds,
+  isFrgProblem,
+  refCheckMessage,
+  schemaFileName,
+  summarizeRefChecks,
+} from "@cobrac/shared";
 import { loadFrgFiles, loadHcdFiles, type ProjectPaths } from "./steps.js";
 
 export type Phase = "HCD" | "FRG" | "CSV";
@@ -32,11 +46,29 @@ export interface PhaseCheck {
 export interface PhaseContext {
   hcd: HcdModel | null;
   frg: FrgModel | null;
+  /** Latest reference check (also written to reference_check.json) */
+  references?: ReferenceReport | null;
+}
+
+/** Contents of `{P}/reference_check.json`, rewritten by every HCD / FRG check. */
+export interface ReferenceReport {
+  checkedAt: string;
+  phase: Phase;
+  /** Whether the DOIs / PMIDs were looked up (off: only the citations were checked) */
+  lookup: "on" | "off";
+  summary: Record<RefStatus, number> | null;
+  references: RefCheck[];
+  /** Reference ID → where it is cited */
+  citedAt: Record<string, string[]>;
+  /** Every reference problem found, including those of the other phase */
+  problems: string[];
 }
 
 export interface CheckDeps {
   /** RCS facts for the HOMBA anchors of the UC Descriptors (omitted when RCS is unavailable) */
   lookupSabra?: (hombaIds: string[]) => Promise<SabraLookup>;
+  /** Looks up each reference's DOI / PMID (omitted: only the citations are checked) */
+  verifyReferences?: (refs: RefRow[]) => Promise<RefCheck[]>;
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -66,13 +98,14 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   ctx.hcd = hcd.model;
   if (phase === "HCD") {
     if (hcd.model?.meta && hcd.errors.length === 0) await deps.onMetaAccepted?.(hcd.model.meta);
-    return { errors: hcd.errors, fatal: hcd.fatal };
+    const refErrors = await checkReferences("HCD", paths, deps, ctx);
+    return { errors: [...new Set([...hcd.errors, ...refErrors])], fatal: hcd.fatal };
   }
   if (!hcd.model) return { errors: ["The HCD files cannot be used:", ...hcd.errors], fatal: true };
 
   const frg = checkFrg(loadFrgFiles(paths), hcd.model);
   ctx.frg = frg.model;
-  if (phase === "FRG") return { errors: frg.errors, fatal: frg.fatal };
+  if (phase === "FRG") return { errors: [...frg.errors, ...(await checkReferences("FRG", paths, deps, ctx))], fatal: frg.fatal };
   if (!frg.model) return { errors: ["The FRG file cannot be used:", ...frg.errors], fatal: true };
 
   const built = buildCsvs(hcd.model, frg.model, await deps.csvOptions());
@@ -81,6 +114,43 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   for (const [name, text] of Object.entries(built.files)) await writeFile(join(paths.csv, name), text, "utf8");
   const graphError = await graphParseError(paths);
   return graphError ? { errors: [graphError], fatal: true } : { errors: [], fatal: false };
+}
+
+/**
+ * Citations and (with `verifyReferences`) the DOIs / PMIDs of references.json. Every check writes the full result to
+ * reference_check.json; the returned problems are those of `phase`: the FRG phase answers for frg.json, the report's
+ * FRG section and the references cited only there, the HCD phase for everything else.
+ */
+async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
+  const hcdFiles = loadHcdFiles(paths);
+  const citations = checkCitations({ ...hcdFiles, frg: loadFrgFiles(paths).frg });
+  const frgOnly = frgCitedIds(citations);
+  const inPhase = (frg: boolean) => frg === (phase === "FRG");
+  const errors = citations.problems.filter((p) => inPhase(isFrgProblem(p))).map((p) => p.message);
+
+  const refs = ctx.hcd?.refs ?? [];
+  const checks = deps.verifyReferences && refs.length ? await deps.verifyReferences(refs) : [];
+  for (const c of checks) {
+    const msg = refCheckMessage(c);
+    if (msg && inPhase(frgOnly.has(c.id))) errors.push(msg);
+  }
+
+  const report: ReferenceReport = {
+    checkedAt: new Date().toISOString(),
+    phase,
+    lookup: deps.verifyReferences ? "on" : "off",
+    summary: checks.length ? summarizeRefChecks(checks) : null,
+    references: checks,
+    citedAt: Object.fromEntries(citations.citedAt),
+    problems: [...citations.problems.map((p) => p.message), ...checks.map(refCheckMessage).filter((m): m is string => !!m)],
+  };
+  ctx.references = report;
+  try {
+    await writeFile(paths.referenceCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[references] ${paths.referenceCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return errors;
 }
 
 export async function graphParseError(paths: ProjectPaths): Promise<string | null> {

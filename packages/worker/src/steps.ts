@@ -11,6 +11,7 @@ export interface ProjectPaths {
   decisionLog: string;
   report: string;
   rcsLog: string;
+  referenceCheck: string;
   hcd: string;
   frg: string;
   csv: string;
@@ -24,6 +25,7 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
     decisionLog: join(root, PROJECT_FILES.decisionLog),
     report: join(root, PROJECT_FILES.report),
     rcsLog: join(root, PROJECT_FILES.rcsLog),
+    referenceCheck: join(root, PROJECT_FILES.referenceCheck),
     hcd: join(root, `${projectId}_HCD`),
     frg: join(root, `${projectId}_FRG`),
     csv: join(root, `${projectId}_CSV`),

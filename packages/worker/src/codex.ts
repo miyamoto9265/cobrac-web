@@ -32,6 +32,7 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null): C
       AWS_SESSION_TOKEN: "",
       AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: "",
       AWS_CONTAINER_CREDENTIALS_FULL_URI: "",
+      NCBI_API_KEY: "",
       // Codex itself sends it as the MCP bearer token; shell_environment_policy keeps it out of agent commands
       [RCS_TOKEN_ENV]: rcs?.token ?? "",
     },
