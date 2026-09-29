@@ -1,4 +1,5 @@
 import { Codex, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType } from "@cobrac/shared";
 import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
@@ -89,8 +90,44 @@ export function openThread(codex: Codex, threadId: string | null, settings: Mode
   return threadId ? codex.resumeThread(threadId, options) : codex.startThread(options);
 }
 
-/** Run one turn, streaming items to the sink. */
-export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, signal?: AbortSignal): Promise<TurnResult> {
+/**
+ * Codex retries a rate-limited request itself ("Reconnecting... n/5"). A turn that still fails on a rate limit is
+ * resumed on the same thread after a pause, up to this many times, instead of failing the job.
+ */
+export const RATE_LIMIT_TURN_RETRIES = 3;
+const RATE_LIMIT_MIN_WAIT_MS = 30_000;
+const RATE_LIMIT_MAX_WAIT_MS = 180_000;
+const HEARTBEAT_MS = 45_000;
+const RATE_LIMIT_RESUME_PROMPT =
+  "The previous turn stopped on a temporary OpenAI rate limit before it finished. Continue the same task from where it stopped (check the files you already wrote instead of redoing them), then end the turn as instructed.";
+
+/** Rate limits (TPM / RPM, HTTP 429) pass with time; an exhausted quota or billing problem does not. */
+export function isRateLimitError(message: string | null): boolean {
+  if (!message || /quota|billing/i.test(message)) return false;
+  return /rate.?limit|too many requests|\b429\b|tokens per min|requests per min/i.test(message);
+}
+
+/** Pause before resuming a rate-limited turn: the server's "try again in …" hint or exponential backoff, whichever is longer. */
+export function rateLimitWaitMs(message: string, attempt: number): number {
+  const m = /try again in\s*([\d.]+)\s*(ms|s|m)\b/i.exec(message);
+  const hinted = m ? Number(m[1]) * (m[2] === "ms" ? 1 : m[2] === "m" ? 60_000 : 1000) : 0;
+  return Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.max(Math.ceil(hinted) + 5_000, RATE_LIMIT_MIN_WAIT_MS * 2 ** attempt));
+}
+
+export interface RunTurnOptions {
+  /** Pause between rate-limit retries (tests); rejects when the signal aborts */
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+}
+
+/** Stream state of one Codex run; `error` events alone do not fail a turn that completes. */
+interface TurnState {
+  completed: boolean;
+  failedMessage: string | null;
+  lastError: string | null;
+}
+
+/** Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause. */
+export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
   const result: TurnResult = {
     threadId: thread.id ?? null,
     finalMessage: "",
@@ -99,26 +136,44 @@ export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, si
     errorMessage: null,
     usage: { input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 },
   };
+  const sleep = o.sleep ?? ((ms: number, s?: AbortSignal) => delay(ms, undefined, s ? { signal: s } : {}));
 
-  const { events } = await thread.runStreamed(prompt, { outputSchema: TURN_OUTPUT_SCHEMA, ...(signal ? { signal } : {}) });
-  let lastHeartbeat = Date.now();
-
-  for await (const ev of events) {
-    if (Date.now() - lastHeartbeat > 45_000) {
-      lastHeartbeat = Date.now();
-      await sink.onHeartbeat();
+  let input = prompt;
+  for (let attempt = 0; ; attempt++) {
+    const state: TurnState = { completed: false, failedMessage: null, lastError: null };
+    const { events } = await thread.runStreamed(input, { outputSchema: TURN_OUTPUT_SCHEMA, ...(signal ? { signal } : {}) });
+    let lastHeartbeat = Date.now();
+    for await (const ev of events) {
+      if (Date.now() - lastHeartbeat > HEARTBEAT_MS) {
+        lastHeartbeat = Date.now();
+        await sink.onHeartbeat();
+      }
+      await handleEvent(ev, result, state, sink);
     }
-    await handleEvent(ev, result, sink);
+    result.threadId = thread.id ?? result.threadId;
+    const error = state.failedMessage ?? (state.completed ? null : state.lastError);
+    result.failed = error !== null;
+    result.errorMessage = error;
+    if (!error || !isRateLimitError(error) || attempt >= RATE_LIMIT_TURN_RETRIES) break;
+
+    const wait = rateLimitWaitMs(error, attempt);
+    console.warn(`[worker] turn hit an OpenAI rate limit; resuming in ${Math.round(wait / 1000)} s (${attempt + 1}/${RATE_LIMIT_TURN_RETRIES})`);
+    await sink.onMessage("status", `OpenAI rate limit: resuming the turn in ${Math.round(wait / 1000)} s (retry ${attempt + 1}/${RATE_LIMIT_TURN_RETRIES}).`, { kind: "rateLimitRetry", waitMs: wait });
+    for (let left = wait; left > 0; left -= HEARTBEAT_MS) {
+      await sink.onHeartbeat();
+      await sleep(Math.min(left, HEARTBEAT_MS), signal);
+    }
+    input = RATE_LIMIT_RESUME_PROMPT;
+    result.finalMessage = "";
   }
 
-  result.threadId = thread.id ?? result.threadId;
   const structured = parseTurnOutput(result.finalMessage);
   if (structured) result.question = structured.status === "question" ? (structured.question ?? structured.message) : null;
   else result.question = QUESTION_REGEX.exec(result.finalMessage)?.[1].trim() ?? null;
   return result;
 }
 
-async function handleEvent(ev: ThreadEvent, result: TurnResult, sink: TurnSink) {
+async function handleEvent(ev: ThreadEvent, result: TurnResult, state: TurnState, sink: TurnSink) {
   switch (ev.type) {
     case "thread.started":
       result.threadId = ev.thread_id;
@@ -126,20 +181,21 @@ async function handleEvent(ev: ThreadEvent, result: TurnResult, sink: TurnSink) 
     case "turn.started":
       return;
     case "turn.completed":
+      state.completed = true;
       result.usage.input += ev.usage.input_tokens;
       result.usage.cachedInput += ev.usage.cached_input_tokens;
       result.usage.output += ev.usage.output_tokens;
       result.usage.reasoningOutput += ev.usage.reasoning_output_tokens;
       return;
     case "turn.failed":
-      result.failed = true;
-      result.errorMessage = ev.error.message;
+      state.failedMessage = ev.error.message;
       await sink.onMessage("error", `Turn failed: ${ev.error.message}`);
       return;
     case "error":
-      result.failed = true;
-      result.errorMessage = ev.message;
-      await sink.onMessage("error", `Error: ${ev.message}`);
+      // codex exec also reports stream retries here ("Reconnecting... 2/5 (rate limit exceeded …)"), after which the turn goes on
+      state.lastError = ev.message;
+      if (/^Reconnecting\b/i.test(ev.message)) await sink.onMessage("status", ev.message, { kind: "reconnecting" });
+      else await sink.onMessage("error", `Error: ${ev.message}`);
       return;
     case "item.completed":
       await handleItem(ev.item, result, sink);

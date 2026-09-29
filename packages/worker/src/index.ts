@@ -662,7 +662,7 @@ const SEARCH_LOG_MAX_RESULT = 4_000;
 const searchCounts: Record<string, { ok: number; failed: number }> = {};
 
 /** Every literature search of the agent (lit tools and web search), one JSON line each; the coverage check reads it. */
-async function recordSearch(item: { tool: string; arguments: unknown; status: string; result?: { structured_content: unknown } | null; error?: { message: string } }) {
+async function recordSearch(item: { tool: string; arguments: unknown; status: string; result?: { structured_content: unknown; content?: unknown[] } | null; error?: { message: string } }) {
   if (item.status === "in_progress") return;
   const n = (searchCounts[item.tool] ??= { ok: 0, failed: 0 });
   if (item.status === "failed") n.failed++;
@@ -671,12 +671,23 @@ async function recordSearch(item: { tool: string; arguments: unknown; status: st
   const text = JSON.stringify(result);
   if (text && text.length > SEARCH_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, SEARCH_LOG_MAX_RESULT) };
   const step = lastStepStates ? currentStepOf(lastStepStates) : null;
-  const line = { at: nowIso(), jobId, step, tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
+  const line = { at: nowIso(), jobId, step, tool: item.tool, arguments: item.arguments, status: item.status, error: mcpErrorText(item), result };
   try {
     await appendFile(paths.researchLog, JSON.stringify(line) + "\n", "utf8");
   } catch (e) {
     console.warn("[worker] search log failed", e);
   }
+}
+
+/** Error of a failed MCP call: Codex's message, else the text the tool returned with `isError` (e.g. "Europe PMC is unavailable (HTTP 503)"). */
+function mcpErrorText(item: { status: string; result?: { content?: unknown[] } | null; error?: { message: string } }): string | null {
+  if (item.error?.message) return item.error.message;
+  if (item.status !== "failed") return null;
+  const text = (item.result?.content ?? [])
+    .map((c) => (c && typeof c === "object" && typeof (c as { text?: unknown }).text === "string" ? (c as { text: string }).text : ""))
+    .join(" ")
+    .trim();
+  return text ? text.slice(0, 500) : null;
 }
 
 // --- phases ------------------------------------------------------------------

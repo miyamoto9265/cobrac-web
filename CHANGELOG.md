@@ -5,6 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- The agent's literature tools no longer fail on the first hiccup of Europe PMC or PubMed: requests that time out or get HTTP 429 / 5xx are retried with backoff, parallel calls are spaced out instead of reaching the service at once, and a service that keeps failing is skipped for a few minutes. In a production run (2026-09-29) Europe PMC answered 502 / 503 or timed out, and every "sentences from the full text" call, 11 of 28 Europe PMC searches and 6 of 27 abstract lookups failed
+- While Europe PMC is down, abstracts and full-text sentences still come back: the record and abstract are taken from PubMed and the open-access full text from PMC (NCBI BioC); the answer notes which service failed. A search that still fails says which service is down and suggests the other search tool
+- Sentences are also read from author manuscripts that Europe PMC and PMC show in full (before, only papers flagged open access were read in full)
+- A job no longer fails when OpenAI briefly rate-limits it (tokens per minute): Codex's own "Reconnecting…" retries are shown as status lines instead of ending the job after the turn has finished, and a turn that still fails on a rate limit is resumed on the same thread after a pause (up to 3 times)
+- The search log (`research_queries.jsonl`) records the error text of failed literature tool calls
+
 ## [0.11.0] - 2026-09-29
 
 ### Added
