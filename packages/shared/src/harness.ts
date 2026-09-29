@@ -12,7 +12,6 @@ import {
   DEFAULT_BRA_RULES,
   OUT_OF_ROI_CAPABILITY,
   formatOutputSemantics,
-  isReferenceId,
   isRoiCircuitId,
   normalizeFigurePointer,
   parseOutputSemantics,
@@ -297,11 +296,7 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         circuitId: { type: "string", pattern: "^\\S+$", description: "Circuit ID: for a SABRA unit its anchor-only Circuit ID by the UC naming rules (e.g. `A44d@L`); for another grouping a short name" },
         descriptor: str("UC Descriptor when the Collection is one SABRA unit (anchor only, e.g. `BNA:29`) or a faceted population; empty for another grouping"),
         names: nonEmpty("SABRA official name first when it is a SABRA unit, then synonyms separated by `;`"),
-        sourceOfId: {
-          type: "string",
-          pattern: "^(DHBA|collection|\\[[^\\[\\]]+\\])$",
-          description: "collection (defined by its Sub-Circuits); DHBA only for a whole DHBA term (anchor-only descriptor); a Reference ID only when one paper defines the grouping",
-        },
+        sourceOfId: { enum: ["collection"], description: "Always collection: a Collection is defined by its Sub-Circuits" },
         subCircuits: {
           type: "array",
           minItems: 1,
@@ -566,10 +561,6 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     if (seen.has(c.id) || collectionIds.has(c.id)) errors.push(`uc.json: Circuit ID \`${c.id}\` is used by more than one circuit (UCs and Collections share one ID space).`);
     collectionIds.add(c.id);
     if (isRoiCircuitId(c.id)) errors.push(`uc.json: Collection \`${c.id}\`: Circuit IDs starting with ROI_ are reserved for the ROI row, which the worker writes.`);
-    if (isReferenceId(c.sourceOfId)) checkRefs(`uc.json: sourceOfId of Collection \`${c.id}\``, [c.sourceOfId]);
-    if (c.sourceOfId === "DHBA" && !isAnchorOnlyHomba(c.descriptor)) {
-      errors.push(`uc.json: sourceOfId of Collection \`${c.id}\` is DHBA, but its descriptor is not one whole DHBA term; write collection.`);
-    }
     const official = sabraOfficialName(c.descriptor, opts.sabra);
     if (official && c.names && !namesStartWithOfficial(c.names, official)) {
       errors.push(`uc.json: names of Collection \`${c.id}\` must start with its SABRA official name "${official}", then synonyms separated by ";".`);
@@ -706,11 +697,6 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
 
   return { model: fatal ? null : { meta, refs, ucs, collections, bif, connections }, errors: [...new Set(errors)], fatal };
 }
-
-const isAnchorOnlyHomba = (descriptor: string) => {
-  const r = descriptor ? parseUcDescriptor(descriptor) : null;
-  return !!r && "descriptor" in r && r.descriptor.facets.length === 0 && r.descriptor.anchors.length === 1 && r.descriptor.anchors[0].kind === "homba";
-};
 
 /** UC IDs under a Collection, expanding nested Collections (cycle-safe); [] for an unknown ID. */
 export function collectionLeaves(collections: CollectionRow[], id: string): string[] {
@@ -1052,7 +1038,7 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
   const collections = hcd.collections ?? [];
   const cited = [
     ...hcd.connections.flatMap((c) => c.referenceIds),
-    ...[...hcd.ucs, ...collections].map((u) => u.sourceOfId).filter((x) => x.startsWith("[")),
+    ...hcd.ucs.map((u) => u.sourceOfId).filter((x) => x.startsWith("[")),
   ];
   for (const id of cited) if (!refs.has(id)) refs.set(id, { id, doi: "N/A" });
   const alternativeUrl = (r: RefRow) => r.alternativeUrl || (isNoDoi(r.doi) && r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : "");
@@ -1083,7 +1069,7 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
     "Circuits.csv": [
       ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", "UC Descriptor", "Sub-Circuits", "Uniform"],
       [roiCircuitId(o.projectId), "collection", hcd.meta?.roi || o.roi || "", "", "", "Region of interest of the project", "", roiCircuits.join(";"), "FALSE"],
-      ...collections.map((c) => [c.id, c.sourceOfId, c.names, "", "", c.comments, c.descriptor, c.subCircuits.join(";"), "FALSE"]),
+      ...collections.map((c) => [c.id, "collection", c.names, "", "", c.comments, c.descriptor, c.subCircuits.join(";"), "FALSE"]),
       ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, circuitComments(u), u.descriptor, "", "TRUE"]),
     ],
     "Connections.csv": [

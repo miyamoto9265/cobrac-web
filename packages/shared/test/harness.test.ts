@@ -426,7 +426,7 @@ describe("Collection Circuits", () => {
   const WITH_COLLECTIONS = {
     ...UC,
     collections: [
-      collection("Cb", "HOMBA:12852", ["GC(granule)", "PC(purkinje)"], { sourceOfId: "DHBA", comments: "Cerebellar cortex split into cell types" }),
+      collection("Cb", "HOMBA:12852", ["GC(granule)", "PC(purkinje)"], { comments: "Cerebellar cortex split into cell types" }),
       collection("Flocculus-loop", "", ["Cb", "IO"]),
     ],
   };
@@ -454,7 +454,7 @@ describe("Collection Circuits", () => {
     const circuits = parseCsvObjects(files!["Circuits.csv"]);
     expect(circuits.slice(0, 3).map((c) => [c["Circuit ID"], c["Source of ID"], c["Sub-Circuits"], c.Uniform, c["UC Descriptor"]])).toEqual([
       ["ROI_VOR", "collection", "Cb;Flocculus-loop;GC(granule);PC(purkinje);IO", "FALSE", ""],
-      ["Cb", "DHBA", "GC(granule);PC(purkinje)", "FALSE", "HOMBA:12852"],
+      ["Cb", "collection", "GC(granule);PC(purkinje)", "FALSE", "HOMBA:12852"],
       ["Flocculus-loop", "collection", "Cb;IO", "FALSE", ""],
     ]);
     expect(circuits.filter((c) => c.Uniform === "TRUE").every((c) => c["Sub-Circuits"] === "")).toBe(true);
@@ -491,15 +491,15 @@ describe("Collection Circuits", () => {
     expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], { ...UC, collections: [collection("Empty", "", [])] }).join("\n")).toMatch(/\/collections\/0\/subCircuits needs at least 1 item/);
   });
 
-  it("rejects duplicate IDs, the ROI_ prefix, a DHBA Source of ID that is not one DHBA term and Collections in UC texts", () => {
+  it("rejects duplicate IDs, the ROI_ prefix, a Source of ID other than collection and Collections in UC texts", () => {
     const bad = structuredClone(WITH_COLLECTIONS) as { ucs: Record<string, unknown>[]; collections: Record<string, unknown>[] };
     bad.collections.push(collection("IO", "", ["GC(granule)"]), collection("ROI_X", "", ["IO"]), collection("Cb-cells", "HOMBA:12852/cell:granule,purkinje", ["Cb"], { sourceOfId: "DHBA" }));
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], bad).join("\n")).toMatch(/\/collections\/4\/sourceOfId must be one of "collection"/);
     bad.ucs[1].capability = "Integrates [U.Cb] input";
     bad.ucs[1].comments = "Part of [U.Cb]";
     const msg = hcdWith(bad).errors.join("\n");
     expect(msg).toMatch(/Circuit ID `IO` is used by more than one circuit/);
     expect(msg).toMatch(/Collection `ROI_X`: Circuit IDs starting with ROI_ are reserved/);
-    expect(msg).toMatch(/sourceOfId of Collection `Cb-cells` is DHBA, but its descriptor is not one whole DHBA term/);
     expect(msg).toMatch(/capability of `GC\(granule\)` refers to \[U\.Cb\], which is a Collection/);
     expect(msg).not.toMatch(/comments of `GC\(granule\)`/);
   });
