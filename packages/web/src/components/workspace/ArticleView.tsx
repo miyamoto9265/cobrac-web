@@ -110,6 +110,11 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
                 {a.stale && <span className="h-1.5 w-1.5 rounded-full bg-amber-500" title={t("article.stale")} />}
               </button>
             ))}
+            {current && (
+              <button type="button" onClick={() => void download()} data-testid="article-download" title={t("chat.download")} className={`${btn} ml-1 border-slate-300 hover:bg-slate-50`}>
+                <Download size={13} /> .md
+              </button>
+            )}
           </div>
         )}
         <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-2">
@@ -139,11 +144,6 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
           >
             {exists(genLocale) ? <RefreshCw size={13} /> : <Sparkles size={13} />} {exists(genLocale) ? t("article.recreate") : t("article.create")}
           </button>
-          {current && (
-            <button type="button" onClick={() => void download()} data-testid="article-download" className={`${btn} border-slate-300 hover:bg-slate-50`}>
-              <Download size={13} /> .md
-            </button>
-          )}
         </div>
       </div>
 

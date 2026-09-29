@@ -163,6 +163,12 @@ function Workspace({ projectId }: { projectId: string }) {
     if (!rawView && defaultView) navigate(`${workspacePath(projectId, defaultView)}${search}`, { replace: true });
   }, [rawView, defaultView, projectId, search, navigate]);
 
+  // On narrow screens the tab strip scrolls; keep the open tab in sight.
+  const tabsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [view, project !== null]);
+
   if (rawView && !view) return <Navigate to={workspacePath(projectId)} replace />;
   if (err && !project) return <div className="p-6 text-sm text-rose-600">{err}</div>;
   if (!project) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
@@ -274,7 +280,7 @@ function Workspace({ projectId }: { projectId: string }) {
         </header>
 
         <div className="flex shrink-0 items-end gap-2 border-b border-slate-200 bg-slate-50 pr-2 sm:pr-3">
-          <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("ws.views")}>
+          <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("ws.views")}>
             {VIEW_TABS.map(({ view: v, label, Icon }) => {
               const on = v === view;
               const ready = has(v);
