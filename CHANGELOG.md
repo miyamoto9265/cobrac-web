@@ -11,16 +11,27 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - The result of each reference (verified, mismatch, not found, invalid, no identifier, unverified) is kept in `reference_check.json` in the project workspace, and the chat shows a summary when the HCD or FRG phase is accepted
 - `references.json` may give `pmid`, `title` and `journal` for each reference; the agent is asked to fill them. Files with only `id` and `doi` stay valid
 - When Crossref, doi.org or PubMed cannot be reached (timeout, rate limit, outage), the references stay "unverified" and the phase continues
+- HCD / FRG graphs: selecting a node lights up its connections (HCD: direct inputs and outputs; FRG: the whole chain up to the TLF and down to its UCs) and dims the rest; opening a node from a link, the search or the URL moves the view to it, also above the detail sheet on phones
+- The graph search lists matching nodes by ID, circuit name or UC Descriptor with keyboard navigation (↑ ↓ Enter, `/` to focus) and highlights the matches on the canvas
+- HCD node details start with the FRG link and the function groups (GN) that contain the UC; FRG group details have "Show its UCs in HCD", which opens the HCD with those UCs highlighted. Switching between HCD and FRG keeps the selected UC
+- FRG UC nodes show the circuit name from the HCD; FRG groups can be collapsed and expanded from a button on the node, and the details show the path from the TLF
+- Style editing (node fill / border / size, edge line / colour / arrows / bends) is available on phones and tablets as a bottom sheet
 
 ### Changed
 - The agent's chat replies (turn summaries and questions) are written in the language selected in the web app (English, Japanese, Chinese, Korean, German, French, Spanish, Portuguese or Russian), whatever language the ROI/TLF or instructions are typed in. The language of the screen at the time of creating, answering, sending a follow-up or retrying is used; files such as the report, the decision log and the xlsx stay in English
 - The chat no longer fills up with the agent's thoughts and commands: while the agent works, a single live line shows the latest step with the step count, elapsed time and to-do progress; once it moves on, those steps fold into one "Thinking & actions (N steps, time)" row that expands to the full list. Answers, questions, errors and notices stay visible
 - Reasoning previews in the step list no longer show Markdown `**` markers, and a to-do list previews its next open item
+- Graph toolbar redesigned: search, fit, undo / redo, an "Edit style" mode and a menu for layout direction, grid snap, edge labels, PNG export and reset. Style panels, resize and connection handles only appear in style edit mode; on touch devices nodes can be dragged only in that mode, so panning does not move them by accident
+- Node classes (ROI / noROI, TLF / GN / UC) are shown with a coloured stripe as well as the fill, labels grow when zoomed out, and self-connections (for example gap-junction coupling) are drawn as loops
+- Edges are curves by default; edges whose bends were saved with the earlier orthogonal default keep them
+- The FRG is laid out left to right, which fits wide hierarchies better
+- The viewer adapts to the width of its own area, not the window: the details open beside the graph when there is room and as an expandable sheet otherwise; the legend can be collapsed
 
 ### Fixed
 - A project shows a provisional name made from the ROI and TLF as typed, such as "VOR in 小脳", from the moment it is created until the agent names it; before, Japanese input was dropped and a project with TLF "VOR" / ROI "小脳" was called "VOR" while it ran. Projects already created that way show the provisional name too, including in the xlsx download name. A name the user typed or edited is still never replaced
 - The project history in the sidebar shows both ROI and TLF under the name instead of only the TLF
 - The chat no longer looks as if the user sent a second message at the start of each run: the instruction the worker gives the agent (Project ID, ROI, TLF, Contributor, "Run phase HCD." and the retry / answer / follow-up variants) is shown as a small notice such as "Started phase HCD." that expands to the full text. Existing conversations are shown the same way
+- The zoom buttons were hidden behind the legend on wide screens, and the save status covered toolbar buttons when the details were open
 
 ## [0.8.1] - 2026-09-28
 

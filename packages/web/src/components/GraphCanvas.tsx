@@ -4,7 +4,6 @@ import {
   ConnectionMode,
   Controls,
   MiniMap,
-  Panel,
   ReactFlow,
   ReactFlowProvider,
   getNodesBounds,
@@ -13,23 +12,29 @@ import {
   type Connection,
   type Edge,
   type EdgeTypes,
-  type Node,
   type NodeChange,
   type NodeTypes,
 } from "@xyflow/react";
 import { toPng } from "html-to-image";
-import { Check, Grid3x3, ImageDown, LayoutGrid, Loader2, Redo2, TriangleAlert, Undo2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Grid3x3, ImageDown, LayoutGrid, Maximize, Paintbrush, Redo2, RotateCcw, Undo2, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../i18n";
+import { lineage, neighborhood, searchNodes } from "../lib/graphView";
 import type { GraphLayoutController, XY } from "../lib/useGraphLayout";
-import { BELOW_LG, BELOW_MD, useMediaQuery } from "../lib/useMediaQuery";
+import { useElementSize } from "../lib/useElementSize";
+import { useMediaQuery } from "../lib/useMediaQuery";
+import { DetailPanelModeContext } from "./DetailPanel";
 import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
+import { OverflowMenu, SaveStatus, SearchBox, ToolButton, ToolDivider, type MenuItem } from "./graph/GraphToolbar";
+import { Legend, type LegendItem } from "./graph/Legend";
 import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
 import { EdgeStylePanel, NodeStylePanel } from "./graph/StylePanel";
 import { StyledEdge, resolveEdgeStyle, type EdgeData, type StyledEdgeType } from "./graph/StyledEdge";
 
 export type { GNode } from "./graph/BoxNode";
+export type { LegendItem } from "./graph/Legend";
+export type { MenuItem } from "./graph/GraphToolbar";
 
 export interface GEdge {
   id: string;
@@ -50,15 +55,27 @@ interface Props {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onSelectEdge?: (id: string | null) => void;
-  legend?: { color: string; label: string; kind?: "node" | "edge"; sign?: EdgeSign }[];
-  highlightIds?: Set<string>;
+  legend?: LegendItem[];
+  /** nodes the page wants emphasised (e.g. the UCs of an FRG group); the rest is dimmed */
+  highlightIds?: Set<string> | null;
+  /** fit the view to these nodes whenever the list changes */
+  focusIds?: string[] | null;
+  /** what stays lit when a node is selected: direct neighbours (HCD) or the whole ancestor/descendant chain (FRG) */
+  highlightMode?: "neighbors" | "lineage";
   /** persisted user arrangement (positions, sizes, edge styles) */
   layout: GraphLayoutController;
   /** show edge labels by default (per-edge override wins) */
   showLabels?: boolean;
   /** file name used for PNG export */
   exportName?: string;
-  headerExtra?: ReactNode;
+  /** page-specific entries for the "more" menu */
+  menuItems?: MenuItem[];
+  /** node / edge details: a column beside the canvas when there is room, otherwise a sheet over its lower part */
+  detail?: ReactNode;
+  /** banner under the toolbar (e.g. an active filter) */
+  banner?: ReactNode;
+  onToggleCollapse?: (id: string) => void;
+  collapseLabel?: (collapsed: boolean) => string;
 }
 
 const nodeTypes: NodeTypes = { box: BoxNode };
@@ -66,12 +83,16 @@ const edgeTypes: EdgeTypes = { styled: StyledEdge };
 
 type Size = { width: number; height: number };
 
+/** Container widths (px) at which the viewer changes arrangement; it may be embedded in a pane of any width. */
+const WIDE = 900;
+const COMPACT = 560;
+
 function autoLayout(nodes: GNode[], edges: GEdge[], sizes: Record<string, Size>, direction: "TB" | "LR"): Map<string, XY> {
   const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: direction, nodesep: 40, ranksep: 70, marginx: 20, marginy: 20 });
+  g.setGraph({ rankdir: direction, nodesep: 36, ranksep: 84, edgesep: 16, marginx: 20, marginy: 20 });
   g.setDefaultEdgeLabel(() => ({}));
   for (const n of nodes) g.setNode(n.id, { width: sizes[n.id].width, height: sizes[n.id].height });
-  for (const e of edges) if (g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
+  for (const e of edges) if (e.source !== e.target && g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
   dagre.layout(g);
   const pos = new Map<string, XY>();
   for (const n of nodes) {
@@ -99,17 +120,46 @@ function autoHandles(a: XY & Size, b: XY & Size): { source: string; target: stri
   return { source: handleId(s, 0.5), target: handleId(t, 0.5) };
 }
 
-function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, onSelectEdge, legend, highlightIds, layout, showLabels = false, exportName = "graph", headerExtra }: Props) {
+const SELF_LOOP_HANDLES = { source: handleId("right", 0.28), target: handleId("right", 0.72) };
+
+function Inner({
+  nodes,
+  edges,
+  direction: dirProp = "TB",
+  selectedId,
+  onSelect,
+  onSelectEdge,
+  legend,
+  highlightIds,
+  focusIds,
+  highlightMode = "neighbors",
+  layout,
+  showLabels = false,
+  exportName = "graph",
+  menuItems = [],
+  detail,
+  banner,
+  onToggleCollapse,
+  collapseLabel,
+}: Props) {
   const t = useT();
   const rf = useReactFlow();
-  const [search, setSearch] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [snap, setSnap] = useState(false);
   const [direction, setDirection] = useState<"TB" | "LR">(dirProp);
   const [exporting, setExporting] = useState(false);
-  const compact = useMediaQuery(BELOW_MD);
-  // < lg the page's DetailPanel is a bottom sheet that would cover the style panels and the minimap
-  const sheetDetail = useMediaQuery(BELOW_LG);
+  const [editing, setEditing] = useState(false);
+  const coarse = useMediaQuery("(pointer: coarse)");
+  const { width: rootW } = useElementSize(rootRef);
+  const measured = rootW > 0;
+  const wide = !measured || rootW >= WIDE;
+  const compact = measured && rootW < COMPACT;
   const L = layout.layout ?? { positions: {}, nodes: {}, edges: {} };
 
   // --- sizes ------------------------------------------------------------------
@@ -133,17 +183,31 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
   }, [nodes, auto, L.positions]);
   const [positions, setPositions] = useState<Record<string, XY>>(initial);
   useEffect(() => setPositions(initial), [initial]);
+  const geom = useRef({ positions, sizes });
+  geom.current = { positions, sizes };
 
-  const onNodesChange = useCallback((changes: NodeChange<BoxNodeType>[]) => {
-    const pos: Record<string, XY> = {};
-    const dim: Record<string, Size> = {};
-    for (const c of changes) {
-      if (c.type === "position" && c.position) pos[c.id] = c.position;
-      else if (c.type === "dimensions" && c.dimensions && c.setAttributes) dim[c.id] = { width: c.dimensions.width, height: c.dimensions.height };
-    }
-    if (Object.keys(pos).length) setPositions((p) => ({ ...p, ...pos }));
-    if (Object.keys(dim).length) setSizes((p) => ({ ...p, ...dim }));
-  }, []);
+  // Keyboard selection (Enter / Space on a focused node) arrives only as a "select" change.
+  const lastClick = useRef<{ id: string; at: number } | null>(null);
+  const onNodesChange = useCallback(
+    (changes: NodeChange<BoxNodeType>[]) => {
+      const pos: Record<string, XY> = {};
+      const dim: Record<string, Size> = {};
+      for (const c of changes) {
+        if (c.type === "position" && c.position) pos[c.id] = c.position;
+        else if (c.type === "dimensions" && c.dimensions && c.setAttributes) dim[c.id] = { width: c.dimensions.width, height: c.dimensions.height };
+        else if (c.type === "select" && c.selected) {
+          const id = c.id;
+          setTimeout(() => {
+            const lc = lastClick.current;
+            if (!lc || lc.id !== id || Date.now() - lc.at > 300) onSelect(id);
+          }, 0);
+        }
+      }
+      if (Object.keys(pos).length) setPositions((p) => ({ ...p, ...pos }));
+      if (Object.keys(dim).length) setSizes((p) => ({ ...p, ...dim }));
+    },
+    [onSelect],
+  );
 
   const onResizeEnd = useCallback(
     (id: string, r: { width: number; height: number; x: number; y: number }) => {
@@ -152,6 +216,22 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
     },
     [layout],
   );
+
+  // --- highlight ------------------------------------------------------------------
+  const hits = useMemo(() => searchNodes(nodes, query), [nodes, query]);
+  const focus = useMemo<{ nodes: Set<string>; edges: Set<string> | null; emphasis: boolean } | null>(() => {
+    if (selectedId && nodes.some((n) => n.id === selectedId)) {
+      const r = (highlightMode === "lineage" ? lineage : neighborhood)(edges, selectedId);
+      return { ...r, emphasis: false };
+    }
+    if (selectedEdgeId) {
+      const e = edges.find((x) => x.id === selectedEdgeId);
+      if (e) return { nodes: new Set([e.source, e.target]), edges: new Set([e.id]), emphasis: false };
+    }
+    if (query.trim() && hits.length) return { nodes: new Set(hits.map((h) => h.id)), edges: null, emphasis: true };
+    if (highlightIds && highlightIds.size) return { nodes: highlightIds, edges: null, emphasis: true };
+    return null;
+  }, [selectedId, selectedEdgeId, query, hits, highlightIds, highlightMode, edges, nodes]);
 
   const rfNodes = useMemo<BoxNodeType[]>(
     () =>
@@ -162,10 +242,21 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
         width: sizes[n.id]?.width,
         height: sizes[n.id]?.height,
         selected: n.id === selectedId,
-        draggable: true,
-        data: { g: n, selected: n.id === selectedId, dim: !!highlightIds && !highlightIds.has(n.id), style: L.nodes[n.id], onResizeEnd } satisfies NodeData,
+        draggable: !coarse || editing,
+        ariaLabel: n.sublabel ? `${n.label} — ${n.sublabel}` : n.label,
+        data: {
+          g: n,
+          selected: n.id === selectedId,
+          dim: !!focus && !focus.nodes.has(n.id),
+          emphasis: !!focus?.emphasis && focus.nodes.has(n.id),
+          style: L.nodes[n.id],
+          onResizeEnd,
+          onToggleCollapse,
+          resizable: editing,
+          collapseLabel: n.collapse && collapseLabel ? collapseLabel(n.collapse.collapsed) : undefined,
+        } satisfies NodeData,
       })),
-    [nodes, positions, sizes, selectedId, highlightIds, L.nodes, onResizeEnd],
+    [nodes, positions, sizes, selectedId, focus, L.nodes, onResizeEnd, onToggleCollapse, collapseLabel, editing, coarse],
   );
 
   // --- edges --------------------------------------------------------------------
@@ -181,10 +272,11 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
       const style = resolveEdgeStyle(e.sign, override, e.dashed);
       addMarker({ type: style.markerStart, color: style.color, width: style.width });
       addMarker({ type: style.markerEnd, color: style.color, width: style.width });
+      const self = e.source === e.target;
       const a = positions[e.source];
       const b = positions[e.target];
-      const autoH = a && b ? autoHandles({ ...a, ...sizes[e.source] }, { ...b, ...sizes[e.target] }) : { source: handleId("bottom", 0.5), target: handleId("top", 0.5) };
-      const related = !!selectedId && (e.source === selectedId || e.target === selectedId);
+      const autoH = self ? SELF_LOOP_HANDLES : a && b ? autoHandles({ ...a, ...sizes[e.source] }, { ...b, ...sizes[e.target] }) : { source: handleId("bottom", 0.5), target: handleId("top", 0.5) };
+      const related = !!focus?.edges?.has(e.id);
       const showLabel = override?.showLabel ?? showLabels;
       return {
         id: e.id,
@@ -194,21 +286,22 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
         sourceHandle: override?.sourceHandle ?? autoH.source,
         targetHandle: override?.targetHandle ?? autoH.target,
         selected: e.id === selectedEdgeId,
-        reconnectable: true,
+        reconnectable: editing,
         zIndex: e.id === selectedEdgeId || related ? 1 : 0,
         data: {
           style,
           label: showLabel ? e.label : undefined,
           title: e.title,
           related,
-          dim: !!highlightIds && !(highlightIds.has(e.source) && highlightIds.has(e.target)),
-          editing: e.id === selectedEdgeId,
+          self,
+          dim: !!focus && (focus.edges ? !related : !(focus.nodes.has(e.source) && focus.nodes.has(e.target))),
+          editing: editing && e.id === selectedEdgeId,
           onWaypointsChange,
         } satisfies EdgeData,
       };
     });
     return { rfEdges: list, markers: [...mk.values()] };
-  }, [edges, L.edges, positions, sizes, selectedId, selectedEdgeId, highlightIds, showLabels, onWaypointsChange]);
+  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing]);
 
   // Reconnect = move an edge end to another handle of the *same* node.
   const onReconnect = useCallback(
@@ -220,37 +313,88 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
   );
 
   // --- selection ----------------------------------------------------------------
-  const selectEdge = (id: string | null) => {
-    setSelectedEdgeId(id);
-    onSelectEdge?.(id);
-  };
+  const selectEdge = useCallback(
+    (id: string | null) => {
+      setSelectedEdgeId(id);
+      onSelectEdge?.(id);
+    },
+    [onSelectEdge],
+  );
   useEffect(() => {
     if (selectedId) setSelectedEdgeId(null);
   }, [selectedId]);
 
-  // --- view -----------------------------------------------------------------------
-  const graphKey = useMemo(() => nodes.map((n) => n.id).join("|"), [nodes]);
-  useEffect(() => {
-    const t = setTimeout(() => rf.fitView({ padding: 0.15, duration: 300 }), 50);
-    return () => clearTimeout(t);
-  }, [rf, graphKey]);
+  // --- camera -------------------------------------------------------------------------
+  /** Screen area of the canvas not covered by the toolbar or the bottom sheet. */
+  const visibleArea = useCallback(() => {
+    const c = canvasRef.current?.getBoundingClientRect();
+    if (!c) return null;
+    const top = Math.max(0, (topRef.current?.getBoundingClientRect().bottom ?? c.top) - c.top) + 8;
+    const sheetTop = sheetRef.current?.firstElementChild ? sheetRef.current.getBoundingClientRect().top : c.bottom;
+    const bottom = Math.min(c.height, sheetTop - c.top) - 8;
+    return { width: c.width, top, bottom: Math.max(bottom, top + 80) };
+  }, []);
 
-  const doSearch = (q: string) => {
-    setSearch(q);
-    const hit = nodes.find((n) => n.label.toLowerCase().includes(q.toLowerCase()));
-    if (q && hit) {
-      onSelect(hit.id);
-      const p = positions[hit.id];
-      const s = sizes[hit.id];
-      if (p) rf.setCenter(p.x + (s?.width ?? DEFAULT_NODE_W) / 2, p.y + (s?.height ?? DEFAULT_NODE_H) / 2, { zoom: 1.2, duration: 300 });
-    }
+  /** Bring a node into view; `center` also recentres it and zooms in to a readable scale. */
+  const reveal = useCallback(
+    (id: string, center: boolean) => {
+      const area = visibleArea();
+      const p = geom.current.positions[id];
+      if (!area || !p) return;
+      const s = geom.current.sizes[id] ?? { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H };
+      const vp = rf.getViewport();
+      const zoom = center ? Math.min(Math.max(vp.zoom, 1), 1.6) : vp.zoom;
+      const cx = p.x + s.width / 2;
+      const cy = p.y + s.height / 2;
+      const sx = cx * vp.zoom + vp.x;
+      const sy = cy * vp.zoom + vp.y;
+      const inside = sx > 24 && sx < area.width - 24 && sy > area.top + (s.height * vp.zoom) / 2 && sy < area.bottom - (s.height * vp.zoom) / 2;
+      if (!center && inside) return;
+      void rf.setViewport({ x: area.width / 2 - cx * zoom, y: (area.top + area.bottom) / 2 - cy * zoom, zoom }, { duration: 350 });
+    },
+    [rf, visibleArea],
+  );
+
+  const graphKey = useMemo(() => nodes.map((n) => n.id).join("|"), [nodes]);
+  const fitAll = useCallback(() => void rf.fitView({ padding: 0.12, duration: 300, maxZoom: 1.2 }), [rf]);
+  useEffect(() => {
+    if (selectedId) return;
+    const tm = setTimeout(fitAll, 50);
+    return () => clearTimeout(tm);
+    // re-fit only when the node set changes, not on every selection
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitAll, graphKey]);
+
+  // Selection from outside the canvas (URL, search, detail links) recentres; a click only makes sure the node stays visible.
+  const clickSel = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const external = clickSel.current !== selectedId;
+    clickSel.current = null;
+    const tm = setTimeout(() => reveal(selectedId, external), 120);
+    return () => clearTimeout(tm);
+  }, [selectedId, reveal]);
+
+  const focusKey = focusIds?.join("|") ?? "";
+  useEffect(() => {
+    if (!focusIds?.length) return;
+    const tm = setTimeout(() => void rf.fitView({ nodes: focusIds.map((id) => ({ id })), padding: 0.3, duration: 350, maxZoom: 1.3 }), 120);
+    return () => clearTimeout(tm);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rf, focusKey]);
+
+  const pickSearch = (id: string) => {
+    selectEdge(null);
+    if (id === selectedId) reveal(id, true);
+    else onSelect(id);
   };
 
-  // keyboard: undo / redo / escape
+  // keyboard: undo / redo / escape / "/" for search
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const tg = e.target as HTMLElement | null;
+      if (tg && (tg.tagName === "INPUT" || tg.tagName === "TEXTAREA" || tg.tagName === "SELECT" || tg.isContentEditable)) return;
+      if (!rootRef.current?.isConnected) return;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) layout.redo();
@@ -258,6 +402,9 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         layout.redo();
+      } else if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        searchRef.current?.focus();
       } else if (e.key === "Escape") {
         onSelect(null);
         selectEdge(null);
@@ -265,10 +412,10 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [layout, onSelect]);
+  }, [layout, onSelect, selectEdge]);
 
   const exportPng = async () => {
-    const el = document.querySelector<HTMLElement>(".react-flow__viewport");
+    const el = canvasRef.current?.querySelector<HTMLElement>(".react-flow__viewport");
     if (!el) return;
     setExporting(true);
     try {
@@ -299,178 +446,199 @@ function Inner({ nodes, edges, direction: dirProp = "TB", selectedId, onSelect, 
   const selEdge = selectedEdgeId ? edges.find((e) => e.id === selectedEdgeId) : null;
   const selEdgeResolved = selEdge ? resolveEdgeStyle(selEdge.sign, L.edges[selEdge.id], selEdge.dashed) : null;
   const selNode = selectedId ? nodes.find((n) => n.id === selectedId) : null;
+  const variant = wide ? "float" : "sheet";
 
-  const btn = "flex items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[11px] shadow-sm hover:bg-slate-50 disabled:opacity-40 coarse:min-h-11 coarse:min-w-11";
+  const stylePanel =
+    editing && selEdge && selEdgeResolved ? (
+      <EdgeStylePanel
+        variant={variant}
+        edgeId={selEdge.id}
+        sign={selEdge.sign}
+        resolved={selEdgeResolved}
+        override={L.edges[selEdge.id]}
+        hasLabel={!!selEdge.label}
+        showLabel={L.edges[selEdge.id]?.showLabel ?? showLabels}
+        sameSignCount={selEdge.sign ? edges.filter((e) => e.sign === selEdge.sign).length : 0}
+        onChange={(patch: EdgeStyle) => layout.setEdgeStyle(selEdge.id, patch)}
+        onApplyToSameSign={(patch) =>
+          layout.setEdgeStyles(
+            edges.filter((e) => e.sign === selEdge.sign).map((e) => e.id),
+            patch,
+          )
+        }
+        onReset={() => layout.setEdgeStyle(selEdge.id, null)}
+        onClose={() => selectEdge(null)}
+      />
+    ) : editing && selNode ? (
+      <NodeStylePanel
+        variant={variant}
+        nodeId={selNode.id}
+        fill={L.nodes[selNode.id]?.color ?? selNode.color}
+        border={L.nodes[selNode.id]?.border ?? selNode.border ?? "#94a3b8"}
+        override={L.nodes[selNode.id]}
+        onChange={(patch) => layout.setNodeStyle(selNode.id, patch)}
+        onReset={() => layout.setNodeStyle(selNode.id, null)}
+        onClose={() => onSelect(null)}
+      />
+    ) : null;
 
-  const status = (
-    <div className="flex items-center gap-2 rounded-md border border-slate-200 bg-white/90 px-2 py-1 text-[11px] text-slate-600 shadow-sm">
-      {layout.saving === "saving" && (
-        <span className="flex items-center gap-1">
-          <Loader2 size={11} className="animate-spin" /> {t("graph.saving")}
-        </span>
-      )}
-      {layout.saving === "saved" && (
-        <span className="flex items-center gap-1 text-emerald-700">
-          <Check size={11} /> {t("graph.saved")}
-        </span>
-      )}
-      {layout.saving === "error" && (
-        <span className="flex items-center gap-1 text-rose-700">
-          <TriangleAlert size={11} /> {t("graph.saveFail")}
-        </span>
-      )}
-      {layout.saving === "idle" && !compact && <span className="text-slate-400">{layout.hasCustom ? t("graph.autoSave") : t("graph.clickEdit")}</span>}
-      <button
-        type="button"
-        onClick={() => {
-          if (window.confirm(t("graph.resetConfirm"))) void layout.reset();
-        }}
-        disabled={!layout.hasCustom || layout.saving === "saving"}
-        className="rounded border border-slate-300 px-1.5 py-0.5 hover:bg-slate-50 disabled:opacity-40 coarse:min-h-11"
-        title={t("graph.resetTip")}
-      >
-        {t("graph.resetAll")}
-      </button>
-    </div>
-  );
+  const sheetContent = wide ? null : stylePanel ?? detail ?? null;
+
+  const menu: MenuItem[] = [
+    ...(compact
+      ? [
+          { label: t("graph.undo"), icon: <Undo2 size={14} />, onClick: layout.undo, disabled: !layout.canUndo },
+          { label: t("graph.redo"), icon: <Redo2 size={14} />, onClick: layout.redo, disabled: !layout.canRedo },
+        ]
+      : []),
+    {
+      label: `${t("graph.align")} (${direction === "TB" ? t("graph.dirLR") : t("graph.dirTB")})`,
+      icon: <LayoutGrid size={14} />,
+      separator: compact,
+      onClick: () => {
+        const next = direction === "TB" ? "LR" : "TB";
+        if (!layout.hasCustom || window.confirm(t("graph.relayoutConfirm"))) {
+          setDirection(next);
+          layout.resetPositions();
+          setTimeout(fitAll, 80);
+        }
+      },
+    },
+    { label: t("graph.snapTip"), icon: <Grid3x3 size={14} />, checked: snap, onClick: () => setSnap((v) => !v) },
+    ...menuItems,
+    { label: t("graph.pngTip"), icon: <ImageDown size={14} />, onClick: () => void exportPng(), disabled: exporting, separator: true },
+    {
+      label: t("graph.resetTip"),
+      icon: <RotateCcw size={14} />,
+      danger: true,
+      disabled: !layout.hasCustom || layout.saving === "saving",
+      onClick: () => {
+        if (window.confirm(t("graph.resetConfirm"))) void layout.reset();
+      },
+    },
+  ];
 
   return (
-    <ReactFlow<BoxNodeType, StyledEdgeType>
-      nodes={rfNodes}
-      edges={rfEdges}
-      nodeTypes={nodeTypes}
-      edgeTypes={edgeTypes}
-      onNodesChange={onNodesChange}
-      onNodeDragStop={(_, __, dragged) => {
-        const moved: Record<string, XY> = {};
-        for (const n of dragged) moved[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
-        if (Object.keys(moved).length) layout.move(moved);
-      }}
-      onNodeClick={(_, n) => {
-        selectEdge(null);
-        onSelect(n.id);
-      }}
-      onEdgeClick={(_, e) => {
-        onSelect(null);
-        selectEdge(e.id);
-      }}
-      onPaneClick={() => {
-        onSelect(null);
-        selectEdge(null);
-      }}
-      className={selectedEdgeId ? "edge-editing" : undefined}
-      edgesReconnectable
-      reconnectRadius={28}
-      onReconnect={onReconnect}
-      connectionMode={ConnectionMode.Loose}
-      nodesConnectable
-      snapToGrid={snap}
-      snapGrid={[10, 10]}
-      fitView
-      minZoom={0.1}
-      maxZoom={3}
-      proOptions={{ hideAttribution: true }}
-      elementsSelectable
-      selectNodesOnDrag={false}
-      deleteKeyCode={null}
-    >
-      <MarkerDefs markers={markers} />
-      <Background gap={snap ? 10 : 20} color="#e2e8f0" />
-      <Controls showInteractive={false} position={sheetDetail ? "bottom-right" : "bottom-left"} />
-      {!sheetDetail && <MiniMap pannable zoomable nodeColor={(n) => (n.data as NodeData).style?.color ?? (n.data as NodeData).g.color} className="!bg-white" />}
-
-      <Panel position="top-left" className="flex flex-wrap items-center gap-2" style={sheetDetail ? { maxWidth: "calc(100% - 30px)" } : undefined}>
-        <input value={search} onChange={(e) => doSearch(e.target.value)} placeholder={t("graph.search")} className="w-32 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400 sm:w-44 coarse:py-2" />
-        <button onClick={layout.undo} disabled={!layout.canUndo} className={btn} title={t("graph.undo")}>
-          <Undo2 size={12} />
-        </button>
-        <button onClick={layout.redo} disabled={!layout.canRedo} className={btn} title={t("graph.redo")}>
-          <Redo2 size={12} />
-        </button>
-        <button onClick={() => setSnap((v) => !v)} className={`${btn} ${snap ? "!border-blue-400 !bg-blue-50 text-blue-700" : ""}`} title={t("graph.snapTip")}>
-          <Grid3x3 size={12} /> {t("graph.snap")}
-        </button>
-        <button
-          onClick={() => {
-            const next = direction === "TB" ? "LR" : "TB";
-            if (!layout.hasCustom || window.confirm(t("graph.relayoutConfirm"))) {
-              setDirection(next);
-              layout.resetPositions();
-            }
+    <div ref={rootRef} className="relative flex h-full min-h-0 w-full overflow-hidden bg-slate-50" style={{ containerType: "size" }}>
+      <div ref={canvasRef} className="relative min-w-0 flex-1">
+        <ReactFlow<BoxNodeType, StyledEdgeType>
+          nodes={rfNodes}
+          edges={rfEdges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={onNodesChange}
+          onNodeDragStop={(_, __, dragged) => {
+            const moved: Record<string, XY> = {};
+            for (const n of dragged) moved[n.id] = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+            if (Object.keys(moved).length) layout.move(moved);
           }}
-          className={btn}
-          title={t("graph.relayoutTip")}
+          onNodeClick={(_, n) => {
+            lastClick.current = { id: n.id, at: Date.now() };
+            clickSel.current = n.id;
+            selectEdge(null);
+            if (n.id === selectedId) reveal(n.id, false);
+            else onSelect(n.id);
+          }}
+          onEdgeClick={(_, e) => {
+            onSelect(null);
+            selectEdge(e.id);
+          }}
+          onPaneClick={() => {
+            onSelect(null);
+            selectEdge(null);
+          }}
+          className={editing ? (selectedEdgeId ? "graph-editing edge-editing" : "graph-editing") : undefined}
+          edgesReconnectable={editing}
+          reconnectRadius={28}
+          onReconnect={onReconnect}
+          connectionMode={ConnectionMode.Loose}
+          nodesConnectable={editing}
+          snapToGrid={snap}
+          snapGrid={[10, 10]}
+          fitView
+          fitViewOptions={{ padding: 0.12, maxZoom: 1.2 }}
+          minZoom={0.1}
+          maxZoom={3}
+          proOptions={{ hideAttribution: true }}
+          elementsSelectable
+          selectNodesOnDrag={false}
+          deleteKeyCode={null}
         >
-          <LayoutGrid size={12} /> {t("graph.align")} {direction === "TB" ? "↓" : "→"}
-        </button>
-        <button onClick={() => void exportPng()} disabled={exporting} className={btn} title={t("graph.pngTip")}>
-          {exporting ? <Loader2 size={12} className="animate-spin" /> : <ImageDown size={12} />} {t("graph.png")}
-        </button>
-        {headerExtra}
-        {sheetDetail && status}
-      </Panel>
+          <MarkerDefs markers={markers} />
+          <Background gap={snap ? 10 : 24} size={snap ? 1 : 1.2} color={snap ? "#cbd5e1" : "#dbe3ee"} />
+          <Controls showInteractive={false} showFitView={false} position="bottom-right" aria-label={t("graph.zoomControls")} />
+          {wide && !stylePanel && (
+            <MiniMap
+              pannable
+              zoomable
+              position="bottom-right"
+              style={{ right: 48, width: 180, height: 120 }}
+              nodeColor={(n) => {
+                const d = n.data as NodeData;
+                return d.style?.color ?? d.g.accent ?? d.g.color;
+              }}
+              nodeStrokeWidth={0}
+              maskColor="rgba(241,245,249,0.7)"
+              className="!rounded-md !border !border-slate-200 !bg-white"
+            />
+          )}
+        </ReactFlow>
 
-      {!sheetDetail && (
-        <Panel position="top-right" className="flex items-center gap-2">
-          {status}
-        </Panel>
-      )}
-
-      {!sheetDetail && selEdge && selEdgeResolved && (
-        <Panel position="bottom-right">
-          <EdgeStylePanel
-            edgeId={selEdge.id}
-            sign={selEdge.sign}
-            resolved={selEdgeResolved}
-            override={L.edges[selEdge.id]}
-            hasLabel={!!selEdge.label}
-            showLabel={L.edges[selEdge.id]?.showLabel ?? showLabels}
-            sameSignCount={selEdge.sign ? edges.filter((e) => e.sign === selEdge.sign).length : 0}
-            onChange={(patch: EdgeStyle) => layout.setEdgeStyle(selEdge.id, patch)}
-            onApplyToSameSign={(patch) =>
-              layout.setEdgeStyles(
-                edges.filter((e) => e.sign === selEdge.sign).map((e) => e.id),
-                patch,
-              )
-            }
-            onReset={() => layout.setEdgeStyle(selEdge.id, null)}
-            onClose={() => selectEdge(null)}
-          />
-        </Panel>
-      )}
-      {!sheetDetail && selNode && !selEdge && (
-        <Panel position="bottom-right">
-          <NodeStylePanel
-            nodeId={selNode.id}
-            fill={L.nodes[selNode.id]?.color ?? selNode.color}
-            border={L.nodes[selNode.id]?.border ?? selNode.border ?? "#94a3b8"}
-            override={L.nodes[selNode.id]}
-            onChange={(patch) => layout.setNodeStyle(selNode.id, patch)}
-            onReset={() => layout.setNodeStyle(selNode.id, null)}
-            onClose={() => onSelect(null)}
-          />
-        </Panel>
-      )}
-
-      {legend && (
-        <Panel position="bottom-left" className="rounded-md border border-slate-200 bg-white/90 p-2 text-[11px] shadow-sm">
-          <div className="mb-1 font-semibold text-slate-600">{t("graph.legend")}</div>
-          {legend.map((l) => (
-            <div key={l.label} className="flex items-center gap-1.5">
-              {l.kind === "edge" ? (
-                <svg width={22} height={10} className="shrink-0">
-                  <path d="M0,5 L14,5" stroke={l.color} strokeWidth={1.6} strokeDasharray={l.sign === "modulatory" ? "3 2" : undefined} />
-                  {l.sign === "inhibitory" ? <rect x={14} y={1} width={8} height={8} fill={l.color} /> : l.sign === "modulatory" ? <circle cx={18} cy={5} r={4} fill={l.color} /> : <path d="M14,0 L22,5 L14,10 Z" fill={l.color} />}
-                </svg>
-              ) : (
-                <span className="inline-block h-3 w-3 rounded border border-black/10" style={{ background: l.color }} />
-              )}
-              {l.label}
+        {/* toolbar */}
+        <div ref={topRef} className="pointer-events-none absolute inset-x-2 top-2 z-10 flex flex-col items-start gap-1.5">
+          <div role="toolbar" aria-label={t("graph.toolbar")} className="pointer-events-auto flex w-full max-w-full items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur sm:w-auto">
+            <SearchBox ref={searchRef} query={query} onQuery={setQuery} hits={hits} onPick={pickSearch} />
+            <ToolDivider />
+            <ToolButton label={t("graph.fit")} onClick={fitAll}>
+              <Maximize size={15} />
+            </ToolButton>
+            {!compact && (
+              <>
+                <ToolButton label={t("graph.undo")} onClick={layout.undo} disabled={!layout.canUndo}>
+                  <Undo2 size={15} />
+                </ToolButton>
+                <ToolButton label={t("graph.redo")} onClick={layout.redo} disabled={!layout.canRedo}>
+                  <Redo2 size={15} />
+                </ToolButton>
+              </>
+            )}
+            <ToolButton label={t("graph.editStyle")} onClick={() => setEditing((v) => !v)} active={editing} showLabel={!compact}>
+              <Paintbrush size={15} />
+            </ToolButton>
+            <OverflowMenu items={menu} />
+            <SaveStatus saving={layout.saving} compact={compact} />
+          </div>
+          {editing && !stylePanel && (
+            <div className="pointer-events-auto flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50/95 px-2.5 py-1 text-[11px] text-blue-800 shadow-sm">
+              {t("graph.editHint")}
+              <button type="button" onClick={() => setEditing(false)} aria-label={t("graph.editDone")} title={t("graph.editDone")} className="rounded p-0.5 hover:bg-blue-100 coarse:p-2">
+                <X size={12} />
+              </button>
             </div>
-          ))}
-        </Panel>
+          )}
+          {banner && <div className="pointer-events-auto">{banner}</div>}
+        </div>
+
+        {wide && stylePanel && <div className="absolute right-2 top-14 z-10 max-h-[calc(100%-4.5rem)] overflow-y-auto">{stylePanel}</div>}
+
+        {legend && legend.length > 0 && !sheetContent && (
+          <div className="absolute bottom-2 left-2 z-10">
+            <Legend items={legend} defaultOpen={!compact} />
+          </div>
+        )}
+      </div>
+
+      {wide && detail && (
+        <div className="h-full w-[24rem] max-w-[42%] shrink-0 border-l border-slate-200">
+          <DetailPanelModeContext.Provider value="side">{detail}</DetailPanelModeContext.Provider>
+        </div>
       )}
-    </ReactFlow>
+      {!wide && (
+        <div ref={sheetRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col justify-end [&>*]:pointer-events-auto">
+          {sheetContent && <DetailPanelModeContext.Provider value="sheet">{sheetContent}</DetailPanelModeContext.Provider>}
+        </div>
+      )}
+    </div>
   );
 }
 

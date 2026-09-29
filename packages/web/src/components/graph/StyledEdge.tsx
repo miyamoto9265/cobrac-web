@@ -24,6 +24,8 @@ export type EdgeData = {
   title?: string;
   related: boolean;
   dim: boolean;
+  /** source === target: drawn as a loop on the node's right side */
+  self?: boolean;
   /** true when this edge is selected → show waypoint editing handles */
   editing: boolean;
   onWaypointsChange?: (id: string, wps: XY[]) => void;
@@ -31,18 +33,24 @@ export type EdgeData = {
 
 export type StyledEdgeType = Edge<EdgeData, "styled">;
 
-/** Default look per physiological sign (HCD) – FRG edges use "unknown". */
+/**
+ * Default look per physiological sign (HCD) – FRG edges use "unknown".
+ * Curves are the default: orthogonal routes of different edges overlap on shared segments and read as buses.
+ */
 export const SIGN_DEFAULTS: Record<EdgeSign, Omit<ResolvedEdgeStyle, "waypoints">> = {
-  excitatory: { lineType: "orthogonal", color: "#475569", width: 1.4, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
-  inhibitory: { lineType: "orthogonal", color: "#2563eb", width: 1.6, dashed: false, markerStart: "none", markerEnd: "square", rounded: true },
-  modulatory: { lineType: "orthogonal", color: "#7c3aed", width: 1.4, dashed: true, markerStart: "none", markerEnd: "circle", rounded: true },
-  unknown: { lineType: "orthogonal", color: "#94a3b8", width: 1.3, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
+  excitatory: { lineType: "bezier", color: "#475569", width: 1.5, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
+  inhibitory: { lineType: "bezier", color: "#2563eb", width: 1.7, dashed: false, markerStart: "none", markerEnd: "square", rounded: true },
+  modulatory: { lineType: "bezier", color: "#7c3aed", width: 1.5, dashed: true, markerStart: "none", markerEnd: "circle", rounded: true },
+  unknown: { lineType: "bezier", color: "#94a3b8", width: 1.4, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
 };
+
+/** The earlier default line type: layouts saved with it may carry bends without an explicit line type. */
+const LEGACY_DEFAULT_LINE: EdgeLineType = "orthogonal";
 
 export function resolveEdgeStyle(sign: EdgeSign | undefined, override: EdgeStyle | undefined, dashedDefault?: boolean): ResolvedEdgeStyle {
   const d = SIGN_DEFAULTS[sign ?? "unknown"];
   return {
-    lineType: override?.lineType ?? d.lineType,
+    lineType: override?.lineType ?? (override?.waypoints?.length ? LEGACY_DEFAULT_LINE : d.lineType),
     color: override?.color ?? d.color,
     width: override?.width ?? d.width,
     dashed: override?.dashed ?? dashedDefault ?? d.dashed,
@@ -198,14 +206,15 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
     if (!dragging.current) setWps(s.waypoints);
   }, [s.waypoints]);
 
-  const { path, labelX, labelY, renderPts } = buildEdgePath(s, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition);
+  const loop = !!d.self && wps.length === 0;
+  const { path, labelX, labelY, renderPts } = loop ? selfLoopPath(sourceX, sourceY, targetX, targetY) : buildEdgePath(s, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition);
 
   const startMarker = markerUrl(s.markerStart === "none" ? null : { type: s.markerStart, color: s.color, width: s.width });
   const endMarker = markerUrl(s.markerEnd === "none" ? null : { type: s.markerEnd, color: s.color, width: s.width });
-  const width = s.width + (d.related || selected ? 0.9 : 0);
-  const opacity = d.dim ? 0.15 : 1;
+  const width = s.width + (d.related || selected ? 1.2 : 0);
+  const opacity = d.dim ? 0.12 : 1;
 
-  const canEdit = d.editing && EDITABLE.includes(s.lineType) && !!d.onWaypointsChange;
+  const canEdit = !loop && d.editing && EDITABLE.includes(s.lineType) && !!d.onWaypointsChange;
 
   // --- waypoint dragging ------------------------------------------------------
   const beginDrag = (e: ReactPointerEvent, index: number, insertAt?: number) => {
@@ -275,7 +284,7 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
       {d.label && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan pointer-events-none absolute max-w-[180px] truncate rounded bg-white/85 px-1 text-[9px] text-slate-600"
+            className="nodrag nopan pointer-events-none absolute max-w-[200px] truncate rounded border border-slate-200 bg-white/90 px-1 text-[10px] text-slate-600"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, opacity }}
             title={d.title}
           >
@@ -313,6 +322,14 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
       )}
     </>
   );
+}
+
+/** Recurrent connection: leave and re-enter the node's right side through an outward loop. */
+export function selfLoopPath(sx: number, sy: number, tx: number, ty: number): { path: string; labelX: number; labelY: number; renderPts: XY[] } {
+  const reach = 46;
+  const x = Math.max(sx, tx) + reach;
+  const path = `M${sx},${sy} C${x},${sy - 18} ${x},${ty + 18} ${tx},${ty}`;
+  return { path, labelX: x - 8, labelY: (sy + ty) / 2, renderPts: [{ x: sx, y: sy }, { x: tx, y: ty }] };
 }
 
 /** Is p inside the bounding box spanned by a and b (with tolerance)? */
