@@ -19,7 +19,10 @@ Steps 1-2 are working steps: do them in your reasoning and keep only their ratio
    - a GN whose children are only UCs has **exactly 2** UCs (a GN with a single UC would just be that UC);
    - a GN has **at most 2** UC children; a UC has **at most 2** GN parents;
    - every ROI-internal UC appears in the FRG; every GN has children; one root (the TLF); no cycles.
-   If the constraints cannot be met, go back and decompose the TLF more finely. Also check that the UC combinations realize each GN and are consistent with the HCD connections.
+   If the constraints cannot be met, or a GN needs a flow or a distinction the HCD does not have, choose the side the evidence supports:
+   - **decompose the TLF more finely** (the FRG was too coarse), or
+   - **go back to the HCD and split or add UCs** (the HCD was too coarse): split a UC into finer UCs of the same SABRA unit when the literature separates their inputs, outputs or Output Semantics (HCD step 3, with the coarser unit as a Collection), or add a UC or connection the GN requires and the literature supports (HCD steps 2-5: references, quotes, interfaces, Output Semantics and function items of the new UCs). The worker validates changed HCD files again. Do not invent UCs or connections to satisfy the constraints; without evidence, change the FRG instead.
+   Record every such change and its reason in `decision_log.md` under `## HCD-FRG revisions` (see AGENTS.md). Also check that the UC combinations realize each GN and are consistent with the HCD connections.
 
 4. **Interfaces -> `frg.json` `interface`.** For a GN whose children are all UCs, the interface is the union of its UCs' interfaces with internal edges removed; external UCs may appear. Example: `U.A: [U.E] = U.A([U.F], [U.G])` and `U.B: [U.H] = U.B([U.F], [U.I])` give `R.GN: ([U.E], [U.H]) = R.GN([U.F], [U.G], [U.I])`. Compose upward recursively; the TLF should become `(all noROI(output)) = R.TLF(all noROI(input))`.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkCross, type ConnRow, type FrgModel, type GnRow, type HcdModel, type UcRoi, type UcRow } from "../src/index.js";
+import { checkCross, countRevisions, type ConnRow, type FrgModel, type GnRow, type HcdModel, type UcRoi, type UcRow } from "../src/index.js";
 
 const uc = (id: string, roi: UcRoi = "roi"): UcRow => ({
   id,
@@ -111,5 +111,47 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
     expect(r.findings.map((f) => f.message)).toEqual(["the TLF `R.TLF` has only UCs as subnodes; decompose it or split its UCs", "the HCD has only 2 ROI-internal UC(s)"]);
     expect(r.stats.interfacesParsed).toBe(0);
     expect(r.stats.depth).toBe(1);
+  });
+});
+
+describe("checkCross X9 (granularity, record-only)", () => {
+  it("flags ROI-internal UCs that are a whole BNA gyrus group or span several units, not areas, parts or external UCs", () => {
+    const withDescriptor = (id: string, descriptor: string, roi: UcRoi = "roi") => ({ ...uc(id, roi), descriptor });
+    const hcd = hcdOf(
+      [
+        withDescriptor("IN", "BNAG:MVOcC@L", "input"),
+        withDescriptor("FuG@L", "BNAG:FuG@L"),
+        withDescriptor("IPL@L(AnG)", "BNAG:IPL@L/part:HOMBA:12136"),
+        withDescriptor("A22c@L", "BNA:75"),
+        withDescriptor("Amyg", "BNA:211-212&BNA:213-214"),
+        withDescriptor("OUT", "BNA:9", "output"),
+      ],
+      [conn("IN", "FuG@L"), conn("FuG@L", "IPL@L(AnG)"), conn("IPL@L(AnG)", "A22c@L"), conn("A22c@L", "Amyg"), conn("Amyg", "OUT")],
+    );
+    const frg: FrgModel = { gns: [gn("R.TLF", ["U.FuG@L", "U.IPL@L(AnG)", "U.A22c@L", "U.Amyg"], "")] };
+    const r = checkCross(hcd, frg);
+    expect(r.findings.filter((f) => f.code === "X9").map((f) => f.node)).toEqual(["FuG@L", "Amyg"]);
+    expect(r.summary.X9).toBe(2);
+  });
+});
+
+describe("countRevisions", () => {
+  it("counts the tagged lines of the HCD-FRG revisions section only", () => {
+    const log = [
+      "# Decision log",
+      "## Anchors",
+      "- [kept] not in the section",
+      "## HCD-FRG revisions",
+      "### 2026-09-29 adjustment",
+      "- [FRG->HCD] split `IFG@L` into `A44d@L` and `A45c@L` — R.Phonological-Assembly needs a separate output [Friederici, 2011]",
+      "* [HCD -> FRG] merged R.A into R.B — no connection supports the split",
+      "- [kept] X4 — indirect path via the thalamus",
+      "- [instruction] split `FuG@L` into BNA areas — the follow-up asked for finer ROI UCs [Lerma-Usabiaga, 2018]",
+      "- untagged note",
+      "## Follow-ups",
+      "- [FRG->HCD] after the section",
+    ].join("\n");
+    expect(countRevisions(log)).toEqual({ section: true, "FRG->HCD": 1, "HCD->FRG": 1, instruction: 1, kept: 1 });
+    expect(countRevisions(null)).toEqual({ section: false, "FRG->HCD": 0, "HCD->FRG": 0, instruction: 0, kept: 0 });
   });
 });

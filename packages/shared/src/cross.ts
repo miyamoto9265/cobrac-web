@@ -5,7 +5,7 @@
  */
 import { parseInterface, type FrgModel, type GnRow, type HcdModel } from "./harness.js";
 
-export const CROSS_CODES = ["X1", "X2", "X3", "X4", "X5", "X6", "X8"] as const;
+export const CROSS_CODES = ["X1", "X2", "X3", "X4", "X5", "X6", "X8", "X9"] as const;
 export type CrossCode = (typeof CROSS_CODES)[number];
 
 /** Which side a finding points at: FRG->HCD = the FRG asks for something the HCD lacks, HCD->FRG the reverse */
@@ -26,7 +26,44 @@ export const CROSS_RULES: Record<CrossCode, CrossRule> = {
   X5: { severity: "warning", direction: "HCD->FRG", description: "A ROI-internal UC is not mentioned in the function text of any GN it is attached to" },
   X6: { severity: "warning", direction: "both", description: "A GN's Requirement realization does not mention every UC of its interface" },
   X8: { severity: "warning", direction: "FRG->HCD", description: "The FRG is collapsed (TLF directly on UCs, a single GN, or fewer than 3 ROI-internal UCs): the UCs may be too coarse" },
+  X9: { severity: "warning", direction: "FRG->HCD", description: "A ROI-internal UC is a whole gyrus-level BNA group (BNAG anchor without facets) or spans several SABRA units: finer areas may carry different inputs, outputs or Output Semantics" },
 };
+
+/** Findings that trigger the one HCD ↔ FRG adjustment turn after the FRG phase */
+export const ADJUSTMENT_CODES: readonly CrossCode[] = ["X1", "X2", "X3", "X8"];
+
+/** Heading of decision_log.md under which the agent records HCD ↔ FRG changes */
+export const REVISIONS_HEADING = "## HCD-FRG revisions";
+
+export interface RevisionCounts {
+  /** The section exists */
+  section: boolean;
+  "FRG->HCD": number;
+  "HCD->FRG": number;
+  kept: number;
+  /** Changes made because a user instruction (follow-up) asked for them */
+  instruction: number;
+}
+
+/** Tagged lines (`- [FRG->HCD] …`, `- [HCD->FRG] …`, `- [instruction] …`, `- [kept] …`) under the revisions heading of decision_log.md. */
+export function countRevisions(decisionLog: string | null | undefined): RevisionCounts {
+  const out: RevisionCounts = { section: false, "FRG->HCD": 0, "HCD->FRG": 0, instruction: 0, kept: 0 };
+  let inSection = false;
+  for (const line of (decisionLog ?? "").split(/\r?\n/)) {
+    if (/^#{1,2}\s/.test(line)) {
+      inSection = line.trim().startsWith(REVISIONS_HEADING);
+      if (inSection) out.section = true;
+      continue;
+    }
+    if (!inSection) continue;
+    const tag = line.match(/^\s*[-*]\s*\[(FRG\s*->\s*HCD|HCD\s*->\s*FRG|instruction|kept)\]/i)?.[1].replace(/\s/g, "").toUpperCase();
+    if (tag === "FRG->HCD") out["FRG->HCD"]++;
+    else if (tag === "HCD->FRG") out["HCD->FRG"]++;
+    else if (tag === "INSTRUCTION") out.instruction++;
+    else if (tag === "KEPT") out.kept++;
+  }
+  return out;
+}
 
 export interface CrossFinding {
   code: CrossCode;
@@ -191,6 +228,15 @@ export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
     if (!gnKids(root).length) add("X8", root.id, `the TLF \`${root.id}\` has only UCs as subnodes; decompose it or split its UCs`);
     else if (frg.gns.length === 2) add("X8", root.id, "the FRG has a single GN under the TLF");
     if (roiUcs.size < 3) add("X8", root.id, `the HCD has only ${roiUcs.size} ROI-internal UC(s)`);
+  }
+
+  for (const u of hcd.ucs) {
+    if (u.roi !== "roi" || !u.descriptor) continue;
+    const anchor = u.descriptor.split("/")[0];
+    const faceted = u.descriptor.includes("/");
+    if (anchor.includes("&")) add("X9", u.id, `[U.${u.id}] spans several SABRA units (${u.descriptor}); check whether the literature separates them into UCs`);
+    else if (anchor.startsWith("BNAG:") && !faceted)
+      add("X9", u.id, `[U.${u.id}] is a whole gyrus-level BNA group (${u.descriptor}); check whether its BNA areas (or parts) have different inputs, outputs or Output Semantics`);
   }
 
   const summary = Object.fromEntries(CROSS_CODES.map((c) => [c, findings.filter((f) => f.code === c).length])) as Record<CrossCode, number>;

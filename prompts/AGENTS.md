@@ -59,6 +59,8 @@ When the prompt has a `Reference materials:` line, the user attached files or UR
 
 `decision_log.md` records the decisions you took yourself and why, so that you (in a later follow-up or a new thread) and the user can trace them: ROI/TLF validity, ROI_Input / ROI_Output, the choice of each UC's SABRA anchor (the candidates you considered and why you chose one; the raw RCS calls are already in `rcs_mcp_calls.jsonl`, so do not copy them), rejected alternatives, answers the user gave, and changes made by follow-ups. Short dated entries under headings; append, do not rewrite.
 
+Changes between the HCD and the FRG go under one heading `## HCD-FRG revisions`, one line each, tagged with the side that caused the change: `- [FRG->HCD] <what changed in the HCD> — <why the FRG needed it> [Author, Year]` (e.g. a UC split or added because a GN needs a separate output) or `- [HCD->FRG] <what changed in the FRG> — <what in the HCD required it>`. A change made because the user's instruction asked for it is `- [instruction] <what changed> — <the instruction and the evidence>`; keep `[FRG->HCD]` / `[HCD->FRG]` for what building one graph showed about the other. When you checked a mismatch and changed nothing, write `- [kept] <mismatch> — <reason>`.
+
 ## Turn protocol
 
 Your final message of every turn is JSON matching the provided schema:
