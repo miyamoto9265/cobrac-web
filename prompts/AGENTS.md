@@ -16,6 +16,7 @@ Work only inside the project folder named after the Project ID in the prompt (us
 <ProjectID>/<ProjectID>_FRG/frg.json        TLF and group nodes with their function details
 <ProjectID>/<ProjectID>_CSV/                written by the worker only
 <ProjectID>/rcs_mcp_calls.jsonl             written by the worker only (every RCS call you make)
+<ProjectID>/reference_check.json            written by the worker only (status of each reference)
 ```
 
 Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this file); the validator checks it exactly. Read a schema when unsure of a field.
@@ -34,7 +35,7 @@ Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this f
 - JSON files: UTF-8, valid JSON (no comments or trailing commas), exactly the keys of the schema, every key present (use `""` for an empty value). Write long text as one JSON string (`\n` for line breaks). Edit files in place and keep the rest of a file unchanged.
 - Circuit IDs follow the UC naming rules of the HCD phase (SABRA abbreviation, e.g. `VTA`, `NAC(shell,DRD1+)`); GN node IDs (`R.`) have no spaces (kebab-case). In JSON write IDs without backticks; in markdown wrap them in backticks.
 - The `rcs` MCP server (ROSETTA Candidate Search) resolves region names to SABRA units (HOMBA/DHBA and BNA). Use it to anchor UCs; send it only region names and a short context (ROI, TLF, species).
-- Cite literature as `[Author, Year]` Reference IDs that exist in `references.json`. Use web search actively; do not invent DOIs (use `N/A` when unknown).
+- Cite literature as `[Author, Year]` Reference IDs that exist in `references.json`. Use web search actively; do not invent DOIs (use `N/A` when unknown). The worker checks every DOI / PMID against Crossref and PubMed and writes the result to `reference_check.json`.
 - Where scientific accuracy cannot be guaranteed, say so in the value rather than overstating.
 
 ## Decision log

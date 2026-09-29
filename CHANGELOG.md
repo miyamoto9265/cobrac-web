@@ -5,6 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The harness checks that every reference is a real paper: each DOI is looked up in Crossref (other DOIs through doi.org) and each PMID in PubMed, and the record must have the Reference ID's first author, its year (±1) and, when given, a similar title. A DOI or PMID that does not exist or belongs to another paper goes back to the agent as a problem to fix, like the other checks
+- The checks also report `[Author, Year]` citations in the data files and the report that are not in `references.json`, references that are cited nowhere (or only in the report's bibliography), and two references with the same DOI or PMID
+- The result of each reference (verified, mismatch, not found, invalid, no identifier, unverified) is kept in `reference_check.json` in the project workspace, and the chat shows a summary when the HCD or FRG phase is accepted
+- `references.json` may give `pmid`, `title` and `journal` for each reference; the agent is asked to fill them. Files with only `id` and `doi` stay valid
+- When Crossref, doi.org or PubMed cannot be reached (timeout, rate limit, outage), the references stay "unverified" and the phase continues
+
 ### Changed
 - The agent's chat replies (turn summaries and questions) are written in the language selected in the web app (English, Japanese, Chinese, Korean, German, French, Spanish, Portuguese or Russian), whatever language the ROI/TLF or instructions are typed in. The language of the screen at the time of creating, answering, sending a follow-up or retrying is used; files such as the report, the decision log and the xlsx stay in English
 
