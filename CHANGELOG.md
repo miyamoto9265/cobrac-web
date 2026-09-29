@@ -12,6 +12,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - A job no longer fails when OpenAI briefly rate-limits it (tokens per minute): Codex's own "Reconnecting…" retries are shown as status lines instead of ending the job after the turn has finished, and a turn that still fails on a rate limit is resumed on the same thread after a pause (up to 3 times)
 - The search log (`research_queries.jsonl`) records the error text of failed literature tool calls
 
+### Changed
+- HCD and FRG graph nodes show only the Circuit ID, without the small, usually truncated full name under it, and are shorter. The full name appears in a tooltip on hover, in the search results and, unabridged, in the detail panel of the selected node
+
 ## [0.11.0] - 2026-09-29
 
 ### Added

@@ -56,7 +56,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         color: ROI_STYLE[n.roiClass].fill,
         accent: ROI_STYLE[n.roiClass].accent,
         width: 176,
-        height: 50,
+        height: 38,
       })) ?? [],
     [graph],
   );
