@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import type { ArticleJobState, ArticleMeta } from "./article.js";
+import type { ProjectAttachment } from "./attachments.js";
 import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ResearchStepMetrics } from "./research.js";
@@ -90,7 +91,10 @@ export interface ProjectRecord {
   legacyId?: string;
   roi: string;
   tlf: string;
+  /** From the creator's account (Settings → contributor name) */
   contributor: string;
+  /** Reference materials given at creation (files and URLs); absent on projects without any */
+  attachments?: ProjectAttachment[];
   /** Codex model / reasoning effort for this project (null = Codex default / env default) */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -334,18 +338,38 @@ export interface FrgGraph {
 // API DTOs
 // ---------------------------------------------------------------------------
 
+/**
+ * The name starts as the provisional proposal from ROI/TLF and is replaced by the agent's name; the contributor is the
+ * account's contributor name. Both can be changed later (rename on the project page, Settings).
+ */
 export interface CreateProjectRequest {
   roi: string;
   tlf: string;
-  /** Display name; defaults to the proposal from ROI/TLF */
-  name?: string;
-  contributor?: string;
+  /** Files uploaded beforehand with POST /uploads, in display order */
+  attachments?: { uploadId: string; name: string }[];
+  /** Reference URLs (http/https) */
+  urls?: string[];
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   /** Research mode (default true); follow-ups and retries of the project inherit it */
   researchMode?: boolean;
   /** Web UI language; the agent's chat replies use it */
   locale?: UiLocale | null;
+}
+
+export interface CreateUploadRequest {
+  name: string;
+  size: number;
+}
+
+/** Presigned POST: send `fields` plus the file (last) as multipart/form-data to `url`. */
+export interface CreateUploadResponse {
+  uploadId: string;
+  url: string;
+  fields: Record<string, string>;
+  contentType: string;
+  maxBytes: number;
+  expiresIn: number;
 }
 
 export interface UpdateProjectRequest {
@@ -383,7 +407,7 @@ export interface ArtifactInfo {
   size: number;
   lastModified: string;
   /** `doc` = the free-text markdown at the workspace root (report.md, decision_log.md) */
-  category: "output" | "csv" | "hcd" | "frg" | "graph" | "doc" | "article" | "other";
+  category: "output" | "csv" | "hcd" | "frg" | "graph" | "doc" | "article" | "attachment" | "other";
 }
 
 export interface CreateArticleRequest {

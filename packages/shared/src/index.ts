@@ -18,3 +18,4 @@ export * from "./research.js";
 export * from "./bibtex.js";
 export * from "./xlsxSheet.js";
 export * from "./braTemplate.js";
+export * from "./attachments.js";

@@ -2,6 +2,7 @@ import type {
   ArticleJobState,
   ArtifactInfo,
   CreateProjectRequest,
+  CreateUploadResponse,
   DeleteProjectResponse,
   FrgGraph,
   HcdGraph,
@@ -73,8 +74,7 @@ export const api = {
     return request<ListProjectsResponse>("GET", `/projects${qs ? `?${qs}` : ""}`);
   },
   createProject: (b: CreateProjectRequest) => request<ProjectRecord>("POST", "/projects", b),
-  proposeName: (roi: string, tlf: string) =>
-    request<{ name: string }>("GET", `/projects/propose-name?roi=${encodeURIComponent(roi)}&tlf=${encodeURIComponent(tlf)}`),
+  createUpload: (name: string, size: number) => request<CreateUploadResponse>("POST", "/uploads", { name, size }),
   resolveProject: (id: string) => request<{ projectId: string }>("GET", `/projects/resolve/${encodeURIComponent(id)}`),
   renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
   deleteProject: (id: string) => request<DeleteProjectResponse>("DELETE", `/projects/${encodeURIComponent(id)}`),
@@ -107,3 +107,25 @@ export const api = {
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),
   adminCancel: (userId: string, id: string) => request<{ ok: true }>("POST", `/admin/projects/${userId}/${encodeURIComponent(id)}/cancel`),
 };
+
+/** Send one file to S3 with the presigned POST from `api.createUpload`; `onProgress` gets 0..1. */
+export function uploadFile(target: CreateUploadResponse, file: Blob, onProgress?: (fraction: number) => void, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(target.fields)) form.append(k, v);
+    form.append("file", file);
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", target.url);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress?.(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new ApiError(xhr.status, /<Message>([^<]*)<\/Message>/.exec(xhr.responseText)?.[1] ?? `HTTP ${xhr.status}`));
+    };
+    xhr.onerror = () => reject(new ApiError(0, "network error"));
+    xhr.onabort = () => reject(new ApiError(0, "aborted"));
+    signal?.addEventListener("abort", () => xhr.abort());
+    xhr.send(form);
+  });
+}

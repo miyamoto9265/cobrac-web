@@ -2,7 +2,8 @@ import { BookOpenCheck, Loader2, Play, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { MessageRecord, ProjectRecord, ReasoningEffort } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, formatUsd, projectDisplayName, projectNameKey, researchModeEstimate } from "@cobrac/shared";
+import { AttachmentPicker, EMPTY_ATTACHMENTS, attachmentRequest, attachmentsBusy, type AttachmentState } from "../components/AttachmentPicker";
+import { DEFAULT_CODEX_MODEL, formatUsd, researchModeEstimate } from "@cobrac/shared";
 import { ChatTimeline } from "../components/ChatTimeline";
 import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
@@ -16,7 +17,7 @@ export function ChatPage() {
 }
 
 // ---------------------------------------------------------------------------
-// New project: two inputs (ROI / TLF)
+// New project: ROI / TLF and optional reference materials
 // ---------------------------------------------------------------------------
 
 function NewProject() {
@@ -25,42 +26,19 @@ function NewProject() {
   const { me } = useAuth();
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
-  const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
-  const [existingNames, setExistingNames] = useState<Set<string>>(new Set());
-  const [contributor, setContributor] = useState(me?.contributorName ?? "");
+  const [attachments, setAttachments] = useState<AttachmentState>(EMPTY_ATTACHMENTS);
   const [model, setModel] = useState<string | null>(me?.defaultModel ?? null);
   const [effort, setEffort] = useState<ReasoningEffort | null>(me?.defaultReasoningEffort ?? null);
   const [research, setResearch] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (nameTouched) return;
-    const id = setTimeout(() => {
-      if (!roi && !tlf) return setName("");
-      api.proposeName(roi, tlf).then((r) => setName(r.name)).catch(() => undefined);
-    }, 400);
-    return () => clearTimeout(id);
-  }, [roi, tlf, nameTouched]);
-
-  useEffect(() => {
-    api
-      .listProjects()
-      .then((r) => setExistingNames(new Set(r.items.map((p) => projectNameKey(projectDisplayName(p))))))
-      .catch(() => undefined);
-  }, []);
-  const duplicateName = name.trim() && existingNames.has(projectNameKey(name)) ? name.trim() : null;
-
-  useEffect(() => {
-    if (me && !contributor) setContributor(me.contributorName);
-  }, [me, contributor]);
+  const uploading = attachmentsBusy(attachments);
 
   const submit = async () => {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, name: (nameTouched && name.trim()) || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, researchMode: research, locale });
+      const p = await api.createProject({ roi, tlf, ...attachmentRequest(attachments), model, reasoningEffort: effort, researchMode: research, locale });
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -70,10 +48,11 @@ function NewProject() {
   };
 
   const [needKeyBefore, needKeyAfter] = t("chat.needKey").split("{settings}");
+  const [contribBefore, contribAfter] = t("chat.contributorLine", { name: me?.contributorName || me?.displayName || "—" }).split("{settings}");
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-6">
+      <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
         <div className="mb-6 text-center sm:mb-8">
           <h1 className="text-2xl font-semibold tracking-tight">{t("chat.newTitle")}</h1>
           <p className="mt-1 text-sm text-slate-500">{t("chat.newHelp")}</p>
@@ -110,26 +89,8 @@ function NewProject() {
               />
             </label>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.name")}</span>
-              <input
-                value={name}
-                maxLength={400}
-                onChange={(e) => {
-                  setNameTouched(true);
-                  setName(e.target.value);
-                }}
-                placeholder="VOR learning in cerebellar flocculus"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <span className="mt-1 block text-xs text-slate-400">{t("chat.nameHelp")}</span>
-              {duplicateName && <span className="mt-1 block text-xs text-amber-700">{t("chat.nameDup", { name: duplicateName })}</span>}
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.contributor")}</span>
-              <input value={contributor} onChange={(e) => setContributor(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-            </label>
+          <div className="mt-4">
+            <AttachmentPicker value={attachments} onChange={setAttachments} disabled={busy} />
           </div>
           <div className="mt-4">
             <ModelSelect
@@ -143,11 +104,22 @@ function NewProject() {
             />
           </div>
           <ResearchToggle on={research} onChange={setResearch} model={model || me?.defaultModel || DEFAULT_CODEX_MODEL} />
+          <ul className="mt-4 space-y-0.5 text-xs text-slate-500" data-testid="create-meta">
+            <li>{t("chat.autoName")}</li>
+            <li>
+              {contribBefore}
+              <Link to="/settings" className="underline hover:text-slate-700">
+                {t("chat.settingsLink")}
+              </Link>
+              {contribAfter}
+            </li>
+          </ul>
           {err && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+            {uploading && <span className="text-center text-xs text-slate-500 sm:text-right">{t("attach.wait")}</span>}
             <button
               onClick={() => void submit()}
-              disabled={busy || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered}
+              disabled={busy || uploading || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto coarse:py-3"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} {t("chat.run")}

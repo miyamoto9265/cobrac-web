@@ -37,6 +37,8 @@ export interface Prompt {
   shown: string;
   /** Appended for the agent only (phase specs) */
   hidden?: string;
+  /** Local image files sent with the text (user-provided reference images) */
+  images?: string[];
 }
 
 /** Text sent to the agent for one turn: shown part, hidden part and the reply-language line, separated by rules. */

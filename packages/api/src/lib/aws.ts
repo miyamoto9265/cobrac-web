@@ -1,10 +1,11 @@
 import { EncryptCommand, KMSClient } from "@aws-sdk/client-kms";
-import { DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import type { ArtifactInfo, RunJobMessage } from "@cobrac/shared";
 import { contentDisposition } from "@cobrac/shared";
+import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 
 const kms = new KMSClient({ region: env.region });
@@ -51,6 +52,7 @@ export async function listArtifacts(userId: string, projectId: string): Promise<
 }
 
 function categorize(rel: string): ArtifactInfo["category"] {
+  if (rel.startsWith("attachments/")) return "attachment";
   if (rel.startsWith("output/")) return "output";
   if (rel.startsWith("graph/")) return "graph";
   if (/^article\/[^/]+\.md$/.test(rel)) return "article";
@@ -127,4 +129,61 @@ export async function stopEcsTask(taskArn: string, reason: string) {
   } catch (e) {
     console.warn("stopTask failed", e);
   }
+}
+
+const hmac = (key: string | Buffer, data: string) => createHmac("sha256", key).update(data, "utf8").digest();
+
+/**
+ * Presigned POST (SigV4 POST policy) for one browser upload to `key`: the policy pins the key and Content-Type and
+ * limits the size, which a presigned PUT cannot do.
+ */
+export async function presignUpload(key: string, contentType: string, maxBytes: number, expiresIn = 900): Promise<{ url: string; fields: Record<string, string> }> {
+  const creds = await s3.config.credentials();
+  const now = new Date();
+  const amzDate = now.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const day = amzDate.slice(0, 8);
+  const credential = `${creds.accessKeyId}/${day}/${env.region}/s3/aws4_request`;
+  const fields: Record<string, string> = {
+    key,
+    "Content-Type": contentType,
+    "x-amz-algorithm": "AWS4-HMAC-SHA256",
+    "x-amz-credential": credential,
+    "x-amz-date": amzDate,
+    ...(creds.sessionToken ? { "x-amz-security-token": creds.sessionToken } : {}),
+  };
+  const policy = {
+    expiration: new Date(now.getTime() + expiresIn * 1000).toISOString(),
+    conditions: [{ bucket: env.artifactsBucket }, ["content-length-range", 1, maxBytes], ...Object.entries(fields).map(([k, v]) => ({ [k]: v }))],
+  };
+  const encoded = Buffer.from(JSON.stringify(policy), "utf8").toString("base64");
+  const signingKey = hmac(hmac(hmac(hmac(`AWS4${creds.secretAccessKey}`, day), env.region), "s3"), "aws4_request");
+  fields.Policy = encoded;
+  fields["X-Amz-Signature"] = createHmac("sha256", signingKey).update(encoded, "utf8").digest("hex");
+  return { url: `https://${env.artifactsBucket}.s3.${env.region}.amazonaws.com/`, fields };
+}
+
+/** Size of an uploaded staging object, or null when it does not exist. */
+export async function headStaging(key: string): Promise<{ size: number } | null> {
+  try {
+    const r = await s3.send(new HeadObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return { size: r.ContentLength ?? 0 };
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    if (name === "NotFound" || name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+/** Move a staging upload into the project (copy + delete; the copy gets the canonical Content-Type). */
+export async function moveStagingToProject(stagingKey: string, userId: string, projectId: string, rel: string, contentType: string): Promise<void> {
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: env.artifactsBucket,
+      CopySource: `${env.artifactsBucket}/${stagingKey.split("/").map(encodeURIComponent).join("/")}`,
+      Key: projectPrefix(userId, projectId) + rel,
+      ContentType: contentType,
+      MetadataDirective: "REPLACE",
+    }),
+  );
+  await s3.send(new DeleteObjectCommand({ Bucket: env.artifactsBucket, Key: stagingKey }));
 }

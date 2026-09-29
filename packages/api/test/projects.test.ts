@@ -30,6 +30,9 @@ vi.mock("../src/lib/aws.js", () => ({
   deleteObject: vi.fn(async () => undefined),
   encryptApiKey: vi.fn(async () => "enc"),
   stopEcsTask: vi.fn(async () => undefined),
+  presignUpload: vi.fn(async (key: string) => ({ url: "https://bucket.s3.example/", fields: { key } })),
+  headStaging: vi.fn(async (): Promise<{ size: number } | null> => ({ size: 1000 })),
+  moveStagingToProject: vi.fn(async () => undefined),
 }));
 
 const { fake } = await import("./fakeDdb.js");
@@ -134,7 +137,8 @@ describe("project IDs", () => {
     fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, apiKeyRegistered: true });
 
     const a1 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
-    const a2 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning", name: "  小脳片葉の   VOR 学習 " }));
+    // name and contributor are no longer taken from the create request
+    const a2 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning", name: "  小脳片葉の   VOR 学習 ", contributor: "someone else" }));
     const b1 = await json<ProjectRecord>(call(B, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
     const a3 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "小脳", tlf: "VOR", name: "VOR in 小脳" }));
 
@@ -144,7 +148,7 @@ describe("project IDs", () => {
     expect(b1.projectId.endsWith("-1")).toBe(true);
     expect(b1.projectId).not.toBe(a1.projectId);
     expect(a1).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", revision: 0 });
-    expect(a2).toMatchObject({ name: "小脳片葉の VOR 学習", nameSource: "user" });
+    expect(a2).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", contributor: "alice" });
     expect(a3).toMatchObject({ name: "VOR in 小脳", nameSource: "provisional" });
     expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBe(3);
     expect(fake.items("messages").every((m) => m.userId)).toBe(true);
@@ -545,5 +549,81 @@ describe("janitor and article jobs", () => {
     fake.put("jobs", { ...next, status: "RUNNING", lastHeartbeat: now, retryCount: 5 });
     await janitor();
     expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject({ status: "COMPLETED", activeJobId: null, errorMessage: null, articleJob: { status: "FAILED" } });
+  });
+});
+
+describe("reference materials", () => {
+  const seedUser = () =>
+    fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "Alice A.", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", createdAt: now, updatedAt: now });
+
+  it("presigns uploads only for accepted types and sizes, into the caller's staging area", async () => {
+    seedUser();
+    const aws = await import("../src/lib/aws.js");
+    vi.mocked(aws.presignUpload).mockClear();
+    const r = await json<{ uploadId: string; contentType: string; fields: { key: string } }>(call(A, "POST", "/uploads", { name: "Ito 1982 (review).PDF", size: 1234 }));
+    expect(r.uploadId).toMatch(/^up_[a-z0-9]{32}$/);
+    expect(r.contentType).toBe("application/pdf");
+    expect(vi.mocked(aws.presignUpload).mock.calls[0]).toEqual([`staging/${A.sub}/${r.uploadId}/Ito_1982_review_.pdf`, "application/pdf", 20 * 1024 * 1024, 900]);
+    expect((await call(A, "POST", "/uploads", { name: "run.exe", size: 10 })).status).toBe(400);
+    expect((await call(A, "POST", "/uploads", { name: "big.pdf", size: 21 * 1024 * 1024 })).status).toBe(400);
+    expect((await call(A, "POST", "/uploads", { name: "empty.png", size: 0 })).status).toBe(400);
+  });
+
+  it("moves staged files into the project and stores files and URLs on the record", async () => {
+    seedUser();
+    const aws = await import("../src/lib/aws.js");
+    vi.mocked(aws.moveStagingToProject).mockClear();
+    vi.mocked(aws.enqueueRun).mockClear();
+    const up = "up_" + "a".repeat(32);
+    const p = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "flocculus",
+        tlf: "VOR",
+        attachments: [{ uploadId: up, name: "図1 flocculus.png" }],
+        urls: ["https://example.org/paper#section", " ", "https://example.org/paper"],
+      }),
+    );
+    expect(p).toMatchObject({ contributor: "Alice A.", nameSource: "provisional" });
+    expect(p.attachments).toEqual([
+      { kind: "file", id: "f1", name: "図1 flocculus.png", key: "attachments/files/01-図1_flocculus.png", size: 1000, contentType: "image/png" },
+      { kind: "url", id: "u1", url: "https://example.org/paper" },
+    ]);
+    expect(vi.mocked(aws.moveStagingToProject)).toHaveBeenCalledWith(`staging/${A.sub}/${up}/図1_flocculus.png`, A.sub, p.projectId, "attachments/files/01-図1_flocculus.png", "image/png");
+    expect(fake.items("projects").find((x) => x.projectId === p.projectId)!.attachments).toHaveLength(2);
+    expect(vi.mocked(aws.enqueueRun)).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects missing or oversized uploads, bad URLs and too many items before creating anything", async () => {
+    seedUser();
+    const aws = await import("../src/lib/aws.js");
+    const up = "up_" + "b".repeat(32);
+    const post = (body: Record<string, unknown>) => call(A, "POST", "/projects", { roi: "x", tlf: "y", ...body });
+    vi.mocked(aws.headStaging).mockResolvedValueOnce(null);
+    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status).toBe(400);
+    vi.mocked(aws.headStaging).mockResolvedValueOnce({ size: 30 * 1024 * 1024 });
+    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status).toBe(400);
+    expect((await post({ attachments: [{ uploadId: "../other", name: "a.pdf" }] })).status).toBe(400);
+    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }, { uploadId: up, name: "a.pdf" }] })).status).toBe(400);
+    expect((await post({ attachments: [{ uploadId: up, name: "a.zip" }] })).status).toBe(400);
+    expect((await post({ urls: ["javascript:alert(1)"] })).status).toBe(400);
+    expect((await post({ urls: ["http://169.254.169.254/latest/meta-data/"] })).status).toBe(400);
+    expect((await post({ urls: ["http://localhost:8080/"] })).status).toBe(400);
+    expect((await post({ urls: Array.from({ length: 21 }, (_, i) => `https://example.org/${i}`) })).status).toBe(400);
+    vi.mocked(aws.headStaging).mockResolvedValue({ size: 6 * 1024 * 1024 });
+    const nine = Array.from({ length: 9 }, (_, i) => ({ uploadId: `up_${String(i).repeat(32)}`, name: `${i}.pdf` }));
+    expect((await post({ attachments: nine })).status).toBe(400);
+    vi.mocked(aws.headStaging).mockResolvedValue({ size: 1000 });
+    expect(fake.items("projects")).toHaveLength(0);
+  });
+
+  it("downloads an attachment under its original name", async () => {
+    seedUser();
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-4",
+      attachments: [{ kind: "file", id: "f1", name: "論文 A.pdf", key: "attachments/files/01-論文_A.pdf", size: 5, contentType: "application/pdf" }],
+    });
+    await json(call(A, "GET", `/projects/u7m2q9xa-4/artifacts/download?key=${encodeURIComponent("attachments/files/01-論文_A.pdf")}`));
+    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-4", "attachments/files/01-論文_A.pdf", { ascii: "論文_A.pdf", utf8: "論文 A.pdf" });
   });
 });

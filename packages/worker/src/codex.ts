@@ -1,4 +1,4 @@
-import { Codex, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { Codex, type Input, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType } from "@cobrac/shared";
@@ -127,7 +127,7 @@ interface TurnState {
 }
 
 /** Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause. */
-export async function runTurn(thread: Thread, prompt: string, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
+export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
   const result: TurnResult = {
     threadId: thread.id ?? null,
     finalMessage: "",
