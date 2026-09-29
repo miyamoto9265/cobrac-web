@@ -8,6 +8,7 @@ import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { canonPullPath, inputCls } from "../pages/CanonsPage";
 import { ConflictList, DiffSummary } from "./CanonDiffView";
+import { HelpTip } from "./HelpTip";
 
 /**
  * Sends this Canon's head revision to another Canon as a pull request (one of your Canons, or a public Canon of
@@ -45,10 +46,9 @@ export function SendCanonPr({ canon }: { canon: CanonRecord }) {
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5" data-testid="send-canon-pr">
-      <h2 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-        <Send size={14} /> {t("c2c.title")}
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+        <Send size={14} /> {t("c2c.title")} <HelpTip text={t("c2c.note")} />
       </h2>
-      <p className="mb-2 text-xs text-slate-500">{t("c2c.note")}</p>
       {canon.headRevision === 0 ? (
         <div className="text-xs text-slate-400">{t("c2c.empty")}</div>
       ) : (

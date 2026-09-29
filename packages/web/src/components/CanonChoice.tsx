@@ -1,18 +1,18 @@
 import { ArrowDown, ArrowUp, Layers, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { CanonChoice as Choice, CanonConstraintMode, CanonRecord, CanonSeedCandidate, CanonSeedStep, CreateProjectCanon, ProjectRecord } from "@cobrac/shared";
+import type { CanonChoice as Choice, CanonRecord, CanonSeedCandidate, CanonSeedStep, CreateProjectCanon, ProjectRecord } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { useT } from "../i18n";
 import { api } from "../lib/api";
-import { ConstraintModeSelect, inputCls } from "../pages/CanonsPage";
+import { PolicyLabel, inputCls } from "../pages/CanonsPage";
 import { ConflictList } from "./CanonDiffView";
+import { HelpLink, HelpTip } from "./HelpTip";
 
 export interface CanonChoiceState {
   mode: "none" | "existing" | "new";
   canonId: string;
   name: string;
   policy: string;
-  constraintMode: CanonConstraintMode;
   seeds: string[];
   choices: Record<string, Choice>;
   actions: Record<string, "pending" | "exclude">;
@@ -23,7 +23,6 @@ export const initialCanonChoice = (defaultCanonId?: string | null): CanonChoiceS
   canonId: defaultCanonId ?? "",
   name: "",
   policy: "",
-  constraintMode: "strict",
   seeds: [],
   choices: {},
   actions: {},
@@ -32,7 +31,7 @@ export const initialCanonChoice = (defaultCanonId?: string | null): CanonChoiceS
 /** The `canon` field of the create request. */
 export function canonRequest(s: CanonChoiceState): CreateProjectCanon {
   if (s.mode === "existing" && s.canonId) return { mode: "existing", canonId: s.canonId };
-  if (s.mode === "new") return { mode: "new", name: s.name, policy: s.policy, constraintMode: s.constraintMode, seeds: s.seeds, choices: s.choices, actions: s.actions };
+  if (s.mode === "new") return { mode: "new", name: s.name, policy: s.policy, seeds: s.seeds, choices: s.choices, actions: s.actions };
   return { mode: "none" };
 }
 
@@ -105,8 +104,9 @@ export function CanonChoice({ value, onChange, disabled = false }: { value: Cano
   return (
     <fieldset className="mt-4 rounded-xl border border-slate-200 p-3 sm:p-4" disabled={disabled} data-testid="canon-choice">
       <legend className="flex items-center gap-1 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <Layers size={12} /> {t("canon.band")}
+        <Layers size={12} /> {t("canon.band")} <HelpTip text={t("cc3.help")} />
       </legend>
+      <HelpLink section="create" className="float-right -mt-1" />
       <label className={radio}>
         <input type="radio" name="canon-mode" checked={value.mode === "none"} onChange={() => set({ mode: "none" })} /> {t("cc3.none")}
       </label>
@@ -136,12 +136,11 @@ export function CanonChoice({ value, onChange, disabled = false }: { value: Cano
               <span className="mb-1 block text-xs text-slate-500">{t("canon.name")}</span>
               <input value={value.name} onChange={(e) => set({ name: e.target.value })} className={inputCls} maxLength={200} />
             </label>
-            <label className="block">
-              <span className="mb-1 block text-xs text-slate-500">{t("canon.policy")}</span>
-              <input value={value.policy} onChange={(e) => set({ policy: e.target.value })} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} />
-            </label>
+            <div>
+              <PolicyLabel />
+              <input value={value.policy} onChange={(e) => set({ policy: e.target.value })} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} aria-label={t("canon.policy")} />
+            </div>
           </div>
-          <ConstraintModeSelect value={value.constraintMode} onChange={(m) => set({ constraintMode: m })} />
           {/* stacked: the create form is narrower than the viewport breakpoints suggest */}
           <div className="grid min-w-0 gap-3">
             <div className="min-w-0">

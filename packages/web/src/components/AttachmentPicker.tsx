@@ -2,6 +2,7 @@ import { AlertCircle, CheckCircle2, File, FileImage, FileText, Link2, Loader2, P
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import { ATTACHMENT_ACCEPT, ATTACHMENT_LIMITS, attachmentTypeOf, normalizeAttachmentUrl, type AttachmentKind } from "@cobrac/shared";
 import { useT } from "../i18n";
+import { HelpTip } from "./HelpTip";
 import { api, uploadFile } from "../lib/api";
 import { fmtBytes } from "../lib/format";
 
@@ -136,7 +137,8 @@ export function AttachmentPicker({ value, onChange, disabled }: { value: Attachm
   return (
     <div data-testid="attachment-picker">
       <span className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
-        <Paperclip size={13} /> {t("attach.title")}
+        <Paperclip size={13} /> {t("attach.title")}{" "}
+        <HelpTip text={t("attach.help", { files: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB, total: ATTACHMENT_LIMITS.maxTotalBytes / MB, urls: ATTACHMENT_LIMITS.maxUrls })} />
       </span>
       <div
         onDragOver={(e) => {
@@ -201,9 +203,6 @@ export function AttachmentPicker({ value, onChange, disabled }: { value: Attachm
             <Link2 size={14} /> <span className="hidden sm:inline">{t("attach.addUrl")}</span>
           </button>
         </form>
-        <p className="mt-2 text-xs text-slate-500">
-          {t("attach.help", { files: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB, total: ATTACHMENT_LIMITS.maxTotalBytes / MB, urls: ATTACHMENT_LIMITS.maxUrls })}
-        </p>
       </div>
       {msg && <div className="mt-2 whitespace-pre-line rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800">{msg}</div>}
       {(value.files.length > 0 || value.urls.length > 0) && (

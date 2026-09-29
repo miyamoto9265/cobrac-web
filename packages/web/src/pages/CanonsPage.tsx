@@ -1,7 +1,8 @@
 import { Globe, Layers, Lock, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { CanonConstraintMode, CanonRecord } from "@cobrac/shared";
+import type { CanonRecord } from "@cobrac/shared";
+import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -13,18 +14,13 @@ export const inputCls = "w-full rounded-lg border border-slate-300 px-3 py-2 tex
 export const primaryBtn =
   "flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
 
-export function ConstraintModeSelect({ value, onChange }: { value: CanonConstraintMode; onChange: (v: CanonConstraintMode) => void }) {
+/** Label of the granularity policy field, with its explanation behind a "?". */
+export function PolicyLabel() {
   const t = useT();
   return (
-    <fieldset className="flex flex-col gap-1 text-sm sm:flex-row sm:gap-4">
-      <legend className="mb-1 block text-xs text-slate-500">{t("canon.mode")}</legend>
-      {(["strict", "advisory"] as const).map((m) => (
-        <label key={m} className="flex items-center gap-1.5 coarse:min-h-11">
-          <input type="radio" name="constraintMode" checked={value === m} onChange={() => onChange(m)} />
-          {t(m === "strict" ? "canon.mode.strict" : "canon.mode.advisory")}
-        </label>
-      ))}
-    </fieldset>
+    <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
+      {t("canon.policy")} <HelpTip text={t("canon.policyHelp")} />
+    </span>
   );
 }
 
@@ -33,7 +29,6 @@ function CreateCanonForm({ onCreated }: { onCreated: (c: CanonRecord) => void })
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [policy, setPolicy] = useState("");
-  const [mode, setMode] = useState<CanonConstraintMode>("strict");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -41,7 +36,7 @@ function CreateCanonForm({ onCreated }: { onCreated: (c: CanonRecord) => void })
     setBusy(true);
     setErr(null);
     try {
-      onCreated(await api.createCanon({ name, description, policy, constraintMode: mode }));
+      onCreated(await api.createCanon({ name, description, policy }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -62,15 +57,14 @@ function CreateCanonForm({ onCreated }: { onCreated: (c: CanonRecord) => void })
         <span className="mb-1 block text-xs text-slate-500">{t("canon.name")}</span>
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} maxLength={200} required />
       </label>
-      <label className="block">
-        <span className="mb-1 block text-xs text-slate-500">{t("canon.policy")}</span>
-        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={2} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} />
-      </label>
+      <div>
+        <PolicyLabel />
+        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={2} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} aria-label={t("canon.policy")} />
+      </div>
       <label className="block">
         <span className="mb-1 block text-xs text-slate-500">{t("canon.description")}</span>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className={inputCls} maxLength={2000} />
       </label>
-      <ConstraintModeSelect value={mode} onChange={setMode} />
       {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
       <div>
         <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
@@ -94,10 +88,12 @@ export function CanonsPage() {
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <h1 className="mb-1 flex items-center gap-2 text-xl font-semibold">
-        <Layers size={20} /> {t("canon.title")}
-      </h1>
-      <p className="mb-4 max-w-3xl text-sm text-slate-600">{t("canon.intro")}</p>
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-semibold">
+          <Layers size={20} /> {t("canon.title")} <HelpTip text={t("canon.intro")} />
+        </h1>
+        <HelpLink section="canon" />
+      </div>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
       <div className="grid max-w-5xl gap-5 lg:grid-cols-[1fr_22rem]">
         <ul className="grid content-start gap-2" data-testid="canon-list">

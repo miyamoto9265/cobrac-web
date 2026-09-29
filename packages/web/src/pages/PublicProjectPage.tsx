@@ -2,6 +2,7 @@ import { ArrowLeft, Copy, Globe, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { PublicProjectDetail } from "@cobrac/shared";
+import { HelpTip } from "../components/HelpTip";
 import { Markdown } from "../components/Markdown";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
@@ -81,11 +82,13 @@ export function PublicProjectPage() {
               <h1 className="break-words text-xl font-semibold">{p.name}</h1>
               <div className="font-mono text-xs text-slate-400">{p.projectId}</div>
             </div>
-            <button type="button" disabled={busy} onClick={() => void clone()} className={primaryBtn} data-testid="clone-project">
-              {busy ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} {t("explore.clone")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button type="button" disabled={busy} onClick={() => void clone()} className={primaryBtn} data-testid="clone-project">
+                {busy ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />} {t("explore.clone")}
+              </button>
+              <HelpTip text={t("explore.cloneNote")} />
+            </div>
           </div>
-          <p className="mb-3 text-xs text-slate-500">{t("explore.cloneNote")}</p>
           <dl className="mb-4 grid gap-x-6 gap-y-1 rounded-xl border border-slate-200 bg-white p-4 text-sm sm:grid-cols-2">
             <div className="flex gap-2">
               <dt className="w-24 shrink-0 text-slate-500">ROI</dt>

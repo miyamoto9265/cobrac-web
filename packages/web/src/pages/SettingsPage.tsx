@@ -1,6 +1,7 @@
 import { KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CanonRecord, ReasoningEffort } from "@cobrac/shared";
+import { HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
 import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
@@ -58,9 +59,8 @@ export function SettingsPage() {
       <div className="grid max-w-4xl gap-5 md:grid-cols-2">
         <section className={card}>
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <KeyRound size={16} /> {t("settings.apiKey")}
+            <KeyRound size={16} /> {t("settings.apiKey")} <HelpTip text={t("settings.apiKeyHelp")} />
           </h2>
-          <p className="mb-3 text-xs text-slate-500">{t("settings.apiKeyHelp")}</p>
           <div className="mb-2 text-xs">
             {t("settings.status")}{" "}
             {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
@@ -106,8 +106,10 @@ export function SettingsPage() {
             <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className={input} />
           </label>
           <label className="mb-3 block">
-            <span className="mb-1 block text-xs text-slate-500">{t("settings.contributor")}</span>
-            <input value={contributorName} onChange={(e) => setContributorName(e.target.value)} className={input} />
+            <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
+              {t("settings.contributor")} <HelpTip text={t("settings.contributorHelp")} />
+            </span>
+            <input value={contributorName} onChange={(e) => setContributorName(e.target.value)} className={input} aria-label={t("settings.contributor")} />
           </label>
           <div className="mb-3 text-xs text-slate-500">{t("settings.emailRole", { email: me?.email ?? "", role: me?.role ?? "" })}</div>
           <button
@@ -125,8 +127,9 @@ export function SettingsPage() {
         </section>
 
         <section className={`${card} md:col-span-2`}>
-          <h2 className="mb-1 text-sm font-semibold">{t("settings.defaults")}</h2>
-          <p className="mb-3 text-xs text-slate-500">{t("settings.defaultsHelp")}</p>
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold">
+            {t("settings.defaults")} <HelpTip text={t("settings.defaultsHelp")} />
+          </h2>
           <ModelSelect
             model={defModel}
             effort={defEffort}
@@ -181,8 +184,7 @@ export function SettingsPage() {
         </section>
 
         <section className={card}>
-          <h2 className="mb-1 text-sm font-semibold">{t("settings.language")}</h2>
-          <p className="mb-3 text-xs text-slate-500">{t("settings.languageHelp")}</p>
+          <h2 className="mb-3 text-sm font-semibold">{t("settings.language")}</h2>
           <LanguageSelect variant="light" />
         </section>
       </div>
