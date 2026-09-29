@@ -22,6 +22,8 @@ export interface UserRecord {
   userKey?: string;
   /** Atomic counter for the `<userKey>-<seq>` Project IDs (last issued seq) */
   projectSeq?: number;
+  /** Atomic counter for the `<userKey>-c<seq>` Canon IDs (last issued seq) */
+  canonSeq?: number;
   /** KMS-encrypted OpenAI API key (base64). Never returned to clients. */
   encryptedApiKey?: string;
   apiKeyRegistered: boolean;
@@ -126,6 +128,8 @@ export interface ProjectRecord {
   deletedAt?: string | null;
   /** userId of whoever deleted the project */
   deletedBy?: string | null;
+  /** Canon this project follows (at most one); absent = not in a Canon */
+  canonId?: string | null;
 }
 
 /** Statuses with a job in flight; a project in one of these cannot be deleted until it is stopped. */

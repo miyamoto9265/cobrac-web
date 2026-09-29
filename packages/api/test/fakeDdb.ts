@@ -22,6 +22,7 @@ export const KEYS: Record<string, string[]> = {
   jobs: ["projectId", "jobId"],
   messages: ["projectId", "sk"],
   ws: ["connectionId", "projectId"],
+  canons: ["canonId", "sk"],
 };
 
 export class ConditionalCheckFailedException extends Error {
@@ -79,6 +80,7 @@ export class FakeDdb {
         return {};
       }
       case "Delete":
+        this.check(i.ConditionExpression, t.get(this.key(i.TableName, i.Key!)), i);
         t.delete(this.key(i.TableName, i.Key!));
         return {};
       case "Update": {
@@ -87,27 +89,43 @@ export class FakeDdb {
         this.check(i.ConditionExpression, cur, i);
         const next: Item = structuredClone(cur ?? { ...i.Key });
         const changed: Item = {};
-        const expr = i.UpdateExpression!;
-        const set = /^SET (.+)$/.exec(expr);
-        const add = /^ADD (\S+) (:\w+)$/.exec(expr);
-        if (set) {
-          for (const part of set[1].split(", ")) {
-            const [a, v] = part.split(" = ");
-            next[this.attr(a, i)] = changed[this.attr(a, i)] = this.val(v, i);
+        const clauses = [...i.UpdateExpression!.matchAll(/(SET|REMOVE|ADD) (.+?)(?= (?:SET|REMOVE|ADD) |$)/g)];
+        if (!clauses.length) throw new Error(`unsupported update ${i.UpdateExpression}`);
+        for (const [, kind, body] of clauses) {
+          for (const part of body.split(", ")) {
+            if (kind === "SET") {
+              const [a, v] = part.split(" = ");
+              next[this.attr(a, i)] = changed[this.attr(a, i)] = this.val(v, i);
+            } else if (kind === "REMOVE") {
+              delete next[this.attr(part.trim(), i)];
+            } else {
+              const [a, v] = part.split(" ");
+              const name = this.attr(a, i);
+              next[name] = changed[name] = Number(next[name] ?? 0) + Number(this.val(v, i));
+            }
           }
-        } else if (add) {
-          const a = this.attr(add[1], i);
-          next[a] = changed[a] = Number(next[a] ?? 0) + Number(this.val(add[2], i));
-        } else throw new Error(`unsupported update ${expr}`);
+        }
         t.set(k, next);
         return i.ReturnValues === "UPDATED_NEW" ? { Attributes: changed } : {};
       }
       case "Query": {
-        const m = /^(\S+) = (:\w+)$/.exec(i.KeyConditionExpression!);
-        if (!m) throw new Error(`unsupported key condition ${i.KeyConditionExpression}`);
-        const a = this.attr(m[1], i);
-        const v = this.val(m[2], i);
-        let rows = [...t.values()].filter((x) => x[a] === v).map((x) => structuredClone(x));
+        const conds = i.KeyConditionExpression!.split(" AND ").map((c) => c.trim());
+        const preds = conds.map((c) => {
+          let m = /^(\S+) = (:\w+)$/.exec(c);
+          if (m) {
+            const a = this.attr(m[1], i);
+            const v = this.val(m[2], i);
+            return (x: Item) => x[a] === v;
+          }
+          m = /^begins_with\((\S+), (:\w+)\)$/.exec(c);
+          if (m) {
+            const a = this.attr(m[1], i);
+            const v = String(this.val(m[2], i));
+            return (x: Item) => typeof x[a] === "string" && (x[a] as string).startsWith(v);
+          }
+          throw new Error(`unsupported key condition ${i.KeyConditionExpression}`);
+        });
+        let rows = [...t.values()].filter((x) => preds.every((p) => p(x))).map((x) => structuredClone(x));
         const sk = i.IndexName ? undefined : KEYS[i.TableName][1];
         if (sk) rows.sort((x, y) => (String(x[sk]) < String(y[sk]) ? -1 : 1));
         if (i.Limit) rows = rows.slice(0, i.Limit);

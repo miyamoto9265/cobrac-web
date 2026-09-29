@@ -6,7 +6,11 @@ import type {
   AnswerRequest,
   ArticleJobState,
   ArticleMeta,
+  CanonDetailResponse,
+  CanonMemberSummary,
+  CanonRecord,
   CreateArticleRequest,
+  CreateCanonRequest,
   CreateProjectRequest,
   CreateUploadRequest,
   CreateUploadResponse,
@@ -23,6 +27,7 @@ import type {
   RetryRequest,
   TokenUsage,
   UiLocale,
+  UpdateCanonRequest,
   UpdateProjectRequest,
   UpdateProjectResponse,
   UsageSummary,
@@ -38,6 +43,10 @@ import {
   normalizeAttachmentUrl,
   safeAttachmentName,
   stagingKey,
+  CANON_CONSTRAINT_MODES,
+  CANON_DESCRIPTION_MAX,
+  CANON_META_SK,
+  CANON_POLICY_MAX,
   DEFAULT_CODEX_MODEL,
   canDeleteProject,
   isProjectDeleted,
@@ -57,11 +66,16 @@ import {
   braDownloadFileName,
   buildTemplateXlsx,
   filterCodexModels,
+  formatCanonId,
   formatProjectId,
   isArticleStale,
+  isCanonDeleted,
+  isCanonId,
   isProjectIdLike,
   isUiLocale,
   newId,
+  normalizeCanonName,
+  normalizeCanonText,
   normalizeProjectName,
   nowIso,
   projectDisplayName,
@@ -110,6 +124,18 @@ import {
   updateUser,
 } from "./lib/db.js";
 import { ownedMessages } from "./lib/ownership.js";
+import {
+  addCanonMember,
+  getCanon,
+  listCanonMembers,
+  listCanonRevisions,
+  listOwnCanons,
+  markCanonDeleted,
+  nextCanonSeq,
+  putCanon,
+  removeCanonMember,
+  updateCanon,
+} from "./lib/canons.js";
 
 type Bindings = { event: LambdaEvent; lambdaContext: LambdaContext };
 type Variables = { user: UserRecord };
@@ -489,6 +515,7 @@ app.delete("/projects/:id", async (c) => {
     if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "プロジェクトの状態が変わったため削除できませんでした。再読み込みしてください" });
     throw e;
   }
+  if (p.canonId) await removeCanonMember(p.canonId, u.userId, p.projectId).catch((e) => console.warn("[canon] release on delete failed", e));
   const res: DeleteProjectResponse = { projectId: p.projectId, deletedAt };
   return c.json(res);
 });
@@ -856,6 +883,144 @@ app.delete("/projects/:id/graph/:kind/layout", async (c) => {
   const kind = graphKind(c.req.param("kind"));
   await deleteObject(u.userId, p.projectId, `graph/${kind}.layout.json`);
   return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// Canons (a set of the owner's projects whose circuit definitions must agree)
+// ---------------------------------------------------------------------------
+
+/** The caller's own, not-deleted Canon (admins may read any); anything else is 404. */
+async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean } = {}): Promise<CanonRecord> {
+  if (!isCanonId(canonId)) throw notFound();
+  const canon = await getCanon(canonId);
+  if (!canon || isCanonDeleted(canon)) throw notFound();
+  if (canon.ownerUserId !== u.userId && (opts.write || u.role !== "admin")) throw notFound();
+  return canon;
+}
+
+function canonFields(body: CreateCanonRequest | UpdateCanonRequest, partial: boolean): Partial<CanonRecord> {
+  const out: Partial<CanonRecord> = {};
+  if (!partial || body.name !== undefined) {
+    const n = normalizeCanonName(body.name);
+    if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
+    out.name = n.name;
+  }
+  for (const [key, max] of [
+    ["description", CANON_DESCRIPTION_MAX],
+    ["policy", CANON_POLICY_MAX],
+  ] as const) {
+    if (partial && body[key] === undefined) continue;
+    const r = normalizeCanonText(body[key], max);
+    if ("error" in r) throw bad(`${key === "policy" ? "粒度方針" : "説明"}が不正です（${r.error}）`);
+    out[key] = r.text;
+  }
+  if (!partial || body.constraintMode !== undefined) {
+    const mode = body.constraintMode ?? "strict";
+    if (!CANON_CONSTRAINT_MODES.includes(mode)) throw bad("constraintMode が不正です");
+    out.constraintMode = mode;
+  }
+  return out;
+}
+
+app.get("/canons", async (c) => {
+  const u = c.get("user");
+  const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  return c.json({ items });
+});
+
+app.post("/canons", async (c) => {
+  const u = c.get("user");
+  const fields = canonFields((await c.req.json()) as CreateCanonRequest, false);
+  const userKey = u.userKey ?? (await assignUserKey(u.userId));
+  const now = nowIso();
+  const canon: CanonRecord = {
+    canonId: formatCanonId(userKey, await nextCanonSeq(u.userId)),
+    sk: CANON_META_SK,
+    ownerUserId: u.userId,
+    name: fields.name!,
+    description: fields.description ?? "",
+    policy: fields.policy ?? "",
+    constraintMode: fields.constraintMode ?? "strict",
+    visibility: "private",
+    headRevision: 0,
+    memberCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putCanon(canon);
+  return c.json(canon, 201);
+});
+
+app.get("/canons/:id", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"));
+  const members: CanonMemberSummary[] = [];
+  for (const m of await listCanonMembers(canon.canonId)) {
+    const p = await getProject(canon.ownerUserId, m.projectId);
+    if (!p) continue;
+    members.push({
+      projectId: p.projectId,
+      name: projectDisplayName(p),
+      roi: p.roi,
+      tlf: p.tlf,
+      status: p.status,
+      hasArtifacts: p.hasArtifacts,
+      joinedAt: m.joinedAt,
+    });
+  }
+  members.sort((a, b) => (a.joinedAt < b.joinedAt ? -1 : 1));
+  const res: CanonDetailResponse = { canon, members };
+  return c.json(res);
+});
+
+app.put("/canons/:id", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const fields = canonFields((await c.req.json()) as UpdateCanonRequest, true);
+  if (Object.keys(fields).length) await updateCanon(canon.canonId, fields);
+  return c.json({ ...canon, ...fields, updatedAt: nowIso() });
+});
+
+/** Soft delete (owner only): member projects leave the Canon; nothing is removed from DynamoDB or S3. */
+app.delete("/canons/:id", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  try {
+    const deletedAt = await markCanonDeleted(canon.canonId, u.userId);
+    return c.json({ canonId: canon.canonId, deletedAt });
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw notFound();
+    throw e;
+  }
+});
+
+app.post("/canons/:id/members", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const { projectId } = (await c.req.json()) as { projectId?: string };
+  if (!projectId || !isProjectIdLike(projectId)) throw bad("projectId が不正です");
+  const p = await loadOwnProject(u, projectId);
+  if (p.canonId === canon.canonId) return c.json({ projectId, canonId: canon.canonId });
+  if (p.canonId) {
+    const other = await getCanon(p.canonId);
+    throw new HTTPException(409, { message: `このプロジェクトは既に Canon「${other?.name ?? p.canonId}」に入っています。先にそちらから外してください` });
+  }
+  const r = await addCanonMember(canon.canonId, u.userId, projectId);
+  if (!r.ok) throw new HTTPException(409, { message: "プロジェクトの状態が変わったため追加できませんでした。再読み込みしてください" });
+  return c.json({ projectId, canonId: canon.canonId, joinedAt: r.member.joinedAt }, 201);
+});
+
+app.delete("/canons/:id/members/:projectId", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  if (!(await removeCanonMember(canon.canonId, u.userId, c.req.param("projectId")))) throw notFound();
+  return c.json({ ok: true });
+});
+
+app.get("/canons/:id/revisions", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"));
+  return c.json({ items: await listCanonRevisions(canon.canonId) });
 });
 
 // ---------------------------------------------------------------------------
