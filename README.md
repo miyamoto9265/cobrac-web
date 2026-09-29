@@ -34,7 +34,8 @@ npm run release -- patch --no-git   # or minor / major / 0.2.0
 ```
 package.json                 npm workspaces (build / typecheck / test / deploy)
 .github/workflows/           ci.yml (pull requests) / deploy.yml (main → AWS via OIDC)
-scripts/                     release.mjs (version + CHANGELOG), retain-guard.mjs (stops risky deploys)
+scripts/                     release.mjs (version + CHANGELOG), retain-guard.mjs (stops risky deploys),
+                             bra-appendix-d.mjs (checks a BRA xlsx / CSV folder against the ontology's Appendix D error codes)
 prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args), templates/Template-v2-2.bra.xlsx (official BRA template)
 archive/v0/                  legacy desktop instructions, specs, v0 sample artifacts, user guide (reference only)
 packages/
