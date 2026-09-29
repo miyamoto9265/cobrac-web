@@ -321,7 +321,7 @@ describe("phase pipeline with a mock agent", () => {
     expect(accepted).toEqual(PHASES);
     const cross = JSON.parse(readFileSync(p.crossCheck, "utf8"));
     expect(cross.adjustment).toMatchObject({ before: { X8: 2 }, revisionsBefore: { section: false } });
-    expect(cross.revisions).toEqual({ section: true, "FRG->HCD": 0, "HCD->FRG": 0, kept: 1 });
+    expect(cross.revisions).toEqual({ section: true, "FRG->HCD": 0, "HCD->FRG": 0, instruction: 0, kept: 1 });
     rmSync(p.root, { recursive: true, force: true });
   });
 

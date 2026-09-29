@@ -100,7 +100,7 @@ for (const r of results) {
     continue;
   }
   const counts = CROSS_CODES.map((c) => `${c}=${r.summary[c]}`).join(" ");
-  console.log(`${r.projectId} [${r.source}] ROI UCs=${r.stats.roiUcs} GNs=${r.stats.gns} depth=${r.stats.depth} parsed interfaces=${r.stats.interfacesParsed} | ${counts} | revisions FRG->HCD=${r.revisions["FRG->HCD"]} HCD->FRG=${r.revisions["HCD->FRG"]} kept=${r.revisions.kept}`);
+  console.log(`${r.projectId} [${r.source}] ROI UCs=${r.stats.roiUcs} GNs=${r.stats.gns} depth=${r.stats.depth} parsed interfaces=${r.stats.interfacesParsed} | ${counts} | revisions FRG->HCD=${r.revisions["FRG->HCD"]} HCD->FRG=${r.revisions["HCD->FRG"]} instruction=${r.revisions.instruction} kept=${r.revisions.kept}`);
   for (const f of r.findings) console.log(`  ${f.code} ${f.message}`);
 }
 if (out) writeFileSync(out, JSON.stringify(results, null, 2) + "\n", "utf8");
