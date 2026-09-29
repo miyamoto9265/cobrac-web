@@ -342,12 +342,15 @@ async function main() {
     await persistState();
 
     if (csvComplete(paths)) {
-      const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta));
+      const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta), {
+        roi: project.roi,
+        bibliography: env.referenceLookup ? { mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey } : null,
+      });
       xlsxDone = true;
       await syncStepStates();
       const fileName = braDownloadFileName(projectDisplayName(project), projectId).utf8;
       await putMessage(projectId, jobId, "system", "artifact", `Generated ${fileName}.`, {
-        meta: { i18n: "sys.xlsxReady", name: fileName, xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
+        meta: { i18n: "sys.xlsxReady", name: fileName, xlsxKey: r.xlsxKey, templateXlsxKey: r.templateXlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
       });
     }
     await persistState();

@@ -84,6 +84,54 @@ export interface TemplateExportResult {
   notes: string[];
 }
 
+/** Project files as stored in the workspace (null / undefined = missing); the CSVs are required. */
+export interface TemplateSourceFiles {
+  csv: Partial<Record<"Project.csv" | "References.csv" | "Circuits.csv" | "Connections.csv" | "FRG.csv", string | null>>;
+  referencesJson?: string | null;
+  referenceCheckJson?: string | null;
+  bibliographyJson?: string | null;
+}
+
+const parseJson = (text: string | null | undefined): unknown => {
+  if (!text?.trim()) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
+const arrayOf = (v: unknown, key: string): Record<string, unknown>[] => {
+  const a = v && typeof v === "object" ? (v as Record<string, unknown>)[key] : null;
+  return Array.isArray(a) ? a.filter((x): x is Record<string, unknown> => !!x && typeof x === "object") : [];
+};
+const str = (r: Record<string, unknown>, k: string) => (typeof r[k] === "string" ? (r[k] as string).trim() : "");
+
+/** Entries of references.json (lenient: whatever has an `id`); [] when missing or unreadable. */
+export function parseReferencesJson(text: string | null | undefined): RefRow[] {
+  return arrayOf(parseJson(text), "references")
+    .filter((r) => str(r, "id"))
+    .map((r) => ({ id: str(r, "id"), doi: str(r, "doi"), pmid: str(r, "pmid"), title: str(r, "title"), journal: str(r, "journal"), literatureType: str(r, "literatureType"), alternativeUrl: str(r, "alternativeUrl") }));
+}
+
+/** Export input from the workspace files; null when a CSV is missing (the project has no BRA data yet). */
+export function templateInputFromFiles(
+  files: TemplateSourceFiles,
+  project: { projectId: string; contributor: string; roi?: string },
+): TemplateExportInput | null {
+  const c = files.csv;
+  if (!c["Project.csv"] || !c["References.csv"] || !c["Circuits.csv"] || !c["Connections.csv"] || !c["FRG.csv"]) return null;
+  const references = parseReferencesJson(files.referencesJson);
+  const referenceChecks = arrayOf(parseJson(files.referenceCheckJson), "references").filter((r) => str(r, "id")) as unknown as RefCheck[];
+  const bib = parseJson(files.bibliographyJson) as BibliographyFile | null;
+  return {
+    ...project,
+    csv: { project: c["Project.csv"], references: c["References.csv"], circuits: c["Circuits.csv"], connections: c["Connections.csv"], frg: c["FRG.csv"] },
+    references,
+    referenceChecks,
+    bibliography: bib && typeof bib === "object" && bib.records && typeof bib.records === "object" ? bib : null,
+  };
+}
+
 // --- CSV input -----------------------------------------------------------------------------------------------------
 
 type Table = { get: (row: string[], ...names: string[]) => string; rows: string[][] };
