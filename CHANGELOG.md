@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-29
+
 ### Added
 - References carry a Literature type (the 11 BRA values) and, for a document without DOI, an Alternative URL; the xlsx References sheet has both columns. A reference with neither DOI, PMID nor URL goes back to the agent. With a PMID the PubMed page is written as Alternative URL
 - The Circuits sheet starts with the ROI row (`ROI_<Project ID>`, Uniform = FALSE, Sub-Circuits = every ROI-internal UC), which the BRA format requires; the graphs do not show it
