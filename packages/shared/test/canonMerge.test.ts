@@ -112,6 +112,9 @@ describe("diffCanon: conflict rules", () => {
   it("adds everything to an empty Canon without conflicts", () => {
     const d = diffCanon(emptyCanonSnapshot("c", "t"), fine());
     expect(d.summary).toMatchObject({ added: 7, errors: 0, warnings: 0 });
+    // Reference IDs written as `[Author, Year]` are not bracketed twice
+    expect(d.items.find((i) => i.kind === "connection")!.label).toBe("A44d@L(L3,IT) → A22c@L [Catani, 2005]");
+    expect(d.items.find((i) => i.kind === "bif")!.label).toBe("Broca area → Wernicke area [Catani, 2005]");
   });
 
   it("C1: the same descriptor as Uniform in one project and Collection in another (resolvable, with impact)", () => {

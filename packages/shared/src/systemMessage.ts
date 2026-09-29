@@ -66,7 +66,7 @@ function usageFromMeta(meta: Record<string, unknown>): ResolvedSysMsg | null {
 
 function varsFromMeta(meta: Record<string, unknown>): Record<string, string | number> | undefined {
   const vars: Record<string, string | number> = {};
-  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count", "lang", "minutes", "candidates", "supported", "queries"] as const) {
+  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count", "lang", "minutes", "candidates", "supported", "queries", "revision"] as const) {
     const v = meta[k];
     if (typeof v === "string" || typeof v === "number") vars[k] = v;
   }
@@ -78,6 +78,8 @@ export function resolveSystemMessage(content: string, meta?: Record<string, unkn
   const m = meta ?? undefined;
   if (m && typeof m.i18n === "string") {
     if (m.i18n === "sys.usage") return usageFromMeta(m) ?? { key: "sys.usage", vars: varsFromMeta(m) };
+    // `mode` means the run mode elsewhere; only the Canon notice uses it as the constraint strength
+    if (m.i18n === "sys.canonLoaded" && typeof m.mode === "string") return { key: m.i18n, vars: { ...varsFromMeta(m), mode: m.mode } };
     return { key: m.i18n, vars: varsFromMeta(m) };
   }
   if (m && typeof m.stepDone === "string") return { key: "sys.stepDone", vars: { step: m.stepDone } };

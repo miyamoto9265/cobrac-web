@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, GitPullRequest, Undo2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { CanonChoice, CanonDiff, CanonPullRequestRecord } from "@cobrac/shared";
 import { blockingConflicts } from "@cobrac/shared";
@@ -28,6 +28,7 @@ export function CanonPullPage() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     api
@@ -56,11 +57,13 @@ export function CanonPullPage() {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
       setBusy(false);
+      // the result is shown above the PR; the buttons sit at the end of a long page
+      scroller.current?.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
   return (
-    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+    <div ref={scroller} className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <Link to={canonPath(canonId)} className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:py-2">
         <ArrowLeft size={12} /> {t("pr.backToCanon")}
       </Link>

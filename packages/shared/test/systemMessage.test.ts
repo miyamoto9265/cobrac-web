@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { harnessPromptNotice, isLegacyHarnessPrompt, normalizeStoredMessage, resolveSystemMessage } from "../src/systemMessage.js";
 
 describe("resolveSystemMessage", () => {
+  it("passes the Canon revision and constraint strength to the Canon notice", () => {
+    expect(resolveSystemMessage("Canon ...", { i18n: "sys.canonLoaded", name: "Language", revision: 1, mode: "advisory" })).toEqual({
+      key: "sys.canonLoaded",
+      vars: { name: "Language", revision: 1, mode: "advisory" },
+    });
+  });
+
   it("uses meta.stepDone for existing Japanese step notices", () => {
     expect(resolveSystemMessage("ステップ HCD が完了しました。", { stepDone: "HCD" })).toEqual({
       key: "sys.stepDone",

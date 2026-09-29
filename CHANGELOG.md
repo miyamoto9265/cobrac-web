@@ -12,6 +12,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - When the FRG cannot be built from the HCD as it is, the agent may now go back and split or add HCD UCs (backed by the literature) instead of only reshaping the FRG. When the HCD ↔ FRG check finds a collapsed FRG (the TLF directly on UCs, a single group node, fewer than three ROI-internal UCs) or interfaces that disagree with the connections or the ROI tags, the harness asks the agent for one adjustment turn after the FRG step. The agent records each change and its reason under "HCD-FRG revisions" in the decision log, and `cross_check.json` keeps the findings that triggered the turn and the counts of recorded revisions
 - The HCD ↔ FRG record also notes ROI-internal UCs that are a whole gyrus-level BNA group or span several SABRA units (a hint that the HCD may be too coarse; recorded only), and the decision log's revisions section has an `[instruction]` tag for changes a follow-up instruction asked for, so that they are counted apart from changes one graph required of the other
 
+### Fixed
+- The chat notice that a run follows a Canon showed "rev {revision} ({mode})" instead of the revision and the constraint strength (also for notices already stored)
+- A clone of a project that was running or had failed kept its steps spinning as "running"; copied steps are now done or pending
+- Pull requests listed connections and BIF entries with doubled brackets ("[[Catani, 2005]]")
+- After approving, rejecting or withdrawing a pull request, the result message at the top of the page was out of view; the page now scrolls up to it
+- On the create screen, the seed order of "Create a new Canon from existing projects" overlapped the preview; seeds and preview are now stacked
+
 ## [0.12.1] - 2026-09-29
 
 ### Fixed

@@ -166,6 +166,8 @@ export interface ProjectCanonFiles {
 
 const officialName = (names: string) => names.split(";")[0].trim();
 const connKey = (s: string, r: string, ref: string) => `${s}|${r}|${ref}`;
+/** Reference IDs are usually written `[Author, Year]` already; bracket only the others in labels. */
+const refLabel = (ref: string) => (ref.startsWith("[") ? ref : `[${ref}]`);
 const bifKey = (s: string, r: string, ref: string) => `${s.trim().toLowerCase()}|${r.trim().toLowerCase()}|${ref}`;
 
 function parseJson(text: string | null | undefined): unknown {
@@ -492,7 +494,7 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
     }
     if (QUOTE_FAILED.has(c.quoteCheck)) conflicts.push(conflict({ code: "C9c", severity: "error", kind: "connection", key: c.key, field: "pointersOnLiterature", incoming: c.pointersOnLiterature }));
     const b = baseConns.get(c.key);
-    const label = `${c.senderCircuitId} → ${c.receiverCircuitId} [${c.referenceId}]`;
+    const label = `${c.senderCircuitId} → ${c.receiverCircuitId} ${refLabel(c.referenceId)}`;
     if (!b) {
       items.push({ kind: "connection", key: c.key, label, change: "added" });
       continue;
@@ -502,7 +504,7 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
     items.push({ kind: "connection", key: c.key, label, change: fields.length ? "changed" : "unchanged", ...(fields.length ? { fields } : {}) });
   }
   for (const b of base.connections) {
-    if (b.sources.includes(src) && !inConns.has(b.key)) items.push({ kind: "connection", key: b.key, label: `${b.senderCircuitId} → ${b.receiverCircuitId} [${b.referenceId}]`, change: "dropped" });
+    if (b.sources.includes(src) && !inConns.has(b.key)) items.push({ kind: "connection", key: b.key, label: `${b.senderCircuitId} → ${b.receiverCircuitId} ${refLabel(b.referenceId)}`, change: "dropped" });
   }
   // references
   const baseRefs = new Map(base.references.map((r) => [r.key, r]));
@@ -534,7 +536,7 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
   }
 
   const baseBif = new Set(base.bif.map((b) => b.key));
-  for (const b of incoming.bif) if (!baseBif.has(b.key)) items.push({ kind: "bif", key: b.key, label: `${b.sender} → ${b.receiver} [${b.referenceId}]`, change: "added" });
+  for (const b of incoming.bif) if (!baseBif.has(b.key)) items.push({ kind: "bif", key: b.key, label: `${b.sender} → ${b.receiver} ${refLabel(b.referenceId)}`, change: "added" });
 
   // impact: other projects that use circuits whose status, decomposition or ID this push changes, or whose
   // connections would end on a circuit that becomes a Collection
