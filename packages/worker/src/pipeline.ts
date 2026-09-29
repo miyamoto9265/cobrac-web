@@ -3,16 +3,21 @@
  * each phase is an agent turn followed by deterministic checks and fix turns; CSV has no agent turn of its own
  * (the CSVs are generated from the JSON files, and problems are sent back as fixes to those files).
  */
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, CheckResult, CrossCheck, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
 import {
+  CROSS_RULES,
   DEFAULT_BRA_RULES,
+  FRG_FILES,
   HARNESS_SCHEMAS,
+  HCD_FILES,
   SCHEMA_DIR,
   buildCsvs,
   buildGraphs,
   checkCitations,
+  checkCross,
   checkFrg,
   checkHcd,
   checkResearch,
@@ -58,7 +63,30 @@ export interface PhaseContext {
   references?: ReferenceReport | null;
   /** Latest quote check (also written to quote_check.json) */
   quotes?: QuoteReport | null;
+  /** Latest HCD ↔ FRG consistency check (also written to cross_check.json) */
+  cross?: CrossReport | null;
+  /** phase_baseline.json, read on first use */
+  baselines?: PhaseBaselines;
 }
+
+/** Contents of `{P}/cross_check.json`, rewritten by every FRG / CSV check. Record-only: nothing goes back to the agent. */
+export interface CrossReport extends CrossCheck {
+  checkedAt: string;
+  phase: Phase;
+  mode: "record-only";
+  rules: typeof CROSS_RULES;
+}
+
+/**
+ * The HCD / FRG files as their own phase last checked them: a hash of the data files and the problems left then
+ * (accepted with warnings after the fix turns). A later phase re-validates a phase whose files changed since.
+ */
+export interface PhaseBaseline {
+  checkedAt: string;
+  hash: string;
+  problems: string[];
+}
+export type PhaseBaselines = Partial<Record<"HCD" | "FRG", PhaseBaseline>>;
 
 /** Contents of `{P}/quote_check.json`, rewritten by every HCD check. */
 export interface QuoteReport {
@@ -118,29 +146,104 @@ async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
   return checkHcd(files, { sabra: await deps.lookupSabra(ids) });
 }
 
-/** Validate a phase (and the phases before it). The CSV phase also writes the five CSVs. */
+/**
+ * Validate a phase (and the phases before it). The CSV phase also writes the five CSVs. HCD / FRG files that changed
+ * after their own phase checked them are validated again, and their new problems are sent back with this phase's.
+ */
 export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<PhaseCheck> {
   const hcd = await checkHcdWithRcs(paths, deps);
   ctx.hcd = hcd.model;
   if (phase === "HCD") {
     if (hcd.model?.meta && hcd.errors.length === 0) await deps.onMetaAccepted?.(hcd.model.meta);
-    const refErrors = await checkReferences("HCD", paths, deps, ctx);
-    const quoteErrors = await checkQuotes(paths, deps, ctx);
-    return { errors: [...new Set([...hcd.errors, ...refErrors, ...quoteErrors])], fatal: hcd.fatal };
+    const errors = await hcdProblems(hcd, paths, deps, ctx);
+    await saveBaseline("HCD", errors, paths, ctx);
+    return { errors, fatal: hcd.fatal };
   }
   if (!hcd.model) return { errors: ["The HCD files cannot be used:", ...hcd.errors], fatal: true };
+  const hcdErrors = await changedSinceChecked("HCD", paths, ctx, () => hcdProblems(hcd, paths, deps, ctx));
 
   const frg = checkFrg(loadFrgFiles(paths), hcd.model);
   ctx.frg = frg.model;
-  if (phase === "FRG") return { errors: [...frg.errors, ...(await checkReferences("FRG", paths, deps, ctx))], fatal: frg.fatal };
+  if (frg.model) await writeCrossCheck(phase, hcd.model, frg.model, paths, ctx);
+  if (phase === "FRG") {
+    const errors = await frgProblems(frg, paths, deps, ctx);
+    await saveBaseline("FRG", errors, paths, ctx);
+    return { errors: [...hcdErrors, ...errors], fatal: frg.fatal };
+  }
   if (!frg.model) return { errors: ["The FRG file cannot be used:", ...frg.errors], fatal: true };
+  const frgErrors = await changedSinceChecked("FRG", paths, ctx, () => frgProblems(frg, paths, deps, ctx));
 
   const built = buildCsvs(hcd.model, frg.model, await deps.csvOptions());
-  if (!built.files) return { errors: built.errors, fatal: true };
+  if (!built.files) return { errors: [...hcdErrors, ...frgErrors, ...built.errors], fatal: true };
   await mkdir(paths.csv, { recursive: true });
   for (const [name, text] of Object.entries(built.files)) await writeFile(join(paths.csv, name), text, "utf8");
   const graphError = await graphParseError(paths);
-  return graphError ? { errors: [graphError], fatal: true } : { errors: [], fatal: false };
+  // the CSVs are written even with re-validation problems, so that a run that ends with warnings still has them
+  return { errors: [...hcdErrors, ...frgErrors, ...(graphError ? [graphError] : [])], fatal: !!graphError };
+}
+
+async function hcdProblems(hcd: CheckResult<HcdModel>, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
+  const refErrors = await checkReferences("HCD", paths, deps, ctx);
+  const quoteErrors = await checkQuotes(paths, deps, ctx);
+  return [...new Set([...hcd.errors, ...refErrors, ...quoteErrors])];
+}
+
+async function frgProblems(frg: CheckResult<FrgModel>, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
+  return [...new Set([...frg.errors, ...(await checkReferences("FRG", paths, deps, ctx))])];
+}
+
+/** Hash of the data files a phase answers for (the report and the decision log change in every phase). */
+export function phaseDataHash(phase: "HCD" | "FRG", paths: ProjectPaths): string {
+  const files = phase === "HCD" ? [paths.meta, ...Object.values(HCD_FILES).map((f) => join(paths.hcd, f))] : Object.values(FRG_FILES).map((f) => join(paths.frg, f));
+  const h = createHash("sha256");
+  for (const f of files) h.update(f).update("\0").update(readText(f) ?? "\u0001").update("\0");
+  return h.digest("hex");
+}
+
+function loadBaselines(paths: ProjectPaths, ctx: PhaseContext): PhaseBaselines {
+  if (!ctx.baselines) {
+    try {
+      ctx.baselines = JSON.parse(readText(paths.phaseBaseline) ?? "{}") as PhaseBaselines;
+    } catch {
+      ctx.baselines = {};
+    }
+  }
+  return ctx.baselines;
+}
+
+async function saveBaseline(phase: "HCD" | "FRG", problems: string[], paths: ProjectPaths, ctx: PhaseContext): Promise<void> {
+  const baselines = loadBaselines(paths, ctx);
+  baselines[phase] = { checkedAt: new Date().toISOString(), hash: phaseDataHash(phase, paths), problems };
+  try {
+    await writeFile(paths.phaseBaseline, JSON.stringify(baselines, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[baseline] ${paths.phaseBaseline} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Re-validation of an earlier phase's files from a later phase. Unchanged files are not checked again. Changed files
+ * get the full check of their phase; problems that were already left when that phase was accepted are not sent
+ * again. Without a baseline (a workspace from before this check), the current state becomes the baseline.
+ */
+async function changedSinceChecked(phase: "HCD" | "FRG", paths: ProjectPaths, ctx: PhaseContext, full: () => Promise<string[]>): Promise<string[]> {
+  const base = loadBaselines(paths, ctx)[phase];
+  if (base?.hash === phaseDataHash(phase, paths)) return [];
+  const problems = await full();
+  const known = new Set(base?.problems ?? problems);
+  const fresh = problems.filter((p) => !known.has(p));
+  if (!fresh.length) await saveBaseline(phase, base ? base.problems.filter((p) => problems.includes(p)) : problems, paths, ctx);
+  return fresh.map((p) => `${phase} (changed after the ${phase} phase was checked): ${p}`);
+}
+
+async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths: ProjectPaths, ctx: PhaseContext): Promise<void> {
+  const report: CrossReport = { checkedAt: new Date().toISOString(), phase, mode: "record-only", ...checkCross(hcd, frg), rules: CROSS_RULES };
+  ctx.cross = report;
+  try {
+    await writeFile(paths.crossCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[cross] ${paths.crossCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 /**

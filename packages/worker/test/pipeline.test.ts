@@ -248,6 +248,44 @@ describe("phase pipeline with a mock agent", () => {
     rmSync(p.root, { recursive: true, force: true });
   });
 
+  it("validates HCD files again when the agent changes them in a later phase, and records the HCD ↔ FRG consistency", async () => {
+    const p = freshWorkspace();
+    const base = mockAgent(p);
+    const turns: string[] = [];
+    const turn = async (prompt: Prompt) => {
+      turns.push(prompt.shown);
+      if (prompt.shown.startsWith("Fix FRG")) {
+        cpSync(join(FIXTURE, "HCD", "uc.json"), join(p.hcd, "uc.json"));
+        return true;
+      }
+      await base.turn(prompt);
+      if (prompt.shown.startsWith("Run phase FRG")) {
+        const uc = JSON.parse(fixture("HCD/uc.json"));
+        uc.ucs[2].interface = "([U.VTA]) = NAC([U.A9/46d@L])";
+        writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
+      }
+      return true;
+    };
+    const accepted: Phase[] = [];
+    const warnings: string[][] = [];
+    const run = await runPhases(driver(p, { turn }, accepted, warnings), 0, { shown: "Run phase HCD" });
+
+    expect(run).toEqual({ result: "completed" });
+    expect(turns.map((t) => t.split("\n")[0])).toEqual(["Run phase HCD", "Run phase FRG", "Fix FRG"]);
+    expect(turns[2]).toMatch(/^HCD \(changed after the HCD phase was checked\): `NAC`: interface outputs/m);
+    expect(accepted).toEqual(PHASES);
+    expect(warnings).toEqual([]);
+
+    const baseline = JSON.parse(readFileSync(p.phaseBaseline, "utf8"));
+    expect(Object.keys(baseline).sort()).toEqual(["FRG", "HCD"]);
+    expect(baseline.HCD.problems).toEqual([]);
+    const cross = JSON.parse(readFileSync(p.crossCheck, "utf8"));
+    expect(cross).toMatchObject({ phase: "CSV", mode: "record-only", stats: { roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2 } });
+    // the fixture is consistent except for its size: two ROI-internal UCs under a single GN
+    expect(cross.findings.map((f: { code: string }) => f.code)).toEqual(["X8", "X8"]);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+
   it("fails the phase when the agent never writes it", async () => {
     const p = freshWorkspace();
     const agent = mockAgent(p, { skipFrg: true });

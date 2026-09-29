@@ -13,6 +13,10 @@ export interface ProjectPaths {
   rcsLog: string;
   referenceCheck: string;
   quoteCheck: string;
+  /** HCD ↔ FRG consistency record (record-only) */
+  crossCheck: string;
+  /** Hash and remaining problems of the HCD / FRG files as their phase last checked them */
+  phaseBaseline: string;
   /** Research mode: the agent's survey, the worker's search log and coverage check */
   research: string;
   researchLog: string;
@@ -32,6 +36,8 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
     rcsLog: join(root, PROJECT_FILES.rcsLog),
     referenceCheck: join(root, PROJECT_FILES.referenceCheck),
     quoteCheck: join(root, PROJECT_FILES.quoteCheck),
+    crossCheck: join(root, PROJECT_FILES.crossCheck),
+    phaseBaseline: join(root, PROJECT_FILES.phaseBaseline),
     research: join(root, RESEARCH_FILES.plan),
     researchLog: join(root, RESEARCH_FILES.log),
     researchCheck: join(root, RESEARCH_FILES.check),

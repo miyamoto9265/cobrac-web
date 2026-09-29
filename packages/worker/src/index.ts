@@ -44,6 +44,7 @@ import {
   DEFAULT_BRA_RULES,
   EMPTY_USAGE,
   LIT_MCP_SERVER,
+  CROSS_CODES,
   PROJECT_FILES,
   QUOTE_STATUSES,
   QUOTE_STATUS_LABEL,
@@ -101,6 +102,7 @@ import {
   type CheckDeps,
   type Phase,
   type PhaseCheck,
+  type CrossReport,
   type PhaseContext,
   type Prompt,
   type QuoteReport,
@@ -324,6 +326,7 @@ async function main() {
         onAccepted: async (phase) => {
           if (phase !== "CSV" && ctx.references) await logReferenceSummary(ctx.references);
           if (phase === "HCD" && ctx.quotes) await logQuoteSummary(ctx.quotes);
+          if (phase !== "HCD" && ctx.cross) await logCrossSummary(ctx.cross);
           accepted.add(phase);
           await syncStepStates();
           await persistState();
@@ -749,6 +752,16 @@ async function logQuoteSummary(r: QuoteReport) {
     .filter((c) => !c.status.startsWith("verified"))
     .map((c) => `${c.sender} -> ${c.receiver} ${c.referenceIds.join("; ")}: ${QUOTE_STATUS_LABEL[c.status]}${c.score !== null ? ` (best match ${Math.round(c.score * 100)}%)` : ""}${c.notes.length ? ` — ${c.notes.join("; ")}` : ""}`);
   await log(line, open.length ? { details: open.join("\n") } : undefined);
+}
+
+let lastCrossSummary = "";
+/** Record-only for now: the counts go to the chat and cross_check.json, not to the agent. */
+async function logCrossSummary(r: CrossReport) {
+  const parts = CROSS_CODES.filter((c) => r.summary[c] > 0).map((c) => `${c} ${r.summary[c]}`);
+  const line = `HCD ↔ FRG consistency (recorded only): ${parts.length ? parts.join(", ") : "no findings"} (details in ${PROJECT_FILES.crossCheck}).`;
+  if (line === lastCrossSummary) return;
+  lastCrossSummary = line;
+  await log(line, r.findings.length ? { details: r.findings.map((f) => `${f.code} ${f.message}`).join("\n") } : undefined);
 }
 
 const RCS_LOG_MAX_RESULT = 20_000;
