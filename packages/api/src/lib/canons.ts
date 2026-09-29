@@ -175,16 +175,16 @@ export type AddMemberResult = { ok: true; member: CanonMemberRecord } | { ok: fa
  * Claims the project for this Canon first (conditional on it being in no Canon and not deleted), so a
  * project can never end up in two Canons; the MEMBER item is written only after the claim succeeds.
  */
-export async function addCanonMember(canonId: string, ownerUserId: string, projectId: string): Promise<AddMemberResult> {
+export async function addCanonMember(canonId: string, ownerUserId: string, projectId: string, pinRevision = 0): Promise<AddMemberResult> {
   const joinedAt = nowIso();
   try {
     await ddb.send(
       new UpdateCommand({
         TableName: env.tables.projects,
         Key: { userId: ownerUserId, projectId },
-        UpdateExpression: "SET canonId = :c, updatedAt = :t",
+        UpdateExpression: "SET canonId = :c, canonRevision = :r, updatedAt = :t",
         ConditionExpression: "attribute_exists(projectId) AND attribute_not_exists(canonId) AND attribute_not_exists(deletedAt)",
-        ExpressionAttributeValues: { ":c": canonId, ":t": joinedAt },
+        ExpressionAttributeValues: { ":c": canonId, ":r": pinRevision, ":t": joinedAt },
       }),
     );
   } catch (e) {
@@ -209,7 +209,7 @@ async function releaseProject(ownerUserId: string, projectId: string, canonId: s
       new UpdateCommand({
         TableName: env.tables.projects,
         Key: { userId: ownerUserId, projectId },
-        UpdateExpression: "REMOVE canonId SET updatedAt = :t",
+        UpdateExpression: "REMOVE canonId, canonRevision SET updatedAt = :t",
         ConditionExpression: "canonId = :c",
         ExpressionAttributeValues: { ":c": canonId, ":t": nowIso() },
       }),

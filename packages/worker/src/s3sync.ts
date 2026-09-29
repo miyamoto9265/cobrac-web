@@ -13,6 +13,17 @@ import { env } from "./env.js";
 
 const s3 = new S3Client({ region: env.region });
 
+/** A JSON object of the artifacts bucket (e.g. a Canon revision under `canons/`), or null when it is missing. */
+export async function getJsonObject<T>(key: string): Promise<T | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return JSON.parse(await r.Body!.transformToString("utf8")) as T;
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
 export function projectPrefix(userId: string, projectId: string) {
   return `users/${userId}/${projectId}/`;
 }

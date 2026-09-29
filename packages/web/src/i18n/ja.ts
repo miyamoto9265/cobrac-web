@@ -596,4 +596,10 @@ export const ja: Record<MessageKey, string> = {
   "c2c.send": "PR を送る",
   "c2c.sent": "送った PR",
   "c2c.waiting": "受け取る側の Canon の所有者の確認を待っています。",
+  "follow.pinnedOf": "rev {pinned}（最新 {head}）",
+  "follow.behind": "新しい版があります",
+  "follow.affected": "このプロジェクトに影響する変更 {n} 件",
+  "follow.update": "最新に更新",
+  "follow.align": "Canon に合わせて更新",
+  "sys.canonLoaded": "Canon「{name}」の rev {revision}（{mode}）の定義に従って作成します。",
 };

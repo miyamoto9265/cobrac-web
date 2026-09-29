@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type {
+  CanonRecord,
   JobRecord,
   MessageRecord,
   MessageRole,
@@ -10,7 +11,7 @@ import type {
   UserRecord,
   WorkflowStep,
 } from "@cobrac/shared";
-import { EMPTY_USAGE, addUsage, newId, nowIso } from "@cobrac/shared";
+import { CANON_META_SK, EMPTY_USAGE, addUsage, newId, nowIso } from "@cobrac/shared";
 import { env } from "./env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region }), {
@@ -25,6 +26,12 @@ export async function getUser(userId: string): Promise<UserRecord | null> {
 export async function getProject(userId: string, projectId: string): Promise<ProjectRecord | null> {
   const r = await ddb.send(new GetCommand({ TableName: env.tables.projects, Key: { userId, projectId } }));
   return (r.Item as ProjectRecord) ?? null;
+}
+
+export async function getCanonMeta(canonId: string): Promise<CanonRecord | null> {
+  if (!env.tables.canons) return null;
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: CANON_META_SK } }));
+  return (r.Item as CanonRecord) ?? null;
 }
 
 export async function getJob(projectId: string, jobId: string): Promise<JobRecord | null> {

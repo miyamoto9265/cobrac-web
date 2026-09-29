@@ -82,6 +82,8 @@ import {
   cloneName,
   cloneTargetKey,
   blockingConflicts,
+  canonAlignInstruction,
+  canonFollowStatus,
   canonFromCanon,
   canonFromProject,
   canonOutSk,
@@ -1054,7 +1056,7 @@ app.post("/canons/:id/members", async (c) => {
     const other = await getCanon(p.canonId);
     throw new HTTPException(409, { message: `このプロジェクトは既に Canon「${other?.name ?? p.canonId}」に入っています。先にそちらから外してください` });
   }
-  const r = await addCanonMember(canon.canonId, u.userId, projectId);
+  const r = await addCanonMember(canon.canonId, u.userId, projectId, canon.headRevision);
   if (!r.ok) throw new HTTPException(409, { message: "プロジェクトの状態が変わったため追加できませんでした。再読み込みしてください" });
   return c.json({ projectId, canonId: canon.canonId, joinedAt: r.member.joinedAt }, 201);
 });
@@ -1213,6 +1215,12 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
     connectionCount: next.connections.length,
   });
   await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedAt: now, mergedRevision: next.revision });
+  // the pushing project follows the revision that contains its own content (Q9)
+  if (pr.source.startsWith("project:")) {
+    const pid = pr.source.slice("project:".length);
+    const p = await getProject(canon.ownerUserId, pid);
+    if (p && p.canonId === canon.canonId && !isProjectDeleted(p)) await updateProject(canon.ownerUserId, pid, { canonRevision: next.revision });
+  }
   return c.json({ revision: next.revision });
 });
 
@@ -1237,6 +1245,36 @@ app.post("/canons/:id/pulls/:no/withdraw", async (c) => {
     throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   }
   return c.json({ ok: true });
+});
+
+// --- following a Canon (stage 3) -------------------------------------------------
+
+async function loadCanonRevision(canon: CanonRecord, rev: number): Promise<CanonSnapshot> {
+  if (rev <= 0) return emptyCanonSnapshot(canon.canonId, canon.createdAt);
+  const snap = await getCanonJson<CanonSnapshot>(canonRevisionKey(canon.canonId, rev));
+  if (!snap) throw new Error(`Canon ${canon.canonId} revision ${rev} is missing`);
+  return snap;
+}
+
+/** Pinned revision vs head, judged on what the project uses, plus the follow-up text that aligns it. */
+app.get("/projects/:id/canon", async (c) => {
+  const u = c.get("user");
+  const { p, canon } = await projectCanon(u, c.req.param("id"));
+  const pinned = Math.min(p.canonRevision ?? 0, canon.headRevision);
+  const status = canonFollowStatus(await loadCanonRevision(canon, pinned), await loadCanonRevision(canon, canon.headRevision), p.projectId);
+  const info = { canonId: canon.canonId, name: canon.name, policy: canon.policy, constraintMode: canon.constraintMode, revision: canon.headRevision };
+  return c.json({ canonId: canon.canonId, name: canon.name, constraintMode: canon.constraintMode, ...status, alignInstruction: canonAlignInstruction(info, status) });
+});
+
+/** Moves the project's pin (default: the head). Takes effect from the next job. */
+app.post("/projects/:id/canon/pull", async (c) => {
+  const u = c.get("user");
+  const { p, canon } = await projectCanon(u, c.req.param("id"));
+  const { revision } = (await c.req.json().catch(() => ({}))) as { revision?: number };
+  const rev = revision === undefined ? canon.headRevision : Number(revision);
+  if (!Number.isInteger(rev) || rev < 0 || rev > canon.headRevision) throw bad("revision が不正です");
+  await updateProject(u.userId, p.projectId, { canonRevision: rev });
+  return c.json({ canonRevision: rev });
 });
 
 // --- Canon → Canon pull requests (stage 2′) --------------------------------------
