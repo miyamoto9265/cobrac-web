@@ -314,6 +314,8 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");
     // cloning a public project writes the copy under the cloner's own prefix (checked in the API)
     artifacts.grantPut(apiFn, "users/*");
+    // Canon revision snapshots and pull-request payloads (outside the user prefixes)
+    artifacts.grantPut(apiFn, "canons/*");
     artifacts.grantPut(apiFn, "users/*/output/*.template-v2-2.bra.xlsx");
     artifacts.grantDelete(apiFn, "users/*/graph/*.layout.json");
     // reference materials: presigned browser uploads to staging/, moved into the project on create

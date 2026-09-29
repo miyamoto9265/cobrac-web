@@ -1,6 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import type { CanonMemberRecord, CanonRecord, CanonRevisionSummary } from "@cobrac/shared";
-import { CANON_MEMBER_PREFIX, CANON_META_SK, CANON_REVISION_PREFIX, canonMemberSk, nowIso } from "@cobrac/shared";
+import type { CanonMemberRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
+import { CANON_MEMBER_PREFIX, CANON_META_SK, CANON_PR_PREFIX, CANON_REVISION_PREFIX, canonMemberSk, canonPrSk, nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb, updateItem } from "./db.js";
 
@@ -75,8 +75,87 @@ async function queryPrefix<T>(canonId: string, prefix: string): Promise<T[]> {
 export const listCanonMembers = (canonId: string) => queryPrefix<CanonMemberRecord>(canonId, CANON_MEMBER_PREFIX);
 
 export async function listCanonRevisions(canonId: string): Promise<CanonRevisionSummary[]> {
-  const items = await queryPrefix<CanonRevisionSummary>(canonId, CANON_REVISION_PREFIX);
-  return items.map((r) => ({ revision: r.revision, createdAt: r.createdAt })).sort((a, b) => b.revision - a.revision);
+  const items = await queryPrefix<CanonRevisionRecord>(canonId, CANON_REVISION_PREFIX);
+  return items
+    .map((r) => ({ revision: r.revision, createdAt: r.createdAt, prNo: r.prNo, source: r.source, circuitCount: r.circuitCount, connectionCount: r.connectionCount }))
+    .sort((a, b) => b.revision - a.revision);
+}
+
+export async function putCanonRevision(r: CanonRevisionRecord) {
+  await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: r, ConditionExpression: "attribute_not_exists(sk)" }));
+}
+
+// --- pull requests --------------------------------------------------------------
+
+export async function nextPrNumber(canonId: string): Promise<number> {
+  const r = await ddb.send(
+    new UpdateCommand({
+      TableName: env.tables.canons,
+      Key: { canonId, sk: CANON_META_SK },
+      UpdateExpression: "ADD prSeq :one",
+      ConditionExpression: "attribute_exists(canonId)",
+      ExpressionAttributeValues: { ":one": 1 },
+      ReturnValues: "UPDATED_NEW",
+    }),
+  );
+  return Number(r.Attributes?.prSeq);
+}
+
+export async function putPullRequest(pr: CanonPullRequestRecord) {
+  await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: pr }));
+}
+
+export async function getPullRequest(canonId: string, no: number): Promise<CanonPullRequestRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonPrSk(no) } }));
+  return (r.Item as CanonPullRequestRecord) ?? null;
+}
+
+export async function listPullRequests(canonId: string): Promise<CanonPullRequestRecord[]> {
+  return (await queryPrefix<CanonPullRequestRecord>(canonId, CANON_PR_PREFIX)).sort((a, b) => b.prNo - a.prNo);
+}
+
+/** Moves an open PR to another state; returns false when it was no longer open. */
+export async function closePullRequest(canonId: string, no: number, values: Partial<CanonPullRequestRecord>): Promise<boolean> {
+  const entries = Object.entries({ ...values, updatedAt: nowIso() });
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.canons,
+        Key: { canonId, sk: canonPrSk(no) },
+        UpdateExpression: `SET ${entries.map((_, i) => `#k${i} = :v${i}`).join(", ")}`,
+        ConditionExpression: "#st = :open",
+        ExpressionAttributeNames: { ...Object.fromEntries(entries.map(([k], i) => [`#k${i}`, k])), "#st": "state" },
+        ExpressionAttributeValues: { ...Object.fromEntries(entries.map(([, v], i) => [`:v${i}`, v])), ":open": "open" },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if (isConditionFailure(e)) return false;
+    throw e;
+  }
+}
+
+export function updatePullRequest(canonId: string, no: number, values: Partial<CanonPullRequestRecord>) {
+  return updateItem(env.tables.canons, { canonId, sk: canonPrSk(no) }, values);
+}
+
+/** Moves the head from `expected` to `expected + 1`; false when someone else moved it first. */
+export async function advanceCanonHead(canonId: string, expected: number): Promise<boolean> {
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.canons,
+        Key: { canonId, sk: CANON_META_SK },
+        UpdateExpression: "SET headRevision = :next, updatedAt = :t",
+        ConditionExpression: "headRevision = :cur",
+        ExpressionAttributeValues: { ":cur": expected, ":next": expected + 1, ":t": nowIso() },
+      }),
+    );
+    return true;
+  } catch (e) {
+    if (isConditionFailure(e)) return false;
+    throw e;
+  }
 }
 
 async function bumpMemberCount(canonId: string, delta: 1 | -1) {
