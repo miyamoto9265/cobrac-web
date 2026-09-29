@@ -76,7 +76,7 @@ import {
   withReferenceList,
 } from "@cobrac/shared";
 import { articlePrompt, readReferences, runArticle } from "./article.js";
-import { createCodex, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
+import { createCodex, isRequestTooLarge, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
   getCanonMeta,
@@ -242,7 +242,7 @@ async function main() {
    * One agent turn on the project thread (`effort` overrides the reasoning effort for this turn only).
    * "stop" when the run must stop (question, failure, cancel); "budget" when `budget` cut the turn off.
    */
-  const runAgentTurn = async (p: Prompt, o: { effort?: ReasoningEffort; budget?: AbortSignal } = {}): Promise<ResearchTurn> => {
+  const runAgentTurn = async (p: Prompt, o: { effort?: ReasoningEffort; budget?: AbortSignal; freshThread?: boolean } = {}): Promise<ResearchTurn> => {
     const turnSettings: ModelSettings = o.effort ? { ...settings, reasoningEffort: o.effort } : settings;
     const thread = openThread(codex, threadId, turnSettings);
     let turn;
@@ -274,6 +274,12 @@ async function main() {
     await accumulateUsage(turn.usage);
     await syncStepStates();
 
+    if (turn.failed && isRequestTooLarge(turn.errorMessage) && !o.freshThread) {
+      // the conversation itself is too large for one request; the files hold the work, so go on in a new conversation
+      await log("The conversation grew larger than the OpenAI request limit; continuing the same task in a new conversation.", { details: turn.errorMessage ?? "" });
+      threadId = null;
+      return runAgentTurn(await freshThreadPrompt(project, p), { ...o, freshThread: true });
+    }
     if (turn.failed) {
       await persistState();
       await fail(turn.errorMessage ?? "Codex turn failed");
@@ -897,6 +903,20 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
           (research ? `\n\n---\n\n${await researchModeNotes()}` : ""),
       };
   }
+}
+
+/** The same request on a new thread: the project header, where the work so far is, and every phase spec. */
+async function freshThreadPrompt(project: ProjectRecord, p: Prompt): Promise<Prompt> {
+  return {
+    ...p,
+    shown:
+      `${header(project)}\n\nThe previous conversation of this project grew larger than the OpenAI request limit, so this turn starts a new conversation. ` +
+      `Everything done so far is in the files of ${projectId}/ (${PROJECT_FILES.decisionLog} has the decisions and their reasons); read them instead of redoing the work. ` +
+      `Continue with this request:\n\n${p.shown}`,
+    hidden:
+      `${p.hidden ? `${p.hidden}\n\n---\n\n` : ""}Reference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
+      (research ? `\n\n---\n\n${await researchModeNotes()}` : ""),
+  };
 }
 
 function fixPrompt(phase: Phase, errors: string[], attempt: number): Prompt {
