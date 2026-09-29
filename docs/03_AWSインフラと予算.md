@@ -56,7 +56,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 
 | Resource | Spec | When it runs |
 | -------- | ---- | ------------ |
-| Lambda × 8 | Node 22 ARM64, 512 MB. http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 15 minutes |
+| Lambda × 8 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 15 minutes |
 | ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
 | Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
 | CodeBuild | Image build at deploy | During `cdk deploy` |

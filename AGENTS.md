@@ -11,7 +11,7 @@ CHANGELOG.md        リリースノート（Keep a Changelog 形式）
 scripts/release.mjs 版番号更新・CHANGELOG 確定・git tag
 scripts/retain-guard.mjs  CI デプロイ前の RETAIN ガード（cdk diff の置換・削除検知）
 .github/workflows/  ci.yml（PR 用。AWS 認証なし）・deploy.yml（main 用。OIDC で cdk deploy）
-prompts/            エージェント共通ルール（AGENTS.md）、フェーズ仕様（phases/）、Project.csv テンプレート、csv_to_excel.py
+prompts/            エージェント共通ルール（AGENTS.md）、フェーズ仕様（phases/）、Project.csv テンプレート、csv_to_excel.py、公式テンプレート templates/Template-v2-2.bra.xlsx（Template-v2-2 形式の出力の土台。手で編集しない）
 packages/shared     型・CSV パーサ・グラフ JSON・単価表（pricing.ts）
 packages/worker     Fargate ワーカー（Codex SDK）
 packages/api        Lambda（Hono）+ dispatcher / ws / broadcaster / janitor
