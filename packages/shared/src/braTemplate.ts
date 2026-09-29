@@ -296,6 +296,8 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
   const refIds = [...new Set([...csvRefIds, ...cited])];
   const tid = templateReferenceIds(refIds);
   const tRef = (id: string) => tid.get(id)?.id ?? id.replace(/^\[|\]$/g, "");
+  /** Citations in free text follow the template's Reference IDs. */
+  const cite = (text: string) => text.replace(/\[[^\[\]]+\]/g, (m) => (tid.has(m) ? `[${tid.get(m)!.id}]` : m));
 
   const jsonRefs = new Map((input.references ?? []).map((r) => [r.id, r]));
   const checks = new Map((input.referenceChecks ?? []).map((c) => [c.id, c]));
@@ -464,7 +466,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
       U: c.uniform,
       V: c.uniform ? c.transmitter : "",
       W: c.uniform ? c.modulation : "",
-      AA: [c.comments, c.descriptor ? `UC Descriptor: ${c.descriptor}` : ""].filter(Boolean).join("\n"),
+      AA: [cite(c.comments), c.descriptor ? `UC Descriptor: ${c.descriptor}` : ""].filter(Boolean).join("\n"),
       AB: input.contributor,
       AC: input.projectId,
     });
@@ -481,7 +483,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
       D: c.receiver,
       E: c.rRel,
       F: c.rNotation,
-      H: c.comments,
+      H: cite(c.comments),
       I: c.ref,
       J: c.taxon,
       K: c.method,
@@ -499,12 +501,12 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
       AD: f.subnodes.join(";"),
       AE: f.circuit,
       AF: f.projected.join(";"),
-      BA: f.cm,
-      BC: f.subnodes.length ? "" : f.implementation,
-      BG: f.reqRealization,
-      BI: f.requirements,
-      BK: f.outputSemantics,
-      BM: f.comments,
+      BA: cite(f.cm),
+      BC: f.subnodes.length ? "" : cite(f.implementation),
+      BG: cite(f.reqRealization),
+      BI: cite(f.requirements),
+      BK: cite(f.outputSemantics),
+      BM: cite(f.comments),
     });
   });
 

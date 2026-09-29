@@ -67,7 +67,7 @@ function modernInput(n: { refs: number; ucs: number; conns: number }): TemplateE
       frg: toCsv([
         ["Node ID", "Subnodes", "Circuit ID", "Projected Circuits", "Capability", "Mechanism", "Implementation of Uniform Circuit", "Requirements Realization by Interface", "Requirements", "Output Semantics", "Comments"],
         ["R.Top", ids.map((x) => `U.${x}`).join(";"), "", "", "cap", "mech", "", "real", "req", "[VTA] RPE;", "TLF"],
-        ["U.VTA", "", "VTA", "A9/46d@L;X0", "cap VTA", "mech VTA", "[U.VTA] = f([U.X0])", "real VTA", "req VTA", "[VTA] RPE;", "c"],
+        ["U.VTA", "", "VTA", "A9/46d@L;X0", "cap VTA [Schultz et al., 1997]", "mech VTA", "[U.VTA] = f([U.X0])", "real VTA", "req VTA [Schultz, 1997]", "[VTA] RPE;", "c"],
         ["U.X0", "", "X0", "", OUT_OF_ROI_CAPABILITY, "", "", "", "", "", "noROI(input)"],
       ]),
     },
@@ -202,7 +202,8 @@ describe("Template-v2-2 export", () => {
   it("writes the FRG input columns and leaves the automatic ones as formulas", () => {
     const s = readTemplateSheet(small.bytes, "FRG");
     expect(["AC", "AD", "AE", "AF", "BI", "BK", "BM"].map((c) => s.get(`${c}2`)?.text ?? "")).toEqual(["R.Top", "U.VTA;U.VTA(DRD2+);U.A9/46d@L;U.X0", "", "", "req", "[VTA] RPE;", "TLF"]);
-    expect(s.get("BA3")!.text).toBe("cap VTA\n<<mechanism to realize the capability>>\nmech VTA");
+    expect(s.get("BA3")!.text).toBe("cap VTA [Schultz, 1997]\n<<mechanism to realize the capability>>\nmech VTA");
+    expect(s.get("BI3")!.text).toBe("req VTA [Schultz, 1997b]");
     expect(s.get("BC3")!.text).toBe("[U.VTA] = f([U.X0])");
     expect(s.get("AF3")!.text).toBe("A9/46d@L;X0");
     expect(s.get("BA4")!.text).toBe(`${OUT_OF_ROI_CAPABILITY}\n<<mechanism to realize the capability>>\n`);
