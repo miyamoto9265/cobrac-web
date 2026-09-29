@@ -586,6 +586,14 @@ export const en = {
   "cc.C9c": "The quote (Pointers on literature) was not found in the paper",
   "cc.C12": "The grouping has different members",
   "cc.C13": "Output Semantics differs (the project's text stays with the project)",
+  "c2c.title": "Send to another Canon",
+  "c2c.note": "Proposes this Canon's latest revision to another Canon: one of yours, or a public Canon of someone else (its Canon ID is on its public page). The receiving owner reviews it with the same conflict rules.",
+  "c2c.empty": "This Canon is still empty.",
+  "c2c.target": "Canon ID of the receiving Canon (e.g. u3k8d0hn-c1)",
+  "c2c.preview": "Check",
+  "c2c.send": "Send pull request",
+  "c2c.sent": "Sent pull requests",
+  "c2c.waiting": "Waiting for the receiving Canon's owner to review.",
 } as const;
 
 export type MessageKey = keyof typeof en;

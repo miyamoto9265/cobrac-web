@@ -588,4 +588,12 @@ export const ru: Record<MessageKey, string> = {
   "cc.C9c": "Цитата (Pointers on literature) не найдена в статье",
   "cc.C12": "У группы другие участники",
   "cc.C13": "Output Semantics различается (текст проекта остаётся в проекте)",
+  "c2c.title": "Отправить в другой Canon",
+  "c2c.note": "Предлагает последнюю ревизию этого Canon другому Canon как pull request: вашему или публичному Canon другого пользователя (его Canon ID есть на публичной странице). Владелец получателя проверяет его по тем же правилам конфликтов.",
+  "c2c.empty": "Этот Canon пока пуст.",
+  "c2c.target": "Canon ID получателя (напр. u3k8d0hn-c1)",
+  "c2c.preview": "Проверить",
+  "c2c.send": "Отправить pull request",
+  "c2c.sent": "Отправленные pull request",
+  "c2c.waiting": "Ожидает проверки владельцем Canon-получателя.",
 };

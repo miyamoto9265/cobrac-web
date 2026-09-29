@@ -588,4 +588,12 @@ export const zhTw: Record<MessageKey, string> = {
   "cc.C9c": "論文中找不到引文（Pointers on literature）",
   "cc.C12": "群組成員不同",
   "cc.C13": "Output Semantics 不同（專案的描述保留在專案中）",
+  "c2c.title": "傳送到另一個 Canon",
+  "c2c.note": "將此 Canon 的最新版本作為拉取請求提交給另一個 Canon：你自己的，或他人的公開 Canon（其 Canon ID 在公開頁面上）。接收方擁有者依相同的衝突規則審閱。",
+  "c2c.empty": "此 Canon 仍為空。",
+  "c2c.target": "接收方 Canon ID（例 u3k8d0hn-c1）",
+  "c2c.preview": "檢查",
+  "c2c.send": "傳送拉取請求",
+  "c2c.sent": "已傳送的拉取請求",
+  "c2c.waiting": "等待接收方 Canon 擁有者審閱。",
 };

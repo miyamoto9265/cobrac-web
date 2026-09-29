@@ -17,6 +17,8 @@ export interface CanonOrigin {
   projectRevision: number;
   /** PR that brought the entry in (0 = not yet merged) */
   pr: number;
+  /** Set when the entry came through another Canon: `<canonId>@<revision>` (the Canon → Canon edge of uc_adoption) */
+  via?: string;
 }
 
 export interface CanonCircuit {
@@ -137,8 +139,9 @@ export interface CanonSnapshot extends CanonContent {
   createdAt: string;
 }
 
-/** What a project brings to a Canon (same shape; origins carry pr = 0 until merged). */
+/** What a project (or another Canon) brings to a Canon (same shape; origins carry pr = 0 until merged). */
 export interface CanonIncoming extends CanonContent {
+  /** The pushing project, or the sending Canon's ID for a Canon → Canon pull request */
   projectId: string;
   projectRevision: number;
   /** Circuits the converter had to leave out (no UC Descriptor, unknown members) */
@@ -304,6 +307,26 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
   const roles: CanonProjectRoles[] = [{ projectId, projectRevision, roi: meta?.roi ?? "", tlf: meta?.tlf ?? "", ucRoles, frg: parseJson(files.frg) }];
 
   return { projectId, projectRevision, circuits, groups, connections, bif, references, roles, skipped: [...new Set(skipped)] };
+}
+
+/**
+ * What a Canon brings to another Canon: its head revision as it is. Entries keep their original project origin and
+ * record the sending Canon in `via`; the role layer carries every member project of the sender.
+ */
+export function canonFromCanon(snapshot: CanonSnapshot): CanonIncoming {
+  const via = `${snapshot.canonId}@${snapshot.revision}`;
+  const tag = <T extends { origin: CanonOrigin; sources: string[] }>(x: T): T => ({ ...clone(x), origin: { ...x.origin, pr: 0, via }, sources: [snapshot.canonId] });
+  return {
+    projectId: snapshot.canonId,
+    projectRevision: snapshot.revision,
+    circuits: snapshot.circuits.map(tag),
+    groups: snapshot.groups.map(tag),
+    connections: snapshot.connections.map(tag),
+    bif: snapshot.bif.map((b) => ({ ...clone(b), sources: [snapshot.canonId] })),
+    references: snapshot.references.map(tag),
+    roles: clone(snapshot.roles),
+    skipped: [],
+  };
 }
 
 // --- diff and conflicts ---------------------------------------------------------
@@ -519,7 +542,8 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
   const nowCollection = new Set(incoming.circuits.filter((c) => c.status === "collection" && baseCircuits.get(c.key)?.status === "uniform").map((c) => c.key));
   const affected = new Map<string, Set<string>>();
   const add = (p: string, k: string) => p !== src && (affected.get(p) ?? affected.set(p, new Set()).get(p)!).add(k);
-  for (const r of base.roles) for (const u of r.ucRoles) if (changedKeys.has(u.key)) add(r.projectId, u.key);
+  const incomingProjects = new Set(incoming.roles.map((r) => r.projectId));
+  for (const r of base.roles) if (!incomingProjects.has(r.projectId)) for (const u of r.ucRoles) if (changedKeys.has(u.key)) add(r.projectId, u.key);
   for (const c of base.connections) if (nowCollection.has(c.sender) || nowCollection.has(c.receiver)) for (const p of c.sources) add(p, c.key);
   const impacts: CanonImpact[] = [...affected].map(([projectId, keys]) => ({ projectId, keys: [...keys].sort() })).sort((a, b) => a.projectId.localeCompare(b.projectId));
 
@@ -642,7 +666,8 @@ export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: C
     }
   }
 
-  const roles = [...base.roles.filter((r) => r.projectId !== src), ...incoming.roles].sort((a, b) => a.projectId.localeCompare(b.projectId));
+  const replaced = new Set(incoming.roles.map((r) => r.projectId));
+  const roles = [...base.roles.filter((r) => !replaced.has(r.projectId)), ...incoming.roles].sort((a, b) => a.projectId.localeCompare(b.projectId));
   const byKey = <T extends { key: string }>(m: Map<string, T>) => [...m.values()].sort((a, b) => a.key.localeCompare(b.key));
   return {
     canonId: base.canonId,

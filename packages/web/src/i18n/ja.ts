@@ -588,4 +588,12 @@ export const ja: Record<MessageKey, string> = {
   "cc.C9c": "引用文（Pointers on literature）が論文中に見つからない",
   "cc.C12": "まとまりの中身が違う",
   "cc.C13": "Output Semantics が違う（プロジェクトの記述はプロジェクト側に残る）",
+  "c2c.title": "別の Canon に送る",
+  "c2c.note": "この Canon の最新版を、別の Canon に取り込み依頼（PR）として送ります。送り先は自分の Canon か、ほかのユーザーの公開 Canon（Canon ID は公開ページにあります）です。受け取る側の所有者が、同じ衝突の規則で確認します。",
+  "c2c.empty": "この Canon はまだ空です。",
+  "c2c.target": "送り先の Canon ID（例 u3k8d0hn-c1）",
+  "c2c.preview": "確認",
+  "c2c.send": "PR を送る",
+  "c2c.sent": "送った PR",
+  "c2c.waiting": "受け取る側の Canon の所有者の確認を待っています。",
 };

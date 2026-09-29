@@ -588,4 +588,12 @@ export const de: Record<MessageKey, string> = {
   "cc.C9c": "Das Zitat (Pointers on literature) wurde im Paper nicht gefunden",
   "cc.C12": "Die Gruppierung hat andere Mitglieder",
   "cc.C13": "Output Semantics unterscheidet sich (der Text bleibt beim Projekt)",
+  "c2c.title": "An einen anderen Canon senden",
+  "c2c.note": "Schlägt die neueste Revision dieses Canons einem anderen Canon als Pull Request vor: einem eigenen oder einem öffentlichen Canon einer anderen Person (die Canon-ID steht auf der öffentlichen Seite). Die empfangende Eigentümerin bzw. der Eigentümer prüft ihn mit denselben Konfliktregeln.",
+  "c2c.empty": "Dieser Canon ist noch leer.",
+  "c2c.target": "Canon-ID des Empfängers (z. B. u3k8d0hn-c1)",
+  "c2c.preview": "Prüfen",
+  "c2c.send": "Pull Request senden",
+  "c2c.sent": "Gesendete Pull Requests",
+  "c2c.waiting": "Wartet auf die Prüfung durch die Eigentümerin bzw. den Eigentümer des empfangenden Canons.",
 };

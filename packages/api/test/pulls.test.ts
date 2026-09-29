@@ -212,3 +212,66 @@ describe("push and pull requests", () => {
     expect((await call(B, "GET", `${C()}/pulls/3`)).status).toBe(404);
   });
 });
+
+describe("Canon → Canon pull requests", () => {
+  async function bobCanon(extra: Record<string, unknown> = {}) {
+    const bc = await json<CanonRecord>(call(B, "POST", "/canons", { name: "Bob's DMN" }));
+    const meta = fake.items("canons").find((i) => i.canonId === bc.canonId && i.sk === "META")!;
+    fake.put("canons", { ...meta, ...extra });
+    return bc;
+  }
+  async function aliceRev1() {
+    await pushed("u7m2q9xa-2");
+    await json(call(A, "POST", `${C()}/pulls/1/approve`, {}));
+  }
+
+  it("sends the head of one Canon to a public Canon of another user, who approves it", async () => {
+    await aliceRev1();
+    const bc = await bobCanon({ visibility: "public" });
+    const { pr, diff } = await json<{ pr: CanonPullRequestRecord; diff: CanonDiff }>(call(A, "POST", `/canons/${bc.canonId}/pulls`, { sourceCanonId: canon.canonId }));
+    expect(pr).toMatchObject({ source: `canon:${canon.canonId}`, sourceName: "Language", sourceRevision: 1, createdBy: A.sub, state: "open" });
+    expect(diff.summary.errors).toBe(0);
+
+    // the sender can follow it but not review it
+    const seen = await json<{ canReview: boolean; canWithdraw: boolean }>(call(A, "GET", `/canons/${bc.canonId}/pulls/${pr.prNo}`));
+    expect(seen).toMatchObject({ canReview: false, canWithdraw: true });
+    expect((await call(A, "POST", `/canons/${bc.canonId}/pulls/${pr.prNo}/approve`, {})).status).toBe(404);
+
+    expect(await json(call(B, "POST", `/canons/${bc.canonId}/pulls/${pr.prNo}/approve`, {}))).toEqual({ revision: 1 });
+    const snap = await json<CanonSnapshot>(call(B, "GET", `/canons/${bc.canonId}/revisions/1`));
+    const col = snap.circuits.find((c) => c.key === "bna:29")!;
+    expect(col.origin).toMatchObject({ projectId: "u7m2q9xa-2", via: `${canon.canonId}@1`, pr: 1 });
+    expect(snap.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-2"]);
+
+    const out = await json<{ items: (CanonPullRequestRecord & { targetName: string })[] }>(call(A, "GET", `${C()}/outgoing`));
+    expect(out.items).toEqual([expect.objectContaining({ targetName: "Bob's DMN", state: "approved", mergedRevision: 1 })]);
+  });
+
+  it("refuses private targets of others and targets that turned pull requests off", async () => {
+    await aliceRev1();
+    const priv = await bobCanon();
+    expect((await call(A, "POST", `/canons/${priv.canonId}/pulls`, { sourceCanonId: canon.canonId })).status).toBe(404);
+    const closed = await bobCanon({ visibility: "public", acceptPullRequests: false });
+    expect((await call(A, "POST", `/canons/${closed.canonId}/pulls/preview`, { sourceCanonId: canon.canonId })).status).toBe(403);
+    // only the owner of the source may send it
+    const open = await bobCanon({ visibility: "public" });
+    expect((await call(B, "POST", `/canons/${open.canonId}/pulls`, { sourceCanonId: canon.canonId })).status).toBe(404);
+  });
+
+  it("works between two Canons of the same owner, applies the same conflict rules, and supersedes", async () => {
+    await aliceRev1();
+    const coarseCanon = await json<CanonRecord>(call(A, "POST", "/canons", { name: "Coarse" }));
+    fake.put("projects", project("u7m2q9xa-5"));
+    writeProject("u7m2q9xa-5", [uc("A44d@L", "BNA:29"), uc("A22c@L", "BNA:75")], [], [["A44d@L", "A22c@L"]]);
+    await json(call(A, "POST", `/canons/${coarseCanon.canonId}/members`, { projectId: "u7m2q9xa-5" }));
+    await json(call(A, "POST", "/projects/u7m2q9xa-5/canon/push"));
+    await json(call(A, "POST", `/canons/${coarseCanon.canonId}/pulls/1/approve`, {}));
+
+    const first = await json<{ diff: CanonDiff }>(call(A, "POST", `/canons/${coarseCanon.canonId}/pulls`, { sourceCanonId: canon.canonId }));
+    expect(first.diff.conflicts.find((c) => c.code === "C1")).toMatchObject({ canon: "uniform", incoming: "collection" });
+    await json(call(A, "POST", `/canons/${coarseCanon.canonId}/pulls`, { sourceCanonId: canon.canonId }));
+    const list = await json<{ items: CanonPullRequestRecord[] }>(call(A, "GET", `/canons/${coarseCanon.canonId}/pulls`));
+    expect(list.items.filter((p) => p.source.startsWith("canon:")).map((p) => p.state)).toEqual(["open", "superseded"]);
+    expect((await call(A, "POST", `${C()}/pulls`, { sourceCanonId: canon.canonId })).status).toBe(400);
+  });
+});

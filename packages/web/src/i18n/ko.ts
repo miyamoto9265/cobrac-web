@@ -588,4 +588,12 @@ export const ko: Record<MessageKey, string> = {
   "cc.C9c": "인용문(Pointers on literature)을 논문에서 찾지 못함",
   "cc.C12": "묶음의 구성원이 다름",
   "cc.C13": "Output Semantics가 다름(프로젝트의 기술은 프로젝트에 남음)",
+  "c2c.title": "다른 Canon으로 보내기",
+  "c2c.note": "이 Canon의 최신 버전을 다른 Canon에 PR로 제안합니다. 내 Canon 또는 다른 사용자의 공개 Canon(Canon ID는 공개 페이지에 있음)에 보낼 수 있으며, 받는 쪽 소유자가 같은 충돌 규칙으로 검토합니다.",
+  "c2c.empty": "이 Canon은 아직 비어 있습니다.",
+  "c2c.target": "받는 Canon ID(예: u3k8d0hn-c1)",
+  "c2c.preview": "확인",
+  "c2c.send": "PR 보내기",
+  "c2c.sent": "보낸 PR",
+  "c2c.waiting": "받는 Canon 소유자의 검토를 기다리는 중입니다.",
 };

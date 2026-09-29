@@ -82,6 +82,17 @@ export interface CanonPullRequestRecord {
   mergedRevision?: number | null;
 }
 
+/** `OUT#<targetCanonId>#<000012>` item in the sending Canon: a pull request it sent to another Canon. */
+export interface CanonOutgoingRecord {
+  canonId: string;
+  sk: string;
+  targetCanonId: string;
+  prNo: number;
+  createdAt: string;
+}
+export const CANON_OUT_PREFIX = "OUT#";
+export const canonOutSk = (target: string, no: number) => `${CANON_OUT_PREFIX}${target}#${pad(no)}`;
+
 export interface CanonRevisionRecord {
   canonId: string;
   sk: string;

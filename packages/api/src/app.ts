@@ -82,7 +82,9 @@ import {
   cloneName,
   cloneTargetKey,
   blockingConflicts,
+  canonFromCanon,
   canonFromProject,
+  canonOutSk,
   canonPrKey,
   canonPrSk,
   canonRevisionKey,
@@ -164,7 +166,9 @@ import {
   closePullRequest,
   getCanon,
   getPullRequest,
+  listOutgoing,
   listPullRequests,
+  putOutgoing,
   nextPrNumber,
   putCanonRevision,
   putPullRequest,
@@ -1154,12 +1158,22 @@ async function loadPr(canon: CanonRecord, no: string): Promise<CanonPullRequestR
   return pr;
 }
 
+/** Owner (and admins) of the target Canon, or whoever sent the pull request (a Canon → Canon PR of another user). */
+async function loadPrForViewer(u: UserRecord, canonId: string, no: string): Promise<{ canon: CanonRecord; pr: CanonPullRequestRecord; isOwner: boolean }> {
+  if (!isCanonId(canonId)) throw notFound();
+  const canon = await getCanon(canonId);
+  if (!canon || isCanonDeleted(canon)) throw notFound();
+  const pr = await loadPr(canon, no);
+  const isOwner = canon.ownerUserId === u.userId;
+  if (!isOwner && pr.createdBy !== u.userId && u.role !== "admin") throw notFound();
+  return { canon, pr, isOwner };
+}
+
 app.get("/canons/:id/pulls/:no", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"));
-  const pr = await loadPr(canon, c.req.param("no"));
+  const { canon, pr, isOwner } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
   const diff = await getCanonJson<CanonDiff>(canonPrKey(canon.canonId, pr.prNo, "diff.json"));
-  return c.json({ pr, diff, headRevision: canon.headRevision });
+  return c.json({ pr, diff, headRevision: canon.headRevision, targetName: canon.name, canReview: isOwner, canWithdraw: pr.createdBy === u.userId });
 });
 
 app.post("/canons/:id/pulls/:no/approve", async (c) => {
@@ -1217,13 +1231,87 @@ app.post("/canons/:id/pulls/:no/reject", async (c) => {
 
 app.post("/canons/:id/pulls/:no/withdraw", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
-  const pr = await loadPr(canon, c.req.param("no"));
+  const { canon, pr } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
   if (pr.createdBy !== u.userId) throw notFound();
   if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "withdrawn", decidedBy: u.userId, decidedAt: nowIso() }))) {
     throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   }
   return c.json({ ok: true });
+});
+
+// --- Canon → Canon pull requests (stage 2′) --------------------------------------
+
+/**
+ * A Canon the caller may send a pull request to: their own, or a public one that accepts pull requests.
+ * Everything else looks missing (404).
+ */
+async function loadPrTarget(u: UserRecord, canonId: string): Promise<CanonRecord> {
+  if (!isCanonId(canonId)) throw notFound();
+  const canon = await getCanon(canonId);
+  if (!canon || isCanonDeleted(canon)) throw notFound();
+  if (canon.ownerUserId === u.userId) return canon;
+  if (canon.visibility !== "public") throw notFound();
+  if (canon.acceptPullRequests === false) throw new HTTPException(403, { message: "この Canon はほかのユーザーからの取り込み依頼を受け付けていません" });
+  return canon;
+}
+
+async function canonToCanon(u: UserRecord, targetId: string, body: { sourceCanonId?: string }) {
+  const target = await loadPrTarget(u, targetId);
+  const source = await loadCanon(u, body.sourceCanonId ?? "", { write: true });
+  if (source.canonId === target.canonId) throw bad("同じ Canon には送れません");
+  if (source.headRevision === 0) throw new HTTPException(409, { message: "送る側の Canon がまだ空です" });
+  const incoming = canonFromCanon(await loadCanonHead(source));
+  const diff = diffCanon(await loadCanonHead(target), incoming);
+  return { target, source, incoming, diff };
+}
+
+app.post("/canons/:id/pulls/preview", async (c) => {
+  const u = c.get("user");
+  const { diff } = await canonToCanon(u, c.req.param("id"), (await c.req.json().catch(() => ({}))) as { sourceCanonId?: string });
+  return c.json({ diff });
+});
+
+app.post("/canons/:id/pulls", async (c) => {
+  const u = c.get("user");
+  const { target, source, incoming, diff } = await canonToCanon(u, c.req.param("id"), (await c.req.json().catch(() => ({}))) as { sourceCanonId?: string });
+  const src = `canon:${source.canonId}`;
+  const prNo = await nextPrNumber(target.canonId);
+  await putCanonJson(canonPrKey(target.canonId, prNo, "incoming.json"), incoming);
+  await putCanonJson(canonPrKey(target.canonId, prNo, "diff.json"), diff);
+  for (const old of await listPullRequests(target.canonId)) {
+    if (old.state === "open" && old.source === src) await closePullRequest(target.canonId, old.prNo, { state: "superseded", reason: `#${prNo}` });
+  }
+  const now = nowIso();
+  const pr: CanonPullRequestRecord = {
+    canonId: target.canonId,
+    sk: canonPrSk(prNo),
+    prNo,
+    source: src,
+    sourceName: source.name,
+    sourceRevision: source.headRevision,
+    baseRevision: diff.baseRevision,
+    state: "open",
+    summary: diff.summary,
+    createdBy: u.userId,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putPullRequest(pr);
+  await putOutgoing({ canonId: source.canonId, sk: canonOutSk(target.canonId, prNo), targetCanonId: target.canonId, prNo, createdAt: now });
+  return c.json({ pr, diff }, 201);
+});
+
+/** Pull requests this Canon sent to other Canons, with their current state (read from the target). */
+app.get("/canons/:id/outgoing", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"));
+  const items: (CanonPullRequestRecord & { targetName: string })[] = [];
+  for (const o of await listOutgoing(canon.canonId)) {
+    const target = await getCanon(o.targetCanonId);
+    const pr = target && !isCanonDeleted(target) ? await getPullRequest(o.targetCanonId, o.prNo) : null;
+    if (target && pr) items.push({ ...pr, targetName: target.name });
+  }
+  return c.json({ items });
 });
 
 app.get("/canons/:id/revisions/:rev", async (c) => {
