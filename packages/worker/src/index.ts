@@ -371,8 +371,8 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
   };
   try {
     const first = await articlePrompt(env.promptsDir, projectId, locale);
-    await putMessage(projectId, jobId, "user", "prompt", first.shown, { meta: { mode, locale } });
-    await log(`Writing the explanatory article in ${lang}…`, { i18n: "sys.articleStarted", lang: locale });
+    const notice = harnessPromptNotice(mode, first.shown);
+    await putMessage(projectId, jobId, "system", "status", notice.content, { meta: { ...notice.meta, lang: locale } });
     const run = await runArticle(
       {
         paths,

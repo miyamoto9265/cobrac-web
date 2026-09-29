@@ -76,9 +76,13 @@ describe("explanatory article check", () => {
       { id: "[Schultz, 1997]", doi: "10.1126/science.275.5306.1593" },
       { id: "[Haber, 2010]", doi: "10.1038/npp.2009.129" },
       { id: "[Luo, 2011]", doi: "N/A" },
+      { id: "[Kim, 2020]", doi: "", pmid: "31234567", title: "A study.", journal: "Neuron" },
     ];
-    const out = withReferenceList("# T\n\nBody\n", ["[Luo, 2011]", "[Schultz, 1997]"], refs, "ja");
-    expect(out).toBe("# T\n\nBody\n\n## 参考文献\n\n- [Luo, 2011]\n- [Schultz, 1997] https://doi.org/10.1126/science.275.5306.1593\n");
+    const out = withReferenceList("# T\n\nBody\n", ["[Luo, 2011]", "[Schultz, 1997]", "[Kim, 2020]"], refs, "ja");
+    expect(out).toBe(
+      "# T\n\nBody\n\n## 参考文献\n\n- [Luo, 2011]\n- [Schultz, 1997] https://doi.org/10.1126/science.275.5306.1593\n" +
+        "- [Kim, 2020] A study. *Neuron*. https://pubmed.ncbi.nlm.nih.gov/31234567/\n",
+    );
     expect(withReferenceList("# T", [], refs, "en")).toBe("# T\n");
   });
 });

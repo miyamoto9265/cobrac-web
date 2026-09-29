@@ -14,13 +14,20 @@ import type { ProjectPaths } from "./steps.js";
 /** Where the agent writes the article (in the local workspace only; article jobs never upload the workspace). */
 export const articleFile = (paths: ProjectPaths, locale: UiLocale) => join(paths.root, ARTICLE_DIR, `${locale}.md`);
 
-export function readReferences(paths: ProjectPaths): { id: string; doi: string }[] {
+export type ArticleReference = { id: string; doi: string; pmid?: string; title?: string; journal?: string };
+
+export function readReferences(paths: ProjectPaths): ArticleReference[] {
   const file = join(paths.hcd, HCD_FILES.references);
   if (!existsSync(file)) return [];
   try {
     const refs = (JSON.parse(readFileSync(file, "utf8")) as { references?: unknown }).references;
     return Array.isArray(refs)
-      ? refs.filter((r): r is { id: string; doi: string } => !!r && typeof r.id === "string").map((r) => ({ id: r.id.trim(), doi: typeof r.doi === "string" ? r.doi : "" }))
+      ? refs
+          .filter((r): r is Record<string, unknown> & { id: string } => !!r && typeof r.id === "string")
+          .map((r) => {
+            const text = (k: string) => (typeof r[k] === "string" ? (r[k] as string) : "");
+            return { id: r.id.trim(), doi: text("doi"), pmid: text("pmid"), title: text("title"), journal: text("journal") };
+          })
       : [];
   } catch {
     return [];

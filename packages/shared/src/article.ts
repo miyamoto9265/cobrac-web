@@ -165,14 +165,24 @@ export function checkArticle(md: string | null | undefined, o: { referenceIds: s
   return { errors, title, cited };
 }
 
-/** The published article: the agent's text plus a reference list of the cited entries (DOIs from references.json). */
-export function withReferenceList(md: string, cited: string[], refs: { id: string; doi: string }[], locale: UiLocale): string {
+/** The published article: the agent's text plus a reference list of the cited entries (from references.json). */
+export function withReferenceList(
+  md: string,
+  cited: string[],
+  refs: { id: string; doi?: string; pmid?: string; title?: string; journal?: string }[],
+  locale: UiLocale,
+): string {
   const body = md.trim();
   if (!cited.length) return `${body}\n`;
-  const doi = new Map(refs.map((r) => [r.id, r.doi]));
+  const byId = new Map(refs.map((r) => [r.id, r]));
   const items = cited.map((id) => {
-    const d = (doi.get(id) ?? "").trim();
-    return /^10\.\S+$/.test(d) ? `- ${id} https://doi.org/${d}` : `- ${id}`;
+    const r = byId.get(id);
+    const doi = (r?.doi ?? "").trim().replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "");
+    const pmid = (r?.pmid ?? "").trim();
+    const title = (r?.title ?? "").trim().replace(/\.$/, "");
+    const journal = (r?.journal ?? "").trim();
+    const link = /^10\.\S+$/.test(doi) ? `https://doi.org/${doi}` : /^\d{1,9}$/.test(pmid) ? `https://pubmed.ncbi.nlm.nih.gov/${pmid}/` : "";
+    return `- ${[id, title && `${title}.`, journal && `*${journal}*.`, link].filter(Boolean).join(" ")}`;
   });
   return `${body}\n\n## ${ARTICLE_REFERENCES_HEADING[locale]}\n\n${items.join("\n")}\n`;
 }

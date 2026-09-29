@@ -116,6 +116,7 @@ const PROMPT_NOTICE: Record<string, { key: string; en: string; withStep?: { key:
   resume: { key: "sys.promptResume", en: "Passed your answer to the agent and resumed the work." },
   retry: { key: "sys.promptRetry", en: "Resumed the work from where it stopped.", withStep: { key: "sys.promptRetryPhase", en: (s) => `Resumed phase ${s} from where it stopped.` } },
   followup: { key: "sys.promptFollowup", en: "Started working on the follow-up instruction." },
+  article: { key: "sys.articleStarted", en: "Started writing the explanatory article." },
 };
 
 /**
