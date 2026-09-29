@@ -132,15 +132,17 @@ describe("project IDs", () => {
     const a1 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
     const a2 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning", name: "  小脳片葉の   VOR 学習 " }));
     const b1 = await json<ProjectRecord>(call(B, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
+    const a3 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "小脳", tlf: "VOR", name: "VOR in 小脳" }));
 
     expect(a1.projectId).toBe(`${me.userKey}-1`);
     expect(a2.projectId).toBe(`${me.userKey}-2`);
     expect(b1.projectId).toMatch(PROJECT_ID_REGEX);
     expect(b1.projectId.endsWith("-1")).toBe(true);
     expect(b1.projectId).not.toBe(a1.projectId);
-    expect(a1).toMatchObject({ name: "VORLearning_CerebellumFlocculus", nameSource: "auto", revision: 0 });
+    expect(a1).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", revision: 0 });
     expect(a2).toMatchObject({ name: "小脳片葉の VOR 学習", nameSource: "user" });
-    expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBe(2);
+    expect(a3).toMatchObject({ name: "VOR in 小脳", nameSource: "provisional" });
+    expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBe(3);
     expect(fake.items("messages").every((m) => m.userId)).toBe(true);
   });
 

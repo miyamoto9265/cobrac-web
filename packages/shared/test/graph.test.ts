@@ -104,7 +104,7 @@ describe("buildGraphs (VOR sample)", () => {
 
 describe("proposeProjectName", () => {
   it("creates ASCII names", () => {
-    expect(proposeProjectName("Cerebellum flocculus", "VOR learning")).toBe("VORLearning_CerebellumFlocculus");
-    expect(proposeProjectName("小脳", "VOR学習")).toBe("VOR");
+    expect(proposeProjectName("Cerebellum flocculus", "VOR learning")).toBe("VOR learning in Cerebellum flocculus");
+    expect(proposeProjectName("小脳", "VOR学習")).toBe("VOR学習 in 小脳");
   });
 });

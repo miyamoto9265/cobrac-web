@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ProjectRecord, UserPublic } from "@cobrac/shared";
+import { projectDisplayName } from "@cobrac/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
 import { useI18n, useT } from "../i18n";
@@ -100,7 +101,7 @@ export function AdminPage() {
             {projects.map((p) => (
               <tr key={`${p.userId}/${p.projectId}`}>
                 <td className="px-4 py-2 text-xs">
-                  {p.name ?? p.projectId}
+                  {projectDisplayName(p)}
                   <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
                 </td>
                 <td className="px-4 py-2 text-xs">{emailOf(p.userId)}</td>

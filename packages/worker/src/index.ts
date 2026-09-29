@@ -20,7 +20,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, nowIso, replyLanguageInstruction } from "@cobrac/shared";
+import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -246,7 +246,7 @@ async function main() {
       const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta));
       xlsxDone = true;
       await syncStepStates();
-      const fileName = braDownloadFileName(project.name, projectId).utf8;
+      const fileName = braDownloadFileName(projectDisplayName(project), projectId).utf8;
       await putMessage(projectId, jobId, "system", "artifact", `Generated ${fileName}.`, {
         meta: { i18n: "sys.xlsxReady", name: fileName, xlsxKey: r.xlsxKey, hcdNodes: r.hcdNodes, hcdEdges: r.hcdEdges, frgNodes: r.frgNodes },
       });
@@ -289,14 +289,17 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
-      if (latest) project.name = latest.name;
+      if (latest) {
+        project.name = latest.name;
+        project.nameSource = latest.nameSource;
+      }
       return {
         projectId,
         contributor: project.contributor,
         projectTemplate: await readFile(join(env.promptsDir, "Project.csv"), "utf8"),
         roi: project.roi,
         tlf: project.tlf,
-        name: project.name,
+        name: project.nameSource === "provisional" ? undefined : project.name,
       };
     },
   };
@@ -327,8 +330,11 @@ function phaseHasFiles(phase: Phase): boolean {
 
 /** Store ROI/TLF decided by the agent when the user left them empty, and the agent's name unless the user named the project. */
 async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: string; name?: string }) {
-  if (meta.name && project.nameSource === "auto" && meta.name !== project.name) {
-    if (await updateAutoProjectName(userId, projectId, meta.name)) project.name = meta.name;
+  if (meta.name && isAgentNameable(project.nameSource) && (meta.name !== project.name || project.nameSource !== "auto")) {
+    if (await updateAutoProjectName(userId, projectId, meta.name)) {
+      project.name = meta.name;
+      project.nameSource = "auto";
+    }
     else {
       const latest = await getProject(userId, projectId);
       project.name = latest?.name;
