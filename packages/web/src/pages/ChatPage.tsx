@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { MessageRecord, ProjectRecord, ReasoningEffort } from "@cobrac/shared";
 import { AttachmentPicker, EMPTY_ATTACHMENTS, attachmentRequest, attachmentsBusy, type AttachmentState } from "../components/AttachmentPicker";
 import { DEFAULT_CODEX_MODEL, formatUsd, researchModeEstimate } from "@cobrac/shared";
+import { CanonChoice, canonChoiceReady, canonRequest, initialCanonChoice, type CanonChoiceState } from "../components/CanonChoice";
 import { ChatTimeline } from "../components/ChatTimeline";
 import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
@@ -30,6 +31,7 @@ function NewProject() {
   const [model, setModel] = useState<string | null>(me?.defaultModel ?? null);
   const [effort, setEffort] = useState<ReasoningEffort | null>(me?.defaultReasoningEffort ?? null);
   const [research, setResearch] = useState(true);
+  const [canon, setCanon] = useState<CanonChoiceState>(() => initialCanonChoice(me?.defaultCanonId));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const uploading = attachmentsBusy(attachments);
@@ -38,7 +40,7 @@ function NewProject() {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, ...attachmentRequest(attachments), model, reasoningEffort: effort, researchMode: research, locale });
+      const p = await api.createProject({ roi, tlf, ...attachmentRequest(attachments), model, reasoningEffort: effort, researchMode: research, locale, canon: canonRequest(canon) });
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -104,6 +106,7 @@ function NewProject() {
             />
           </div>
           <ResearchToggle on={research} onChange={setResearch} model={model || me?.defaultModel || DEFAULT_CODEX_MODEL} />
+          <CanonChoice value={canon} onChange={setCanon} disabled={busy} />
           <ul className="mt-4 space-y-0.5 text-xs text-slate-500" data-testid="create-meta">
             <li>{t("chat.autoName")}</li>
             <li>
@@ -119,7 +122,7 @@ function NewProject() {
             {uploading && <span className="text-center text-xs text-slate-500 sm:text-right">{t("attach.wait")}</span>}
             <button
               onClick={() => void submit()}
-              disabled={busy || uploading || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered}
+              disabled={busy || uploading || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered || !canonChoiceReady(canon)}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto coarse:py-3"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} {t("chat.run")}

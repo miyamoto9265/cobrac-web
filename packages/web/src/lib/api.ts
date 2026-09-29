@@ -6,7 +6,10 @@ import type {
   CanonDiff,
   CanonPullRequestRecord,
   CanonRevisionSummary,
+  CanonSeedCandidate,
+  CanonSeedStep,
   CanonSnapshot,
+  CreateProjectCanon,
   CanonRecord,
   CloneProjectResponse,
   CreateCanonRequest,
@@ -73,7 +76,7 @@ async function request<T>(method: string, path: string, body?: unknown, raw = fa
 
 export const api = {
   me: () => request<UserPublic>("GET", "/users/me"),
-  updateMe: (b: { displayName?: string; contributorName?: string; defaultModel?: string | null; defaultReasoningEffort?: ReasoningEffort | null }) =>
+  updateMe: (b: { displayName?: string; contributorName?: string; defaultModel?: string | null; defaultReasoningEffort?: ReasoningEffort | null; defaultCanonId?: string | null }) =>
     request<UserPublic>("PUT", "/users/me", b),
   apiKeyStatus: () => request<{ registered: boolean; last4: string | null }>("GET", "/users/me/apikey/status"),
   setApiKey: (apiKey: string) => request<{ registered: boolean; last4: string; models: string[] }>("PUT", "/users/me/apikey", { apiKey }),
@@ -156,6 +159,12 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/canon`,
     ),
   pullCanon: (projectId: string, revision?: number) => request<{ canonRevision: number }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/pull`, revision === undefined ? {} : { revision }),
+  seedPreview: (plan: Omit<Extract<CreateProjectCanon, { mode: "new" }>, "mode" | "name">) =>
+    request<{ candidates: CanonSeedCandidate[]; steps: CanonSeedStep[]; summary: { circuits: number; connections: number; references: number; merged: number; pending: number; excluded: number } }>(
+      "POST",
+      "/canons/seed-preview",
+      plan,
+    ),
   canonRevisions: (id: string) => request<{ items: CanonRevisionSummary[] }>("GET", `/canons/${encodeURIComponent(id)}/revisions`),
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 

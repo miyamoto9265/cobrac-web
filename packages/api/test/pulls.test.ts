@@ -115,7 +115,7 @@ let canon: CanonRecord;
 beforeEach(async () => {
   fake.tables.clear();
   s3.clear();
-  fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", createdAt: now, updatedAt: now });
+  fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", projectSeq: 20, createdAt: now, updatedAt: now });
   fake.put("users", { userId: B.sub, email: B.email, displayName: "b", contributorName: "b", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u3k8d0hn", createdAt: now, updatedAt: now });
   // coarse: A44d@L uniform; fine: A44d@L split into IT / PT
   fake.put("projects", project("u7m2q9xa-1"));
@@ -306,5 +306,75 @@ describe("following a Canon", () => {
     await json(call(A, "DELETE", `${C()}/members/u7m2q9xa-1`));
     expect(stored("u7m2q9xa-1").canonRevision).toBeUndefined();
     expect((await call(A, "GET", "/projects/u7m2q9xa-1/canon")).status).toBe(409);
+  });
+});
+
+describe("choosing a Canon when creating a project", () => {
+  const stored = (p: string) => fake.items("projects").find((x) => x.projectId === p) as unknown as ProjectRecord;
+  const create = (canon?: unknown) => json<ProjectRecord>(call(A, "POST", "/projects", { roi: "perisylvian cortex", tlf: "sentence comprehension", ...(canon ? { canon } : {}) }));
+  async function leaveAll() {
+    for (const p of ["u7m2q9xa-1", "u7m2q9xa-2", "u7m2q9xa-3"]) await json(call(A, "DELETE", `${C()}/members/${p}`));
+  }
+
+  it("puts the new project into an existing Canon, pinned to its head, before the job starts", async () => {
+    await pushed("u7m2q9xa-1");
+    await json(call(A, "POST", `${C()}/pulls/1/approve`, {}));
+    const p = await create({ mode: "existing", canonId: canon.canonId });
+    expect(p).toMatchObject({ canonId: canon.canonId, canonRevision: 1 });
+    expect(stored(p.projectId).canonRevision).toBe(1);
+    expect((await call(B, "POST", "/projects", { roi: "x", tlf: "y", canon: { mode: "existing", canonId: canon.canonId } })).status).toBe(404);
+  });
+
+  it("uses the default Canon when the create request says nothing, and none when it says none", async () => {
+    await json(call(A, "PUT", "/users/me", { defaultCanonId: canon.canonId }));
+    expect((await create()).canonId).toBe(canon.canonId);
+    expect((await create({ mode: "none" })).canonId).toBeUndefined();
+    expect((await call(A, "PUT", "/users/me", { defaultCanonId: "u3k8d0hn-c9" })).status).toBe(404);
+  });
+
+  it("seeds a new Canon: the first seed forms rev 1, a conflicting one waits as a pull request", async () => {
+    await leaveAll();
+    const preview = await json<{ candidates: { projectId: string; eligible: boolean; reason?: string }[]; steps: { projectId: string; outcome: string }[] }>(
+      call(A, "POST", "/canons/seed-preview", { seeds: ["u7m2q9xa-2", "u7m2q9xa-1", "u7m2q9xa-3"] }),
+    );
+    expect(preview.candidates.map((x) => [x.projectId, x.eligible, x.reason ?? ""])).toEqual([
+      ["u7m2q9xa-2", true, ""],
+      ["u7m2q9xa-1", true, ""],
+      ["u7m2q9xa-3", false, "not-completed"],
+    ]);
+    expect(preview.steps.map((s) => s.outcome)).toEqual(["merged", "pending"]);
+
+    const p = await create({ mode: "new", name: "Language (new)", policy: "area × class", seeds: ["u7m2q9xa-2", "u7m2q9xa-1"] });
+    const detail = await json<{ canon: CanonRecord; members: { projectId: string }[] }>(call(A, "GET", `/canons/${p.canonId}`));
+    expect(detail.canon).toMatchObject({ name: "Language (new)", policy: "area × class", headRevision: 1 });
+    expect(detail.members.map((m) => m.projectId).sort()).toEqual(["u7m2q9xa-1", "u7m2q9xa-2", p.projectId].sort());
+    const pulls = await json<{ items: CanonPullRequestRecord[] }>(call(A, "GET", `/canons/${p.canonId}/pulls`));
+    expect(pulls.items.map((x) => [x.source, x.state, x.baseRevision])).toEqual([["project:u7m2q9xa-1", "open", 1]]);
+    const revs = await json<{ items: { revision: number; source: string }[] }>(call(A, "GET", `/canons/${p.canonId}/revisions`));
+    expect(revs.items).toEqual([expect.objectContaining({ revision: 1, source: "seed" })]);
+    expect(stored(p.projectId).canonRevision).toBe(1);
+  });
+
+  it("lets the earlier seed win or leaves a seed out", async () => {
+    await leaveAll();
+    const preview = await json<{ steps: { blocking: { id: string; code: string }[] }[] }>(call(A, "POST", "/canons/seed-preview", { seeds: ["u7m2q9xa-2", "u7m2q9xa-1"] }));
+    const choices = Object.fromEntries(preview.steps[1].blocking.map((c) => [c.id, "canon"]));
+    const won = await create({ mode: "new", name: "Won", seeds: ["u7m2q9xa-2", "u7m2q9xa-1"], choices });
+    expect((await json<{ items: unknown[] }>(call(A, "GET", `/canons/${won.canonId}/pulls`))).items).toEqual([]);
+    const st = await json<{ state: string }>(call(A, "GET", "/projects/u7m2q9xa-1/canon"));
+    expect(st.state).toBe("current");
+
+    await json(call(A, "DELETE", `/canons/${won.canonId}`));
+    const out = await create({ mode: "new", name: "Out", seeds: ["u7m2q9xa-2", "u7m2q9xa-1"], actions: { "u7m2q9xa-1": "exclude" } });
+    const d = await json<{ members: { projectId: string }[] }>(call(A, "GET", `/canons/${out.canonId}`));
+    expect(d.members.map((m) => m.projectId)).not.toContain("u7m2q9xa-1");
+  });
+
+  it("refuses seeds that are running or in another Canon, and creates nothing then", async () => {
+    const before = fake.items("projects").length;
+    const r = await call(A, "POST", "/projects", { roi: "x", tlf: "y", canon: { mode: "new", name: "N", seeds: ["u7m2q9xa-1"] } });
+    expect(r.status).toBe(409);
+    expect(await r.text()).toContain("in-canon");
+    expect(fake.items("projects").length).toBe(before);
   });
 });
