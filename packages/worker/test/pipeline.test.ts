@@ -29,7 +29,7 @@ import {
   type CanonRunInfo,
 } from "@cobrac/shared";
 import { updateBibliography } from "../src/bibliography.js";
-import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
+import { PHASES, adjustmentPrompt, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
 import { QuoteVerifier } from "../src/quotes.js";
 import { ReferenceVerifier } from "../src/references.js";
@@ -111,7 +111,7 @@ function depsOf(): CheckDeps {
   };
 }
 
-function driver(p: ProjectPaths, agent: Pick<ReturnType<typeof mockAgent>, "turn">, accepted: Phase[], warnings: string[][]): PhaseDriver {
+function driver(p: ProjectPaths, agent: Pick<ReturnType<typeof mockAgent>, "turn">, accepted: Phase[], warnings: string[][], o: { adjust?: boolean } = {}): PhaseDriver {
   const ctx: PhaseContext = { hcd: null, frg: null };
   const deps = depsOf();
   return {
@@ -123,6 +123,7 @@ function driver(p: ProjectPaths, agent: Pick<ReturnType<typeof mockAgent>, "turn
     fixPrompt: async (phase, errors) => ({ shown: `Fix ${phase}\n${errors.join("\n")}` }),
     onWarn: async (_phase, errors) => void warnings.push(errors),
     onAccepted: async (phase) => void accepted.push(phase),
+    ...(o.adjust ? { adjustPrompt: async (phase: Phase) => (phase === "FRG" ? adjustmentPrompt(ctx, existsSync(p.decisionLog) ? readFileSync(p.decisionLog, "utf8") : null) : null) } : {}),
   };
 }
 
@@ -288,6 +289,39 @@ describe("phase pipeline with a mock agent", () => {
     expect(cross).toMatchObject({ phase: "CSV", mode: "record-only", stats: { roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2 } });
     // the fixture is consistent except for its size: two ROI-internal UCs under a single GN
     expect(cross.findings.map((f: { code: string }) => f.code)).toEqual(["X8", "X8"]);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+
+  it("runs one HCD <-> FRG adjustment turn when the FRG is collapsed, and asks for the revisions section", async () => {
+    const p = freshWorkspace();
+    const base = mockAgent(p);
+    const turns: string[] = [];
+    const turn = async (prompt: Prompt) => {
+      turns.push(prompt.shown);
+      if (prompt.shown.startsWith("The HCD and the FRG do not fit together")) return true; // forgets the decision log
+      if (prompt.shown.startsWith("Fix FRG")) {
+        writeFileSync(p.decisionLog, fixture("decision_log.md") + "\n## HCD-FRG revisions\n\n- [kept] X8 two ROI-internal UCs — the VTA-NAC loop is the whole ROI [Schultz, 1997]\n");
+        return true;
+      }
+      return base.turn(prompt);
+    };
+    const accepted: Phase[] = [];
+    const run = await runPhases(driver(p, { turn }, accepted, [], { adjust: true }), 0, { shown: "Run phase HCD" });
+
+    expect(run).toEqual({ result: "completed" });
+    expect(turns.map((t) => t.split("\n")[0])).toEqual([
+      "Run phase HCD",
+      "Run phase FRG",
+      "The HCD and the FRG do not fit together yet (2 finding(s) of the worker's HCD <-> FRG consistency check):",
+      "Fix FRG",
+    ]);
+    expect(turns[2]).toMatch(/^- X8 the FRG has a single GN under the TLF$/m);
+    expect(turns[2]).toMatch(/split or add HCD UCs/);
+    expect(turns[3]).toMatch(/decision_log\.md: add the `## HCD-FRG revisions` section/);
+    expect(accepted).toEqual(PHASES);
+    const cross = JSON.parse(readFileSync(p.crossCheck, "utf8"));
+    expect(cross.adjustment).toMatchObject({ before: { X8: 2 }, revisionsBefore: { section: false } });
+    expect(cross.revisions).toEqual({ section: true, "FRG->HCD": 0, "HCD->FRG": 0, kept: 1 });
     rmSync(p.root, { recursive: true, force: true });
   });
 

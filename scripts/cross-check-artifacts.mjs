@@ -14,7 +14,7 @@
  */
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { CROSS_CODES, checkCross, checkFrg, checkHcd, parseCsvObjects } from "../packages/shared/dist/index.js";
+import { CROSS_CODES, checkCross, checkFrg, checkHcd, countRevisions, parseCsvObjects } from "../packages/shared/dist/index.js";
 
 const read = (f) => (existsSync(f) ? readFileSync(f, "utf8") : null);
 const ROI_OF_TAG = { "noROI(input)": "input", "noROI(output)": "output", "noROI(input,output)": "both" };
@@ -81,6 +81,7 @@ function measure(dir) {
     stats: r.stats,
     summary: r.summary,
     findings: r.findings,
+    revisions: countRevisions(read(join(dir, "decision_log.md"))),
     ...(m.hcdErrors ? { offlineHcdErrors: m.hcdErrors.length, offlineFrgErrors: m.frgErrors.length } : {}),
   };
 }
@@ -99,7 +100,7 @@ for (const r of results) {
     continue;
   }
   const counts = CROSS_CODES.map((c) => `${c}=${r.summary[c]}`).join(" ");
-  console.log(`${r.projectId} [${r.source}] ROI UCs=${r.stats.roiUcs} GNs=${r.stats.gns} depth=${r.stats.depth} parsed interfaces=${r.stats.interfacesParsed} | ${counts}`);
+  console.log(`${r.projectId} [${r.source}] ROI UCs=${r.stats.roiUcs} GNs=${r.stats.gns} depth=${r.stats.depth} parsed interfaces=${r.stats.interfacesParsed} | ${counts} | revisions FRG->HCD=${r.revisions["FRG->HCD"]} HCD->FRG=${r.revisions["HCD->FRG"]} kept=${r.revisions.kept}`);
   for (const f of r.findings) console.log(`  ${f.code} ${f.message}`);
 }
 if (out) writeFileSync(out, JSON.stringify(results, null, 2) + "\n", "utf8");

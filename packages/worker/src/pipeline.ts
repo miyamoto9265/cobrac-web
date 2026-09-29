@@ -6,8 +6,9 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraLookup } from "@cobrac/shared";
 import {
+  ADJUSTMENT_CODES,
   CROSS_RULES,
   canonCheckedQuotes,
   canonCheckedReferences,
@@ -16,6 +17,8 @@ import {
   FRG_FILES,
   HARNESS_SCHEMAS,
   HCD_FILES,
+  PROJECT_FILES,
+  REVISIONS_HEADING,
   SCHEMA_DIR,
   buildCsvs,
   buildGraphs,
@@ -24,6 +27,7 @@ import {
   checkFrg,
   checkHcd,
   checkResearch,
+  countRevisions,
   frgCitedIds,
   hombaAnchorIds,
   isFrgProblem,
@@ -70,6 +74,8 @@ export interface PhaseContext {
   cross?: CrossReport | null;
   /** phase_baseline.json, read on first use */
   baselines?: PhaseBaselines;
+  /** The adjustment turn of this run, once requested */
+  adjustment?: AdjustmentRecord;
 }
 
 /** Contents of `{P}/cross_check.json`, rewritten by every FRG / CSV check. Record-only: nothing goes back to the agent. */
@@ -78,6 +84,18 @@ export interface CrossReport extends CrossCheck {
   phase: Phase;
   mode: "record-only";
   rules: typeof CROSS_RULES;
+  /** Tagged lines under `## HCD-FRG revisions` in decision_log.md */
+  revisions: RevisionCounts;
+  /** Set once the adjustment turn of this run was requested */
+  adjustment?: AdjustmentRecord;
+}
+
+/** The one HCD ↔ FRG adjustment turn of a run: the findings that triggered it */
+export interface AdjustmentRecord {
+  requestedAt: string;
+  before: CrossCheck["summary"];
+  findings: CrossFinding[];
+  revisionsBefore: RevisionCounts;
 }
 
 /**
@@ -177,6 +195,8 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   if (frg.model) await writeCrossCheck(phase, hcd.model, frg.model, paths, ctx);
   if (phase === "FRG") {
     const errors = await frgProblems(frg, paths, deps, ctx);
+    if (ctx.adjustment && !countRevisions(readText(paths.decisionLog)).section)
+      errors.push(`${PROJECT_FILES.decisionLog}: add the \`${REVISIONS_HEADING}\` section with one tagged line per HCD / FRG change of the adjustment turn, or a [kept] line with the reason for each mismatch you left (see AGENTS.md).`);
     await saveBaseline("FRG", errors, paths, ctx);
     return { errors: [...hcdErrors, ...errors], fatal: frg.fatal };
   }
@@ -248,7 +268,15 @@ async function changedSinceChecked(phase: "HCD" | "FRG", paths: ProjectPaths, ct
 }
 
 async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths: ProjectPaths, ctx: PhaseContext): Promise<void> {
-  const report: CrossReport = { checkedAt: new Date().toISOString(), phase, mode: "record-only", ...checkCross(hcd, frg), rules: CROSS_RULES };
+  const report: CrossReport = {
+    checkedAt: new Date().toISOString(),
+    phase,
+    mode: "record-only",
+    ...checkCross(hcd, frg),
+    rules: CROSS_RULES,
+    revisions: countRevisions(readText(paths.decisionLog)),
+    ...(ctx.adjustment ? { adjustment: ctx.adjustment } : {}),
+  };
   ctx.cross = report;
   try {
     await writeFile(paths.crossCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
@@ -372,6 +400,30 @@ export async function graphParseError(paths: ProjectPaths): Promise<string | nul
   }
 }
 
+/**
+ * The one adjustment turn after the FRG phase, when the consistency record has findings of `ADJUSTMENT_CODES`
+ * (interfaces that disagree with the connections, ROI tags, a collapsed FRG). Marks the run as adjusted in `ctx`.
+ */
+export function adjustmentPrompt(ctx: PhaseContext, decisionLog: string | null): Prompt | null {
+  const cross = ctx.cross;
+  if (!cross || ctx.adjustment) return null;
+  const findings = cross.findings.filter((f) => ADJUSTMENT_CODES.includes(f.code));
+  if (!findings.length) return null;
+  ctx.adjustment = { requestedAt: new Date().toISOString(), before: cross.summary, findings, revisionsBefore: countRevisions(decisionLog) };
+  const codes = [...new Set(findings.map((f) => f.code))];
+  return {
+    shown:
+      `The HCD and the FRG do not fit together yet (${findings.length} finding(s) of the worker's HCD <-> FRG consistency check):\n` +
+      findings.map((f) => `- ${f.code} ${f.message}`).join("\n") +
+      `\n\nWhat the checks mean:\n${codes.map((c) => `- ${c}: ${CROSS_RULES[c].description}`).join("\n")}\n\n` +
+      `Adjust the two once. For each finding decide from the evidence which side must change (FRG phase step 3): split or add HCD UCs ` +
+      `when the literature supports a finer or missing population or connection, or change the FRG decomposition and interfaces when the HCD is right. ` +
+      `Keep all files consistent (Circuit IDs, connections, interfaces, Output Semantics, function items, FRG subnodes and interfaces, the report). ` +
+      `Record each change, or each mismatch you keep with its reason, under \`${REVISIONS_HEADING}\` in ${PROJECT_FILES.decisionLog} (see AGENTS.md), ` +
+      `then finish with status "done".`,
+  };
+}
+
 export interface PhaseDriver {
   maxNudges: number;
   /** One agent turn; false when the run must stop (question, failure, cancel). */
@@ -383,6 +435,8 @@ export interface PhaseDriver {
   fixPrompt: (phase: Phase, errors: string[], attempt: number, withSpec: boolean) => Promise<Prompt>;
   onWarn: (phase: Phase, errors: string[]) => Promise<void>;
   onAccepted: (phase: Phase) => Promise<void>;
+  /** Asked once per phase after its checks pass or end with warnings: a prompt for one more turn (the HCD ↔ FRG adjustment), or null */
+  adjustPrompt?: (phase: Phase) => Promise<Prompt | null>;
 }
 
 export type PhaseRunResult = { result: "completed" } | { result: "stopped" } | { result: "failed"; phase: Phase; errors: string[] };
@@ -398,6 +452,7 @@ export async function runPhases(d: PhaseDriver, startIdx: number, first: Prompt 
       const pre = await d.check(phase);
       if (pre.errors.length) pending = d.hasFiles(phase) ? await d.fixPrompt(phase, pre.errors, ++attempts, true) : await d.phasePrompt(phase);
     }
+    let adjusted = false;
     for (;;) {
       if (pending) {
         const p = pending;
@@ -405,13 +460,22 @@ export async function runPhases(d: PhaseDriver, startIdx: number, first: Prompt 
         if (!(await d.turn(p))) return { result: "stopped" };
       }
       const r = await d.check(phase);
-      if (r.errors.length === 0) break;
-      if (attempts >= d.maxNudges) {
+      let done = r.errors.length === 0;
+      if (!done && attempts >= d.maxNudges) {
         if (r.fatal) return { result: "failed", phase, errors: r.errors };
         await d.onWarn(phase, r.errors);
-        break;
+        done = true;
       }
-      pending = await d.fixPrompt(phase, r.errors, ++attempts, false);
+      if (!done) {
+        pending = await d.fixPrompt(phase, r.errors, ++attempts, false);
+        continue;
+      }
+      const adjust = adjusted ? null : await d.adjustPrompt?.(phase);
+      if (!adjust) break;
+      // the adjustment turn gets its own fix turns
+      adjusted = true;
+      attempts = 0;
+      pending = adjust;
     }
     await d.onAccepted(phase);
   }

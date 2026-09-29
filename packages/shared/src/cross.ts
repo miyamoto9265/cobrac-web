@@ -28,6 +28,39 @@ export const CROSS_RULES: Record<CrossCode, CrossRule> = {
   X8: { severity: "warning", direction: "FRG->HCD", description: "The FRG is collapsed (TLF directly on UCs, a single GN, or fewer than 3 ROI-internal UCs): the UCs may be too coarse" },
 };
 
+/** Findings that trigger the one HCD ↔ FRG adjustment turn after the FRG phase */
+export const ADJUSTMENT_CODES: readonly CrossCode[] = ["X1", "X2", "X3", "X8"];
+
+/** Heading of decision_log.md under which the agent records HCD ↔ FRG changes */
+export const REVISIONS_HEADING = "## HCD-FRG revisions";
+
+export interface RevisionCounts {
+  /** The section exists */
+  section: boolean;
+  "FRG->HCD": number;
+  "HCD->FRG": number;
+  kept: number;
+}
+
+/** Tagged lines (`- [FRG->HCD] …`, `- [HCD->FRG] …`, `- [kept] …`) under the revisions heading of decision_log.md. */
+export function countRevisions(decisionLog: string | null | undefined): RevisionCounts {
+  const out: RevisionCounts = { section: false, "FRG->HCD": 0, "HCD->FRG": 0, kept: 0 };
+  let inSection = false;
+  for (const line of (decisionLog ?? "").split(/\r?\n/)) {
+    if (/^#{1,2}\s/.test(line)) {
+      inSection = line.trim().startsWith(REVISIONS_HEADING);
+      if (inSection) out.section = true;
+      continue;
+    }
+    if (!inSection) continue;
+    const tag = line.match(/^\s*[-*]\s*\[(FRG\s*->\s*HCD|HCD\s*->\s*FRG|kept)\]/i)?.[1].replace(/\s/g, "").toUpperCase();
+    if (tag === "FRG->HCD") out["FRG->HCD"]++;
+    else if (tag === "HCD->FRG") out["HCD->FRG"]++;
+    else if (tag === "KEPT") out.kept++;
+  }
+  return out;
+}
+
 export interface CrossFinding {
   code: CrossCode;
   /** FRG node or Circuit ID the finding is about */

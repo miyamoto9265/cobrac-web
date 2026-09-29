@@ -29,6 +29,7 @@ import { join } from "node:path";
 import type {
   ArticleJobState,
   ArticleMeta,
+  CrossCode,
   JobRecord,
   ProjectRecord,
   ReasoningEffort,
@@ -50,6 +51,7 @@ import {
   type CanonRunInfo,
   type CanonSnapshot,
   LIT_MCP_SERVER,
+  ADJUSTMENT_CODES,
   CROSS_CODES,
   PROJECT_FILES,
   QUOTE_STATUSES,
@@ -99,6 +101,7 @@ import { ReferenceVerifier } from "./references.js";
 import { downloadDir, getJsonObject, projectPrefix, putObject, uploadDir } from "./s3sync.js";
 import {
   PHASES,
+  adjustmentPrompt,
   checkPhase,
   checkResearchStep,
   researchDone,
@@ -346,6 +349,16 @@ async function main() {
           accepted.add(phase);
           await syncStepStates();
           await persistState();
+        },
+        adjustPrompt: async (phase) => {
+          if (phase !== "FRG") return null;
+          const p = adjustmentPrompt(ctx, existsSync(paths.decisionLog) ? await readFile(paths.decisionLog, "utf8") : null);
+          if (!p || !ctx.adjustment) return null;
+          const counts = Object.entries(ctx.adjustment.before).filter(([c, n]) => n > 0 && ADJUSTMENT_CODES.includes(c as CrossCode));
+          await log(`The HCD and the FRG do not fit together yet (${counts.map(([c, n]) => `${c} ${n}`).join(", ")}); asked the agent for one adjustment turn.`, {
+            details: ctx.adjustment.findings.map((f) => `${f.code} ${f.message}`).join("\n"),
+          });
+          return freshThread ? { ...p, hidden: `${header(project)}\n\nReference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` } : p;
         },
       },
       startIdx,
