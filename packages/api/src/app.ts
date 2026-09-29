@@ -39,7 +39,12 @@ import {
   articleDownloadFileName,
   articleLocaleOfKey,
   articleMetaKey,
+  BIBLIOGRAPHY_FILE,
+  CSV_FILE_NAMES,
+  HCD_FILES,
+  PROJECT_FILES,
   braDownloadFileName,
+  buildTemplateXlsx,
   filterCodexModels,
   formatProjectId,
   isArticleStale,
@@ -51,10 +56,14 @@ import {
   projectDisplayName,
   projectNameKey,
   proposeProjectName,
+  templateDownloadFileName,
+  templateInputFromFiles,
+  templateXlsxKey,
 } from "@cobrac/shared";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
-import { deleteObject, encryptApiKey, enqueueRun, getObjectText, listArtifacts, presignDownload, putObjectText, stopEcsTask } from "./lib/aws.js";
+import { deleteObject, encryptApiKey, enqueueRun, getObjectText, listArtifacts, presignDownload, putObjectBytes, putObjectText, stopEcsTask } from "./lib/aws.js";
+import { loadBraTemplate } from "./lib/braTemplate.js";
 import {
   assignUserKey,
   findProjectByLegacyId,
@@ -549,10 +558,47 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const fileName =
     key === `output/${p.projectId}.bra.xlsx`
       ? braDownloadFileName(projectDisplayName(p), p.projectId)
-      : articleLocale
+      : key === templateXlsxKey(p.projectId)
+        ? templateDownloadFileName(projectDisplayName(p), p.projectId)
+        : articleLocale
         ? articleDownloadFileName(projectDisplayName(p), p.projectId, articleLocale)
         : undefined;
   const url = await presignDownload(u.userId, p.projectId, key, fileName);
+  return c.json({ url, expiresIn: 900 });
+});
+
+/**
+ * The BRA data in the official Template-v2-2.bra workbook. The worker writes it at the end of every job; projects
+ * finished before that (or whose file is older than the CoBRAC xlsx) get it built here from the workspace files.
+ */
+app.get("/projects/:id/artifacts/template-xlsx", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const P = p.projectId;
+  const items = await listArtifacts(u.userId, P);
+  const bra = items.find((a) => a.key === `output/${P}.bra.xlsx`);
+  if (!bra) throw notFound();
+  const key = templateXlsxKey(P);
+  const current = items.find((a) => a.key === key);
+  if (!current || current.lastModified < bra.lastModified) {
+    const ws = "workspace/";
+    const text = (rel: string) => getObjectText(u.userId, P, ws + rel);
+    const csv: Record<string, string | null> = {};
+    for (const f of CSV_FILE_NAMES) csv[f] = await text(`${P}_CSV/${f}`);
+    const input = templateInputFromFiles(
+      {
+        csv,
+        referencesJson: await text(`${P}_HCD/${HCD_FILES.references}`),
+        referenceCheckJson: await text(PROJECT_FILES.referenceCheck),
+        bibliographyJson: await text(`${P}_CSV/${BIBLIOGRAPHY_FILE}`),
+      },
+      { projectId: P, contributor: p.contributor, roi: p.roi },
+    );
+    if (!input) throw notFound();
+    const r = buildTemplateXlsx(await loadBraTemplate(), input);
+    await putObjectBytes(u.userId, P, key, r.bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  }
+  const url = await presignDownload(u.userId, P, key, templateDownloadFileName(projectDisplayName(p), P));
   return c.json({ url, expiresIn: 900 });
 });
 

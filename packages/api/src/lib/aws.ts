@@ -92,6 +92,20 @@ export async function getObjectText(userId: string, projectId: string, rel: stri
   }
 }
 
+export async function getObjectBytes(userId: string, projectId: string, rel: string): Promise<Uint8Array | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: projectPrefix(userId, projectId) + rel }));
+    return await r.Body!.transformToByteArray();
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+export async function putObjectBytes(userId: string, projectId: string, rel: string, body: Uint8Array, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: projectPrefix(userId, projectId) + rel, Body: body, ContentType: contentType }));
+}
+
 export async function putObjectText(userId: string, projectId: string, rel: string, body: string, contentType = "application/json"): Promise<void> {
   await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: projectPrefix(userId, projectId) + rel, Body: body, ContentType: contentType }));
 }
