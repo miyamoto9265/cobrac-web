@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockingConflicts, canonFromProject, diffCanon, emptyCanonSnapshot, mergeCanon, type CanonIncoming, type CanonSnapshot } from "../src/index.js";
+import { blockingConflicts, canonFromCanon, canonFromProject, diffCanon, emptyCanonSnapshot, mergeCanon, type CanonIncoming, type CanonSnapshot } from "../src/index.js";
 
 interface Uc {
   id: string;
@@ -223,5 +223,21 @@ describe("diffCanon: conflict rules", () => {
     const d = diffCanon(canon, again);
     expect(d.items.filter((i) => i.change === "dropped").map((i) => i.label)).toEqual(expect.arrayContaining([A44.id]));
     expect(mergeCanon(canon, again, d, {}, 2, "t").circuits.map((c) => c.circuitId)).toContain(A44.id);
+  });
+});
+
+describe("canonFromCanon", () => {
+  it("brings a Canon's head with its origins marked as coming through that Canon", () => {
+    const canon = canonWith(fine());
+    const inc = canonFromCanon(canon);
+    expect(inc.projectId).toBe("u7m2q9xa-c1");
+    expect(inc.circuits.every((c) => c.origin.via === "u7m2q9xa-c1@1" && c.origin.projectId === "u7m2q9xa-3")).toBe(true);
+    const target = canonWith(coarse());
+    const d = diffCanon(target, inc);
+    expect(d.conflicts.find((c) => c.code === "C1")).toBeTruthy();
+    // the sender's projects are not reported as affected; the target's own project is
+    expect(d.impacts.map((i) => i.projectId)).toEqual(["u7m2q9xa-1"]);
+    const next = mergeCanon(target, inc, d, { [d.conflicts.find((c) => c.code === "C1")!.id]: "incoming" }, 2, "t");
+    expect(next.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-1", "u7m2q9xa-3"]);
   });
 });

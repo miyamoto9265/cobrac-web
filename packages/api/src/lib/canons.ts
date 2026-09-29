@@ -1,6 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import type { CanonMemberRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
-import { CANON_MEMBER_PREFIX, CANON_META_SK, CANON_PR_PREFIX, CANON_REVISION_PREFIX, canonMemberSk, canonPrSk, nowIso } from "@cobrac/shared";
+import type { CanonMemberRecord, CanonOutgoingRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
+import { CANON_MEMBER_PREFIX, CANON_META_SK, CANON_OUT_PREFIX, CANON_PR_PREFIX, CANON_REVISION_PREFIX, canonMemberSk, canonPrSk, nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb, updateItem } from "./db.js";
 
@@ -251,4 +251,13 @@ export async function markCanonDeleted(canonId: string, ownerUserId: string): Pr
   );
   for (const m of await listCanonMembers(canonId)) await releaseProject(ownerUserId, m.projectId, canonId);
   return now;
+}
+
+/** Remembers, in the sending Canon, a pull request it sent to another Canon (the PR itself lives in the target). */
+export async function putOutgoing(o: CanonOutgoingRecord) {
+  await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: o }));
+}
+
+export async function listOutgoing(canonId: string): Promise<CanonOutgoingRecord[]> {
+  return (await queryPrefix<CanonOutgoingRecord>(canonId, CANON_OUT_PREFIX)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
