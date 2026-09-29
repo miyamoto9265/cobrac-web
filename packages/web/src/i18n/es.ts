@@ -262,7 +262,7 @@ export const es: Record<MessageKey, string> = {
   "sys.researchFix": "La comprobación de cobertura encontró {count} carencia(s); se pidió al agente que las complete.",
   "sys.researchWarn": "La revisión aún tiene {count} carencia(s) de cobertura; se construye el HCD con lo encontrado.",
   "sys.researchBudget": "El paso de investigación alcanzó su límite de tiempo ({minutes} min); se construye el HCD con lo encontrado.",
-  "sys.researchDone": "Paso de investigación terminado: {candidates} proyección(es) candidata(s), {supported} respaldada(s), {queries} búsquedas.",
+  "sys.researchDone": "Paso de investigación terminado ({minutes} min, {cost}): {candidates} proyección(es) candidata(s), {supported} respaldada(s), {queries} búsquedas.",
   "ws.article": "Artículo",
   "article.title": "Artículo explicativo",
   "article.intro": "Convierte los datos BRA terminados en un artículo legible en el idioma que elijas. Se basa en el HCD, el FRG, el informe y el registro de decisiones del proyecto, y solo cita sus referencias.",

@@ -260,7 +260,7 @@ export const en = {
   "sys.researchFix": "The research coverage check found {count} gap(s); asked the agent to fill them.",
   "sys.researchWarn": "The research survey still has {count} coverage gap(s); building the HCD with what was found.",
   "sys.researchBudget": "The research step reached its time budget ({minutes} min); building the HCD with what was found.",
-  "sys.researchDone": "Research step finished: {candidates} candidate projection(s), {supported} supported, {queries} searches.",
+  "sys.researchDone": "Research step finished in {minutes} min ({cost}): {candidates} candidate projection(s), {supported} supported, {queries} searches.",
   "ws.article": "Article",
   "article.title": "Explanatory article",
   "article.intro": "Turn the finished BRA data into an article you can read, in the language you choose. It is written from this project's HCD, FRG, report and decision log, and cites only the project's references.",

@@ -286,6 +286,31 @@ interface ResearchDoc {
   gaps: string;
 }
 
+// --- budget and metrics --------------------------------------------------------------------------------------------
+
+export type ResearchOutcome = "passed" | "gaps" | "budget";
+
+/** What the worker records about a research step (research_check.json `metrics`, the job's `researchStep`). */
+export interface ResearchStepMetrics {
+  outcome: ResearchOutcome;
+  model: string | null;
+  effort: ReasoningEffort;
+  startedAt: string;
+  endedAt: string;
+  minutes: number;
+  /** Turns run (first + fix turns), and whether the last one was cut off */
+  turns: number;
+  aborted: boolean;
+  /** Spend of the step (completed turns only: Codex reports no usage for an aborted turn); null for unpriced models */
+  costUsd: number | null;
+  usage: TokenUsage;
+  timeBudgetMinutes: number;
+  candidates: number;
+  supported: number;
+  /** Searches during the step by tool */
+  searches: Record<string, { ok: number; failed: number }>;
+}
+
 // --- estimate ------------------------------------------------------------------------------------------------------
 
 /**

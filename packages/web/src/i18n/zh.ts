@@ -262,7 +262,7 @@ export const zh: Record<MessageKey, string> = {
   "sys.researchFix": "调研覆盖检查发现 {count} 处不足；已要求代理补充。",
   "sys.researchWarn": "调研仍有 {count} 处覆盖不足；将基于已找到的内容构建 HCD。",
   "sys.researchBudget": "调研步骤已达到时间上限（{minutes} 分钟）；将基于已找到的内容构建 HCD。",
-  "sys.researchDone": "调研步骤完成：候选投射 {candidates} 个，其中有证据支持 {supported} 个，搜索 {queries} 次。",
+  "sys.researchDone": "调研步骤完成（{minutes} 分钟，{cost}）：候选投射 {candidates} 个，其中有证据支持 {supported} 个，搜索 {queries} 次。",
   "ws.article": "解说文章",
   "article.title": "解说文章",
   "article.intro": "将完成的 BRA 数据写成所选语言的可读文章。文章依据本项目的 HCD、FRG、报告和决策日志撰写，只引用本项目的参考文献。",

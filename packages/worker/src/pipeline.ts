@@ -5,7 +5,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchSummary, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
 import {
   DEFAULT_BRA_RULES,
   HARNESS_SCHEMAS,
@@ -281,11 +281,13 @@ export interface ResearchReport {
   checkedAt: string;
   /** Set once the research step is over (passed, out of fix turns or out of time); the HCD phase follows */
   done: boolean;
-  /** How the step ended: passed = no coverage gaps */
-  outcome: "passed" | "gaps" | "budget" | null;
+  /** How the step ended: passed = no coverage gaps; budget = cut off by the time budget */
+  outcome: ResearchOutcome | null;
   litTools: boolean;
   summary: ResearchSummary | null;
   problems: string[];
+  /** Time, spend and searches of the step (written when it ends) */
+  metrics?: ResearchStepMetrics;
 }
 
 const readText = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null);
@@ -300,9 +302,9 @@ export function researchDone(paths: ProjectPaths): boolean {
 }
 
 /** Coverage check of research.json against the search log; writes research_check.json. */
-export async function checkResearchStep(paths: ProjectPaths, litTools: boolean, end: ResearchReport["outcome"] = null): Promise<ResearchCheck> {
+export async function checkResearchStep(paths: ProjectPaths, litTools: boolean, end: ResearchReport["outcome"] = null, metrics?: ResearchStepMetrics): Promise<ResearchCheck> {
   const r = checkResearch(readText(paths.research), readText(paths.researchLog), { litTools });
-  const report: ResearchReport = { checkedAt: new Date().toISOString(), done: end !== null, outcome: end, litTools, summary: r.summary, problems: r.errors };
+  const report: ResearchReport = { checkedAt: new Date().toISOString(), done: end !== null, outcome: end, litTools, summary: r.summary, problems: r.errors, ...(metrics ? { metrics } : {}) };
   try {
     await writeFile(paths.researchCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
   } catch (e) {

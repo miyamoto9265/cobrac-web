@@ -262,7 +262,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.researchFix": "調研涵蓋檢查發現 {count} 處不足；已要求代理補充。",
   "sys.researchWarn": "調研仍有 {count} 處涵蓋不足；將以已找到的內容建立 HCD。",
   "sys.researchBudget": "調研步驟已達時間上限（{minutes} 分鐘）；將以已找到的內容建立 HCD。",
-  "sys.researchDone": "調研步驟完成：候選投射 {candidates} 個，其中有證據支持 {supported} 個，搜尋 {queries} 次。",
+  "sys.researchDone": "調研步驟完成（{minutes} 分鐘，{cost}）：候選投射 {candidates} 個，其中有證據支持 {supported} 個，搜尋 {queries} 次。",
   "ws.article": "解說文章",
   "article.title": "解說文章",
   "article.intro": "將完成的 BRA 資料寫成所選語言的可讀文章。文章依據本專案的 HCD、FRG、報告與決策紀錄撰寫，只引用本專案的參考文獻。",

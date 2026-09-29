@@ -262,7 +262,7 @@ export const ko: Record<MessageKey, string> = {
   "sys.researchFix": "조사 범위 점검에서 {count}건의 부족한 부분을 찾아 에이전트에게 보완을 요청했습니다.",
   "sys.researchWarn": "조사 범위에 아직 {count}건의 부족한 부분이 있지만, 찾은 범위로 HCD를 만듭니다.",
   "sys.researchBudget": "조사 단계가 시간 한도({minutes}분)에 도달했습니다. 찾은 범위로 HCD를 만듭니다.",
-  "sys.researchDone": "조사 단계 완료: 후보 투사 {candidates}건, 근거 있음 {supported}건, 검색 {queries}회.",
+  "sys.researchDone": "조사 단계 완료({minutes}분, {cost}): 후보 투사 {candidates}건, 근거 있음 {supported}건, 검색 {queries}회.",
   "ws.article": "해설 기사",
   "article.title": "해설 기사",
   "article.intro": "완성된 BRA 데이터를 선택한 언어로 읽을 수 있는 기사로 만듭니다. 이 프로젝트의 HCD, FRG, 보고서, 결정 로그를 바탕으로 작성되며 프로젝트의 참고 문헌만 인용합니다.",

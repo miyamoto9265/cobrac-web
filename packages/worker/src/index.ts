@@ -15,9 +15,10 @@
  *   - article : restore the workspace read-only and write an explanatory article in the requested language on a
  *               fresh thread (article.ts); the BRA data, step states, revision and project thread stay untouched
  *
- * Research mode (on by default for new projects): before the HCD, a research step surveys the literature into
- * research.json with the `lit` MCP tools (PubMed / Europe PMC) at a raised reasoning effort, within a time budget, and
- * a coverage check sends gaps back as fix turns (pipeline.ts runResearch). The HCD / FRG validators are unchanged.
+ * The `lit` MCP tools (PubMed / Europe PMC, litMcp.ts) are available in every BRA run. Research mode (on by default for
+ * new projects) adds a research step before the HCD: a literature survey into research.json at a raised reasoning
+ * effort within a time budget, and a coverage check that sends gaps back as fix turns (pipeline.ts runResearch).
+ * The HCD / FRG validators are unchanged.
  *
  * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
  */
@@ -25,9 +26,22 @@ import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, ReasoningEffort, StepState, WorkflowStep } from "@cobrac/shared";
+import type {
+  ArticleJobState,
+  ArticleMeta,
+  JobRecord,
+  ProjectRecord,
+  ReasoningEffort,
+  ResearchCheck,
+  ResearchOutcome,
+  ResearchStepMetrics,
+  StepState,
+  TokenUsage,
+  WorkflowStep,
+} from "@cobrac/shared";
 import {
   DEFAULT_BRA_RULES,
+  EMPTY_USAGE,
   LIT_MCP_SERVER,
   PROJECT_FILES,
   QUOTE_STATUSES,
@@ -166,7 +180,10 @@ async function main() {
 
   // --- codex ----------------------------------------------------------------
   research = isResearchMode(project);
-  const codex = createCodex(apiKey, rcsConn, { lit: research });
+  // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
+  const codex = createCodex(apiKey, rcsConn, { lit: true });
+  jobUsage = job.usage ?? EMPTY_USAGE;
+  jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
@@ -200,13 +217,11 @@ async function main() {
       if (item.server === LIT_MCP_SERVER) await recordSearch(item);
     },
   };
-  if (research) {
-    const onMessage = sink.onMessage;
-    sink.onMessage = async (type, content, meta) => {
-      if (type === "web_search") await recordSearch({ tool: "web_search", arguments: { query: content }, status: "completed" });
-      await onMessage(type, content, meta);
-    };
-  }
+  const onMessage = sink.onMessage;
+  sink.onMessage = async (type, content, meta) => {
+    if (type === "web_search") await recordSearch({ tool: "web_search", arguments: { query: content }, status: "completed" });
+    await onMessage(type, content, meta);
+  };
 
   /**
    * One agent turn on the project thread (`effort` overrides the reasoning effort for this turn only).
@@ -361,6 +376,7 @@ async function main() {
     process.exitCode = 1;
   } finally {
     clearInterval(heartbeat);
+    console.log(`[metrics] ${JSON.stringify({ jobId, mode, research, model: resolvedModel, usage: jobUsage, costUsd: jobCostUsd, minutes: Math.round((Date.now() - startedAt) / 6_000) / 10, searches: searchCounts })}`);
   }
 }
 
@@ -500,20 +516,62 @@ type AgentTurnFn = (p: Prompt, o?: { effort?: ReasoningEffort; budget?: AbortSig
 
 /** Research step before the HCD: survey turn + coverage fix turns at a raised effort, cut off by the time budget. */
 async function researchStep(project: ProjectRecord, first: Prompt | null, turn: AgentTurnFn): Promise<"done" | "stopped"> {
-  const budgetMs = Math.max(1, env.researchTimeBudgetMin) * 60_000;
+  const time = { minutes: Math.max(1, env.researchTimeBudgetMin) };
+  const budgetMs = time.minutes * 60_000;
   const budget = AbortSignal.timeout(budgetMs);
-  const deadline = Date.now() + budgetMs;
+  const started = Date.now();
+  const deadline = started + budgetMs;
   const effort = researchEffort(resolvedEffort as ReasoningEffort | null);
-  await log(`Research step: surveying the literature before the HCD (up to ${env.researchTimeBudgetMin} min, reasoning effort ${effort}).`, {
+  const usageAtStart = jobUsage;
+  const costAtStart = jobCostUsd ?? 0;
+  const searchesAtStart = structuredClone(searchCounts);
+  let turns = 0;
+  let aborted = false;
+  const spent = () => (jobCostUsd === null ? null : Math.max(0, jobCostUsd - costAtStart));
+  console.log(`[research] start model=${resolvedModel} effort=${effort} budget=${time.minutes}min`);
+  await log(`Research step: surveying the literature before the HCD (up to ${time.minutes} min, reasoning effort ${effort}).`, {
     i18n: "sys.researchStart",
-    minutes: env.researchTimeBudgetMin,
+    minutes: time.minutes,
     effort,
   });
+  const metrics = (outcome: ResearchOutcome, c: ResearchCheck): ResearchStepMetrics => {
+    const searches: ResearchStepMetrics["searches"] = {};
+    for (const [tool, n] of Object.entries(searchCounts)) {
+      const before = searchesAtStart[tool] ?? { ok: 0, failed: 0 };
+      if (n.ok - before.ok || n.failed - before.failed) searches[tool] = { ok: n.ok - before.ok, failed: n.failed - before.failed };
+    }
+    const c0 = spent();
+    return {
+      outcome,
+      model: resolvedModel,
+      effort,
+      startedAt: new Date(started).toISOString(),
+      endedAt: nowIso(),
+      minutes: Math.round((Date.now() - started) / 6_000) / 10,
+      turns,
+      aborted,
+      costUsd: c0 === null ? null : Math.round(c0 * 10_000) / 10_000,
+      usage: subtractUsage(jobUsage, usageAtStart),
+      timeBudgetMinutes: time.minutes,
+      candidates: c.summary?.candidates ?? 0,
+      supported: c.summary?.byStatus.supported ?? 0,
+      searches,
+    };
+  };
   return runResearch(
     {
       maxFixTurns: RESEARCH_BUDGET.maxFixTurns,
-      turn: (p) => turn(p, { effort, budget }),
-      check: (end) => checkResearchStep(paths, true, end ?? null),
+      turn: async (p) => {
+        turns++;
+        const r = await turn(p, { effort, budget });
+        if (r === "budget") aborted = true;
+        return r;
+      },
+      check: async (end) => {
+        if (!end) return checkResearchStep(paths, true, null);
+        const c = await checkResearchStep(paths, true, null);
+        return checkResearchStep(paths, true, end, metrics(end, c));
+      },
       prompt: () => researchPrompt(project),
       fixPrompt: (errors, attempt) => researchFixPrompt(errors, attempt),
       timeForFix: () => deadline - Date.now() >= RESEARCH_BUDGET.minMinutesForFix * 60_000,
@@ -525,10 +583,13 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
         }),
       onEnd: async (outcome, c) => {
         await persistState();
+        const m = metrics(outcome, c);
+        console.log(`[research] end ${JSON.stringify(m)}`);
+        await updateJob(projectId, jobId, { researchStep: m });
         if (outcome === "budget") {
-          await log(`The research step reached its time budget (${env.researchTimeBudgetMin} min); building the HCD with what was found.`, {
+          await log(`The research step reached its time budget (${time.minutes} min); building the HCD with what was found.`, {
             i18n: "sys.researchBudget",
-            minutes: env.researchTimeBudgetMin,
+            minutes: time.minutes,
           });
         } else if (outcome === "gaps") {
           await log(`The research survey still has ${c.errors.length} coverage gap(s); building the HCD with what was found.`, {
@@ -537,13 +598,20 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
             details: c.errors.join("\n"),
           });
         }
-        const s = c.summary;
-        if (s) {
-          await log(
-            `Research step finished: ${s.candidates} candidate projection(s), ${s.byStatus.supported} supported, ${s.loggedSearches} searches (details in ${RESEARCH_FILES.check}).`,
-            { i18n: "sys.researchDone", candidates: s.candidates, supported: s.byStatus.supported, queries: s.loggedSearches },
-          );
-        }
+        const lit = Object.entries(m.searches).filter(([t]) => t !== "web_search").reduce((n, [, v]) => n + v.ok, 0);
+        const web = m.searches.web_search?.ok ?? 0;
+        await log(
+          `Research step finished in ${m.minutes} min (${m.costUsd === null ? "cost unknown" : formatUsd(m.costUsd)}): ${m.candidates} candidate projection(s), ${m.supported} supported; ${lit} literature-tool and ${web} web searches (details in ${RESEARCH_FILES.check}).`,
+          {
+            i18n: "sys.researchDone",
+            candidates: m.candidates,
+            supported: m.supported,
+            queries: lit + web,
+            minutes: m.minutes,
+            cost: m.costUsd === null ? "—" : formatUsd(m.costUsd),
+            details: JSON.stringify(m, null, 2),
+          },
+        );
       },
     },
     first,
@@ -587,13 +655,20 @@ function researchFixPrompt(errors: string[], attempt: number): Prompt {
 }
 
 const SEARCH_LOG_MAX_RESULT = 4_000;
+/** Calls of this job by tool, for the job record (`searches`) and the research metrics */
+const searchCounts: Record<string, { ok: number; failed: number }> = {};
+
 /** Every literature search of the agent (lit tools and web search), one JSON line each; the coverage check reads it. */
 async function recordSearch(item: { tool: string; arguments: unknown; status: string; result?: { structured_content: unknown } | null; error?: { message: string } }) {
   if (item.status === "in_progress") return;
+  const n = (searchCounts[item.tool] ??= { ok: 0, failed: 0 });
+  if (item.status === "failed") n.failed++;
+  else n.ok++;
   let result = item.result?.structured_content ?? null;
   const text = JSON.stringify(result);
   if (text && text.length > SEARCH_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, SEARCH_LOG_MAX_RESULT) };
-  const line = { at: nowIso(), tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
+  const step = lastStepStates ? currentStepOf(lastStepStates) : null;
+  const line = { at: nowIso(), jobId, step, tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
   try {
     await appendFile(paths.researchLog, JSON.stringify(line) + "\n", "utf8");
   } catch (e) {
@@ -819,6 +894,18 @@ async function syncStepStates() {
 
 let resolvedModel: string | null = null;
 let resolvedEffort: string | null = null;
+/** This job's usage and estimated cost so far (null cost: unpriced model) */
+let jobUsage: TokenUsage = EMPTY_USAGE;
+let jobCostUsd: number | null = 0;
+
+function subtractUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+  return {
+    inputTokens: a.inputTokens - b.inputTokens,
+    cachedInputTokens: a.cachedInputTokens - b.cachedInputTokens,
+    outputTokens: a.outputTokens - b.outputTokens,
+    reasoningOutputTokens: a.reasoningOutputTokens - b.reasoningOutputTokens,
+  };
+}
 
 async function accumulateUsage(u: { input: number; cachedInput: number; output: number; reasoningOutput: number }) {
   const j = await getJob(projectId, jobId);
@@ -829,9 +916,12 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
     reasoningOutputTokens: u.reasoningOutput,
   });
   const costUsd = estimateCostUsd(resolvedModel, usage);
+  jobUsage = usage;
+  jobCostUsd = costUsd;
   await updateJob(projectId, jobId, {
     usage,
     costUsd,
+    searches: searchCounts,
     model: resolvedModel,
     reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
   });

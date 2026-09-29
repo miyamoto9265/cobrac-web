@@ -284,6 +284,30 @@ describe("research step", () => {
     expect(researchDone(p)).toBe(true);
   });
 
+  it("keeps the step's metrics in research_check.json when it ends", async () => {
+    const p = workspace();
+    writeGood(p);
+    const metrics = {
+      outcome: "passed" as const,
+      model: "gpt-6-luna",
+      effort: "high" as const,
+      startedAt: "2026-09-29T00:00:00.000Z",
+      endedAt: "2026-09-29T00:20:00.000Z",
+      minutes: 20,
+      turns: 1,
+      aborted: false,
+      costUsd: 0.12,
+      usage: { inputTokens: 2_000_000, cachedInputTokens: 1_800_000, outputTokens: 60_000, reasoningOutputTokens: 30_000 },
+      timeBudgetMinutes: 60,
+      candidates: 1,
+      supported: 1,
+      searches: { search_pubmed: { ok: 1, failed: 0 }, search_europepmc: { ok: 1, failed: 0 } },
+    };
+    await checkResearchStep(p, true, "passed", metrics);
+    const report = JSON.parse(readFileSync(p.researchCheck, "utf8")) as ResearchReport;
+    expect(report).toMatchObject({ done: true, outcome: "passed", metrics });
+  });
+
   it("stops without marking the step done when the agent asks a question", async () => {
     const p = workspace();
     const d: ResearchDriver = {

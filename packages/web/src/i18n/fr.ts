@@ -262,7 +262,7 @@ export const fr: Record<MessageKey, string> = {
   "sys.researchFix": "La vérification de couverture a trouvé {count} lacune(s) ; l’agent a été invité à les combler.",
   "sys.researchWarn": "La revue présente encore {count} lacune(s) de couverture ; le HCD est construit avec ce qui a été trouvé.",
   "sys.researchBudget": "L’étape de recherche a atteint son budget de temps ({minutes} min) ; le HCD est construit avec ce qui a été trouvé.",
-  "sys.researchDone": "Étape de recherche terminée : {candidates} projection(s) candidate(s), {supported} étayée(s), {queries} recherches.",
+  "sys.researchDone": "Étape de recherche terminée ({minutes} min, {cost}) : {candidates} projection(s) candidate(s), {supported} étayée(s), {queries} recherches.",
   "ws.article": "Article",
   "article.title": "Article explicatif",
   "article.intro": "Transforme les données BRA terminées en un article lisible, dans la langue choisie. Il s’appuie sur le HCD, le FRG, le rapport et le journal des décisions du projet, et ne cite que ses références.",

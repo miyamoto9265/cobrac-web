@@ -262,7 +262,7 @@ export const de: Record<MessageKey, string> = {
   "sys.researchFix": "Die Abdeckungsprüfung der Recherche fand {count} Lücke(n); der Agent wurde gebeten, sie zu schließen.",
   "sys.researchWarn": "Die Recherche hat noch {count} Abdeckungslücke(n); das HCD wird mit dem Gefundenen erstellt.",
   "sys.researchBudget": "Der Rechercheschritt hat sein Zeitbudget ({minutes} Min.) erreicht; das HCD wird mit dem Gefundenen erstellt.",
-  "sys.researchDone": "Rechercheschritt abgeschlossen: {candidates} Projektionskandidat(en), {supported} belegt, {queries} Suchen.",
+  "sys.researchDone": "Rechercheschritt abgeschlossen ({minutes} Min., {cost}): {candidates} Projektionskandidat(en), {supported} belegt, {queries} Suchen.",
   "ws.article": "Artikel",
   "article.title": "Erklärartikel",
   "article.intro": "Macht aus den fertigen BRA-Daten einen lesbaren Artikel in der gewählten Sprache. Er beruht auf HCD, FRG, Bericht und Entscheidungsprotokoll dieses Projekts und zitiert nur dessen Literatur.",

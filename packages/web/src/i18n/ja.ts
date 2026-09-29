@@ -262,7 +262,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.researchFix": "調査範囲の点検で {count} 件の不足が見つかりました。エージェントに補うよう指示しました。",
   "sys.researchWarn": "調査範囲にまだ {count} 件の不足がありますが、見つかった範囲で HCD を作ります。",
   "sys.researchBudget": "調査ステップが時間の上限（{minutes} 分）に達しました。見つかった範囲で HCD を作ります。",
-  "sys.researchDone": "調査ステップが終わりました: 候補の投射 {candidates} 件、うち裏付けあり {supported} 件、検索 {queries} 回。",
+  "sys.researchDone": "調査ステップが終わりました（{minutes} 分、{cost}）: 候補の投射 {candidates} 件、うち裏付けあり {supported} 件、検索 {queries} 回。",
   "ws.article": "解説記事",
   "article.title": "解説記事",
   "article.intro": "完成した BRA データを、選んだ言語の読みものにします。このプロジェクトの HCD・FRG・レポート・判断ログをもとに書かれ、引用はプロジェクトの参考文献だけです。",
