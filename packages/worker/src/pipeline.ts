@@ -148,7 +148,7 @@ export interface CheckDeps {
   canon?: {
     snapshot: CanonSnapshot;
     info: CanonRunInfo;
-    /** Advisory findings (and every finding in advisory mode); shown to the user, not sent back as errors */
+    /** Smaller differences from the Canon; shown to the user, not sent back as errors */
     onNotes?: (notes: string[]) => Promise<void>;
   };
   /** Called with meta.json once the HCD passes every check */
@@ -285,7 +285,7 @@ async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths
   }
 }
 
-/** Conflicts with the pinned Canon revision (strict: errors; advisory: notes only). */
+/** Conflicts with the pinned Canon revision: rule violations are errors, smaller differences notes. */
 async function checkCanon(paths: ProjectPaths, deps: CheckDeps): Promise<string[]> {
   if (!deps.canon) return [];
   const f = loadHcdFiles(paths);

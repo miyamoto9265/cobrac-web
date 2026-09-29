@@ -78,8 +78,6 @@ export function resolveSystemMessage(content: string, meta?: Record<string, unkn
   const m = meta ?? undefined;
   if (m && typeof m.i18n === "string") {
     if (m.i18n === "sys.usage") return usageFromMeta(m) ?? { key: "sys.usage", vars: varsFromMeta(m) };
-    // `mode` means the run mode elsewhere; only the Canon notice uses it as the constraint strength
-    if (m.i18n === "sys.canonLoaded" && typeof m.mode === "string") return { key: m.i18n, vars: { ...varsFromMeta(m), mode: m.mode } };
     return { key: m.i18n, vars: varsFromMeta(m) };
   }
   if (m && typeof m.stepDone === "string") return { key: "sys.stepDone", vars: { step: m.stepDone } };

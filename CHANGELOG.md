@@ -5,15 +5,22 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- A user guide "Research mode and Canons" (English and Japanese) on the Documentation page: what research mode does, what a Canon is, choosing or seeding a Canon on the create screen, how a Canon constrains generation, revisions and updates, push and pull requests, the public library and cloning. The create, Canon, pull request and public library screens link to it ("Guide")
+- A "?" next to labels shows their explanation: on hover and keyboard focus on desktop, on tap on phones; Escape or a tap elsewhere closes it, and screen readers read it with the button
+
 ### Changed
 - The agent splits a region into Collections whenever it is anatomically or functionally heterogeneous at the chosen granularity — e.g. a whole gyrus with several distinct areas, or parts that are different projection sources — without needing layer or cell-type evidence; the parts must be named and the split justified (a Collection's comment is now required). A parent Collection stays a recommendation
 - A sender that spans several SABRA units (a whole gyrus / BNA group or several anchors) goes back to the agent unless it is split into its parts or its `uniformityNote` explains why this project treats it as one population; the note is written into the Circuits comments. A gyrus and one of its areas can no longer both be UCs
 - The literature survey also looks for which part of a large region sends or receives each projection
 - When the FRG cannot be built from the HCD as it is, the agent may now go back and split or add HCD UCs (backed by the literature) instead of only reshaping the FRG. When the HCD ↔ FRG check finds a collapsed FRG (the TLF directly on UCs, a single group node, fewer than three ROI-internal UCs) or interfaces that disagree with the connections or the ROI tags, the harness asks the agent for one adjustment turn after the FRG step. The agent records each change and its reason under "HCD-FRG revisions" in the decision log, and `cross_check.json` keeps the findings that triggered the turn and the counts of recorded revisions
 - The HCD ↔ FRG record also notes ROI-internal UCs that are a whole gyrus-level BNA group or span several SABRA units (a hint that the HCD may be too coarse; recorded only), and the decision log's revisions section has an `[instruction]` tag for changes a follow-up instruction asked for, so that they are counted apart from changes one graph required of the other
+- Screens show short labels; the explanations moved behind "?" or into the guide: research mode (the label is just "Research mode", with the time and cost estimate on one line), reference materials, the Run button, the Canon section of the create screen, the Canon list, empty Canon contents, pushing to a Canon, sending a pull request to another Canon, the project's Canon badge (update vs align), the public library and cloning, and the settings (API key, Contributor, default model)
+- Clearer wording in all languages: the Canon choice on the create screen reads "None / An existing Canon / A new Canon from existing projects", seeds are "projects to start from (top first)", conflicts between them are settled with "higher-priority project / this project", the badge says "newer revision / Update to latest / Align with Canon", and the Japanese screens say "PR" instead of "取り込み依頼"
+- Every Canon now works the same way: conflicts with the Canon (Uniform vs Collection, a different decomposition, a finer circuit next to a Uniform one, Circuit ID ↔ descriptor, connections ending on a Collection, official names, Reference IDs) always go back to the agent to fix. The "constraint strength" choice (strict / advisory) is gone from the create and edit forms; Canons created as advisory, including existing ones, now behave the same, and a mode sent by an older client is ignored. The chat notice that a run follows a Canon no longer names a strength
 
 ### Fixed
-- The chat notice that a run follows a Canon showed "rev {revision} ({mode})" instead of the revision and the constraint strength (also for notices already stored)
+- The chat notice that a run follows a Canon showed "rev {revision}" instead of the revision number (also for notices already stored); it no longer mentions a constraint strength
 - A clone of a project that was running or had failed kept its steps spinning as "running"; copied steps are now done or pending
 - Pull requests listed connections and BIF entries with doubled brackets ("[[Catani, 2005]]")
 - After approving, rejecting or withdrawing a pull request, the result message at the top of the page was out of view; the page now scrolls up to it

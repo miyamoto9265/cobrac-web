@@ -1,8 +1,9 @@
 import { ArrowLeft, Layers, Plus, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { CanonConstraintMode, CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
+import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
+import { HelpLink, HelpTip } from "../components/HelpTip";
 import { SendCanonPr } from "../components/SendCanonPr";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
@@ -10,7 +11,7 @@ import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
-import { ConstraintModeSelect, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
+import { PolicyLabel, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { publicCanonPath } from "./ExplorePage";
 import { workspacePath } from "./ProjectWorkspacePage";
 
@@ -20,16 +21,15 @@ function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSave
   const [name, setName] = useState(c.name);
   const [description, setDescription] = useState(c.description);
   const [policy, setPolicy] = useState(c.policy);
-  const [mode, setMode] = useState<CanonConstraintMode>(c.constraintMode);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const dirty = name !== c.name || description !== c.description || policy !== c.policy || mode !== c.constraintMode;
+  const dirty = name !== c.name || description !== c.description || policy !== c.policy;
 
   const save = async () => {
     setBusy(true);
     setMsg(null);
     try {
-      await api.updateCanon(c.canonId, { name, description, policy, constraintMode: mode });
+      await api.updateCanon(c.canonId, { name, description, policy });
       setMsg({ ok: true, text: t("canon.saved") });
       onSaved();
     } catch (e) {
@@ -46,15 +46,14 @@ function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSave
         <span className="mb-1 block text-xs text-slate-500">{t("canon.name")}</span>
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} maxLength={200} />
       </label>
-      <label className="block">
-        <span className="mb-1 block text-xs text-slate-500">{t("canon.policy")}</span>
-        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={3} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} />
-      </label>
+      <div>
+        <PolicyLabel />
+        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={3} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} aria-label={t("canon.policy")} />
+      </div>
       <label className="block">
         <span className="mb-1 block text-xs text-slate-500">{t("canon.description")}</span>
         <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} className={inputCls} maxLength={2000} />
       </label>
-      <ConstraintModeSelect value={mode} onChange={setMode} />
       {msg && <div className={`rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div>
         <button type="button" disabled={busy || !dirty || !name.trim()} onClick={() => void save()} className={primaryBtn}>
@@ -189,7 +188,9 @@ function ContentsCard({ snapshot, revisions }: { snapshot: CanonSnapshot | null;
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
         <h2 className="mb-2 text-sm font-semibold">{t("canon.contents")}</h2>
-        <p className="text-sm text-slate-500">{t("canon.contentsEmpty")}</p>
+        <p className="flex items-center gap-1 text-sm text-slate-500">
+          {t("canon.contentsEmpty")} <HelpTip text={t("canon.contentsEmptyHelp")} />
+        </p>
       </section>
     );
   }
@@ -290,6 +291,7 @@ export function CanonDetailPage() {
             </h1>
             <span className="font-mono text-xs text-slate-400">{c.canonId}</span>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">{t("canon.revision", { n: c.headRevision })}</span>
+            <HelpLink section="canon" />
             <VisibilityToggle
               visibility={c.visibility}
               confirmText={t("vis.confirmCanon")}

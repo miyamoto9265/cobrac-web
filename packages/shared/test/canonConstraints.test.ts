@@ -66,7 +66,7 @@ function canonRev1(): CanonSnapshot {
   const inc = canonFromProject("u7m2q9xa-2", 3, fineFiles);
   return mergeCanon(base, inc, diffCanon(base, inc), {}, 1, "t1");
 }
-const info = (mode: "strict" | "advisory" = "strict"): CanonRunInfo => ({ canonId: "u7m2q9xa-c1", name: "Language", policy: "area × projection class", constraintMode: mode, revision: 1 });
+const info = (): CanonRunInfo => ({ canonId: "u7m2q9xa-c1", name: "Language", policy: "area × projection class", revision: 1 });
 
 describe("files and spec note for the agent", () => {
   it("writes circuits with Circuit IDs, connections, references and what the project already uses", () => {
@@ -80,25 +80,26 @@ describe("files and spec note for the agent", () => {
     expect(canonAgentFiles(canonRev1(), info(), "u7m2q9xa-9")["relevant.json"]).toBeUndefined();
   });
 
-  it("states the strength of the constraints", () => {
+  it("tells the agent that conflicts come back as problems to fix", () => {
     expect(canonSpecNote(info())).toContain("The validator enforces these rules");
-    expect(canonSpecNote(info("advisory"))).toContain("advisory");
+    expect(canonSpecNote(info())).not.toContain("advisory");
+    expect(canonAgentFiles(canonRev1(), info(), "u7m2q9xa-2")["README.md"]).not.toContain("Constraint strength");
   });
 });
 
 describe("canonGenerationProblems", () => {
   const coarse = files([uc("A44d@L", "BNA:29"), uc("A22c@L", "BNA:75")], [], [conn("A44d@L", "A22c@L")]);
 
-  it("turns rule violations into errors in strict mode", () => {
+  it("turns rule violations into errors", () => {
     const r = canonGenerationProblems(canonRev1(), info(), "u7m2q9xa-5", coarse);
     expect(r.errors.join("\n")).toContain("`bna:29` is a Collection in the Canon but a UC here");
     expect(r.errors.every((e) => e.startsWith('Canon "Language" rev 1: '))).toBe(true);
   });
 
-  it("only notes them in advisory mode", () => {
-    const r = canonGenerationProblems(canonRev1(), info("advisory"), "u7m2q9xa-5", coarse);
-    expect(r.errors).toEqual([]);
-    expect(r.notes.length).toBeGreaterThan(0);
+  it("ignores the constraint mode stored by 0.12.0 (an advisory Canon is checked like any other)", () => {
+    const legacy = { ...info(), constraintMode: "advisory" } as CanonRunInfo;
+    expect(canonGenerationProblems(canonRev1(), legacy, "u7m2q9xa-5", coarse)).toEqual(canonGenerationProblems(canonRev1(), info(), "u7m2q9xa-5", coarse));
+    expect(canonGenerationProblems(canonRev1(), legacy, "u7m2q9xa-5", coarse).errors.length).toBeGreaterThan(0);
   });
 
   it("accepts a project that follows the Canon, including a subset of a decomposition", () => {

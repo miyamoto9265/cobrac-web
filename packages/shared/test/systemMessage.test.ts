@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { harnessPromptNotice, isLegacyHarnessPrompt, normalizeStoredMessage, resolveSystemMessage } from "../src/systemMessage.js";
 
 describe("resolveSystemMessage", () => {
-  it("passes the Canon revision and constraint strength to the Canon notice", () => {
+  it("passes the Canon revision to the Canon notice (and ignores the constraint strength stored by 0.12)", () => {
     expect(resolveSystemMessage("Canon ...", { i18n: "sys.canonLoaded", name: "Language", revision: 1, mode: "advisory" })).toEqual({
       key: "sys.canonLoaded",
-      vars: { name: "Language", revision: 1, mode: "advisory" },
+      vars: { name: "Language", revision: 1 },
     });
   });
 

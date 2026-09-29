@@ -6,6 +6,7 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 import { canonPullPath } from "../pages/CanonsPage";
 import { ConflictList, DiffSummary } from "./CanonDiffView";
+import { HelpLink, HelpTip } from "./HelpTip";
 
 /** "Push to Canon": previews the diff, then opens a pull request for the Canon's owner to review. */
 export function CanonPushButton({ projectId, disabled }: { projectId: string; disabled?: boolean }) {
@@ -57,13 +58,16 @@ export function CanonPushButton({ projectId, disabled }: { projectId: string; di
           <div
             role="dialog"
             aria-modal="true"
+            aria-label={t("pr.pushTitle")}
             className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl sm:p-5"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-1 flex items-center gap-2 text-base font-semibold">
-              <GitPullRequest size={18} /> {t("pr.pushTitle")}
-            </h2>
-            <p className="mb-3 text-xs text-slate-500">{t("pr.pushNote")}</p>
+            <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h2 className="flex items-center gap-2 text-base font-semibold">
+                <GitPullRequest size={18} /> {t("pr.pushTitle")} <HelpTip text={t("pr.pushNote")} />
+              </h2>
+              <HelpLink section="push" />
+            </div>
             {!diff && !err && (
               <div className="flex items-center gap-2 text-sm text-slate-500">
                 <Loader2 size={14} className="animate-spin" /> {t("loading")}

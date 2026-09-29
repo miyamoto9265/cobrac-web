@@ -6,6 +6,7 @@ import { AttachmentPicker, EMPTY_ATTACHMENTS, attachmentRequest, attachmentsBusy
 import { DEFAULT_CODEX_MODEL, formatUsd, researchModeEstimate } from "@cobrac/shared";
 import { CanonChoice, canonChoiceReady, canonRequest, initialCanonChoice, type CanonChoiceState } from "../components/CanonChoice";
 import { ChatTimeline } from "../components/ChatTimeline";
+import { HelpLink, HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
 import { useI18n } from "../i18n";
@@ -107,19 +108,19 @@ function NewProject() {
           </div>
           <ResearchToggle on={research} onChange={setResearch} model={model || me?.defaultModel || DEFAULT_CODEX_MODEL} />
           <CanonChoice value={canon} onChange={setCanon} disabled={busy} />
-          <ul className="mt-4 space-y-0.5 text-xs text-slate-500" data-testid="create-meta">
-            <li>{t("chat.autoName")}</li>
-            <li>
-              {contribBefore}
-              <Link to="/settings" className="underline hover:text-slate-700">
-                {t("chat.settingsLink")}
-              </Link>
-              {contribAfter}
-            </li>
-          </ul>
+          <p className="mt-4 text-xs text-slate-500" data-testid="create-meta">
+            {contribBefore}
+            <Link to="/settings" className="underline hover:text-slate-700">
+              {t("chat.settingsLink")}
+            </Link>
+            {contribAfter}
+          </p>
           {err && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
           <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
             {uploading && <span className="text-center text-xs text-slate-500 sm:text-right">{t("attach.wait")}</span>}
+            <span className="hidden sm:inline-flex">
+              <HelpTip text={`${t("chat.runHelp")}\n${t("chat.autoName")}`} />
+            </span>
             <button
               onClick={() => void submit()}
               disabled={busy || uploading || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered || !canonChoiceReady(canon)}
@@ -129,7 +130,9 @@ function NewProject() {
             </button>
           </div>
         </div>
-        <p className="mt-4 max-w-3xl text-center text-xs text-slate-400">{t("chat.runHelp")}</p>
+        <p className="mt-3 flex max-w-3xl items-center justify-center gap-1.5 text-center text-xs text-slate-400 sm:hidden">
+          {t("chat.run")} <HelpTip text={`${t("chat.runHelp")}\n${t("chat.autoName")}`} />
+        </p>
       </div>
     </div>
   );
@@ -140,22 +143,21 @@ function ResearchToggle({ on, onChange, model }: { on: boolean; onChange: (v: bo
   const est = researchModeEstimate(model);
   const vars = { min: est.minutes[0], max: est.minutes[1], model };
   return (
-    <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5" data-testid="research-toggle">
-      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />
-      <span className="min-w-0 text-sm">
-        <span className="flex items-center gap-1.5 font-medium text-slate-800">
-          <BookOpenCheck size={15} className="text-blue-600" aria-hidden /> {t("chat.research")}
+    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="research-toggle">
+      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800 coarse:min-h-11">
+        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 shrink-0 accent-blue-600" />
+        <BookOpenCheck size={15} className="text-blue-600" aria-hidden /> {t("chat.research")}
+      </label>
+      <HelpTip text={t("chat.researchHelp")} />
+      {on && (
+        <span className="text-xs text-amber-700" data-testid="research-estimate">
+          {est.costUsd
+            ? t("chat.researchEstimate", { ...vars, cost: `${formatUsd(est.costUsd[0])}–${formatUsd(est.costUsd[1])}` })
+            : t("chat.researchEstimateNoPrice", vars)}
         </span>
-        <span className="mt-0.5 block text-xs text-slate-500">{on ? t("chat.researchHelp") : t("chat.researchOff")}</span>
-        {on && (
-          <span className="mt-1 block text-xs text-amber-700" data-testid="research-estimate">
-            {est.costUsd
-              ? t("chat.researchEstimate", { ...vars, cost: `${formatUsd(est.costUsd[0])}–${formatUsd(est.costUsd[1])}` })
-              : t("chat.researchEstimateNoPrice", vars)}
-          </span>
-        )}
-      </span>
-    </label>
+      )}
+      <HelpLink section="research" className="ml-auto" />
+    </div>
   );
 }
 

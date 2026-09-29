@@ -10,9 +10,6 @@ export const CANON_ID_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*$/;
 export const CANON_DESCRIPTION_MAX = 2000;
 export const CANON_POLICY_MAX = 2000;
 
-/** strict: Canon violations are errors the agent must fix; advisory: they are only warnings */
-export type CanonConstraintMode = "strict" | "advisory";
-export const CANON_CONSTRAINT_MODES: readonly CanonConstraintMode[] = ["strict", "advisory"];
 export type CanonVisibility = "private" | "public";
 
 /** `META` item of the Canons table (PK canonId, SK "META"). */
@@ -24,7 +21,8 @@ export interface CanonRecord {
   description: string;
   /** Granularity policy in prose (e.g. "neocortex: area × projection class"); given to the agent */
   policy: string;
-  constraintMode: CanonConstraintMode;
+  /** Written by 0.12.0 ("strict" / "advisory") and ignored since: every Canon's conflicts are errors to fix */
+  constraintMode?: string;
   visibility: CanonVisibility;
   /** Public Canons accept pull requests from other users' Canons unless this is false (absent = true) */
   acceptPullRequests?: boolean;
@@ -137,7 +135,6 @@ export interface CreateCanonRequest {
   name: string;
   description?: string;
   policy?: string;
-  constraintMode?: CanonConstraintMode;
 }
 
 export type UpdateCanonRequest = Partial<CreateCanonRequest>;
@@ -179,7 +176,6 @@ export type CreateProjectCanon =
       name: string;
       description?: string;
       policy?: string;
-      constraintMode?: CanonConstraintMode;
       /** Own project IDs in priority order (the first forms the base) */
       seeds: string[];
       /** Conflict ID → keep the earlier seed's value ("canon") or take the later one ("incoming") */

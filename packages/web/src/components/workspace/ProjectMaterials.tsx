@@ -5,6 +5,7 @@ import { useT } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes } from "../../lib/format";
 import { AttachmentIcon } from "../AttachmentPicker";
+import { HelpTip } from "../HelpTip";
 
 /** Reference materials the user attached at creation: files download through a presigned URL, URLs open in a new tab. */
 export function ProjectMaterials({ projectId, attachments }: { projectId: string; attachments: ProjectAttachment[] }) {
@@ -15,9 +16,8 @@ export function ProjectMaterials({ projectId, attachments }: { projectId: string
   };
   const row = "flex min-w-0 items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs coarse:min-h-11";
   return (
-    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 p-2" data-testid="project-materials">
-      <p className="mb-1.5 text-[11px] text-slate-500">{t("ws.materialsNote")}</p>
-      <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+    <div className="mt-2 flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-2" data-testid="project-materials">
+      <ul className="grid min-w-0 flex-1 grid-cols-1 gap-1 sm:grid-cols-2">
         {attachments.map((a) =>
           a.kind === "file" ? (
             <li key={a.id} className="min-w-0">
@@ -39,6 +39,7 @@ export function ProjectMaterials({ projectId, attachments }: { projectId: string
           ),
         )}
       </ul>
+      <HelpTip text={t("ws.materialsNote")} className="mt-1" />
     </div>
   );
 }

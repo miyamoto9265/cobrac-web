@@ -154,7 +154,7 @@ export const api = {
     request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls`, { sourceCanonId }),
   canonOutgoing: (id: string) => request<{ items: (CanonPullRequestRecord & { targetName: string })[] }>("GET", `/canons/${encodeURIComponent(id)}/outgoing`),
   projectCanon: (projectId: string) =>
-    request<{ canonId: string; name: string; constraintMode: string; pinned: number; head: number; state: "current" | "behind" | "affected"; affected: { key: string; label: string; reason: string }[]; alignInstruction: string }>(
+    request<{ canonId: string; name: string; pinned: number; head: number; state: "current" | "behind" | "affected"; affected: { key: string; label: string; reason: string }[]; alignInstruction: string }>(
       "GET",
       `/projects/${encodeURIComponent(projectId)}/canon`,
     ),

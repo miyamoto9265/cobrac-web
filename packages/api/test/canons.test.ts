@@ -93,16 +93,18 @@ describe("canons", () => {
     expect(c2.canonId).toBe("u7m2q9xa-c2");
     expect(b1.canonId).toBe("u3k8d0hn-c1");
     expect(c1.canonId).toMatch(CANON_ID_REGEX);
-    expect(c1).toMatchObject({ name: "言語野 （層水準）", policy: "新皮質は野 × 投射クラス\n皮質下は核全体", constraintMode: "strict", visibility: "private", headRevision: 0, memberCount: 0 });
-    expect(c2.constraintMode).toBe("advisory");
+    expect(c1).toMatchObject({ name: "言語野 （層水準）", policy: "新皮質は野 × 投射クラス\n皮質下は核全体", visibility: "private", headRevision: 0, memberCount: 0 });
+    // the constraint strength is gone: a mode in the request is ignored and not stored
+    expect(c1).not.toHaveProperty("constraintMode");
+    expect(c2).not.toHaveProperty("constraintMode");
 
     const list = await json<ListCanonsResponse>(call(A, "GET", "/canons"));
     expect(list.items.map((c) => c.canonId).sort()).toEqual(["u7m2q9xa-c1", "u7m2q9xa-c2"]);
   });
 
-  it("validates the name and the constraint mode", async () => {
+  it("validates the name and ignores a constraint mode", async () => {
     expect((await call(A, "POST", "/canons", { name: "  " })).status).toBe(400);
-    expect((await call(A, "POST", "/canons", { name: "x", constraintMode: "loose" })).status).toBe(400);
+    expect((await call(A, "POST", "/canons", { name: "x", constraintMode: "loose" })).status).toBe(201);
     expect((await call(A, "POST", "/canons", { name: "x", policy: "a\u0007" })).status).toBe(400);
   });
 

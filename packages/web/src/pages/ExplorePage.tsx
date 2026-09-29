@@ -2,6 +2,7 @@ import { Copy, Globe, Layers, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import type { PublicCanonSummary, PublicProjectSummary } from "@cobrac/shared";
+import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -35,10 +36,12 @@ export function ExplorePage() {
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <h1 className="mb-1 flex items-center gap-2 text-xl font-semibold">
-        <Globe size={20} /> {t("explore.title")}
-      </h1>
-      <p className="mb-4 max-w-3xl text-sm text-slate-600">{t("explore.intro")}</p>
+      <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h1 className="flex items-center gap-2 text-xl font-semibold">
+          <Globe size={20} /> {t("explore.title")} <HelpTip text={t("explore.intro")} />
+        </h1>
+        <HelpLink section="public" />
+      </div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button type="button" className={tabCls(tab === "projects")} onClick={() => setParams({})}>
           {t("explore.projects")} {projects ? `(${projects.length})` : ""}

@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import type { CanonChoice, CanonDiff, CanonPullRequestRecord } from "@cobrac/shared";
 import { blockingConflicts } from "@cobrac/shared";
 import { ConflictList, DiffItems, DiffSummary } from "../components/CanonDiffView";
+import { HelpLink } from "../components/HelpTip";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -86,6 +87,7 @@ export function CanonPullPage() {
             {t("pr.meta", { base: pr.baseRevision, rev: pr.sourceRevision, date: fmtDate(pr.createdAt, locale) })}
             {pr.mergedRevision ? ` · ${t("pr.merged", { n: pr.mergedRevision })}` : ""}
             {pr.reason ? ` · ${pr.reason}` : ""}
+            <HelpLink section="push" className="ml-2" />
           </div>
           {diff && (
             <>

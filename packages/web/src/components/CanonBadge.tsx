@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { canonPath } from "../pages/CanonsPage";
+import { HelpTip } from "./HelpTip";
 
 type Status = Awaited<ReturnType<typeof api.projectCanon>>;
 
@@ -70,6 +71,7 @@ export function CanonBadge({ projectId, canonId, busy = false, onFollowup }: { p
               <RefreshCw size={11} /> {t("follow.align")}
             </button>
           )}
+          <HelpTip text={t("follow.help")} />
         </>
       )}
       {err && <span className="text-[11px] text-rose-700">{err}</span>}
