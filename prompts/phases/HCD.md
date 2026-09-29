@@ -6,6 +6,7 @@ Build the HCD for the given ROI and TLF in `{P}/{P}_HCD/`. The HCD is a graph th
 
 - **TLF** (Top Level Function): the computational function the HCD explains. **ROI** (Region of Interest): the neural tissue that realizes it.
 - **UC** (Uniform Circuit): the node of the HCD; the smallest mesoscopic neural population that plausibly encodes homogeneous information. "Circuit" here just means *neural population* (not synaptic wiring). Each ROI-internal UC has an Interface, Output Semantics and function items.
+- **Collection**: a circuit this HCD decomposes into finer circuits (its Sub-Circuits). Uniform or Collection is a choice of this HCD, not a property of the tissue: the same SABRA unit may be a UC in a coarse HCD and a Collection in a finer one. A Collection has no Interface, Output Semantics or function items; it is never a sender or receiver of a connection and never an FRG leaf. It only records what the UCs belong to.
 - **BIF** (Brain Information Flow): literature evidence of anatomical projections. **Connection**: a directed UC-to-UC edge justified by BIF; connections determine interfaces.
 
 ## Steps and files
@@ -17,6 +18,7 @@ Files are in `{P}/` (`meta.json`, `decision_log.md`, `report.md`) and `{P}/{P}_H
 2. **BIF -> `references.json`, `connections.json` `bif`.** Survey projections relevant to the ROI thoroughly. List each projection between tissues (tissue names; note tissue outside the ROI, strength and excitatory/inhibitory nature in `comment`; prefer connections confirmed by several papers) and add every cited paper to `references.json` with its `literatureType`.
 
 3. **UCs -> `uc.json`.** Define UCs from the BIF. Criteria: involved in the TLF; encodes homogeneous information; appropriate mesoscopic granularity; **distinguish ROI-internal from external UCs (most important)**: set `roi` to `internal`, or to `noROI(input)` / `noROI(output)` / `noROI(input,output)` for every external UC. Name every UC (internal and external) by the UC naming rules below, using the `rcs` MCP tools. Start `names` with the SABRA official name of the anchor (the BNA area name from `search_bna_candidates`, or `sabra.dhba_name` from RCS; for a faceted UC, that name followed by the finer population), then synonyms separated by `;` (e.g. `dorsal area 44; Broca's area pars opercularis`). Set `sourceOfId` to one value (see File formats).
+   - **Collections -> `uc.json` `collections`.** Add one only where the HCD decomposes a circuit: when you split a SABRA unit (an area or nucleus) into facet UCs (layer, cell type, gene, projection), add that unit as a Collection with the anchor-only descriptor and Circuit ID (`BNA:29` / `A44d@L`) and those UCs as `subCircuits`, and connect only the UCs (when a paper reports only the whole unit, cite it on the UC connection with relation `<` and the paper's name for the unit). A UC and a finer UC of the same unit cannot both be UCs (the validator asks you to move the coarser one to `collections`). A higher grouping (e.g. a named network or loop of several units) only when it helps the reader; never a Collection per UC or per connection. A whole-unit UC that the HCD does not split needs no Collection. Keep Collections few: they are bookkeeping, not information processing.
 
 4. **Connections -> `connections.json` `connections`; interfaces in `uc.json`.** Map BIF projections onto UC-to-UC connections (one BIF entry may yield several connections and vice versa). Each connection record cites exactly one paper: when several papers support the same sender -> receiver, repeat the connection once per paper, each with that paper's taxon, measurement method and pointers. For every ROI-internal UC, fill `interface` as `([Out1], [Out2]) = <Circuit ID>([In1], [In2])`, where outputs are the receivers and inputs the senders of its connections (e.g. `([U.PC]) = GC([U.VN])`). External UCs: `interface` is `""`.
 
@@ -75,6 +77,8 @@ Circuit ID = `<anchor abbreviation>[@L|@R][(<item>,<item>)]`:
 | VTA DA cells projecting to NAc, encoding RPE | `HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe` | `VTA(DA,out:NAC,rpe)` |
 | hippocampal CA1 pyramidal cells (rostral + caudal) | `BNAG:Hipp/part:HOMBA:10297/cell:pyr` | `Hipp(CA1,pyr)` |
 
+A Collection that is a SABRA unit or a faceted population follows the same rules (descriptor and Circuit ID of that population); a grouping of several units has an empty descriptor and a short Circuit ID without spaces (e.g. `Mesolimbic-loop`).
+
 The validator checks the syntax, that the head (and side) equals the anchor's abbreviation from RCS / BNA, that items match the facets, and that no two UCs share a descriptor. Two UCs may not share a descriptor: if they are really different populations, add the facet that separates them. In JSON write them without backticks, in markdown wrap them in backticks; references inside text stay `[U.<Circuit ID>]` (e.g. `[U.NAC(shell,DRD1+)]`).
 
 ## File formats
@@ -89,7 +93,7 @@ Every key is required (use `""` for an empty value); schemas: `schemas/reference
 
 The worker looks up every DOI in Crossref / doi.org and every PMID in PubMed and checks that the record has the same first author, year (±1) and title; it also checks that every `[Author, Year]` in the JSON files and `report.md` is in `references.json` and that every reference is cited outside the report's bibliography. A DOI or PMID that does not exist, or that belongs to another paper, comes back as a problem to fix.
 
-`uc.json` - one entry per UC (fill progressively through steps 3-6).
+`uc.json` - `ucs`: one entry per UC (fill progressively through steps 3-6); `collections` (optional, omit or `[]` when the HCD decomposes nothing): one entry per Collection (step 3).
 
 - `sourceOfId`: one value (BRA Source of ID), never a list. A UC that is a whole DHBA term (HOMBA anchor, no facets): `DHBA`. A whole BNA area or group (BNA anchors only, no facets): `BNA` (a CoBRAC extension of the BRA list). A UC finer than its SABRA unit (facets) or spanning several units: the one Reference ID that defines that population, or `makeshift` when no paper does. Other supporting papers go into `comments` as `[Author, Year]` citations.
 - `names`: SABRA official name first, then synonyms separated by `;` (step 3).
@@ -105,6 +109,15 @@ The worker looks up every DOI in Crossref / doi.org and every PMID in PubMed and
   "outputSemantics": "[VTA(DA,out:NAC,rpe)] reward prediction error;",
   "requirement": "...", "requirementRealization": "...", "capability": "...", "mechanism": "...", "implementation": "..."
 } ] }
+```
+
+Collections: `circuitId`, `descriptor` (`""` for a grouping of several units), `names` (SABRA official name first for a SABRA unit), `sourceOfId` (always `collection`), `subCircuits` (Circuit IDs of UCs or other Collections in this file, at least one, no cycles, not all `makeshift`), `comments` (what it groups and why the HCD splits it):
+
+```json
+"collections": [ {
+  "circuitId": "A44d@L", "descriptor": "BNA:29", "names": "left dorsal area 44; Broca's area pars opercularis", "sourceOfId": "collection",
+  "subCircuits": ["A44d@L(L3,IT)", "A44d@L(L5,PT)"], "comments": "Split by projection class: cortico-cortical L3 IT and subcortical L5 PT outputs"
+} ]
 ```
 
 `connections.json` - `bif`: tissue-level projections from step 2; `connections`: UC-to-UC edges from step 4, whose `sender` / `receiver` are Circuit IDs from `uc.json` (not tissue names). One record per paper: `referenceIds` holds exactly one Reference ID, and `taxon`, `measurementMethod`, the pointers and the literature notations describe that paper. `comment`: property and information carried (add species or method details there).
