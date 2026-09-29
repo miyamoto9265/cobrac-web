@@ -242,6 +242,27 @@ describe("Template-v2-2 export", () => {
     expect(wb).toContain('<calcPr fullCalcOnLoad="1"/>');
   });
 
+  it("writes Collection rows (Uniform = FALSE, Sub-Circuits) as Circuits of the template", () => {
+    const input = modernInput({ refs: 4, ucs: 4, conns: 2 });
+    const circuits = toCsv([
+      ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", "UC Descriptor", "Sub-Circuits", "Uniform"],
+      [`ROI_${P}`, "collection", "Ventral striatum", "", "", "Region of interest of the project", "", "VTA;A9/46d", "FALSE"],
+      ["VTA", "collection", "ventral tegmental area", "", "", "", "HOMBA:12261", "VTA(DRD2+);VTA(DRD1+)", "FALSE"],
+      ["A9/46d", "collection", "dorsal area 9/46", "", "", "", "BNA:23-24", "A9/46d@L", "FALSE"],
+      ["VTA(DRD2+)", "makeshift", "VTA DRD2 neurons", "Dopamine", "Modulatory", "", "HOMBA:12261/mol:DRD2+", "", "TRUE"],
+      ["VTA(DRD1+)", "makeshift", "VTA DRD1 neurons", "Dopamine", "Modulatory", "", "HOMBA:12261/mol:DRD1+", "", "TRUE"],
+      ["A9/46d@L", "BNA", "left dorsal area 9/46", "Glutamate", "Excitatory", "", "BNA:23", "", "TRUE"],
+    ]);
+    const r = buildTemplateXlsx(TEMPLATE, { ...input, csv: { ...input.csv, circuits } });
+    const s = readTemplateSheet(r.bytes, "Circuits");
+    const row = (n: number, cols: string[]) => cols.map((c) => s.get(`${c}${n}`)?.text ?? "");
+    expect(row(3, ["A", "B", "D", "E", "S", "U", "V"])).toEqual(["VTA", "collection", "2540", "ventral tegmental area", "VTA(DRD2+);VTA(DRD1+)", "FALSE", ""]);
+    expect(row(4, ["A", "D", "S", "U"])).toEqual(["A9/46d", "", "A9/46d@L", "FALSE"]);
+    expect(row(5, ["A", "D", "U", "V"])).toEqual(["VTA(DRD2+)", "2540.1", "TRUE", "Dopamine"]);
+    expect(row(6, ["A", "D"])).toEqual(["VTA(DRD1+)", "2540.2"]);
+    expect(s.get("AO2")!.text).toBe(`ROI_${P};\nVTA;\nVTA(DRD2+);\nVTA(DRD1+);\nA9/46d;\nA9/46d@L;`);
+  });
+
   it("keeps the ROI row of the CSV even when it was written under an earlier Project ID", () => {
     const input = modernInput({ refs: 4, ucs: 4, conns: 2 });
     const r = buildTemplateXlsx(TEMPLATE, { ...input, projectId: "u7m2q9xa-9" });
