@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-09-29
+
+### Added
+- A new article on the Documentation page, "CoBRAC harness v1.1 → v2" (English and Japanese, with a language switch): how the harness stopped being one-way — the HCD ↔ FRG consistency checks X1–X9, the adjustment turn, going back from the FRG to split or add HCD UCs, the revisions log and the re-validation of a changed HCD — and what else it gained since v1.1: the research step and literature tools, reference and quote checks, BRA spec compliance, Collections, the Template-v2-2 workbook, Canon constraints, reference materials and the handling of rate limits and oversized conversations. It has before / after diagrams of the pipeline, the language-area results (v0, 0.11.0 and the back-edge trial) and the points still open. The design spec now calls the harness v2 from app 0.13.0
+
 ## [0.13.0] - 2026-09-29
 
 ### Added
