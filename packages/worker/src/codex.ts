@@ -55,6 +55,9 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null, op
     },
     config: {
       show_raw_agent_reasoning: false,
+      // compact the conversation before one request outgrows the organisation's tokens-per-minute limit (Codex does not
+      // know every model's context window and would otherwise let the thread grow until a request is refused)
+      model_auto_compact_token_limit: env.codexAutoCompactTokens,
       shell_environment_policy: { exclude: [RCS_TOKEN_ENV] },
       ...(Object.keys(mcpServers).length ? { mcp_servers: mcpServers } : {}),
     },
@@ -101,10 +104,15 @@ const HEARTBEAT_MS = 45_000;
 const RATE_LIMIT_RESUME_PROMPT =
   "The previous turn stopped on a temporary OpenAI rate limit before it finished. Continue the same task from where it stopped (check the files you already wrote instead of redoing them), then end the turn as instructed.";
 
-/** Rate limits (TPM / RPM, HTTP 429) pass with time; an exhausted quota or billing problem does not. */
+/** Rate limits (TPM / RPM, HTTP 429) pass with time; an exhausted quota, a billing problem or a too large request does not. */
 export function isRateLimitError(message: string | null): boolean {
-  if (!message || /quota|billing/i.test(message)) return false;
+  if (!message || /quota|billing/i.test(message) || isRequestTooLarge(message)) return false;
   return /rate.?limit|too many requests|\b429\b|tokens per min|requests per min/i.test(message);
+}
+
+/** One request is larger than the tokens-per-minute limit: waiting never helps, only a smaller conversation does. */
+export function isRequestTooLarge(message: string | null): boolean {
+  return !!message && /request too large|input or output tokens must be reduced|context_length_exceeded|maximum context length/i.test(message);
 }
 
 /** Pause before resuming a rate-limited turn: the server's "try again in …" hint or exponential backoff, whichever is longer. */
@@ -143,12 +151,17 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
     const state: TurnState = { completed: false, failedMessage: null, lastError: null };
     const { events } = await thread.runStreamed(input, { outputSchema: TURN_OUTPUT_SCHEMA, ...(signal ? { signal } : {}) });
     let lastHeartbeat = Date.now();
-    for await (const ev of events) {
-      if (Date.now() - lastHeartbeat > HEARTBEAT_MS) {
-        lastHeartbeat = Date.now();
-        await sink.onHeartbeat();
+    try {
+      for await (const ev of events) {
+        if (Date.now() - lastHeartbeat > HEARTBEAT_MS) {
+          lastHeartbeat = Date.now();
+          await sink.onHeartbeat();
+        }
+        await handleEvent(ev, result, state, sink);
       }
-      await handleEvent(ev, result, state, sink);
+    } catch (e) {
+      // codex exec exits with code 1 after a failed turn; the turn's own error says why
+      if (!state.failedMessage || signal?.aborted) throw e;
     }
     result.threadId = thread.id ?? result.threadId;
     const error = state.failedMessage ?? (state.completed ? null : state.lastError);

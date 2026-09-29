@@ -16,6 +16,8 @@ beforeAll(async () => {
 
 const TPM =
   "rate limit exceeded: Rate limit reached for gpt-6-luna in organization org-x on tokens per min (TPM): Limit 200000, Used 118932, Requested 156060. Please try again in 22.497s. Visit https://platform.openai.com/account/rate-limits to learn more.";
+const TOO_LARGE =
+  "rate limit exceeded: Request too large for gpt-6-luna in organization org-x on tokens per min (TPM): Limit 200000, Requested 202304. The input or output tokens must be reduced in order to run successfully. Visit https://platform.openai.com/account/rate-limits to learn more.";
 const usage = { input_tokens: 10, cached_input_tokens: 5, output_tokens: 2, reasoning_output_tokens: 1 };
 const done = (text = '{"status":"done","message":"ok","question":null}'): ThreadEvent[] => [
   { type: "item.completed", item: { id: "m", type: "agent_message", text } },
@@ -105,6 +107,37 @@ describe("runTurn", () => {
     expect(r2).toMatchObject({ failed: true, errorMessage: "stream disconnected" });
   });
 
+  it("returns a request that is larger than the TPM limit as a failed turn at once, even when codex exec then exits with code 1", async () => {
+    const thread = {
+      id: "thread-1",
+      runStreamed: vi.fn(async () => ({
+        events: (async function* () {
+          yield { type: "error", message: `Reconnecting... 5/5 (${TOO_LARGE})` } as ThreadEvent;
+          yield { type: "turn.failed", error: { message: TOO_LARGE } } as ThreadEvent;
+          throw new Error("Codex Exec exited with code 1: Reading prompt from stdin...");
+        })(),
+      })),
+    } as unknown as Thread;
+    const sleep = vi.fn(async () => {});
+    const r = await codex.runTurn(thread, "go", sink().s, undefined, { sleep });
+    expect(r).toMatchObject({ failed: true, errorMessage: TOO_LARGE });
+    expect(sleep).not.toHaveBeenCalled();
+    expect(thread.runStreamed).toHaveBeenCalledTimes(1);
+  });
+
+  it("still throws when codex exec fails without a failed turn", async () => {
+    const thread = {
+      id: "thread-1",
+      runStreamed: vi.fn(async () => ({
+        events: (async function* () {
+          yield { type: "turn.started" } as ThreadEvent;
+          throw new Error("Codex Exec exited with code 1");
+        })(),
+      })),
+    } as unknown as Thread;
+    await expect(codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {} })).rejects.toThrow(/exited with code 1/);
+  });
+
   it("stops waiting when the job is cancelled during the pause", async () => {
     const { thread } = scriptedThread([[{ type: "turn.failed", error: { message: TPM } }], done()]);
     const abort = new AbortController();
@@ -121,6 +154,12 @@ describe("rate limit helpers", () => {
     expect(codex.isRateLimitError("You exceeded your current quota, please check your plan and billing details. (429)")).toBe(false);
     expect(codex.isRateLimitError("invalid_request_error")).toBe(false);
     expect(codex.isRateLimitError(null)).toBe(false);
+  });
+
+  it("tells a request larger than the limit from a rate limit that passes", () => {
+    expect(codex.isRequestTooLarge(TOO_LARGE)).toBe(true);
+    expect(codex.isRateLimitError(TOO_LARGE)).toBe(false);
+    expect(codex.isRequestTooLarge(TPM)).toBe(false);
   });
 
   it("waits for the server's hint or the backoff, whichever is longer, up to 3 minutes", () => {
