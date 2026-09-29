@@ -5,6 +5,7 @@ import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEve
 import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
+import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -285,6 +286,7 @@ function Workspace({ projectId }: { projectId: string }) {
                   setCloneCount(r.cloneCount);
                 }}
               />
+              {project.canonId && <CanonPushButton projectId={project.projectId} disabled={project.status !== "COMPLETED" || !project.hasArtifacts} />}
               <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />
             </div>
           </div>
