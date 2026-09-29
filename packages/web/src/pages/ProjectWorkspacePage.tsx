@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
@@ -11,6 +11,7 @@ import { Stepper } from "../components/Stepper";
 import { UsageBadge } from "../components/UsageBadge";
 import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
+import { ProjectMaterials } from "../components/workspace/ProjectMaterials";
 import { TablesView } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
@@ -63,6 +64,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [templateBusy, setTemplateBusy] = useState(false);
   const [showUsage, setShowUsage] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showMaterials, setShowMaterials] = useState(false);
   const chat = useChatDock();
 
   const loadArtifacts = useCallback(() => {
@@ -287,7 +289,20 @@ function Workspace({ projectId }: { projectId: string }) {
                 <UsageBadge usage={project.usage} costUsd={project.costUsd} model={project.usedModels?.join(", ") || project.model} />
                 {showUsage ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
+              {!!project.attachments?.length && (
+                <button
+                  type="button"
+                  onClick={() => setShowMaterials((v) => !v)}
+                  aria-expanded={showMaterials}
+                  data-testid="materials-toggle"
+                  className="flex items-center gap-1 hover:text-slate-800 coarse:py-1.5"
+                >
+                  <Paperclip size={12} /> {t("ws.materials", { n: project.attachments.length })}
+                  {showMaterials ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
+              )}
             </div>
+            {showMaterials && !!project.attachments?.length && <ProjectMaterials projectId={projectId} attachments={project.attachments} />}
             {showUsage && <UsageTable project={project} jobs={jobs} />}
           </div>
           <div className={`mt-1.5 overflow-x-auto ${showDetails || active ? "" : "max-lg:hidden"}`}>

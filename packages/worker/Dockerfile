@@ -22,7 +22,7 @@ RUN npm run build -w @cobrac/shared && npm run build -w @cobrac/worker \
 FROM node:22-bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl ripgrep \
+ && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl ripgrep poppler-utils \
  && rm -rf /var/lib/apt/lists/*
 COPY prompts/requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt

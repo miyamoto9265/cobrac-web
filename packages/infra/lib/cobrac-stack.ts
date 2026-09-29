@@ -66,7 +66,11 @@ export class CobracAgentsStack extends Stack {
       enforceSSL: true,
       versioned: false,
       removalPolicy: RemovalPolicy.RETAIN,
-      lifecycleRules: [{ abortIncompleteMultipartUploadAfter: Duration.days(3) }],
+      lifecycleRules: [
+        { abortIncompleteMultipartUploadAfter: Duration.days(3) },
+        // reference files uploaded from the create screen wait here until the project is created (then moved)
+        { id: "ExpireStagingUploads", prefix: "staging/", expiration: Duration.days(1) },
+      ],
     });
 
     const tableDefaults: Partial<dynamodb.TablePropsV2> = {
@@ -286,6 +290,10 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");
     artifacts.grantPut(apiFn, "users/*/output/*.template-v2-2.bra.xlsx");
     artifacts.grantDelete(apiFn, "users/*/graph/*.layout.json");
+    // reference materials: presigned browser uploads to staging/, moved into the project on create
+    artifacts.grantPut(apiFn, "staging/*");
+    artifacts.grantDelete(apiFn, "staging/*");
+    artifacts.grantPut(apiFn, "users/*/attachments/files/*");
     key.grantEncrypt(apiFn);
     jobQueue.grantSendMessages(apiFn);
     jobQueue.grantSendMessages(dispatcherFn);
@@ -378,6 +386,15 @@ export class CobracAgentsStack extends Stack {
         { httpStatus: 403, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: Duration.seconds(10) },
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: "/index.html", ttl: Duration.seconds(10) },
       ],
+    });
+
+    // browser uploads of reference materials (presigned POST from the web app). cobrac.site is an alias of this
+    // distribution set outside CDK (DNS is in the personal account); add any further served hostnames here.
+    artifacts.addCorsRule({
+      allowedMethods: [s3.HttpMethods.POST],
+      allowedOrigins: [`https://${distribution.distributionDomainName}`, "https://cobrac.site", "http://localhost:5173"],
+      allowedHeaders: ["*"],
+      maxAge: 3600,
     });
 
     const runtimeConfig = {

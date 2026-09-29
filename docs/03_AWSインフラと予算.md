@@ -68,7 +68,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | -------- | -------- |
 | DynamoDB Users / Projects / Jobs / Messages | On-Demand. Streams on Projects/Messages. PITR off. RETAIN |
 | DynamoDB WsConnections | On-Demand, TTL, DESTROY |
-| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, RETAIN |
+| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
 | S3 Web | Private, OAC, DESTROY + auto-empty |
 | SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
 

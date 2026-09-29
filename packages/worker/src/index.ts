@@ -40,6 +40,7 @@ import type {
   WorkflowStep,
 } from "@cobrac/shared";
 import {
+  ATTACHMENT_DERIVED_PREFIX,
   DEFAULT_BRA_RULES,
   EMPTY_USAGE,
   LIT_MCP_SERVER,
@@ -82,6 +83,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
+import { materialsHeaderLine, prepareMaterials, type PreparedMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
@@ -124,6 +126,7 @@ let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let rcs: RcsClient | null = null;
+let materials: PreparedMaterials | null = null;
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
@@ -232,7 +235,9 @@ async function main() {
     const thread = openThread(codex, threadId, turnSettings);
     let turn;
     try {
-      turn = await runTurn(thread, turnInput(p, replyLanguage), sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal);
+      const text = turnInput(p, replyLanguage);
+      const input = p.images?.length ? [{ type: "text" as const, text }, ...p.images.map((path) => ({ type: "local_image" as const, path }))] : text;
+      turn = await runTurn(thread, input, sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal);
     } catch (e) {
       if (cancelled) {
         await persistState();
@@ -280,6 +285,8 @@ async function main() {
     const startIdx = firstOpen === -1 ? PHASES.length - 1 : firstOpen;
     const researchFirst = research && startIdx === 0 && mode !== "followup" && !researchDone(paths);
     let first = researchFirst ? await researchFirstPrompt(project, job, freshThread) : await firstPrompt(project, job, PHASES[startIdx], freshThread);
+    // a new thread has not seen the attached images yet
+    if (first && freshThread && materials?.images.length) first.images = materials.images;
     if (first) {
       const notice = harnessPromptNotice(mode, first.shown);
       await putMessage(projectId, jobId, "system", "status", notice.content, { meta: notice.meta });
@@ -814,12 +821,15 @@ async function researchModeNotes(): Promise<string> {
 }
 
 function header(project: ProjectRecord): string {
-  return (
-    `Project ID: ${projectId}\n` +
-    `ROI: ${project.roi?.trim() || "(not given: determine it by research)"}\n` +
-    `TLF: ${project.tlf?.trim() || "(not given: determine it by research)"}\n` +
-    `Contributor: ${project.contributor}`
-  );
+  const lines = [
+    `Project ID: ${projectId}`,
+    `ROI: ${project.roi?.trim() || "(not given: determine it by research)"}`,
+    `TLF: ${project.tlf?.trim() || "(not given: determine it by research)"}`,
+    `Contributor: ${project.contributor}`,
+  ];
+  const m = materialsHeaderLine(materials);
+  if (m) lines.push(m);
+  return lines.join("\n");
 }
 
 async function phasePrompt(project: ProjectRecord, phase: Phase): Promise<Prompt> {
@@ -885,6 +895,30 @@ async function prepareWorkspace(project: ProjectRecord) {
   await mkdir(paths.hcd, { recursive: true });
   await mkdir(paths.frg, { recursive: true });
   await mkdir(paths.csv, { recursive: true });
+  await loadMaterials(project);
+}
+
+/** Reference materials of the project into materials/; a failure only costs the agent those inputs. */
+async function loadMaterials(project: ProjectRecord) {
+  try {
+    materials = await prepareMaterials(env.workDir, project.attachments, {
+      download: async (dir) => void (await downloadDir(`${prefix}attachments/`, dir)),
+      uploadDerived: async (dir) => void (await uploadDir(dir, prefix + ATTACHMENT_DERIVED_PREFIX)),
+    });
+  } catch (e) {
+    console.error("[worker] materials failed", e);
+    materials = null;
+    if (project.attachments?.length) await log(`Reference materials could not be prepared: ${e instanceof Error ? e.message : String(e)}`);
+    return;
+  }
+  if (!materials || mode !== "initial") return;
+  const open = materials.entries.filter((e) => e.status !== "ok");
+  await log(`Prepared ${materials.entries.length} reference material(s) for the agent.`, {
+    i18n: "sys.materials",
+    count: materials.entries.length,
+    details: materials.entries.map((e) => `${e.id} ${e.source}: ${e.status}${e.note ? ` (${e.note})` : ""}`).join("\n"),
+    ...(open.length ? { failed: open.length } : {}),
+  });
 }
 
 async function persistState() {

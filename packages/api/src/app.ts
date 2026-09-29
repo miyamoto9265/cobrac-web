@@ -8,9 +8,12 @@ import type {
   ArticleMeta,
   CreateArticleRequest,
   CreateProjectRequest,
+  CreateUploadRequest,
+  CreateUploadResponse,
   DeleteProjectResponse,
   FollowupRequest,
   JobRecord,
+  ProjectAttachment,
   ProjectRecord,
   EdgeStyle,
   GraphLayout,
@@ -27,6 +30,14 @@ import type {
 } from "@cobrac/shared";
 import {
   ARROW_HEADS,
+  ATTACHMENT_LIMITS,
+  UPLOAD_ID_REGEX,
+  attachmentDisplayName,
+  attachmentFileKey,
+  attachmentTypeOf,
+  normalizeAttachmentUrl,
+  safeAttachmentName,
+  stagingKey,
   DEFAULT_CODEX_MODEL,
   canDeleteProject,
   isProjectDeleted,
@@ -60,9 +71,23 @@ import {
   templateInputFromFiles,
   templateXlsxKey,
 } from "@cobrac/shared";
+import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
-import { deleteObject, encryptApiKey, enqueueRun, getObjectText, listArtifacts, presignDownload, putObjectBytes, putObjectText, stopEcsTask } from "./lib/aws.js";
+import {
+  deleteObject,
+  encryptApiKey,
+  enqueueRun,
+  getObjectText,
+  headStaging,
+  listArtifacts,
+  moveStagingToProject,
+  presignDownload,
+  presignUpload,
+  putObjectBytes,
+  putObjectText,
+  stopEcsTask,
+} from "./lib/aws.js";
 import { loadBraTemplate } from "./lib/braTemplate.js";
 import {
   assignUserKey,
@@ -253,6 +278,62 @@ app.get("/projects", async (c) => {
   return c.json({ items: filtered, nextCursor });
 });
 
+/** One reference file: validated here, then sent by the browser straight to S3 staging (presigned POST). */
+app.post("/uploads", async (c) => {
+  const u = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as Partial<CreateUploadRequest>;
+  const name = typeof body.name === "string" ? body.name : "";
+  const type = attachmentTypeOf(name);
+  if (!type) throw bad("このファイル形式は添付できません");
+  const size = Number(body.size);
+  if (!Number.isFinite(size) || size <= 0) throw bad("空のファイルは添付できません");
+  if (size > ATTACHMENT_LIMITS.maxFileBytes) throw bad(`ファイルが大きすぎます（上限 ${ATTACHMENT_LIMITS.maxFileBytes / 1024 / 1024} MB）`);
+  const uploadId = `up_${randomUUID().replace(/-/g, "")}`;
+  const expiresIn = 900;
+  const { url, fields } = await presignUpload(stagingKey(u.userId, uploadId, safeAttachmentName(name)), type.mime, ATTACHMENT_LIMITS.maxFileBytes, expiresIn);
+  const res: CreateUploadResponse = { uploadId, url, fields, contentType: type.mime, maxBytes: ATTACHMENT_LIMITS.maxFileBytes, expiresIn };
+  return c.json(res, 201);
+});
+
+/** Checks the staged uploads of a create request (they must exist and fit the limits) before anything is written. */
+async function stagedAttachments(userId: string, list: CreateProjectRequest["attachments"]) {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw bad("attachments が不正です");
+  if (list.length > ATTACHMENT_LIMITS.maxFiles) throw bad(`添付ファイルは ${ATTACHMENT_LIMITS.maxFiles} 個までです`);
+  const out: { staging: string; safeName: string; name: string; size: number; contentType: string }[] = [];
+  let total = 0;
+  const seen = new Set<string>();
+  for (const a of list) {
+    if (!a || typeof a.uploadId !== "string" || !UPLOAD_ID_REGEX.test(a.uploadId) || typeof a.name !== "string" || seen.has(a.uploadId)) throw bad("attachments が不正です");
+    seen.add(a.uploadId);
+    const type = attachmentTypeOf(a.name);
+    if (!type) throw bad("このファイル形式は添付できません");
+    const safeName = safeAttachmentName(a.name);
+    const staging = stagingKey(userId, a.uploadId, safeName);
+    const head = await headStaging(staging);
+    if (!head) throw bad(`アップロードが見つかりません（${attachmentDisplayName(a.name)}）。もう一度添付してください`);
+    if (head.size > ATTACHMENT_LIMITS.maxFileBytes) throw bad("ファイルが大きすぎます");
+    total += head.size;
+    out.push({ staging, safeName, name: attachmentDisplayName(a.name), size: head.size, contentType: type.mime });
+  }
+  if (total > ATTACHMENT_LIMITS.maxTotalBytes) throw bad(`添付ファイルの合計が上限（${ATTACHMENT_LIMITS.maxTotalBytes / 1024 / 1024} MB）を超えています`);
+  return out;
+}
+
+function attachmentUrls(list: CreateProjectRequest["urls"]): string[] {
+  if (list === undefined || list === null) return [];
+  if (!Array.isArray(list)) throw bad("urls が不正です");
+  const urls: string[] = [];
+  for (const raw of list) {
+    if (typeof raw !== "string" || !raw.trim()) continue;
+    const r = normalizeAttachmentUrl(raw);
+    if ("error" in r) throw bad(`URL が不正です: ${raw.slice(0, 200)}`);
+    if (!urls.includes(r.url)) urls.push(r.url);
+  }
+  if (urls.length > ATTACHMENT_LIMITS.maxUrls) throw bad(`URL は ${ATTACHMENT_LIMITS.maxUrls} 件までです`);
+  return urls;
+}
+
 app.post("/projects", async (c) => {
   const u = c.get("user");
   if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です。設定画面で登録してください。");
@@ -260,15 +341,9 @@ app.post("/projects", async (c) => {
   const roi = (body.roi ?? "").trim();
   const tlf = (body.tlf ?? "").trim();
   if (!roi && !tlf) throw bad("ROI と TLF のどちらか一方は必須です");
-  const proposed = proposeProjectName(roi, tlf);
-  let name = proposed;
-  if (typeof body.name === "string" && body.name.trim()) {
-    const n = normalizeProjectName(body.name);
-    if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
-    name = n.name;
-  }
-  const nameSource = name === proposed ? "provisional" : "user";
-  const contributor = (body.contributor ?? "").trim() || u.contributorName || u.displayName;
+  // provisional until the agent names the project from meta.json; the user can rename it afterwards
+  const name = proposeProjectName(roi, tlf);
+  const contributor = u.contributorName?.trim() || u.displayName;
   // Always persist a concrete model so usage can be priced (project → user default → env → DEFAULT_CODEX_MODEL)
   const model = ("model" in body ? normModel(body.model) : null) || u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL;
   let reasoningEffort: ReasoningEffort | null = u.defaultReasoningEffort ?? null;
@@ -279,20 +354,30 @@ app.post("/projects", async (c) => {
   if (body.researchMode !== undefined && typeof body.researchMode !== "boolean") throw bad("researchMode は true / false で指定してください");
   const researchMode = body.researchMode ?? true;
   const locale = readLocale(body.locale);
+  const urls = attachmentUrls(body.urls);
+  const staged = await stagedAttachments(u.userId, body.attachments);
 
   const userKey = u.userKey ?? (await assignUserKey(u.userId));
   const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
+  const attachments: ProjectAttachment[] = [];
+  for (const [i, f] of staged.entries()) {
+    const key = attachmentFileKey(i, f.safeName);
+    await moveStagingToProject(f.staging, u.userId, projectId, key, f.contentType);
+    attachments.push({ kind: "file", id: `f${i + 1}`, name: f.name, key, size: f.size, contentType: f.contentType });
+  }
+  urls.forEach((url, i) => attachments.push({ kind: "url", id: `u${i + 1}`, url }));
   const now = nowIso();
   const jobId = newId("job_");
   const project: ProjectRecord = {
     userId: u.userId,
     projectId,
     name,
-    nameSource,
+    nameSource: "provisional",
     revision: 0,
     roi,
     tlf,
     contributor,
+    ...(attachments.length ? { attachments } : {}),
     model,
     reasoningEffort,
     researchMode,
@@ -336,7 +421,7 @@ app.post("/projects", async (c) => {
   const owner = { userId: u.userId };
   await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(not set)"}\nTLF: ${tlf || "(not set)"}`, {
     ...owner,
-    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort, researchMode },
+    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort, researchMode, ...(attachments.length ? { attachments: attachments.length } : {}) },
   });
   await putMessage(projectId, jobId, "system", "status", `Model: ${model ?? "default"} / reasoning effort: ${reasoningEffort ?? "default"}`, {
     ...owner,
@@ -349,12 +434,6 @@ app.post("/projects", async (c) => {
   await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return c.json(project, 201);
-});
-
-app.get("/projects/propose-name", (c) => {
-  const roi = c.req.query("roi") ?? "";
-  const tlf = c.req.query("tlf") ?? "";
-  return c.json({ name: proposeProjectName(roi, tlf) });
 });
 
 /** Current Project ID for a URL segment: the ID itself, or the new ID of a migrated legacy ID. */
@@ -555,6 +634,7 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
   const articleLocale = articleLocaleOfKey(key);
+  const attachment = p.attachments?.find((a) => a.kind === "file" && a.key === key);
   const fileName =
     key === `output/${p.projectId}.bra.xlsx`
       ? braDownloadFileName(projectDisplayName(p), p.projectId)
@@ -562,7 +642,9 @@ app.get("/projects/:id/artifacts/download", async (c) => {
         ? templateDownloadFileName(projectDisplayName(p), p.projectId)
         : articleLocale
         ? articleDownloadFileName(projectDisplayName(p), p.projectId, articleLocale)
-        : undefined;
+        : attachment?.kind === "file"
+          ? { ascii: safeAttachmentName(attachment.name), utf8: attachment.name }
+          : undefined;
   const url = await presignDownload(u.userId, p.projectId, key, fileName);
   return c.json({ url, expiresIn: 900 });
 });

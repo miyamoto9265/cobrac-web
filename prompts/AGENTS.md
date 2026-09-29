@@ -44,6 +44,15 @@ Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this f
 - Cite literature as `[Author, Year]` Reference IDs that exist in `references.json`. Use web search actively; do not invent DOIs (use `N/A` when unknown). The worker checks every DOI / PMID against Crossref and PubMed and writes the result to `reference_check.json`. Quote papers only from text you retrieved; the worker compares every `pointersOnLiterature` with the paper's text (`quote_check.json`).
 - Where scientific accuracy cannot be guaranteed, say so in the value rather than overstating.
 
+## Reference materials from the user
+
+When the prompt has a `Reference materials:` line, the user attached files or URLs when creating the project. They are in `materials/` next to this file (read-only; do not edit or copy them into the project folder). Start with `materials/INDEX.md`: it lists every item with its original file, the extracted or fetched text, and whether extraction worked. Images are also attached to your first prompt; open other images with your image viewer when needed.
+
+- Consult them early: they show which sources, figures, species, and scope the user has in mind. Prefer the user's intent over your own guess where they differ, and note in `decision_log.md` which materials you used and how.
+- They are not verified literature and do not replace it. Cite only published sources in `references.json` (with a real DOI / PMID where one exists); the worker checks every reference as usual. If a material is a paper, cite the paper itself, not the attachment.
+- Quotes (`pointersOnLiterature` and similar fields) must be verbatim from the published source. Extracted PDF text can have broken line breaks, hyphenation, or missing symbols: check the wording against the original before quoting.
+- A URL that could not be fetched is marked in `INDEX.md`; open it with web search if it matters.
+
 ## Decision log
 
 `decision_log.md` records the decisions you took yourself and why, so that you (in a later follow-up or a new thread) and the user can trace them: ROI/TLF validity, ROI_Input / ROI_Output, the choice of each UC's SABRA anchor (the candidates you considered and why you chose one; the raw RCS calls are already in `rcs_mcp_calls.jsonl`, so do not copy them), rejected alternatives, answers the user gave, and changes made by follow-ups. Short dated entries under headings; append, do not rewrite.
