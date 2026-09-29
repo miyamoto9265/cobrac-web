@@ -313,7 +313,7 @@ function Inner({
         height: sizes[n.id]?.height,
         selected: n.id === selectedId,
         draggable: !coarse || editing,
-        ariaLabel: n.sublabel ? `${n.label} — ${n.sublabel}` : n.label,
+        ariaLabel: n.sublabel || n.caption ? `${n.label} — ${n.sublabel ?? n.caption}` : n.label,
         data: {
           g: n,
           selected: n.id === selectedId,

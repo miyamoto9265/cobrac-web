@@ -6,7 +6,10 @@ import type { NodeStyle } from "@cobrac/shared";
 export interface GNode {
   id: string;
   label: string;
+  /** full name: shown in the hover tooltip, the search results and the detail panel, not on the node */
   sublabel?: string;
+  /** short second line shown on the node (e.g. FRG level) */
+  caption?: string;
   color: string; // fill (hex)
   /** stripe on the left edge that carries the node class, so it stays readable when zoomed out */
   accent?: string;
@@ -83,6 +86,7 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
       className={`group relative flex h-full w-full flex-col items-center justify-center overflow-hidden border text-center transition-[opacity,box-shadow] duration-150 ${pill ? "rounded-full px-3" : "rounded-lg pl-3 pr-2"} ${
         selected ? "shadow-[0_0_0_4px_rgba(59,130,246,0.25)]" : emphasis ? "shadow-[0_0_0_3px_rgba(250,204,21,0.55)]" : "shadow-sm"
       } ${connecting ? "connecting" : ""}`}
+      title={g.sublabel ? `${g.label}\n${g.sublabel}` : undefined}
       style={{
         background: fill,
         borderColor: border,
@@ -122,7 +126,7 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
       >
         {g.label}
       </div>
-      {g.sublabel && !far && <div className="mt-0.5 w-full truncate text-[10.5px] leading-tight text-slate-600">{g.sublabel}</div>}
+      {g.caption && !far && <div className="mt-0.5 w-full truncate text-[10.5px] leading-tight text-slate-600">{g.caption}</div>}
       {g.collapse && g.collapse.count > 0 && (
         <button
           type="button"

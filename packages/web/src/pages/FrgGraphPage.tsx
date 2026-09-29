@@ -78,13 +78,14 @@ export function FrgGraphPage({ embedded = false }: { embedded?: boolean }) {
           return {
             id: n.id,
             label: n.id,
-            sublabel: n.kind === "uc" ? circuit?.names || undefined : `L${n.level}`,
+            sublabel: n.kind === "uc" ? circuit?.names || undefined : undefined,
+            caption: n.kind === "uc" ? undefined : `L${n.level}`,
             search: `${n.capability} ${circuit?.ucDescriptor ?? ""}`,
             color: KIND_STYLE[n.kind].fill,
             accent: KIND_STYLE[n.kind].accent,
             shape: n.kind === "uc" ? "pill" : "rect",
             width: n.kind === "uc" ? 150 : 210,
-            height: n.kind === "uc" ? (circuit?.names ? 44 : 36) : 48,
+            height: n.kind === "uc" ? 36 : 48,
             collapse: n.kind !== "uc" && n.subnodes.length > 0 ? { collapsed: collapsed.has(n.id), count: n.subnodes.length } : undefined,
           } satisfies GNode;
         }) ?? [],

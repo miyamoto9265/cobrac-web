@@ -40,7 +40,7 @@ export function DetailPanel({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h2 className="break-all font-mono text-sm font-semibold text-slate-900">{title}</h2>
-            {subtitle && <div className="truncate text-xs text-slate-500">{subtitle}</div>}
+            {subtitle && <div className="break-words text-xs text-slate-500">{subtitle}</div>}
           </div>
           <button onClick={onClose} aria-label={t("close")} title={t("close")} className="flex shrink-0 items-center justify-center rounded p-1 text-slate-500 hover:bg-slate-100 coarse:-my-2 coarse:-mr-2 coarse:h-11 coarse:w-11">
             <X size={16} />
