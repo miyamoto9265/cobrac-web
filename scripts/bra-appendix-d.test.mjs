@@ -162,6 +162,20 @@ test("Circuit IDs with commas stay whole in Projected Circuits; N/A pointers cou
   assert.equal(r.codes.find((c) => c.code === 271).note, "literature と figure の両方が空");
 });
 
+test("a whole cortical BNA gyrus as sender is a 205 suspect; template-style Reference IDs without brackets match", () => {
+  const dir = conformingFolder();
+  const cir = loadBra(dir).sheets.Circuits.map((r) => r.map((c) => (c === "BNA:31/lay:L3" ? "BNAG:IFG@L" : c)));
+  writeFileSync(join(dir, "Circuits.csv"), csv(cir));
+  const conn = loadBra(dir).sheets.Connections;
+  conn[1][0] = "A44d";
+  conn[1][1] = "TE1.0";
+  conn[1][3] = "Catani et al., 2005";
+  writeFileSync(join(dir, "Connections.csv"), csv(conn));
+  const s = status(checkBra(loadBra(dir)));
+  assert.equal(s[205], "suspect");
+  assert.equal(s[252], "ok");
+});
+
 test("reads the same result from an xlsx", () => {
   const dir = conformingFolder();
   const sheetXml = (rows) =>

@@ -243,27 +243,37 @@ export function loadBra(input) {
 const norm = (h) => String(h ?? "").toLowerCase().replace(/[\s_]+/g, " ").trim();
 const clean = (v) => String(v ?? "").trim();
 
-/** Records of a sheet: the header row is the first row that contains `key` (a header name). */
-function table(rows, key) {
+/**
+ * Records of a sheet: the header row is the first row that contains `key` (a header name). With `projectId`, a sheet
+ * that has a Project ID column keeps only that project's rows (Template-v2-2 also carries the WholeBIF rows).
+ */
+function table(rows, key, projectId = "") {
   if (!rows) return { present: false, has: () => false, records: [] };
   const h = rows.findIndex((r) => r.some((c) => norm(c) === norm(key)));
   if (h < 0) return { present: true, has: () => false, records: [] };
   const header = rows[h].map(norm);
-  const find = (names) => names.map(norm).map((n) => header.indexOf(n)).find((i) => i >= 0) ?? -1;
+  // Template-v2-2 FRG repeats headers (Node ID, Circuit ID) in its formula area; the contributor columns come last
+  const find = (names) => names.map(norm).map((n) => header.lastIndexOf(n)).find((i) => i >= 0) ?? -1;
+  const pid = projectId ? header.indexOf("project id") : -1;
   const records = rows
     .slice(h + 1)
     .map((r, i) => ({ r, line: h + 2 + i }))
     .filter(({ r }) => r.some((c) => clean(c)))
+    .filter(({ r }) => pid < 0 || clean(r[pid]) === projectId)
     .map(({ r, line }) => ({ line, get: (...names) => { const i = find(names); return i < 0 ? "" : clean(r[i]); } }));
   return { present: true, has: (...names) => find(names) >= 0, records };
 }
 
 export function buildModel(bra) {
   const S = bra.sheets;
-  const refT = table(S.References, "Reference ID");
-  const cirT = table(S.Circuits, "Circuit ID");
-  const conT = table(S.Connections, "Sender Circuit ID (sCID)");
-  const frgT = table(S.FRG, "Node ID");
+  const project = S.Project ?? [];
+  const projectHeader = project.findIndex((r) => r.some((c) => norm(c) === "bra version"));
+  const projectCell = (name) => (projectHeader >= 0 ? clean(project[projectHeader + 1]?.[project[projectHeader].map(norm).indexOf(name)]) : "");
+  const projectId = projectCell("project id");
+  const refT = table(S.References, "Reference ID", projectId);
+  const cirT = table(S.Circuits, "Circuit ID", projectId);
+  const conT = table(S.Connections, "Sender Circuit ID (sCID)", projectId);
+  const frgT = table(S.FRG, "Node ID", projectId);
   const defaults = [];
   const hasUniform = cirT.has("Uniform");
   if (!hasUniform && cirT.records.length) defaults.push(bra.format === "csv" ? "Circuits に Uniform 列が無い（xlsx 変換で全行 TRUE になる前提で判定）" : "Circuits に Uniform 列が無い");
@@ -304,7 +314,7 @@ export function buildModel(bra) {
     pointersOnFigure: x.get("Pointers on figure").replace(EMPTY_POINTER_RE, ""),
     comments: x.get("Comments"),
   }));
-  const frg = frgT.records.map((x) => {
+  const frg = frgT.records.filter((x) => x.get("Node ID")).map((x) => {
     const cm = x.get("Capability&Mechanism");
     return {
       line: x.line,
@@ -312,14 +322,12 @@ export function buildModel(bra) {
       subnodes: x.get("Subnodes"),
       circuitId: x.get("Circuit ID"),
       projected: x.get("Projected Circuits"),
-      capability: frgT.has("Capability") ? x.get("Capability") : cm.split(/\n?<<[^>]*>>\n?/)[0].trim(),
+      capability: frgT.has("Capability&Mechanism") ? cm.split(/\n?<<[^>]*>>\n?/)[0].trim() : x.get("Capability"),
       outputSemantics: x.get("Output Semantics"),
       comments: x.get("Comments"),
     };
   });
-  const project = S.Project ?? [];
-  const projectHeader = project.findIndex((r) => r.some((c) => norm(c) === "bra version"));
-  const braVersion = projectHeader >= 0 ? clean(project[projectHeader + 1]?.[project[projectHeader].map(norm).indexOf("bra version")]) : "";
+  const braVersion = projectCell("bra version");
   const reviewEndLines = Object.fromEntries(
     project.filter((r) => ["References", "Circuits", "Connections", "FRG"].includes(clean(r[0]))).map((r) => [clean(r[0]), clean(r[1])]),
   );
@@ -343,6 +351,10 @@ export function buildModel(bra) {
 const MANUAL_ID_RE = /^[A-Za-z0-9._~-]+$/;
 const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 const REF_ID_RE = /^\[[^[\]]+\]$/;
+/** Template-v2-2 writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
+const refKey = (x) => x.replace(/^\[|\]$/g, "").trim();
+const TEMPLATE_REF_RE = /^[^[\];]+,\s*\d{4}[a-z]?$/;
+const isRefId = (x) => REF_ID_RE.test(x) || TEMPLATE_REF_RE.test(x);
 const NO_DOI_RE = /^(|n\/?a|none|-)$/i;
 const LOCATOR_RE = /^["'“‘]?\s*(?:pp?\.\s*\d|pages?\s+\d|§\s*\d|sections?\s+\d)/i;
 const FIGURE_RE = /^(supplementary\s+|suppl\.\s*|extended\s+data\s+)?fig(?:ure)?s?\.?\s*S?\d+[A-Za-z]?(?![A-Za-z0-9])/i;
@@ -367,11 +379,20 @@ export function parseOutputSemantics(text) {
   return items.length ? items : null;
 }
 
-/** Whole neocortical areas (BNA 1–210, no layer / cell facet) or, without a descriptor, cortex-like names. */
+/** BNA L2 groups of the subcortical nuclei (labels 211–246); every other group is neocortical. */
+const BNA_SUBCORTICAL_GROUPS = ["Amyg", "Hipp", "BG", "Tha"];
+
+/**
+ * Whole neocortical areas or gyri (BNA 1–210 or a cortical BNA L2 group, no layer / cell facet) or, without a
+ * descriptor, cortex-like names.
+ */
 function neocorticalWholeArea(c) {
   if (c.descriptor) {
-    const m = /^BNA:(\d{1,3})/.exec(c.descriptor);
-    return !!m && Number(m[1]) <= 210 && !/\/(lay|cell):/.test(c.descriptor);
+    if (/\/(lay|cell):/.test(c.descriptor)) return false;
+    const area = /^BNA:(\d{1,3})/.exec(c.descriptor);
+    if (area) return Number(area[1]) <= 210;
+    const group = /^BNAG:([A-Za-z]+)/.exec(c.descriptor);
+    return !!group && !BNA_SUBCORTICAL_GROUPS.includes(group[1]);
   }
   const text = `${c.id} ${c.names}`;
   return /cortex|cortical|gyrus|sulcus|lobule|area\b|\bBA\s?\d|\bV[1-5]\b|IFG|STG|MTG|SMG|PFC|Broca|Wernicke|fusiform|angular/i.test(text) && !/layer|\bL[1-6]\b|pyramidal|interneuron|\bcells?\b|neuron/i.test(text);
@@ -386,7 +407,7 @@ function results(m, opts) {
 
   const ids = new Set(m.circuits.map((c) => c.id).filter(Boolean));
   const circuitOf = new Map(m.circuits.map((c) => [c.id, c]));
-  const refIds = new Set(m.refs.map((r) => r.id));
+  const refIds = new Set(m.refs.map((r) => refKey(r.id)));
 
   // References
   verdict(1, m.refs.filter((r) => NO_DOI_RE.test(r.doi) && !r.altUrl).map((r) => at("References", r, `${r.id} DOI="${r.doi}"${m.columns.altUrl ? "" : "（Alternative URL 列なし）"}`)));
@@ -408,7 +429,7 @@ function results(m, opts) {
   const badSrc = src.filter((c) => {
     const v = c.sourceOfId;
     if (SOURCE_OF_ID_KEYWORDS.includes(v) || SOURCE_OF_ID_EXTENSIONS.includes(v)) return false;
-    return !(REF_ID_RE.test(v) && refIds.has(v));
+    return !(REF_ID_RE.test(v) && refIds.has(refKey(v)));
   });
   const extSrc = src.filter((c) => SOURCE_OF_ID_EXTENSIONS.includes(c.sourceOfId));
   const describeSrc = (c) => {
@@ -438,7 +459,7 @@ function results(m, opts) {
   verdict(
     252,
     m.connections
-      .filter((c) => !c.referenceId || !REF_ID_RE.test(c.referenceId) || !refIds.has(c.referenceId))
+      .filter((c) => !c.referenceId || !isRefId(c.referenceId) || !refIds.has(refKey(c.referenceId)))
       .map((c) => {
         const n = c.referenceId.match(/\[[^\]]+\]/g)?.length ?? 0;
         return at("Connections", c, `${c.sender} -> ${c.receiver}: ${!c.referenceId ? "空" : n > 1 ? `${n} 件を連結` : "References に無い"}（"${c.referenceId.slice(0, 60)}"）`);
@@ -519,7 +540,7 @@ function extras(m, opts) {
   const median = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
   const pairs = new Map();
   for (const c of m.connections) pairs.set(`${c.sender}->${c.receiver}`, (pairs.get(`${c.sender}->${c.receiver}`) ?? 0) + 1);
-  const refsCited = new Set(m.connections.flatMap((c) => c.referenceId.match(/\[[^\]]+\]/g) ?? []));
+  const refsCited = new Set(m.connections.flatMap((c) => (c.referenceId.match(/\[[^\]]+\]/g) ?? [c.referenceId]).map(refKey).filter(Boolean)));
   return [
     { item: "Taxon が列挙値でない", values: uniq(list(m.connections.map((c) => c.taxon), TAXA)), total: m.connections.length },
     { item: "Measurement method が列挙値でない", values: uniq(list(m.connections.map((c) => c.method), MEASUREMENT_METHODS)), total: m.connections.length },
