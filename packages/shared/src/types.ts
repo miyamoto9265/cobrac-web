@@ -136,6 +136,8 @@ export interface ProjectRecord {
   publishedAt?: string | null;
   /** Set on a clone: the public project and revision it was copied from */
   clonedFrom?: ClonedFrom | null;
+  /** Canon revision the project is pinned to (its generation uses that revision's definitions) */
+  canonRevision?: number | null;
 }
 
 /** Statuses with a job in flight; a project in one of these cannot be deleted until it is stopped. */

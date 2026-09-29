@@ -41,8 +41,14 @@ import type {
 } from "@cobrac/shared";
 import {
   ATTACHMENT_DERIVED_PREFIX,
+  CANON_AGENT_DIR,
   DEFAULT_BRA_RULES,
   EMPTY_USAGE,
+  canonAgentFiles,
+  canonRevisionKey,
+  canonSpecNote,
+  type CanonRunInfo,
+  type CanonSnapshot,
   LIT_MCP_SERVER,
   CROSS_CODES,
   PROJECT_FILES,
@@ -73,6 +79,7 @@ import { articlePrompt, readReferences, runArticle } from "./article.js";
 import { createCodex, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
+  getCanonMeta,
   getProject,
   getUser,
   incrementProjectRevision,
@@ -89,7 +96,7 @@ import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
-import { downloadDir, projectPrefix, putObject, uploadDir } from "./s3sync.js";
+import { downloadDir, getJsonObject, projectPrefix, putObject, uploadDir } from "./s3sync.js";
 import {
   PHASES,
   checkPhase,
@@ -129,6 +136,8 @@ let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let rcs: RcsClient | null = null;
 let materials: PreparedMaterials | null = null;
+/** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
+let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
@@ -176,6 +185,7 @@ async function main() {
     await fail(LEGACY_WORKSPACE_MESSAGE, { i18n: "sys.legacyWorkspace" });
     return;
   }
+  await prepareCanon(project);
   if (!rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
   const carryOver = mode === "resume" || mode === "retry";
@@ -708,6 +718,7 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     lookupSabra: rcs ? (ids) => rcs!.lookupHomba(ids) : undefined,
     verifyReferences: referenceVerifier ? (refs) => referenceVerifier.verify(refs) : undefined,
     quoteChecker: quoteVerifier ? { threshold: quoteVerifier.threshold, verify: (reqs) => quoteVerifier.verify(reqs) } : undefined,
+    canon: canonRun ? { ...canonRun, onNotes: logCanonNotes } : undefined,
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
@@ -728,6 +739,15 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
   const r = await checkPhase(phase, paths, deps, ctx);
   if (phase === "CSV" && r.errors.length === 0) await log("CSVs generated from the HCD/FRG data files.", { i18n: "sys.csvBuilt" });
   return r;
+}
+
+let lastCanonNotes = "";
+/** Advisory Canon findings, logged when they change (they are not sent back to the agent as errors). */
+async function logCanonNotes(notes: string[]) {
+  const text = notes.join("\n");
+  if (text === lastCanonNotes) return;
+  lastCanonNotes = text;
+  await log(`Notes from the Canon:\n${text}`);
 }
 
 let lastReferenceSummary = "";
@@ -819,6 +839,7 @@ async function rawPhaseSpec(phase: Phase): Promise<string> {
     let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8"))
       .replaceAll("{P}", projectId)
       .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
+    if (phase === "HCD" && canonRun) spec += canonSpecNote(canonRun.info);
     if (phase === "HCD" && !rcs) {
       spec +=
         "\n\nNote for this run: the RCS MCP server is not available. Still anchor every UC on a SABRA unit from your best knowledge " +
@@ -932,6 +953,37 @@ async function loadMaterials(project: ProjectRecord) {
     details: materials.entries.map((e) => `${e.id} ${e.source}: ${e.status}${e.note ? ` (${e.note})` : ""}`).join("\n"),
     ...(open.length ? { failed: open.length } : {}),
   });
+}
+
+/**
+ * Puts the pinned Canon revision next to the project folder (`<workDir>/canon/`, never synced back) and remembers it
+ * for the HCD spec and the validator. A missing Canon or revision only disables the Canon for this run.
+ */
+async function prepareCanon(project: ProjectRecord) {
+  const dir = join(env.workDir, CANON_AGENT_DIR);
+  await rm(dir, { recursive: true, force: true });
+  if (!project.canonId) return;
+  try {
+    const meta = await getCanonMeta(project.canonId);
+    if (!meta || meta.deletedAt) return;
+    const revision = Math.min(project.canonRevision ?? 0, meta.headRevision);
+    if (revision <= 0) return;
+    const snapshot = await getJsonObject<CanonSnapshot>(canonRevisionKey(meta.canonId, revision));
+    if (!snapshot) throw new Error(`revision ${revision} is missing`);
+    const info: CanonRunInfo = { canonId: meta.canonId, name: meta.name, policy: meta.policy, constraintMode: meta.constraintMode, revision };
+    await mkdir(dir, { recursive: true });
+    for (const [name, text] of Object.entries(canonAgentFiles(snapshot, info, projectId))) await writeFile(join(dir, name), text, "utf8");
+    canonRun = { snapshot, info };
+    await log(`Canon "${meta.name}" revision ${revision} (${info.constraintMode}): the agent follows its definitions (files in ${CANON_AGENT_DIR}/).`, {
+      i18n: "sys.canonLoaded",
+      name: meta.name,
+      revision,
+      mode: info.constraintMode,
+    });
+  } catch (e) {
+    console.warn("[canon] not loaded", e);
+    await log(`The Canon of this project could not be loaded (${e instanceof Error ? e.message : String(e)}); this run does not use it.`);
+  }
 }
 
 async function persistState() {

@@ -14,6 +14,8 @@ export const env = {
     projects: req("TABLE_PROJECTS"),
     jobs: req("TABLE_JOBS"),
     messages: req("TABLE_MESSAGES"),
+    /** Optional: without it the worker ignores Canons */
+    canons: process.env.TABLE_CANONS ?? "",
   },
   artifactsBucket: req("ARTIFACTS_BUCKET"),
   job: {

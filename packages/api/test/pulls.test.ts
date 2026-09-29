@@ -275,3 +275,36 @@ describe("Canon → Canon pull requests", () => {
     expect((await call(A, "POST", `${C()}/pulls`, { sourceCanonId: canon.canonId })).status).toBe(400);
   });
 });
+
+describe("following a Canon", () => {
+  const stored = (p: string) => fake.items("projects").find((x) => x.projectId === p) as unknown as ProjectRecord;
+
+  it("pins projects on join, moves the pusher's pin on approval, and reports what changed for the others", async () => {
+    expect(stored("u7m2q9xa-1").canonRevision).toBe(0);
+    await pushed("u7m2q9xa-1");
+    await json(call(A, "POST", `${C()}/pulls/1/approve`, {}));
+    expect(stored("u7m2q9xa-1").canonRevision).toBe(1);
+    expect(stored("u7m2q9xa-2").canonRevision).toBe(0);
+
+    // the fine project makes A44d@L a Collection
+    const { diff } = await pushed("u7m2q9xa-2");
+    const choices = Object.fromEntries(diff.conflicts.filter((c) => c.code === "C1" || c.severity === "warning").map((c) => [c.id, c.code === "C1" ? "incoming" : "canon"]));
+    await json(call(A, "POST", `${C()}/pulls/2/approve`, { choices }));
+    expect(stored("u7m2q9xa-2").canonRevision).toBe(2);
+
+    const st = await json<{ state: string; pinned: number; head: number; affected: { label: string; reason: string }[]; alignInstruction: string }>(call(A, "GET", "/projects/u7m2q9xa-1/canon"));
+    expect(st).toMatchObject({ state: "affected", pinned: 1, head: 2 });
+    expect(st.affected.map((a) => a.reason)).toEqual(expect.arrayContaining(["now a Collection", "ends on a Collection"]));
+    expect(st.alignInstruction).toContain("revision 2");
+
+    expect(await json(call(A, "POST", "/projects/u7m2q9xa-1/canon/pull", {}))).toEqual({ canonRevision: 2 });
+    expect((await json<{ state: string }>(call(A, "GET", "/projects/u7m2q9xa-1/canon"))).state).toBe("current");
+    expect((await call(A, "POST", "/projects/u7m2q9xa-1/canon/pull", { revision: 9 })).status).toBe(400);
+  });
+
+  it("clears the pin when a project leaves", async () => {
+    await json(call(A, "DELETE", `${C()}/members/u7m2q9xa-1`));
+    expect(stored("u7m2q9xa-1").canonRevision).toBeUndefined();
+    expect((await call(A, "GET", "/projects/u7m2q9xa-1/canon")).status).toBe(409);
+  });
+});

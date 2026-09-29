@@ -209,6 +209,7 @@ export class CobracAgentsStack extends Stack {
       image: workerImage.toEcsDockerImageCode(),
       logging: ecs.LogDrivers.awsLogs({ logGroup: workerLogs, streamPrefix: "worker" }),
       environment: {
+        TABLE_CANONS: canons.tableName,
         TABLE_USERS: users.tableName,
         TABLE_PROJECTS: projects.tableName,
         TABLE_JOBS: jobs.tableName,
@@ -226,6 +227,8 @@ export class CobracAgentsStack extends Stack {
       },
     });
     for (const t of [users, projects, jobs, messages]) t.grantReadWriteData(taskDef.taskRole);
+    // the worker reads the pinned Canon revision (META here, snapshot under canons/ in the artifacts bucket)
+    canons.grantReadData(taskDef.taskRole);
     artifacts.grantReadWrite(taskDef.taskRole);
     key.grantDecrypt(taskDef.taskRole);
     // read at run time (not injected by ECS) so a missing secret only disables RCS instead of failing task start

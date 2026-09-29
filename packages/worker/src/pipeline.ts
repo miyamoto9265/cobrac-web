@@ -5,10 +5,13 @@
  */
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import type { BuildCsvOptions, CheckResult, CrossCheck, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
+import { basename, join } from "node:path";
+import type { BuildCsvOptions, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, SabraLookup } from "@cobrac/shared";
 import {
   CROSS_RULES,
+  canonCheckedQuotes,
+  canonCheckedReferences,
+  canonGenerationProblems,
   DEFAULT_BRA_RULES,
   FRG_FILES,
   HARNESS_SCHEMAS,
@@ -123,6 +126,13 @@ export interface CheckDeps {
   verifyReferences?: (refs: RefRow[]) => Promise<RefCheck[]>;
   /** Compares each connection's Pointers on literature with the cited paper's text (omitted: not checked) */
   quoteChecker?: { threshold: number; verify: (reqs: QuoteRequest[]) => Promise<QuoteCheck[]> };
+  /** The pinned Canon revision the project follows (omitted: not in a Canon) */
+  canon?: {
+    snapshot: CanonSnapshot;
+    info: CanonRunInfo;
+    /** Advisory findings (and every finding in advisory mode); shown to the user, not sent back as errors */
+    onNotes?: (notes: string[]) => Promise<void>;
+  };
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -185,7 +195,8 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
 async function hcdProblems(hcd: CheckResult<HcdModel>, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
   const refErrors = await checkReferences("HCD", paths, deps, ctx);
   const quoteErrors = await checkQuotes(paths, deps, ctx);
-  return [...new Set([...hcd.errors, ...refErrors, ...quoteErrors])];
+  const canonErrors = hcd.model ? await checkCanon(paths, deps) : [];
+  return [...new Set([...hcd.errors, ...refErrors, ...quoteErrors, ...canonErrors])];
 }
 
 async function frgProblems(frg: CheckResult<FrgModel>, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
@@ -246,6 +257,15 @@ async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths
   }
 }
 
+/** Conflicts with the pinned Canon revision (strict: errors; advisory: notes only). */
+async function checkCanon(paths: ProjectPaths, deps: CheckDeps): Promise<string[]> {
+  if (!deps.canon) return [];
+  const f = loadHcdFiles(paths);
+  const r = canonGenerationProblems(deps.canon.snapshot, deps.canon.info, basename(paths.root), { uc: f.uc ?? null, connections: f.connections ?? null, references: f.references ?? null, meta: f.meta ?? null });
+  if (r.notes.length) await deps.canon.onNotes?.(r.notes);
+  return r.errors;
+}
+
 /**
  * Citations and (with `verifyReferences`) the DOIs / PMIDs of references.json. Every check writes the full result to
  * reference_check.json; the returned problems are those of `phase`: the FRG phase answers for frg.json, the report's
@@ -259,7 +279,15 @@ async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: 
   const errors = citations.problems.filter((p) => inPhase(isFrgProblem(p))).map((p) => p.message);
 
   const refs = ctx.hcd?.refs ?? [];
-  const checks = deps.verifyReferences && refs.length ? await deps.verifyReferences(refs) : [];
+  // references the Canon already checked (same ID and identifiers) are not looked up again
+  const known = deps.canon ? canonCheckedReferences(deps.canon.snapshot) : new Map<string, { doi: string; pmid: string }>();
+  const same = (r: RefRow) => {
+    const k = known.get(r.id);
+    return !!k && (k.doi || "").toLowerCase() === (r.doi || "").toLowerCase() && (k.pmid || "") === (r.pmid || "");
+  };
+  const fromCanon: RefCheck[] = refs.filter(same).map((r) => ({ id: r.id, doi: r.doi, pmid: r.pmid ?? "", status: "verified", problems: [], notes: [`checked in Canon ${deps.canon!.info.canonId} rev ${deps.canon!.info.revision}`] }));
+  const toCheck = refs.filter((r) => !same(r));
+  const checks = [...fromCanon, ...(deps.verifyReferences && toCheck.length ? await deps.verifyReferences(toCheck) : [])];
   for (const c of checks) {
     const msg = refCheckMessage(c);
     if (msg && inPhase(frgOnly.has(c.id))) errors.push(msg);
@@ -298,7 +326,18 @@ async function checkQuotes(paths: ProjectPaths, deps: CheckDeps, ctx: PhaseConte
     const cited = c.referenceIds.flatMap((id) => refs.get(id) ?? []);
     if (cited.length) reqs.push({ sender: c.sender, receiver: c.receiver, referenceIds: c.referenceIds, quote, refs: cited });
   }
-  const checks = deps.quoteChecker && reqs.length ? await deps.quoteChecker.verify(reqs) : [];
+  // quotes the Canon already found in the paper (same connection, paper and text) are not fetched again
+  const known = deps.canon ? canonCheckedQuotes(deps.canon.snapshot) : new Map<string, { quote: string; status: string }>();
+  const knownOf = (r: QuoteRequest) => (r.referenceIds.length === 1 ? known.get(`${r.sender}|${r.receiver}|${r.referenceIds[0]}`) : undefined);
+  const fromCanon: QuoteCheck[] = [];
+  const toCheck: QuoteRequest[] = [];
+  for (const r of reqs) {
+    const k = knownOf(r);
+    if (k && k.quote === r.quote) {
+      fromCanon.push({ sender: r.sender, receiver: r.receiver, referenceIds: r.referenceIds, quote: r.quote, status: k.status as QuoteCheck["status"], checkedIn: [], score: null, notes: [`checked in Canon ${deps.canon!.info.canonId} rev ${deps.canon!.info.revision}`] });
+    } else toCheck.push(r);
+  }
+  const checks = [...fromCanon, ...(deps.quoteChecker && toCheck.length ? await deps.quoteChecker.verify(toCheck) : [])];
   const problems = checks.map(quoteCheckMessage).filter((m): m is string => !!m);
   const report: QuoteReport = {
     checkedAt: new Date().toISOString(),
