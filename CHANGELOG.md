@@ -14,10 +14,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - The agent's chat replies (turn summaries and questions) are written in the language selected in the web app (English, Japanese, Chinese, Korean, German, French, Spanish, Portuguese or Russian), whatever language the ROI/TLF or instructions are typed in. The language of the screen at the time of creating, answering, sending a follow-up or retrying is used; files such as the report, the decision log and the xlsx stay in English
+- The chat no longer fills up with the agent's thoughts and commands: while the agent works, a single live line shows the latest step with the step count, elapsed time and to-do progress; once it moves on, those steps fold into one "Thinking & actions (N steps, time)" row that expands to the full list. Answers, questions, errors and notices stay visible
+- Reasoning previews in the step list no longer show Markdown `**` markers, and a to-do list previews its next open item
 
 ### Fixed
 - A project shows a provisional name made from the ROI and TLF as typed, such as "VOR in 小脳", from the moment it is created until the agent names it; before, Japanese input was dropped and a project with TLF "VOR" / ROI "小脳" was called "VOR" while it ran. Projects already created that way show the provisional name too, including in the xlsx download name. A name the user typed or edited is still never replaced
 - The project history in the sidebar shows both ROI and TLF under the name instead of only the TLF
+- The chat no longer looks as if the user sent a second message at the start of each run: the instruction the worker gives the agent (Project ID, ROI, TLF, Contributor, "Run phase HCD." and the retry / answer / follow-up variants) is shown as a small notice such as "Started phase HCD." that expands to the full text. Existing conversations are shown the same way
 
 ## [0.8.1] - 2026-09-28
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveSystemMessage } from "../src/systemMessage.js";
+import { harnessPromptNotice, isLegacyHarnessPrompt, normalizeStoredMessage, resolveSystemMessage } from "../src/systemMessage.js";
 
 describe("resolveSystemMessage", () => {
   it("uses meta.stepDone for existing Japanese step notices", () => {
@@ -45,5 +45,44 @@ describe("resolveSystemMessage", () => {
       key: "msg.roiTlf",
       vars: { roi: "x", tlf: "" },
     });
+  });
+});
+
+describe("harness prompt notices", () => {
+  const header = "Project ID: u2ttdyxs-2\nROI: 小脳\nTLF: VOR\nContributor: miyamoto9265";
+
+  it("turns the initial phase prompt into a phase-start notice that keeps the prompt as details", () => {
+    const n = harnessPromptNotice("initial", `${header}\n\nRun phase HCD.`);
+    expect(n.content).toBe("Started phase HCD.");
+    expect(n.meta).toMatchObject({ i18n: "sys.promptPhase", step: "HCD", mode: "initial", harnessPrompt: true, details: `${header}\n\nRun phase HCD.` });
+    expect(resolveSystemMessage(n.content, n.meta)).toEqual({ key: "sys.promptPhase", vars: { step: "HCD" } });
+  });
+
+  it("covers resume, retry and follow-up prompts", () => {
+    expect(harnessPromptNotice("resume", "User's answer:\nyes\n\nContinue the work from where you stopped.").meta.i18n).toBe("sys.promptResume");
+    const retry = harnessPromptNotice("retry", `${header}\n\nThe previous run stopped midway. Check the existing files in u2ttdyxs-2/ and finish phase FRG; do not recreate files that are already complete.`);
+    expect(retry.meta).toMatchObject({ i18n: "sys.promptRetryPhase", step: "FRG" });
+    expect(harnessPromptNotice("followup", `${header}\n\nFollow-up instruction:\nAdd a UC`).meta.i18n).toBe("sys.promptFollowup");
+    expect(harnessPromptNotice("initial", "（旧形式のプロンプト）").meta).toMatchObject({ i18n: "sys.promptStart" });
+    expect(harnessPromptNotice("initial", "x").meta.step).toBeUndefined();
+  });
+
+  const base = { projectId: "p", sk: "s", messageId: "m", jobId: "j", step: null, createdAt: "2026-09-29T08:17:00.000Z" };
+
+  it("rewrites prompts stored as user messages by older workers", () => {
+    const legacy = { ...base, role: "user" as const, type: "prompt" as const, content: `${header}\n\nRun phase HCD.`, meta: { mode: "initial" } };
+    expect(isLegacyHarnessPrompt(legacy)).toBe(true);
+    const n = normalizeStoredMessage(legacy);
+    expect(n).toMatchObject({ role: "system", type: "status", content: "Started phase HCD.", meta: { i18n: "sys.promptPhase", step: "HCD", details: legacy.content } });
+  });
+
+  it("leaves the user's own input alone", () => {
+    for (const kind of ["create", "answer", "followup"]) {
+      const m = { ...base, role: "user" as const, type: "prompt" as const, content: "ROI: 小脳\nTLF: VOR", meta: { kind } };
+      expect(isLegacyHarnessPrompt(m)).toBe(false);
+      expect(normalizeStoredMessage(m)).toBe(m);
+    }
+    const noMeta = { ...base, role: "user" as const, type: "prompt" as const, content: "hi" };
+    expect(normalizeStoredMessage(noMeta)).toBe(noMeta);
   });
 });

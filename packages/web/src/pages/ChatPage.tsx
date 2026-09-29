@@ -3,8 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, ReasoningEffort, WsServerEvent } from "@cobrac/shared";
 import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, projectNameKey, resolveSystemMessage } from "@cobrac/shared";
+import { ChatTimeline } from "../components/ChatTimeline";
 import { DocViewer } from "../components/DocViewer";
-import { MessageItem } from "../components/MessageItem";
 import { UsageBadge } from "../components/UsageBadge";
 import { ModelSelect } from "../components/ModelSelect";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -401,14 +401,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
 
       {/* messages */}
       <div ref={listRef} onScroll={onScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4 sm:px-5">
-        {messages.map((m) => (
-          <MessageItem key={m.messageId} m={m} />
-        ))}
-        {active && project.status !== "WAITING_USER_INPUT" && (
-          <div className="flex items-center gap-2 pl-9 text-xs text-slate-400">
-            <Loader2 size={12} className="animate-spin" /> {t("chat.working")}
-          </div>
-        )}
+        <ChatTimeline messages={messages} working={active && project.status !== "WAITING_USER_INPUT"} />
         <div ref={bottomRef} />
       </div>
 

@@ -20,7 +20,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { PROJECT_FILES, REF_STATUSES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
+import { PROJECT_FILES, REF_STATUSES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, harnessPromptNotice, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -192,7 +192,10 @@ async function main() {
     const firstOpen = PHASES.findIndex((p) => !accepted.has(p));
     const startIdx = firstOpen === -1 ? PHASES.length - 1 : firstOpen;
     const first = await firstPrompt(project, job, PHASES[startIdx], freshThread);
-    if (first) await putMessage(projectId, jobId, "user", "prompt", first.shown, { meta: { mode } });
+    if (first) {
+      const notice = harnessPromptNotice(mode, first.shown);
+      await putMessage(projectId, jobId, "system", "status", notice.content, { meta: notice.meta });
+    }
 
     const run = await runPhases(
       {

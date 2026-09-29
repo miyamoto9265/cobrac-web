@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { MessageRecord } from "@cobrac/shared";
 import { resolveSystemMessage } from "@cobrac/shared";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
+import { stepPreview } from "../lib/activity";
 import { fmtDate } from "../lib/format";
 import { Markdown } from "./Markdown";
 
@@ -63,6 +64,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
         <button
           type="button"
           onClick={() => details && setOpen((o) => !o)}
+          aria-expanded={details ? open : undefined}
           className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${details ? "cursor-pointer" : "cursor-default"} ${
             isErr ? "bg-rose-50 text-rose-700" : isArtifact ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
           }`}
@@ -93,27 +95,45 @@ export function MessageItem({ m }: { m: MessageRecord }) {
     );
   }
 
-  const icon =
-    m.type === "reasoning" ? <Brain size={12} /> : m.type === "command" ? <Terminal size={12} /> : m.type === "file_change" ? <FileEdit size={12} /> : m.type === "web_search" ? <Globe size={12} /> : m.type === "todo" ? <ListTodo size={12} /> : <AlertTriangle size={12} />;
-  const label =
-    m.type === "reasoning" ? t("msg.reasoning") : m.type === "command" ? t("msg.command") : m.type === "file_change" ? t("msg.fileChange") : m.type === "web_search" ? t("msg.webSearch") : m.type === "todo" ? t("msg.todo") : t("msg.error");
-  const firstLine = m.content.split("\n")[0].slice(0, 120);
-  const multi = m.content.includes("\n") || m.content.length > 120;
-
   return (
     <div className="flex gap-2">
       <div className="w-7" />
-      <div className="min-w-0 max-w-[85%] text-xs">
-        <button onClick={() => multi && setOpen((o) => !o)} className="flex max-w-full items-start gap-1.5 rounded-md px-2 py-1 text-left text-slate-500 hover:bg-slate-100 coarse:py-2">
-          <span className="mt-0.5 shrink-0 text-slate-400">{icon}</span>
-          <span className="shrink-0 font-medium text-slate-500">{label}</span>
-          <span className={`min-w-0 font-mono ${open ? "" : "truncate"}`}>{open ? "" : firstLine}</span>
-          {multi && <span className="shrink-0 text-slate-400">{open ? "▲" : "▼"}</span>}
-        </button>
-        {open && (
-          <pre className="mt-1 max-h-96 overflow-auto rounded-md bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-100">{m.content}</pre>
-        )}
-      </div>
+      <StepRow m={m} className="max-w-[85%]" />
+    </div>
+  );
+}
+
+export function stepIcon(type: MessageRecord["type"], size = 12) {
+  return type === "reasoning" ? <Brain size={size} /> : type === "command" ? <Terminal size={size} /> : type === "file_change" ? <FileEdit size={size} /> : type === "web_search" ? <Globe size={size} /> : type === "todo" ? <ListTodo size={size} /> : <AlertTriangle size={size} />;
+}
+
+export function stepLabel(type: MessageRecord["type"], t: TFn): string {
+  return type === "reasoning" ? t("msg.reasoning") : type === "command" ? t("msg.command") : type === "file_change" ? t("msg.fileChange") : type === "web_search" ? t("msg.webSearch") : type === "todo" ? t("msg.todo") : t("msg.error");
+}
+
+/** One thought / tool call: a single line that expands to the full text. */
+export function StepRow({ m, className = "" }: { m: MessageRecord; className?: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const firstLine = stepPreview(m);
+  const multi = m.content.includes("\n") || m.content.length > 120;
+
+  return (
+    <div className={`min-w-0 text-xs ${className}`}>
+      <button
+        type="button"
+        onClick={() => multi && setOpen((o) => !o)}
+        aria-expanded={multi ? open : undefined}
+        className="flex max-w-full items-start gap-1.5 rounded-md px-2 py-1 text-left text-slate-500 hover:bg-slate-100 coarse:py-2"
+      >
+        <span className="mt-0.5 shrink-0 text-slate-400">{stepIcon(m.type)}</span>
+        <span className="shrink-0 font-medium text-slate-500">{stepLabel(m.type, t)}</span>
+        <span className={`min-w-0 font-mono ${open ? "" : "truncate"}`}>{open ? "" : firstLine}</span>
+        {multi && <span className="shrink-0 text-slate-400" aria-hidden>{open ? "▲" : "▼"}</span>}
+      </button>
+      {open && (
+        <pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-900 p-3 font-mono text-[11px] leading-relaxed text-slate-100">{m.content}</pre>
+      )}
     </div>
   );
 }

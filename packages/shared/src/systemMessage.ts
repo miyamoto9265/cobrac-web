@@ -102,3 +102,40 @@ export function resolveSystemMessage(content: string, meta?: Record<string, unkn
 
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Harness prompts: the instruction the worker sends to the agent at the start of a job
+// ---------------------------------------------------------------------------
+
+const PROMPT_PHASE_RE = /\b(?:Run phase|finish phase) (HCD|FRG|CSV|XLSX)\b/;
+
+const PROMPT_NOTICE: Record<string, { key: string; en: string; withStep?: { key: string; en: (s: string) => string } }> = {
+  initial: { key: "sys.promptStart", en: "Started the work.", withStep: { key: "sys.promptPhase", en: (s) => `Started phase ${s}.` } },
+  resume: { key: "sys.promptResume", en: "Passed your answer to the agent and resumed the work." },
+  retry: { key: "sys.promptRetry", en: "Resumed the work from where it stopped.", withStep: { key: "sys.promptRetryPhase", en: (s) => `Resumed phase ${s} from where it stopped.` } },
+  followup: { key: "sys.promptFollowup", en: "Started working on the follow-up instruction." },
+};
+
+/**
+ * System notice for the prompt the worker sends to the agent. The user's own input (ROI/TLF, answer,
+ * follow-up) is stored by the API, so the prompt is kept as a notice with the text in `meta.details`.
+ */
+export function harnessPromptNotice(mode: string, prompt: string): { content: string; meta: Record<string, unknown> } {
+  const n = PROMPT_NOTICE[mode] ?? PROMPT_NOTICE.initial;
+  const step = prompt.match(PROMPT_PHASE_RE)?.[1];
+  const meta: Record<string, unknown> = { mode, harnessPrompt: true, details: prompt };
+  if (step && n.withStep) return { content: n.withStep.en(step), meta: { ...meta, i18n: n.withStep.key, step } };
+  return { content: n.en, meta: { ...meta, i18n: n.key } };
+}
+
+/** Workers up to v0.8.1 stored its prompt as a user message (`meta.mode`); the API's user input has `meta.kind`. */
+export function isLegacyHarnessPrompt(m: { role: string; type: string; meta?: Record<string, unknown> }): boolean {
+  return m.role === "user" && m.type === "prompt" && typeof m.meta?.mode === "string" && m.meta.kind === undefined;
+}
+
+/** Show a stored message the way it is stored today: legacy harness prompts become system notices. */
+export function normalizeStoredMessage<T extends { role: string; type: string; content: string; meta?: Record<string, unknown> }>(m: T): T {
+  if (!isLegacyHarnessPrompt(m)) return m;
+  const n = harnessPromptNotice(String(m.meta!.mode), m.content);
+  return { ...m, role: "system", type: "status", content: n.content, meta: { ...m.meta, ...n.meta } };
+}
