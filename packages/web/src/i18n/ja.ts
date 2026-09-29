@@ -600,7 +600,7 @@ export const ja: Record<MessageKey, string> = {
   "cc3.pick": "Canon を選ぶ…",
   "cc3.new": "既存のプロジェクトから新しく作る",
   "cc3.seeds": "元にするプロジェクト（上が優先）",
-  "cc3.inCanon": "別の Canon に参加中",
+  "cc3.inCanon": "Canon に参加中",
   "cc3.notCompleted": "未完了",
   "cc3.preview": "プレビュー",
   "cc3.pickSeeds": "プロジェクトを選ぶとプレビューが出ます。",

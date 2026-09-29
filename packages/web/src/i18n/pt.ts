@@ -600,7 +600,7 @@ export const pt: Record<MessageKey, string> = {
   "cc3.pick": "Escolha um Canon…",
   "cc3.new": "Um novo Canon a partir de projetos existentes",
   "cc3.seeds": "Projetos de partida (de cima para baixo)",
-  "cc3.inCanon": "já em outro Canon",
+  "cc3.inCanon": "já está em um Canon",
   "cc3.notCompleted": "não concluído",
   "cc3.preview": "Prévia",
   "cc3.pickSeeds": "Escolha projetos para ver a prévia.",

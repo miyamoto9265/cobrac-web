@@ -600,7 +600,7 @@ export const zh: Record<MessageKey, string> = {
   "cc3.pick": "选择 Canon…",
   "cc3.new": "用已有项目新建 Canon",
   "cc3.seeds": "作为基础的项目（上方优先）",
-  "cc3.inCanon": "已在其他 Canon 中",
+  "cc3.inCanon": "已加入 Canon",
   "cc3.notCompleted": "未完成",
   "cc3.preview": "预览",
   "cc3.pickSeeds": "选择项目后显示预览。",

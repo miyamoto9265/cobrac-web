@@ -600,7 +600,7 @@ export const ko: Record<MessageKey, string> = {
   "cc3.pick": "Canon 선택…",
   "cc3.new": "기존 프로젝트로 새 Canon 만들기",
   "cc3.seeds": "기반 프로젝트(위쪽 우선)",
-  "cc3.inCanon": "다른 Canon에 참여 중",
+  "cc3.inCanon": "이미 Canon에 참여 중",
   "cc3.notCompleted": "미완료",
   "cc3.preview": "미리보기",
   "cc3.pickSeeds": "프로젝트를 고르면 미리보기가 나옵니다.",

@@ -598,7 +598,7 @@ export const en = {
   "cc3.pick": "Choose a Canon…",
   "cc3.new": "A new Canon from existing projects",
   "cc3.seeds": "Projects to start from (top first)",
-  "cc3.inCanon": "in another Canon",
+  "cc3.inCanon": "already in a Canon",
   "cc3.notCompleted": "not completed",
   "cc3.preview": "Preview",
   "cc3.pickSeeds": "Choose projects to see the preview.",
