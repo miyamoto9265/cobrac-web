@@ -385,4 +385,15 @@ export const ko: Record<MessageKey, string> = {
   "node.resetSize": "크기 재설정",
   "node.reset": "기본값으로",
   "node.resizeHelp": "모서리와 변의 핸들로 선택한 노드의 크기를 조절하세요.",
+
+  "del.title": "이 프로젝트를 삭제할까요?",
+  "del.body": "프로젝트 목록에서 사라지며 더 이상 열기, 후속 지시, 다운로드를 할 수 없습니다. 데이터는 지워지지 않고 보관되며 관리자는 계속 볼 수 있습니다.",
+  "del.confirm": "삭제",
+  "del.cancel": "취소",
+  "del.blocked": "실행 중에는 삭제할 수 없습니다. 먼저 중지하세요",
+  "del.failed": "삭제하지 못했습니다: {error}",
+  "del.failedNamed": "“{name}”을(를) 삭제하지 못했습니다: {error}",
+  "del.deleted": "삭제됨",
+  "del.deletedAt": "{date} 삭제",
+  "del.adminNote": "삭제됨 {n}개 포함",
 };

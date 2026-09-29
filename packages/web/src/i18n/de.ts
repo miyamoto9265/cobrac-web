@@ -385,4 +385,15 @@ export const de: Record<MessageKey, string> = {
   "node.resetSize": "Größe zurücksetzen",
   "node.reset": "Auf Standard zurücksetzen",
   "node.resizeHelp": "Ändern Sie die Größe des ausgewählten Knotens mit den Griffen an Ecken und Kanten.",
+
+  "del.title": "Dieses Projekt löschen?",
+  "del.body": "Es verschwindet aus Ihrer Projektliste und kann nicht mehr geöffnet, fortgesetzt oder heruntergeladen werden. Nichts wird gelöscht: Die Daten bleiben gespeichert und Admins können sie weiterhin sehen.",
+  "del.confirm": "Löschen",
+  "del.cancel": "Abbrechen",
+  "del.blocked": "Laufenden Job vor dem Löschen stoppen",
+  "del.failed": "Löschen fehlgeschlagen: {error}",
+  "del.failedNamed": "„{name}“ konnte nicht gelöscht werden: {error}",
+  "del.deleted": "Gelöscht",
+  "del.deletedAt": "Gelöscht am {date}",
+  "del.adminNote": "davon {n} gelöscht",
 };

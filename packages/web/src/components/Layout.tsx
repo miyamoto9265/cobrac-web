@@ -1,11 +1,12 @@
 import { BookOpen, FolderKanban, LogOut, Menu, MessageSquarePlus, Settings, Shield, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { StatusBadge } from "./StatusBadge";
 
@@ -19,7 +20,8 @@ export function Layout() {
   // Below lg the sidebar is an off-canvas drawer.
   const [navOpen, setNavOpen] = useState(false);
 
-  const reload = () => api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
+  const reload = useCallback(() => api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined), []);
+  useProjectsChanged(reload);
 
   useEffect(() => {
     void reload();

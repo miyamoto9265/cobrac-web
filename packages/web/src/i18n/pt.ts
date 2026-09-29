@@ -385,4 +385,15 @@ export const pt: Record<MessageKey, string> = {
   "node.resetSize": "Redefinir tamanho",
   "node.reset": "Redefinir para o padrão",
   "node.resizeHelp": "Redimensione o nó selecionado com as alças dos cantos e das bordas.",
+
+  "del.title": "Excluir este projeto?",
+  "del.body": "Ele some da sua lista de projetos e não pode mais ser aberto, continuado nem baixado. Nada é apagado: os dados continuam armazenados e os administradores ainda podem vê-los.",
+  "del.confirm": "Excluir",
+  "del.cancel": "Cancelar",
+  "del.blocked": "Pare o job em execução antes de excluir",
+  "del.failed": "Não foi possível excluir: {error}",
+  "del.failedNamed": "Não foi possível excluir “{name}”: {error}",
+  "del.deleted": "Excluído",
+  "del.deletedAt": "Excluído em {date}",
+  "del.adminNote": "incluindo {n} excluído(s)",
 };

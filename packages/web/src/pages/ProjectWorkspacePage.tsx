@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
 import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage } from "@cobrac/shared";
+import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { StatusBadge } from "../components/StatusBadge";
@@ -13,6 +14,7 @@ import { TablesView } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { isActive } from "../lib/format";
+import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
 import { useProjectSocket } from "../lib/ws";
 import { ProjectChatPanel } from "./ChatPage";
@@ -100,10 +102,16 @@ function Workspace({ projectId }: { projectId: string }) {
     lastProgress.current = progressKey;
   }, [progressKey, loadArtifacts]);
 
+  const leaveDeleted = () => {
+    notifyProjectsChanged();
+    navigate("/projects", { replace: true });
+  };
+
   useProjectSocket(projectId, (ev: WsServerEvent) => {
     if (ev.type === "message") {
       setMessages((prev) => (prev.some((x) => x.messageId === ev.message.messageId) ? prev : [...prev, ev.message].sort((a, b) => (a.sk < b.sk ? -1 : 1))));
     } else if (ev.type === "project") {
+      if (ev.project.deletedAt) return leaveDeleted();
       setProject(ev.project);
     }
   });
@@ -159,6 +167,10 @@ function Workspace({ projectId }: { projectId: string }) {
     const { url } = await api.downloadUrl(projectId, key);
     window.location.href = url;
   };
+  const deleteProject = async () => {
+    await api.deleteProject(projectId);
+    leaveDeleted();
+  };
 
   const center = (() => {
     if (artifacts === null) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
@@ -211,6 +223,7 @@ function Workspace({ projectId }: { projectId: string }) {
                   <Download size={14} /> BRA xlsx
                 </button>
               )}
+              <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />
             </div>
           </div>
           <div className={showDetails ? "block" : "hidden lg:block"}>

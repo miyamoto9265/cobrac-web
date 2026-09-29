@@ -383,6 +383,17 @@ export const en = {
   "node.resetSize": "Reset size",
   "node.reset": "Reset to default",
   "node.resizeHelp": "Resize the selected node with the corner and edge handles.",
+
+  "del.title": "Delete this project?",
+  "del.body": "It disappears from your project list and can no longer be opened, followed up or downloaded. Nothing is erased: the data stays stored and administrators can still see it.",
+  "del.confirm": "Delete",
+  "del.cancel": "Cancel",
+  "del.blocked": "Stop the running job before deleting",
+  "del.failed": "Could not delete: {error}",
+  "del.failedNamed": "Could not delete “{name}”: {error}",
+  "del.deleted": "Deleted",
+  "del.deletedAt": "Deleted {date}",
+  "del.adminNote": "including {n} deleted",
 } as const;
 
 export type MessageKey = keyof typeof en;
