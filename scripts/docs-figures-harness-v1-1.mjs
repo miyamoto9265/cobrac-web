@@ -1,5 +1,5 @@
 // Figures of docs/05_CoBRAC_Harness_v1_to_v1_1*.md (harness v1 → v1.1). Rendered by docs-figures.mjs.
-import { C, NW, arrow, badge, box, legendRows, pill, svg, text, textWidth } from "./docs-figures-lib.mjs";
+import { C, NW, arrow, badge, box, chain, chip, group, header, legendLine, legendRows, pill, svg, text, textWidth } from "./docs-figures-lib.mjs";
 
 const W = 860;
 const V11 = "#0d9488";
@@ -237,45 +237,6 @@ const S = {
 
 // ---------------------------------------------------------------------------
 
-function header(x, y, w, label, color) {
-  return `<rect x="${x}" y="${y}" width="${w}" height="30" rx="8" fill="${color}"/>` + text(x + w / 2, y + 20, label, { size: 13.5, weight: 700, color: "#ffffff", anchor: "middle", maxWidth: w - 12 });
-}
-
-/** A file chip: monospace name on the left, a short note on the right. */
-function chip(x, y, w, name, { kind = "plain", note = "", dashed = false, noteColor = C.muted } = {}) {
-  const k = C[kind];
-  const nameW = textWidth(`\`${name}\``, 12);
-  const out = [
-    `<rect x="${x}" y="${y}" width="${w}" height="28" rx="6" fill="${k.fill}" stroke="${k.stroke}" stroke-width="1.3"${dashed ? ` stroke-dasharray="5 3"` : ""}/>`,
-    text(x + 10, y + 18.5, `\`${name}\``, { size: 12, maxWidth: w - 20 }),
-  ];
-  if (note) out.push(text(x + w - 10, y + 18.5, note, { size: 11, color: noteColor, anchor: "end", maxWidth: w - 30 - nameW }));
-  return out.join("\n");
-}
-
-function group(x, y, w, h, label, color) {
-  return (
-    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#ffffff" stroke="${color}" stroke-width="1.2" stroke-dasharray="4 4"/>` +
-    text(x + 12, y + 20, label, { size: 12.5, weight: 700, color, maxWidth: w - 24 })
-  );
-}
-
-function legendLine(items, y, width, color = C.bad.title) {
-  const out = [];
-  let lx = 12;
-  let ly = y;
-  for (const item of items) {
-    const w = textWidth(item, 12) + 22;
-    if (lx > 12 && lx + w > width) {
-      lx = 12;
-      ly += 20;
-    }
-    out.push(text(lx, ly, item, { size: 12, color }));
-    lx += w;
-  }
-  return { svg: out.join("\n"), bottom: ly };
-}
-
 // ---------------------------------------------------------------------------
 
 function overview(lang, narrow = false) {
@@ -307,20 +268,6 @@ function overview(lang, narrow = false) {
   const [x1, y1] = narrow ? [10, ph + 24] : [440, 10];
   panel(x1, y1, s.v11Head, V11, s.workerV11, s.v11Worker, s.agentV11, s.v11Agent, s.v11Down, s.v11Up, s.v11Foot, "code");
   return svg({ width, height, title: s.title, desc: s.desc, body: body.join("\n"), lang });
-}
-
-/** Worker chain of boxes; returns svg parts and the bottom y. */
-function chain(x, y, w, steps, gap = 24, size = 12) {
-  const out = [];
-  const tops = [];
-  for (const [i, st] of steps.entries()) {
-    const h = st.h ?? (st.lines?.length ? 34 + st.lines.length * 18 : 40);
-    tops.push({ y, h });
-    out.push(box({ x, y, w, h, kind: st.kind ?? "code", title: st.title, lines: st.lines ?? [], size, titleSize: 13, dashed: st.dashed }));
-    if (i < steps.length - 1) out.push(arrow([[x + w / 2, y + h], [x + w / 2, y + h + gap]], { color: C.line }));
-    y += h + gap;
-  }
-  return { svg: out.join("\n"), tops, bottom: y - gap };
 }
 
 function v1Flow(lang, narrow = false) {

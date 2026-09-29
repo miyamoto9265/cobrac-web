@@ -123,9 +123,10 @@ export function markers(colors) {
     .join("");
 }
 
-export function svg({ width, height, title, desc, body, lang }) {
+/** ligatures: false keeps literal `->` in code spans from turning into an arrow glyph. */
+export function svg({ width, height, title, desc, body, lang, ligatures = true }) {
   const colors = [C.line, C.worker.stroke, C.agent.stroke, C.code.stroke, C.warn.stroke, C.bad.stroke];
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d" lang="${lang}" font-family="${esc(SANS)}">
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d" lang="${lang}" font-family="${esc(SANS)}"${ligatures ? "" : ` style="font-variant-ligatures:none"`}>
 <title id="t">${esc(title)}</title>
 <desc id="d">${esc(desc)}</desc>
 <defs>${markers(colors)}</defs>
@@ -153,4 +154,57 @@ export function legendRows(items, y, maxW) {
     lx += w;
   }
   return { svg: out.join("\n"), bottom: ly };
+}
+
+export function header(x, y, w, label, color) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="30" rx="8" fill="${color}"/>` + text(x + w / 2, y + 20, label, { size: 13.5, weight: 700, color: "#ffffff", anchor: "middle", maxWidth: w - 12 });
+}
+
+/** A file chip: monospace name on the left, a short note on the right. */
+export function chip(x, y, w, name, { kind = "plain", note = "", dashed = false, noteColor = C.muted } = {}) {
+  const k = C[kind];
+  const nameW = textWidth(`\`${name}\``, 12);
+  const out = [
+    `<rect x="${x}" y="${y}" width="${w}" height="28" rx="6" fill="${k.fill}" stroke="${k.stroke}" stroke-width="1.3"${dashed ? ` stroke-dasharray="5 3"` : ""}/>`,
+    text(x + 10, y + 18.5, `\`${name}\``, { size: 12, maxWidth: w - 20 }),
+  ];
+  if (note) out.push(text(x + w - 10, y + 18.5, note, { size: 11, color: noteColor, anchor: "end", maxWidth: w - 30 - nameW }));
+  return out.join("\n");
+}
+
+export function group(x, y, w, h, label, color) {
+  return (
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10" fill="#ffffff" stroke="${color}" stroke-width="1.2" stroke-dasharray="4 4"/>` +
+    text(x + 12, y + 20, label, { size: 12.5, weight: 700, color, maxWidth: w - 24 })
+  );
+}
+
+export function legendLine(items, y, width, color = C.bad.title) {
+  const out = [];
+  let lx = 12;
+  let ly = y;
+  for (const item of items) {
+    const w = textWidth(item, 12) + 22;
+    if (lx > 12 && lx + w > width) {
+      lx = 12;
+      ly += 20;
+    }
+    out.push(text(lx, ly, item, { size: 12, color }));
+    lx += w;
+  }
+  return { svg: out.join("\n"), bottom: ly };
+}
+
+/** Worker chain of boxes; returns svg parts and the bottom y. */
+export function chain(x, y, w, steps, gap = 24, size = 12) {
+  const out = [];
+  const tops = [];
+  for (const [i, st] of steps.entries()) {
+    const h = st.h ?? (st.lines?.length ? 34 + st.lines.length * 18 : 40);
+    tops.push({ y, h });
+    out.push(box({ x, y, w, h, kind: st.kind ?? "code", title: st.title, lines: st.lines ?? [], size, titleSize: 13, dashed: st.dashed }));
+    if (i < steps.length - 1) out.push(arrow([[x + w / 2, y + h], [x + w / 2, y + h + gap]], { color: C.line }));
+    y += h + gap;
+  }
+  return { svg: out.join("\n"), tops, bottom: y - gap };
 }
