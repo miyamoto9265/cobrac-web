@@ -5,8 +5,9 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, RefCheck, RefRow, RefStatus, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, SabraLookup } from "@cobrac/shared";
 import {
+  DEFAULT_BRA_RULES,
   HARNESS_SCHEMAS,
   SCHEMA_DIR,
   buildCsvs,
@@ -17,8 +18,11 @@ import {
   frgCitedIds,
   hombaAnchorIds,
   isFrgProblem,
+  pointerProblems,
+  quoteCheckMessage,
   refCheckMessage,
   schemaFileName,
+  summarizeQuoteChecks,
   summarizeRefChecks,
 } from "@cobrac/shared";
 import { loadFrgFiles, loadHcdFiles, type ProjectPaths } from "./steps.js";
@@ -48,6 +52,22 @@ export interface PhaseContext {
   frg: FrgModel | null;
   /** Latest reference check (also written to reference_check.json) */
   references?: ReferenceReport | null;
+  /** Latest quote check (also written to quote_check.json) */
+  quotes?: QuoteReport | null;
+}
+
+/** Contents of `{P}/quote_check.json`, rewritten by every HCD check. */
+export interface QuoteReport {
+  checkedAt: string;
+  /** Whether the papers' texts were fetched (off: nothing was checked) */
+  lookup: "on" | "off";
+  /** Minimum similarity for a quote to count as found */
+  threshold: number | null;
+  summary: Record<QuoteStatus, number> | null;
+  /** One entry per connection with a well-formed Pointers on literature */
+  quotes: QuoteCheck[];
+  /** Quotes sent back to the agent */
+  problems: string[];
 }
 
 /** Contents of `{P}/reference_check.json`, rewritten by every HCD / FRG check. */
@@ -69,6 +89,8 @@ export interface CheckDeps {
   lookupSabra?: (hombaIds: string[]) => Promise<SabraLookup>;
   /** Looks up each reference's DOI / PMID (omitted: only the citations are checked) */
   verifyReferences?: (refs: RefRow[]) => Promise<RefCheck[]>;
+  /** Compares each connection's Pointers on literature with the cited paper's text (omitted: not checked) */
+  quoteChecker?: { threshold: number; verify: (reqs: QuoteRequest[]) => Promise<QuoteCheck[]> };
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -99,7 +121,8 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   if (phase === "HCD") {
     if (hcd.model?.meta && hcd.errors.length === 0) await deps.onMetaAccepted?.(hcd.model.meta);
     const refErrors = await checkReferences("HCD", paths, deps, ctx);
-    return { errors: [...new Set([...hcd.errors, ...refErrors])], fatal: hcd.fatal };
+    const quoteErrors = await checkQuotes(paths, deps, ctx);
+    return { errors: [...new Set([...hcd.errors, ...refErrors, ...quoteErrors])], fatal: hcd.fatal };
   }
   if (!hcd.model) return { errors: ["The HCD files cannot be used:", ...hcd.errors], fatal: true };
 
@@ -151,6 +174,40 @@ async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: 
     console.warn(`[references] ${paths.referenceCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
   }
   return errors;
+}
+
+/**
+ * Pointers on literature against the text of the cited paper (HCD phase only: connections are HCD data). Quotes
+ * that already fail the format rules (too short, a locator) are left to those messages. Writes quote_check.json.
+ */
+async function checkQuotes(paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
+  const hcd = ctx.hcd;
+  if (!hcd) return [];
+  const refs = new Map(hcd.refs.map((r) => [r.id, r]));
+  const reqs: QuoteRequest[] = [];
+  for (const c of hcd.connections) {
+    const quote = c.pointersOnLiterature;
+    if (!quote || pointerProblems("", quote, "", DEFAULT_BRA_RULES).length) continue;
+    const cited = c.referenceIds.flatMap((id) => refs.get(id) ?? []);
+    if (cited.length) reqs.push({ sender: c.sender, receiver: c.receiver, referenceIds: c.referenceIds, quote, refs: cited });
+  }
+  const checks = deps.quoteChecker && reqs.length ? await deps.quoteChecker.verify(reqs) : [];
+  const problems = checks.map(quoteCheckMessage).filter((m): m is string => !!m);
+  const report: QuoteReport = {
+    checkedAt: new Date().toISOString(),
+    lookup: deps.quoteChecker ? "on" : "off",
+    threshold: deps.quoteChecker?.threshold ?? null,
+    summary: checks.length ? summarizeQuoteChecks(checks) : null,
+    quotes: checks,
+    problems,
+  };
+  ctx.quotes = report;
+  try {
+    await writeFile(paths.quoteCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[quotes] ${paths.quoteCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return problems;
 }
 
 export async function graphParseError(paths: ProjectPaths): Promise<string | null> {

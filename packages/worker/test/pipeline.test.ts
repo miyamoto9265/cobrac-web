@@ -8,11 +8,26 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { buildGraphs, parseCsvObjects, replyLanguageInstruction, validateJsonSchema, type JsonSchema } from "@cobrac/shared";
+import { buildGraphs, parseCsvObjects, replyLanguageInstruction, validateJsonSchema, type JsonSchema, type QuoteRequest } from "@cobrac/shared";
 import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
+import { QuoteVerifier } from "../src/quotes.js";
 import { ReferenceVerifier } from "../src/references.js";
-import { CROSSREF, DOI_ORG, EUTILS, HABER_WORK, SCHULTZ_WORK, mockLiterature, type Failure } from "./mockLiterature.js";
+import {
+  BIOC,
+  CROSSREF,
+  DOI_ORG,
+  EUROPE_PMC,
+  EUTILS,
+  HABER_EPMC,
+  HABER_FULLTEXT,
+  HABER_WORK,
+  S2,
+  SCHULTZ_EPMC,
+  SCHULTZ_WORK,
+  mockLiterature,
+  type Failure,
+} from "./mockLiterature.js";
 import { isLegacyWorkspace, loadHcdFiles, projectPaths, type ProjectPaths } from "../src/steps.js";
 import { startMockRcs, type MockRcs } from "./mockRcsServer.js";
 
@@ -343,6 +358,83 @@ describe("reference checks in the phase pipeline", () => {
     expect(agent.turns).toEqual(["Run phase HCD", "Run phase FRG"]);
     const report = JSON.parse(readFileSync(p.referenceCheck, "utf8"));
     expect(report.summary).toMatchObject({ unverified: 2, no_identifier: 1 });
+    rmSync(p.root, { recursive: true, force: true });
+  });
+});
+
+describe("quote checks in the phase pipeline", () => {
+  const quoteChecker = (fail?: (url: string) => Failure | undefined) => {
+    const v = new QuoteVerifier({
+      fetch: mockLiterature({ epmc: [HABER_EPMC, SCHULTZ_EPMC], fulltext: { [HABER_EPMC.pmcid]: HABER_FULLTEXT } }, fail).fetch,
+      europePmcUrl: EUROPE_PMC,
+      eutilsUrl: EUTILS,
+      biocUrl: BIOC,
+      crossrefUrl: CROSSREF,
+      semanticScholarUrl: S2,
+      retries: 0,
+      sleep: async () => {},
+    });
+    return { threshold: v.threshold, verify: (reqs: QuoteRequest[]) => v.verify(reqs) };
+  };
+  const INVENTED = "The ventral striatum sends a dense and topographically organized projection to the lateral habenula in primates.";
+
+  /** The first HCD has a quote that is not in the paper; the fix turn restores the real one. */
+  function misquotingAgent(p: ProjectPaths, fixes: string[]) {
+    const agent = mockAgent(p);
+    const turn = async (prompt: Prompt) => {
+      if (prompt.shown.startsWith("Run phase HCD")) {
+        await agent.turn(prompt);
+        const conn = JSON.parse(fixture("HCD/connections.json"));
+        conn.connections[2].pointersOnLiterature = INVENTED;
+        writeFileSync(join(p.hcd, "connections.json"), JSON.stringify(conn, null, 2));
+        return true;
+      }
+      if (prompt.shown.startsWith("Fix HCD")) {
+        fixes.push(prompt.shown);
+        cpSync(join(FIXTURE, "HCD", "connections.json"), join(p.hcd, "connections.json"));
+        return true;
+      }
+      return agent.turn(prompt);
+    };
+    return { turn, turns: agent.turns };
+  }
+
+  it("sends a quote that is not in the paper's full text back to the agent and records every quote", async () => {
+    const p = freshWorkspace();
+    const fixes: string[] = [];
+    const d = driver(p, misquotingAgent(p, fixes), [], []);
+    const ctx: PhaseContext = { hcd: null, frg: null };
+    const run = await runPhases({ ...d, check: (phase) => checkPhase(phase, p, { ...depsOf(), quoteChecker: quoteChecker() }, ctx) }, 0, { shown: "Run phase HCD" });
+    expect(run).toEqual({ result: "completed" });
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0]).toContain("connections.json: `NAC` -> `VTA` ([Haber, 2010]): pointersOnLiterature is not in the paper (checked against its full text: Europe PMC PMC3055449");
+    expect(fixes[0]).toContain('Closest passage: "');
+
+    const report = JSON.parse(readFileSync(p.quoteCheck, "utf8"));
+    expect(report).toMatchObject({ lookup: "on", threshold: 0.9, summary: { verified_fulltext: 2, verified_abstract: 0, not_found: 0, unverified: 2 }, problems: [] });
+    expect(report.quotes.map((c: { sender: string; receiver: string; status: string }) => `${c.sender}>${c.receiver} ${c.status}`)).toEqual([
+      "A9/46d@L>NAC verified_fulltext",
+      "VTA>NAC unverified",
+      "NAC>VTA verified_fulltext",
+      "NAC>Arc unverified",
+    ]);
+    expect(ctx.quotes?.summary?.verified_fulltext).toBe(2);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+
+  it("does not hold up the phases when the paper texts cannot be fetched, and writes an empty report when off", async () => {
+    const p = freshWorkspace();
+    const agent = mockAgent(p);
+    const d = driver(p, agent, [], []);
+    const run = await runPhases({ ...d, check: (phase) => checkPhase(phase, p, { ...depsOf(), quoteChecker: quoteChecker(() => 503) }, { hcd: null, frg: null }) }, 0, {
+      shown: "Run phase HCD",
+    });
+    expect(run).toEqual({ result: "completed" });
+    expect(agent.turns).toEqual(["Run phase HCD", "Run phase FRG"]);
+    expect(JSON.parse(readFileSync(p.quoteCheck, "utf8")).summary).toMatchObject({ unverified: 4 });
+
+    await checkPhase("HCD", p, depsOf(), { hcd: null, frg: null });
+    expect(JSON.parse(readFileSync(p.quoteCheck, "utf8"))).toMatchObject({ lookup: "off", threshold: null, summary: null, quotes: [] });
     rmSync(p.root, { recursive: true, force: true });
   });
 });

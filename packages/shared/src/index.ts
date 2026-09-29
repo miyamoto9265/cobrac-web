@@ -12,4 +12,5 @@ export * from "./ucNaming.js";
 export * from "./bra.js";
 export * from "./bnaLabels.js";
 export * from "./references.js";
+export * from "./quotes.js";
 export * from "./article.js";

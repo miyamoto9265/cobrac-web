@@ -32,6 +32,10 @@ export const env = {
   rcsMcpToken: process.env.RCS_MCP_TOKEN || undefined,
   /** `off` skips the DOI / PMID lookups of references.json (citations are still checked) */
   referenceLookup: process.env.REFERENCE_LOOKUP !== "off",
+  /** `off` skips comparing Pointers on literature with the cited papers' full text / abstract */
+  quoteCheck: process.env.QUOTE_CHECK !== "off",
+  /** Minimum similarity (0–1) of a quote with the paper's text; invalid values fall back to the default (0.9) */
+  quoteMatchThreshold: process.env.QUOTE_MATCH_THRESHOLD ? Number(process.env.QUOTE_MATCH_THRESHOLD) : undefined,
   /** Contact address sent to Crossref (polite pool); optional */
   crossrefMailto: process.env.CROSSREF_MAILTO || undefined,
   /** NCBI E-utilities key (10 instead of 3 requests/s); optional, PubMed works without it */

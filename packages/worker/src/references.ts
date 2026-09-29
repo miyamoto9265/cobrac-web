@@ -8,61 +8,43 @@
  */
 import type { RefCheck, RefRecord, RefRow } from "@cobrac/shared";
 import { compareWithRecord, normalizeDoi, normalizePmid, parseRefId, recordSummary, titlesMatch } from "@cobrac/shared";
+import { LiteratureHttp, type HttpResult, type LiteratureHttpOptions } from "./http.js";
 
-export interface VerifierOptions {
-  fetch?: typeof fetch;
+export interface VerifierOptions extends LiteratureHttpOptions {
+  /** Shared HTTP client (its own options then apply instead of the ones here) */
+  http?: LiteratureHttp;
   crossrefUrl?: string;
   doiUrl?: string;
   eutilsUrl?: string;
-  /** Contact address for the Crossref polite pool (optional) */
-  mailto?: string;
-  /** NCBI API key: 10 instead of 3 requests per second (optional) */
-  ncbiApiKey?: string;
-  timeoutMs?: number;
-  retries?: number;
   /** Time for one `verify` call; references not reached in time stay unverified */
   budgetMs?: number;
   concurrency?: number;
-  sleep?: (ms: number) => Promise<void>;
-  now?: () => number;
 }
 
 type Lookup = { kind: "found"; record: RefRecord } | { kind: "not_found" } | { kind: "error"; reason: string };
 
-class HttpError extends Error {}
-
-const HOST_FAILURES_TO_OPEN = 3;
-const HOST_COOLDOWN_MS = 5 * 60_000;
-const MAX_RETRY_AFTER_MS = 10_000;
-
 export class ReferenceVerifier {
-  private readonly o: Required<Omit<VerifierOptions, "mailto" | "ncbiApiKey">> & Pick<VerifierOptions, "mailto" | "ncbiApiKey">;
+  private readonly o: { crossrefUrl: string; doiUrl: string; eutilsUrl: string; budgetMs: number; concurrency: number; mailto?: string; ncbiApiKey?: string };
+  private readonly http: LiteratureHttp;
   /** Found / not-found lookups by identifier; failures are retried on the next call */
   private readonly cache = new Map<string, Lookup>();
-  private readonly failures = new Map<string, number>();
-  private readonly downUntil = new Map<string, number>();
-  private ncbiQueue: Promise<void> = Promise.resolve();
   private deadline = Infinity;
 
   constructor(opts: VerifierOptions = {}) {
+    this.http = opts.http ?? new LiteratureHttp(opts);
     this.o = {
-      fetch: opts.fetch ?? fetch,
       crossrefUrl: opts.crossrefUrl ?? "https://api.crossref.org",
       doiUrl: opts.doiUrl ?? "https://doi.org",
       eutilsUrl: opts.eutilsUrl ?? "https://eutils.ncbi.nlm.nih.gov/entrez/eutils",
-      mailto: opts.mailto,
-      ncbiApiKey: opts.ncbiApiKey,
-      timeoutMs: opts.timeoutMs ?? 10_000,
-      retries: opts.retries ?? 2,
+      mailto: this.http.mailto,
+      ncbiApiKey: this.http.ncbiApiKey,
       budgetMs: opts.budgetMs ?? 180_000,
       concurrency: opts.concurrency ?? 4,
-      sleep: opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
-      now: opts.now ?? Date.now,
     };
   }
 
   async verify(refs: RefRow[]): Promise<RefCheck[]> {
-    this.deadline = this.o.now() + this.o.budgetMs;
+    this.deadline = this.http.now() + this.o.budgetMs;
     const out: RefCheck[] = new Array(refs.length);
     let next = 0;
     const worker = async () => {
@@ -151,7 +133,7 @@ export class ReferenceVerifier {
   private lookupPmid(pmid: string): Promise<Lookup> {
     return this.cached(`pmid:${pmid}`, async () => {
       const key = this.o.ncbiApiKey ? `&api_key=${encodeURIComponent(this.o.ncbiApiKey)}` : "";
-      const r = await this.ncbi(() => this.getJson(`${this.o.eutilsUrl}/esummary.fcgi?db=pubmed&retmode=json&id=${pmid}${key}`));
+      const r = await this.http.ncbi(() => this.getJson(`${this.o.eutilsUrl}/esummary.fcgi?db=pubmed&retmode=json&id=${pmid}${key}`));
       if (r.kind === "error") return r;
       if (r.kind === "missing") return { kind: "not_found" };
       const doc = (r.body as { result?: Record<string, PubmedDoc> }).result?.[pmid];
@@ -182,64 +164,8 @@ export class ReferenceVerifier {
     return { doi: r.record.doi!, title: s.title, firstAuthor: s.firstAuthor, year: s.year };
   }
 
-  // --- HTTP ------------------------------------------------------------------------------------------------------
-
-  /** NCBI allows 3 requests/s without a key (10 with one); requests are spaced out one after another. */
-  private ncbi<T>(run: () => Promise<T>): Promise<T> {
-    const gap = this.o.ncbiApiKey ? 110 : 350;
-    const p = this.ncbiQueue.then(run);
-    this.ncbiQueue = p.then(
-      () => this.o.sleep(gap),
-      () => this.o.sleep(gap),
-    );
-    return p;
-  }
-
-  private async getJson(url: string, headers: Record<string, string> = {}): Promise<{ kind: "ok"; body: unknown } | { kind: "missing" } | { kind: "error"; reason: string }> {
-    const host = new URL(url).host;
-    for (let attempt = 0; ; attempt++) {
-      if ((this.downUntil.get(host) ?? 0) > this.o.now()) return { kind: "error", reason: `${host} unavailable` };
-      if (this.o.now() >= this.deadline) return { kind: "error", reason: "time budget exceeded" };
-      let wait = 1000 * 2 ** attempt;
-      try {
-        const res = await this.o.fetch(url, {
-          headers: { Accept: "application/json", "User-Agent": `CoBRAC-Agents reference check${this.o.mailto ? ` (mailto:${this.o.mailto})` : ""}`, ...headers },
-          signal: AbortSignal.timeout(this.o.timeoutMs),
-          redirect: "follow",
-        });
-        if (res.status === 404 || res.status === 410) {
-          this.failures.set(host, 0);
-          return { kind: "missing" };
-        }
-        if (res.ok) {
-          const body = await res.json().catch(() => {
-            throw new HttpError("invalid JSON");
-          });
-          this.failures.set(host, 0);
-          return { kind: "ok", body };
-        }
-        if (res.status !== 429 && res.status < 500) {
-          this.failures.set(host, 0);
-          return { kind: "error", reason: `HTTP ${res.status}` };
-        }
-        const ra = Number(res.headers.get("retry-after"));
-        if (Number.isFinite(ra) && ra > 0) wait = Math.min(ra * 1000, MAX_RETRY_AFTER_MS);
-        throw new HttpError(`HTTP ${res.status}`);
-      } catch (e) {
-        const reason = e instanceof HttpError ? e.message : e instanceof Error && e.name === "TimeoutError" ? "timeout" : "network error";
-        if (attempt >= this.o.retries) {
-          const n = (this.failures.get(host) ?? 0) + 1;
-          this.failures.set(host, n);
-          if (n >= HOST_FAILURES_TO_OPEN) {
-            this.downUntil.set(host, this.o.now() + HOST_COOLDOWN_MS);
-            this.failures.set(host, 0);
-            console.warn(`[references] ${host} failed ${n} times; skipping it for ${HOST_COOLDOWN_MS / 60_000} min`);
-          }
-          return { kind: "error", reason };
-        }
-        await this.o.sleep(wait);
-      }
-    }
+  private getJson(url: string, headers: Record<string, string> = {}): Promise<HttpResult<unknown>> {
+    return this.http.getJson(url, this.deadline, headers);
   }
 }
 

@@ -12,6 +12,7 @@ export interface ProjectPaths {
   report: string;
   rcsLog: string;
   referenceCheck: string;
+  quoteCheck: string;
   hcd: string;
   frg: string;
   csv: string;
@@ -26,6 +27,7 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
     report: join(root, PROJECT_FILES.report),
     rcsLog: join(root, PROJECT_FILES.rcsLog),
     referenceCheck: join(root, PROJECT_FILES.referenceCheck),
+    quoteCheck: join(root, PROJECT_FILES.quoteCheck),
     hcd: join(root, `${projectId}_HCD`),
     frg: join(root, `${projectId}_FRG`),
     csv: join(root, `${projectId}_CSV`),

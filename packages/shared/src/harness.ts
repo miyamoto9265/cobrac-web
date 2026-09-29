@@ -46,6 +46,7 @@ export const PROJECT_FILES = {
   report: "report.md",
   rcsLog: "rcs_mcp_calls.jsonl",
   referenceCheck: "reference_check.json",
+  quoteCheck: "quote_check.json",
 } as const;
 
 /** Data files in `<ProjectID>/<ProjectID>_HCD/` and `_FRG/`; each has a JSON Schema in `HARNESS_SCHEMAS`. */
