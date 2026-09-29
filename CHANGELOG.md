@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-09-29
+
 ### Fixed
 - Long projects no longer fail with "Codex Exec exited with code 1" once their conversation outgrows the OpenAI tokens-per-minute limit of the model (a single request above 200k tokens for gpt-6-luna is refused however long one waits, so follow-ups and retries of such a project failed every time). Codex now compacts the conversation before it reaches that size, and a turn that is still refused as too large continues in a new conversation from the project files instead of failing the job; the chat says so
 
