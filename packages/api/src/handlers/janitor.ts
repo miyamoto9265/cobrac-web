@@ -19,19 +19,19 @@ export async function handler() {
       const hb = j.lastHeartbeat ? Date.parse(j.lastHeartbeat) : Date.parse(j.createdAt);
       if (now - hb <= HEARTBEAT_STALE_MS) continue;
       if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
-      else await failJob(j.projectId, j.jobId, j.userId, "ワーカーからの応答が途絶えました（Spot 中断など）。「続きからリトライ」で再開できます。");
+      else await failJob(j, "ワーカーからの応答が途絶えました（Spot 中断など）。「続きからリトライ」で再開できます。");
     }
   }
 
   for (const j of await listJobsByStatus("WAITING_USER_INPUT")) {
     if (now - Date.parse(j.updatedAt) > WAITING_INPUT_TIMEOUT_MS) {
-      await failJob(j.projectId, j.jobId, j.userId, "質問への回答待ちが 7 日間を超えたため終了しました。「続きからリトライ」で再開できます。");
+      await failJob(j, "質問への回答待ちが 7 日間を超えたため終了しました。「続きからリトライ」で再開できます。");
     }
   }
 
   for (const j of await listJobsByStatus("QUEUED")) {
     if (now - Date.parse(j.createdAt) > 24 * 60 * 60 * 1000) {
-      await failJob(j.projectId, j.jobId, j.userId, "24 時間以内にワーカーを起動できませんでした。");
+      await failJob(j, "24 時間以内にワーカーを起動できませんでした。");
     }
   }
 }
@@ -56,15 +56,30 @@ async function autoRetry(prev: JobRecord) {
     updatedAt: now,
   };
   await putJob(job);
-  await updateProject(prev.userId, prev.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null });
+  const article = prev.type === "article";
+  await updateProject(prev.userId, prev.projectId, {
+    status: "QUEUED",
+    activeJobId: jobId,
+    errorMessage: null,
+    ...(article && prev.articleLocale ? { articleJob: { jobId, locale: prev.articleLocale, status: "QUEUED" as const, errorMessage: null, requestedAt: now } } : {}),
+  });
   await putMessage(prev.projectId, jobId, "system", "status", `ワーカーからの応答が途絶えたため、自動で再開します（${job.retryCount}/${MAX_AUTO_RETRY}）。`, {
     userId: prev.userId,
   });
-  await enqueueRun({ version: 1, userId: prev.userId, projectId: prev.projectId, jobId, mode: "retry" });
+  await enqueueRun({ version: 1, userId: prev.userId, projectId: prev.projectId, jobId, mode: article ? "article" : "retry" });
 }
 
-async function failJob(projectId: string, jobId: string, userId: string, reason: string) {
+/** A failed article job leaves the project COMPLETED: its BRA data is unchanged. */
+async function failJob(j: JobRecord, reason: string) {
+  const { projectId, jobId, userId } = j;
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: reason, endedAt: nowIso() });
-  await updateProject(userId, projectId, { status: "FAILED", errorMessage: reason, activeJobId: null });
+  if (j.type === "article" && j.articleLocale) {
+    await updateProject(userId, projectId, {
+      status: "COMPLETED",
+      activeJobId: null,
+      errorMessage: null,
+      articleJob: { jobId, locale: j.articleLocale, status: "FAILED", errorMessage: reason, requestedAt: j.createdAt },
+    });
+  } else await updateProject(userId, projectId, { status: "FAILED", errorMessage: reason, activeJobId: null });
   await putMessage(projectId, jobId, "system", "error", reason, { userId });
 }

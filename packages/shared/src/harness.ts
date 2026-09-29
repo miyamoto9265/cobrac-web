@@ -7,7 +7,11 @@ import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { normalizeProjectName } from "./projectId.js";
 import { checkUcNaming, splitTopLevel, type SabraLookup } from "./ucNaming.js";
 
-/** Files at the project root (`<ProjectID>/`). The two markdown files are the only free-text outputs. */
+/**
+ * Files at the project root (`<ProjectID>/`). The two markdown files are the only free-text outputs.
+ * Everything checked here is a core artifact and must be English. Explanatory articles (`article/<locale>.md`,
+ * see article.ts) are not: they are written outside the workspace in the user's language and never reach these checks.
+ */
 export const PROJECT_FILES = {
   meta: "meta.json",
   decisionLog: "decision_log.md",

@@ -2,7 +2,7 @@ import { AlertTriangle, Bot, Brain, FileEdit, Globe, Info, ListTodo, Package, Te
 import { useState } from "react";
 import type { MessageRecord } from "@cobrac/shared";
 import { resolveSystemMessage } from "@cobrac/shared";
-import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
+import { localeName, useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { stepPreview } from "../lib/activity";
 import { fmtDate } from "../lib/format";
 import { Markdown } from "./Markdown";
@@ -15,6 +15,7 @@ function localizeStored(content: string, meta: Record<string, unknown> | undefin
     vars.roi = String(vars.roi || t("unspecified"));
     vars.tlf = String(vars.tlf || t("unspecified"));
   }
+  if (typeof vars.lang === "string") vars.lang = localeName(vars.lang, t);
   if (r.key === "sys.model") {
     vars.model = String(vars.model || t("sys.default"));
     vars.effort = String(vars.effort || t("sys.default"));

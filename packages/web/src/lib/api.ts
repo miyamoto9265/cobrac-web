@@ -1,10 +1,12 @@
 import type {
+  ArticleJobState,
   ArtifactInfo,
   CreateProjectRequest,
   DeleteProjectResponse,
   FrgGraph,
   HcdGraph,
   JobRecord,
+  ListArticlesResponse,
   ListMessagesResponse,
   ListProjectsResponse,
   ProjectRecord,
@@ -89,6 +91,9 @@ export const api = {
     request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/artifacts/download?key=${encodeURIComponent(key)}`),
   artifactText: (id: string, key: string) =>
     request<string>("GET", `/projects/${encodeURIComponent(id)}/artifacts/text?key=${encodeURIComponent(key)}`, undefined, true),
+  articles: (id: string) => request<ListArticlesResponse>("GET", `/projects/${encodeURIComponent(id)}/articles`),
+  createArticle: (id: string, locale: UiLocale) =>
+    request<{ ok: true; jobId: string; articleJob: ArticleJobState }>("POST", `/projects/${encodeURIComponent(id)}/articles`, { locale }),
   hcd: (id: string) => request<HcdGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/hcd`),
   frg: (id: string) => request<FrgGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/frg`),
   getLayout: (id: string, kind: "hcd" | "frg") => request<GraphLayout>("GET", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),
