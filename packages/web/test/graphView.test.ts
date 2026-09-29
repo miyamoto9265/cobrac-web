@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FrgGraph, FrgNode } from "@cobrac/shared";
-import { circuitsUnderGroup, frgIdForCircuit, lineage, neighborhood, parentGroupsOfCircuit, pathFromRoot, searchNodes } from "../src/lib/graphView";
+import { circuitsUnderGroup, frgIdForCircuit, groupBoxes, groupLevels, groupParents, lineage, neighborhood, parentGroupsOfCircuit, pathFromRoot, searchNodes } from "../src/lib/graphView";
 
 const nodes = [
   { id: "LC4", label: "LC4", sublabel: "Lobula columnar neuron LC4" },
@@ -89,5 +89,29 @@ describe("HCD ↔ FRG links", () => {
   });
   it("builds the breadcrumb from the root", () => {
     expect(pathFromRoot(frg, "U.T4")).toEqual(["R.Top", "R.Motion", "U.T4"]);
+  });
+});
+
+describe("Collection boxes", () => {
+  const groups = [
+    { id: "Loop", members: ["GC", "PC", "IO"] },
+    { id: "Cb", members: ["GC", "PC"] },
+    { id: "Empty", members: ["Missing"] },
+  ];
+  const rects = { GC: { x: 0, y: 100, width: 100, height: 50 }, PC: { x: 200, y: 100, width: 100, height: 50 }, IO: { x: 0, y: 300, width: 100, height: 50 } };
+
+  it("nests levels by member sets", () => {
+    expect(Object.fromEntries(groupLevels(groups))).toEqual({ Loop: 1, Cb: 0, Empty: 0 });
+  });
+
+  it("boxes the placed members with padding and label room, outer boxes first", () => {
+    expect(groupBoxes(groups, rects, 10, 10, 20)).toEqual([
+      { id: "Loop", level: 1, x: -20, y: 56, width: 340, height: 314 },
+      { id: "Cb", level: 0, x: -10, y: 70, width: 320, height: 90 },
+    ]);
+  });
+
+  it("gives each node and nested group its smallest enclosing group", () => {
+    expect(Object.fromEntries(groupParents(groups))).toEqual({ GC: "Cb", PC: "Cb", IO: "Loop", Cb: "Loop", Missing: "Empty" });
   });
 });

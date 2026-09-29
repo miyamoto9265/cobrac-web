@@ -8,7 +8,7 @@ export interface LegendItem {
   /** node stripe colour */
   accent?: string;
   label: string;
-  kind?: "node" | "edge";
+  kind?: "node" | "edge" | "group";
   sign?: EdgeSign;
   shape?: "rect" | "pill";
 }
@@ -44,7 +44,13 @@ export function Legend({ items, defaultOpen }: { items: LegendItem[]; defaultOpe
         <ul className="space-y-1 px-2.5 pb-2">
           {items.map((l) => (
             <li key={l.label} className="flex items-center gap-2 text-slate-700">
-              {l.kind === "edge" ? <EdgeGlyph color={l.color} sign={l.sign} /> : <NodeGlyph color={l.color} accent={l.accent} shape={l.shape} />}
+              {l.kind === "edge" ? (
+                <EdgeGlyph color={l.color} sign={l.sign} />
+              ) : l.kind === "group" ? (
+                <span aria-hidden className="inline-block h-3.5 w-6 shrink-0 rounded border border-dashed border-slate-400 bg-slate-400/10" />
+              ) : (
+                <NodeGlyph color={l.color} accent={l.accent} shape={l.shape} />
+              )}
               <span>{l.label}</span>
             </li>
           ))}

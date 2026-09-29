@@ -20,12 +20,13 @@ import { Grid3x3, ImageDown, LayoutGrid, Maximize, Paintbrush, Redo2, RotateCcw,
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../i18n";
-import { lineage, neighborhood, searchNodes } from "../lib/graphView";
+import { groupBoxes, groupParents, lineage, neighborhood, searchNodes } from "../lib/graphView";
 import type { GraphLayoutController, XY } from "../lib/useGraphLayout";
 import { useElementSize } from "../lib/useElementSize";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { DetailPanelModeContext } from "./DetailPanel";
 import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
+import { GroupBox, type GGroup, type GroupBoxType, type GroupData } from "./graph/GroupBox";
 import { OverflowMenu, SaveStatus, SearchBox, ToolButton, ToolDivider, type MenuItem } from "./graph/GraphToolbar";
 import { Legend, type LegendItem } from "./graph/Legend";
 import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
@@ -33,6 +34,7 @@ import { EdgeStylePanel, NodeStylePanel } from "./graph/StylePanel";
 import { StyledEdge, resolveEdgeStyle, type EdgeData, type StyledEdgeType } from "./graph/StyledEdge";
 
 export type { GNode } from "./graph/BoxNode";
+export type { GGroup } from "./graph/GroupBox";
 export type { LegendItem } from "./graph/Legend";
 export type { MenuItem } from "./graph/GraphToolbar";
 
@@ -76,9 +78,17 @@ interface Props {
   banner?: ReactNode;
   onToggleCollapse?: (id: string) => void;
   collapseLabel?: (collapsed: boolean) => string;
+  /** boxes drawn behind their member nodes (HCD Collections); they also cluster the members in the auto layout */
+  groups?: GGroup[];
+  /** hide the boxes without changing the layout */
+  showGroups?: boolean;
+  selectedGroupId?: string | null;
+  onSelectGroup?: (id: string) => void;
 }
 
-const nodeTypes: NodeTypes = { box: BoxNode };
+type CanvasNode = BoxNodeType | GroupBoxType;
+
+const nodeTypes: NodeTypes = { box: BoxNode, "group-box": GroupBox };
 const edgeTypes: EdgeTypes = { styled: StyledEdge };
 
 type Size = { width: number; height: number };
@@ -87,13 +97,32 @@ type Size = { width: number; height: number };
 const WIDE = 900;
 const COMPACT = 560;
 
-function autoLayout(nodes: GNode[], edges: GEdge[], sizes: Record<string, Size>, direction: "TB" | "LR"): Map<string, XY> {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: direction, nodesep: 36, ranksep: 84, edgesep: 16, marginx: 20, marginy: 20 });
-  g.setDefaultEdgeLabel(() => ({}));
-  for (const n of nodes) g.setNode(n.id, { width: sizes[n.id].width, height: sizes[n.id].height });
-  for (const e of edges) if (e.source !== e.target && g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
-  dagre.layout(g);
+const GROUP_KEY = (id: string) => `\u0000group:${id}`;
+
+function autoLayout(nodes: GNode[], edges: GEdge[], sizes: Record<string, Size>, direction: "TB" | "LR", groups: GGroup[] = []): Map<string, XY> {
+  const run = (compound: boolean) => {
+    const g = new dagre.graphlib.Graph({ compound });
+    // cluster borders take ranks of their own, so a compound layout needs a smaller rank gap for the same spacing
+    g.setGraph({ rankdir: direction, nodesep: 36, ranksep: compound ? 28 : 84, edgesep: 16, marginx: 20, marginy: 20 });
+    g.setDefaultEdgeLabel(() => ({}));
+    for (const n of nodes) g.setNode(n.id, { width: sizes[n.id].width, height: sizes[n.id].height });
+    for (const e of edges) if (e.source !== e.target && g.hasNode(e.source) && g.hasNode(e.target)) g.setEdge(e.source, e.target);
+    if (compound) {
+      const ids = new Set(nodes.map((n) => n.id));
+      const gs = groups.map((x) => ({ id: x.id, members: x.members.filter((m) => ids.has(m)) }));
+      const isGroup = new Set(gs.map((x) => x.id));
+      for (const x of gs) if (x.members.length) g.setNode(GROUP_KEY(x.id), {});
+      for (const [child, parent] of groupParents(gs)) g.setParent(isGroup.has(child) && !ids.has(child) ? GROUP_KEY(child) : child, GROUP_KEY(parent));
+    }
+    dagre.layout(g);
+    return g;
+  };
+  let g: dagre.graphlib.Graph;
+  try {
+    g = run(groups.length > 0);
+  } catch {
+    g = run(false);
+  }
   const pos = new Map<string, XY>();
   for (const n of nodes) {
     const p = g.node(n.id);
@@ -120,6 +149,8 @@ function autoHandles(a: XY & Size, b: XY & Size): { source: string; target: stri
   return { source: handleId(s, 0.5), target: handleId(t, 0.5) };
 }
 
+const NO_GROUPS: GGroup[] = [];
+
 const SELF_LOOP_HANDLES = { source: handleId("right", 0.28), target: handleId("right", 0.72) };
 
 function Inner({
@@ -141,6 +172,10 @@ function Inner({
   banner,
   onToggleCollapse,
   collapseLabel,
+  groups = NO_GROUPS,
+  showGroups = true,
+  selectedGroupId = null,
+  onSelectGroup,
 }: Props) {
   const t = useT();
   const rf = useReactFlow();
@@ -161,6 +196,7 @@ function Inner({
   const wide = !measured || rootW >= WIDE;
   const compact = measured && rootW < COMPACT;
   const L = layout.layout ?? { positions: {}, nodes: {}, edges: {} };
+  const groupIds = useMemo(() => new Set(groups.map((g) => g.id)), [groups]);
 
   // --- sizes ------------------------------------------------------------------
   const baseSizes = useMemo(() => {
@@ -175,7 +211,7 @@ function Inner({
   useEffect(() => setSizes(baseSizes), [baseSizes]);
 
   // --- positions ----------------------------------------------------------------
-  const auto = useMemo(() => autoLayout(nodes, edges, baseSizes, direction), [nodes, edges, baseSizes, direction]);
+  const auto = useMemo(() => autoLayout(nodes, edges, baseSizes, direction, groups), [nodes, edges, baseSizes, direction, groups]);
   const initial = useMemo(() => {
     const m: Record<string, XY> = {};
     for (const n of nodes) m[n.id] = L.positions[n.id] ?? auto.get(n.id) ?? { x: 0, y: 0 };
@@ -189,10 +225,11 @@ function Inner({
   // Keyboard selection (Enter / Space on a focused node) arrives only as a "select" change.
   const lastClick = useRef<{ id: string; at: number } | null>(null);
   const onNodesChange = useCallback(
-    (changes: NodeChange<BoxNodeType>[]) => {
+    (changes: NodeChange<CanvasNode>[]) => {
       const pos: Record<string, XY> = {};
       const dim: Record<string, Size> = {};
       for (const c of changes) {
+        if ("id" in c && groupIds.has(c.id)) continue;
         if (c.type === "position" && c.position) pos[c.id] = c.position;
         else if (c.type === "dimensions" && c.dimensions && c.setAttributes) dim[c.id] = { width: c.dimensions.width, height: c.dimensions.height };
         else if (c.type === "select" && c.selected) {
@@ -233,7 +270,40 @@ function Inner({
     return null;
   }, [selectedId, selectedEdgeId, query, hits, highlightIds, highlightMode, edges, nodes]);
 
-  const rfNodes = useMemo<BoxNodeType[]>(
+  const boxes = useMemo(() => {
+    if (!showGroups || !groups.length) return [];
+    const rects: Record<string, XY & Size> = {};
+    for (const n of nodes) if (positions[n.id]) rects[n.id] = { ...positions[n.id], ...(sizes[n.id] ?? { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H }) };
+    return groupBoxes(groups, rects);
+  }, [showGroups, groups, nodes, positions, sizes]);
+
+  const groupNodes = useMemo<GroupBoxType[]>(() => {
+    const byId = new Map(groups.map((g) => [g.id, g]));
+    return boxes.map((b) => {
+      const g = byId.get(b.id)!;
+      return {
+        id: b.id,
+        type: "group-box",
+        position: { x: b.x, y: b.y },
+        width: b.width,
+        height: b.height,
+        draggable: false,
+        selectable: false,
+        focusable: false,
+        connectable: false,
+        zIndex: -1,
+        style: { pointerEvents: "none" },
+        data: {
+          g,
+          selected: b.id === selectedGroupId,
+          dim: !!focus && !g.members.some((m) => focus.nodes.has(m)),
+          onSelect: onSelectGroup,
+        } satisfies GroupData,
+      };
+    });
+  }, [boxes, groups, selectedGroupId, focus, onSelectGroup]);
+
+  const boxNodes = useMemo<BoxNodeType[]>(
     () =>
       nodes.map((n) => ({
         id: n.id,
@@ -258,6 +328,7 @@ function Inner({
       })),
     [nodes, positions, sizes, selectedId, focus, L.nodes, onResizeEnd, onToggleCollapse, collapseLabel, editing, coarse],
   );
+  const rfNodes = useMemo<CanvasNode[]>(() => [...groupNodes, ...boxNodes], [groupNodes, boxNodes]);
 
   // --- edges --------------------------------------------------------------------
   const onWaypointsChange = useCallback((id: string, wps: XY[]) => layout.setEdgeStyle(id, { waypoints: wps.length ? wps : undefined }), [layout]);
@@ -521,7 +592,7 @@ function Inner({
   return (
     <div ref={rootRef} className="relative flex h-full min-h-0 w-full overflow-hidden bg-slate-50" style={{ containerType: "size" }}>
       <div ref={canvasRef} className="relative min-w-0 flex-1">
-        <ReactFlow<BoxNodeType, StyledEdgeType>
+        <ReactFlow<CanvasNode, StyledEdgeType>
           nodes={rfNodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
@@ -533,6 +604,7 @@ function Inner({
             if (Object.keys(moved).length) layout.move(moved);
           }}
           onNodeClick={(_, n) => {
+            if (n.type === "group-box") return;
             lastClick.current = { id: n.id, at: Date.now() };
             clickSel.current = n.id;
             selectEdge(null);
@@ -574,6 +646,7 @@ function Inner({
               position="bottom-right"
               style={{ right: 48, width: 180, height: 120 }}
               nodeColor={(n) => {
+                if (n.type === "group-box") return "transparent";
                 const d = n.data as NodeData;
                 return d.style?.color ?? d.g.accent ?? d.g.color;
               }}
