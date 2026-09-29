@@ -18,6 +18,8 @@ Work only inside the project folder named after the Project ID in the prompt (us
 <ProjectID>/rcs_mcp_calls.jsonl             written by the worker only (every RCS call you make)
 <ProjectID>/reference_check.json            written by the worker only (status of each reference)
 <ProjectID>/quote_check.json                written by the worker only (Pointers on literature found in the paper or not)
+<ProjectID>/cross_check.json                written by the worker only (HCD/FRG consistency, recorded for the user; no action needed)
+<ProjectID>/phase_baseline.json             written by the worker only (state of the HCD/FRG files at their last check)
 <ProjectID>/research.json                   literature survey (research mode only)
 <ProjectID>/research_queries.jsonl          written by the worker only (every literature search: lit tools and web search)
 <ProjectID>/research_check.json             written by the worker only (coverage check of research.json)
@@ -68,7 +70,7 @@ Write `message` and `question` in the reply language the worker gives in the pro
 
 ## Validator feedback
 
-When the worker sends validation problems, fix exactly those problems in the files (re-researching if needed) and finish with `status: "done"`. Do not rewrite files that are already correct. Problems are prefixed with the file and, for schema problems, a JSON pointer (e.g. `uc.json: /ucs/3/implementation is required`).
+When the worker sends validation problems, fix exactly those problems in the files (re-researching if needed) and finish with `status: "done"`. Do not rewrite files that are already correct. HCD files you change in a later phase are validated again, and their problems come back prefixed `HCD (changed after the HCD phase was checked):`. Problems are prefixed with the file and, for schema problems, a JSON pointer (e.g. `uc.json: /ucs/3/implementation is required`).
 
 ## Follow-up instructions
 
