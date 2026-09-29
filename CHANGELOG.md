@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-29
+
 ### Added
 - A user guide "Research mode and Canons" (English and Japanese) on the Documentation page: what research mode does, what a Canon is, choosing or seeding a Canon on the create screen, how a Canon constrains generation, revisions and updates, push and pull requests, the public library and cloning. The create, Canon, pull request and public library screens link to it ("Guide")
 - A "?" next to labels shows their explanation: on hover and keyboard focus on desktop, on tap on phones; Escape or a tap elsewhere closes it, and screen readers read it with the button
