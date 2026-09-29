@@ -5,7 +5,7 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 
 /**
- * URLs carry the Project ID. Links to a pre-migration ID (`/chat/{legacyId}`) are redirected to the new ID;
+ * URLs carry the Project ID. Links to a pre-migration ID (`/projects/{legacyId}/…`) are redirected to the new ID;
  * anything that cannot be resolved renders the page as-is (it shows its own not-found state).
  */
 export function CanonicalProjectId({ children }: { children: ReactNode }) {

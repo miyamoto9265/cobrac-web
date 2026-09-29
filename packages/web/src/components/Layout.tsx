@@ -74,7 +74,7 @@ export function Layout() {
             <button
               key={p.projectId}
               onClick={() => {
-                navigate(`/chat/${encodeURIComponent(p.projectId)}`);
+                navigate(`/projects/${encodeURIComponent(p.projectId)}`);
                 setNavOpen(false);
               }}
               className={`mb-0.5 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-800 ${
