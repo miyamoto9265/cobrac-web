@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { LIT_TOOLS, type ResearchCheck } from "@cobrac/shared";
 import { LIT_TOOL_DEFS, handleRpc, serve } from "../src/litMcp.js";
-import { LitClient, fullTextBody, splitSentences } from "../src/litsearch.js";
+import { LitClient, fullTextBody, splitSentences, type LitOptions } from "../src/litsearch.js";
 import { checkResearchStep, researchDone, runResearch, type ResearchDriver, type ResearchReport, type ResearchTurn } from "../src/pipeline.js";
 import { projectPaths, type ProjectPaths } from "../src/steps.js";
 
@@ -25,14 +25,39 @@ const JATS = `<article><front><abstract><p>VTA dopamine neurons project to the n
 <p>Short one.</p><p>Inputs to these neurons came from the dorsal raphe and the lateral hypothalamus, as shown by Watabe-Uchida et al. in mice.</p></sec></body>
 <back><ref-list><ref>Some reference about accumbens projections that must not be returned.</ref></ref-list></back></article>`;
 
-function mockFetch() {
+const BIOC = "https://bioc.test";
+const BIOC_DOC = [
+  {
+    documents: [
+      {
+        id: "4522312",
+        passages: [
+          { infons: { section_type: "TITLE" }, text: "Circuit Architecture of VTA Dopamine Neurons" },
+          { infons: { section_type: "RESULTS" }, text: "Retrograde tracing from the nucleus accumbens labelled dopaminergic neurons in the lateral VTA." },
+          { infons: { section_type: "REF" }, text: "Some reference about accumbens projections that must not be returned." },
+        ],
+      },
+    ],
+  },
+];
+const PUBMED_XML = "<PubmedArticle><Abstract><AbstractText>Dopamine neurons in the <i>VTA</i> project widely to the nucleus accumbens and other targets.</AbstractText></Abstract></PubmedArticle>";
+
+/** Answers a URL with a status code or throws before the normal handling (outages); `n` counts calls of that URL. */
+type Fail = (url: string, n: number) => number | Error | undefined;
+
+function mockFetch(fail?: Fail) {
   const calls: string[] = [];
   const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200, headers: { "content-type": "application/json" } });
   const f = (async (input: string | URL | Request) => {
     const url = String(input);
     calls.push(url);
+    const e = fail?.(url, calls.filter((c) => c === url).length);
+    if (e instanceof Error) throw e;
+    if (typeof e === "number") return new Response("<html>unavailable</html>", { status: e });
     const u = new URL(url);
     if (url.startsWith(`${EUTILS}/esearch.fcgi`)) return json({ esearchresult: { count: "42", idlist: ["26232228"] } });
+    if (url.startsWith(`${EUTILS}/efetch.fcgi`)) return new Response(PUBMED_XML, { status: 200 });
+    if (url === `${BIOC}/BioC_json/PMC4522312/unicode`) return json(BIOC_DOC);
     if (url.startsWith(`${EUTILS}/esummary.fcgi`)) {
       return json({
         result: {
@@ -67,7 +92,8 @@ function mockFetch() {
               authorString: "Beier KT, Steinberg EE, DeLoach KE, Xie S, Miyamichi K.",
               pubYear: "2015",
               journalInfo: { journal: { title: "Cell" } },
-              isOpenAccess: q.includes("closed") ? "N" : "Y",
+              isOpenAccess: q.includes("closed") || q.includes("manuscript") ? "N" : "Y",
+              ...(q.includes("manuscript") ? { inEPMC: "Y" } : {}),
               ...(core ? { abstractText: "Dopamine neurons in the <b>VTA</b> receive inputs &amp; project widely to the nucleus accumbens and other targets." } : {}),
             },
           ],
@@ -80,7 +106,13 @@ function mockFetch() {
   return { f, calls };
 }
 
-const client = (f: typeof fetch) => new LitClient({ eutilsUrl: EUTILS, europepmcUrl: EPMC, fetch: f, mailto: "ops@example.org" });
+const client = (f: typeof fetch, o: Partial<LitOptions> = {}) => new LitClient({ eutilsUrl: EUTILS, europepmcUrl: EPMC, biocUrl: BIOC, fetch: f, mailto: "ops@example.org", ...o });
+/** Client whose pauses (request spacing, retry backoff) return at once; `waits` records them */
+function fastClient(f: typeof fetch, o: Partial<LitOptions> = {}) {
+  const waits: number[] = [];
+  return { c: client(f, { sleep: async (ms) => void waits.push(ms), ...o }), waits };
+}
+const isEpmc = (url: string) => url.startsWith(EPMC);
 
 describe("lit client", () => {
   it("searches PubMed and summarises the hits", async () => {
@@ -126,6 +158,9 @@ describe("lit client", () => {
     const closed = await c.findSentences({ pmcid: "closed" }, ["accumbens"]);
     expect(closed?.source).toBe("abstract");
     expect(closed?.sentences).toEqual(["Dopamine neurons in the VTA receive inputs & project widely to the nucleus accumbens and other targets."]);
+
+    const manuscript = await c.findSentences({ pmcid: "manuscript" }, ["retrograde"]);
+    expect(manuscript?.source).toBe("full text");
   });
 
   it("dispatches tool calls and rejects bad arguments", async () => {
@@ -144,6 +179,91 @@ describe("lit client", () => {
       "The second sentence is here as well.",
     ]);
     expect(fullTextBody(JATS)).not.toMatch(/Some reference/);
+  });
+});
+
+describe("lit client when services fail", () => {
+  const timeout = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+
+  it("retries Europe PMC 503s and timeouts with backoff, then answers", async () => {
+    const { f, calls } = mockFetch((url, n) => (isEpmc(url) ? (n === 1 ? 503 : n === 2 ? timeout() : undefined) : undefined));
+    const { c, waits } = fastClient(f);
+    const r = (await c.call("search_europepmc", { query: "VTA" })) as { total: number };
+    expect(r.total).toBe(7);
+    expect(calls.filter(isEpmc)).toHaveLength(3);
+    expect(waits).toEqual(expect.arrayContaining([1000, 2000]));
+  });
+
+  it("retries a PubMed 429", async () => {
+    const { f, calls } = mockFetch((url, n) => (url.includes("esearch.fcgi") && n === 1 ? 429 : undefined));
+    const { c } = fastClient(f);
+    expect(((await c.call("search_pubmed", { query: "VTA" })) as { total: number }).total).toBe(42);
+    expect(calls.filter((u) => u.includes("esearch.fcgi"))).toHaveLength(2);
+  });
+
+  it("spaces parallel Europe PMC requests instead of sending them together", async () => {
+    const starts: number[] = [];
+    const { f } = mockFetch((url) => void (isEpmc(url) && starts.push(Date.now())));
+    const c = client(f);
+    await Promise.all(Array.from({ length: 4 }, (_, i) => c.call("search_europepmc", { query: `VTA ${i}` })));
+    expect(starts).toHaveLength(4);
+    for (let i = 1; i < starts.length; i++) expect(starts[i] - starts[i - 1]).toBeGreaterThanOrEqual(180);
+  });
+
+  it("falls back to PubMed and PMC (NCBI BioC) while Europe PMC is down, then stops asking it", async () => {
+    const { f, calls } = mockFetch((url) => (isEpmc(url) ? 503 : undefined));
+    const { c } = fastClient(f);
+
+    const a = (await c.call("get_abstract", { pmid: "26232228" })) as { title: string; abstract: string; note: string };
+    expect(a.title).toMatch(/^Circuit Architecture of VTA/);
+    expect(a.abstract).toBe("Dopamine neurons in the VTA project widely to the nucleus accumbens and other targets.");
+    expect(a.note).toMatch(/Europe PMC is unavailable \(HTTP 503\); the record comes from PubMed/);
+
+    const s = (await c.call("find_sentences", { pmid: "26232228", terms: ["retrograde", "accumbens"] })) as { source: string; sentences: string[]; pmcid: string };
+    expect(s.source).toBe("full text");
+    expect(s.pmcid).toBe("PMC4522312");
+    expect(s.sentences).toEqual(["Retrograde tracing from the nucleus accumbens labelled dopaminergic neurons in the lateral VTA."]);
+
+    const byDoi = (await c.call("find_sentences", { doi: "10.1016/j.cell.2015.07.015", terms: ["VTA"] })) as { source: string };
+    expect(byDoi.source).toBe("full text");
+    expect(calls.some((u) => u.includes("esearch.fcgi") && decodeURIComponent(u).includes('"10.1016/j.cell.2015.07.015"[doi]'))).toBe(true);
+
+    // after three calls that failed on Europe PMC, the host is skipped for a while
+    const before = calls.filter(isEpmc).length;
+    await c.call("get_abstract", { pmid: "26232228" });
+    expect(calls.filter(isEpmc).length).toBe(before);
+  });
+
+  it("reads the full text from PMC when only Europe PMC's full text fails", async () => {
+    const { f } = mockFetch((url) => (url.endsWith("/fullTextXML") ? 502 : undefined));
+    const { c } = fastClient(f);
+    const s = await c.findSentences({ doi: "10.1016/j.cell.2015.07.015" }, ["retrograde"]);
+    expect(s?.source).toBe("full text");
+    expect(s?.sentences).toEqual(["Retrograde tracing from the nucleus accumbens labelled dopaminergic neurons in the lateral VTA."]);
+    expect(s?.note).toMatch(/Europe PMC is unavailable \(HTTP 502\) for the full text/);
+  });
+
+  it("names every service that failed and suggests an alternative", async () => {
+    const { f } = mockFetch(() => 503);
+    const { c } = fastClient(f);
+    await expect(c.call("find_sentences", { pmid: "26232228", terms: ["VTA"] })).rejects.toThrow(
+      /^Europe PMC is unavailable \(HTTP 503\); PubMed \(NCBI E-utilities\) is unavailable \(HTTP 503\)\. Try again in a few minutes\.$/,
+    );
+    await expect(c.call("search_europepmc", { query: "VTA" })).rejects.toThrow(/Use search_pubmed instead/);
+    const res = (await handleRpc({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "search_pubmed", arguments: { query: "VTA" } } }, c)) as {
+      result: { isError: boolean; content: { text: string }[] };
+    };
+    expect(res.result.isError).toBe(true);
+    expect(res.result.content[0].text).toMatch(/PubMed \(NCBI E-utilities\) is unavailable \(HTTP 503\)\. Use search_europepmc instead/);
+  });
+
+  it("gives up within the call budget when the services hang", async () => {
+    const hang = ((_: unknown, init?: RequestInit) =>
+      new Promise((_r, reject) => init?.signal?.addEventListener("abort", () => reject(init.signal!.reason)))) as typeof fetch;
+    const c = client(hang, { timeoutMs: 50, callBudgetMs: 400, sleep: async () => {} });
+    const t0 = Date.now();
+    await expect(c.call("get_abstract", { pmid: "26232228" })).rejects.toThrow(/Europe PMC is unavailable \((timeout|time budget exceeded)\); PubMed/);
+    expect(Date.now() - t0).toBeLessThan(1_000);
   });
 });
 

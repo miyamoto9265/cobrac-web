@@ -283,6 +283,12 @@ interface BiocPassage {
 
 /** First document of a BioC JSON collection; null for the service's "No result" page. */
 export function biocDocument(body: string): { id: string; text: string } | null {
+  const doc = biocPassages(body);
+  return doc ? { id: doc.id, text: doc.passages.join(" ") } : null;
+}
+
+/** Passages (title, headings, paragraphs) of the first BioC document, without references and declarations. */
+export function biocPassages(body: string): { id: string; passages: string[] } | null {
   let j: unknown;
   try {
     j = JSON.parse(body);
@@ -292,11 +298,10 @@ export function biocDocument(body: string): { id: string; text: string } | null 
   const coll = (Array.isArray(j) ? j[0] : j) as { documents?: { id?: string; passages?: BiocPassage[] }[] } | undefined;
   const doc = coll?.documents?.[0];
   if (!doc?.id || !doc.passages?.length) return null;
-  const text = doc.passages
+  const passages = doc.passages
     .filter((p) => !/^(?:REF|COMP_INT|AUTH_CONT|ACK_FUND)$/i.test(p.infons?.section_type ?? "") && !/^ref$/i.test(p.infons?.type ?? ""))
-    .map((p) => p.text ?? "")
-    .join(" ");
-  return { id: doc.id, text };
+    .map((p) => p.text ?? "");
+  return { id: doc.id, passages };
 }
 
 /** Abstract of a PubMed efetch XML record (all labelled parts). */

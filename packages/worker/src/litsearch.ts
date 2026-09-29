@@ -1,16 +1,30 @@
 /**
  * Literature tools of research mode: PubMed (NCBI E-utilities) and Europe PMC searches, abstracts, and sentences from
  * open-access full texts. Served to the agent by litMcp.ts; `fetch` and the base URLs are injectable for tests.
+ *
+ * Requests go through LiteratureHttp (timeouts, retries with backoff on timeouts / network errors / 429 / 5xx, a
+ * per-host cooldown after repeated failures) and are spaced per service even when the agent calls tools in parallel.
+ * When Europe PMC does not answer, records and abstracts come from PubMed and full texts from PMC through NCBI BioC.
  */
 import type { LitTool } from "@cobrac/shared";
+import { LiteratureHttp } from "./http.js";
+import { biocPassages, pubmedAbstract } from "./quotes.js";
 
 export interface LitOptions {
   eutilsUrl?: string;
   europepmcUrl?: string;
+  biocUrl?: string;
   /** Contact address sent to NCBI / Europe PMC; optional */
   mailto?: string;
   fetch?: typeof fetch;
+  /** Timeout of one request */
   timeoutMs?: number;
+  /** Retries of one request after a timeout, network error, 429 or 5xx */
+  retries?: number;
+  /** Time for one tool call across retries and fallbacks; stays below the MCP tool timeout in codex.ts (90 s) */
+  callBudgetMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
 }
 
 export interface PaperHit {
@@ -32,6 +46,8 @@ export interface SearchResult {
 
 export interface AbstractResult extends PaperHit {
   abstract: string;
+  /** Services that did not answer and what was used instead */
+  note?: string;
 }
 
 export interface SentencesResult {
@@ -42,100 +58,198 @@ export interface SentencesResult {
   /** Where the sentences come from: the open-access full text, else the abstract */
   source: "full text" | "abstract" | "none";
   sentences: string[];
+  /** Services that did not answer and what was used instead */
+  note?: string;
 }
 
 const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
 const EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest";
+const BIOC = "https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi";
 const MAX_HITS = 25;
 const DEFAULT_HITS = 10;
 const MAX_SENTENCES = 15;
 const MAX_SENTENCE_CHARS = 700;
 
-/** Minimum gap between requests per host (NCBI allows 3 requests/s without an API key). */
-const MIN_GAP_MS: Record<string, number> = { eutils: 350, europepmc: 120 };
+/** Minimum gap between request starts per provider (NCBI allows 3 requests/s without an API key). */
+const MIN_GAP_MS = { europepmc: 200, ncbi: 350 } as const;
+/** Share of the remaining call budget Europe PMC may use before falling back to NCBI */
+const PRIMARY_SHARE = 0.45;
+
+type Service = "europepmc" | "pubmed" | "bioc";
+const SERVICE_NAME: Record<Service, string> = { europepmc: "Europe PMC", pubmed: "PubMed (NCBI E-utilities)", bioc: "PMC full text (NCBI BioC)" };
+const RETRY_HINT: Record<LitTool, string> = {
+  search_pubmed: "Use search_europepmc instead, or try again in a few minutes.",
+  search_europepmc: "Use search_pubmed instead, or try again in a few minutes.",
+  get_abstract: "Try again in a few minutes.",
+  find_sentences: "Try again in a few minutes.",
+};
+
+/** A literature service that still failed after the retries. */
+export class LitUnavailable extends Error {
+  constructor(
+    readonly service: Service,
+    readonly reason: string,
+  ) {
+    super(`${SERVICE_NAME[service]} is unavailable (${/ unavailable$/.test(reason) ? "skipped for a few minutes after repeated failures" : reason})`);
+  }
+}
+
+interface Paper {
+  hit: PaperHit;
+  /** null: not fetched yet (PubMed records come without the abstract) */
+  abstract: string | null;
+  from: "europepmc" | "pubmed";
+  /** PMC has a full text worth asking for: open access, or an author manuscript Europe PMC shows */
+  fullText: boolean;
+  notes: string[];
+}
 
 export class LitClient {
   private readonly eutils: string;
   private readonly epmc: string;
-  private readonly fetchImpl: typeof fetch;
-  private readonly timeoutMs: number;
+  private readonly bioc: string;
   private readonly mailto?: string;
-  private readonly last: Record<string, number> = {};
+  private readonly http: LiteratureHttp;
+  private readonly callBudgetMs: number;
+  private readonly slots: Record<keyof typeof MIN_GAP_MS, Promise<void>> = { europepmc: Promise.resolve(), ncbi: Promise.resolve() };
 
   constructor(o: LitOptions = {}) {
     this.eutils = (o.eutilsUrl ?? EUTILS).replace(/\/$/, "");
     this.epmc = (o.europepmcUrl ?? EUROPEPMC).replace(/\/$/, "");
-    this.fetchImpl = o.fetch ?? fetch;
-    this.timeoutMs = o.timeoutMs ?? 20_000;
+    this.bioc = (o.biocUrl ?? BIOC).replace(/\/$/, "");
     this.mailto = o.mailto;
+    this.http = new LiteratureHttp({ fetch: o.fetch, timeoutMs: o.timeoutMs ?? 15_000, retries: o.retries ?? 3, mailto: o.mailto, sleep: o.sleep, now: o.now });
+    this.callBudgetMs = o.callBudgetMs ?? 65_000;
   }
 
-  private async get(host: "eutils" | "europepmc", url: string, as: "json" | "text" = "json"): Promise<unknown> {
-    const wait = (this.last[host] ?? 0) + MIN_GAP_MS[host] - Date.now();
-    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    this.last[host] = Date.now();
-    const res = await this.fetchImpl(url, { signal: AbortSignal.timeout(this.timeoutMs), headers: { "user-agent": `CoBRAC-Agents${this.mailto ? ` (mailto:${this.mailto})` : ""}` } });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`${host} answered HTTP ${res.status}`);
-    return as === "json" ? res.json() : res.text();
+  private deadline(): number {
+    return this.http.now() + this.callBudgetMs;
+  }
+
+  /** Deadline for Europe PMC within a call, leaving the rest of the budget to the NCBI fallback. */
+  private primaryDeadline(deadline: number): number {
+    const now = this.http.now();
+    return now + Math.max(0, deadline - now) * PRIMARY_SHARE;
+  }
+
+  /** Waits for the provider's next start slot; parallel calls queue here instead of reaching the service together. */
+  private paced<T>(provider: keyof typeof MIN_GAP_MS, run: () => Promise<T>): Promise<T> {
+    const slot = this.slots[provider];
+    this.slots[provider] = slot.then(() => this.http.sleep(MIN_GAP_MS[provider]));
+    return slot.then(run);
+  }
+
+  /** Body of a GET (retried by LiteratureHttp); null for 404 / 410; LitUnavailable when the retries ran out. */
+  private async get(service: Service, url: string, deadline: number, as: "json" | "text" = "json"): Promise<unknown> {
+    const r = await this.paced(service === "europepmc" ? "europepmc" : "ncbi", () => (as === "json" ? this.http.getJson(url, deadline) : this.http.getText(url, deadline)));
+    if (r.kind === "ok") return r.body;
+    if (r.kind === "missing") return null;
+    throw new LitUnavailable(service, r.reason);
   }
 
   private eutilsParams(): string {
     return `&tool=cobrac${this.mailto ? `&email=${encodeURIComponent(this.mailto)}` : ""}`;
   }
 
-  async searchPubmed(query: string, max = DEFAULT_HITS): Promise<SearchResult> {
+  async searchPubmed(query: string, max = DEFAULT_HITS, deadline = this.deadline()): Promise<SearchResult> {
     const n = clampHits(max);
-    const s = (await this.get("eutils", `${this.eutils}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retmax=${n}&term=${encodeURIComponent(query)}${this.eutilsParams()}`)) as {
-      esearchresult?: { count?: string; idlist?: string[] };
-    } | null;
+    const s = (await this.get("pubmed", `${this.eutils}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retmax=${n}&term=${encodeURIComponent(query)}${this.eutilsParams()}`, deadline)) as EsearchResult | null;
     const ids = s?.esearchresult?.idlist ?? [];
     const total = Number(s?.esearchresult?.count ?? ids.length) || 0;
     if (!ids.length) return { query, total, hits: [] };
-    const sum = (await this.get("eutils", `${this.eutils}/esummary.fcgi?db=pubmed&retmode=json&id=${ids.join(",")}${this.eutilsParams()}`)) as { result?: Record<string, PubmedSummary> } | null;
-    const hits = ids.map((id) => sum?.result?.[id]).filter((r): r is PubmedSummary => !!r).map(pubmedHit);
+    const sum = await this.esummary(ids, deadline);
+    const hits = ids.map((id) => sum[id]).filter((r): r is PubmedSummary => !!r && !r.error).map(pubmedHit);
     return { query, total, hits };
   }
 
-  async searchEuropePmc(query: string, max = DEFAULT_HITS, openAccessOnly = false): Promise<SearchResult> {
+  async searchEuropePmc(query: string, max = DEFAULT_HITS, openAccessOnly = false, deadline = this.deadline()): Promise<SearchResult> {
     const q = openAccessOnly ? `(${query}) AND OPEN_ACCESS:y` : query;
-    const r = (await this.get("europepmc", `${this.epmc}/search?format=json&resultType=lite&pageSize=${clampHits(max)}&query=${encodeURIComponent(q)}`)) as EpmcSearch | null;
+    const r = (await this.get("europepmc", `${this.epmc}/search?format=json&resultType=lite&pageSize=${clampHits(max)}&query=${encodeURIComponent(q)}`, deadline)) as EpmcSearch | null;
     return { query, total: r?.hitCount ?? 0, hits: (r?.resultList?.result ?? []).map(epmcHit) };
   }
 
-  /** Europe PMC core record of a paper (PMID, PMCID or DOI); null when not found. */
-  private async record(id: PaperId): Promise<EpmcRecord | null> {
-    const q = id.pmid ? `EXT_ID:${id.pmid} AND SRC:MED` : id.pmcid ? `PMCID:${normPmcid(id.pmcid)}` : id.doi ? `DOI:"${id.doi.replace(/"/g, "")}"` : null;
-    if (!q) throw new Error("Give a pmid, pmcid or doi.");
-    const r = (await this.get("europepmc", `${this.epmc}/search?format=json&resultType=core&pageSize=1&query=${encodeURIComponent(q)}`)) as EpmcSearch | null;
-    return r?.resultList?.result?.[0] ?? null;
+  private async esummary(ids: string[], deadline: number): Promise<Record<string, PubmedSummary>> {
+    const r = (await this.get("pubmed", `${this.eutils}/esummary.fcgi?db=pubmed&retmode=json&id=${ids.join(",")}${this.eutilsParams()}`, deadline)) as { result?: Record<string, PubmedSummary> } | null;
+    return r?.result ?? {};
   }
 
-  async getAbstract(id: PaperId): Promise<AbstractResult | null> {
-    const r = await this.record(id);
-    return r ? { ...epmcHit(r), abstract: stripTags(r.abstractText ?? "") } : null;
+  /** Record of a paper (PMID, PMCID or DOI) from Europe PMC, else from PubMed; null when not found. */
+  private async paper(id: PaperId, deadline: number): Promise<Paper | null> {
+    const q = id.pmid ? `EXT_ID:${id.pmid} AND SRC:MED` : id.pmcid ? `PMCID:${normPmcid(id.pmcid)}` : id.doi ? `DOI:"${id.doi.replace(/"/g, "")}"` : null;
+    if (!q) throw new Error("Give a pmid, pmcid or doi.");
+    try {
+      const r = (await this.get("europepmc", `${this.epmc}/search?format=json&resultType=core&pageSize=1&query=${encodeURIComponent(q)}`, this.primaryDeadline(deadline))) as EpmcSearch | null;
+      const rec = r?.resultList?.result?.[0];
+      if (!rec) return null;
+      const hit = epmcHit(rec);
+      return { hit, abstract: stripTags(rec.abstractText ?? ""), from: "europepmc", fullText: !!hit.pmcid && (hit.openAccess || rec.inEPMC === "Y"), notes: [] };
+    } catch (e) {
+      if (!(e instanceof LitUnavailable)) throw e;
+      try {
+        const p = await this.pubmedPaper(id, deadline);
+        return p && { ...p, notes: [`${e.message}; the record comes from PubMed`] };
+      } catch (f) {
+        throw f instanceof LitUnavailable ? new Error(`${e.message}; ${f.message}`) : f;
+      }
+    }
+  }
+
+  private async pubmedPaper(id: PaperId, deadline: number): Promise<Paper | null> {
+    let pmid = id.pmid;
+    if (!pmid) {
+      const term = id.pmcid ? `${normPmcid(id.pmcid)}[pmcid]` : `"${(id.doi ?? "").replace(/"/g, "")}"[doi]`;
+      const s = (await this.get("pubmed", `${this.eutils}/esearch.fcgi?db=pubmed&retmode=json&retmax=1&term=${encodeURIComponent(term)}${this.eutilsParams()}`, deadline)) as EsearchResult | null;
+      pmid = s?.esearchresult?.idlist?.[0];
+      if (!pmid) return null;
+    }
+    const doc = (await this.esummary([pmid], deadline))[pmid];
+    if (!doc || doc.error) return null;
+    const hit = pubmedHit(doc);
+    return { hit, abstract: null, from: "pubmed", fullText: !!hit.pmcid, notes: [] };
+  }
+
+  private async pubmedAbstract(pmid: string, deadline: number): Promise<string> {
+    if (!pmid) return "";
+    const xml = (await this.get("pubmed", `${this.eutils}/efetch.fcgi?db=pubmed&retmode=xml&id=${pmid}${this.eutilsParams()}`, deadline, "text")) as string | null;
+    return xml ? pubmedAbstract(xml) : "";
+  }
+
+  async getAbstract(id: PaperId, deadline = this.deadline()): Promise<AbstractResult | null> {
+    const p = await this.paper(id, deadline);
+    if (!p) return null;
+    const abstract = p.abstract ?? (await this.pubmedAbstract(p.hit.pmid, deadline));
+    return { ...p.hit, abstract, ...(p.notes.length ? { note: p.notes.join("; ") } : {}) };
   }
 
   /** Sentences of the paper that contain the given terms (most terms first), from the OA full text or the abstract. */
-  async findSentences(id: PaperId, terms: string[]): Promise<SentencesResult | null> {
-    const r = await this.record(id);
-    if (!r) return null;
-    const hit = epmcHit(r);
+  async findSentences(id: PaperId, terms: string[], deadline = this.deadline()): Promise<SentencesResult | null> {
+    const p = await this.paper(id, deadline);
+    if (!p) return null;
+    const { hit, notes } = p;
     const words = terms.map((t) => t.trim().toLowerCase()).filter(Boolean);
-    let text = "";
+    let passages: string[] = [];
     let source: SentencesResult["source"] = "none";
-    if (hit.pmcid && hit.openAccess) {
-      const xml = (await this.get("europepmc", `${this.epmc}/${hit.pmcid}/fullTextXML`, "text")) as string | null;
-      if (xml) {
-        text = fullTextBody(xml);
-        source = "full text";
+    if (p.fullText) {
+      passages = await this.fullText(normPmcid(hit.pmcid), p.from === "europepmc", deadline, notes);
+      if (passages.length) source = "full text";
+    }
+    if (!passages.length) {
+      let abstract = p.abstract;
+      if (abstract === null) {
+        try {
+          abstract = await this.pubmedAbstract(hit.pmid, deadline);
+        } catch (e) {
+          if (!(e instanceof LitUnavailable)) throw e;
+          notes.push(e.message);
+        }
+      }
+      if (abstract) {
+        passages = [abstract];
+        source = "abstract";
       }
     }
-    if (!text && r.abstractText) {
-      text = stripTags(r.abstractText);
-      source = "abstract";
-    }
-    const scored = splitSentences(text)
+    const scored = passages
+      .flatMap(splitSentences)
       .map((s) => ({ s, n: words.filter((w) => s.toLowerCase().includes(w)).length }))
       .filter((x) => x.n > 0)
       .sort((a, b) => b.n - a.n);
@@ -144,9 +258,32 @@ export class LitClient {
       pmcid: hit.pmcid,
       doi: hit.doi,
       title: hit.title,
-      source: text ? source : "none",
+      source,
       sentences: scored.slice(0, MAX_SENTENCES).map((x) => (x.s.length > MAX_SENTENCE_CHARS ? x.s.slice(0, MAX_SENTENCE_CHARS) + "…" : x.s)),
+      ...(notes.length ? { note: notes.join("; ") } : {}),
     };
+  }
+
+  /** Open-access full text: Europe PMC's JATS XML, else PMC through NCBI BioC; [] when neither has it. */
+  private async fullText(pmcid: string, fromEuropePmc: boolean, deadline: number, notes: string[]): Promise<string[]> {
+    if (fromEuropePmc) {
+      try {
+        const xml = (await this.get("europepmc", `${this.epmc}/${pmcid}/fullTextXML`, this.primaryDeadline(deadline), "text")) as string | null;
+        const body = xml ? fullTextBody(xml) : "";
+        if (body) return [body];
+      } catch (e) {
+        if (!(e instanceof LitUnavailable)) throw e;
+        notes.push(`${e.message} for the full text; trying PMC`);
+      }
+    }
+    try {
+      const body = (await this.get("bioc", `${this.bioc}/BioC_json/${pmcid}/unicode`, deadline, "text")) as string | null;
+      return (body ? biocPassages(body)?.passages : null)?.filter((s) => s.trim()) ?? [];
+    } catch (e) {
+      if (!(e instanceof LitUnavailable)) throw e;
+      notes.push(e.message);
+      return [];
+    }
   }
 
   /** Dispatch one MCP tool call. */
@@ -154,18 +291,24 @@ export class LitClient {
     const str = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : typeof args[k] === "number" ? String(args[k]) : "");
     const num = (k: string) => (typeof args[k] === "number" ? (args[k] as number) : undefined);
     const id = { pmid: str("pmid").replace(/\D/g, ""), pmcid: str("pmcid"), doi: str("doi") };
-    switch (tool) {
-      case "search_pubmed":
-        return this.searchPubmed(requireQuery(str("query")), num("max_results"));
-      case "search_europepmc":
-        return this.searchEuropePmc(requireQuery(str("query")), num("max_results"), args.open_access_only === true);
-      case "get_abstract":
-        return (await this.getAbstract(id)) ?? { found: false };
-      case "find_sentences": {
-        const terms = Array.isArray(args.terms) ? args.terms.filter((t): t is string => typeof t === "string") : [];
-        if (!terms.length) throw new Error("Give at least one term.");
-        return (await this.findSentences(id, terms)) ?? { found: false };
+    const deadline = this.deadline();
+    try {
+      switch (tool) {
+        case "search_pubmed":
+          return await this.searchPubmed(requireQuery(str("query")), num("max_results"), deadline);
+        case "search_europepmc":
+          return await this.searchEuropePmc(requireQuery(str("query")), num("max_results"), args.open_access_only === true, deadline);
+        case "get_abstract":
+          return (await this.getAbstract(id, deadline)) ?? { found: false };
+        case "find_sentences": {
+          const terms = Array.isArray(args.terms) ? args.terms.filter((t): t is string => typeof t === "string") : [];
+          if (!terms.length) throw new Error("Give at least one term.");
+          return (await this.findSentences(id, terms, deadline)) ?? { found: false };
+        }
       }
+    } catch (e) {
+      if (e instanceof Error && /is unavailable \(/.test(e.message)) throw new Error(`${e.message}. ${RETRY_HINT[tool]}`);
+      throw e;
     }
   }
 }
@@ -184,6 +327,12 @@ interface PubmedSummary {
   source?: string;
   authors?: { name: string }[];
   articleids?: { idtype: string; value: string }[];
+  /** Set for unknown PMIDs */
+  error?: string;
+}
+
+interface EsearchResult {
+  esearchresult?: { count?: string; idlist?: string[] };
 }
 
 interface EpmcRecord {
@@ -196,6 +345,8 @@ interface EpmcRecord {
   journalTitle?: string;
   journalInfo?: { journal?: { title?: string } };
   isOpenAccess?: string;
+  /** "Y" when Europe PMC shows the full text (open access or author manuscript) */
+  inEPMC?: string;
   abstractText?: string;
 }
 
