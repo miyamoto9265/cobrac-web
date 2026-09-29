@@ -6,9 +6,8 @@ import { useAuth } from "./lib/auth";
 import { AdminPage } from "./pages/AdminPage";
 import { ChatPage } from "./pages/ChatPage";
 import { DocsPage } from "./pages/DocsPage";
-import { FrgGraphPage } from "./pages/FrgGraphPage";
-import { HcdGraphPage } from "./pages/HcdGraphPage";
 import { LoginPage } from "./pages/LoginPage";
+import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspacePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -36,10 +35,9 @@ export default function App() {
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/login" element={<Navigate to="/chat" replace />} />
         <Route path="/chat" element={<ChatPage />} />
-        <Route path="/chat/:projectId" element={<CanonicalProjectId><ChatPage /></CanonicalProjectId>} />
+        <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/projects/:projectId/hcd" element={<CanonicalProjectId><HcdGraphPage /></CanonicalProjectId>} />
-        <Route path="/projects/:projectId/frg" element={<CanonicalProjectId><FrgGraphPage /></CanonicalProjectId>} />
+        <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/docs" element={<DocsPage />} />
         <Route path="/docs/:slug" element={<DocsPage />} />

@@ -17,7 +17,8 @@ export const KIND_STYLE: Record<FrgNodeKind, { fill: string; accent: string }> =
 };
 const KIND_KEYS: FrgNodeKind[] = ["tlf", "gn", "uc"];
 
-export function FrgGraphPage() {
+/** `embedded`: rendered inside the project workspace, which provides the title, navigation and chat. */
+export function FrgGraphPage({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const { projectId = "" } = useParams();
   const [params, setParams] = useSearchParams();
@@ -116,17 +117,21 @@ export function FrgGraphPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
-        <Link to={`/chat/${encodeURIComponent(projectId)}`} aria-label={t("graph.backChat")} title={t("graph.backChat")} className="flex shrink-0 items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
-          <ArrowLeft size={14} /> <span className="hidden sm:inline">{t("graph.backChat")}</span>
-        </Link>
-        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" title={projectId}>
-          {projectName} <span className="hidden font-mono text-[11px] font-normal text-slate-400 sm:inline">{projectId}</span>
-        </h1>
+        {!embedded && (
+          <>
+            <Link to={`/chat/${encodeURIComponent(projectId)}`} aria-label={t("graph.backChat")} title={t("graph.backChat")} className="flex shrink-0 items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
+              <ArrowLeft size={14} /> <span className="hidden sm:inline">{t("graph.backChat")}</span>
+            </Link>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" title={projectId}>
+              {projectName} <span className="hidden font-mono text-[11px] font-normal text-slate-400 sm:inline">{projectId}</span>
+            </h1>
+          </>
+        )}
         <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">FRG</span>
         <span className="hidden shrink-0 text-xs text-slate-500 md:inline">
           {graph.nodes.filter((n) => n.kind !== "uc").length} GN · {graph.nodes.filter((n) => n.kind === "uc").length} UC
         </span>
-        <Link to={hcdLink} className="flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
+        <Link to={hcdLink} className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           <Network size={13} /> {t("graph.toHcd")}
         </Link>
       </header>

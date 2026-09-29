@@ -62,7 +62,7 @@ function ProjectActions({ p, onDownload }: { p: ProjectRecord; onDownload: () =>
   const cls = "flex items-center justify-center rounded p-1.5 text-slate-500 hover:bg-slate-100 coarse:h-11 coarse:w-11";
   return (
     <>
-      <Link title={t("projects.chat")} aria-label={t("projects.chat")} to={`/chat/${encodeURIComponent(p.projectId)}`} className={cls}>
+      <Link title={t("projects.chat")} aria-label={t("projects.chat")} to={`/projects/${encodeURIComponent(p.projectId)}`} className={cls}>
         <MessageSquare size={15} />
       </Link>
       {p.hasArtifacts && (
@@ -132,7 +132,7 @@ export function ProjectsPage() {
         {filtered.map((p) => (
           <li key={p.projectId} className="rounded-xl border border-slate-200 bg-white p-3">
             <div className="flex items-start justify-between gap-2">
-              <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-words py-1 text-sm font-medium text-blue-700 coarse:py-3">
+              <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-words py-1 text-sm font-medium text-blue-700 coarse:py-3">
                 {projectDisplayName(p)}
                 <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
@@ -188,7 +188,7 @@ export function ProjectsPage() {
             {filtered.map((p) => (
               <tr key={p.projectId} className="hover:bg-slate-50">
                 <td className="max-w-[20rem] px-4 py-2 text-xs">
-                  <Link to={`/chat/${encodeURIComponent(p.projectId)}`} className="break-words font-medium text-blue-700 hover:underline">
+                  <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="break-words font-medium text-blue-700 hover:underline">
                     {projectDisplayName(p)}
                   </Link>
                   <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>

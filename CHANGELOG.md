@@ -16,6 +16,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - HCD node details start with the FRG link and the function groups (GN) that contain the UC; FRG group details have "Show its UCs in HCD", which opens the HCD with those UCs highlighted. Switching between HCD and FRG keeps the selected UC
 - FRG UC nodes show the circuit name from the HCD; FRG groups can be collapsed and expanded from a button on the node, and the details show the path from the TLF
 - Style editing (node fill / border / size, edge line / colour / arrows / bends) is available on phones and tablets as a bottom sheet
+- A Tables tab shows the raw tabular artifacts — `uc.json`, `connections.json`, `references.json`, `frg.json` and the BRA CSVs — as tables you can sort by column, filter by words, expand row by row and download. It is available while a job is still running, as soon as the files exist
 
 ### Changed
 - The agent's chat replies (turn summaries and questions) are written in the language selected in the web app (English, Japanese, Chinese, Korean, German, French, Spanish, Portuguese or Russian), whatever language the ROI/TLF or instructions are typed in. The language of the screen at the time of creating, answering, sending a follow-up or retrying is used; files such as the report, the decision log and the xlsx stay in English
@@ -26,6 +27,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Edges are curves by default; edges whose bends were saved with the earlier orthogonal default keep them
 - The FRG is laid out left to right, which fits wide hierarchies better
 - The viewer adapts to the width of its own area, not the window: the details open beside the graph when there is room and as an expandable sheet otherwise; the legend can be collapsed
+- The project screen puts the artifacts in the centre and the chat in a right sidebar: tabs for the HCD graph, FRG graph, Tables, Report and Decision log, with the BRA xlsx download in the header. On a wide screen the chat can be resized or collapsed; on tablets and phones it opens from the Chat button as a drawer or bottom sheet. Before any artifact exists the centre shows what will appear and the progress
+- Project links open `/projects/<ID>` (the first available artifact tab); old `/chat/<ID>` links redirect there. `/projects/<ID>/hcd` and `/frg` links keep working
 
 ### Fixed
 - A project shows a provisional name made from the ROI and TLF as typed, such as "VOR in 小脳", from the moment it is created until the agent names it; before, Japanese input was dropped and a project with TLF "VOR" / ROI "小脳" was called "VOR" while it ran. Projects already created that way show the provisional name too, including in the xlsx download name. A name the user typed or edited is still never replaced
