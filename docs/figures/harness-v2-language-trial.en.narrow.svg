@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 1016" width="430" height="1016" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Language-area trial: splitting gyrus-level UCs changed the FRG</title>
+<desc id="d">HCD and FRG of nonword reading (left reading network). Before (0.11.0, ufwwj0jg-1) the ROI had 4 UCs, FuG@L, IPL@L, IFG@L (whole gyri, BNAG) and A22c@L, and the FRG had two GNs under the TLF, orthographic–parietal analysis and phonological assembly, depth 2; X9 found 3. After (back-edge trial, ufwwj0jg-5) FuG@L was split into A37lv@L and A20rv@L, IPL@L into angular and supramarginal gyrus, IFG@L into pars opercularis and triangularis, and the gyri became Collections (7 UCs, 3 Collections). The FRG has four GNs, ventral orthographic analysis, temporo-parietal phonological analysis (with inferior parietal phonological support below it) and frontal phonological output, depth 3; X9 found 0.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="1016" fill="#ffffff"/>
+<rect x="10" y="10" width="410" height="30" rx="8" fill="#3b82f6"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>Before: 0.11.0 (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.4" fill="#1e293b">ufwwj0jg-1</tspan><tspan>)</tspan></text>
+<text x="12" y="64" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>HCD: ROI-internal UCs</tspan></text>
+<rect x="20" y="74" width="190" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="30" y="92.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">FuG@L</tspan></text>
+<rect x="71.1" y="77" width="31.6" height="21.5" rx="10.75" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+<text x="81.12" y="91.17" font-size="9.5" font-weight="600" fill="#991b1b" text-anchor="start"><tspan>X9</tspan></text>
+<rect x="220" y="74" width="190" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="230" y="92.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IPL@L</tspan></text>
+<rect x="271.1" y="77" width="31.6" height="21.5" rx="10.75" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+<text x="281.12" y="91.17" font-size="9.5" font-weight="600" fill="#991b1b" text-anchor="start"><tspan>X9</tspan></text>
+<rect x="20" y="110" width="190" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="30" y="128.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IFG@L</tspan></text>
+<rect x="71.1" y="113" width="31.6" height="21.5" rx="10.75" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+<text x="81.12" y="127.17" font-size="9.5" font-weight="600" fill="#991b1b" text-anchor="start"><tspan>X9</tspan></text>
+<rect x="220" y="110" width="190" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="230" y="128.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">A22c@L</tspan></text>
+<text x="12" y="166" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>FRG</tspan></text>
+<rect x="20" y="176" width="157.82080000000005" height="24" rx="6" fill="#1e293b"/>
+<text x="30" y="192.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="start"><tspan>TLF: nonword reading</tspan></text>
+<path d="M28 200 L28 218 L38 218" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="38" y="206" width="242.13439999999994" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="48" y="222.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: orthographic–parietal analysis</tspan></text>
+<path d="M46 230 L46 248 L56 248" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="236" width="49.739999999999995" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="65" y="252.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">FuG@L</tspan></text>
+<rect x="111.74" y="236" width="49.739999999999995" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="120.74" y="252.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IPL@L</tspan></text>
+<path d="M28 200 L28 278 L38 278" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="38" y="266" width="179.9264" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="48" y="282.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: phonological assembly</tspan></text>
+<path d="M46 290 L46 308 L56 308" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="296" width="56.088" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="65" y="312.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">A22c@L</tspan></text>
+<rect x="118.088" y="296" width="49.739999999999995" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="127.088" y="312.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L</tspan></text>
+<rect x="86.9" y="332" width="256.2" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+<text x="96.92000000000007" y="348.32" font-size="12" font-weight="600" fill="#991b1b" text-anchor="start"><tspan>UCs 4, Collections 0, GNs 2, depth 2, X9 3</tspan></text>
+<rect x="10" y="372" width="410" height="30" rx="8" fill="#4338ca"/><text x="215" y="392" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>After: back-edge trial (</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.4" fill="#1e293b">ufwwj0jg-5</tspan><tspan>)</tspan></text>
+<text x="12" y="426" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>HCD: ROI-internal UCs</tspan></text>
+<rect x="16" y="436" width="398" height="62" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="5 3"/>
+<text x="24" y="451" font-size="11" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>Collection </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">FuG@L</tspan></text>
+<rect x="24" y="460" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="34" y="478.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">A37lv@L</tspan></text>
+<rect x="218" y="460" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="228" y="478.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">A20rv@L</tspan></text>
+<rect x="16" y="504" width="398" height="62" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="5 3"/>
+<text x="24" y="519" font-size="11" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>Collection </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">IPL@L</tspan></text>
+<rect x="24" y="528" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="34" y="546.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IPL@L(AnG)</tspan></text>
+<rect x="218" y="528" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="228" y="546.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IPL@L(SMG)</tspan></text>
+<rect x="16" y="572" width="398" height="62" rx="8" fill="#ffffff" stroke="#8b5cf6" stroke-width="1.2" stroke-dasharray="5 3"/>
+<text x="24" y="587" font-size="11" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>Collection </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">IFG@L</tspan></text>
+<rect x="24" y="596" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="34" y="614.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IFG@L(opercular)</tspan></text>
+<rect x="218" y="596" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="228" y="614.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">IFG@L(triangular)</tspan></text>
+<rect x="24" y="640" width="188" height="28" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="34" y="658.5" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">A22c@L</tspan></text>
+<text x="12" y="696" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>FRG</tspan></text>
+<rect x="20" y="706" width="157.82080000000005" height="24" rx="6" fill="#1e293b"/>
+<text x="30" y="722.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="start"><tspan>TLF: nonword reading</tspan></text>
+<path d="M28 730 L28 748 L38 748" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="38" y="736" width="229.17439999999996" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="48" y="752.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: ventral orthographic analysis</tspan></text>
+<path d="M46 760 L46 778 L56 778" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="766" width="62.436" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="65" y="782.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">A37lv@L</tspan></text>
+<rect x="124.436" y="766" width="62.436" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="133.436" y="782.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">A20rv@L</tspan></text>
+<path d="M28 730 L28 808 L38 808" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="38" y="796" width="218.02879999999996" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="48" y="812.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: temporo-parietal phonology</tspan></text>
+<path d="M46 820 L46 838 L56 838" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="826" width="56.088" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="65" y="842.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">A22c@L</tspan></text>
+<path d="M46 820 L46 868 L56 868" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="856" width="201.18079999999998" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="66" y="872.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: inferior parietal support</tspan></text>
+<path d="M64 880 L64 898 L74 898" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="74" y="886" width="81.47999999999999" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="83" y="902.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IPL@L(AnG)</tspan></text>
+<rect x="161.48" y="886" width="81.47999999999999" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="170.48" y="902.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IPL@L(SMG)</tspan></text>
+<path d="M28 730 L28 928 L38 928" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="38" y="916" width="215.17759999999996" height="24" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="48" y="932.5" font-size="12" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>GN: frontal phonological output</tspan></text>
+<path d="M46 940 L46 958 L56 958" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
+<rect x="56" y="946" width="119.568" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="65" y="962.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L(opercular)</tspan></text>
+<rect x="181.56799999999998" y="946" width="125.916" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="190.56799999999998" y="962.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L(triangular)</tspan></text>
+<rect x="86.9" y="982" width="256.2" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="96.92000000000007" y="998.32" font-size="12" font-weight="600" fill="#065f46" text-anchor="start"><tspan>UCs 7, Collections 3, GNs 4, depth 3, X9 0</tspan></text>
+</svg>
