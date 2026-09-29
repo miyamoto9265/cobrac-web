@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
 import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
+import { CanonBadge } from "../components/CanonBadge";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -281,6 +282,7 @@ function Workspace({ projectId }: { projectId: string }) {
               <span className="min-w-0 break-words">
                 <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
               </span>
+              {project.canonId && <CanonBadge canonId={project.canonId} />}
               <span className="font-mono">
                 <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
               </span>

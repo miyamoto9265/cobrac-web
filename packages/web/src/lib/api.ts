@@ -1,6 +1,9 @@
 import type {
   ArticleJobState,
   ArtifactInfo,
+  CanonDetailResponse,
+  CanonRecord,
+  CreateCanonRequest,
   CreateProjectRequest,
   CreateUploadResponse,
   DeleteProjectResponse,
@@ -13,7 +16,9 @@ import type {
   ProjectRecord,
   GraphLayout,
   ReasoningEffort,
+  ListCanonsResponse,
   UiLocale,
+  UpdateCanonRequest,
   UpdateProjectResponse,
   UsageSummary,
   UserPublic,
@@ -101,6 +106,15 @@ export const api = {
   saveLayout: (id: string, kind: "hcd" | "frg", layout: Omit<GraphLayout, "updatedAt">) =>
     request<GraphLayout>("PUT", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`, layout),
   resetLayout: (id: string, kind: "hcd" | "frg") => request<{ ok: true }>("DELETE", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),
+
+  listCanons: () => request<ListCanonsResponse>("GET", "/canons"),
+  createCanon: (b: CreateCanonRequest) => request<CanonRecord>("POST", "/canons", b),
+  getCanon: (id: string) => request<CanonDetailResponse>("GET", `/canons/${encodeURIComponent(id)}`),
+  updateCanon: (id: string, b: UpdateCanonRequest) => request<CanonRecord>("PUT", `/canons/${encodeURIComponent(id)}`, b),
+  deleteCanon: (id: string) => request<{ canonId: string; deletedAt: string }>("DELETE", `/canons/${encodeURIComponent(id)}`),
+  addCanonMember: (id: string, projectId: string) => request<{ projectId: string; canonId: string }>("POST", `/canons/${encodeURIComponent(id)}/members`, { projectId }),
+  removeCanonMember: (id: string, projectId: string) =>
+    request<{ ok: true }>("DELETE", `/canons/${encodeURIComponent(id)}/members/${encodeURIComponent(projectId)}`),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
   adminUpdateUser: (id: string, b: { disabled?: boolean; role?: "user" | "admin" }) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
