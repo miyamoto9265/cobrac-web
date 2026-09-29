@@ -25,6 +25,8 @@ import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, StepState,
 import {
   DEFAULT_BRA_RULES,
   PROJECT_FILES,
+  QUOTE_STATUSES,
+  QUOTE_STATUS_LABEL,
   REF_STATUSES,
   addUsage,
   articleKey,
@@ -58,9 +60,11 @@ import {
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
+import { LiteratureHttp } from "./http.js";
+import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
 import { downloadDir, projectPrefix, putObject, uploadDir } from "./s3sync.js";
-import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt, type ReferenceReport } from "./pipeline.js";
+import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt, type QuoteReport, type ReferenceReport } from "./pipeline.js";
 import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
@@ -80,7 +84,9 @@ let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let rcs: RcsClient | null = null;
-const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey }) : null;
+const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
+const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ http: literatureHttp }) : null;
+const quoteVerifier = env.quoteCheck ? new QuoteVerifier({ http: literatureHttp, threshold: env.quoteMatchThreshold }) : null;
 
 const log = async (content: string, meta?: Record<string, unknown>): Promise<void> => {
   await putMessage(projectId, jobId, "system", "status", content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
@@ -240,6 +246,7 @@ async function main() {
         },
         onAccepted: async (phase) => {
           if (phase !== "CSV" && ctx.references) await logReferenceSummary(ctx.references);
+          if (phase === "HCD" && ctx.quotes) await logQuoteSummary(ctx.quotes);
           accepted.add(phase);
           await syncStepStates();
           await persistState();
@@ -439,6 +446,7 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
   const deps: CheckDeps = {
     lookupSabra: rcs ? (ids) => rcs!.lookupHomba(ids) : undefined,
     verifyReferences: referenceVerifier ? (refs) => referenceVerifier.verify(refs) : undefined,
+    quoteChecker: quoteVerifier ? { threshold: quoteVerifier.threshold, verify: (reqs) => quoteVerifier.verify(reqs) } : undefined,
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
@@ -469,6 +477,19 @@ async function logReferenceSummary(r: ReferenceReport) {
   if (line === lastReferenceSummary) return;
   lastReferenceSummary = line;
   const open = r.references.filter((c) => c.status !== "verified").map((c) => `${c.id}: ${c.status}${c.problems.length ? ` (${c.problems.join("; ")})` : ""}`);
+  await log(line, open.length ? { details: open.join("\n") } : undefined);
+}
+
+let lastQuoteSummary = "";
+async function logQuoteSummary(r: QuoteReport) {
+  if (!r.summary) return;
+  const parts = QUOTE_STATUSES.filter((s) => r.summary![s] > 0).map((s) => `${r.summary![s]} ${QUOTE_STATUS_LABEL[s]}`);
+  const line = `Quotes (Pointers on literature): ${parts.join(", ")} (compared with the cited paper's open-access full text or abstract; details in ${PROJECT_FILES.quoteCheck}).`;
+  if (line === lastQuoteSummary) return;
+  lastQuoteSummary = line;
+  const open = r.quotes
+    .filter((c) => !c.status.startsWith("verified"))
+    .map((c) => `${c.sender} -> ${c.receiver} ${c.referenceIds.join("; ")}: ${QUOTE_STATUS_LABEL[c.status]}${c.score !== null ? ` (best match ${Math.round(c.score * 100)}%)` : ""}${c.notes.length ? ` — ${c.notes.join("; ")}` : ""}`);
   await log(line, open.length ? { details: open.join("\n") } : undefined);
 }
 
