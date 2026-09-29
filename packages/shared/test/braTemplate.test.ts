@@ -242,6 +242,13 @@ describe("Template-v2-2 export", () => {
     expect(wb).toContain('<calcPr fullCalcOnLoad="1"/>');
   });
 
+  it("keeps the ROI row of the CSV even when it was written under an earlier Project ID", () => {
+    const input = modernInput({ refs: 4, ucs: 4, conns: 2 });
+    const r = buildTemplateXlsx(TEMPLATE, { ...input, projectId: "u7m2q9xa-9" });
+    const s = readTemplateSheet(r.bytes, "Circuits");
+    expect([s.get("A2")!.text, s.get("A3")!.text]).toEqual([`ROI_${P}`, "VTA"]);
+  });
+
   it("reads CoBRAC-v1-0 CSVs (several references in one cell, no ROI row, no relations)", () => {
     const r = buildTemplateXlsx(TEMPLATE, {
       projectId: "VOR",

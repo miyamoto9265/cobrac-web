@@ -350,7 +350,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
     subCircuits: splitList(cirT.get(r, "Sub-Circuits")),
     uniform: cirT.get(r, "Uniform").toUpperCase() !== "FALSE",
   }));
-  if (!circuitRows.some((c) => c.id === roiId)) {
+  if (!circuitRows.some((c) => c.id.startsWith("ROI_"))) {
     const roiUcs = frgT.rows.filter((r) => frgT.get(r, "Circuit ID") && !/noROI/i.test(frgT.get(r, "Comments"))).map((r) => frgT.get(r, "Circuit ID"));
     circuitRows.unshift({ id: roiId, source: "collection", names: input.roi ?? "", transmitter: "", modulation: "", comments: "Region of interest of the project", descriptor: "", subCircuits: roiUcs, uniform: false });
   }
@@ -448,7 +448,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
     const r = 2 + i;
     const source = refIdsIn(c.source)[0] ?? "";
     const sourceOfId = source.startsWith("[") ? `[${tRef(source)}]` : source;
-    const d = c.id === roiId ? { graphOrder: null, name: "", levels: [] as string[] } : dhbaCells(c.id, source, c.descriptor, dhba, seq);
+    const d = c.id.startsWith("ROI_") ? { graphOrder: null, name: "", levels: [] as string[] } : dhbaCells(c.id, source, c.descriptor, dhba, seq);
     if (d.note === "BNA") bnaRows++;
     else if (d.note) notes.push(`Circuits ${c.id}: no DHBA graph_order (${d.note}).`);
     const levels: Record<string, string> = {};
