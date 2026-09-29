@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Download, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, Download, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
@@ -9,6 +9,7 @@ import { ProjectTitle } from "../components/ProjectTitle";
 import { StatusBadge } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
 import { UsageBadge } from "../components/UsageBadge";
+import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
 import { TablesView } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
@@ -21,7 +22,7 @@ import { ProjectChatPanel } from "./ChatPage";
 import { FrgGraphPage } from "./FrgGraphPage";
 import { HcdGraphPage } from "./HcdGraphPage";
 
-export const WORKSPACE_VIEWS = ["hcd", "frg", "tables", "report", "log"] as const;
+export const WORKSPACE_VIEWS = ["hcd", "frg", "tables", "report", "log", "article"] as const;
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 
 export const workspacePath = (projectId: string, view?: WorkspaceView) => `/projects/${encodeURIComponent(projectId)}${view ? `/${view}` : ""}`;
@@ -32,6 +33,7 @@ const VIEW_TABS: { view: WorkspaceView; label: MessageKey; Icon: LucideIcon }[] 
   { view: "tables", label: "ws.tables", Icon: Table2 },
   { view: "report", label: "chat.report", Icon: FileText },
   { view: "log", label: "chat.decisionLog", Icon: NotebookPen },
+  { view: "article", label: "ws.article", Icon: BookOpen },
 ];
 
 /** `/chat/:projectId` (before the workspace layout) → the project workspace. */
@@ -148,9 +150,12 @@ function Workspace({ projectId }: { projectId: string }) {
       report: doc(PROJECT_FILES.report),
       log: doc(PROJECT_FILES.decisionLog),
       tables: tabularSources(list),
+      articles: list.filter((a) => a.category === "article"),
     };
   }, [artifacts]);
-  const has = (v: WorkspaceView) => (v === "tables" ? available.tables.length > 0 : !!available[v]);
+  const braReady = !!available.xlsx && project?.stepStates?.XLSX === "done";
+  const has = (v: WorkspaceView) =>
+    v === "tables" ? available.tables.length > 0 : v === "article" ? braReady || available.articles.length > 0 : !!available[v];
 
   const view = WORKSPACE_VIEWS.find((v) => v === rawView) ?? null;
   const defaultView = artifacts === null ? null : (WORKSPACE_VIEWS.find(has) ?? null);
@@ -187,6 +192,17 @@ function Workspace({ projectId }: { projectId: string }) {
         return <DocViewer projectId={projectId} artifactKey={available.report!.key} version={available.report!.lastModified} title={t("chat.report")} />;
       case "log":
         return <DocViewer projectId={projectId} artifactKey={available.log!.key} version={available.log!.lastModified} title={t("chat.decisionLog")} />;
+      case "article":
+        return (
+          <ArticleView
+            projectId={projectId}
+            project={project}
+            braReady={braReady}
+            version={available.articles.map((a) => `${a.key}@${a.lastModified}`).join(",")}
+            onStarted={load}
+            onOpenChat={chat.open ? undefined : () => chat.setOpen(true)}
+          />
+        );
     }
   })();
 

@@ -33,6 +33,16 @@ const STORAGE = "cobrac-locale";
 
 const CATALOG: Record<Locale, Record<MessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
 
+/** Name of a UI language in the current UI language (`ja` → "日本語" / "Japanese"); unknown ids come back unchanged. */
+export function localeName(id: string, t: TFn): string {
+  const l = LOCALES.find((x) => x.id === id);
+  return l ? t(l.nameKey) : id;
+}
+
+export function htmlLangFor(locale: string): string {
+  return LOCALES.find((l) => l.id === locale)?.htmlLang ?? "en";
+}
+
 export function dateTagFor(locale: string): string {
   return LOCALES.find((l) => l.id === locale)?.dateTag ?? "en-US";
 }
