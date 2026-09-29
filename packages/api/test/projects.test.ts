@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { JobRecord, MessageRecord, ProjectRecord, UpdateProjectResponse, UsageSummary } from "@cobrac/shared";
+import type { DeleteProjectResponse, JobRecord, MessageRecord, ProjectRecord, UpdateProjectResponse, UsageSummary } from "@cobrac/shared";
 import { PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
@@ -200,6 +200,115 @@ describe("project IDs", () => {
     expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`)).status).toBe(400);
     expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("../x.md")}`)).status).toBe(400);
     expect((await call(B, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`)).status).toBe(404);
+  });
+});
+
+describe("soft delete", () => {
+  const ID = "u7m2q9xa-2";
+  function seed(status: ProjectRecord["status"] = "COMPLETED") {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 5), projectId: ID, name: "Fear conditioning", nameSource: "user", status });
+    fake.put("jobs", { ...job(A.sub, "job_a2", 5), projectId: ID });
+    fake.put("messages", { ...message("job_a2", "kept", "5"), projectId: ID, userId: A.sub });
+  }
+  const stored = () => fake.items("projects").find((p) => p.projectId === ID && p.userId === A.sub)!;
+
+  it("flags the owner's project and keeps every item", async () => {
+    seed();
+    vi.clearAllMocks();
+    const r = await json<DeleteProjectResponse>(call(A, "DELETE", `/projects/${ID}`));
+    expect(r.projectId).toBe(ID);
+    expect(stored()).toMatchObject({ deletedAt: r.deletedAt, deletedBy: A.sub, status: "COMPLETED", name: "Fear conditioning" });
+    expect(fake.items("jobs").some((j) => j.projectId === ID)).toBe(true);
+    expect(fake.items("messages").some((m) => m.projectId === ID)).toBe(true);
+    const aws = await import("../src/lib/aws.js");
+    expect(aws.deleteObject).not.toHaveBeenCalled();
+  });
+
+  it("refuses other users with 404 and leaves the project untouched", async () => {
+    seed();
+    expect((await call(B, "DELETE", `/projects/${ID}`)).status).toBe(404);
+    expect(stored().deletedAt).toBeUndefined();
+    // Bob's own legacy "VOR" is a different item than Alice's
+    await json(call(B, "DELETE", "/projects/VOR"));
+    expect(fake.items("projects").find((p) => p.projectId === "VOR" && p.userId === A.sub)!.deletedAt).toBeUndefined();
+  });
+
+  it("blocks deletion while a job is in flight", async () => {
+    for (const status of ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"] as const) {
+      fake.tables.clear();
+      seed(status);
+      expect((await call(A, "DELETE", `/projects/${ID}`)).status).toBe(409);
+      expect(stored().deletedAt).toBeUndefined();
+    }
+    for (const status of ["FAILED", "CANCELLED"] as const) {
+      fake.tables.clear();
+      seed(status);
+      expect((await call(A, "DELETE", `/projects/${ID}`)).status).toBe(200);
+    }
+  });
+
+  it("hides the project from every owner path", async () => {
+    seed();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-3", legacyId: "OLD", name: "fear conditioning", nameSource: "user" });
+    await json(call(A, "DELETE", `/projects/${ID}`));
+
+    const list = await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects"));
+    expect(list.items.map((p) => p.projectId).sort()).toEqual(["VOR", "u7m2q9xa-3"]);
+    expect((await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects?q=fear"))).items.map((p) => p.projectId)).toEqual(["u7m2q9xa-3"]);
+
+    const key = encodeURIComponent(`output/${ID}.bra.xlsx`);
+    for (const [method, path, body] of [
+      ["GET", `/projects/${ID}`],
+      ["PUT", `/projects/${ID}`, { name: "x" }],
+      ["DELETE", `/projects/${ID}`],
+      ["GET", `/projects/resolve/${ID}`],
+      ["GET", `/projects/${ID}/messages`],
+      ["POST", `/projects/${ID}/followup`, { instruction: "more" }],
+      ["POST", `/projects/${ID}/retry`],
+      ["POST", `/projects/${ID}/cancel`],
+      ["POST", `/projects/${ID}/answer`, { answer: "a" }],
+      ["GET", `/projects/${ID}/artifacts`],
+      ["GET", `/projects/${ID}/artifacts/download?key=${key}`],
+      ["GET", `/projects/${ID}/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`],
+      ["GET", `/projects/${ID}/graph/hcd`],
+      ["GET", `/projects/${ID}/graph/frg/layout`],
+      ["PUT", `/projects/${ID}/graph/frg/layout`, { positions: {} }],
+      ["DELETE", `/projects/${ID}/graph/frg/layout`],
+    ] as const) {
+      expect([method, path, (await call(A, method, path, body)).status]).toEqual([method, path, 404]);
+    }
+    expect(presign).not.toHaveBeenCalled();
+
+    // A live project with the same name is no longer reported as a duplicate of the deleted one
+    const r = await json<UpdateProjectResponse>(call(A, "PUT", "/projects/u7m2q9xa-3", { name: "Fear Conditioning" }));
+    expect(r.duplicates).toEqual([]);
+  });
+
+  it("does not resolve a deleted project's legacy ID", async () => {
+    seedLegacyCollision();
+    fake.table("projects").clear();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-3", legacyId: "VOR", name: "VOR", nameSource: "user" });
+    await json(call(A, "DELETE", "/projects/u7m2q9xa-3"));
+    expect((await call(A, "GET", "/projects/resolve/VOR")).status).toBe(404);
+  });
+
+  it("keeps spent cost in the usage summary, flagged as deleted", async () => {
+    seed();
+    await json(call(A, "DELETE", `/projects/${ID}`));
+    const s = await json<UsageSummary>(call(A, "GET", "/users/me/usage"));
+    expect(s.totals.inputTokens).toBe(105);
+    expect(s.byProject.find((p) => p.projectId === ID)).toMatchObject({ deleted: true });
+    expect(s.byProject.find((p) => p.projectId === "VOR")!.deleted).toBeUndefined();
+  });
+
+  it("lists deleted projects for admins with the flag, and admin only", async () => {
+    seed();
+    await json(call(A, "DELETE", `/projects/${ID}`));
+    expect((await call(A, "GET", "/admin/projects")).status).toBe(403);
+    fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, role: "admin" });
+    const r = await json<{ items: ProjectRecord[] }>(call(B, "GET", "/admin/projects"));
+    expect(r.items.find((p) => p.projectId === ID)).toMatchObject({ deletedBy: A.sub, deletedAt: expect.any(String) });
   });
 });
 

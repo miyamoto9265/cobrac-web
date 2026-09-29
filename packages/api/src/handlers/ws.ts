@@ -10,6 +10,7 @@ import type {
 } from "aws-lambda";
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import type { WsClientEvent, WsServerEvent } from "@cobrac/shared";
+import { isProjectDeleted } from "@cobrac/shared";
 import { env } from "../env.js";
 import {
   deleteWsConnection,
@@ -87,7 +88,7 @@ export async function defaultRoute(event: APIGatewayProxyWebsocketEventV2): Prom
       return { statusCode: 200 };
     case "subscribe": {
       const p = await getProject(base.userId, msg.projectId);
-      if (!p) {
+      if (!p || isProjectDeleted(p)) {
         await send({ type: "error", message: "project not found" });
         return { statusCode: 200 };
       }
