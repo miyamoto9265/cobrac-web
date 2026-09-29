@@ -20,6 +20,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Fixed
 - A project shows a provisional name made from the ROI and TLF as typed, such as "VOR in 小脳", from the moment it is created until the agent names it; before, Japanese input was dropped and a project with TLF "VOR" / ROI "小脳" was called "VOR" while it ran. Projects already created that way show the provisional name too, including in the xlsx download name. A name the user typed or edited is still never replaced
 - The project history in the sidebar shows both ROI and TLF under the name instead of only the TLF
+- The chat no longer looks as if the user sent a second message at the start of each run: the instruction the worker gives the agent (Project ID, ROI, TLF, Contributor, "Run phase HCD." and the retry / answer / follow-up variants) is shown as a small notice such as "Started phase HCD." that expands to the full text. Existing conversations are shown the same way
 
 ## [0.8.1] - 2026-09-28
 

@@ -1,4 +1,5 @@
 import type { MessageRecord, MessageType } from "@cobrac/shared";
+import { normalizeStoredMessage } from "@cobrac/shared";
 
 /** Agent events that describe how the agent works (thoughts and tool calls), as opposed to what it tells the user. */
 export const ACTIVITY_TYPES: ReadonlySet<MessageType> = new Set<MessageType>(["reasoning", "command", "file_change", "web_search", "todo"]);
@@ -34,7 +35,8 @@ function isSupersededStart(m: MessageRecord, completed: Set<string>): boolean {
  * Fold consecutive activity events into collapsible groups, leaving user prompts, agent answers,
  * questions, errors and system notices as standalone items. Input must be sorted by `sk`.
  */
-export function buildTimeline(messages: MessageRecord[]): TimelineItem[] {
+export function buildTimeline(stored: MessageRecord[]): TimelineItem[] {
+  const messages = stored.map(normalizeStoredMessage);
   const completed = new Set<string>();
   for (const m of messages) {
     const id = itemId(m);

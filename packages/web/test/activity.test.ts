@@ -109,3 +109,17 @@ describe("group summary", () => {
     expect(stepPreview(msg("agent", "todo", "[x] HCD\n[x] FRG", "00:00"))).toBe("[x] FRG");
   });
 });
+
+describe("harness prompts in stored conversations", () => {
+  it("shows only the user's input as a user message; the worker's prompt becomes a notice", () => {
+    const items = buildTimeline([
+      msg("user", "prompt", "ROI: 小脳\nTLF: VOR", "00:00", { kind: "create", roi: "小脳", tlf: "VOR" }),
+      msg("system", "status", "Job queued. Waiting for a worker to start…", "00:01", { i18n: "sys.queued" }),
+      msg("user", "prompt", "Project ID: u2ttdyxs-2\nROI: 小脳\nTLF: VOR\nContributor: miyamoto9265\n\nRun phase HCD.", "00:05", { mode: "initial" }),
+      msg("agent", "reasoning", "x", "00:06"),
+    ]);
+    const shown = items.flatMap((i) => (i.kind === "message" ? [i.message] : []));
+    expect(shown.filter((m) => m.role === "user").map((m) => m.content)).toEqual(["ROI: 小脳\nTLF: VOR"]);
+    expect(shown[2]).toMatchObject({ role: "system", type: "status", meta: { i18n: "sys.promptPhase", step: "HCD" } });
+  });
+});

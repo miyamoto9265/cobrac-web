@@ -64,6 +64,7 @@ export function MessageItem({ m }: { m: MessageRecord }) {
         <button
           type="button"
           onClick={() => details && setOpen((o) => !o)}
+          aria-expanded={details ? open : undefined}
           className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs ${details ? "cursor-pointer" : "cursor-default"} ${
             isErr ? "bg-rose-50 text-rose-700" : isArtifact ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"
           }`}
