@@ -57,7 +57,6 @@ import {
   normalizeAttachmentUrl,
   safeAttachmentName,
   stagingKey,
-  CANON_CONSTRAINT_MODES,
   CANON_DESCRIPTION_MAX,
   CANON_META_SK,
   CANON_POLICY_MAX,
@@ -978,11 +977,6 @@ function canonFields(body: CreateCanonRequest | UpdateCanonRequest, partial: boo
     if ("error" in r) throw bad(`${key === "policy" ? "粒度方針" : "説明"}が不正です（${r.error}）`);
     out[key] = r.text;
   }
-  if (!partial || body.constraintMode !== undefined) {
-    const mode = body.constraintMode ?? "strict";
-    if (!CANON_CONSTRAINT_MODES.includes(mode)) throw bad("constraintMode が不正です");
-    out.constraintMode = mode;
-  }
   return out;
 }
 
@@ -1004,7 +998,6 @@ app.post("/canons", async (c) => {
     name: fields.name!,
     description: fields.description ?? "",
     policy: fields.policy ?? "",
-    constraintMode: fields.constraintMode ?? "strict",
     visibility: "private",
     headRevision: 0,
     memberCount: 0,
@@ -1252,7 +1245,6 @@ async function applyProjectCanon(u: UserRecord, project: ProjectRecord, r: { exi
     name: fields.name!,
     description: fields.description ?? "",
     policy: fields.policy ?? "",
-    constraintMode: fields.constraintMode ?? "strict",
     visibility: "private",
     headRevision: 0,
     memberCount: 0,
@@ -1395,8 +1387,8 @@ app.get("/projects/:id/canon", async (c) => {
   const { p, canon } = await projectCanon(u, c.req.param("id"));
   const pinned = Math.min(p.canonRevision ?? 0, canon.headRevision);
   const status = canonFollowStatus(await loadCanonRevision(canon, pinned), await loadCanonRevision(canon, canon.headRevision), p.projectId);
-  const info = { canonId: canon.canonId, name: canon.name, policy: canon.policy, constraintMode: canon.constraintMode, revision: canon.headRevision };
-  return c.json({ canonId: canon.canonId, name: canon.name, constraintMode: canon.constraintMode, ...status, alignInstruction: canonAlignInstruction(info, status) });
+  const info = { canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: canon.headRevision };
+  return c.json({ canonId: canon.canonId, name: canon.name, ...status, alignInstruction: canonAlignInstruction(info, status) });
 });
 
 /** Moves the project's pin (default: the head). Takes effect from the next job. */

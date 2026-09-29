@@ -4,7 +4,6 @@
 // how far a project is behind its Canon.
 // ---------------------------------------------------------------------------
 
-import type { CanonConstraintMode } from "./canon.js";
 import { canonFromProject, diffCanon, type CanonConflict, type CanonSnapshot, type ProjectCanonFiles } from "./canonMerge.js";
 
 /** Folder next to the project folder (`<workDir>/canon/`); not synced back to the project. */
@@ -14,7 +13,6 @@ export interface CanonRunInfo {
   canonId: string;
   name: string;
   policy: string;
-  constraintMode: CanonConstraintMode;
   revision: number;
 }
 
@@ -61,7 +59,6 @@ export function canonAgentFiles(snapshot: CanonSnapshot, info: CanonRunInfo, pro
   const relevant = snapshot.circuits.filter((c) => mine.has(c.key) || heads.has(c.key.split("/")[0])).map((c) => c.circuitId);
   const readme =
     `# Canon "${info.name}" (${info.canonId}), revision ${info.revision}\n\n` +
-    `Constraint strength: ${info.constraintMode}.\n\n` +
     (info.policy ? `## Granularity policy\n\n${info.policy}\n\n` : "") +
     "## Files\n\n" +
     "- `circuits.json`: every circuit of the Canon (Circuit ID, UC Descriptor, names, `uniform`, Sub-Circuits, properties)\n" +
@@ -80,7 +77,6 @@ export function canonAgentFiles(snapshot: CanonSnapshot, info: CanonRunInfo, pro
 
 /** Note appended to the HCD phase spec when the project follows a Canon. */
 export function canonSpecNote(info: CanonRunInfo): string {
-  const strict = info.constraintMode === "strict";
   return (
     `\n\n## Canon for this run\n\n` +
     `This project belongs to the Canon "${info.name}" (revision ${info.revision}); its definitions are in \`${CANON_AGENT_DIR}/\` (read-only, see \`${CANON_AGENT_DIR}/README.md\`). ` +
@@ -90,9 +86,7 @@ export function canonSpecNote(info: CanonRunInfo): string {
     "- If it is Uniform in the Canon, do not split it into finer UCs here. If this TLF really needs a finer split, write why in `decision_log.md` and ask the user (status `question`).\n" +
     "- When you use a connection or a reference that is in `canon/connections.json` / `canon/references.json`, copy the record as it is (same Reference ID, relations, literature names, quote); checked records are not re-checked.\n" +
     "- New circuits, connections and references are allowed; follow the Canon's granularity policy for them. They are proposed to the Canon when the user pushes the project.\n" +
-    (strict
-      ? "\nThe validator enforces these rules: a conflict with the Canon comes back as a problem to fix.\n"
-      : "\nThe Canon is advisory for this project: the validator reports conflicts as notes; resolve them where you can and record the rest in `decision_log.md`.\n")
+    "\nThe validator enforces these rules: a conflict with the Canon comes back as a problem to fix.\n"
   );
 }
 
@@ -129,8 +123,8 @@ function describe(c: CanonConflict): string {
 }
 
 /**
- * Canon conflicts of the project's current HCD files as validator messages. Strict: rule violations are errors the
- * agent must fix; advisory: everything is a note.
+ * Canon conflicts of the project's current HCD files as validator messages: rule violations are errors the agent must
+ * fix, smaller differences are notes.
  */
 export function canonGenerationProblems(snapshot: CanonSnapshot, info: CanonRunInfo, projectId: string, files: ProjectCanonFiles): { errors: string[]; notes: string[] } {
   const diff = diffCanon(snapshot, canonFromProject(projectId, 0, files));
@@ -139,7 +133,7 @@ export function canonGenerationProblems(snapshot: CanonSnapshot, info: CanonRunI
   const notes: string[] = [];
   for (const c of diff.conflicts) {
     const msg = prefix + describe(c);
-    if (GENERATION_ERRORS.has(c.code)) (info.constraintMode === "strict" ? errors : notes).push(msg);
+    if (GENERATION_ERRORS.has(c.code)) errors.push(msg);
     else if (GENERATION_WARNINGS.has(c.code)) notes.push(msg);
   }
   return { errors: [...new Set(errors)], notes: [...new Set(notes)] };

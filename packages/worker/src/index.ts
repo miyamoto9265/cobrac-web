@@ -1003,15 +1003,14 @@ async function prepareCanon(project: ProjectRecord) {
     if (revision <= 0) return;
     const snapshot = await getJsonObject<CanonSnapshot>(canonRevisionKey(meta.canonId, revision));
     if (!snapshot) throw new Error(`revision ${revision} is missing`);
-    const info: CanonRunInfo = { canonId: meta.canonId, name: meta.name, policy: meta.policy, constraintMode: meta.constraintMode, revision };
+    const info: CanonRunInfo = { canonId: meta.canonId, name: meta.name, policy: meta.policy, revision };
     await mkdir(dir, { recursive: true });
     for (const [name, text] of Object.entries(canonAgentFiles(snapshot, info, projectId))) await writeFile(join(dir, name), text, "utf8");
     canonRun = { snapshot, info };
-    await log(`Canon "${meta.name}" revision ${revision} (${info.constraintMode}): the agent follows its definitions (files in ${CANON_AGENT_DIR}/).`, {
+    await log(`Canon "${meta.name}" revision ${revision}: the agent follows its definitions (files in ${CANON_AGENT_DIR}/).`, {
       i18n: "sys.canonLoaded",
       name: meta.name,
       revision,
-      mode: info.constraintMode,
     });
   } catch (e) {
     console.warn("[canon] not loaded", e);

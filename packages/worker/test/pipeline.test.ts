@@ -577,7 +577,7 @@ describe("turn input", () => {
 describe("Canon constraints in the phase pipeline", () => {
   const hcdFiles = () => ({ uc: fixture("HCD/uc.json"), connections: fixture("HCD/connections.json"), references: fixture("HCD/references.json") });
   /** A Canon built from the fixture itself, then with NAC turned into a Collection of a finer UC. */
-  function canonWithCollectionNac(mode: "strict" | "advisory") {
+  function canonWithCollectionNac() {
     const inc = canonFromProject("u7m2q9xa-9", 1, { ...hcdFiles(), referenceCheck: JSON.stringify({ references: JSON.parse(fixture("HCD/references.json")).references.map((r: { id: string }) => ({ id: r.id, status: "verified" })) }) });
     const base = emptyCanonSnapshot("u7m2q9xa-c1", "t0");
     const snapshot = mergeCanon(base, inc, diffCanon(base, inc), {}, 1, "t1");
@@ -585,15 +585,15 @@ describe("Canon constraints in the phase pipeline", () => {
     nac.status = "collection";
     nac.subCircuits = ["bna:223-224/part:homba:10341"];
     snapshot.circuits.push({ ...nac, key: "bna:223-224/part:homba:10341", descriptor: "BNA:223-224/part:HOMBA:10341", circuitId: "NAC(shell)", names: "NAC(shell)", status: "uniform", subCircuits: [] });
-    const info: CanonRunInfo = { canonId: "u7m2q9xa-c1", name: "Reward", policy: "", constraintMode: mode, revision: 1 };
+    const info: CanonRunInfo = { canonId: "u7m2q9xa-c1", name: "Reward", policy: "", revision: 1 };
     return { snapshot, info };
   }
 
-  it("sends a strict Canon's conflicts back as problems and skips references the Canon already checked", async () => {
+  it("sends a Canon's conflicts back as problems and skips references the Canon already checked", async () => {
     const p = freshWorkspace();
     await mockAgent(p).turn({ shown: "Run phase HCD" });
     const looked: string[] = [];
-    const deps: CheckDeps = { ...depsOf(), canon: canonWithCollectionNac("strict"), verifyReferences: async (refs) => (looked.push(...refs.map((r) => r.id)), []) };
+    const deps: CheckDeps = { ...depsOf(), canon: canonWithCollectionNac(), verifyReferences: async (refs) => (looked.push(...refs.map((r) => r.id)), []) };
     const r = await checkPhase("HCD", p, deps, { hcd: null, frg: null });
     expect(r.errors.some((e) => e.startsWith('Canon "Reward" rev 1: `bna:223-224` is a Collection in the Canon but a UC here; use the Canon\'s choice (make it a Collection and connect its Sub-Circuits)'))).toBe(true);
     expect(looked).toEqual([]);
@@ -601,13 +601,14 @@ describe("Canon constraints in the phase pipeline", () => {
     expect(report.references[0].notes[0]).toContain("checked in Canon u7m2q9xa-c1 rev 1");
   });
 
-  it("only notes the conflicts of an advisory Canon", async () => {
+  it("sends the conflicts back for a Canon stored with the former advisory mode too", async () => {
     const p = freshWorkspace();
     await mockAgent(p).turn({ shown: "Run phase HCD" });
     const notes: string[][] = [];
-    const deps: CheckDeps = { ...depsOf(), canon: { ...canonWithCollectionNac("advisory"), onNotes: async (n) => void notes.push(n) } };
-    const r = await checkPhase("HCD", p, deps, { hcd: null, frg: null });
-    expect(r.errors.filter((e) => e.startsWith("Canon"))).toEqual([]);
-    expect(notes[0].some((n) => n.includes("`bna:223-224`"))).toBe(true);
+    const canon = canonWithCollectionNac();
+    const legacy = { ...canon, info: { ...canon.info, constraintMode: "advisory" } as CanonRunInfo, onNotes: async (n: string[]) => void notes.push(n) };
+    const r = await checkPhase("HCD", p, { ...depsOf(), canon: legacy }, { hcd: null, frg: null });
+    expect(r.errors.some((e) => e.startsWith('Canon "Reward" rev 1: `bna:223-224` is a Collection in the Canon'))).toBe(true);
+    expect(notes.flat().some((n) => n.includes("`bna:223-224` is a Collection"))).toBe(false);
   });
 });
