@@ -116,6 +116,23 @@ export async function deleteObject(userId: string, projectId: string, rel: strin
   await s3.send(new DeleteObjectCommand({ Bucket: env.artifactsBucket, Key: projectPrefix(userId, projectId) + rel }));
 }
 
+/** Canon objects live under `canons/{canonId}/` of the artifacts bucket (outside every user prefix). */
+export async function getCanonJson<T>(key: string): Promise<T | null> {
+  if (!key.startsWith("canons/") || key.includes("..")) throw new Error("invalid canon key");
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return JSON.parse(await r.Body!.transformToString("utf8")) as T;
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+export async function putCanonJson(key: string, value: unknown): Promise<void> {
+  if (!key.startsWith("canons/") || key.includes("..")) throw new Error("invalid canon key");
+  await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
+}
+
 export async function enqueueRun(msg: RunJobMessage, delaySeconds = 0) {
   await sqs.send(
     new SendMessageCommand({ QueueUrl: env.jobQueueUrl, MessageBody: JSON.stringify(msg), DelaySeconds: delaySeconds }),

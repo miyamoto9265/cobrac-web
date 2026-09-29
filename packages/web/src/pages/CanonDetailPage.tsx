@@ -1,15 +1,15 @@
 import { ArrowLeft, Layers, Plus, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { CanonConstraintMode, CanonDetailResponse, ProjectRecord, ProjectStatus } from "@cobrac/shared";
+import type { CanonConstraintMode, CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
-import { useI18n, useT } from "../i18n";
+import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
-import { ConstraintModeSelect, inputCls, primaryBtn } from "./CanonsPage";
+import { ConstraintModeSelect, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { publicCanonPath } from "./ExplorePage";
 import { workspacePath } from "./ProjectWorkspacePage";
 
@@ -153,6 +153,89 @@ function MembersCard({ detail, projects, onChanged }: { detail: CanonDetailRespo
   );
 }
 
+function PullsCard({ canonId, pulls }: { canonId: string; pulls: CanonPullRequestRecord[] }) {
+  const t = useT();
+  const { locale } = useI18n();
+  const shown = pulls.filter((p) => p.state !== "superseded");
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h2 className="mb-2 text-sm font-semibold">
+        {t("pr.list")} <span className="font-normal text-slate-400">({pulls.filter((p) => p.state === "open").length})</span>
+      </h2>
+      {shown.length === 0 && <div className="text-sm text-slate-400">{t("pr.none")}</div>}
+      <ul className="divide-y divide-slate-100" data-testid="canon-pulls">
+        {shown.map((p) => (
+          <li key={p.prNo} className="py-2">
+            <Link to={canonPullPath(canonId, p.prNo)} className="flex flex-wrap items-center gap-x-2 text-sm hover:underline">
+              <span className="font-mono text-slate-500">#{p.prNo}</span>
+              <span className="min-w-0 break-words font-medium text-blue-700">{p.sourceName}</span>
+              <span className={`rounded px-1.5 py-0.5 text-[11px] ${p.state === "open" ? "bg-violet-100 text-violet-800" : "bg-slate-100 text-slate-600"}`}>{t(`pr.state.${p.state}` as MessageKey)}</span>
+            </Link>
+            <div className="text-[11px] text-slate-500">
+              {t("pr.added", { n: p.summary.added })} · {t("pr.changed", { n: p.summary.changed })} · {t("pr.errors", { n: p.summary.errors })} · {t("pr.warnings", { n: p.summary.warnings })} · {fmtDate(p.createdAt, locale)}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ContentsCard({ snapshot, revisions }: { snapshot: CanonSnapshot | null; revisions: CanonRevisionSummary[] }) {
+  const t = useT();
+  const { locale } = useI18n();
+  if (!snapshot || snapshot.revision === 0) {
+    return (
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+        <h2 className="mb-2 text-sm font-semibold">{t("canon.contents")}</h2>
+        <p className="text-sm text-slate-500">{t("canon.contentsEmpty")}</p>
+      </section>
+    );
+  }
+  const circuits = [...snapshot.circuits].sort((a, b) => a.key.localeCompare(b.key));
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h2 className="mb-1 text-sm font-semibold">
+        {t("canon.contents")} <span className="font-mono font-normal text-slate-400">{t("canon.revision", { n: snapshot.revision })}</span>
+      </h2>
+      <div className="mb-2 text-xs text-slate-500">{t("canon.counts", { c: snapshot.circuits.length, x: snapshot.connections.length, r: snapshot.references.length, p: snapshot.roles.length })}</div>
+      <div className="max-h-96 overflow-auto">
+        <table className="w-full text-xs" data-testid="canon-circuits">
+          <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
+            <tr>
+              <th className="px-2 py-1">Circuit ID</th>
+              <th className="px-2 py-1">Uniform</th>
+              <th className="px-2 py-1">Sub-Circuits</th>
+              <th className="px-2 py-1">{t("canon.sources")}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {circuits.map((c) => (
+              <tr key={c.key} className={c.state !== "valid" ? "bg-amber-50" : ""}>
+                <td className="whitespace-nowrap px-2 py-1 font-mono" title={c.descriptor}>
+                  {c.circuitId}
+                </td>
+                <td className="px-2 py-1">{c.status === "uniform" ? "TRUE" : "FALSE"}</td>
+                <td className="px-2 py-1 font-mono text-[11px] text-slate-500">{c.subCircuits.map((k) => snapshot.circuits.find((x) => x.key === k)?.circuitId ?? k).join(", ")}</td>
+                <td className="px-2 py-1 font-mono text-[11px] text-slate-500">{c.sources.join(", ")}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {snapshot.connections.some((c) => c.state === "flagged") && <div className="mt-2 text-xs text-amber-700">{t("canon.flaggedConnections", { n: snapshot.connections.filter((c) => c.state === "flagged").length })}</div>}
+      <h3 className="mb-1 mt-3 text-xs font-semibold text-slate-600">{t("canon.history")}</h3>
+      <ul className="text-[11px] text-slate-500">
+        {revisions.map((r) => (
+          <li key={r.revision}>
+            <span className="font-mono">{t("canon.revision", { n: r.revision })}</span> · #{r.prNo} {r.source} · {fmtDate(r.createdAt, locale)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function CanonDetailPage() {
   const t = useT();
   const { locale } = useI18n();
@@ -161,9 +244,20 @@ export function CanonDetailPage() {
   const [detail, setDetail] = useState<CanonDetailResponse | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [pulls, setPulls] = useState<CanonPullRequestRecord[]>([]);
+  const [snapshot, setSnapshot] = useState<CanonSnapshot | null>(null);
+  const [revisions, setRevisions] = useState<CanonRevisionSummary[]>([]);
 
   const reload = useCallback(() => {
-    api.getCanon(canonId).then(setDetail).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    api
+      .getCanon(canonId)
+      .then((d) => {
+        setDetail(d);
+        if (d.canon.headRevision > 0) api.canonRevision(canonId, d.canon.headRevision).then(setSnapshot).catch(() => undefined);
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+    api.canonPulls(canonId).then((r) => setPulls(r.items)).catch(() => undefined);
+    api.canonRevisions(canonId).then((r) => setRevisions(r.items)).catch(() => undefined);
     api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
   }, [canonId]);
   useEffect(reload, [reload]);
@@ -230,13 +324,11 @@ export function CanonDetailPage() {
           <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
             <div className="grid content-start gap-5">
               <MembersCard detail={detail} projects={projects} onChanged={reload} />
-              <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-                <h2 className="mb-2 text-sm font-semibold">{t("canon.contents")}</h2>
-                <p className="text-sm text-slate-500">{t("canon.contentsEmpty")}</p>
-                <div className="mt-2 text-[11px] text-slate-400">
-                  {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
-                </div>
-              </section>
+              <PullsCard canonId={c.canonId} pulls={pulls} />
+              <ContentsCard snapshot={snapshot} revisions={revisions} />
+              <div className="text-[11px] text-slate-400">
+                {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
+              </div>
             </div>
             <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />
           </div>

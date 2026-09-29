@@ -49,6 +49,49 @@ export interface CanonMemberRecord {
 export const CANON_META_SK = "META";
 export const CANON_MEMBER_PREFIX = "MEMBER#";
 export const CANON_REVISION_PREFIX = "REV#";
+export const CANON_PR_PREFIX = "PR#";
+const pad = (n: number) => String(n).padStart(6, "0");
+export const canonPrSk = (no: number) => `${CANON_PR_PREFIX}${pad(no)}`;
+export const canonRevisionSk = (rev: number) => `${CANON_REVISION_PREFIX}${pad(rev)}`;
+/** S3 keys (artifacts bucket). Revision snapshots are written once and never changed. */
+export const canonRevisionKey = (canonId: string, rev: number) => `canons/${canonId}/rev/${rev}/canon.json`;
+export const canonPrKey = (canonId: string, no: number, file: "incoming.json" | "diff.json") => `canons/${canonId}/pr/${no}/${file}`;
+
+export type CanonPrState = "open" | "approved" | "rejected" | "withdrawn" | "superseded";
+
+/** `PR#<000012>` item: a push waiting for (or past) the owner's review. */
+export interface CanonPullRequestRecord {
+  canonId: string;
+  sk: string;
+  prNo: number;
+  /** `project:<projectId>` (stage 2) or `canon:<canonId>` (stage 2′) */
+  source: string;
+  sourceName: string;
+  sourceRevision: number;
+  /** Canon revision the diff was computed against (updated when the diff is recomputed at approval) */
+  baseRevision: number;
+  state: CanonPrState;
+  summary: { added: number; changed: number; unchanged: number; dropped: number; errors: number; warnings: number; infos: number };
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  decidedBy?: string | null;
+  decidedAt?: string | null;
+  reason?: string | null;
+  /** Revision created by approving it */
+  mergedRevision?: number | null;
+}
+
+export interface CanonRevisionRecord {
+  canonId: string;
+  sk: string;
+  revision: number;
+  prNo: number;
+  source: string;
+  createdAt: string;
+  circuitCount: number;
+  connectionCount: number;
+}
 export const canonMemberSk = (projectId: string) => `${CANON_MEMBER_PREFIX}${projectId}`;
 
 export function formatCanonId(userKey: string, seq: number): string {
@@ -110,4 +153,8 @@ export interface ListCanonsResponse {
 export interface CanonRevisionSummary {
   revision: number;
   createdAt: string;
+  prNo?: number;
+  source?: string;
+  circuitCount?: number;
+  connectionCount?: number;
 }
