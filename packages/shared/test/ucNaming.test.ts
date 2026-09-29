@@ -17,12 +17,12 @@ import {
   type SabraLookup,
 } from "../src/index.js";
 
-const dhba = (acr: string, id: string): HombaSabraInfo => ({ atlas: "DHBA", dhbaAcronym: acr, dhbaExact: true, dhbaHombaId: id, dhbaAncestorAcronym: acr });
+const dhba = (acr: string, id: string, name = ""): HombaSabraInfo => ({ atlas: "DHBA", dhbaAcronym: acr, dhbaExact: true, dhbaHombaId: id, dhbaAncestorAcronym: acr, dhbaName: name });
 /** RCS get_homba_term facts for the examples of the convention (docs/uc-naming-convention.md §4.1). */
 const SABRA: SabraLookup = new Map<string, HombaSabraInfo | null>([
-  ["HOMBA:12261", dhba("VTA", "HOMBA:12261")],
+  ["HOMBA:12261", dhba("VTA", "HOMBA:12261", "ventral tegmental area")],
   ["HOMBA:12499", dhba("NC", "HOMBA:12499")],
-  ["HOMBA:10492", dhba("Arc", "HOMBA:10492")],
+  ["HOMBA:10492", dhba("Arc", "HOMBA:10492", "arcuate nucleus")],
   ["HOMBA:12852", dhba("FNCb", "HOMBA:12852")],
   ["HOMBA:AA30423", { atlas: "DHBA", dhbaAcronym: "", dhbaExact: false, dhbaHombaId: "HOMBA:12852", dhbaAncestorAcronym: "FNCb" }],
   ["HOMBA:10339", { atlas: "BNA", dhbaAcronym: "", dhbaExact: false, dhbaHombaId: "", dhbaAncestorAcronym: "" }],
@@ -153,10 +153,10 @@ describe("UC naming convention", () => {
 
 const j = (v: unknown) => JSON.stringify(v);
 const META = j({ roi: "Mesolimbic system", tlf: "Reward learning", description: "HCD/FRG of reward learning.", name: "Reward learning in mesolimbic system" });
-const REFS = j({ references: [{ id: "[Schultz, 1997]", doi: "10.1126/science.275.5306.1593" }] });
-const fn = (id: string) => ({ requirement: `req of [U.${id}]`, requirementRealization: "real", capability: "cap", mechanism: "mech", implementation: `[U.${id}] = f([U.x])` });
+const REFS = j({ references: [{ id: "[Schultz, 1997]", doi: "10.1126/science.275.5306.1593", literatureType: "Experimental results" }] });
+const fn = (id: string) => ({ requirement: `req of [U.${id}]`, requirementRealization: "real", capability: "cap", mechanism: "mech", implementation: `[U.${id}] = f([U.${id}])` });
 const empty = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
-const base = { sourceOfId: ["[Schultz, 1997]"], transmitter: "", modulationType: "", comments: "" };
+const base = { sourceOfId: "[Schultz, 1997]", transmitter: "", modulationType: "", comments: "" };
 const UCS = [
   { ...base, ...empty, circuitId: "A9/46d@L(L3)", descriptor: "BNA:15/lay:L3", names: "left dorsal 9/46 layer III", roi: "noROI(input)", outputSemantics: "[A9/46d@L(L3)]context;" },
   {
@@ -167,7 +167,7 @@ const UCS = [
     names: "VTA DA neurons",
     roi: "internal",
     interface: "([U.NAC(shell,DRD1+)]) = VTA(DA,out:NAC,rpe)([U.NAC(shell,DRD1+)])",
-    outputSemantics: "[VTA]RPE;",
+    outputSemantics: "[VTA(DA,out:NAC,rpe)] RPE;",
   },
   {
     ...base,
@@ -177,7 +177,7 @@ const UCS = [
     names: "NAc shell D1",
     roi: "internal",
     interface: "([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)])",
-    outputSemantics: "[NAC]value;",
+    outputSemantics: "[NAC(shell,DRD1+)] value;",
   },
   { ...base, ...empty, circuitId: "Arc(AGRP+)", descriptor: "HOMBA:10492/mol:AGRP+", names: "arcuate AgRP", roi: "noROI(output)", outputSemantics: "" },
 ];
@@ -186,9 +186,9 @@ const conn = (sender: string, receiver: string) => ({
   receiver,
   comment: "c",
   referenceIds: ["[Schultz, 1997]"],
-  taxon: "rat",
-  measurementMethod: "tracing",
-  pointersOnLiterature: "p.1",
+  taxon: "Rat",
+  measurementMethod: "Anterograde tracing",
+  pointersOnLiterature: "",
   pointersOnFigure: "Fig. 1",
 });
 const CONNS = [
@@ -213,7 +213,7 @@ const frgFiles = (subnodes: string[]) => ({
   frg: j({ nodes: [{ id: "R.Reward", subnodes, comment: "TLF", interface: "([U.Arc(AGRP+)]) = R.Reward([U.A9/46d@L(L3)])", requirement: "r", requirementRealization: "rr", capability: "c", mechanism: "m" }] }),
 });
 const FRG = frgFiles(["U.VTA(DA,out:NAC,rpe)", "U.NAC(shell,DRD1+)"]);
-const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-0\n";
+const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-1\n";
 
 describe("a project named by the convention", () => {
   it("validates, converts to CSV and renders", () => {
@@ -226,7 +226,7 @@ describe("a project named by the convention", () => {
 
     const { files, errors } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
     expect(errors).toEqual([]);
-    expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor");
+    expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor,Sub-Circuits,Uniform");
     const circuits = parseCsvObjects(files!["Circuits.csv"]);
     expect(circuits.find((c) => c["Circuit ID"] === "NAC(shell,DRD1+)")?.["UC Descriptor"]).toBe("BNA:223-224/part:HOMBA:10341/mol:DRD1+");
     const frgRows = parseCsvObjects(files!["FRG.csv"]);
@@ -243,7 +243,12 @@ describe("a project named by the convention", () => {
   it("accepts a project whose UCs are all whole SABRA units (anchor only)", () => {
     const rename = (x: string) =>
       x.replaceAll("A9/46d@L(L3)", "A9/46d@L").replaceAll("VTA(DA,out:NAC,rpe)", "VTA").replaceAll("NAC(shell,DRD1+)", "NAC").replaceAll("Arc(AGRP+)", "Arc");
-    const ucs = (JSON.parse(rename(j(UCS))) as { descriptor: string }[]).map((u, i) => ({ ...u, descriptor: ["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i] }));
+    const ucs = (JSON.parse(rename(j(UCS))) as { descriptor: string }[]).map((u, i) => ({
+      ...u,
+      descriptor: ["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i],
+      names: ["left dorsal area 9/46", "ventral tegmental area; VTA", "nucleus accumbens", "arcuate nucleus"][i],
+      sourceOfId: ["[Schultz, 1997]", "DHBA", "[Schultz, 1997]", "DHBA"][i],
+    }));
     const hcd = checkHcd(hcdFiles(ucs, JSON.parse(rename(j(CONNS)))), { sabra: SABRA });
     expect(hcd.errors).toEqual([]);
     expect(hcd.model!.ucs.map((u) => [u.id, u.descriptor])).toEqual([
@@ -255,7 +260,17 @@ describe("a project named by the convention", () => {
     const frg = checkFrg(frgFiles(["U.VTA", "U.NAC"]), hcd.model!);
     expect(frg.errors).toEqual([]);
     const { files } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
-    expect(parseCsvObjects(files!["Circuits.csv"]).map((c) => c["UC Descriptor"])).toEqual(["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"]);
+    expect(parseCsvObjects(files!["Circuits.csv"]).map((c) => [c["UC Descriptor"], c["Source of ID"]])).toEqual([
+      ["", "collection"],
+      ["BNA:15", "[Schultz, 1997]"],
+      ["HOMBA:12261", "DHBA"],
+      ["BNA:223-224", "[Schultz, 1997]"],
+      ["HOMBA:10492", "DHBA"],
+    ]);
+    const bad = ucs.map((u, i) => (i === 1 ? { ...u, names: "VTA" } : u));
+    expect(checkHcd(hcdFiles(bad, JSON.parse(rename(j(CONNS)))), { sabra: SABRA }).errors).toEqual([
+      expect.stringMatching(/names of `VTA` must start with its SABRA official name "ventral tegmental area"/),
+    ]);
   });
 
   it("reports naming problems and an interface that names another UC", () => {

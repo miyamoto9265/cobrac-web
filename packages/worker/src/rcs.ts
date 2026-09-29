@@ -99,7 +99,7 @@ export class RcsClient {
 interface TermResult {
   homba_id: string;
   dhba_acronym?: string | null;
-  sabra?: { atlas?: string; dhba_acronym?: string; dhba_homba_id?: string; dhba_exact?: boolean } | null;
+  sabra?: { atlas?: string; dhba_name?: string; dhba_acronym?: string; dhba_homba_id?: string; dhba_exact?: boolean } | null;
 }
 
 function parseText(r: ToolResult): unknown {
@@ -120,6 +120,7 @@ function toInfo(t: TermResult): HombaSabraInfo {
     dhbaExact: exact,
     dhbaHombaId: s.dhba_homba_id ?? "",
     dhbaAncestorAcronym: s.dhba_acronym ?? "",
+    dhbaName: exact ? (s.dhba_name ?? "") : "",
   };
 }
 

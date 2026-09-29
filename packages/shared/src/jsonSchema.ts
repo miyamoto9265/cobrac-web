@@ -1,6 +1,6 @@
 /**
  * Validator for the JSON Schema subset used by the harness files (draft 2020-12 keywords only):
- * type, enum, pattern, minLength, minItems, items, properties, required, additionalProperties (boolean).
+ * type, enum, pattern, minLength, minItems, maxItems, items, properties, required, additionalProperties (boolean).
  * Dependency-free so the web bundle can import `@cobrac/shared` without a schema library.
  */
 export type JsonType = "object" | "array" | "string" | "number" | "integer" | "boolean" | "null";
@@ -15,6 +15,7 @@ export interface JsonSchema {
   pattern?: string;
   minLength?: number;
   minItems?: number;
+  maxItems?: number;
   items?: JsonSchema;
   properties?: Readonly<Record<string, JsonSchema>>;
   required?: readonly string[];
@@ -46,6 +47,7 @@ export function validateJsonSchema(schema: JsonSchema, value: unknown, path = ""
   }
   if (Array.isArray(value)) {
     if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`${at} needs at least ${schema.minItems} item(s)`);
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`${at} must have at most ${schema.maxItems} item(s) (got ${value.length})`);
     if (schema.items) value.forEach((v, i) => errors.push(...validateJsonSchema(schema.items!, v, `${path}/${i}`)));
   }
   if (got === "object") {

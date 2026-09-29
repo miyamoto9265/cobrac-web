@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  BRA_VERSION,
   HARNESS_SCHEMAS,
+  OUT_OF_ROI_CAPABILITY,
   buildCsvs,
   buildGraphs,
   checkFrg,
@@ -16,8 +19,8 @@ const META = { roi: "Cerebellar flocculus", tlf: "VOR adaptation", description: 
 
 const REFS = {
   references: [
-    { id: "[Ito, 1982]", doi: "10.1146/annurev.ne.05.030182.001423" },
-    { id: "[Lisberger, 1994]", doi: "N/A" },
+    { id: "[Ito, 1982]", doi: "10.1146/annurev.ne.05.030182.001423", literatureType: "Review" },
+    { id: "[Lisberger, 1994]", doi: "N/A", literatureType: "Experimental results", alternativeUrl: "https://example.org/lisberger-1994" },
   ],
 };
 
@@ -26,7 +29,7 @@ const fn = (id: string) => ({
   requirementRealization: `real of [U.${id}]`,
   capability: "cap",
   mechanism: "mech",
-  implementation: `[U.${id}] = f([U.x])`,
+  implementation: `[U.${id}] = f([U.VN])`,
 });
 const noFn = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
 const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown>) => ({
@@ -34,7 +37,7 @@ const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown
   descriptor,
   names: circuitId,
   roi: "internal",
-  sourceOfId: ["[Ito, 1982]"],
+  sourceOfId: descriptor.includes("/") ? "[Ito, 1982]" : "DHBA",
   transmitter: "Glutamate",
   modulationType: "Excitatory",
   comments: "",
@@ -46,9 +49,9 @@ const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown
 const UC = {
   ucs: [
     uc("VN", "HOMBA:12950", { roi: "noROI(input)", comments: "head velocity" }),
-    uc("GC(granule)", "HOMBA:12852/cell:granule", { comments: "parallel fibres", interface: "([U.PC(purkinje)]) = GC(granule)([U.VN])", ...fn("GC") }),
-    uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC") }),
-    uc("IO", "HOMBA:12500", { sourceOfId: ["[Lisberger, 1994]"], interface: "([U.PC(purkinje)]) = IO([U.VN])", ...fn("IO") }),
+    uc("GC(granule)", "HOMBA:12852/cell:granule", { comments: "parallel fibres", interface: "([U.PC(purkinje)]) = GC(granule)([U.VN])", ...fn("GC(granule)") }),
+    uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC(purkinje)") }),
+    uc("IO", "HOMBA:12500", { interface: "([U.PC(purkinje)]) = IO([U.VN])", ...fn("IO") }),
     uc("FTN", "HOMBA:12951", { roi: "noROI(output)", transmitter: "GABA", modulationType: "Inhibitory", outputSemantics: "" }),
   ],
 };
@@ -58,10 +61,10 @@ const conn = (sender: string, receiver: string, comment: string, ref = "[Ito, 19
   receiver,
   comment,
   referenceIds: [ref],
-  taxon: "rabbit",
-  measurementMethod: "tracing",
-  pointersOnLiterature: "p.3",
-  pointersOnFigure: "Fig. 1",
+  taxon: "Rabbit",
+  measurementMethod: "Axonal tracing",
+  pointersOnLiterature: `The ${comment} projection from ${sender} terminates on ${receiver} in the flocculus of the rabbit.`,
+  pointersOnFigure: "Figure 1b",
 });
 const CONN = {
   bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"] }],
@@ -98,7 +101,7 @@ const FRG_JSON = {
 };
 const FRG = { report: REPORT, frg: j(FRG_JSON) };
 
-const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-0\n,,,,\nSheet Name,Review End Line,,,\n";
+const TEMPLATE = readFileSync(new URL("../../../prompts/Project.csv", import.meta.url), "utf8");
 
 describe("JSON schema validator", () => {
   it("reports types, required keys, enums, patterns and extra keys", () => {
@@ -190,6 +193,93 @@ describe("checkHcd", () => {
   });
 });
 
+describe("BRA value rules in checkHcd", () => {
+  it("asks for one reference per connection and one record per reference", () => {
+    const c = structuredClone(CONN);
+    c.connections[0].referenceIds = ["[Ito, 1982]", "[Lisberger, 1994]"];
+    c.connections.push(conn("VN", "IO", "slip", "[Lisberger, 1994]"));
+    const msg = checkHcd({ ...HCD, connections: j(c) }).errors.join("\n");
+    expect(msg).toMatch(/\/connections\/0\/referenceIds must have at most 1 item/);
+    expect(msg).toMatch(/`VN` -> `GC\(granule\)` cites 2 references; write one connection per reference/);
+    expect(msg).toMatch(/`VN` -> `IO` is listed more than once for \[Lisberger, 1994\]/);
+  });
+
+  it("checks the pointers of every connection", () => {
+    const c = structuredClone(CONN);
+    Object.assign(c.connections[1], { pointersOnLiterature: "p.1594", pointersOnFigure: "" });
+    Object.assign(c.connections[2], { pointersOnLiterature: "", pointersOnFigure: "" });
+    const msg = checkHcd({ ...HCD, connections: j(c) }).errors.join("\n");
+    expect(msg).toMatch(/`VN` -> `IO` \(\[Lisberger, 1994\]\): pointersOnLiterature starts with a page or section locator/);
+    expect(msg).toMatch(/`GC\(granule\)` -> `PC\(purkinje\)` \(\[Ito, 1982\]\): fill pointersOnLiterature or pointersOnFigure/);
+    expect(checkHcd({ ...HCD, connections: j(c) }, { bra: { minQuoteWords: 1 } }).errors.join("\n")).toMatch(/locator/);
+  });
+
+  it("validates Taxon, Measurement method, Transmitter and Literature type against the BRA lists", () => {
+    const c = structuredClone(CONN);
+    Object.assign(c.connections[0], { taxon: "Macaca mulatta", measurementMethod: "single-unit recording" });
+    const u = structuredClone(UC);
+    u.ucs[1].transmitter = "GABA/Glycine";
+    const refs = structuredClone(REFS) as { references: Record<string, unknown>[] };
+    delete refs.references[0].literatureType;
+    refs.references[1].literatureType = "Paper";
+    const msg = checkHcd({ ...HCD, connections: j(c), uc: j(u), references: j(refs) }).errors.join("\n");
+    expect(msg).toMatch(/\/connections\/0\/taxon must be one of "Mouse", "Rat"/);
+    expect(msg).toMatch(/\/connections\/0\/measurementMethod must be one of/);
+    expect(msg).toMatch(/\/ucs\/1\/transmitter must be one of "Acetylcholine"/);
+    expect(msg).toMatch(/\/references\/0\/literatureType is required/);
+    expect(msg).toMatch(/\/references\/1\/literatureType must be one of "Experimental results"/);
+  });
+
+  it("asks for an alternative URL (or PMID) when a reference has no DOI", () => {
+    const refs = structuredClone(REFS);
+    refs.references[1].alternativeUrl = "";
+    expect(checkHcd({ ...HCD, references: j(refs) }).errors.join("\n")).toMatch(/\[Lisberger, 1994\] has no DOI; give alternativeUrl/);
+    (refs.references[1] as Record<string, unknown>).pmid = "8083711";
+    expect(checkHcd({ ...HCD, references: j(refs) }).errors).toEqual([]);
+  });
+
+  it("reads a Source of ID list written before 0.10 as its first value and asks for one value", () => {
+    const u = structuredClone(UC) as { ucs: Record<string, unknown>[] };
+    u.ucs[1].sourceOfId = ["[Ito, 1982]", "[Lisberger, 1994]"];
+    u.ucs[3].sourceOfId = "[Ito, 1982]";
+    const r = checkHcd({ ...HCD, uc: j(u) });
+    const msg = r.errors.join("\n");
+    expect(msg).toMatch(/\/ucs\/1\/sourceOfId must be string \(got array\)/);
+    expect(msg).toMatch(/sourceOfId of `IO` is "\[Ito, 1982\]"; the UC is a whole DHBA term/);
+    expect(r.model?.ucs[1].sourceOfId).toBe("[Ito, 1982]");
+  });
+
+  it("checks the Output Semantics notation of each UC", () => {
+    const u = structuredClone(UC);
+    u.ucs[1].outputSemantics = "parallel fibre signal";
+    u.ucs[2].outputSemantics = "[GC(granule)] wrong circuit;";
+    const msg = checkHcd({ ...HCD, uc: j(u) }).errors.join("\n");
+    expect(msg).toMatch(/outputSemantics of `GC\(granule\)` must be exactly one item `\[GC\(granule\)\] content;`/);
+    expect(msg).toMatch(/outputSemantics of `PC\(purkinje\)` must be exactly one item/);
+  });
+
+  it("requires [U.<Circuit ID>] references to name existing UCs", () => {
+    const u = structuredClone(UC);
+    u.ucs[1].requirement = "Relay mossy fibre input from [U.Broca] to [U.PC(purkinje)].";
+    expect(checkHcd({ ...HCD, uc: j(u) }).errors.join("\n")).toMatch(/requirement of `GC\(granule\)` refers to \[U\.Broca\], which is not a Circuit ID/);
+  });
+
+  it("requires the names of an anchor-only UC to start with the SABRA official name", () => {
+    const u = structuredClone(UC);
+    u.ucs[0] = { ...u.ucs[0], circuitId: "A44d@L", descriptor: "BNA:29", names: "Broca's area" };
+    const c = structuredClone(CONN);
+    for (const x of c.connections) if (x.sender === "VN") x.sender = "A44d@L";
+    for (const x of u.ucs) x.interface = x.interface.replaceAll("[U.VN]", "[U.A44d@L]");
+    for (const x of u.ucs) x.implementation = x.implementation.replaceAll("[U.VN]", "[U.A44d@L]");
+    u.ucs[0].outputSemantics = "[A44d@L] content;";
+    u.ucs[0].sourceOfId = "[Ito, 1982]";
+    const msg = checkHcd({ ...HCD, uc: j(u), connections: j(c) }).errors;
+    expect(msg).toEqual([expect.stringMatching(/names of `A44d@L` must start with its SABRA official name "dorsal area 44"/)]);
+    u.ucs[0].names = "left dorsal area 44; Broca's area pars opercularis";
+    expect(checkHcd({ ...HCD, uc: j(u), connections: j(c) }).errors).toEqual([]);
+  });
+});
+
 describe("checkFrg", () => {
   const hcd = checkHcd(HCD).model!;
 
@@ -210,6 +300,14 @@ describe("checkFrg", () => {
     expect(msg).toMatch(/`R\.Orphan` has empty mechanism/);
     expect(msg).toMatch(/report\.md: add the `## FRG` section/);
   });
+
+  it("requires [U.] / [R.] references in the function details to name existing nodes", () => {
+    const bad = structuredClone(FRG_JSON);
+    bad.nodes[1].requirement = "Combine [U.GC(granule)] and [U.IFG] for [R.Timing].";
+    const msg = checkFrg({ ...FRG, frg: j(bad) }, hcd).errors.join("\n");
+    expect(msg).toMatch(/requirement of `R\.Context` refers to \[U\.IFG\]/);
+    expect(msg).toMatch(/requirement of `R\.Context` refers to \[R\.Timing\], which is not a node/);
+  });
 });
 
 describe("buildCsvs", () => {
@@ -221,17 +319,30 @@ describe("buildCsvs", () => {
     const { files, errors } = buildCsvs(hcd, frg, opts);
     expect(errors).toEqual([]);
     const project = parseCsvObjects(files!["Project.csv"])[0];
-    expect(project).toMatchObject({ Contributor: "Tester", "Project ID": "VOR", "BRA version": "CoBRAC-v1-0" });
+    expect(project).toMatchObject({ Contributor: "Tester", "Project ID": "VOR", "BRA version": BRA_VERSION });
     expect(project.Description).toContain("VOR adaptation");
-    expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor");
+    expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor,Sub-Circuits,Uniform");
     const circuits = parseCsvObjects(files!["Circuits.csv"]);
+    expect(circuits[0]).toMatchObject({
+      "Circuit ID": "ROI_VOR",
+      "Source of ID": "collection",
+      Names: "Cerebellar flocculus",
+      "Sub-Circuits": "GC(granule);PC(purkinje);IO",
+      Uniform: "FALSE",
+    });
+    expect(circuits.slice(1).every((c) => c.Uniform === "TRUE")).toBe(true);
+    expect(circuits.find((c) => c["Circuit ID"] === "IO")?.["Source of ID"]).toBe("DHBA");
     expect(circuits.find((c) => c["Circuit ID"] === "VN")?.Comments).toBe("head velocity; noROI(input)");
     expect(circuits.find((c) => c["Circuit ID"] === "FTN")?.Comments).toBe("noROI(output)");
     const frgRows = parseCsvObjects(files!["FRG.csv"]);
     expect(frgRows.find((r) => r["Node ID"] === "U.VN")?.["Projected Circuits"]).toBe("GC(granule);IO");
     expect(frgRows.find((r) => r["Node ID"] === "R.Context")).toMatchObject({ Subnodes: "U.GC(granule);U.PC(purkinje)", Capability: "c", Requirements: "r" });
     expect(parseCsvObjects(files!["Connections.csv"])[2].Comments).toBe("parallel fibres, P(a|b)");
-    expect(parseCsvObjects(files!["References.csv"]).map((r) => r["Reference ID"])).toEqual(["[Ito, 1982]", "[Lisberger, 1994]"]);
+    expect(parseCsvObjects(files!["References.csv"])).toEqual([
+      { "Reference ID": "[Ito, 1982]", DOI: "10.1146/annurev.ne.05.030182.001423", "Literature type": "Review", "Alternative URL": "" },
+      { "Reference ID": "[Lisberger, 1994]", DOI: "N/A", "Literature type": "Experimental results", "Alternative URL": "https://example.org/lisberger-1994" },
+    ]);
+    expect(parseCsvObjects(files!["Connections.csv"])[0]["Pointers on figure"]).toBe("Fig. 1B");
     const g = buildGraphs("VOR", {
       circuitsCsv: files!["Circuits.csv"],
       connectionsCsv: files!["Connections.csv"],
@@ -239,8 +350,35 @@ describe("buildCsvs", () => {
       referencesCsv: files!["References.csv"],
     });
     expect(g.hcd.nodes).toHaveLength(5);
+    expect(g.hcd.nodes.some((n) => n.id.startsWith("ROI_"))).toBe(false);
     expect(g.hcd.edges).toHaveLength(5);
     expect(g.frg.nodes.find((n) => n.id === "R.VOR-Adaptation")?.kind).toBe("tlf");
+  });
+
+  it("fills the Review End Lines, GN Output Semantics and the fixed text of UCs outside the ROI", () => {
+    const { files } = buildCsvs(hcd, frg, opts);
+    const rows = parseCsvObjects(files!["Project.csv"]);
+    const endLine = (sheet: string) => rows.find((r) => r.Contributor === sheet)?.["Project ID"];
+    // header row + data rows: 2 references, ROI row + 5 UCs, 5 connections, 3 GNs + 5 UCs
+    expect([endLine("References"), endLine("Circuits"), endLine("Connections"), endLine("FRG")]).toEqual(["3", "7", "6", "9"]);
+    const frgRows = parseCsvObjects(files!["FRG.csv"]);
+    const os = (id: string) => frgRows.find((r) => r["Node ID"] === id)?.["Output Semantics"];
+    expect(os("R.Context")).toBe("[PC(purkinje)] content;");
+    expect(os("R.VOR-Adaptation")).toBe("[PC(purkinje)] content;");
+    expect(frgRows.find((r) => r["Node ID"] === "U.VN")?.Capability).toBe(OUT_OF_ROI_CAPABILITY);
+    expect(frgRows.find((r) => r["Node ID"] === "U.IO")?.Capability).toBe("cap");
+  });
+
+  it("writes one Connections row per reference for files written before one-reference records", () => {
+    const old = structuredClone(hcd);
+    old.connections[0].referenceIds = ["[Ito, 1982]", "[Lisberger, 1994]"];
+    const { files } = buildCsvs(old, frg, opts);
+    const rows = parseCsvObjects(files!["Connections.csv"]).filter((r) => r["Sender Circuit ID (sCID)"] === "VN" && r["Receiver Circuit ID (rCID)"] === "GC(granule)");
+    expect(rows.map((r) => r["Reference ID"])).toEqual(["[Ito, 1982]", "[Lisberger, 1994]"]);
+    const g = buildGraphs("VOR", { circuitsCsv: files!["Circuits.csv"], connectionsCsv: files!["Connections.csv"], frgCsv: files!["FRG.csv"] });
+    const edge = g.hcd.edges.filter((e) => e.source === "VN" && e.target === "GC(granule)");
+    expect(edge).toHaveLength(1);
+    expect(edge[0].referenceId).toBe("[Ito, 1982]; [Lisberger, 1994]");
   });
 
   it("is deterministic", () => {

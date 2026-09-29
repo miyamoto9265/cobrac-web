@@ -42,9 +42,9 @@
       "referenceIds": [
         "[Haber, 2010]"
       ],
-      "taxon": "Macaca mulatta",
-      "measurementMethod": "anterograde tracing",
-      "pointersOnLiterature": "Results",
+      "taxon": "Macaque",
+      "measurementMethod": "Anterograde tracing",
+      "pointersOnLiterature": "Fibers from the dorsolateral prefrontal cortex terminate in the central and dorsal parts of the ventral striatum including the accumbens.",
       "pointersOnFigure": "Fig. 1"
     },
     {
@@ -54,9 +54,9 @@
       "referenceIds": [
         "[Schultz, 1997]"
       ],
-      "taxon": "Macaca mulatta",
-      "measurementMethod": "single-unit recording",
-      "pointersOnLiterature": "Results",
+      "taxon": "Macaque",
+      "measurementMethod": "Electro physiology",
+      "pointersOnLiterature": "Dopamine neurons of the ventral tegmental area send their axons to the nucleus accumbens and report reward prediction errors.",
       "pointersOnFigure": "Fig. 1"
     },
     {
@@ -66,9 +66,9 @@
       "referenceIds": [
         "[Haber, 2010]"
       ],
-      "taxon": "Macaca mulatta",
-      "measurementMethod": "tracing",
-      "pointersOnLiterature": "Results",
+      "taxon": "Macaque",
+      "measurementMethod": "Anterograde tracing",
+      "pointersOnLiterature": "The ventral striatum projects back to the midbrain dopamine cells, providing a feedback pathway to the ventral tegmental area.",
       "pointersOnFigure": "Fig. 1"
     },
     {
@@ -78,9 +78,9 @@
       "referenceIds": [
         "[Luo, 2011]"
       ],
-      "taxon": "Mus musculus",
-      "measurementMethod": "optogenetics",
-      "pointersOnLiterature": "Results",
+      "taxon": "Mouse",
+      "measurementMethod": "Optogenetic",
+      "pointersOnLiterature": "Accumbens output neurons reach the arcuate nucleus of the hypothalamus through a polysynaptic pathway that regulates feeding.",
       "pointersOnFigure": "Fig. 1"
     }
   ]
