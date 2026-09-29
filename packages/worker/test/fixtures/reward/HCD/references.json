@@ -2,15 +2,19 @@
   "references": [
     {
       "id": "[Schultz, 1997]",
-      "doi": "10.1126/science.275.5306.1593"
+      "doi": "10.1126/science.275.5306.1593",
+      "literatureType": "Experimental results"
     },
     {
       "id": "[Haber, 2010]",
-      "doi": "10.1038/npp.2009.129"
+      "doi": "10.1038/npp.2009.129",
+      "literatureType": "Review"
     },
     {
       "id": "[Luo, 2011]",
-      "doi": "N/A"
+      "doi": "N/A",
+      "literatureType": "Experimental results",
+      "alternativeUrl": "https://example.org/luo-2011"
     }
   ]
 }

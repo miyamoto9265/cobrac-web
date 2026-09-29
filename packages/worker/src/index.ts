@@ -23,6 +23,7 @@ import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
 import {
+  DEFAULT_BRA_RULES,
   PROJECT_FILES,
   REF_STATUSES,
   addUsage,
@@ -517,7 +518,9 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
 const specCache = new Map<Phase, string>();
 async function phaseSpec(phase: Phase): Promise<string> {
   if (!specCache.has(phase)) {
-    let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8")).replaceAll("{P}", projectId);
+    let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8"))
+      .replaceAll("{P}", projectId)
+      .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
     if (phase === "HCD" && !rcs) {
       spec +=
         "\n\nNote for this run: the RCS MCP server is not available. Still anchor every UC on a SABRA unit from your best knowledge " +

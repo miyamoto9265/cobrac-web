@@ -2,10 +2,29 @@
  * CoBRAC harness: JSON Schemas of the agent's HCD / FRG data files, deterministic checks, and conversion to the
  * five BRA CSVs. Pure functions (no fs) so the worker and tests share them.
  */
+import {
+  BRA_LITERATURE_TYPES,
+  BRA_MEASUREMENT_METHODS,
+  BRA_MODULATION_TYPES,
+  BRA_TAXA,
+  CIRCUIT_RELATIONS,
+  BRA_TRANSMITTERS,
+  DEFAULT_BRA_RULES,
+  OUT_OF_ROI_CAPABILITY,
+  formatOutputSemantics,
+  normalizeFigurePointer,
+  parseOutputSemantics,
+  pointerProblems,
+  relationProblems,
+  roiCircuitId,
+  sourceOfIdProblem,
+  type BraRules,
+  type OutputSemanticsItem,
+} from "./bra.js";
 import { parseCsv, toCsv } from "./csv.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { normalizeProjectName } from "./projectId.js";
-import { checkUcNaming, splitTopLevel, type SabraLookup } from "./ucNaming.js";
+import { checkUcNaming, namesStartWithOfficial, sabraOfficialName, splitTopLevel, type SabraLookup } from "./ucNaming.js";
 
 /**
  * Files at the project root (`<ProjectID>/`). The two markdown files are the only free-text outputs.
@@ -55,7 +74,8 @@ export interface UcRow {
   descriptor: string;
   names: string;
   roi: UcRoi;
-  sourceOfId: string[];
+  /** One value: DHBA / MBA / UBERON / collection / makeshift / a Reference ID */
+  sourceOfId: string;
   transmitter: string;
   modulationType: string;
   comments: string;
@@ -80,11 +100,17 @@ export interface ConnRow {
   sender: string;
   receiver: string;
   comment: string;
+  /** One Reference ID per connection; files written before 0.10 may hold several (the CSV gets one row each) */
   referenceIds: string[];
   taxon: string;
   method: string;
   pointersOnLiterature: string;
   pointersOnFigure: string;
+  /** How the UC relates to the circuit the paper names (`<` `=` `>`), and that name; "=" / "" in files written before 0.10 */
+  senderRelation: string;
+  senderInLiterature: string;
+  receiverRelation: string;
+  receiverInLiterature: string;
 }
 
 export interface RefRow {
@@ -94,6 +120,10 @@ export interface RefRow {
   pmid?: string;
   title?: string;
   journal?: string;
+  /** BRA Literature type (empty when absent, e.g. files written before 0.10) */
+  literatureType?: string;
+  /** URL of the document when it has no DOI */
+  alternativeUrl?: string;
 }
 
 export interface HcdModel {
@@ -149,6 +179,12 @@ const str = (description?: string): JsonSchema => ({ type: "string", ...(descrip
 const nonEmpty = (description?: string): JsonSchema => ({ ...str(description), minLength: 1 });
 const REF_ID: JsonSchema = { type: "string", pattern: "^\\[[^\\[\\]]+\\]$", description: "Reference ID `[Author, Year]` from references.json" };
 const refIds = (description: string): JsonSchema => ({ type: "array", minItems: 1, items: REF_ID, description });
+const SOURCE_OF_ID: JsonSchema = {
+  type: "string",
+  pattern: "^(DHBA|BNA|MBA|UBERON|collection|makeshift|\\[[^\\[\\]]+\\])$",
+  description:
+    "One value: DHBA for a UC that is a whole DHBA term (anchor only); BNA for a whole BNA area or group (anchor only); for a UC finer than its SABRA unit, the one Reference ID that defines the population, or makeshift",
+};
 
 function record(properties: Record<string, JsonSchema>): JsonSchema {
   return { type: "object", required: Object.keys(properties), additionalProperties: false, properties };
@@ -189,11 +225,17 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         ...record({
           id: REF_ID,
           doi: nonEmpty("DOI without the https://doi.org/ prefix, or N/A when unknown (never invented)"),
+          literatureType: { enum: BRA_LITERATURE_TYPES, description: "BRA Literature type of the document" },
+          alternativeUrl: {
+            type: "string",
+            pattern: "^(https?://\\S+)?$",
+            description: "URL of the document (publisher, PubMed or book page) when it has no DOI; empty otherwise",
+          },
           pmid: { type: "string", pattern: "^(\\d{1,9})?$", description: "PubMed ID (digits only), or empty when unknown" },
           title: str("Title of the paper exactly as published (the worker compares it with Crossref / PubMed)"),
           journal: str("Journal or book title"),
         }),
-        required: ["id", "doi"],
+        required: ["id", "doi", "literatureType"],
       },
     },
   }),
@@ -203,14 +245,14 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       item: record({
         circuitId: { type: "string", pattern: "^\\S+$", description: "Circuit ID by the UC naming rules (no `U.` prefix, no backticks)" },
         descriptor: nonEmpty("UC Descriptor by the UC naming rules"),
-        names: nonEmpty("Formal name"),
+        names: nonEmpty("SABRA official name first (BNA area name or DHBA name from RCS; for a faceted UC followed by the finer population), then synonyms separated by `;`"),
         roi: { enum: UC_ROI_VALUES, description: "internal, or the noROI tag of an external UC" },
-        sourceOfId: refIds("Main supporting Reference IDs"),
-        transmitter: str("Transmitter; empty when unknown"),
-        modulationType: { enum: ["Excitatory", "Inhibitory", "Modulatory", ""], description: "Empty when unknown" },
+        sourceOfId: SOURCE_OF_ID,
+        transmitter: { enum: [...BRA_TRANSMITTERS, ""], description: "Main transmitter from the BRA list; empty when unknown or not in the list (write it in comments)" },
+        modulationType: { enum: [...BRA_MODULATION_TYPES, ""], description: "Empty when unknown" },
         comments: str("Role and corresponding tissue (the noROI tag is added from `roi`)"),
         interface: str("`([Out1], [Out2]) = <Circuit ID>([In1], [In2])` for ROI-internal UCs; empty for external UCs"),
-        outputSemantics: str("`[<Circuit ID>]content;` (empty only for external sinks)"),
+        outputSemantics: str("Exactly one item `[<own Circuit ID>] content;` (empty only for external sinks)"),
         ...Object.fromEntries(Object.entries(FUNCTION_ITEM_DESCRIPTIONS).map(([k, d]) => [k, str(d)])),
         implementation: str("Equations only, e.g. `[U.A] = P([U.B]|[U.C])` (empty for external UCs)"),
       }),
@@ -230,13 +272,19 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       description: "Directed UC-to-UC connections (HCD step 4)",
       item: record({
         sender: nonEmpty("Sender Circuit ID (sCID) from uc.json"),
+        senderRelation: { enum: CIRCUIT_RELATIONS, description: "`<` the sender UC is part of the circuit the paper reports (paper coarser), `>` it contains it (paper finer), `=` the same" },
+        senderInLiterature: nonEmpty("The paper's own name for the sending circuit (not the Circuit ID)"),
         receiver: nonEmpty("Receiver Circuit ID (rCID) from uc.json"),
+        receiverRelation: { enum: CIRCUIT_RELATIONS, description: "`<` the receiver UC is part of the circuit the paper reports, `>` it contains it, `=` the same" },
+        receiverInLiterature: nonEmpty("The paper's own name for the receiving circuit (not the Circuit ID)"),
         comment: str("Property and information carried"),
-        referenceIds: refIds("Supporting Reference IDs"),
-        taxon: str(),
-        measurementMethod: str(),
-        pointersOnLiterature: str("Short location in the paper"),
-        pointersOnFigure: str("Short location in the paper's figures"),
+        referenceIds: { ...refIds("The one Reference ID of this record; repeat the connection for each further paper"), maxItems: 1 },
+        taxon: { enum: BRA_TAXA, description: "Species of the evidence in that paper; (Mixed) for several, details in comment" },
+        measurementMethod: { enum: BRA_MEASUREMENT_METHODS, description: "Method of the evidence in that paper; details in comment" },
+        pointersOnLiterature: str(
+          `Sentence(s) of that paper stating this projection, quoted verbatim (at least ${DEFAULT_BRA_RULES.minQuoteWords} words); not a page or section. This or pointersOnFigure is required`,
+        ),
+        pointersOnFigure: str("Figure of that paper showing the projection, like `Fig. 3B`; empty when none"),
       }),
     },
   }),
@@ -378,12 +426,20 @@ function sameSet(a: string[], b: string[]): boolean {
 // --- HCD -----------------------------------------------------------------------------------------------------------
 
 export interface CheckHcdOptions {
-  /** RCS facts for HOMBA anchors; without an entry the anchor-abbreviation check of that UC is skipped. */
+  /** RCS facts for HOMBA anchors; without an entry the anchor-abbreviation and official-name checks of that UC are skipped. */
   sabra?: SabraLookup;
+  /** Overrides of the provisional BRA value rules (`DEFAULT_BRA_RULES`) */
+  bra?: Partial<BraRules>;
 }
+
+/** `[U.<id>]` references in free text (bare Circuit IDs). */
+const ucRefs = (text: string) => [...text.matchAll(/\[U\.([^[\]\s]+)\]/g)].map((m) => m[1]);
+/** Source of ID: one value; a list written before 0.10 keeps its first entry (the schema reports the list). */
+const firstValue = (v: unknown) => (Array.isArray(v) ? strings(v)[0] ?? "" : s(v));
 
 export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckResult<HcdModel> {
   const errors: string[] = [];
+  const rules: BraRules = { ...DEFAULT_BRA_RULES, ...opts.bra };
   const meta = parseMeta(files.meta, errors);
   checkMarkdown(PROJECT_FILES.decisionLog, files.decisionLog, errors);
   checkMarkdown(PROJECT_FILES.report, files.report, errors, REPORT_SECTIONS.HCD);
@@ -394,7 +450,13 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     const id = s(r.id);
     if (!id) continue;
     if (refIds.has(id)) errors.push(`references.json: ${id} is listed more than once.`);
-    else refs.push({ id, doi: s(r.doi) || "N/A", pmid: s(r.pmid), title: s(r.title), journal: s(r.journal) });
+    else {
+      const ref = { id, doi: s(r.doi) || "N/A", pmid: s(r.pmid), title: s(r.title), journal: s(r.journal), literatureType: s(r.literatureType), alternativeUrl: s(r.alternativeUrl) };
+      refs.push(ref);
+      if (/^n\/?a$/i.test(ref.doi) && !ref.pmid && !ref.alternativeUrl) {
+        errors.push(`references.json: ${id} has no DOI; give alternativeUrl (publisher, PubMed or book page) or the PMID.`);
+      }
+    }
     refIds.add(id);
   }
   const checkRefs = (where: string, ids: string[]) => {
@@ -409,7 +471,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       descriptor: s(u.descriptor).replace(/\s+/g, ""),
       names: s(u.names),
       roi: ROI_OF[s(u.roi) as keyof typeof ROI_OF] ?? "roi",
-      sourceOfId: strings(u.sourceOfId),
+      sourceOfId: firstValue(u.sourceOfId),
       transmitter: s(u.transmitter),
       modulationType: s(u.modulationType),
       comments: s(u.comments),
@@ -426,7 +488,13 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
   for (const u of ucs) {
     if (seen.has(u.id)) errors.push(`uc.json: Circuit ID \`${u.id}\` is used by more than one UC.`);
     seen.add(u.id);
-    checkRefs(`uc.json: sourceOfId of \`${u.id}\``, u.sourceOfId);
+    if (/^\[/.test(u.sourceOfId)) checkRefs(`uc.json: sourceOfId of \`${u.id}\``, [u.sourceOfId]);
+    const src = sourceOfIdProblem(u);
+    if (src) errors.push(src);
+    const official = sabraOfficialName(u.descriptor, opts.sabra);
+    if (official && u.names && !namesStartWithOfficial(u.names, official)) {
+      errors.push(`uc.json: names of \`${u.id}\` must start with its SABRA official name "${official}", then synonyms separated by ";" (e.g. "${official}; <common name>").`);
+    }
   }
   if (ucItems && ucs.length) {
     errors.push(...checkUcNaming(ucs, opts.sabra));
@@ -452,6 +520,10 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       method: s(c.measurementMethod),
       pointersOnLiterature: s(c.pointersOnLiterature),
       pointersOnFigure: s(c.pointersOnFigure),
+      senderRelation: s(c.senderRelation),
+      senderInLiterature: s(c.senderInLiterature),
+      receiverRelation: s(c.receiverRelation),
+      receiverInLiterature: s(c.receiverInLiterature),
     }))
     .filter((c) => c.sender || c.receiver);
 
@@ -460,7 +532,22 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     const ids = new Set(ucs.map((u) => u.id));
     const senders = new Map<string, string[]>();
     const receivers = new Map<string, string[]>();
+    const records = new Set<string>();
     for (const c of connections) {
+      const where = `connections.json: \`${c.sender}\` -> \`${c.receiver}\``;
+      if (c.referenceIds.length > 1) {
+        errors.push(`${where} cites ${c.referenceIds.length} references; write one connection per reference (repeat the sender and receiver, each with the taxon, method and pointers of its paper).`);
+      }
+      for (const r of c.referenceIds) {
+        const key = `${c.sender}\u0000${c.receiver}\u0000${r}`;
+        if (records.has(key)) errors.push(`${where} is listed more than once for ${r}; keep one record per reference.`);
+        records.add(key);
+      }
+      errors.push(...pointerProblems(`${where} (${c.referenceIds.join("; ")})`, c.pointersOnLiterature, c.pointersOnFigure, rules));
+      if (c.senderRelation || c.senderInLiterature || c.receiverRelation || c.receiverInLiterature) {
+        errors.push(...relationProblems(where, "sender", c.sender, c.senderRelation, c.senderInLiterature));
+        errors.push(...relationProblems(where, "receiver", c.receiver, c.receiverRelation, c.receiverInLiterature));
+      }
       for (const [end, id] of [
         ["sender", c.sender],
         ["receiver", c.receiver],
@@ -475,6 +562,26 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       if (!senders.has(u.id) && !receivers.has(u.id)) errors.push(`\`${u.id}\` has no connection in connections.json.`);
       const isSink = u.roi !== "roi" && !receivers.has(u.id);
       if (!u.outputSemantics && !isSink) errors.push(`uc.json: \`${u.id}\` has no outputSemantics.`);
+      if (u.outputSemantics) {
+        const os = parseOutputSemantics(u.outputSemantics);
+        if (!os || os.length !== 1 || os[0].id !== u.id) {
+          errors.push(
+            `uc.json: outputSemantics of \`${u.id}\` must be exactly one item \`[${u.id}] content;\` (its own Circuit ID in brackets, content without [ ] or ; except [Author, Year] citations, ending with ;).`,
+          );
+        }
+      }
+      for (const [key, text] of [
+        ["comments", u.comments],
+        ["requirement", u.requirement],
+        ["requirementRealization", u.reqRealization],
+        ["capability", u.capability],
+        ["mechanism", u.mechanism],
+        ["implementation", u.implementation],
+      ] as const) {
+        for (const ref of new Set(ucRefs(text))) {
+          if (!ids.has(ref)) errors.push(`uc.json: ${key} of \`${u.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json; refer to tissue as [U.<Circuit ID>] with an existing Circuit ID.`);
+        }
+      }
       if (u.roi !== "roi") continue;
       const empty = (
         [
@@ -577,6 +684,22 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
       if (parents.length > 2) errors.push(`\`U.${uc}\` belongs to ${parents.length} GNs (${parents.join(", ")}; max 2).`);
     }
     for (const uc of roiUcs) if (!ucParents.has(uc)) errors.push(`ROI-internal \`U.${uc}\` is not attached to any GN.`);
+    for (const g of gns) {
+      for (const [key, text] of [
+        ["comment", g.comment],
+        ["requirement", g.requirement],
+        ["requirementRealization", g.reqRealization],
+        ["capability", g.capability],
+        ["mechanism", g.mechanism],
+      ] as const) {
+        for (const ref of new Set(ucRefs(text))) {
+          if (!allUcs.has(ref)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json.`);
+        }
+        for (const m of new Set([...text.matchAll(/\[(R\.[^[\]\s]+)\]/g)].map((x) => x[1]))) {
+          if (!gnIds.has(m)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [${m}], which is not a node in frg.json.`);
+        }
+      }
+    }
     const roots = gns.filter((g) => !childSet.has(g.id));
     if (roots.length !== 1) errors.push(`The FRG must have exactly one root (the TLF); found ${roots.length}: ${roots.map((r) => r.id).join(", ") || "none (cycle)"}.`);
     const cycle = findCycle(gns);
@@ -659,8 +782,23 @@ export interface BuildCsvOptions {
   name?: string;
 }
 
-/** Project.csv from the fixed template (row 2 = project metadata). */
-export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null): string {
+/**
+ * BRA version written to Project.csv (the CoBRAC data format, not the harness version). v1-1 (0.10): References gains
+ * Literature type and Alternative URL, Circuits gains the ROI row and Sub-Circuits / Uniform, Connections has one
+ * row per reference, Source of ID holds one value, and Project fills the Review End Lines. Columns were only appended,
+ * so the positions of the v1-0 columns are unchanged.
+ */
+export const BRA_VERSION = "CoBRAC-v1-1";
+
+/** Sheets listed under "Review End Line" in Project.csv. */
+export const REVIEW_SHEETS = ["References", "Circuits", "Connections", "FRG"] as const;
+export type ReviewEndLines = Partial<Record<(typeof REVIEW_SHEETS)[number], number>>;
+
+/**
+ * Project.csv from the fixed template (row 2 = project metadata). `dataRows` gives the number of data rows of each
+ * sheet; its Review End Line is the sheet row of the last record (the header is row 1, so 1 when there is no data).
+ */
+export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null, dataRows: ReviewEndLines = {}): string {
   const rows = parseCsv(o.projectTemplate);
   const roi = meta?.roi || o.roi || "";
   const tlf = meta?.tlf || o.tlf || "";
@@ -669,39 +807,114 @@ export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null): s
   const description =
     name && !CJK_RE.test(name) && !base.toLowerCase().startsWith(name.toLowerCase()) ? (base ? `${name}: ${base}` : name) : base;
   const data = rows[1] ?? [];
-  rows[1] = [o.contributor, o.projectId, o.contributor, description, data[4] || "CoBRAC-v1-0"];
+  rows[1] = [o.contributor, o.projectId, o.contributor, description, data[4] || BRA_VERSION];
+  for (const row of rows.slice(2)) {
+    const n = dataRows[row[0] as (typeof REVIEW_SHEETS)[number]];
+    if (n !== undefined) row[1] = String(n + 1);
+  }
   return toCsv(rows) + "\n";
 }
 
-const joinRefs = (ids: string[]) => ids.join("; ");
 /** Circuits.csv Comments carry the noROI tag the BRA format (and the graph builder) read. */
 const circuitComments = (u: UcRow) =>
   u.roi === "roi" || /noroi/i.test(u.comments) ? u.comments : [u.comments, ROI_TAG[u.roi]].filter(Boolean).join("; ");
 
+/** Relation and notation of one end; files written before 0.10 keep the old `=` + Circuit ID. */
+const literatureEnd = (relation: string, notation: string, circuitId: string) =>
+  relation || notation ? [relation || "=", notation] : ["=", circuitId];
+
+const isNoDoi = (doi: string) => !doi || /^n\/?a$/i.test(doi);
+
+/**
+ * Output Semantics of each GN: the items of its UCs that project outside the GN (the manual gives a non-Uniform
+ * node one item per output circuit).
+ */
+function gnOutputSemantics(hcd: HcdModel, frg: FrgModel): Map<string, string> {
+  const kids = new Map(frg.gns.map((g) => [g.id, g.subnodes]));
+  const osItems = new Map<string, OutputSemanticsItem[]>();
+  for (const u of hcd.ucs) {
+    const items = u.outputSemantics ? parseOutputSemantics(u.outputSemantics) : null;
+    osItems.set(u.id, items ?? (u.outputSemantics ? [{ id: u.id, text: u.outputSemantics.replace(/;\s*$/, "") }] : []));
+  }
+  const receivers = new Map<string, Set<string>>();
+  for (const c of hcd.connections) (receivers.get(c.sender) ?? receivers.set(c.sender, new Set()).get(c.sender)!).add(c.receiver);
+  const ucsUnder = (id: string, seen = new Set<string>()): Set<string> => {
+    const out = new Set<string>();
+    if (seen.has(id)) return out;
+    seen.add(id);
+    for (const k of kids.get(id) ?? []) {
+      if (k.startsWith("U.")) out.add(k.slice(2));
+      else for (const u of ucsUnder(k, seen)) out.add(u);
+    }
+    return out;
+  };
+  const out = new Map<string, string>();
+  for (const g of frg.gns) {
+    const members = ucsUnder(g.id);
+    const items = [...members]
+      .filter((u) => [...(receivers.get(u) ?? [])].some((r) => !members.has(r)))
+      .flatMap((u) => osItems.get(u) ?? []);
+    out.set(g.id, formatOutputSemantics(items));
+  }
+  return out;
+}
+
 /** Convert validated HCD/FRG models to the five CSVs. Fails (errors) when the content is not English. */
 export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { files: Record<CsvFileName, string> | null; errors: string[] } {
-  const refs = new Map<string, string>();
-  for (const r of hcd.refs) if (!refs.has(r.id)) refs.set(r.id, r.doi || "N/A");
-  for (const id of [...hcd.connections.flatMap((c) => c.referenceIds), ...hcd.ucs.flatMap((u) => u.sourceOfId)]) {
-    if (!refs.has(id)) refs.set(id, "N/A");
-  }
+  const refs = new Map<string, RefRow>();
+  for (const r of hcd.refs) if (!refs.has(r.id)) refs.set(r.id, r);
+  const cited = [...hcd.connections.flatMap((c) => c.referenceIds), ...hcd.ucs.map((u) => u.sourceOfId).filter((x) => x.startsWith("["))];
+  for (const id of cited) if (!refs.has(id)) refs.set(id, { id, doi: "N/A" });
+  const alternativeUrl = (r: RefRow) => r.alternativeUrl || (isNoDoi(r.doi) && r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : "");
 
   const receivers = new Map<string, string[]>();
   for (const c of hcd.connections) {
     const list = receivers.get(c.sender) ?? receivers.set(c.sender, []).get(c.sender)!;
     if (!list.includes(c.receiver)) list.push(c.receiver);
   }
+  const roiUcs = hcd.ucs.filter((u) => u.roi === "roi").map((u) => u.id);
+  const gnOs = gnOutputSemantics(hcd, frg);
 
   const tables: Record<Exclude<CsvFileName, "Project.csv">, string[][]> = {
-    "References.csv": [["Reference ID", "DOI"], ...[...refs].map(([id, doi]) => [id, doi])],
-    // UC Descriptor is appended last so the BRA columns keep their positions
+    "References.csv": [
+      ["Reference ID", "DOI", "Literature type", "Alternative URL"],
+      ...[...refs.values()].map((r) => [r.id, r.doi || "N/A", r.literatureType ?? "", alternativeUrl(r)]),
+    ],
+    // Columns after Comments are appended so the BRA columns keep their positions; the ROI row comes first
     "Circuits.csv": [
-      ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", "UC Descriptor"],
-      ...hcd.ucs.map((u) => [u.id, joinRefs(u.sourceOfId), u.names, u.transmitter, u.modulationType, circuitComments(u), u.descriptor]),
+      ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", "UC Descriptor", "Sub-Circuits", "Uniform"],
+      [roiCircuitId(o.projectId), "collection", hcd.meta?.roi || o.roi || "", "", "", "Region of interest of the project", "", roiUcs.join(";"), "FALSE"],
+      ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, circuitComments(u), u.descriptor, "", "TRUE"]),
     ],
     "Connections.csv": [
-      ["Sender Circuit ID (sCID)", "Receiver Circuit ID (rCID)", "Comments", "Reference ID", "Taxon", "Measurement method", "Pointers on literature", "Pointers on figure"],
-      ...hcd.connections.map((c) => [c.sender, c.receiver, c.comment, joinRefs(c.referenceIds), c.taxon, c.method, c.pointersOnLiterature, c.pointersOnFigure]),
+      [
+        "Sender Circuit ID (sCID)",
+        "Receiver Circuit ID (rCID)",
+        "Comments",
+        "Reference ID",
+        "Taxon",
+        "Measurement method",
+        "Pointers on literature",
+        "Pointers on figure",
+        "sCID relation",
+        "Notation of sCID in Literature",
+        "rCID relation",
+        "Notation of rCID in Literature",
+      ],
+      ...hcd.connections.flatMap((c) =>
+        (c.referenceIds.length ? c.referenceIds : [""]).map((ref) => [
+          c.sender,
+          c.receiver,
+          c.comment,
+          ref,
+          c.taxon,
+          c.method,
+          c.pointersOnLiterature,
+          c.pointersOnFigure ? (normalizeFigurePointer(c.pointersOnFigure) ?? c.pointersOnFigure) : "",
+          ...literatureEnd(c.senderRelation, c.senderInLiterature, c.sender),
+          ...literatureEnd(c.receiverRelation, c.receiverInLiterature, c.receiver),
+        ]),
+      ),
     ],
     "FRG.csv": [
       [
@@ -717,13 +930,13 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
         "Output Semantics",
         "Comments",
       ],
-      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, "", g.comment]),
+      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, gnOs.get(g.id) ?? "", g.comment]),
       ...hcd.ucs.map((u) => [
         `U.${u.id}`,
         "",
         u.id,
         (receivers.get(u.id) ?? []).join(";"),
-        u.capability,
+        u.roi === "roi" ? u.capability : OUT_OF_ROI_CAPABILITY,
         u.mechanism,
         u.implementation,
         u.reqRealization,
@@ -734,7 +947,13 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
     ],
   };
 
-  const project = buildProjectCsv(o, hcd.meta);
+  const dataRows = (name: Exclude<CsvFileName, "Project.csv">) => tables[name].length - 1;
+  const project = buildProjectCsv(o, hcd.meta, {
+    References: dataRows("References.csv"),
+    Circuits: dataRows("Circuits.csv"),
+    Connections: dataRows("Connections.csv"),
+    FRG: dataRows("FRG.csv"),
+  });
   const errors: string[] = [];
   for (const [name, rows] of [["Project.csv", parseCsv(project)] as const, ...Object.entries(tables)]) {
     const hit = rows.flat().find((c) => CJK_RE.test(c));

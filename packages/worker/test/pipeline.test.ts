@@ -130,12 +130,14 @@ describe("phase pipeline with a mock agent", () => {
     expect(parseCsvObjects(csv("References.csv")).map((r) => r["Reference ID"])).toEqual(["[Schultz, 1997]", "[Haber, 2010]", "[Luo, 2011]"]);
     const circuits = parseCsvObjects(csv("Circuits.csv"));
     expect(circuits.map((c) => [c["Circuit ID"], c["UC Descriptor"]])).toEqual([
+      [`ROI_${PROJECT_ID}`, ""],
       ["A9/46d@L", "BNA:15"],
       ["VTA", "HOMBA:12261"],
       ["NAC", "BNA:223-224"],
       ["Arc", "HOMBA:10492"],
     ]);
-    expect(circuits[0].Comments).toBe("Prefrontal context input to the striatum; noROI(input)");
+    expect(circuits[0]).toMatchObject({ "Sub-Circuits": "VTA;NAC", Uniform: "FALSE" });
+    expect(circuits[1].Comments).toBe("Prefrontal context input to the striatum; noROI(input)");
     const frg = parseCsvObjects(csv("FRG.csv"));
     expect(frg.map((r) => r["Node ID"])).toEqual(["R.Reward-Prediction-Error-Learning", "R.Value-Learning", "U.A9/46d@L", "U.VTA", "U.NAC", "U.Arc"]);
     expect(frg.find((r) => r["Node ID"] === "U.NAC")?.["Projected Circuits"]).toBe("VTA;Arc");
@@ -161,11 +163,35 @@ describe("phase pipeline with a mock agent", () => {
       expect(py.status, py.stderr).toBe(0);
       const sheets = spawnSync(
         process.env.PYTHON_BIN ?? "python3",
-        ["-c", `import openpyxl,sys; wb=openpyxl.load_workbook(sys.argv[1]); print(wb.sheetnames); print([c.value for c in wb["Circuits"][1]])`, out],
+        [
+          "-c",
+          [
+            "import openpyxl,sys",
+            "wb=openpyxl.load_workbook(sys.argv[1])",
+            "print(wb.sheetnames)",
+            "c=wb['Circuits']",
+            "print([x.value for x in c[1]])",
+            "print([[x.value for x in r][:6] for r in c.iter_rows(min_row=2, max_row=3)])",
+            "print([x.value for x in wb['References'][1]])",
+            "print([[x.value for x in r][:2] for r in wb['Project'].iter_rows(min_row=4, max_row=8)])",
+            "f=wb['FRG']",
+            "print([[x.value for x in r][4] for r in f.iter_rows(min_row=2) if r[0].value in ('U.A9/46d@L','U.VTA')])",
+            "print([x.value for x in wb['Connections'][2]][:6])",
+          ].join("\n"),
+          out,
+        ],
         { encoding: "utf8" },
       );
-      expect(sheets.stdout).toContain("['Project', 'References', 'Circuits', 'Connections', 'FRG']");
-      expect(sheets.stdout).toMatch(/'Project ID', 'UC Descriptor'\]/);
+      expect(sheets.status, sheets.stderr).toBe(0);
+      const lines = sheets.stdout.trim().split("\n");
+      expect(lines[0]).toBe("['Project', 'References', 'Circuits', 'Connections', 'FRG']");
+      expect(lines[1]).toMatch(/^\['Circuit ID', 'Source of ID', 'Names', 'Sub-Circuits', 'Super Class', 'Uniform', .*'Project ID', 'UC Descriptor'\]$/);
+      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'VTA;NAC', None, False], ['A9/46d@L', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
+      expect(lines[3]).toBe("['Reference ID', 'DOI', 'Literature type', 'Alternative URL']");
+      expect(lines[4]).toBe("[['Sheet Name', 'Review End Line'], ['References', 4], ['Circuits', 6], ['Connections', 5], ['FRG', 7]]");
+      expect(lines[5]).toMatch(/^\['No need for description due to input\/output circuit', 'Temporal-difference/);
+      expect(lines[5]).not.toMatch(/grainest/);
+      expect(lines[6]).toBe("['A9/46d@L', '<', 'dorsolateral prefrontal cortex', 'NAC', '<', 'ventral striatum']");
     }
     rmSync(p.root, { recursive: true, force: true });
   });
@@ -197,6 +223,49 @@ describe("phase pipeline with a mock agent", () => {
     expect(turns).toHaveLength(2);
     expect(turns[0]).toMatch(/^Fix HCD\nuc\.json: write every value in English; non-English text at \/ucs\/1\/comments/);
     expect(turns[1]).toMatch(/^Fix CSV\nCircuits\.csv would contain non-English text/);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+});
+
+describe("projects written before the BRA value rules (0.9 format)", () => {
+  /** HCD files as 0.9 wrote them: Source of ID lists, several references per connection, no Literature type, locators as pointers. */
+  function toOldFormat(p: ProjectPaths) {
+    const refs = JSON.parse(fixture("HCD/references.json"));
+    for (const r of refs.references) delete r.literatureType;
+    writeFileSync(join(p.hcd, "references.json"), JSON.stringify(refs, null, 2));
+    const uc = JSON.parse(fixture("HCD/uc.json"));
+    uc.ucs[1].sourceOfId = ["[Schultz, 1997]", "[Haber, 2010]"];
+    writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
+    const c = JSON.parse(fixture("HCD/connections.json"));
+    Object.assign(c.connections[1], { referenceIds: ["[Schultz, 1997]", "[Haber, 2010]"], taxon: "Macaca mulatta", pointersOnLiterature: "p.1594" });
+    for (const x of c.connections) for (const k of ["senderRelation", "senderInLiterature", "receiverRelation", "receiverInLiterature"]) delete x[k];
+    writeFileSync(join(p.hcd, "connections.json"), JSON.stringify(c, null, 2));
+  }
+
+  it("asks the agent to fix them on a follow-up and still writes valid CSVs when the problems remain", async () => {
+    const p = freshWorkspace();
+    await runPhases(driver(p, mockAgent(p), [], []), 0, { shown: "Run phase HCD" });
+    toOldFormat(p);
+    const warnings: string[][] = [];
+    const turns: string[] = [];
+    const d = driver(p, mockAgent(p), [], warnings);
+    const run = await runPhases({ ...d, maxNudges: 1, turn: async (pr) => (turns.push(pr.shown), true) }, 0, null);
+    expect(run).toEqual({ result: "completed" });
+    expect(turns).toHaveLength(1);
+    const fix = turns[0];
+    expect(fix).toMatch(/references\.json: \/references\/0\/literatureType is required/);
+    expect(fix).toMatch(/uc\.json: \/ucs\/1\/sourceOfId must be string \(got array\)/);
+    expect(fix).toMatch(/`VTA` -> `NAC` cites 2 references; write one connection per reference/);
+    expect(fix).toMatch(/\/connections\/1\/taxon must be one of/);
+    expect(fix).toMatch(/pointersOnLiterature starts with a page or section locator/);
+    expect(fix).toMatch(/\/connections\/0\/senderRelation is required/);
+    expect(warnings).toHaveLength(1);
+
+    const csv = (f: string) => parseCsvObjects(readFileSync(join(p.csv, f), "utf8"));
+    expect(csv("Circuits.csv").find((r) => r["Circuit ID"] === "VTA")?.["Source of ID"]).toBe("[Schultz, 1997]");
+    const vtaNac = csv("Connections.csv").filter((r) => r["Sender Circuit ID (sCID)"] === "VTA" && r["Receiver Circuit ID (rCID)"] === "NAC");
+    expect(vtaNac.map((r) => r["Reference ID"])).toEqual(["[Schultz, 1997]", "[Haber, 2010]"]);
+    expect(vtaNac[0]).toMatchObject({ "sCID relation": "=", "Notation of sCID in Literature": "VTA", "rCID relation": "=", "Notation of rCID in Literature": "NAC" });
     rmSync(p.root, { recursive: true, force: true });
   });
 });

@@ -40,7 +40,7 @@ describe("RcsClient against a mock RCS MCP server", () => {
   it("maps get_homba_term results to SABRA facts", async () => {
     const client = new RcsClient({ url: mock.url, token: TOKEN });
     const lookup = await client.lookupHomba(["HOMBA:12261", "HOMBA:AA30423", "HOMBA:10339", "HOMBA:99999"]);
-    expect(lookup.get("HOMBA:12261")).toEqual({ atlas: "DHBA", dhbaAcronym: "VTA", dhbaExact: true, dhbaHombaId: "HOMBA:12261", dhbaAncestorAcronym: "VTA" });
+    expect(lookup.get("HOMBA:12261")).toEqual({ atlas: "DHBA", dhbaAcronym: "VTA", dhbaExact: true, dhbaHombaId: "HOMBA:12261", dhbaAncestorAcronym: "VTA", dhbaName: "ventral tegmental area" });
     expect(lookup.get("HOMBA:AA30423")).toMatchObject({ dhbaExact: false, dhbaHombaId: "HOMBA:12852", dhbaAncestorAcronym: "FNCb" });
     expect(lookup.get("HOMBA:10339")).toMatchObject({ atlas: "BNA" });
     expect(lookup.get("HOMBA:99999")).toBeNull();
@@ -74,26 +74,26 @@ describe("harness + RCS lookups (integration)", () => {
       descriptor: "HOMBA:12261",
       names: "ventral tegmental area",
       roi: "internal",
-      sourceOfId: ["[A, 2000]"],
-      transmitter: "DA",
+      sourceOfId: "DHBA",
+      transmitter: "Dopamine",
       modulationType: "Modulatory",
       comments: "x",
       interface: `([U.${arc}]) = ${vta}([U.${arc}])`,
-      outputSemantics: `[${vta}]x;`,
+      outputSemantics: `[${vta}] x;`,
       requirement: "r",
       requirementRealization: "rr",
       capability: "c",
       mechanism: "m",
       implementation: `[U.${vta}] = f([U.${arc}])`,
     },
-    { ...empty, circuitId: arc, descriptor: "HOMBA:10492", names: "arcuate nucleus", roi: "noROI(input)", sourceOfId: ["[A, 2000]"], transmitter: "GABA", modulationType: "Inhibitory", comments: "", outputSemantics: `[${arc}]y;` },
+    { ...empty, circuitId: arc, descriptor: "HOMBA:10492", names: "arcuate nucleus", roi: "noROI(input)", sourceOfId: "DHBA", transmitter: "GABA", modulationType: "Inhibitory", comments: "", outputSemantics: `[${arc}] y;` },
   ];
-  const conn = (s: string, r: string) => ({ sender: s, receiver: r, comment: "a", referenceIds: ["[A, 2000]"], taxon: "mouse", measurementMethod: "tracing", pointersOnLiterature: "p.1", pointersOnFigure: "Fig. 1" });
+  const conn = (s: string, r: string) => ({ sender: s, senderRelation: "=", senderInLiterature: s, receiver: r, receiverRelation: "=", receiverInLiterature: r, comment: "a", referenceIds: ["[A, 2000]"], taxon: "Mouse", measurementMethod: "Anterograde tracing", pointersOnLiterature: "", pointersOnFigure: "Fig. 1" });
   const files = (arc: string) => ({
     meta: JSON.stringify({ roi: "r", tlf: "t", description: "d", name: "t in r" }),
     decisionLog: "log",
     report: "# R\n\n## HCD\n",
-    references: JSON.stringify({ references: [{ id: "[A, 2000]", doi: "N/A" }] }),
+    references: JSON.stringify({ references: [{ id: "[A, 2000]", doi: "N/A", pmid: "1", literatureType: "Experimental results" }] }),
     uc: JSON.stringify({ ucs: ucs("VTA", arc) }),
     connections: JSON.stringify({ bif: [{ sender: "a", receiver: "b", comment: "", referenceIds: ["[A, 2000]"] }], connections: [conn(arc, "VTA"), conn("VTA", arc)] }),
   });
@@ -101,6 +101,13 @@ describe("harness + RCS lookups (integration)", () => {
   it("accepts anchor-only UCs whose Circuit IDs are the DHBA acronyms returned by RCS", async () => {
     const sabra = await new RcsClient({ url: mock.url, token: TOKEN }).lookupHomba(["HOMBA:12261", "HOMBA:10492"]);
     expect(checkHcd(files("Arc"), { sabra }).errors).toEqual([]);
+  });
+
+  it("checks that names start with the DHBA name returned by RCS", async () => {
+    const sabra = await new RcsClient({ url: mock.url, token: TOKEN }).lookupHomba(["HOMBA:12261", "HOMBA:10492"]);
+    const f = files("Arc");
+    f.uc = f.uc.replace('"names":"ventral tegmental area"', '"names":"VTA; midbrain dopamine area"');
+    expect(checkHcd(f, { sabra }).errors).toEqual([expect.stringMatching(/names of `VTA` must start with its SABRA official name "ventral tegmental area"/)]);
   });
 
   it("rejects the HOMBA acronym where the DHBA acronym is required", async () => {

@@ -44,6 +44,8 @@ export interface HombaSabraInfo {
   /** Nearest term with a DHBA name (the term itself when `dhbaExact`) */
   dhbaHombaId: string;
   dhbaAncestorAcronym: string;
+  /** The term's DHBA name when `dhbaExact` (empty when RCS did not return it) */
+  dhbaName?: string;
 }
 
 /**
@@ -202,6 +204,27 @@ export function expectedCircuitHead(d: UcDescriptor, sabra?: SabraLookup): Expec
     if (sides.every((x) => x && x === sides[0])) laterality = sides[0] as Laterality;
   }
   return { head, laterality };
+}
+
+/**
+ * SABRA official name of an anchor-only UC: the BNA area name, or the DHBA name from RCS. Null for faceted UCs,
+ * several anchors, BNA groups and HOMBA terms that could not be looked up.
+ */
+export function sabraOfficialName(descriptor: string, sabra?: SabraLookup): string | null {
+  const r = parseUcDescriptor(descriptor);
+  if ("errors" in r || r.descriptor.facets.length || r.descriptor.anchors.length !== 1) return null;
+  const a = r.descriptor.anchors[0];
+  if (a.kind === "bna") return bnaArea(a.left)?.name ?? null;
+  if (a.kind !== "homba") return null;
+  const info = sabra?.get(a.id);
+  return info?.dhbaExact && info.dhbaName ? info.dhbaName : null;
+}
+
+/** Whether `names` starts with the official name (case-insensitive; a leading "left" / "right" is allowed). */
+export function namesStartWithOfficial(names: string, official: string): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/\s+/g, " ").trim();
+  const first = norm(names.split(";")[0]).replace(/^(left|right)\s+/, "");
+  return first.startsWith(norm(official));
 }
 
 export interface NamedUc {

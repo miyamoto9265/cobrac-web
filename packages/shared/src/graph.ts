@@ -1,3 +1,4 @@
+import { isRoiCircuitId } from "./bra.js";
 import { col, parseCsvObjects } from "./csv.js";
 import type {
   EdgeSign,
@@ -65,7 +66,8 @@ export function classifyEdgeSign(edge: Pick<HcdEdge, "comments">, sender?: Pick<
  */
 export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGraph; frg: FrgGraph } {
   const generatedAt = new Date().toISOString();
-  const circuits = parseCsvObjects(src.circuitsCsv);
+  // The ROI row (`ROI_<ProjectID>`, a collection of the ROI-internal UCs) is not a node
+  const circuits = parseCsvObjects(src.circuitsCsv).filter((c) => !isRoiCircuitId(stripPrefix(col(c, "Circuit ID"))));
   const connections = parseCsvObjects(src.connectionsCsv);
   const frgRows = parseCsvObjects(src.frgCsv);
   const references = src.referencesCsv
@@ -117,7 +119,10 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   for (const gn of frgGnRows) for (const s of gn.subnodes) if (s.startsWith("U.")) roiUcIds.add(stripPrefix(s));
 
   // ---- HCD edges ------------------------------------------------------------
-  const hcdEdges: HcdEdge[] = connections
+  // Connections.csv has one row per reference; rows of the same sender -> receiver become one edge
+  const edgeByPair = new Map<string, HcdEdge>();
+  const hcdEdges: HcdEdge[] = [];
+  connections
     .map((c, idx) => {
       const source = stripPrefix(col(c, "Sender Circuit ID (sCID)", "Sender Circuit ID", "sCID", "Sender"));
       const target = stripPrefix(col(c, "Receiver Circuit ID (rCID)", "Receiver Circuit ID", "rCID", "Receiver"));
@@ -134,7 +139,22 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
         outputSemantics: "",
       };
     })
-    .filter((e) => e.source && e.target);
+    .filter((e) => e.source && e.target)
+    .forEach((e) => {
+      const key = `${e.source}\u0000${e.target}`;
+      const prev = edgeByPair.get(key);
+      if (!prev) {
+        edgeByPair.set(key, e);
+        hcdEdges.push(e);
+        return;
+      }
+      prev.comments = joinDistinct(prev.comments, e.comments, " / ");
+      prev.referenceId = joinDistinct(prev.referenceId, e.referenceId, "; ");
+      prev.taxon = joinDistinct(prev.taxon, e.taxon, "; ");
+      prev.measurementMethod = joinDistinct(prev.measurementMethod, e.measurementMethod, "; ");
+      prev.pointersOnLiterature = joinDistinct(prev.pointersOnLiterature, e.pointersOnLiterature, "\n");
+      prev.pointersOnFigure = joinDistinct(prev.pointersOnFigure, e.pointersOnFigure, "; ");
+    });
 
   const outgoing = new Map<string, Set<string>>();
   const incoming = new Map<string, Set<string>>();
@@ -297,6 +317,11 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   };
 
   return { hcd, frg: frgGraph };
+}
+
+function joinDistinct(a: string, b: string, sep: string): string {
+  if (!b || a.split(sep).includes(b)) return a;
+  return a ? `${a}${sep}${b}` : b;
 }
 
 function classifyRoi(

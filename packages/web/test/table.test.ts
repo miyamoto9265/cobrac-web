@@ -38,13 +38,13 @@ describe("tabularSources", () => {
 });
 
 describe("sheetsFromJson", () => {
-  it("turns uc.json into one row per UC with array cells joined", () => {
+  it("turns uc.json into one row per UC", () => {
     const [s] = sheetsFromJson(fixture("HCD/uc.json"));
     expect(s.name).toBe("ucs");
     expect(s.columns.slice(0, 4)).toEqual(["circuitId", "descriptor", "names", "roi"]);
     expect(s.rows.length).toBeGreaterThan(1);
     const src = s.columns.indexOf("sourceOfId");
-    expect(s.rows[0][src]).toBe("[Haber, 2010]");
+    expect(s.rows[0][src]).toBe("BNA");
   });
 
   it("splits connections.json into its bif and connections arrays", () => {

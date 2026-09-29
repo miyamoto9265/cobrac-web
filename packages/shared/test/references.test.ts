@@ -48,11 +48,15 @@ describe("identifiers", () => {
     expect(parseRefId("[Allen Brain Atlas]")).toEqual({ author: null, year: null });
   });
 
-  it("keeps references.json files with only id and doi valid and accepts the new optional keys", () => {
+  it("requires only id, doi and literatureType; pmid, title, journal and alternativeUrl are optional", () => {
     const schema = HARNESS_SCHEMAS["references.json"];
-    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A" }] })).toEqual([]);
-    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", pmid: "123", title: "t", journal: "j" }] })).toEqual([]);
-    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", pmid: "PMC1" }] })[0]).toMatch(/pmid/);
+    const lt = { literatureType: "Review" };
+    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", ...lt }] })).toEqual([]);
+    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", pmid: "123", title: "t", journal: "j", alternativeUrl: "https://x.org/a", ...lt }] })).toEqual([]);
+    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", pmid: "PMC1", ...lt }] })[0]).toMatch(/pmid/);
+    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A", alternativeUrl: "x.org", ...lt }] })[0]).toMatch(/alternativeUrl/);
+    // files written before 0.10 (id and doi only) get one problem to fix: the Literature type
+    expect(validateJsonSchema(schema, { references: [{ id: "[Ito, 1982]", doi: "N/A" }] })).toEqual(["/references/0/literatureType is required"]);
   });
 });
 
