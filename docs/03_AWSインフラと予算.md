@@ -33,7 +33,7 @@ Internet
   ├─ HTTP API  ── JWT ── Lambda http
   └─ WebSocket ── JWT ── Lambda ws
                       │
-                      ├─ DynamoDB × 5
+                      ├─ DynamoDB × 6
                       ├─ SQS (+ DLQ) ── Lambda dispatcher ── ECS RunTask
                       ├─ DynamoDB Streams ── Lambda broadcaster ── WS
                       ├─ EventBridge 15min ── Lambda janitor
@@ -68,6 +68,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | -------- | -------- |
 | DynamoDB Users / Projects / Jobs / Messages | On-Demand. Streams on Projects/Messages. PITR off. RETAIN |
 | DynamoDB WsConnections | On-Demand, TTL, DESTROY |
+| DynamoDB Canons | On-Demand, GSI `owner-index`. PITR off. RETAIN (added with the Canon MVP; a new table, existing tables are unchanged) |
 | S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
 | S3 Web | Private, OAC, DESTROY + auto-empty |
 | SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
