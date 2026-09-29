@@ -25,6 +25,7 @@ import {
 import { parseCsv, toCsv } from "./csv.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { normalizeProjectName } from "./projectId.js";
+import { RESEARCH_FILES, RESEARCH_SCHEMA } from "./research.js";
 import {
   checkUcNaming,
   namesStartWithOfficial,
@@ -353,6 +354,8 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       }),
     },
   }),
+  /** Research mode only; checked by checkResearch(), not by the HCD / FRG validators */
+  [RESEARCH_FILES.plan]: RESEARCH_SCHEMA,
 };
 
 // --- helpers -------------------------------------------------------------------------------------------------------

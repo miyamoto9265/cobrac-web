@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { FrgInputs, HcdInputs, StepState, WorkflowStep } from "@cobrac/shared";
-import { CSV_FILE_NAMES, FRG_FILES, HCD_FILES, PROJECT_FILES } from "@cobrac/shared";
+import { CSV_FILE_NAMES, FRG_FILES, HCD_FILES, PROJECT_FILES, RESEARCH_FILES } from "@cobrac/shared";
 
 export const CSV_FILES: readonly string[] = CSV_FILE_NAMES;
 
@@ -13,6 +13,10 @@ export interface ProjectPaths {
   rcsLog: string;
   referenceCheck: string;
   quoteCheck: string;
+  /** Research mode: the agent's survey, the worker's search log and coverage check */
+  research: string;
+  researchLog: string;
+  researchCheck: string;
   hcd: string;
   frg: string;
   csv: string;
@@ -28,6 +32,9 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
     rcsLog: join(root, PROJECT_FILES.rcsLog),
     referenceCheck: join(root, PROJECT_FILES.referenceCheck),
     quoteCheck: join(root, PROJECT_FILES.quoteCheck),
+    research: join(root, RESEARCH_FILES.plan),
+    researchLog: join(root, RESEARCH_FILES.log),
+    researchCheck: join(root, RESEARCH_FILES.check),
     hcd: join(root, `${projectId}_HCD`),
     frg: join(root, `${projectId}_FRG`),
     csv: join(root, `${projectId}_CSV`),

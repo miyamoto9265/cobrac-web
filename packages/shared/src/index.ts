@@ -14,3 +14,4 @@ export * from "./bnaLabels.js";
 export * from "./references.js";
 export * from "./quotes.js";
 export * from "./article.js";
+export * from "./research.js";

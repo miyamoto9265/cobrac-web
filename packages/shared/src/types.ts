@@ -93,6 +93,8 @@ export interface ProjectRecord {
   /** Codex model / reasoning effort for this project (null = Codex default / env default) */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode: literature survey before the HCD (on by default for new projects; absent on older ones = off) */
+  researchMode?: boolean;
   status: ProjectStatus;
   /** Step that is currently running or the last one completed */
   currentStep: WorkflowStep | null;
@@ -166,6 +168,8 @@ export interface JobRecord {
   /** Model actually passed to Codex for this job */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode of the project when this job ran */
+  researchMode?: boolean;
   /** Accumulated token usage */
   usage?: TokenUsage;
   /** Estimated OpenAI cost (USD) for this job; null if the model has no price entry */
@@ -333,6 +337,8 @@ export interface CreateProjectRequest {
   contributor?: string;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode (default true); follow-ups and retries of the project inherit it */
+  researchMode?: boolean;
   /** Web UI language; the agent's chat replies use it */
   locale?: UiLocale | null;
 }

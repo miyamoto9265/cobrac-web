@@ -15,18 +15,25 @@
  *   - article : restore the workspace read-only and write an explanatory article in the requested language on a
  *               fresh thread (article.ts); the BRA data, step states, revision and project thread stay untouched
  *
+ * Research mode (on by default for new projects): before the HCD, a research step surveys the literature into
+ * research.json with the `lit` MCP tools (PubMed / Europe PMC) at a raised reasoning effort, within a time budget, and
+ * a coverage check sends gaps back as fix turns (pipeline.ts runResearch). The HCD / FRG validators are unchanged.
+ *
  * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
  */
 import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
+import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, ReasoningEffort, StepState, WorkflowStep } from "@cobrac/shared";
 import {
   DEFAULT_BRA_RULES,
+  LIT_MCP_SERVER,
   PROJECT_FILES,
   QUOTE_STATUSES,
   QUOTE_STATUS_LABEL,
+  RESEARCH_BUDGET,
+  RESEARCH_FILES,
   REF_STATUSES,
   addUsage,
   articleKey,
@@ -37,15 +44,17 @@ import {
   formatUsd,
   harnessPromptNotice,
   isAgentNameable,
+  isResearchMode,
   isUiLocale,
   nowIso,
   projectDisplayName,
   replyLanguageInstruction,
+  researchEffort,
   uiLanguageName,
   withReferenceList,
 } from "@cobrac/shared";
 import { articlePrompt, readReferences, runArticle } from "./article.js";
-import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
+import { createCodex, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
   getProject,
@@ -64,7 +73,24 @@ import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
 import { downloadDir, projectPrefix, putObject, uploadDir } from "./s3sync.js";
-import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt, type QuoteReport, type ReferenceReport } from "./pipeline.js";
+import {
+  PHASES,
+  checkPhase,
+  checkResearchStep,
+  researchDone,
+  runPhases,
+  runResearch,
+  turnInput,
+  writeSchemas,
+  type CheckDeps,
+  type Phase,
+  type PhaseCheck,
+  type PhaseContext,
+  type Prompt,
+  type QuoteReport,
+  type ReferenceReport,
+  type ResearchTurn,
+} from "./pipeline.js";
 import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
@@ -84,6 +110,8 @@ let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let rcs: RcsClient | null = null;
+/** Research mode of this run (the project's setting; article jobs never research) */
+let research = false;
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
 const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ http: literatureHttp }) : null;
 const quoteVerifier = env.quoteCheck ? new QuoteVerifier({ http: literatureHttp, threshold: env.quoteMatchThreshold }) : null;
@@ -137,7 +165,8 @@ async function main() {
   await syncStepStates();
 
   // --- codex ----------------------------------------------------------------
-  const codex = createCodex(apiKey, rcsConn);
+  research = isResearchMode(project);
+  const codex = createCodex(apiKey, rcsConn, { lit: research });
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
@@ -147,9 +176,8 @@ async function main() {
   const settings = resolveModelSettings(project);
   resolvedModel = settings.model;
   resolvedEffort = settings.reasoningEffort;
-  const thread = openThread(codex, threadId, settings);
-  console.log(`[worker] model=${settings.model ?? "(default)"} effort=${settings.reasoningEffort ?? "(default)"}`);
-  await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
+  console.log(`[worker] model=${settings.model ?? "(default)"} effort=${settings.reasoningEffort ?? "(default)"} research=${research}`);
+  await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null, researchMode: research });
 
   const replyLanguage = replyLanguageInstruction(job.locale);
   console.log(`[worker] reply locale=${job.locale ?? "(user's language)"}`);
@@ -169,25 +197,46 @@ async function main() {
     },
     onMcpCall: async (item) => {
       if (item.server === "rcs") await recordRcsCall(item);
+      if (item.server === LIT_MCP_SERVER) await recordSearch(item);
     },
   };
+  if (research) {
+    const onMessage = sink.onMessage;
+    sink.onMessage = async (type, content, meta) => {
+      if (type === "web_search") await recordSearch({ tool: "web_search", arguments: { query: content }, status: "completed" });
+      await onMessage(type, content, meta);
+    };
+  }
 
-  /** One agent turn. Returns false when the run must stop (question, failure, cancel). */
-  const agentTurn = async (p: Prompt): Promise<boolean> => {
+  /**
+   * One agent turn on the project thread (`effort` overrides the reasoning effort for this turn only).
+   * "stop" when the run must stop (question, failure, cancel); "budget" when `budget` cut the turn off.
+   */
+  const runAgentTurn = async (p: Prompt, o: { effort?: ReasoningEffort; budget?: AbortSignal } = {}): Promise<ResearchTurn> => {
+    const turnSettings: ModelSettings = o.effort ? { ...settings, reasoningEffort: o.effort } : settings;
+    const thread = openThread(codex, threadId, turnSettings);
     let turn;
     try {
-      turn = await runTurn(thread, turnInput(p, replyLanguage), sink, abort.signal);
+      turn = await runTurn(thread, turnInput(p, replyLanguage), sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal);
     } catch (e) {
       if (cancelled) {
         await persistState();
         console.log("[worker] cancelled; state persisted");
-        return false;
+        return "stop";
+      }
+      if (o.budget?.aborted) {
+        threadId = thread.id ?? threadId;
+        if (threadId) await updateProject(userId, projectId, { codexThreadId: threadId });
+        await syncStepStates();
+        await persistState();
+        return "budget";
       }
       throw e;
     }
+    threadId = turn.threadId ?? threadId;
     if (cancelled) {
       await persistState();
-      return false;
+      return "stop";
     }
     if (turn.threadId) await updateProject(userId, projectId, { codexThreadId: turn.threadId });
     await accumulateUsage(turn.usage);
@@ -196,7 +245,7 @@ async function main() {
     if (turn.failed) {
       await persistState();
       await fail(turn.errorMessage ?? "Codex turn failed");
-      return false;
+      return "stop";
     }
     if (turn.question) {
       await persistState();
@@ -204,19 +253,25 @@ async function main() {
       await updateProject(userId, projectId, { status: "WAITING_USER_INPUT", pendingQuestion: turn.question });
       await log("Answer the agent’s question to resume work.", { i18n: "sys.waitingAnswer" });
       console.log("[worker] waiting for user input; exiting");
-      return false;
+      return "stop";
     }
-    return true;
+    return "ok";
   };
+  const agentTurn = async (p: Prompt): Promise<boolean> => (await runAgentTurn(p)) === "ok";
 
   try {
     const ctx: PhaseContext = { hcd: null, frg: null };
     const firstOpen = PHASES.findIndex((p) => !accepted.has(p));
     const startIdx = firstOpen === -1 ? PHASES.length - 1 : firstOpen;
-    const first = await firstPrompt(project, job, PHASES[startIdx], freshThread);
+    const researchFirst = research && startIdx === 0 && mode !== "followup" && !researchDone(paths);
+    let first = researchFirst ? await researchFirstPrompt(project, job, freshThread) : await firstPrompt(project, job, PHASES[startIdx], freshThread);
     if (first) {
       const notice = harnessPromptNotice(mode, first.shown);
       await putMessage(projectId, jobId, "system", "status", notice.content, { meta: notice.meta });
+    }
+    if (researchFirst) {
+      if ((await researchStep(project, first, runAgentTurn)) === "stopped") return;
+      first = await phasePrompt(project, "HCD");
     }
 
     const run = await runPhases(
@@ -439,6 +494,113 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
   }
 }
 
+// --- research step -----------------------------------------------------------
+
+type AgentTurnFn = (p: Prompt, o?: { effort?: ReasoningEffort; budget?: AbortSignal }) => Promise<ResearchTurn>;
+
+/** Research step before the HCD: survey turn + coverage fix turns at a raised effort, cut off by the time budget. */
+async function researchStep(project: ProjectRecord, first: Prompt | null, turn: AgentTurnFn): Promise<"done" | "stopped"> {
+  const budgetMs = Math.max(1, env.researchTimeBudgetMin) * 60_000;
+  const budget = AbortSignal.timeout(budgetMs);
+  const deadline = Date.now() + budgetMs;
+  const effort = researchEffort(resolvedEffort as ReasoningEffort | null);
+  await log(`Research step: surveying the literature before the HCD (up to ${env.researchTimeBudgetMin} min, reasoning effort ${effort}).`, {
+    i18n: "sys.researchStart",
+    minutes: env.researchTimeBudgetMin,
+    effort,
+  });
+  return runResearch(
+    {
+      maxFixTurns: RESEARCH_BUDGET.maxFixTurns,
+      turn: (p) => turn(p, { effort, budget }),
+      check: (end) => checkResearchStep(paths, true, end ?? null),
+      prompt: () => researchPrompt(project),
+      fixPrompt: (errors, attempt) => researchFixPrompt(errors, attempt),
+      timeForFix: () => deadline - Date.now() >= RESEARCH_BUDGET.minMinutesForFix * 60_000,
+      onFix: (errors) =>
+        log(`The research coverage check found ${errors.length} gap(s); asked the agent to fill them.`, {
+          i18n: "sys.researchFix",
+          count: errors.length,
+          details: errors.join("\n"),
+        }),
+      onEnd: async (outcome, c) => {
+        await persistState();
+        if (outcome === "budget") {
+          await log(`The research step reached its time budget (${env.researchTimeBudgetMin} min); building the HCD with what was found.`, {
+            i18n: "sys.researchBudget",
+            minutes: env.researchTimeBudgetMin,
+          });
+        } else if (outcome === "gaps") {
+          await log(`The research survey still has ${c.errors.length} coverage gap(s); building the HCD with what was found.`, {
+            i18n: "sys.researchWarn",
+            count: c.errors.length,
+            details: c.errors.join("\n"),
+          });
+        }
+        const s = c.summary;
+        if (s) {
+          await log(
+            `Research step finished: ${s.candidates} candidate projection(s), ${s.byStatus.supported} supported, ${s.loggedSearches} searches (details in ${RESEARCH_FILES.check}).`,
+            { i18n: "sys.researchDone", candidates: s.candidates, supported: s.byStatus.supported, queries: s.loggedSearches },
+          );
+        }
+      },
+    },
+    first,
+  );
+}
+
+async function researchSpec(): Promise<string> {
+  return (await readFile(join(env.promptsDir, "phases", "RESEARCH.md"), "utf8"))
+    .replaceAll("{P}", projectId)
+    .replaceAll("{MAX_CANDIDATES}", String(RESEARCH_BUDGET.maxCandidates))
+    .replaceAll("{MIN_QUERIES}", String(RESEARCH_BUDGET.minQueriesPerCandidate))
+    .replaceAll("{BUDGET_MINUTES}", String(env.researchTimeBudgetMin));
+}
+
+async function researchPrompt(project: ProjectRecord): Promise<Prompt> {
+  return { shown: `${header(project)}\n\nRun the research step (literature survey before phase HCD).`, hidden: await researchSpec() };
+}
+
+async function researchFirstPrompt(project: ProjectRecord, job: JobRecord, freshThread: boolean): Promise<Prompt> {
+  if (mode === "resume") {
+    return {
+      shown: `User's answer:\n${job.pendingAnswer ?? "(no answer)"}\n\nContinue the work from where you stopped.`,
+      hidden: freshThread ? `${header(project)}\n\n${await researchSpec()}` : undefined,
+    };
+  }
+  if (mode === "retry") {
+    return {
+      shown: `${header(project)}\n\nThe previous run stopped midway. Check ${projectId}/${RESEARCH_FILES.plan} and finish the research step (literature survey before phase HCD); keep what is already there.`,
+      hidden: await researchSpec(),
+    };
+  }
+  return researchPrompt(project);
+}
+
+function researchFixPrompt(errors: string[], attempt: number): Prompt {
+  const list = errors.slice(0, MAX_REPORTED_ERRORS).map((e) => `- ${e}`);
+  if (errors.length > MAX_REPORTED_ERRORS) list.push(`- …and ${errors.length - MAX_REPORTED_ERRORS} more of the same kinds`);
+  return {
+    shown: `The research coverage check found ${errors.length} gap(s) in ${RESEARCH_FILES.plan} (fix attempt ${attempt}/${RESEARCH_BUDGET.maxFixTurns}):\n${list.join("\n")}\n\nRun the missing searches, update ${RESEARCH_FILES.plan} and finish with status "done". Do not start the HCD yet.`,
+  };
+}
+
+const SEARCH_LOG_MAX_RESULT = 4_000;
+/** Every literature search of the agent (lit tools and web search), one JSON line each; the coverage check reads it. */
+async function recordSearch(item: { tool: string; arguments: unknown; status: string; result?: { structured_content: unknown } | null; error?: { message: string } }) {
+  if (item.status === "in_progress") return;
+  let result = item.result?.structured_content ?? null;
+  const text = JSON.stringify(result);
+  if (text && text.length > SEARCH_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, SEARCH_LOG_MAX_RESULT) };
+  const line = { at: nowIso(), tool: item.tool, arguments: item.arguments, status: item.status, error: item.error?.message ?? null, result };
+  try {
+    await appendFile(paths.researchLog, JSON.stringify(line) + "\n", "utf8");
+  } catch (e) {
+    console.warn("[worker] search log failed", e);
+  }
+}
+
 // --- phases ------------------------------------------------------------------
 
 /** checkPhase with this run's RCS client, meta adoption and Project.csv options. */
@@ -537,7 +699,13 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
 // --- prompts -----------------------------------------------------------------
 
 const specCache = new Map<Phase, string>();
+/** The phase spec, followed by the research-mode notes when the project researches. */
 async function phaseSpec(phase: Phase): Promise<string> {
+  const spec = await rawPhaseSpec(phase);
+  return research ? `${spec}\n\n${await researchModeNotes()}` : spec;
+}
+
+async function rawPhaseSpec(phase: Phase): Promise<string> {
   if (!specCache.has(phase)) {
     let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8"))
       .replaceAll("{P}", projectId)
@@ -550,6 +718,10 @@ async function phaseSpec(phase: Phase): Promise<string> {
     specCache.set(phase, spec);
   }
   return specCache.get(phase)!;
+}
+
+async function researchModeNotes(): Promise<string> {
+  return (await readFile(join(env.promptsDir, "research_mode.md"), "utf8")).replaceAll("{P}", projectId).trim();
 }
 
 function header(project: ProjectRecord): string {
@@ -588,7 +760,8 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
         shown: `${header(project)}\n\nFollow-up instruction:\n${job.instruction ?? ""}`,
         hidden:
           `Apply the follow-up instruction to the project files (see "Follow-up instructions" in AGENTS.md). Reference specs:\n\n` +
-          `${await phaseSpec("HCD")}\n\n---\n\n${await phaseSpec("FRG")}`,
+          `${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
+          (research ? `\n\n---\n\n${await researchModeNotes()}` : ""),
       };
   }
 }

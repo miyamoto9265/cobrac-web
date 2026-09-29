@@ -396,6 +396,25 @@ describe("reply language (web UI locale)", () => {
   });
 });
 
+describe("research mode", () => {
+  it("is on by default, can be turned off, is stored on the project and rejects non-booleans", async () => {
+    await json(call(A, "GET", "/users/me"));
+    fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
+
+    const on = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning" }));
+    const off = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning", researchMode: false }));
+    expect(on.researchMode).toBe(true);
+    expect(off.researchMode).toBe(false);
+    const stored = (id: string) => fake.items("projects").find((p) => p.projectId === id) as unknown as ProjectRecord;
+    expect(stored(on.projectId).researchMode).toBe(true);
+    expect(stored(off.projectId).researchMode).toBe(false);
+    const notices = (id: string) => (fake.items("messages") as unknown as MessageRecord[]).filter((m) => m.projectId === id).map((m) => m.meta?.i18n);
+    expect(notices(on.projectId)).toContain("sys.researchOn");
+    expect(notices(off.projectId)).toContain("sys.researchOff");
+    expect((await call(A, "POST", "/projects", { roi: "x", tlf: "y", researchMode: "yes" })).status).toBe(400);
+  });
+});
+
 describe("explanatory articles", () => {
   const P = "u7m2q9xa-5";
   async function seed(extra: Partial<ProjectRecord> = {}) {

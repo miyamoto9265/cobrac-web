@@ -5,7 +5,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchSummary, SabraLookup } from "@cobrac/shared";
 import {
   DEFAULT_BRA_RULES,
   HARNESS_SCHEMAS,
@@ -15,6 +15,7 @@ import {
   checkCitations,
   checkFrg,
   checkHcd,
+  checkResearch,
   frgCitedIds,
   hombaAnchorIds,
   isFrgProblem,
@@ -25,6 +26,7 @@ import {
   summarizeQuoteChecks,
   summarizeRefChecks,
 } from "@cobrac/shared";
+import { existsSync, readFileSync } from "node:fs";
 import { loadFrgFiles, loadHcdFiles, type ProjectPaths } from "./steps.js";
 
 export type Phase = "HCD" | "FRG" | "CSV";
@@ -270,4 +272,86 @@ export async function runPhases(d: PhaseDriver, startIdx: number, first: Prompt 
     await d.onAccepted(phase);
   }
   return { result: "completed" };
+}
+
+// --- research step (research mode) ---------------------------------------------------------------------------------
+
+/** Contents of `{P}/research_check.json`, rewritten by every research check. */
+export interface ResearchReport {
+  checkedAt: string;
+  /** Set once the research step is over (passed, out of fix turns or out of time); the HCD phase follows */
+  done: boolean;
+  /** How the step ended: passed = no coverage gaps */
+  outcome: "passed" | "gaps" | "budget" | null;
+  litTools: boolean;
+  summary: ResearchSummary | null;
+  problems: string[];
+}
+
+const readText = (path: string) => (existsSync(path) ? readFileSync(path, "utf8") : null);
+
+/** Whether this workspace has finished its research step (a later run goes straight to the HCD). */
+export function researchDone(paths: ProjectPaths): boolean {
+  try {
+    return (JSON.parse(readText(paths.researchCheck) ?? "{}") as Partial<ResearchReport>).done === true;
+  } catch {
+    return false;
+  }
+}
+
+/** Coverage check of research.json against the search log; writes research_check.json. */
+export async function checkResearchStep(paths: ProjectPaths, litTools: boolean, end: ResearchReport["outcome"] = null): Promise<ResearchCheck> {
+  const r = checkResearch(readText(paths.research), readText(paths.researchLog), { litTools });
+  const report: ResearchReport = { checkedAt: new Date().toISOString(), done: end !== null, outcome: end, litTools, summary: r.summary, problems: r.errors };
+  try {
+    await writeFile(paths.researchCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[research] ${paths.researchCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return r;
+}
+
+export type ResearchTurn = "ok" | "stop" | "budget";
+
+export interface ResearchDriver {
+  maxFixTurns: number;
+  /** One research turn; `budget` when it was cut off by the time budget */
+  turn: (p: Prompt) => Promise<ResearchTurn>;
+  /** Coverage check; `end` marks the step as over */
+  check: (end?: ResearchReport["outcome"]) => Promise<ResearchCheck>;
+  prompt: () => Promise<Prompt>;
+  fixPrompt: (errors: string[], attempt: number) => Prompt;
+  /** Whether enough of the time budget is left for another fix turn */
+  timeForFix: () => boolean;
+  onFix: (errors: string[], attempt: number) => Promise<void>;
+  onEnd: (outcome: NonNullable<ResearchReport["outcome"]>, check: ResearchCheck) => Promise<void>;
+}
+
+/**
+ * The research step before the HCD: a survey turn, then coverage fix turns while problems remain, fix turns are left
+ * and the time budget allows. Gaps never block the run: the HCD phase follows with what was found.
+ */
+export async function runResearch(d: ResearchDriver, first: Prompt | null): Promise<"done" | "stopped"> {
+  let p: Prompt = first ?? (await d.prompt());
+  let attempts = 0;
+  for (;;) {
+    const t = await d.turn(p);
+    if (t === "stop") return "stopped";
+    if (t === "budget") {
+      await d.onEnd("budget", await d.check("budget"));
+      return "done";
+    }
+    const c = await d.check();
+    if (c.errors.length === 0) {
+      await d.onEnd("passed", await d.check("passed"));
+      return "done";
+    }
+    if (attempts >= d.maxFixTurns || !d.timeForFix()) {
+      await d.onEnd("gaps", await d.check("gaps"));
+      return "done";
+    }
+    attempts++;
+    await d.onFix(c.errors, attempts);
+    p = d.fixPrompt(c.errors, attempts);
+  }
 }
