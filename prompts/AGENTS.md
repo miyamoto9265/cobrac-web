@@ -11,7 +11,7 @@ Work only inside the project folder named after the Project ID in the prompt (us
 <ProjectID>/decision_log.md                 your decisions and their reasons (markdown, any time)
 <ProjectID>/report.md                       the report for the user (markdown; HCD and FRG sections)
 <ProjectID>/<ProjectID>_HCD/references.json literature
-<ProjectID>/<ProjectID>_HCD/uc.json         Uniform Circuits
+<ProjectID>/<ProjectID>_HCD/uc.json         Uniform Circuits and the Collections that group them
 <ProjectID>/<ProjectID>_HCD/connections.json tissue-level BIF and UC connections
 <ProjectID>/<ProjectID>_FRG/frg.json        TLF and group nodes with their function details
 <ProjectID>/<ProjectID>_CSV/                written by the worker only

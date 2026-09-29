@@ -131,13 +131,15 @@ describe("phase pipeline with a mock agent", () => {
     const circuits = parseCsvObjects(csv("Circuits.csv"));
     expect(circuits.map((c) => [c["Circuit ID"], c["UC Descriptor"]])).toEqual([
       [`ROI_${PROJECT_ID}`, ""],
+      ["Mesolimbic", ""],
       ["A9/46d@L", "BNA:15"],
       ["VTA", "HOMBA:12261"],
       ["NAC", "BNA:223-224"],
       ["Arc", "HOMBA:10492"],
     ]);
-    expect(circuits[0]).toMatchObject({ "Sub-Circuits": "VTA;NAC", Uniform: "FALSE" });
-    expect(circuits[1].Comments).toBe("Prefrontal context input to the striatum; noROI(input)");
+    expect(circuits[0]).toMatchObject({ "Sub-Circuits": "Mesolimbic;VTA;NAC", Uniform: "FALSE" });
+    expect(circuits[1]).toMatchObject({ "Source of ID": "collection", "Sub-Circuits": "VTA;NAC", Uniform: "FALSE" });
+    expect(circuits[2].Comments).toBe("Prefrontal context input to the striatum; noROI(input)");
     const frg = parseCsvObjects(csv("FRG.csv"));
     expect(frg.map((r) => r["Node ID"])).toEqual(["R.Reward-Prediction-Error-Learning", "R.Value-Learning", "U.A9/46d@L", "U.VTA", "U.NAC", "U.Arc"]);
     expect(frg.find((r) => r["Node ID"] === "U.NAC")?.["Projected Circuits"]).toBe("VTA;Arc");
@@ -150,6 +152,7 @@ describe("phase pipeline with a mock agent", () => {
     });
     expect(g.hcd.nodes).toHaveLength(4);
     expect(g.hcd.edges).toHaveLength(4);
+    expect(g.hcd.collections).toEqual([expect.objectContaining({ id: "Mesolimbic", members: ["VTA", "NAC"] })]);
     expect(g.frg.nodes.find((n) => n.id === "R.Reward-Prediction-Error-Learning")?.kind).toBe("tlf");
 
     if (process.env.COBRAC_TEST_XLSX === "1") expect(hasPandas, "python3 with pandas/openpyxl (prompts/requirements.txt)").toBe(true);
@@ -171,7 +174,7 @@ describe("phase pipeline with a mock agent", () => {
             "print(wb.sheetnames)",
             "c=wb['Circuits']",
             "print([x.value for x in c[1]])",
-            "print([[x.value for x in r][:6] for r in c.iter_rows(min_row=2, max_row=3)])",
+            "print([[x.value for x in r][:6] for r in c.iter_rows(min_row=2, max_row=4)])",
             "print([x.value for x in wb['References'][1]])",
             "print([[x.value for x in r][:2] for r in wb['Project'].iter_rows(min_row=4, max_row=8)])",
             "f=wb['FRG']",
@@ -186,9 +189,9 @@ describe("phase pipeline with a mock agent", () => {
       const lines = sheets.stdout.trim().split("\n");
       expect(lines[0]).toBe("['Project', 'References', 'Circuits', 'Connections', 'FRG']");
       expect(lines[1]).toMatch(/^\['Circuit ID', 'Source of ID', 'Names', 'Sub-Circuits', 'Super Class', 'Uniform', .*'Project ID', 'UC Descriptor'\]$/);
-      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'VTA;NAC', None, False], ['A9/46d@L', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
+      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'Mesolimbic;VTA;NAC', None, False], ['Mesolimbic', 'collection', 'Mesolimbic pathway', 'VTA;NAC', None, False], ['A9/46d@L', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
       expect(lines[3]).toBe("['Reference ID', 'DOI', 'Literature type', 'Alternative URL']");
-      expect(lines[4]).toBe("[['Sheet Name', 'Review End Line'], ['References', 4], ['Circuits', 6], ['Connections', 5], ['FRG', 7]]");
+      expect(lines[4]).toBe("[['Sheet Name', 'Review End Line'], ['References', 4], ['Circuits', 7], ['Connections', 5], ['FRG', 7]]");
       expect(lines[5]).toMatch(/^\['No need for description due to input\/output circuit', 'Temporal-difference/);
       expect(lines[5]).not.toMatch(/grainest/);
       expect(lines[6]).toBe("['A9/46d@L', '<', 'dorsolateral prefrontal cortex', 'NAC', '<', 'ventral striatum']");

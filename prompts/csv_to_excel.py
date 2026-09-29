@@ -124,7 +124,8 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
     元の列構成: A Circuit ID / B Source of ID / C Names /
                 D Transmitter / E Modulation Type / F Comments / G UC Descriptor /
                 H Sub-Circuits / I Uniform（H・I は CoBRAC-v1-1 から。無い CSV は空欄・TRUE とみなす）
-    2 行目（最初のデータ行）は ROI 行（ROI_<ProjectID>、Uniform=FALSE、Sub-Circuits に ROI 内の全 UC）。
+    2 行目（最初のデータ行）は ROI 行（ROI_<ProjectID>、Uniform=FALSE、Sub-Circuits に ROI 内の全 Circuit）。
+    続いて Collection の行（Uniform=FALSE、Sub-Circuits あり）、その後に UC の行（Uniform=TRUE、Sub-Circuits 空欄）。
 
     処理後の列構成:
         A Circuit ID

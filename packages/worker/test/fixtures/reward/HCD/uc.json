@@ -68,5 +68,18 @@
       "implementation": "",
       "outputSemantics": ""
     }
+  ],
+  "collections": [
+    {
+      "circuitId": "Mesolimbic",
+      "descriptor": "",
+      "names": "Mesolimbic pathway",
+      "sourceOfId": "collection",
+      "subCircuits": [
+        "VTA",
+        "NAC"
+      ],
+      "comments": "Dopaminergic midbrain-striatal loop, grouped for reading the HCD"
+    }
   ]
 }

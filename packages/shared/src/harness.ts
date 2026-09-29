@@ -12,6 +12,7 @@ import {
   DEFAULT_BRA_RULES,
   OUT_OF_ROI_CAPABILITY,
   formatOutputSemantics,
+  isRoiCircuitId,
   normalizeFigurePointer,
   parseOutputSemantics,
   pointerProblems,
@@ -24,7 +25,15 @@ import {
 import { parseCsv, toCsv } from "./csv.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { normalizeProjectName } from "./projectId.js";
-import { checkUcNaming, namesStartWithOfficial, sabraOfficialName, splitTopLevel, type SabraLookup } from "./ucNaming.js";
+import {
+  checkUcNaming,
+  namesStartWithOfficial,
+  normalizeUcDescriptor,
+  parseUcDescriptor,
+  sabraOfficialName,
+  splitTopLevel,
+  type SabraLookup,
+} from "./ucNaming.js";
 
 /**
  * Files at the project root (`<ProjectID>/`). The two markdown files are the only free-text outputs.
@@ -88,6 +97,22 @@ export interface UcRow {
   implementation: string;
 }
 
+/**
+ * Collection Circuit (Uniform = FALSE) of one HCD: a circuit the HCD decomposes into Sub-Circuits. Uniformity is
+ * relative to the HCD, so the same UC Descriptor may be a UC in one project and a Collection in another. A Collection
+ * is neither Sender nor Receiver of a connection, has no Interface and is not an FRG leaf.
+ */
+export interface CollectionRow {
+  id: string;
+  /** UC Descriptor when the Collection is one SABRA unit or a faceted population; empty for other groupings */
+  descriptor: string;
+  names: string;
+  sourceOfId: string;
+  /** Circuit IDs of the UCs and Collections it contains */
+  subCircuits: string[];
+  comments: string;
+}
+
 /** Tissue-level projection found in the literature (BIF). */
 export interface BifRow {
   sender: string;
@@ -130,6 +155,8 @@ export interface HcdModel {
   meta: ProjectMeta | null;
   refs: RefRow[];
   ucs: UcRow[];
+  /** Empty when uc.json has no `collections` */
+  collections: CollectionRow[];
   bif: BifRow[];
   connections: ConnRow[];
 }
@@ -190,10 +217,14 @@ function record(properties: Record<string, JsonSchema>): JsonSchema {
   return { type: "object", required: Object.keys(properties), additionalProperties: false, properties };
 }
 
-function fileSchema(file: string, title: string, arrays: Record<string, { description: string; item: JsonSchema }>): JsonSchema {
+/** An `optional` array may be omitted or empty; the others need at least one item. */
+function fileSchema(file: string, title: string, arrays: Record<string, { description: string; item: JsonSchema; optional?: boolean }>): JsonSchema {
   const properties: Record<string, JsonSchema> = { $schema: str() };
-  for (const [k, a] of Object.entries(arrays)) properties[k] = { type: "array", minItems: 1, description: a.description, items: a.item };
-  return { $schema: SCHEMA_URI, $id: schemaFileName(file), title, type: "object", required: Object.keys(arrays), additionalProperties: false, properties };
+  for (const [k, a] of Object.entries(arrays)) properties[k] = { type: "array", ...(a.optional ? {} : { minItems: 1 }), description: a.description, items: a.item };
+  const required = Object.entries(arrays)
+    .filter(([, a]) => !a.optional)
+    .map(([k]) => k);
+  return { $schema: SCHEMA_URI, $id: schemaFileName(file), title, type: "object", required, additionalProperties: false, properties };
 }
 
 const FUNCTION_ITEM_DESCRIPTIONS = {
@@ -239,7 +270,7 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       },
     },
   }),
-  [HCD_FILES.uc]: fileSchema(HCD_FILES.uc, "Uniform Circuits (UCs) of the HCD", {
+  [HCD_FILES.uc]: fileSchema(HCD_FILES.uc, "Uniform Circuits (UCs) and Collection Circuits of the HCD", {
     ucs: {
       description: "One entry per UC, ROI-internal and external",
       item: record({
@@ -255,6 +286,24 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         outputSemantics: str("Exactly one item `[<own Circuit ID>] content;` (empty only for external sinks)"),
         ...Object.fromEntries(Object.entries(FUNCTION_ITEM_DESCRIPTIONS).map(([k, d]) => [k, str(d)])),
         implementation: str("Equations only, e.g. `[U.A] = P([U.B]|[U.C])` (empty for external UCs)"),
+      }),
+    },
+    collections: {
+      optional: true,
+      description:
+        "Collection Circuits (Uniform = FALSE): circuits this HCD decomposes into Sub-Circuits, e.g. the SABRA unit whose facet UCs are listed in ucs. Never a sender or receiver of a connection, never an FRG leaf. Omit when the HCD decomposes nothing",
+      item: record({
+        circuitId: { type: "string", pattern: "^\\S+$", description: "Circuit ID: for a SABRA unit its anchor-only Circuit ID by the UC naming rules (e.g. `A44d@L`); for another grouping a short name" },
+        descriptor: str("UC Descriptor when the Collection is one SABRA unit (anchor only, e.g. `BNA:29`) or a faceted population; empty for another grouping"),
+        names: nonEmpty("SABRA official name first when it is a SABRA unit, then synonyms separated by `;`"),
+        sourceOfId: { enum: ["collection"], description: "Always collection: a Collection is defined by its Sub-Circuits" },
+        subCircuits: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string", pattern: "^\\S+$" },
+          description: "Circuit IDs of its members: UCs of ucs or other Collections (no cycles), at least one not makeshift",
+        },
+        comments: str("What the grouping is and why the HCD decomposes it"),
       }),
     },
   }),
@@ -464,7 +513,8 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     for (const id of ids) if (!refIds.has(id)) errors.push(`${where}: Reference ID ${id} is not in references.json.`);
   };
 
-  const ucItems = items(readJson(HCD_FILES.uc, files.uc, errors), "ucs");
+  const ucJson = readJson(HCD_FILES.uc, files.uc, errors);
+  const ucItems = items(ucJson, "ucs");
   const ucs: UcRow[] = (ucItems ?? [])
     .map((u) => ({
       id: stripUc(s(u.circuitId)),
@@ -496,8 +546,30 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       errors.push(`uc.json: names of \`${u.id}\` must start with its SABRA official name "${official}", then synonyms separated by ";" (e.g. "${official}; <common name>").`);
     }
   }
+  const collections: CollectionRow[] = (items(ucJson, "collections") ?? [])
+    .map((c) => ({
+      id: stripUc(s(c.circuitId)),
+      descriptor: s(c.descriptor).replace(/\s+/g, ""),
+      names: s(c.names),
+      sourceOfId: s(c.sourceOfId),
+      subCircuits: [...new Set(strings(c.subCircuits).map(stripUc))],
+      comments: s(c.comments),
+    }))
+    .filter((c) => c.id);
+  const collectionIds = new Set<string>();
+  for (const c of collections) {
+    if (seen.has(c.id) || collectionIds.has(c.id)) errors.push(`uc.json: Circuit ID \`${c.id}\` is used by more than one circuit (UCs and Collections share one ID space).`);
+    collectionIds.add(c.id);
+    if (isRoiCircuitId(c.id)) errors.push(`uc.json: Collection \`${c.id}\`: Circuit IDs starting with ROI_ are reserved for the ROI row, which the worker writes.`);
+    const official = sabraOfficialName(c.descriptor, opts.sabra);
+    if (official && c.names && !namesStartWithOfficial(c.names, official)) {
+      errors.push(`uc.json: names of Collection \`${c.id}\` must start with its SABRA official name "${official}", then synonyms separated by ";".`);
+    }
+  }
+  errors.push(...collectionProblems(collections, ucs));
   if (ucItems && ucs.length) {
-    errors.push(...checkUcNaming(ucs, opts.sabra));
+    errors.push(...checkUcNaming([...ucs, ...collections.filter((c) => c.descriptor)], opts.sabra));
+    errors.push(...decomposedUcProblems(ucs));
     if (!ucs.some((u) => u.roi === "roi")) errors.push("uc.json: no ROI-internal UC (every UC has a noROI `roi`).");
   }
 
@@ -552,7 +624,12 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
         ["sender", c.sender],
         ["receiver", c.receiver],
       ] as const) {
-        if (!ids.has(id)) errors.push(`connections.json: ${end} \`${id}\` (\`${c.sender}\` -> \`${c.receiver}\`) is not a Circuit ID in uc.json.`);
+        if (collectionIds.has(id)) {
+          const members = collectionLeaves(collections, id).join(", ");
+          errors.push(
+            `connections.json: ${end} \`${id}\` (\`${c.sender}\` -> \`${c.receiver}\`) is a Collection; a Collection is neither sender nor receiver in this HCD. Connect its UC(s) instead (${members || "its Sub-Circuits"}), or make it a UC if the HCD does not need to decompose it.`,
+          );
+        } else if (!ids.has(id)) errors.push(`connections.json: ${end} \`${id}\` (\`${c.sender}\` -> \`${c.receiver}\`) is not a Circuit ID in uc.json.`);
       }
       checkRefs(`connections.json: \`${c.sender}\` -> \`${c.receiver}\``, c.referenceIds);
       (senders.get(c.receiver) ?? senders.set(c.receiver, []).get(c.receiver)!).push(c.sender);
@@ -579,7 +656,11 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
         ["implementation", u.implementation],
       ] as const) {
         for (const ref of new Set(ucRefs(text))) {
-          if (!ids.has(ref)) errors.push(`uc.json: ${key} of \`${u.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json; refer to tissue as [U.<Circuit ID>] with an existing Circuit ID.`);
+          if (collectionIds.has(ref) && key !== "comments") {
+            errors.push(`uc.json: ${key} of \`${u.id}\` refers to [U.${ref}], which is a Collection; refer to its UCs (a Collection may only be mentioned in comments).`);
+          } else if (!ids.has(ref) && !collectionIds.has(ref)) {
+            errors.push(`uc.json: ${key} of \`${u.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json; refer to tissue as [U.<Circuit ID>] with an existing Circuit ID.`);
+          }
         }
       }
       if (u.roi !== "roi") continue;
@@ -614,7 +695,92 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     }
   }
 
-  return { model: fatal ? null : { meta, refs, ucs, bif, connections }, errors: [...new Set(errors)], fatal };
+  return { model: fatal ? null : { meta, refs, ucs, collections, bif, connections }, errors: [...new Set(errors)], fatal };
+}
+
+/** UC IDs under a Collection, expanding nested Collections (cycle-safe); [] for an unknown ID. */
+export function collectionLeaves(collections: CollectionRow[], id: string): string[] {
+  const byId = new Map(collections.map((c) => [c.id, c]));
+  const out = new Set<string>();
+  const seen = new Set<string>();
+  const visit = (x: string) => {
+    const c = byId.get(x);
+    if (!c) return void out.add(x);
+    if (seen.has(x)) return;
+    seen.add(x);
+    for (const k of c.subCircuits) visit(k);
+  };
+  if (byId.has(id)) visit(id);
+  return [...out];
+}
+
+/** Sub-Circuits of each Collection: defined in uc.json, not itself, no cycle, at least one not makeshift (manual; 128). */
+function collectionProblems(collections: CollectionRow[], ucs: UcRow[]): string[] {
+  const errors: string[] = [];
+  const ucById = new Map(ucs.map((u) => [u.id, u]));
+  const byId = new Map(collections.map((c) => [c.id, c]));
+  for (const c of collections) {
+    const where = `uc.json: Collection \`${c.id}\``;
+    if (!c.subCircuits.length) errors.push(`${where} has no subCircuits; list at least one member (a Collection is defined by its Sub-Circuits).`);
+    for (const k of c.subCircuits) {
+      if (k === c.id) errors.push(`${where} lists itself in subCircuits.`);
+      else if (!ucById.has(k) && !byId.has(k)) errors.push(`${where}: subCircuit \`${k}\` is not a UC or Collection in uc.json.`);
+    }
+    const known = c.subCircuits.filter((k) => k !== c.id && (ucById.has(k) || byId.has(k)));
+    if (known.length && known.every((k) => ucById.get(k)?.sourceOfId === "makeshift")) {
+      errors.push(`${where}: every subCircuit is makeshift; at least one member must be a circuit that is not makeshift.`);
+    }
+  }
+  const state = new Map<string, 1 | 2>();
+  const stack: string[] = [];
+  const visit = (id: string): string[] | null => {
+    if (state.get(id) === 2) return null;
+    if (state.get(id) === 1) return [...stack.slice(stack.indexOf(id)), id];
+    state.set(id, 1);
+    stack.push(id);
+    for (const k of byId.get(id)?.subCircuits ?? []) {
+      if (k === id || !byId.has(k)) continue;
+      const cyc = visit(k);
+      if (cyc) return cyc;
+    }
+    stack.pop();
+    state.set(id, 2);
+    return null;
+  };
+  for (const c of collections) {
+    const cyc = visit(c.id);
+    if (cyc) {
+      errors.push(`uc.json: Collections form a cycle through subCircuits: ${cyc.join(" -> ")}.`);
+      break;
+    }
+  }
+  return errors;
+}
+
+/**
+ * A UC whose population this HCD also splits into finer UCs (same anchors, a subset of the facet values) is not
+ * uniform in this HCD: it must be a Collection of those UCs.
+ */
+function decomposedUcProblems(ucs: UcRow[]): string[] {
+  const parsed = ucs
+    .map((u) => {
+      const r = u.descriptor ? parseUcDescriptor(u.descriptor) : null;
+      if (!r || "errors" in r) return null;
+      const [head] = normalizeUcDescriptor(u.descriptor).split("/");
+      const values = new Set(r.descriptor.facets.flatMap((f) => f.values.map((v) => `${f.axis}:${v}`.toLowerCase())));
+      return { id: u.id, head, values };
+    })
+    .filter((x): x is { id: string; head: string; values: Set<string> } => !!x);
+  const errors: string[] = [];
+  for (const a of parsed) {
+    const finer = parsed.filter((b) => b !== a && b.head === a.head && b.values.size > a.values.size && [...a.values].every((v) => b.values.has(v)));
+    if (finer.length) {
+      errors.push(
+        `uc.json: \`${a.id}\` is also split into finer UCs (${finer.map((b) => `\`${b.id}\``).join(", ")}), so it is not uniform in this HCD. Move it to collections with those UCs as subCircuits (add UCs for the rest of its population if the HCD needs them) and connect the UCs instead.`,
+      );
+    }
+  }
+  return errors;
 }
 
 // --- FRG -----------------------------------------------------------------------------------------------------------
@@ -648,6 +814,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
     }
     const roiUcs = new Set(hcd.ucs.filter((u) => u.roi === "roi").map((u) => u.id));
     const allUcs = new Set(hcd.ucs.map((u) => u.id));
+    const collectionIds = new Set((hcd.collections ?? []).map((c) => c.id));
     const ucParents = new Map<string, string[]>();
     const childSet = new Set<string>();
     for (const g of gns) {
@@ -661,6 +828,10 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
       }
       for (const x of ucKids) {
         const id = stripUc(x);
+        if (collectionIds.has(id)) {
+          errors.push(`\`${g.id}\`: \`${x}\` is a Collection; FRG leaves are UCs, so attach its UCs (${collectionLeaves(hcd.collections, id).join(", ")}) instead.`);
+          continue;
+        }
         if (!allUcs.has(id)) errors.push(`\`${g.id}\`: \`${x}\` is not a Circuit ID in uc.json.`);
         else if (!roiUcs.has(id)) errors.push(`\`${g.id}\`: \`${x}\` is outside the ROI; only ROI-internal UCs may be attached.`);
         (ucParents.get(id) ?? ucParents.set(id, []).get(id)!).push(g.id);
@@ -693,7 +864,8 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
         ["mechanism", g.mechanism],
       ] as const) {
         for (const ref of new Set(ucRefs(text))) {
-          if (!allUcs.has(ref)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json.`);
+          if (collectionIds.has(ref)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [U.${ref}], which is a Collection; refer to its UCs.`);
+          else if (!allUcs.has(ref)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [U.${ref}], which is not a Circuit ID in uc.json.`);
         }
         for (const m of new Set([...text.matchAll(/\[(R\.[^[\]\s]+)\]/g)].map((x) => x[1]))) {
           if (!gnIds.has(m)) errors.push(`frg.json: ${key} of \`${g.id}\` refers to [${m}], which is not a node in frg.json.`);
@@ -863,7 +1035,11 @@ function gnOutputSemantics(hcd: HcdModel, frg: FrgModel): Map<string, string> {
 export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { files: Record<CsvFileName, string> | null; errors: string[] } {
   const refs = new Map<string, RefRow>();
   for (const r of hcd.refs) if (!refs.has(r.id)) refs.set(r.id, r);
-  const cited = [...hcd.connections.flatMap((c) => c.referenceIds), ...hcd.ucs.map((u) => u.sourceOfId).filter((x) => x.startsWith("["))];
+  const collections = hcd.collections ?? [];
+  const cited = [
+    ...hcd.connections.flatMap((c) => c.referenceIds),
+    ...hcd.ucs.map((u) => u.sourceOfId).filter((x) => x.startsWith("[")),
+  ];
   for (const id of cited) if (!refs.has(id)) refs.set(id, { id, doi: "N/A" });
   const alternativeUrl = (r: RefRow) => r.alternativeUrl || (isNoDoi(r.doi) && r.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : "");
 
@@ -872,7 +1048,15 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
     const list = receivers.get(c.sender) ?? receivers.set(c.sender, []).get(c.sender)!;
     if (!list.includes(c.receiver)) list.push(c.receiver);
   }
-  const roiUcs = hcd.ucs.filter((u) => u.roi === "roi").map((u) => u.id);
+  const roiUcSet = new Set(hcd.ucs.filter((u) => u.roi === "roi").map((u) => u.id));
+  // The ROI row lists every circuit in the ROI: its UCs and the Collections made only of them
+  const roiCircuits = [
+    ...collections.filter((c) => {
+      const leaves = collectionLeaves(collections, c.id);
+      return leaves.length > 0 && leaves.every((id) => roiUcSet.has(id));
+    }).map((c) => c.id),
+    ...roiUcSet,
+  ];
   const gnOs = gnOutputSemantics(hcd, frg);
 
   const tables: Record<Exclude<CsvFileName, "Project.csv">, string[][]> = {
@@ -880,10 +1064,12 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
       ["Reference ID", "DOI", "Literature type", "Alternative URL"],
       ...[...refs.values()].map((r) => [r.id, r.doi || "N/A", r.literatureType ?? "", alternativeUrl(r)]),
     ],
-    // Columns after Comments are appended so the BRA columns keep their positions; the ROI row comes first
+    // Columns after Comments are appended so the BRA columns keep their positions; the ROI row and the Collections
+    // (Uniform = FALSE) come first. Collections are not FRG nodes: FRG leaves are UCs
     "Circuits.csv": [
       ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments", "UC Descriptor", "Sub-Circuits", "Uniform"],
-      [roiCircuitId(o.projectId), "collection", hcd.meta?.roi || o.roi || "", "", "", "Region of interest of the project", "", roiUcs.join(";"), "FALSE"],
+      [roiCircuitId(o.projectId), "collection", hcd.meta?.roi || o.roi || "", "", "", "Region of interest of the project", "", roiCircuits.join(";"), "FALSE"],
+      ...collections.map((c) => [c.id, "collection", c.names, "", "", c.comments, c.descriptor, c.subCircuits.join(";"), "FALSE"]),
       ...hcd.ucs.map((u) => [u.id, u.sourceOfId, u.names, u.transmitter, u.modulationType, circuitComments(u), u.descriptor, "", "TRUE"]),
     ],
     "Connections.csv": [

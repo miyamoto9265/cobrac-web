@@ -413,6 +413,116 @@ describe("buildCsvs", () => {
   });
 });
 
+describe("Collection Circuits", () => {
+  const collection = (circuitId: string, descriptor: string, subCircuits: string[], extra: Record<string, unknown> = {}) => ({
+    circuitId,
+    descriptor,
+    names: circuitId,
+    sourceOfId: "collection",
+    subCircuits,
+    comments: "",
+    ...extra,
+  });
+  const WITH_COLLECTIONS = {
+    ...UC,
+    collections: [
+      collection("Cb", "HOMBA:12852", ["GC(granule)", "PC(purkinje)"], { comments: "Cerebellar cortex split into cell types" }),
+      collection("Flocculus-loop", "", ["Cb", "IO"]),
+    ],
+  };
+  const hcdWith = (uc: unknown, extra: Partial<HcdInputs> = {}) => checkHcd({ ...HCD, uc: j(uc), ...extra });
+  const opts = { projectId: "VOR", contributor: "Tester", projectTemplate: TEMPLATE };
+
+  it("accepts Collections and keeps uc.json without them valid", () => {
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], WITH_COLLECTIONS)).toEqual([]);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], { ...UC, collections: [] })).toEqual([]);
+    const r = hcdWith(WITH_COLLECTIONS);
+    expect(r.errors).toEqual([]);
+    expect(r.model?.collections.map((c) => [c.id, c.subCircuits])).toEqual([
+      ["Cb", ["GC(granule)", "PC(purkinje)"]],
+      ["Flocculus-loop", ["Cb", "IO"]],
+    ]);
+    expect(checkHcd(HCD).model?.collections).toEqual([]);
+  });
+
+  it("writes Collections as Uniform = FALSE rows with Sub-Circuits and keeps them out of the FRG and the graph nodes", () => {
+    const hcd = hcdWith(WITH_COLLECTIONS).model!;
+    const frg = checkFrg(FRG, hcd);
+    expect(frg.errors).toEqual([]);
+    const { files, errors } = buildCsvs(hcd, frg.model!, opts);
+    expect(errors).toEqual([]);
+    const circuits = parseCsvObjects(files!["Circuits.csv"]);
+    expect(circuits.slice(0, 3).map((c) => [c["Circuit ID"], c["Source of ID"], c["Sub-Circuits"], c.Uniform, c["UC Descriptor"]])).toEqual([
+      ["ROI_VOR", "collection", "Cb;Flocculus-loop;GC(granule);PC(purkinje);IO", "FALSE", ""],
+      ["Cb", "collection", "GC(granule);PC(purkinje)", "FALSE", "HOMBA:12852"],
+      ["Flocculus-loop", "collection", "Cb;IO", "FALSE", ""],
+    ]);
+    expect(circuits.filter((c) => c.Uniform === "TRUE").every((c) => c["Sub-Circuits"] === "")).toBe(true);
+    expect(parseCsvObjects(files!["FRG.csv"]).some((r) => ["U.Cb", "U.Flocculus-loop"].includes(r["Node ID"]))).toBe(false);
+    const g = buildGraphs("VOR", { circuitsCsv: files!["Circuits.csv"], connectionsCsv: files!["Connections.csv"], frgCsv: files!["FRG.csv"] });
+    expect(g.hcd.nodes.map((n) => n.id)).toEqual(["VN", "GC(granule)", "PC(purkinje)", "IO", "FTN"]);
+    expect(g.hcd.collections?.map((c) => [c.id, c.subCircuits, c.members])).toEqual([
+      ["Cb", ["GC(granule)", "PC(purkinje)"], ["GC(granule)", "PC(purkinje)"]],
+      ["Flocculus-loop", ["Cb", "IO"], ["GC(granule)", "PC(purkinje)", "IO"]],
+    ]);
+    expect(buildGraphs("VOR", { circuitsCsv: files!["Circuits.csv"].replace(/,FALSE/g, ",TRUE"), connectionsCsv: "", frgCsv: "" }).hcd.collections).toBeUndefined();
+  });
+
+  it("does not let a Collection send or receive, and names its UCs in the feedback", () => {
+    const c = structuredClone(CONN);
+    c.connections.push(conn("Cb", "FTN", "output"), conn("VN", "Flocculus-loop", "input"));
+    const msg = hcdWith(WITH_COLLECTIONS, { connections: j(c) }).errors.join("\n");
+    expect(msg).toMatch(/sender `Cb` \(`Cb` -> `FTN`\) is a Collection; a Collection is neither sender nor receiver in this HCD\. Connect its UC\(s\) instead \(GC\(granule\), PC\(purkinje\)\)/);
+    expect(msg).toMatch(/receiver `Flocculus-loop` .* is a Collection/);
+    expect(msg).not.toMatch(/not a Circuit ID in uc\.json/);
+  });
+
+  it("checks Sub-Circuits: defined, not itself, no cycle, not all makeshift", () => {
+    const bad = structuredClone(WITH_COLLECTIONS) as { ucs: Record<string, unknown>[]; collections: Record<string, unknown>[] };
+    bad.collections[0].subCircuits = ["GC(granule)", "Cb", "Nowhere"];
+    bad.collections[1].subCircuits = ["Cb", "IO", "Flocculus-loop"];
+    bad.collections.push(collection("Loop-a", "", ["Loop-b"]), collection("Loop-b", "", ["Loop-a"]), collection("Invented", "", ["GC(granule)"]));
+    bad.ucs[1].sourceOfId = "makeshift";
+    const msg = hcdWith(bad).errors.join("\n");
+    expect(msg).toMatch(/Collection `Cb` lists itself in subCircuits/);
+    expect(msg).toMatch(/Collection `Cb`: subCircuit `Nowhere` is not a UC or Collection in uc\.json/);
+    expect(msg).toMatch(/Collections form a cycle through subCircuits: Loop-a -> Loop-b -> Loop-a/);
+    expect(msg).toMatch(/Collection `Invented`: every subCircuit is makeshift/);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], { ...UC, collections: [collection("Empty", "", [])] }).join("\n")).toMatch(/\/collections\/0\/subCircuits needs at least 1 item/);
+  });
+
+  it("rejects duplicate IDs, the ROI_ prefix, a Source of ID other than collection and Collections in UC texts", () => {
+    const bad = structuredClone(WITH_COLLECTIONS) as { ucs: Record<string, unknown>[]; collections: Record<string, unknown>[] };
+    bad.collections.push(collection("IO", "", ["GC(granule)"]), collection("ROI_X", "", ["IO"]), collection("Cb-cells", "HOMBA:12852/cell:granule,purkinje", ["Cb"], { sourceOfId: "DHBA" }));
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], bad).join("\n")).toMatch(/\/collections\/4\/sourceOfId must be one of "collection"/);
+    bad.ucs[1].capability = "Integrates [U.Cb] input";
+    bad.ucs[1].comments = "Part of [U.Cb]";
+    const msg = hcdWith(bad).errors.join("\n");
+    expect(msg).toMatch(/Circuit ID `IO` is used by more than one circuit/);
+    expect(msg).toMatch(/Collection `ROI_X`: Circuit IDs starting with ROI_ are reserved/);
+    expect(msg).toMatch(/capability of `GC\(granule\)` refers to \[U\.Cb\], which is a Collection/);
+    expect(msg).not.toMatch(/comments of `GC\(granule\)`/);
+  });
+
+  it("asks to turn a UC into a Collection when the HCD also splits it into finer UCs", () => {
+    const bad = structuredClone(UC) as { ucs: Record<string, unknown>[] };
+    bad.ucs.push(uc("Cb", "HOMBA:12852", { roi: "noROI(input)" }));
+    const msg = hcdWith(bad).errors.join("\n");
+    expect(msg).toMatch(/`Cb` is also split into finer UCs \(`GC\(granule\)`, `PC\(purkinje\)`\), so it is not uniform in this HCD\. Move it to collections/);
+    expect(hcdWith(WITH_COLLECTIONS).errors.join("\n")).not.toMatch(/not uniform/);
+  });
+
+  it("keeps Collections out of the FRG leaves", () => {
+    const hcd = hcdWith(WITH_COLLECTIONS).model!;
+    const bad = structuredClone(FRG_JSON);
+    bad.nodes[1].subnodes = ["U.Cb", "U.GC(granule)"];
+    bad.nodes[2].requirement = "Uses [U.Flocculus-loop]";
+    const msg = checkFrg({ ...FRG, frg: j(bad) }, hcd).errors.join("\n");
+    expect(msg).toMatch(/`R\.Context`: `U\.Cb` is a Collection; FRG leaves are UCs, so attach its UCs \(GC\(granule\), PC\(purkinje\)\) instead/);
+    expect(msg).toMatch(/requirement of `R\.Learning` refers to \[U\.Flocculus-loop\], which is a Collection/);
+  });
+});
+
 describe("parseTurnOutput", () => {
   it("parses structured final messages", () => {
     expect(parseTurnOutput('{"status":"question","message":"","question":"Which ROI?"}')).toEqual({ status: "question", message: "", question: "Which ROI?" });

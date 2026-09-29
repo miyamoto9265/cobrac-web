@@ -132,3 +132,80 @@ export function pathFromRoot(frg: Pick<FrgGraph, "nodes"> | null | undefined, id
   }
   return path;
 }
+
+export interface GroupRef {
+  id: string;
+  /** node ids inside the group (nested groups already expanded) */
+  members: string[];
+}
+
+/**
+ * Nesting level of each group: 0 when no other group lies inside it, else one more than the deepest group whose
+ * members are a strict subset of its own. Outer groups get more padding so nested boxes do not share borders.
+ */
+export function groupLevels(groups: GroupRef[]): Map<string, number> {
+  const sets = groups.map((g) => ({ id: g.id, m: new Set(g.members) }));
+  const inside = (a: Set<string>, b: Set<string>) => a.size < b.size && [...a].every((x) => b.has(x));
+  const memo = new Map<string, number>();
+  const level = (i: number, depth: number): number => {
+    const g = sets[i];
+    const hit = memo.get(g.id);
+    if (hit !== undefined) return hit;
+    if (depth > sets.length) return 0;
+    let lv = 0;
+    sets.forEach((o, j) => {
+      if (j !== i && o.m.size && inside(o.m, g.m)) lv = Math.max(lv, level(j, depth + 1) + 1);
+    });
+    memo.set(g.id, lv);
+    return lv;
+  };
+  sets.forEach((_, i) => level(i, 0));
+  return memo;
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Box around the members of each group (groups with no placed member are left out), padded by nesting level and
+ * with room for a label above the members. Outer groups come first so inner boxes are drawn on top.
+ */
+export function groupBoxes(groups: GroupRef[], rects: Record<string, Rect | undefined>, pad = 12, step = 12, label = 18): (Rect & { id: string; level: number })[] {
+  const levels = groupLevels(groups);
+  const out: (Rect & { id: string; level: number })[] = [];
+  for (const g of groups) {
+    const rs = g.members.map((m) => rects[m]).filter((r): r is Rect => !!r);
+    if (!rs.length) continue;
+    const lv = levels.get(g.id) ?? 0;
+    const p = pad + lv * step;
+    const x0 = Math.min(...rs.map((r) => r.x)) - p;
+    const y0 = Math.min(...rs.map((r) => r.y)) - p - label - lv * 4;
+    const x1 = Math.max(...rs.map((r) => r.x + r.width)) + p;
+    const y1 = Math.max(...rs.map((r) => r.y + r.height)) + p;
+    out.push({ id: g.id, level: lv, x: x0, y: y0, width: x1 - x0, height: y1 - y0 });
+  }
+  return out.sort((a, b) => b.level - a.level);
+}
+
+/**
+ * One parent per node and per group for a compound (clustered) auto layout: the smallest group that contains it.
+ * Groups that only partly overlap keep their members where the smallest group puts them.
+ */
+export function groupParents(groups: GroupRef[]): Map<string, string> {
+  const sorted = [...groups].filter((g) => g.members.length).sort((a, b) => a.members.length - b.members.length);
+  const sets = new Map(sorted.map((g) => [g.id, new Set(g.members)]));
+  const parent = new Map<string, string>();
+  for (const g of sorted) {
+    for (const m of g.members) if (!parent.has(m)) parent.set(m, g.id);
+  }
+  for (const g of sorted) {
+    const mine = sets.get(g.id)!;
+    const outer = sorted.find((o) => o.id !== g.id && o.members.length > mine.size && [...mine].every((x) => sets.get(o.id)!.has(x)));
+    if (outer) parent.set(g.id, outer.id);
+  }
+  return parent;
+}
