@@ -1625,6 +1625,11 @@ app.get("/public/projects/:id/text", async (c) => {
   return c.text(text);
 });
 
+function cloneStepStates(s: ProjectRecord["stepStates"]): ProjectRecord["stepStates"] {
+  const done = (v: string) => (v === "done" ? "done" : "pending");
+  return { HCD: done(s.HCD), FRG: done(s.FRG), CSV: done(s.CSV), XLSX: "pending" };
+}
+
 const CONTENT_TYPES: Record<string, string> = { json: "application/json", jsonl: "application/x-ndjson", csv: "text/csv; charset=utf-8", md: "text/markdown; charset=utf-8" };
 
 /** Copies a public project into a new private project of the caller. Reads the original only. */
@@ -1663,8 +1668,9 @@ app.post("/public/projects/:id/clone", async (c) => {
     reasoningEffort: u.defaultReasoningEffort ?? null,
     status: "COMPLETED",
     currentStep: "CSV",
-    // the BRA xlsx carries the original Project ID and is not copied; a follow-up rebuilds it
-    stepStates: { ...src.stepStates, XLSX: "pending" },
+    // copied steps are done or pending, never running (the original may be mid-run or failed); the BRA xlsx carries
+    // the original Project ID and is not copied, so a follow-up rebuilds it
+    stepStates: cloneStepStates(src.stepStates),
     activeJobId: null,
     codexThreadId: null,
     pendingQuestion: null,

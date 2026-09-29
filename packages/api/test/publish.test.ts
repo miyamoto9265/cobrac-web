@@ -190,6 +190,14 @@ describe("cloning", () => {
     expect((await json<PublicProjectDetail>(call(B, "GET", `/public/projects/${P}`))).cloneCount).toBe(1);
   });
 
+  it("never copies running step states from an original that is mid-run or failed", async () => {
+    fake.put("projects", project(A.sub, P, { status: "FAILED", stepStates: { HCD: "running", FRG: "running", CSV: "done", XLSX: "done" } }));
+    await json(call(A, "PUT", `/projects/${P}/visibility`, { visibility: "public" }));
+    const { projectId } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${P}/clone`));
+    const clone = await json<ProjectRecord>(call(B, "GET", `/projects/${projectId}`));
+    expect(clone.stepStates).toEqual({ HCD: "pending", FRG: "pending", CSV: "done", XLSX: "pending" });
+  });
+
   it("lets the clone join the cloner's Canon", async () => {
     await json(call(A, "PUT", `/projects/${P}/visibility`, { visibility: "public" }));
     const { projectId } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${P}/clone`));

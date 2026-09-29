@@ -142,12 +142,13 @@ export function CanonChoice({ value, onChange, disabled = false }: { value: Cano
             </label>
           </div>
           <ConstraintModeSelect value={value.constraintMode} onChange={(m) => set({ constraintMode: m })} />
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-            <div>
+          {/* stacked: the create form is narrower than the viewport breakpoints suggest */}
+          <div className="grid min-w-0 gap-3">
+            <div className="min-w-0">
               <div className="mb-1 text-xs text-slate-500">{t("cc3.seeds")}</div>
-              <ol className="mb-2 grid gap-1" data-testid="seed-order">
+              <ol className="mb-2 grid min-w-0 grid-cols-1 gap-1" data-testid="seed-order">
                 {value.seeds.map((id, i) => (
-                  <li key={id} className="flex items-center gap-1 rounded-md bg-violet-50 px-2 py-1 text-sm">
+                  <li key={id} className="flex min-w-0 items-center gap-1 rounded-md bg-violet-50 px-2 py-1 text-sm">
                     <span className="w-5 text-right font-mono text-xs text-slate-500">{i + 1}</span>
                     <span className="min-w-0 flex-1 truncate">{nameOf(id)}</span>
                     <button type="button" onClick={() => move(i, -1)} className="rounded p-1 hover:bg-violet-100 coarse:p-2" aria-label="up">
