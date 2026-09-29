@@ -11,6 +11,9 @@ import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspa
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { CanonsPage } from "./pages/CanonsPage";
 import { CanonDetailPage } from "./pages/CanonDetailPage";
+import { ExplorePage } from "./pages/ExplorePage";
+import { PublicCanonPage } from "./pages/PublicCanonPage";
+import { PublicProjectPage } from "./pages/PublicProjectPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
@@ -41,6 +44,9 @@ export default function App() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/canons" element={<CanonsPage />} />
         <Route path="/canons/:canonId" element={<CanonDetailPage />} />
+        <Route path="/explore" element={<ExplorePage />} />
+        <Route path="/explore/projects/:projectId" element={<PublicProjectPage />} />
+        <Route path="/explore/canons/:canonId" element={<PublicCanonPage />} />
         <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/docs" element={<DocsPage />} />

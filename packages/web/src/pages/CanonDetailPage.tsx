@@ -1,14 +1,16 @@
-import { ArrowLeft, Layers, Lock, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Layers, Plus, Save, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { CanonConstraintMode, CanonDetailResponse, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { StatusBadge } from "../components/StatusBadge";
+import { VisibilityToggle } from "../components/VisibilityToggle";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { ConstraintModeSelect, inputCls, primaryBtn } from "./CanonsPage";
+import { publicCanonPath } from "./ExplorePage";
 import { workspacePath } from "./ProjectWorkspacePage";
 
 function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSaved: () => void }) {
@@ -193,9 +195,29 @@ export function CanonDetailPage() {
             </h1>
             <span className="font-mono text-xs text-slate-400">{c.canonId}</span>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">{t("canon.revision", { n: c.headRevision })}</span>
-            <span className="flex items-center gap-1 text-xs text-slate-500">
-              <Lock size={12} /> {t("canon.private")}
-            </span>
+            <VisibilityToggle
+              visibility={c.visibility}
+              confirmText={t("vis.confirmCanon")}
+              onChange={async (v) => {
+                await api.setCanonVisibility(c.canonId, { visibility: v });
+                reload();
+              }}
+            />
+            {c.visibility === "public" && (
+              <>
+                <Link to={publicCanonPath(c.canonId)} className="text-xs text-emerald-700 hover:underline coarse:py-2">
+                  {t("vis.publicPage")}
+                </Link>
+                <label className="flex items-center gap-1.5 text-xs text-slate-600 coarse:min-h-11">
+                  <input
+                    type="checkbox"
+                    checked={c.acceptPullRequests !== false}
+                    onChange={(e) => void api.setCanonVisibility(c.canonId, { acceptPullRequests: e.target.checked }).then(reload)}
+                  />
+                  {t("canon.acceptPrLabel")}
+                </label>
+              </>
+            )}
             <button
               type="button"
               onClick={() => void remove()}

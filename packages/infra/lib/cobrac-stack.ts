@@ -129,6 +129,12 @@ export class CobracAgentsStack extends Stack {
         },
       ],
     });
+    // Public listing (kind = project | canon, while public) and clone counters (kind = clones); new table
+    const catalog = new dynamodb.TableV2(this, "Catalog", {
+      ...tableDefaults,
+      partitionKey: { name: "kind", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "id", type: dynamodb.AttributeType.STRING },
+    });
     const wsConnections = new dynamodb.TableV2(this, "WsConnections", {
       ...tableDefaults,
       removalPolicy: RemovalPolicy.DESTROY,
@@ -236,6 +242,7 @@ export class CobracAgentsStack extends Stack {
       TABLE_MESSAGES: messages.tableName,
       TABLE_WS_CONNECTIONS: wsConnections.tableName,
       TABLE_CANONS: canons.tableName,
+      TABLE_CATALOG: catalog.tableName,
       ARTIFACTS_BUCKET: artifacts.bucketName,
       JOB_QUEUE_URL: jobQueue.queueUrl,
       KMS_KEY_ID: key.keyId,
@@ -301,9 +308,12 @@ export class CobracAgentsStack extends Stack {
       for (const f of [apiFn, dispatcherFn, wsConnectFn, wsDisconnectFn, wsDefaultFn, broadcasterFn, janitorFn]) t.grantReadWriteData(f);
     }
     canons.grantReadWriteData(apiFn);
+    catalog.grantReadWriteData(apiFn);
     artifacts.grantRead(apiFn);
     // user-arranged graph layouts are written by the API (graph/*.layout.json only)
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");
+    // cloning a public project writes the copy under the cloner's own prefix (checked in the API)
+    artifacts.grantPut(apiFn, "users/*");
     artifacts.grantPut(apiFn, "users/*/output/*.template-v2-2.bra.xlsx");
     artifacts.grantDelete(apiFn, "users/*/graph/*.layout.json");
     // reference materials: presigned browser uploads to staging/, moved into the project on create

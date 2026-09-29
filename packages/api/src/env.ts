@@ -14,6 +14,7 @@ export const env = {
     messages: get("TABLE_MESSAGES", ""),
     wsConnections: get("TABLE_WS_CONNECTIONS", ""),
     canons: get("TABLE_CANONS", ""),
+    catalog: get("TABLE_CATALOG", ""),
   },
   artifactsBucket: get("ARTIFACTS_BUCKET", ""),
   jobQueueUrl: get("JOB_QUEUE_URL", ""),

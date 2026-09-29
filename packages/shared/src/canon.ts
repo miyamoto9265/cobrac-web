@@ -25,8 +25,10 @@ export interface CanonRecord {
   /** Granularity policy in prose (e.g. "neocortex: area × projection class"); given to the agent */
   policy: string;
   constraintMode: CanonConstraintMode;
-  /** Only "private" until publishing exists */
   visibility: CanonVisibility;
+  /** Public Canons accept pull requests from other users' Canons unless this is false (absent = true) */
+  acceptPullRequests?: boolean;
+  publishedAt?: string | null;
   /** Last approved revision; 0 = empty Canon */
   headRevision: number;
   memberCount: number;

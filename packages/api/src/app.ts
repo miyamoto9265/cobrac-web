@@ -9,6 +9,8 @@ import type {
   CanonDetailResponse,
   CanonMemberSummary,
   CanonRecord,
+  CatalogItem,
+  CloneProjectResponse,
   CreateArticleRequest,
   CreateCanonRequest,
   CreateProjectRequest,
@@ -27,7 +29,12 @@ import type {
   RetryRequest,
   TokenUsage,
   UiLocale,
+  PublicCanonDetail,
+  PublicCanonSummary,
+  PublicProjectDetail,
+  PublicProjectSummary,
   UpdateCanonRequest,
+  Visibility,
   UpdateProjectRequest,
   UpdateProjectResponse,
   UsageSummary,
@@ -66,10 +73,18 @@ import {
   braDownloadFileName,
   buildTemplateXlsx,
   filterCodexModels,
+  VISIBILITIES,
+  cloneName,
+  cloneTargetKey,
   formatCanonId,
   formatProjectId,
   isArticleStale,
   isCanonDeleted,
+  isCloneTextFile,
+  isPublicReadableKey,
+  isPublishableProjectId,
+  parseProjectId,
+  rewriteProjectId,
   isCanonId,
   isProjectIdLike,
   isUiLocale,
@@ -88,10 +103,12 @@ import {
 import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
+import { getCatalogItem, getCloneCount, incrementCloneCount, listCatalog, putCatalogItem, deleteCatalogItem } from "./lib/catalog.js";
 import {
   deleteObject,
   encryptApiKey,
   enqueueRun,
+  getObjectBytes,
   getObjectText,
   headStaging,
   listArtifacts,
@@ -484,7 +501,8 @@ app.get("/projects/:id", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   const jobs = await listJobsForProject(p.projectId, u.userId);
-  return c.json({ ...p, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
+  const cloneCount = p.visibility === "public" || p.publishedAt ? await getCloneCount(p.projectId) : 0;
+  return c.json({ ...p, cloneCount, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
 });
 
 app.put("/projects/:id", async (c) => {
@@ -516,6 +534,7 @@ app.delete("/projects/:id", async (c) => {
     throw e;
   }
   if (p.canonId) await removeCanonMember(p.canonId, u.userId, p.projectId).catch((e) => console.warn("[canon] release on delete failed", e));
+  if (p.visibility === "public") await deleteCatalogItem("project", p.projectId);
   const res: DeleteProjectResponse = { projectId: p.projectId, deletedAt };
   return c.json(res);
 });
@@ -987,6 +1006,7 @@ app.delete("/canons/:id", async (c) => {
   const canon = await loadCanon(u, c.req.param("id"), { write: true });
   try {
     const deletedAt = await markCanonDeleted(canon.canonId, u.userId);
+    if (canon.visibility === "public") await deleteCatalogItem("canon", canon.canonId);
     return c.json({ canonId: canon.canonId, deletedAt });
   } catch (e) {
     if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw notFound();
@@ -1021,6 +1041,213 @@ app.get("/canons/:id/revisions", async (c) => {
   const u = c.get("user");
   const canon = await loadCanon(u, c.req.param("id"));
   return c.json({ items: await listCanonRevisions(canon.canonId) });
+});
+
+// ---------------------------------------------------------------------------
+// Publishing and cloning. Public projects and Canons are listed in the Catalog table; every signed-in user may
+// read them and clone public projects. Nothing here writes to another user's project or Canon.
+// ---------------------------------------------------------------------------
+
+const ownerKeyOf = (id: string) => parseProjectId(id)?.userKey ?? id.replace(/-c\d+$/, "");
+
+function publicProjectSummary(p: ProjectRecord, cloneCount: number): PublicProjectSummary {
+  return {
+    projectId: p.projectId,
+    name: projectDisplayName(p),
+    roi: p.roi,
+    tlf: p.tlf,
+    contributor: p.contributor,
+    ownerUserKey: ownerKeyOf(p.projectId),
+    publishedAt: p.publishedAt ?? p.updatedAt,
+    updatedAt: p.updatedAt,
+    cloneCount,
+  };
+}
+
+function publicCanonSummary(canon: CanonRecord): PublicCanonSummary {
+  return {
+    canonId: canon.canonId,
+    name: canon.name,
+    policy: canon.policy,
+    headRevision: canon.headRevision,
+    memberCount: canon.memberCount,
+    ownerUserKey: ownerKeyOf(canon.canonId),
+    publishedAt: canon.publishedAt ?? canon.updatedAt,
+    updatedAt: canon.updatedAt,
+    acceptPullRequests: canon.acceptPullRequests !== false,
+  };
+}
+
+const isPublicProject = (p: ProjectRecord | null): p is ProjectRecord => !!p && p.visibility === "public" && !isProjectDeleted(p);
+
+/** A public, not-deleted project by ID (through its Catalog row); 404 otherwise. */
+async function loadPublicProject(projectId: string): Promise<ProjectRecord> {
+  if (!isPublishableProjectId(projectId)) throw notFound();
+  const row = await getCatalogItem("project", projectId);
+  const p = row ? await getProject(row.ownerUserId, projectId) : null;
+  if (!isPublicProject(p)) throw notFound();
+  return p;
+}
+
+async function loadPublicCanon(canonId: string): Promise<CanonRecord> {
+  if (!isCanonId(canonId)) throw notFound();
+  const canon = await getCanon(canonId);
+  if (!canon || isCanonDeleted(canon) || canon.visibility !== "public") throw notFound();
+  return canon;
+}
+
+function readVisibility(v: unknown): Visibility {
+  if (!VISIBILITIES.includes(v as Visibility)) throw bad("visibility は private か public です");
+  return v as Visibility;
+}
+
+app.put("/projects/:id/visibility", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const visibility = readVisibility(((await c.req.json()) as { visibility?: unknown }).visibility);
+  const now = nowIso();
+  if (visibility === "public") {
+    if (!isPublishableProjectId(p.projectId)) throw bad("旧形式の ID のプロジェクトは公開できません");
+    if (!p.hasArtifacts) throw bad("成果物ができてから公開できます");
+    const publishedAt = p.visibility === "public" && p.publishedAt ? p.publishedAt : now;
+    await updateProject(u.userId, p.projectId, { visibility, publishedAt });
+    const row: CatalogItem = { kind: "project", id: p.projectId, ownerUserId: u.userId, name: projectDisplayName(p), publishedAt, updatedAt: now };
+    await putCatalogItem(row);
+    return c.json({ visibility, publishedAt, cloneCount: await getCloneCount(p.projectId) });
+  }
+  await updateProject(u.userId, p.projectId, { visibility, publishedAt: null });
+  await deleteCatalogItem("project", p.projectId);
+  return c.json({ visibility, publishedAt: null, cloneCount: await getCloneCount(p.projectId) });
+});
+
+app.put("/canons/:id/visibility", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const body = (await c.req.json()) as { visibility?: unknown; acceptPullRequests?: unknown };
+  const visibility = body.visibility === undefined ? canon.visibility : readVisibility(body.visibility);
+  if (body.acceptPullRequests !== undefined && typeof body.acceptPullRequests !== "boolean") throw bad("acceptPullRequests は true か false です");
+  const acceptPullRequests = body.acceptPullRequests === undefined ? canon.acceptPullRequests !== false : (body.acceptPullRequests as boolean);
+  const now = nowIso();
+  const publishedAt = visibility === "public" ? (canon.visibility === "public" && canon.publishedAt ? canon.publishedAt : now) : null;
+  await updateCanon(canon.canonId, { visibility, acceptPullRequests, publishedAt });
+  if (visibility === "public") await putCatalogItem({ kind: "canon", id: canon.canonId, ownerUserId: u.userId, name: canon.name, publishedAt: publishedAt!, updatedAt: now });
+  else await deleteCatalogItem("canon", canon.canonId);
+  return c.json({ ...canon, visibility, acceptPullRequests, publishedAt, updatedAt: now });
+});
+
+app.get("/public/projects", async (c) => {
+  const q = c.req.query("q")?.toLowerCase();
+  const out: PublicProjectSummary[] = [];
+  for (const row of await listCatalog("project")) {
+    const p = await getProject(row.ownerUserId, row.id);
+    if (!isPublicProject(p)) continue;
+    const s = publicProjectSummary(p, 0);
+    if (q && ![s.name, s.projectId, s.roi, s.tlf, s.contributor].some((x) => (x ?? "").toLowerCase().includes(q))) continue;
+    out.push(s);
+  }
+  out.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+  for (const s of out) s.cloneCount = await getCloneCount(s.projectId);
+  return c.json({ items: out });
+});
+
+app.get("/public/projects/:id", async (c) => {
+  const p = await loadPublicProject(c.req.param("id"));
+  const files = (await listArtifacts(p.userId, p.projectId)).map((a) => a.key).filter((k) => isPublicReadableKey(k, p.projectId));
+  const res: PublicProjectDetail = {
+    ...publicProjectSummary(p, await getCloneCount(p.projectId)),
+    revision: p.revision ?? 0,
+    completedAt: p.completedAt,
+    clonedFrom: p.clonedFrom ?? null,
+    files,
+  };
+  return c.json(res);
+});
+
+app.get("/public/projects/:id/text", async (c) => {
+  const p = await loadPublicProject(c.req.param("id"));
+  const key = c.req.query("key") ?? "";
+  if (!isPublicReadableKey(key, p.projectId)) throw bad("invalid key");
+  const text = await getObjectText(p.userId, p.projectId, key);
+  if (text === null) throw notFound();
+  return c.text(text);
+});
+
+const CONTENT_TYPES: Record<string, string> = { json: "application/json", jsonl: "application/x-ndjson", csv: "text/csv; charset=utf-8", md: "text/markdown; charset=utf-8" };
+
+/** Copies a public project into a new private project of the caller. Reads the original only. */
+app.post("/public/projects/:id/clone", async (c) => {
+  const u = c.get("user");
+  const src = await loadPublicProject(c.req.param("id"));
+  const userKey = u.userKey ?? (await assignUserKey(u.userId));
+  const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
+  let copied = 0;
+  for (const a of await listArtifacts(src.userId, src.projectId)) {
+    const target = cloneTargetKey(a.key, src.projectId, projectId);
+    if (!target) continue;
+    if (isCloneTextFile(a.key)) {
+      const text = await getObjectText(src.userId, src.projectId, a.key);
+      if (text === null) continue;
+      const ext = a.key.split(".").pop()!.toLowerCase();
+      await putObjectText(u.userId, projectId, target, rewriteProjectId(text, src.projectId, projectId), CONTENT_TYPES[ext] ?? "text/plain; charset=utf-8");
+    } else {
+      const bytes = await getObjectBytes(src.userId, src.projectId, a.key);
+      if (bytes === null) continue;
+      await putObjectBytes(u.userId, projectId, target, bytes, "application/octet-stream");
+    }
+    copied++;
+  }
+  const now = nowIso();
+  const project: ProjectRecord = {
+    userId: u.userId,
+    projectId,
+    name: cloneName(projectDisplayName(src)),
+    nameSource: "user",
+    revision: 0,
+    roi: src.roi,
+    tlf: src.tlf,
+    contributor: src.contributor,
+    model: u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL,
+    reasoningEffort: u.defaultReasoningEffort ?? null,
+    status: "COMPLETED",
+    currentStep: "CSV",
+    // the BRA xlsx carries the original Project ID and is not copied; a follow-up rebuilds it
+    stepStates: { ...src.stepStates, XLSX: "pending" },
+    activeJobId: null,
+    codexThreadId: null,
+    pendingQuestion: null,
+    hasArtifacts: true,
+    errorMessage: null,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: now,
+    clonedFrom: { projectId: src.projectId, revision: src.revision ?? 0, ownerUserKey: ownerKeyOf(src.projectId), name: projectDisplayName(src), clonedAt: now },
+  };
+  await putProject(project, true);
+  await incrementCloneCount(src.projectId);
+  const res: CloneProjectResponse = { projectId, copied };
+  return c.json(res, 201);
+});
+
+app.get("/public/canons", async (c) => {
+  const out: PublicCanonSummary[] = [];
+  for (const row of await listCatalog("canon")) {
+    const canon = await getCanon(row.id);
+    if (!canon || isCanonDeleted(canon) || canon.visibility !== "public") continue;
+    out.push(publicCanonSummary(canon));
+  }
+  out.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
+  return c.json({ items: out });
+});
+
+app.get("/public/canons/:id", async (c) => {
+  const canon = await loadPublicCanon(c.req.param("id"));
+  const publicMembers: PublicCanonDetail["publicMembers"] = [];
+  for (const m of await listCanonMembers(canon.canonId)) {
+    const p = await getProject(canon.ownerUserId, m.projectId);
+    if (isPublicProject(p) && p.canonId === canon.canonId) publicMembers.push({ projectId: p.projectId, name: projectDisplayName(p), roi: p.roi, tlf: p.tlf });
+  }
+  const res: PublicCanonDetail = { ...publicCanonSummary(canon), description: canon.description, publicMembers };
+  return c.json(res);
 });
 
 // ---------------------------------------------------------------------------
