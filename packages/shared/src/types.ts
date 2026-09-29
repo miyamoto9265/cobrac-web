@@ -112,7 +112,19 @@ export interface ProjectRecord {
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
+  /** Soft delete: set once by the owner. The item, jobs, messages and S3 objects are kept; the owner's API treats it as not found */
+  deletedAt?: string | null;
+  /** userId of whoever deleted the project */
+  deletedBy?: string | null;
 }
+
+/** Statuses with a job in flight; a project in one of these cannot be deleted until it is stopped. */
+export const ACTIVE_PROJECT_STATUSES: readonly ProjectStatus[] = ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"];
+
+export const isProjectDeleted = (p: Pick<ProjectRecord, "deletedAt">): boolean => !!p.deletedAt;
+
+export const canDeleteProject = (p: Pick<ProjectRecord, "status" | "deletedAt">): boolean =>
+  !isProjectDeleted(p) && !ACTIVE_PROJECT_STATUSES.includes(p.status);
 
 export type JobType = "initial" | "followup";
 
@@ -314,6 +326,11 @@ export interface UpdateProjectResponse {
   duplicates: { projectId: string; name: string }[];
 }
 
+export interface DeleteProjectResponse {
+  projectId: string;
+  deletedAt: string;
+}
+
 export interface AnswerRequest {
   answer: string;
   locale?: UiLocale | null;
@@ -415,7 +432,8 @@ export interface UsageSummary {
   /** Number of projects whose cost could not be estimated (unpriced model) */
   unpricedProjects: number;
   byModel: { model: string; usage: TokenUsage; costUsd: number | null; jobs: number }[];
-  byProject: { projectId: string; name?: string; usage: TokenUsage; costUsd: number | null; models: string[] }[];
+  /** Deleted projects stay in the totals (their cost was spent) and are flagged here */
+  byProject: { projectId: string; name?: string; usage: TokenUsage; costUsd: number | null; models: string[]; deleted?: boolean }[];
   pricingAsOf: string;
 }
 

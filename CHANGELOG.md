@@ -17,6 +17,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - FRG UC nodes show the circuit name from the HCD; FRG groups can be collapsed and expanded from a button on the node, and the details show the path from the TLF
 - Style editing (node fill / border / size, edge line / colour / arrows / bends) is available on phones and tablets as a bottom sheet
 - A Tables tab shows the raw tabular artifacts — `uc.json`, `connections.json`, `references.json`, `frg.json` and the BRA CSVs — as tables you can sort by column, filter by words, expand row by row and download. It is available while a job is still running, as soon as the files exist
+- Projects can be deleted from the project list and from the project screen header, after a confirmation dialog. A deleted project disappears from the list and the sidebar and can no longer be opened, followed up or downloaded. Nothing is erased: the data stays stored, the project's cost stays in the usage totals, and admins see it marked as deleted in the admin page
+- A project whose job is queued, running, waiting for an answer or finalizing cannot be deleted; its delete button is disabled until the job is stopped
 
 ### Changed
 - The agent's chat replies (turn summaries and questions) are written in the language selected in the web app (English, Japanese, Chinese, Korean, German, French, Spanish, Portuguese or Russian), whatever language the ROI/TLF or instructions are typed in. The language of the screen at the time of creating, answering, sending a follow-up or retrying is used; files such as the report, the decision log and the xlsx stay in English

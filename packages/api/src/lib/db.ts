@@ -9,7 +9,7 @@ import {
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { JobRecord, MessageRecord, MessageRole, MessageType, ProjectRecord, UserRecord, WorkflowStep } from "@cobrac/shared";
-import { generateUserKey, newId, nowIso } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, generateUserKey, isProjectDeleted, newId, nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ownedJobs } from "./ownership.js";
 
@@ -181,7 +181,27 @@ export async function listUserProjects(userId: string): Promise<ProjectRecord[]>
 }
 
 export async function findProjectByLegacyId(userId: string, legacyId: string): Promise<ProjectRecord | null> {
-  return (await listUserProjects(userId)).find((p) => p.legacyId === legacyId) ?? null;
+  return (await listUserProjects(userId)).find((p) => p.legacyId === legacyId && !isProjectDeleted(p)) ?? null;
+}
+
+/**
+ * Soft delete: sets deletedAt / deletedBy only. Fails with ConditionalCheckFailedException when the project
+ * is already deleted or a job started in the meantime (status is re-checked atomically).
+ */
+export async function markProjectDeleted(userId: string, projectId: string, deletedBy: string): Promise<string> {
+  const now = nowIso();
+  const statuses = Object.fromEntries(ACTIVE_PROJECT_STATUSES.map((s, i) => [`:s${i}`, s]));
+  await ddb.send(
+    new UpdateCommand({
+      TableName: env.tables.projects,
+      Key: { userId, projectId },
+      UpdateExpression: "SET deletedAt = :t, deletedBy = :by, updatedAt = :t",
+      ConditionExpression: ["attribute_exists(projectId)", "attribute_not_exists(deletedAt)", ...Object.keys(statuses).map((k) => `#s <> ${k}`)].join(" AND "),
+      ExpressionAttributeNames: { "#s": "status" },
+      ExpressionAttributeValues: { ":t": now, ":by": deletedBy, ...statuses },
+    }),
+  );
+  return now;
 }
 
 export async function listAllProjects(): Promise<ProjectRecord[]> {

@@ -5,6 +5,7 @@ import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   AnswerRequest,
   CreateProjectRequest,
+  DeleteProjectResponse,
   FollowupRequest,
   JobRecord,
   ProjectRecord,
@@ -23,6 +24,8 @@ import type {
 import {
   ARROW_HEADS,
   DEFAULT_CODEX_MODEL,
+  canDeleteProject,
+  isProjectDeleted,
   EDGE_LINE_TYPES,
   EMPTY_USAGE,
   PRICING,
@@ -55,6 +58,7 @@ import {
   listProjects,
   listUserProjects,
   listUsers,
+  markProjectDeleted,
   nextProjectSeq,
   putJob,
   putMessage,
@@ -172,7 +176,14 @@ app.get("/users/me/usage", async (c) => {
       cost += p.costUsd;
       priced = true;
     }
-    summary.byProject.push({ projectId: p.projectId, name: projectDisplayName(p), usage: p.usage ?? EMPTY_USAGE, costUsd: p.costUsd ?? null, models: [...models] });
+    summary.byProject.push({
+      projectId: p.projectId,
+      name: projectDisplayName(p),
+      usage: p.usage ?? EMPTY_USAGE,
+      costUsd: p.costUsd ?? null,
+      models: [...models],
+      ...(isProjectDeleted(p) ? { deleted: true } : {}),
+    });
   }
   summary.costUsd = priced ? Math.round(cost * 1_000_000) / 1_000_000 : null;
   summary.byModel = [...byModel.entries()]
@@ -217,6 +228,7 @@ app.get("/projects", async (c) => {
   const status = c.req.query("status");
   const { items, nextCursor } = await listProjects(u.userId, Number(c.req.query("limit") ?? 100), c.req.query("cursor"));
   const filtered = items.filter((p) => {
+    if (isProjectDeleted(p)) return false;
     if (status && p.status !== status) return false;
     if (q && ![p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((s) => (s ?? "").toLowerCase().includes(q))) return false;
     return true;
@@ -326,14 +338,16 @@ app.get("/projects/resolve/:id", async (c) => {
   const u = c.get("user");
   const id = c.req.param("id");
   if (!isProjectIdLike(id)) throw notFound();
-  const p = (await getProject(u.userId, id)) ?? (await findProjectByLegacyId(u.userId, id));
+  const direct = await getProject(u.userId, id);
+  const p = direct && !isProjectDeleted(direct) ? direct : await findProjectByLegacyId(u.userId, id);
   if (!p) throw notFound();
   return c.json({ projectId: p.projectId });
 });
 
+/** The caller's own, not-deleted project; anything else is 404 so other users' and deleted IDs look the same. */
 async function loadOwnProject(u: UserRecord, projectId: string): Promise<ProjectRecord> {
   const p = await getProject(u.userId, projectId);
-  if (!p) throw notFound();
+  if (!p || isProjectDeleted(p)) throw notFound();
   return p;
 }
 
@@ -354,9 +368,25 @@ app.put("/projects/:id", async (c) => {
   await updateProject(u.userId, p.projectId, { name: n.name, nameSource: "user" });
   const key = projectNameKey(n.name);
   const duplicates = (await listUserProjects(u.userId))
-    .filter((o) => o.projectId !== p.projectId && projectNameKey(projectDisplayName(o)) === key)
+    .filter((o) => o.projectId !== p.projectId && !isProjectDeleted(o) && projectNameKey(projectDisplayName(o)) === key)
     .map((o) => ({ projectId: o.projectId, name: projectDisplayName(o) }));
   const res: UpdateProjectResponse = { project: { ...p, name: n.name, nameSource: "user", updatedAt: nowIso() }, duplicates };
+  return c.json(res);
+});
+
+/** Soft delete (owner only). Nothing is removed from DynamoDB or S3; running projects must be stopped first. */
+app.delete("/projects/:id", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  if (!canDeleteProject(p)) throw new HTTPException(409, { message: "実行中のプロジェクトは削除できません。先に停止してください" });
+  let deletedAt: string;
+  try {
+    deletedAt = await markProjectDeleted(u.userId, p.projectId, u.userId);
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "プロジェクトの状態が変わったため削除できませんでした。再読み込みしてください" });
+    throw e;
+  }
+  const res: DeleteProjectResponse = { projectId: p.projectId, deletedAt };
   return c.json(res);
 });
 

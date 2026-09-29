@@ -385,4 +385,15 @@ export const es: Record<MessageKey, string> = {
   "node.resetSize": "Restablecer tamaño",
   "node.reset": "Restablecer predeterminado",
   "node.resizeHelp": "Cambia el tamaño del nodo seleccionado con los controladores de las esquinas y los bordes.",
+
+  "del.title": "¿Eliminar este proyecto?",
+  "del.body": "Desaparece de tu lista de proyectos y ya no se puede abrir, continuar ni descargar. No se borra nada: los datos siguen almacenados y los administradores pueden verlos.",
+  "del.confirm": "Eliminar",
+  "del.cancel": "Cancelar",
+  "del.blocked": "Detén el trabajo en curso antes de eliminar",
+  "del.failed": "No se pudo eliminar: {error}",
+  "del.failedNamed": "No se pudo eliminar «{name}»: {error}",
+  "del.deleted": "Eliminado",
+  "del.deletedAt": "Eliminado el {date}",
+  "del.adminNote": "incluye {n} eliminado(s)",
 };

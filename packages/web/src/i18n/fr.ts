@@ -385,4 +385,15 @@ export const fr: Record<MessageKey, string> = {
   "node.resetSize": "Réinitialiser la taille",
   "node.reset": "Réinitialiser par défaut",
   "node.resizeHelp": "Redimensionnez le nœud sélectionné avec les poignées des coins et des bords.",
+
+  "del.title": "Supprimer ce projet ?",
+  "del.body": "Il disparaît de votre liste de projets et ne peut plus être ouvert, relancé ni téléchargé. Rien n’est effacé : les données restent stockées et les administrateurs peuvent toujours les voir.",
+  "del.confirm": "Supprimer",
+  "del.cancel": "Annuler",
+  "del.blocked": "Arrêtez la tâche en cours avant de supprimer",
+  "del.failed": "Suppression impossible : {error}",
+  "del.failedNamed": "Impossible de supprimer « {name} » : {error}",
+  "del.deleted": "Supprimé",
+  "del.deletedAt": "Supprimé le {date}",
+  "del.adminNote": "dont {n} supprimé(s)",
 };

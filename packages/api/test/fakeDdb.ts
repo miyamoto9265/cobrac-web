@@ -60,6 +60,8 @@ export class FakeDdb {
       if (m) return item === undefined || item[this.attr(m[1], i)] === undefined;
       m = /^(\S+) = (:\w+)$/.exec(t);
       if (m) return item !== undefined && item[this.attr(m[1], i)] === this.val(m[2], i);
+      m = /^(\S+) <> (:\w+)$/.exec(t);
+      if (m) return item !== undefined && item[this.attr(m[1], i)] !== this.val(m[2], i);
       throw new Error(`unsupported condition ${t}`);
     });
     if (!ok) throw new ConditionalCheckFailedException("conditional check failed");

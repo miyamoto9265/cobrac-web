@@ -385,4 +385,15 @@ export const ja: Record<MessageKey, string> = {
   "node.resetSize": "サイズを既定に",
   "node.reset": "既定に戻す",
   "node.resizeHelp": "選択中のノードは四隅・辺のハンドルでサイズ変更できます。",
+
+  "del.title": "このプロジェクトを削除しますか？",
+  "del.body": "プロジェクト一覧から消え、開く・フォローアップ・ダウンロードができなくなります。データは消去されずに保存され、管理者は引き続き参照できます。",
+  "del.confirm": "削除する",
+  "del.cancel": "キャンセル",
+  "del.blocked": "実行中は削除できません。先に停止してください",
+  "del.failed": "削除できませんでした: {error}",
+  "del.failedNamed": "「{name}」を削除できませんでした: {error}",
+  "del.deleted": "削除済み",
+  "del.deletedAt": "{date} に削除",
+  "del.adminNote": "うち削除済み {n} 件",
 };

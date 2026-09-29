@@ -385,4 +385,15 @@ export const zh: Record<MessageKey, string> = {
   "node.resetSize": "重置大小",
   "node.reset": "恢复默认",
   "node.resizeHelp": "可用四角和边上的手柄调整所选节点的大小。",
+
+  "del.title": "要删除此项目吗？",
+  "del.body": "该项目将从项目列表中消失，无法再打开、追加指示或下载。数据不会被清除，管理员仍可查看。",
+  "del.confirm": "删除",
+  "del.cancel": "取消",
+  "del.blocked": "运行中无法删除，请先停止",
+  "del.failed": "无法删除：{error}",
+  "del.failedNamed": "无法删除“{name}”：{error}",
+  "del.deleted": "已删除",
+  "del.deletedAt": "删除于 {date}",
+  "del.adminNote": "其中已删除 {n} 个",
 };

@@ -385,4 +385,15 @@ export const zhTw: Record<MessageKey, string> = {
   "node.resetSize": "重設大小",
   "node.reset": "還原為預設",
   "node.resizeHelp": "可用四角與邊線上的控制點調整所選節點的大小。",
+
+  "del.title": "要刪除此專案嗎？",
+  "del.body": "該專案將從專案列表中消失，無法再開啟、追加指示或下載。資料不會被清除，管理員仍可查看。",
+  "del.confirm": "刪除",
+  "del.cancel": "取消",
+  "del.blocked": "執行中無法刪除，請先停止",
+  "del.failed": "無法刪除：{error}",
+  "del.failedNamed": "無法刪除「{name}」：{error}",
+  "del.deleted": "已刪除",
+  "del.deletedAt": "刪除於 {date}",
+  "del.adminNote": "其中已刪除 {n} 個",
 };

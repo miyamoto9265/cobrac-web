@@ -83,7 +83,10 @@ export function AdminPage() {
         </table>
       </div>
 
-      <h2 className="mb-2 text-sm font-semibold">{t("admin.allProjects", { n: projects.length })}</h2>
+      <h2 className="mb-2 text-sm font-semibold">
+        {t("admin.allProjects", { n: projects.length })}
+        {projects.some((p) => p.deletedAt) && <span className="ml-2 font-normal text-slate-500">{t("del.adminNote", { n: projects.filter((p) => p.deletedAt).length })}</span>}
+      </h2>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table className="w-full whitespace-nowrap text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
@@ -99,9 +102,14 @@ export function AdminPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {projects.map((p) => (
-              <tr key={`${p.userId}/${p.projectId}`}>
+              <tr key={`${p.userId}/${p.projectId}`} className={p.deletedAt ? "bg-slate-50 text-slate-400" : undefined}>
                 <td className="px-4 py-2 text-xs">
-                  {projectDisplayName(p)}
+                  <span className={p.deletedAt ? "line-through" : undefined}>{projectDisplayName(p)}</span>
+                  {p.deletedAt && (
+                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600" title={t("del.deletedAt", { date: fmtDate(p.deletedAt, locale) })}>
+                      {t("del.deleted")}
+                    </span>
+                  )}
                   <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
                 </td>
                 <td className="px-4 py-2 text-xs">{emailOf(p.userId)}</td>

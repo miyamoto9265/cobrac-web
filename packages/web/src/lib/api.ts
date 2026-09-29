@@ -1,6 +1,7 @@
 import type {
   ArtifactInfo,
   CreateProjectRequest,
+  DeleteProjectResponse,
   FrgGraph,
   HcdGraph,
   JobRecord,
@@ -74,6 +75,7 @@ export const api = {
     request<{ name: string }>("GET", `/projects/propose-name?roi=${encodeURIComponent(roi)}&tlf=${encodeURIComponent(tlf)}`),
   resolveProject: (id: string) => request<{ projectId: string }>("GET", `/projects/resolve/${encodeURIComponent(id)}`),
   renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
+  deleteProject: (id: string) => request<DeleteProjectResponse>("DELETE", `/projects/${encodeURIComponent(id)}`),
   getProject: (id: string) => request<ProjectRecord & { jobs: JobRecord[] }>("GET", `/projects/${encodeURIComponent(id)}`),
   listMessages: (id: string, cursor?: string) =>
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),

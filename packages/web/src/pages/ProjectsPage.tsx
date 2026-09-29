@@ -3,11 +3,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared";
 import { formatTokens, formatUsd, projectDisplayName } from "@cobrac/shared";
+import { DeleteProjectButton } from "../components/DeleteProject";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
+import { notifyProjectsChanged, removeOptimistically } from "../lib/projectList";
 
 const STATUSES: ProjectStatus[] = ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING", "COMPLETED", "FAILED", "CANCELLED"];
 
@@ -57,7 +59,7 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
   );
 }
 
-function ProjectActions({ p, onDownload }: { p: ProjectRecord; onDownload: () => void }) {
+function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownload: () => void; onDelete: () => void }) {
   const t = useT();
   const cls = "flex items-center justify-center rounded p-1.5 text-slate-500 hover:bg-slate-100 coarse:h-11 coarse:w-11";
   return (
@@ -78,6 +80,9 @@ function ProjectActions({ p, onDownload }: { p: ProjectRecord; onDownload: () =>
           </button>
         </>
       )}
+      <span className="ml-auto">
+        <DeleteProjectButton project={p} variant="icon" onConfirm={onDelete} />
+      </span>
     </>
   );
 }
@@ -104,6 +109,19 @@ export function ProjectsPage() {
   const downloadXlsx = async (p: ProjectRecord) => {
     const { url } = await api.downloadUrl(p.projectId, `output/${p.projectId}.bra.xlsx`);
     window.location.href = url;
+  };
+
+  const deleteProject = (p: ProjectRecord) => {
+    const { next, restore } = removeOptimistically(items, p.projectId);
+    setItems(next);
+    setErr(null);
+    api
+      .deleteProject(p.projectId)
+      .then(() => notifyProjectsChanged())
+      .catch((e) => {
+        setItems(restore);
+        setErr(t("del.failedNamed", { name: projectDisplayName(p), error: e instanceof Error ? e.message : String(e) }));
+      });
   };
 
   return (
@@ -157,7 +175,7 @@ export function ProjectsPage() {
               <span>{fmtDate(p.updatedAt, locale)}</span>
             </div>
             <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2">
-              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} />
+              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
             </div>
           </li>
         ))}
@@ -213,7 +231,7 @@ export function ProjectsPage() {
                 <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
                 <td className="px-2 py-2">
                   <div className="flex items-center justify-end gap-1">
-                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} />
+                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
                   </div>
                 </td>
               </tr>
