@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockingConflicts, canonFromCanon, canonFromProject, diffCanon, emptyCanonSnapshot, mergeCanon, type CanonIncoming, type CanonSnapshot } from "../src/index.js";
+import { blockingConflicts, canonFromCanon, composeSeeds, canonFromProject, diffCanon, emptyCanonSnapshot, mergeCanon, type CanonIncoming, type CanonSnapshot } from "../src/index.js";
 
 interface Uc {
   id: string;
@@ -239,5 +239,28 @@ describe("canonFromCanon", () => {
     expect(d.impacts.map((i) => i.projectId)).toEqual(["u7m2q9xa-1"]);
     const next = mergeCanon(target, inc, d, { [d.conflicts.find((c) => c.code === "C1")!.id]: "incoming" }, 2, "t");
     expect(next.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-1", "u7m2q9xa-3"]);
+  });
+});
+
+describe("composeSeeds", () => {
+  it("merges seeds in priority order and keeps a conflicting one as pending unless it is settled", () => {
+    const pending = composeSeeds("c", "t", [fine(), coarse()], {}, {});
+    expect(pending.steps.map((s) => [s.projectId, s.outcome])).toEqual([
+      ["u7m2q9xa-3", "merged"],
+      ["u7m2q9xa-1", "pending"],
+    ]);
+    expect(pending.snapshot.revision).toBe(1);
+    expect(pending.steps[1].blocking.map((c) => c.code)).toContain("C1");
+
+    const excluded = composeSeeds("c", "t", [fine(), coarse()], {}, { "u7m2q9xa-1": "exclude" });
+    expect(excluded.steps[1].outcome).toBe("excluded");
+
+    // the earlier (fine) seed wins: the coarse one joins, its connection to the Collection is flagged
+    const c1 = pending.steps[1].blocking.find((c) => c.code === "C1")!;
+    const won = composeSeeds("c", "t", [fine(), coarse()], { [c1.id]: "canon" }, {});
+    expect(won.steps[1].outcome).toBe("merged");
+    expect(won.snapshot.circuits.find((c) => c.key === "bna:29")!.status).toBe("collection");
+    expect(won.snapshot.connections.find((c) => c.sender === "bna:29")!.state).toBe("flagged");
+    expect(won.snapshot.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-1", "u7m2q9xa-3"]);
   });
 });

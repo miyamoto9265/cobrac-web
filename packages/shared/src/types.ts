@@ -25,6 +25,8 @@ export interface UserRecord {
   projectSeq?: number;
   /** Atomic counter for the `<userKey>-c<seq>` Canon IDs (last issued seq) */
   canonSeq?: number;
+  /** Canon new projects join unless the create screen says otherwise (absent / null: none) */
+  defaultCanonId?: string | null;
   /** KMS-encrypted OpenAI API key (base64). Never returned to clients. */
   encryptedApiKey?: string;
   apiKeyRegistered: boolean;
@@ -355,6 +357,8 @@ export interface FrgGraph {
  * account's contributor name. Both can be changed later (rename on the project page, Settings).
  */
 export interface CreateProjectRequest {
+  /** Canon of the new project (absent: the user's default Canon, or none) */
+  canon?: import("./canon.js").CreateProjectCanon;
   roi: string;
   tlf: string;
   /** Files uploaded beforehand with POST /uploads, in display order */

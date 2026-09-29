@@ -681,3 +681,57 @@ export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: C
     roles,
   };
 }
+
+// --- seeding a new Canon from several projects (stage 3′) -----------------------------
+
+/** What to do with a seed whose conflicts are not all settled: keep it for a pull request, or leave it out. */
+export type CanonSeedAction = "pending" | "exclude";
+
+export interface CanonSeedStep {
+  projectId: string;
+  diff: CanonDiff;
+  /** Conflicts that stop this seed from going into revision 1 */
+  blocking: CanonConflict[];
+  outcome: "merged" | "pending" | "excluded";
+}
+
+/**
+ * While seeding, keeping the earlier seed's definition ("canon") is a valid way to settle C1 / C2c: the later seed
+ * joins but is marked as needing an update. A C3 that only exists because the later seed's status was assumed is
+ * then moot as well.
+ */
+export function seedBlockingConflicts(diff: CanonDiff, choices: Record<string, CanonChoice>): CanonConflict[] {
+  const keptStatus = new Set(diff.conflicts.filter((c) => (c.code === "C1" || c.code === "C2c") && choices[c.id] === "canon").map((c) => c.key));
+  return diff.conflicts.filter((c) => {
+    if (c.code === "C3" && (keptStatus.has(c.key) || keptStatus.has(c.field ?? ""))) return false;
+    if (c.severity === "error") return !(c.resolvable && choices[c.id]);
+    if (c.severity === "warning") return !choices[c.id];
+    return false;
+  });
+}
+
+/**
+ * Revision 1 of a new Canon from seeds in priority order: the first seed forms the base, each later one is merged
+ * with the given choices, and a seed with unsettled conflicts is kept as a pull request or left out.
+ */
+export function composeSeeds(
+  canonId: string,
+  createdAt: string,
+  seeds: CanonIncoming[],
+  choices: Record<string, CanonChoice>,
+  actions: Record<string, CanonSeedAction>,
+): { snapshot: CanonSnapshot; steps: CanonSeedStep[] } {
+  let snapshot = emptyCanonSnapshot(canonId, createdAt);
+  const steps: CanonSeedStep[] = [];
+  for (const inc of seeds) {
+    const diff = diffCanon(snapshot, inc);
+    const blocking = seedBlockingConflicts(diff, choices);
+    if (blocking.length) {
+      steps.push({ projectId: inc.projectId, diff, blocking, outcome: actions[inc.projectId] === "exclude" ? "excluded" : "pending" });
+      continue;
+    }
+    snapshot = { ...mergeCanon(snapshot, inc, diff, choices, 0, createdAt), revision: 0 };
+    steps.push({ projectId: inc.projectId, diff, blocking, outcome: "merged" });
+  }
+  return { snapshot: { ...snapshot, revision: steps.some((s) => s.outcome === "merged") ? 1 : 0 }, steps };
+}

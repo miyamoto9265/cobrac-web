@@ -169,3 +169,32 @@ export interface CanonRevisionSummary {
   circuitCount?: number;
   connectionCount?: number;
 }
+
+/** Canon of a new project: none, an existing Canon of the owner, or a new Canon seeded from existing projects. */
+export type CreateProjectCanon =
+  | { mode: "none" }
+  | { mode: "existing"; canonId: string }
+  | {
+      mode: "new";
+      name: string;
+      description?: string;
+      policy?: string;
+      constraintMode?: CanonConstraintMode;
+      /** Own project IDs in priority order (the first forms the base) */
+      seeds: string[];
+      /** Conflict ID → keep the earlier seed's value ("canon") or take the later one ("incoming") */
+      choices?: Record<string, "canon" | "incoming">;
+      /** Seeds with unsettled conflicts: kept as a pull request (default) or left out */
+      actions?: Record<string, "pending" | "exclude">;
+    };
+
+export interface CanonSeedCandidate {
+  projectId: string;
+  name: string;
+  roi: string;
+  tlf: string;
+  eligible: boolean;
+  /** Why it cannot be a seed: running / no artifacts / in another Canon / deleted / not found */
+  reason?: "not-found" | "not-completed" | "in-canon";
+  canonName?: string;
+}

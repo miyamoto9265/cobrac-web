@@ -15,8 +15,10 @@ import type {
   CanonRecord,
   CatalogItem,
   CloneProjectResponse,
+  CanonSeedCandidate,
   CanonSnapshot,
   CreateArticleRequest,
+  CreateProjectCanon,
   CreateCanonRequest,
   CreateProjectRequest,
   CreateUploadRequest,
@@ -85,6 +87,7 @@ import {
   canonAlignInstruction,
   canonFollowStatus,
   canonFromCanon,
+  composeSeeds,
   canonFromProject,
   canonOutSk,
   canonPrKey,
@@ -238,7 +241,7 @@ const normModel = (v: unknown): string | null => {
 };
 
 app.put("/users/me", async (c) => {
-  const body = (await c.req.json()) as Partial<Pick<UserRecord, "displayName" | "contributorName" | "defaultModel" | "defaultReasoningEffort">>;
+  const body = (await c.req.json()) as Partial<Pick<UserRecord, "displayName" | "contributorName" | "defaultModel" | "defaultReasoningEffort" | "defaultCanonId">>;
   const u = c.get("user");
   const values: Partial<UserRecord> = {};
   if (typeof body.displayName === "string" && body.displayName.trim()) values.displayName = body.displayName.trim().slice(0, 80);
@@ -247,6 +250,10 @@ app.put("/users/me", async (c) => {
   if ("defaultReasoningEffort" in body) {
     if (body.defaultReasoningEffort !== null && body.defaultReasoningEffort !== undefined && !isEffort(body.defaultReasoningEffort)) throw bad("reasoning effort が不正です");
     values.defaultReasoningEffort = body.defaultReasoningEffort ?? null;
+  }
+  if ("defaultCanonId" in body) {
+    if (body.defaultCanonId) await loadCanon(u, body.defaultCanonId, { write: true });
+    values.defaultCanonId = body.defaultCanonId || null;
   }
   await updateUser(u.userId, values);
   return c.json(toPublicUser({ ...u, ...values }));
@@ -415,6 +422,7 @@ app.post("/projects", async (c) => {
   const roi = (body.roi ?? "").trim();
   const tlf = (body.tlf ?? "").trim();
   if (!roi && !tlf) throw bad("ROI と TLF のどちらか一方は必須です");
+  const canonPlan = await resolveProjectCanon(u, body.canon);
   // provisional until the agent names the project from meta.json; the user can rename it afterwards
   const name = proposeProjectName(roi, tlf);
   const contributor = u.contributorName?.trim() || u.displayName;
@@ -505,6 +513,12 @@ app.post("/projects", async (c) => {
     ...owner,
     meta: { i18n: researchMode ? "sys.researchOn" : "sys.researchOff" },
   });
+  if (canonPlan) {
+    // before the job is queued, so the worker's first run already follows the Canon
+    const canonId = await applyProjectCanon(u, project, canonPlan);
+    const joined = await getProject(u.userId, projectId);
+    if (joined) Object.assign(project, { canonId, canonRevision: joined.canonRevision });
+  }
   await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return c.json(project, 201);
@@ -1115,17 +1129,14 @@ app.post("/projects/:id/canon/preview", async (c) => {
   return c.json({ canonId: canon.canonId, diff });
 });
 
-app.post("/projects/:id/canon/push", async (c) => {
-  const u = c.get("user");
-  const { p, canon } = await projectCanon(u, c.req.param("id"));
-  const incoming = await projectIncoming(u, p);
-  const diff = diffCanon(await loadCanonHead(canon), incoming);
+/** Stores a project's push as an open pull request of `canon` (superseding its older open one). */
+async function openProjectPr(u: UserRecord, canon: CanonRecord, p: ProjectRecord, incoming: CanonIncoming, diff: CanonDiff): Promise<CanonPullRequestRecord> {
   const source = `project:${p.projectId}`;
   const prNo = await nextPrNumber(canon.canonId);
   await putCanonJson(canonPrKey(canon.canonId, prNo, "incoming.json"), incoming);
   await putCanonJson(canonPrKey(canon.canonId, prNo, "diff.json"), diff);
   for (const old of await listPullRequests(canon.canonId)) {
-    if (old.state === "open" && old.source === source) await closePullRequest(canon.canonId, old.prNo, { state: "superseded", reason: `#${prNo}` });
+    if (old.state === "open" && old.source === source && old.prNo !== prNo) await closePullRequest(canon.canonId, old.prNo, { state: "superseded", reason: `#${prNo}` });
   }
   const now = nowIso();
   const pr: CanonPullRequestRecord = {
@@ -1143,8 +1154,130 @@ app.post("/projects/:id/canon/push", async (c) => {
     updatedAt: now,
   };
   await putPullRequest(pr);
+  return pr;
+}
+
+app.post("/projects/:id/canon/push", async (c) => {
+  const u = c.get("user");
+  const { p, canon } = await projectCanon(u, c.req.param("id"));
+  const incoming = await projectIncoming(u, p);
+  const diff = diffCanon(await loadCanonHead(canon), incoming);
+  const pr = await openProjectPr(u, canon, p, incoming, diff);
   return c.json({ pr, diff }, 201);
 });
+
+// --- seeding a new Canon from existing projects (stage 3′) ---------------------------
+
+async function seedCandidates(u: UserRecord, ids: string[]): Promise<{ candidates: CanonSeedCandidate[]; projects: ProjectRecord[] }> {
+  const candidates: CanonSeedCandidate[] = [];
+  const projects: ProjectRecord[] = [];
+  for (const id of [...new Set(ids)]) {
+    const p = isProjectIdLike(id) ? await getProject(u.userId, id) : null;
+    if (!p || isProjectDeleted(p)) {
+      candidates.push({ projectId: id, name: id, roi: "", tlf: "", eligible: false, reason: "not-found" });
+      continue;
+    }
+    const base = { projectId: p.projectId, name: projectDisplayName(p), roi: p.roi, tlf: p.tlf };
+    if (p.canonId) candidates.push({ ...base, eligible: false, reason: "in-canon", canonName: (await getCanon(p.canonId))?.name ?? p.canonId });
+    else if (p.status !== "COMPLETED" || !p.hasArtifacts) candidates.push({ ...base, eligible: false, reason: "not-completed" });
+    else {
+      candidates.push({ ...base, eligible: true });
+      projects.push(p);
+    }
+  }
+  return { candidates, projects };
+}
+
+type SeedPlan = Extract<CreateProjectCanon, { mode: "new" }>;
+
+async function composeSeedPlan(u: UserRecord, plan: SeedPlan, canonId: string) {
+  if (!Array.isArray(plan.seeds) || plan.seeds.length === 0) throw bad("種にするプロジェクトを 1 つ以上選んでください");
+  const { candidates, projects } = await seedCandidates(u, plan.seeds.map(String));
+  const incomings: CanonIncoming[] = [];
+  for (const p of projects) incomings.push(await projectIncoming(u, p));
+  const composed = composeSeeds(canonId, nowIso(), incomings, plan.choices ?? {}, plan.actions ?? {});
+  return { candidates, projects, incomings, ...composed };
+}
+
+app.post("/canons/seed-preview", async (c) => {
+  const u = c.get("user");
+  const plan = (await c.req.json()) as SeedPlan;
+  const r = await composeSeedPlan(u, { ...plan, mode: "new", name: plan.name ?? "preview" }, "preview");
+  const count = (o: string) => r.steps.filter((s) => s.outcome === o).length;
+  return c.json({
+    candidates: r.candidates,
+    steps: r.steps,
+    summary: { circuits: r.snapshot.circuits.length, connections: r.snapshot.connections.length, references: r.snapshot.references.length, merged: count("merged"), pending: count("pending"), excluded: count("excluded") },
+  });
+});
+
+/** Validated Canon plan of a new project (checked before the project is created, so a bad plan creates nothing). */
+async function resolveProjectCanon(u: UserRecord, choice: CreateProjectCanon | undefined): Promise<{ existing?: CanonRecord; plan?: SeedPlan } | null> {
+  if (choice === undefined) {
+    if (!u.defaultCanonId) return null;
+    const canon = await getCanon(u.defaultCanonId);
+    return canon && !isCanonDeleted(canon) && canon.ownerUserId === u.userId ? { existing: canon } : null;
+  }
+  if (choice.mode === "none") return null;
+  if (choice.mode === "existing") return { existing: await loadCanon(u, choice.canonId, { write: true }) };
+  if (choice.mode === "new") {
+    canonFields(choice, false);
+    const { candidates } = await seedCandidates(u, (choice.seeds ?? []).map(String));
+    const bad_ = candidates.filter((x) => !x.eligible);
+    if (!candidates.length) throw bad("種にするプロジェクトを 1 つ以上選んでください");
+    if (bad_.length) throw new HTTPException(409, { message: `種にできないプロジェクトがあります: ${bad_.map((x) => `${x.name} (${x.reason})`).join(", ")}` });
+    return { plan: choice };
+  }
+  throw bad("canon.mode が不正です");
+}
+
+/** Puts the new project into its Canon (creating the Canon from the seeds first when asked). */
+async function applyProjectCanon(u: UserRecord, project: ProjectRecord, r: { existing?: CanonRecord; plan?: SeedPlan }): Promise<string> {
+  if (r.existing) {
+    const added = await addCanonMember(r.existing.canonId, u.userId, project.projectId, r.existing.headRevision);
+    if (!added.ok) throw new Error("could not add the new project to its Canon");
+    return r.existing.canonId;
+  }
+  const plan = r.plan!;
+  const fields = canonFields(plan, false);
+  const userKey = u.userKey ?? (await assignUserKey(u.userId));
+  const canonId = formatCanonId(userKey, await nextCanonSeq(u.userId));
+  const composed = await composeSeedPlan(u, plan, canonId);
+  const now = nowIso();
+  const head = composed.snapshot.revision;
+  const canon: CanonRecord = {
+    canonId,
+    sk: CANON_META_SK,
+    ownerUserId: u.userId,
+    name: fields.name!,
+    description: fields.description ?? "",
+    policy: fields.policy ?? "",
+    constraintMode: fields.constraintMode ?? "strict",
+    visibility: "private",
+    headRevision: 0,
+    memberCount: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putCanon(canon);
+  if (head === 1) {
+    await putCanonJson(canonRevisionKey(canonId, 1), { ...composed.snapshot, createdAt: now });
+    await putCanonRevision({ canonId, sk: canonRevisionSk(1), revision: 1, prNo: 0, source: "seed", createdAt: now, circuitCount: composed.snapshot.circuits.length, connectionCount: composed.snapshot.connections.length });
+    await advanceCanonHead(canonId, 0);
+  }
+  const live = { ...canon, headRevision: head };
+  for (const step of composed.steps) {
+    if (step.outcome === "excluded") continue;
+    await addCanonMember(canonId, u.userId, step.projectId, head);
+    if (step.outcome === "pending") {
+      const i = composed.incomings.findIndex((x) => x.projectId === step.projectId);
+      const p = composed.projects.find((x) => x.projectId === step.projectId)!;
+      await openProjectPr(u, live, p, composed.incomings[i], diffCanon(composed.snapshot, composed.incomings[i]));
+    }
+  }
+  await addCanonMember(canonId, u.userId, project.projectId, head);
+  return canonId;
+}
 
 app.get("/canons/:id/pulls", async (c) => {
   const u = c.get("user");
