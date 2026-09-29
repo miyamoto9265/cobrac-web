@@ -4,6 +4,7 @@ export * from "./graph.js";
 export * from "./util.js";
 export * from "./projectId.js";
 export * from "./canon.js";
+export * from "./publish.js";
 export * from "./locale.js";
 export * from "./pricing.js";
 export * from "./systemMessage.js";

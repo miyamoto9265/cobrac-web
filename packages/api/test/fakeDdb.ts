@@ -23,6 +23,7 @@ export const KEYS: Record<string, string[]> = {
   messages: ["projectId", "sk"],
   ws: ["connectionId", "projectId"],
   canons: ["canonId", "sk"],
+  catalog: ["kind", "id"],
 };
 
 export class ConditionalCheckFailedException extends Error {

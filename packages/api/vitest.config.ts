@@ -10,6 +10,7 @@ export default defineConfig({
       TABLE_MESSAGES: "messages",
       TABLE_WS_CONNECTIONS: "ws",
       TABLE_CANONS: "canons",
+      TABLE_CATALOG: "catalog",
     },
   },
 });
