@@ -9,6 +9,8 @@ import { DocsPage } from "./pages/DocsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspacePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { CanonsPage } from "./pages/CanonsPage";
+import { CanonDetailPage } from "./pages/CanonDetailPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/canons" element={<CanonsPage />} />
+        <Route path="/canons/:canonId" element={<CanonDetailPage />} />
         <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/docs" element={<DocsPage />} />

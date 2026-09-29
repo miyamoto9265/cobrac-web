@@ -3,6 +3,7 @@ export * from "./csv.js";
 export * from "./graph.js";
 export * from "./util.js";
 export * from "./projectId.js";
+export * from "./canon.js";
 export * from "./locale.js";
 export * from "./pricing.js";
 export * from "./systemMessage.js";

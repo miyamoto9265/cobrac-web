@@ -115,6 +115,20 @@ export class CobracAgentsStack extends Stack {
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       dynamoStream: dynamodb.StreamViewType.NEW_IMAGE,
     });
+    // Canon: META / MEMBER#<projectId> / REV#<n> items under one canonId (new table; existing tables are untouched)
+    const canons = new dynamodb.TableV2(this, "Canons", {
+      ...tableDefaults,
+      partitionKey: { name: "canonId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
+      globalSecondaryIndexes: [
+        {
+          // sparse: only META items carry ownerUserId
+          indexName: "owner-index",
+          partitionKey: { name: "ownerUserId", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+      ],
+    });
     const wsConnections = new dynamodb.TableV2(this, "WsConnections", {
       ...tableDefaults,
       removalPolicy: RemovalPolicy.DESTROY,
@@ -221,6 +235,7 @@ export class CobracAgentsStack extends Stack {
       TABLE_JOBS: jobs.tableName,
       TABLE_MESSAGES: messages.tableName,
       TABLE_WS_CONNECTIONS: wsConnections.tableName,
+      TABLE_CANONS: canons.tableName,
       ARTIFACTS_BUCKET: artifacts.bucketName,
       JOB_QUEUE_URL: jobQueue.queueUrl,
       KMS_KEY_ID: key.keyId,
@@ -285,6 +300,7 @@ export class CobracAgentsStack extends Stack {
     for (const t of [users, projects, jobs, messages, wsConnections]) {
       for (const f of [apiFn, dispatcherFn, wsConnectFn, wsDisconnectFn, wsDefaultFn, broadcasterFn, janitorFn]) t.grantReadWriteData(f);
     }
+    canons.grantReadWriteData(apiFn);
     artifacts.grantRead(apiFn);
     // user-arranged graph layouts are written by the API (graph/*.layout.json only)
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");

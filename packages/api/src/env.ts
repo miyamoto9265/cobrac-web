@@ -13,6 +13,7 @@ export const env = {
     jobs: get("TABLE_JOBS", ""),
     messages: get("TABLE_MESSAGES", ""),
     wsConnections: get("TABLE_WS_CONNECTIONS", ""),
+    canons: get("TABLE_CANONS", ""),
   },
   artifactsBucket: get("ARTIFACTS_BUCKET", ""),
   jobQueueUrl: get("JOB_QUEUE_URL", ""),
