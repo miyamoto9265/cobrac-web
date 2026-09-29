@@ -92,23 +92,24 @@ html {
 }
 
 /* Graph editor ------------------------------------------------------------ */
-/* connection handles: hidden until the node is hovered / selected or an edge end is being dragged */
+/* connection handles: only while editing styles, when the node is hovered / selected or an edge end is being dragged */
 .react-flow__node .handle-dot {
   opacity: 0;
   transition: opacity 120ms;
   pointer-events: none;
 }
-.react-flow__node:hover .handle-dot,
-.react-flow__node.selected .handle-dot,
-.react-flow__node .connecting .handle-dot {
+.react-flow.graph-editing .react-flow__node:hover .handle-dot,
+.react-flow.graph-editing .react-flow__node.selected .handle-dot,
+.react-flow.graph-editing .react-flow__node .connecting .handle-dot,
+.react-flow.connecting .react-flow__node .handle-dot,
+.react-flow.edge-editing .react-flow__node .handle-dot {
   opacity: 1;
   pointer-events: all;
 }
-.react-flow.connecting .react-flow__node .handle-dot,
-.react-flow.edge-editing .react-flow__node .handle-dot,
-.react-flow__pane.connecting ~ * .handle-dot {
-  opacity: 1;
-  pointer-events: all;
+.react-flow__node:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 3px;
+  border-radius: 0.5rem;
 }
 /* edge end anchors (drag to re-attach the edge to another handle) */
 .react-flow__edgeupdater {

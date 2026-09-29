@@ -7,7 +7,14 @@ import type { ResolvedEdgeStyle } from "./StyledEdge";
 export const PALETTE = ["#475569", "#94a3b8", "#2563eb", "#0ea5e9", "#059669", "#16a34a", "#ca8a04", "#ea580c", "#dc2626", "#db2777", "#7c3aed", "#0f172a"];
 const NODE_PALETTE = ["#dbeafe", "#dcfce7", "#fee2e2", "#fef3c7", "#e9d5ff", "#fde68a", "#f1f5f9", "#ffffff", "#bae6fd", "#bbf7d0", "#fecaca", "#fed7aa"];
 
-const sel = "w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-400";
+const sel = "w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2";
+const smallBtn = "rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50 disabled:opacity-40 coarse:min-h-11 coarse:px-3";
+
+export type StylePanelVariant = "float" | "sheet";
+const shell = (v: StylePanelVariant) =>
+  v === "sheet"
+    ? "max-h-[70cqh] w-full overflow-y-auto overscroll-contain rounded-t-2xl border-t border-slate-200 bg-white px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 text-xs shadow-[0_-8px_30px_rgba(15,23,42,0.18)]"
+    : "w-64 rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur";
 const lbl = "mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500";
 
 function Swatches({ colors, value, onPick }: { colors: string[]; value: string; onPick: (c: string) => void }) {
@@ -19,12 +26,12 @@ function Swatches({ colors, value, onPick }: { colors: string[]; value: string; 
           key={c}
           type="button"
           onClick={() => onPick(c)}
-          className={`h-4 w-4 rounded border ${value.toLowerCase() === c ? "ring-2 ring-blue-500 ring-offset-1" : "border-black/10"}`}
+          className={`h-4 w-4 rounded border coarse:h-8 coarse:w-8 ${value.toLowerCase() === c ? "ring-2 ring-blue-500 ring-offset-1" : "border-black/10"}`}
           style={{ background: c }}
           title={c}
         />
       ))}
-      <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#475569"} onChange={(e) => onPick(e.target.value)} className="h-5 w-6 cursor-pointer rounded border border-slate-300 bg-white p-0" title={t("edge.anyColor")} />
+      <input type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : "#475569"} onChange={(e) => onPick(e.target.value)} className="h-5 w-6 cursor-pointer rounded border border-slate-300 bg-white p-0 coarse:h-8 coarse:w-10" title={t("edge.anyColor")} />
     </div>
   );
 }
@@ -57,6 +64,7 @@ function ArrowPreview({ type, color }: { type: ArrowHead; color: string }) {
 }
 
 export interface EdgePanelProps {
+  variant?: StylePanelVariant;
   edgeId: string;
   sign?: EdgeSign;
   resolved: ResolvedEdgeStyle;
@@ -70,7 +78,7 @@ export interface EdgePanelProps {
   onClose: () => void;
 }
 
-export function EdgeStylePanel({ edgeId, sign, resolved, override, hasLabel, showLabel, sameSignCount, onChange, onApplyToSameSign, onReset, onClose }: EdgePanelProps) {
+export function EdgeStylePanel({ variant = "float", edgeId, sign, resolved, override, hasLabel, showLabel, sameSignCount, onChange, onApplyToSameSign, onReset, onClose }: EdgePanelProps) {
   const t = useT();
   const editable = resolved.lineType === "orthogonal" || resolved.lineType === "polyline";
   const visual: EdgeStyle = {
@@ -83,7 +91,7 @@ export function EdgeStylePanel({ edgeId, sign, resolved, override, hasLabel, sho
     rounded: resolved.rounded,
   };
   return (
-    <div className="w-64 rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur">
+    <div className={shell(variant)} role="dialog" aria-label={t("edge.style")}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-slate-500">{t("edge.style")}</div>
@@ -92,7 +100,7 @@ export function EdgeStylePanel({ edgeId, sign, resolved, override, hasLabel, sho
           </div>
           {sign && <div className="text-[10px] text-slate-500">{t("edge.class", { sign: t(`sign.${sign}` as MessageKey) })}</div>}
         </div>
-        <button onClick={onClose} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title={t("close")}>
+        <button onClick={onClose} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 coarse:-m-2 coarse:p-3" title={t("close")} aria-label={t("close")}>
           <X size={14} />
         </button>
       </div>
@@ -156,21 +164,21 @@ export function EdgeStylePanel({ edgeId, sign, resolved, override, hasLabel, sho
 
       <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2">
         {(override?.waypoints?.length ?? 0) > 0 && (
-          <button onClick={() => onChange({ waypoints: undefined })} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50">
+          <button onClick={() => onChange({ waypoints: undefined })} className={smallBtn}>
             {t("edge.clearBends")}
           </button>
         )}
         {(override?.sourceHandle || override?.targetHandle) && (
-          <button onClick={() => onChange({ sourceHandle: undefined, targetHandle: undefined })} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50">
+          <button onClick={() => onChange({ sourceHandle: undefined, targetHandle: undefined })} className={smallBtn}>
             {t("edge.autoAttach")}
           </button>
         )}
         {sameSignCount > 1 && (
-          <button onClick={() => onApplyToSameSign(visual)} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50" title={t("edge.applySameTip")}>
+          <button onClick={() => onApplyToSameSign(visual)} className={smallBtn} title={t("edge.applySameTip")}>
             {t("edge.applySame", { n: sameSignCount })}
           </button>
         )}
-        <button onClick={onReset} disabled={!override} className="flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50 disabled:opacity-40">
+        <button onClick={onReset} disabled={!override} className={`flex items-center gap-1 ${smallBtn}`}>
           <RotateCcw size={11} /> {t("edge.reset")}
         </button>
       </div>
@@ -180,6 +188,7 @@ export function EdgeStylePanel({ edgeId, sign, resolved, override, hasLabel, sho
 }
 
 export interface NodePanelProps {
+  variant?: StylePanelVariant;
   nodeId: string;
   fill: string;
   border: string;
@@ -189,10 +198,10 @@ export interface NodePanelProps {
   onClose: () => void;
 }
 
-export function NodeStylePanel({ nodeId, fill, border, override, onChange, onReset, onClose }: NodePanelProps) {
+export function NodeStylePanel({ variant = "float", nodeId, fill, border, override, onChange, onReset, onClose }: NodePanelProps) {
   const t = useT();
   return (
-    <div className="w-64 rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur">
+    <div className={shell(variant)} role="dialog" aria-label={t("node.style")}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-slate-500">{t("node.style")}</div>
@@ -200,7 +209,7 @@ export function NodeStylePanel({ nodeId, fill, border, override, onChange, onRes
             {nodeId}
           </div>
         </div>
-        <button onClick={onClose} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700" title={t("close")}>
+        <button onClick={onClose} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 coarse:-m-2 coarse:p-3" title={t("close")} aria-label={t("close")}>
           <X size={14} />
         </button>
       </div>
@@ -214,11 +223,11 @@ export function NodeStylePanel({ nodeId, fill, border, override, onChange, onRes
       </div>
       <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2">
         {(override?.width || override?.height) && (
-          <button onClick={() => onChange({ width: undefined, height: undefined })} className="rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50">
+          <button onClick={() => onChange({ width: undefined, height: undefined })} className={smallBtn}>
             {t("node.resetSize")}
           </button>
         )}
-        <button onClick={onReset} disabled={!override} className="flex items-center gap-1 rounded border border-slate-300 px-1.5 py-0.5 text-[11px] hover:bg-slate-50 disabled:opacity-40">
+        <button onClick={onReset} disabled={!override} className={`flex items-center gap-1 ${smallBtn}`}>
           <RotateCcw size={11} /> {t("node.reset")}
         </button>
       </div>
