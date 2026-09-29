@@ -48,7 +48,7 @@ Your final message of every turn is JSON matching the provided schema:
 - `status: "done"` - the requested work for this turn is finished (the worker will validate it and may send back a list of problems to fix). Put a short summary for the user in `message`, `question: null`.
 - `status: "question"` - you need a decision from the user. Put the question (with evidence, options and your recommendation) in `question` and stop working for this turn. Ask only when you cannot decide reasonably yourself; otherwise decide, record the reason in `decision_log.md`, and continue. Bundle multiple questions into one.
 
-Write `message` and `question` in the language the user used for ROI/TLF or instructions (English if unclear).
+Write `message` and `question` in the reply language the worker gives in the prompt (the user's web interface language). Without one, use the language the user used for ROI/TLF or instructions (English if unclear).
 
 ## Validator feedback
 

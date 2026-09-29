@@ -2,6 +2,7 @@
 // Domain types shared by API, worker and web
 // ---------------------------------------------------------------------------
 
+import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ProjectNameSource } from "./projectId.js";
 
@@ -134,6 +135,8 @@ export interface JobRecord {
   instruction: string | null;
   /** Pending user answer to be delivered on resume */
   pendingAnswer: string | null;
+  /** Web UI language of the latest request for this job; the agent replies in it (absent = language the user wrote in) */
+  locale?: UiLocale | null;
   ecsTaskArn: string | null;
   retryCount: number;
   lastHeartbeat: string | null;
@@ -297,6 +300,8 @@ export interface CreateProjectRequest {
   contributor?: string;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Web UI language; the agent's chat replies use it */
+  locale?: UiLocale | null;
 }
 
 export interface UpdateProjectRequest {
@@ -311,10 +316,16 @@ export interface UpdateProjectResponse {
 
 export interface AnswerRequest {
   answer: string;
+  locale?: UiLocale | null;
 }
 
 export interface FollowupRequest {
   instruction: string;
+  locale?: UiLocale | null;
+}
+
+export interface RetryRequest {
+  locale?: UiLocale | null;
 }
 
 export interface ArtifactInfo {

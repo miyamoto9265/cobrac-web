@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import type { UiLocale } from "@cobrac/shared";
 import { en, type MessageKey } from "./en";
 import { de } from "./de";
 import { es } from "./es";
@@ -12,7 +13,7 @@ import { zhTw } from "./zhTw";
 
 export type { MessageKey } from "./en";
 
-export type Locale = "en" | "ja" | "zh" | "zhTw" | "ko" | "de" | "fr" | "es" | "pt" | "ru";
+export type Locale = UiLocale;
 
 export const LOCALES: { id: Locale; nameKey: MessageKey; htmlLang: string; dateTag: string }[] = [
   { id: "en", nameKey: "langEn", htmlLang: "en", dateTag: "en-US" },

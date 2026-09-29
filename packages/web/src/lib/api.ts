@@ -9,6 +9,7 @@ import type {
   ProjectRecord,
   GraphLayout,
   ReasoningEffort,
+  UiLocale,
   UpdateProjectResponse,
   UsageSummary,
   UserPublic,
@@ -77,9 +78,10 @@ export const api = {
   listMessages: (id: string, cursor?: string) =>
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   cancel: (id: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/cancel`),
-  answer: (id: string, answer: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/answer`, { answer }),
-  followup: (id: string, instruction: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/followup`, { instruction }),
-  retry: (id: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/retry`),
+  answer: (id: string, answer: string, locale: UiLocale) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/answer`, { answer, locale }),
+  followup: (id: string, instruction: string, locale: UiLocale) =>
+    request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/followup`, { instruction, locale }),
+  retry: (id: string, locale: UiLocale) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/retry`, { locale }),
   artifacts: (id: string) => request<{ items: ArtifactInfo[] }>("GET", `/projects/${encodeURIComponent(id)}/artifacts`),
   downloadUrl: (id: string, key: string) =>
     request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/artifacts/download?key=${encodeURIComponent(key)}`),

@@ -245,3 +245,42 @@ describe("legacy Project IDs shared by two users (project-index cross-talk)", ()
     expect(to("conn-b")).toEqual(["message:false", "project:false"]);
   });
 });
+
+describe("reply language (web UI locale)", () => {
+  const jobsOf = (projectId: string) => fake.items("jobs").filter((j) => j.projectId === projectId) as unknown as JobRecord[];
+  const latestJob = (projectId: string) => jobsOf(projectId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+  const setStatus = (projectId: string, status: ProjectRecord["status"]) => {
+    const p = fake.items("projects").find((x) => x.projectId === projectId)!;
+    fake.put("projects", { ...p, status });
+  };
+
+  it("stores the locale of each request on the job and rejects unknown ones", async () => {
+    await json(call(A, "GET", "/users/me"));
+    fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
+
+    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning", locale: "ja" }));
+    expect(latestJob(p.projectId).locale).toBe("ja");
+    expect((await call(A, "POST", "/projects", { roi: "x", tlf: "y", locale: "xx" })).status).toBe(400);
+    const plain = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
+    expect(latestJob(plain.projectId).locale).toBeNull();
+
+    setStatus(p.projectId, "WAITING_USER_INPUT");
+    expect((await call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "yes", locale: 5 })).status).toBe(400);
+    await json(call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "yes", locale: "de" }));
+    expect(latestJob(p.projectId)).toMatchObject({ pendingAnswer: "yes", locale: "de" });
+    setStatus(p.projectId, "WAITING_USER_INPUT");
+    await json(call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "again" }));
+    expect(latestJob(p.projectId).locale).toBe("de");
+
+    setStatus(p.projectId, "COMPLETED");
+    const f = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/followup`, { instruction: "add a UC", locale: "zhTw" }));
+    expect(jobsOf(p.projectId).find((j) => j.jobId === f.jobId)!.locale).toBe("zhTw");
+
+    setStatus(p.projectId, "FAILED");
+    const r1 = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/retry`));
+    expect(jobsOf(p.projectId).find((j) => j.jobId === r1.jobId)!.locale).toBe("zhTw");
+    setStatus(p.projectId, "FAILED");
+    const r2 = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/retry`, { locale: "en" }));
+    expect(jobsOf(p.projectId).find((j) => j.jobId === r2.jobId)!.locale).toBe("en");
+  });
+});

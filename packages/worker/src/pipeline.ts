@@ -19,6 +19,11 @@ export interface Prompt {
   hidden?: string;
 }
 
+/** Text sent to the agent for one turn: shown part, hidden part and the reply-language line, separated by rules. */
+export function turnInput(p: Prompt, replyLanguage: string | null): string {
+  return [p.shown, p.hidden, replyLanguage].filter((s): s is string => !!s).join("\n\n---\n\n");
+}
+
 export interface PhaseCheck {
   errors: string[];
   fatal: boolean;

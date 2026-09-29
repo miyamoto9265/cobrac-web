@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { buildGraphs, parseCsvObjects, validateJsonSchema, type JsonSchema } from "@cobrac/shared";
-import { PHASES, checkPhase, runPhases, writeSchemas, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
+import { buildGraphs, parseCsvObjects, replyLanguageInstruction, validateJsonSchema, type JsonSchema } from "@cobrac/shared";
+import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
 import { isLegacyWorkspace, loadHcdFiles, projectPaths, type ProjectPaths } from "../src/steps.js";
 import { startMockRcs, type MockRcs } from "./mockRcsServer.js";
@@ -211,5 +211,15 @@ describe("legacy workspaces", () => {
     expect(isLegacyWorkspace(p)).toBe(false);
     expect(existsSync(p.meta)).toBe(false);
     rmSync(p.root, { recursive: true, force: true });
+  });
+});
+
+describe("turn input", () => {
+  it("appends the reply language after the phase spec, only when the request had a UI locale", () => {
+    const lang = replyLanguageInstruction("ja");
+    expect(turnInput({ shown: "Run phase HCD.", hidden: "SPEC" }, lang)).toBe(`Run phase HCD.\n\n---\n\nSPEC\n\n---\n\n${lang}`);
+    expect(turnInput({ shown: "Fix these." }, lang)).toBe(`Fix these.\n\n---\n\n${lang}`);
+    expect(turnInput({ shown: "Run phase HCD.", hidden: "SPEC" }, null)).toBe("Run phase HCD.\n\n---\n\nSPEC");
+    expect(turnInput({ shown: "Fix these." }, replyLanguageInstruction(undefined))).toBe("Fix these.");
   });
 });

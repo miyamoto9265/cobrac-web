@@ -20,7 +20,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, nowIso } from "@cobrac/shared";
+import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, nowIso, replyLanguageInstruction } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -37,7 +37,7 @@ import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { downloadDir, projectPrefix, uploadDir } from "./s3sync.js";
-import { PHASES, checkPhase, runPhases, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt } from "./pipeline.js";
+import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt } from "./pipeline.js";
 import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
@@ -110,6 +110,9 @@ async function main() {
   console.log(`[worker] model=${settings.model ?? "(default)"} effort=${settings.reasoningEffort ?? "(default)"}`);
   await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
 
+  const replyLanguage = replyLanguageInstruction(job.locale);
+  console.log(`[worker] reply locale=${job.locale ?? "(user's language)"}`);
+
   const abort = new AbortController();
   const heartbeat = setInterval(async () => {
     try {
@@ -149,7 +152,7 @@ async function main() {
   const agentTurn = async (p: Prompt): Promise<boolean> => {
     let turn;
     try {
-      turn = await runTurn(thread, p.hidden ? `${p.shown}\n\n---\n\n${p.hidden}` : p.shown, sink, abort.signal);
+      turn = await runTurn(thread, turnInput(p, replyLanguage), sink, abort.signal);
     } catch (e) {
       if (cancelled) {
         await persistState();
