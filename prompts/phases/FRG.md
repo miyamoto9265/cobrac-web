@@ -23,7 +23,7 @@ Steps 1-2 are working steps: do them in your reasoning and keep only their ratio
 
 4. **Interfaces -> `frg.json` `interface`.** For a GN whose children are all UCs, the interface is the union of its UCs' interfaces with internal edges removed; external UCs may appear. Example: `U.A: [U.E] = U.A([U.F], [U.G])` and `U.B: [U.H] = U.B([U.F], [U.I])` give `R.GN: ([U.E], [U.H]) = R.GN([U.F], [U.G], [U.I])`. Compose upward recursively; the TLF should become `(all noROI(output)) = R.TLF(all noROI(input))`.
 
-5. **Function details -> `frg.json`.** For the TLF and every GN (not UCs) define, referring to nodes as `[R.Name]` / `[U.Name]`:
+5. **Function details -> `frg.json`.** For the TLF and every GN (not UCs) define, referring to nodes as `[R.<node ID>]` / `[U.<Circuit ID>]` with existing IDs (tissue is always named by its `[U.<Circuit ID>]`, not by other names):
    - `requirement`: the function this node must perform for its parent/TLF; name the UCs of its interface with their Output Semantics.
    - `requirementRealization` (Requirement realization by interface): how the interface realizes it; mention every UC of the interface; verify consistency.
    - `capability`: the Requirement without Output Semantics (generalized); cite prior work, biology or computational models.
@@ -43,5 +43,7 @@ Steps 1-2 are working steps: do them in your reasoning and keep only their ratio
   "requirement": "...", "requirementRealization": "...", "capability": "...", "mechanism": "..."
 } ] }
 ```
+
+The worker fills the GN Output Semantics of the FRG sheet from the `outputSemantics` of the UCs that project out of each GN, and writes the fixed text for the rows of UCs outside the ROI; do not add them to `frg.json`.
 
 Finish the turn with `status: "done"` once all six steps are complete.
