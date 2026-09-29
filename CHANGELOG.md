@@ -20,7 +20,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Every Canon now works the same way: conflicts with the Canon (Uniform vs Collection, a different decomposition, a finer circuit next to a Uniform one, Circuit ID ↔ descriptor, connections ending on a Collection, official names, Reference IDs) always go back to the agent to fix. The "constraint strength" choice (strict / advisory) is gone from the create and edit forms; Canons created as advisory, including existing ones, now behave the same, and a mode sent by an older client is ignored. The chat notice that a run follows a Canon no longer names a strength
 
 ### Fixed
-- The chat notice that a run follows a Canon showed "rev {revision} ({mode})" instead of the revision and the constraint strength (also for notices already stored)
+- The chat notice that a run follows a Canon showed "rev {revision}" instead of the revision number (also for notices already stored); it no longer mentions a constraint strength
 - A clone of a project that was running or had failed kept its steps spinning as "running"; copied steps are now done or pending
 - Pull requests listed connections and BIF entries with doubled brackets ("[[Catani, 2005]]")
 - After approving, rejecting or withdrawing a pull request, the result message at the top of the page was out of view; the page now scrolls up to it
