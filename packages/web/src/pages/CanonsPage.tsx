@@ -1,4 +1,4 @@
-import { Layers, Lock, Plus } from "lucide-react";
+import { Globe, Layers, Lock, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { CanonConstraintMode, CanonRecord } from "@cobrac/shared";
@@ -111,8 +111,8 @@ export function CanonsPage() {
                   <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
                     <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
                     <span>{t("canon.memberCount", { n: c.memberCount })}</span>
-                    <span className="flex items-center gap-0.5" title={t("canon.private")}>
-                      <Lock size={11} />
+                    <span className="flex items-center gap-0.5" title={c.visibility === "public" ? t("vis.public") : t("vis.private")}>
+                      {c.visibility === "public" ? <Globe size={11} className="text-emerald-600" /> : <Lock size={11} />}
                     </span>
                   </span>
                 </div>

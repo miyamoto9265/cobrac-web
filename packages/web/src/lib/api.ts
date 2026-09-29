@@ -3,6 +3,7 @@ import type {
   ArtifactInfo,
   CanonDetailResponse,
   CanonRecord,
+  CloneProjectResponse,
   CreateCanonRequest,
   CreateProjectRequest,
   CreateUploadResponse,
@@ -17,6 +18,11 @@ import type {
   GraphLayout,
   ReasoningEffort,
   ListCanonsResponse,
+  PublicCanonDetail,
+  PublicCanonSummary,
+  PublicProjectDetail,
+  PublicProjectSummary,
+  Visibility,
   UiLocale,
   UpdateCanonRequest,
   UpdateProjectResponse,
@@ -83,7 +89,7 @@ export const api = {
   resolveProject: (id: string) => request<{ projectId: string }>("GET", `/projects/resolve/${encodeURIComponent(id)}`),
   renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
   deleteProject: (id: string) => request<DeleteProjectResponse>("DELETE", `/projects/${encodeURIComponent(id)}`),
-  getProject: (id: string) => request<ProjectRecord & { jobs: JobRecord[] }>("GET", `/projects/${encodeURIComponent(id)}`),
+  getProject: (id: string) => request<ProjectRecord & { jobs: JobRecord[]; cloneCount?: number }>("GET", `/projects/${encodeURIComponent(id)}`),
   listMessages: (id: string, cursor?: string) =>
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   cancel: (id: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/cancel`),
@@ -115,6 +121,18 @@ export const api = {
   addCanonMember: (id: string, projectId: string) => request<{ projectId: string; canonId: string }>("POST", `/canons/${encodeURIComponent(id)}/members`, { projectId }),
   removeCanonMember: (id: string, projectId: string) =>
     request<{ ok: true }>("DELETE", `/canons/${encodeURIComponent(id)}/members/${encodeURIComponent(projectId)}`),
+
+  setProjectVisibility: (id: string, visibility: Visibility) =>
+    request<{ visibility: Visibility; publishedAt: string | null; cloneCount: number }>("PUT", `/projects/${encodeURIComponent(id)}/visibility`, { visibility }),
+  setCanonVisibility: (id: string, b: { visibility?: Visibility; acceptPullRequests?: boolean }) =>
+    request<CanonRecord>("PUT", `/canons/${encodeURIComponent(id)}/visibility`, b),
+  publicProjects: (q?: string) => request<{ items: PublicProjectSummary[] }>("GET", `/public/projects${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  publicProject: (id: string) => request<PublicProjectDetail>("GET", `/public/projects/${encodeURIComponent(id)}`),
+  publicText: (id: string, key: string) =>
+    request<string>("GET", `/public/projects/${encodeURIComponent(id)}/text?key=${encodeURIComponent(key)}`, undefined, true),
+  cloneProject: (id: string) => request<CloneProjectResponse>("POST", `/public/projects/${encodeURIComponent(id)}/clone`),
+  publicCanons: () => request<{ items: PublicCanonSummary[] }>("GET", "/public/canons"),
+  publicCanon: (id: string) => request<PublicCanonDetail>("GET", `/public/canons/${encodeURIComponent(id)}`),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
   adminUpdateUser: (id: string, b: { disabled?: boolean; role?: "user" | "admin" }) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),

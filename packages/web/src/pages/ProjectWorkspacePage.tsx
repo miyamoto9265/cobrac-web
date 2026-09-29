@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from "react-route
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
 import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
+import { VisibilityToggle } from "../components/VisibilityToggle";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -21,6 +22,7 @@ import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
 import { useProjectSocket } from "../lib/ws";
 import { ProjectChatPanel } from "./ChatPage";
+import { publicProjectPath } from "./ExplorePage";
 import { FrgGraphPage } from "./FrgGraphPage";
 import { HcdGraphPage } from "./HcdGraphPage";
 
@@ -57,6 +59,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const { view: rawView } = useParams();
   const { search } = useLocation();
   const [project, setProject] = useState<ProjectRecord | null>(null);
+  const [cloneCount, setCloneCount] = useState(0);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactInfo[] | null>(null);
@@ -79,6 +82,7 @@ function Workspace({ projectId }: { projectId: string }) {
     try {
       const [p, m] = await Promise.all([api.getProject(projectId), api.listMessages(projectId)]);
       setProject(p);
+      setCloneCount(p.cloneCount ?? 0);
       setJobs(p.jobs ?? []);
       setMessages(m.items);
       loadArtifacts();
@@ -271,6 +275,16 @@ function Workspace({ projectId }: { projectId: string }) {
                   <FileSpreadsheet size={14} /> BRA xlsx (Template-v2-2)
                 </button>
               )}
+              <VisibilityToggle
+                visibility={project.visibility ?? "private"}
+                disabled={!project.hasArtifacts}
+                confirmText={t("vis.confirmProject")}
+                onChange={async (v) => {
+                  const r = await api.setProjectVisibility(project.projectId, v);
+                  setProject((prev) => (prev ? { ...prev, visibility: r.visibility, publishedAt: r.publishedAt } : prev));
+                  setCloneCount(r.cloneCount);
+                }}
+              />
               <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />
             </div>
           </div>
@@ -283,6 +297,22 @@ function Workspace({ projectId }: { projectId: string }) {
                 <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
               </span>
               {project.canonId && <CanonBadge canonId={project.canonId} />}
+              {project.visibility === "public" && (
+                <Link to={publicProjectPath(project.projectId)} className="text-emerald-700 hover:underline coarse:py-1.5">
+                  {t("vis.publicPage")} · {t("explore.clones", { n: cloneCount })}
+                </Link>
+              )}
+              {project.clonedFrom && (
+                <span className="min-w-0 break-words" data-testid="cloned-from">
+                  <b className="text-slate-700">{t("vis.clonedFrom")}:</b>{" "}
+                  <Link to={publicProjectPath(project.clonedFrom.projectId)} className="text-blue-700 hover:underline">
+                    {project.clonedFrom.name}
+                  </Link>{" "}
+                  <span className="font-mono text-[11px]">
+                    {project.clonedFrom.projectId} · revision {project.clonedFrom.revision}
+                  </span>
+                </span>
+              )}
               <span className="font-mono">
                 <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
               </span>
