@@ -10,6 +10,8 @@ import {
   normalizeProjectName,
   parseProjectId,
   projectNameKey,
+  legacyProposedProjectName,
+  projectDisplayName,
   proposeProjectName,
   USER_KEY_REGEX,
 } from "../src/index.js";
@@ -59,9 +61,23 @@ describe("project name", () => {
     expect(projectNameKey("VOR  Learning")).toBe(projectNameKey("vor learning"));
   });
 
-  it("proposes the legacy slug as the initial name", () => {
-    expect(proposeProjectName("Cerebellum flocculus", "VOR learning")).toBe("VORLearning_CerebellumFlocculus");
-    expect(proposeProjectName("扁桃体", "恐怖条件づけ")).toBe("Untitled project");
+  it("proposes <TLF> in <ROI> from the input as typed", () => {
+    expect(proposeProjectName("小脳", "VOR")).toBe("VOR in 小脳");
+    expect(proposeProjectName(" Cerebellum\tflocculus ", "VOR  learning")).toBe("VOR learning in Cerebellum flocculus");
+    expect(proposeProjectName("扁桃体", "")).toBe("扁桃体");
+    expect(proposeProjectName("", "恐怖条件づけ")).toBe("恐怖条件づけ");
+    expect(proposeProjectName("", "")).toBe("Untitled project");
+    expect([...proposeProjectName("あ".repeat(150), "い".repeat(150))]).toHaveLength(200);
+    expect(legacyProposedProjectName("小脳", "VOR")).toBe("VOR");
+  });
+
+  it("displays the provisional name for projects still carrying the old slug", () => {
+    const p = { projectId: "u7m2q9xa-1", roi: "小脳", tlf: "VOR" };
+    expect(projectDisplayName({ ...p, name: "VOR", nameSource: "auto" })).toBe("VOR in 小脳");
+    expect(projectDisplayName({ ...p, name: "VOR in 小脳", nameSource: "provisional" })).toBe("VOR in 小脳");
+    expect(projectDisplayName({ ...p, name: "VOR adaptation in cerebellum", nameSource: "auto" })).toBe("VOR adaptation in cerebellum");
+    expect(projectDisplayName({ ...p, name: "VOR", nameSource: "user" })).toBe("VOR");
+    expect(projectDisplayName({ projectId: "VOR" })).toBe("VOR");
   });
 });
 

@@ -37,6 +37,7 @@ import {
   newId,
   normalizeProjectName,
   nowIso,
+  projectDisplayName,
   projectNameKey,
   proposeProjectName,
 } from "@cobrac/shared";
@@ -171,7 +172,7 @@ app.get("/users/me/usage", async (c) => {
       cost += p.costUsd;
       priced = true;
     }
-    summary.byProject.push({ projectId: p.projectId, name: p.name, usage: p.usage ?? EMPTY_USAGE, costUsd: p.costUsd ?? null, models: [...models] });
+    summary.byProject.push({ projectId: p.projectId, name: projectDisplayName(p), usage: p.usage ?? EMPTY_USAGE, costUsd: p.costUsd ?? null, models: [...models] });
   }
   summary.costUsd = priced ? Math.round(cost * 1_000_000) / 1_000_000 : null;
   summary.byModel = [...byModel.entries()]
@@ -237,7 +238,7 @@ app.post("/projects", async (c) => {
     if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
     name = n.name;
   }
-  const nameSource = name === proposed ? "auto" : "user";
+  const nameSource = name === proposed ? "provisional" : "user";
   const contributor = (body.contributor ?? "").trim() || u.contributorName || u.displayName;
   // Always persist a concrete model so usage can be priced (project → user default → env → DEFAULT_CODEX_MODEL)
   const model = ("model" in body ? normModel(body.model) : null) || u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL;
@@ -353,8 +354,8 @@ app.put("/projects/:id", async (c) => {
   await updateProject(u.userId, p.projectId, { name: n.name, nameSource: "user" });
   const key = projectNameKey(n.name);
   const duplicates = (await listUserProjects(u.userId))
-    .filter((o) => o.projectId !== p.projectId && projectNameKey(o.name ?? o.projectId) === key)
-    .map((o) => ({ projectId: o.projectId, name: o.name ?? o.projectId }));
+    .filter((o) => o.projectId !== p.projectId && projectNameKey(projectDisplayName(o)) === key)
+    .map((o) => ({ projectId: o.projectId, name: projectDisplayName(o) }));
   const res: UpdateProjectResponse = { project: { ...p, name: n.name, nameSource: "user", updatedAt: nowIso() }, duplicates };
   return c.json(res);
 });
@@ -492,7 +493,7 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
-  const fileName = key === `output/${p.projectId}.bra.xlsx` ? braDownloadFileName(p.name, p.projectId) : undefined;
+  const fileName = key === `output/${p.projectId}.bra.xlsx` ? braDownloadFileName(projectDisplayName(p), p.projectId) : undefined;
   const url = await presignDownload(u.userId, p.projectId, key, fileName);
   return c.json({ url, expiresIn: 900 });
 });

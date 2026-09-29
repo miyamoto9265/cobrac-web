@@ -12,7 +12,8 @@ export const LEGACY_PROJECT_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{2,63}$/;
 export const PROJECT_NAME_MAX = 200;
 const FILE_NAME_MAX = 80;
 
-export type ProjectNameSource = "auto" | "user";
+/** "provisional" = from the user's ROI/TLF at creation; "auto" = written by the agent; "user" = typed or edited by the user */
+export type ProjectNameSource = "provisional" | "auto" | "user";
 
 export function generateUserKey(random: () => number = Math.random): string {
   let s = "u";
@@ -70,10 +71,19 @@ export function projectNameKey(name: string): string {
 }
 
 /**
- * Initial project name proposed from ROI/TLF (ASCII PascalCase slug, TLF first).
- * Used until the agent writes `name` into meta.json.
+ * Provisional project name from the user's ROI/TLF as typed (`<TLF> in <ROI>`, any language).
+ * Stored with nameSource "provisional" until the agent writes `name` into meta.json.
  */
 export function proposeProjectName(roi: string, tlf: string): string {
+  const clean = (s: string) => s.normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/gu, " ").replace(/\s+/gu, " ").trim();
+  const r = clean(roi);
+  const t = clean(tlf);
+  const name = t && r ? `${t} in ${r}` : t || r;
+  return [...(name || "Untitled project")].slice(0, PROJECT_NAME_MAX).join("").trim();
+}
+
+/** The ASCII PascalCase slug stored as the initial name up to v0.8.1 (non-ASCII input was dropped). */
+export function legacyProposedProjectName(roi: string, tlf: string): string {
   const ascii = (s: string) =>
     s
       .normalize("NFKD")
@@ -117,6 +127,23 @@ export function contentDisposition(ascii: string, utf8: string): string {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
-export function projectDisplayName(p: { projectId: string; name?: string | null }): string {
-  return p.name?.trim() || p.projectId;
+export type ProjectNameFields = { projectId: string; name?: string | null; nameSource?: ProjectNameSource | null; roi?: string | null; tlf?: string | null };
+
+/**
+ * Name to show and to use in download file names. A not-yet-agent-named project that still carries
+ * the old ASCII slug (e.g. "VOR" for TLF "VOR" / ROI "小脳") shows the provisional `<TLF> in <ROI>`.
+ */
+export function projectDisplayName(p: ProjectNameFields): string {
+  const name = p.name?.trim();
+  const roi = p.roi ?? "";
+  const tlf = p.tlf ?? "";
+  const hasInput = !!(roi.trim() || tlf.trim());
+  if (hasInput && p.nameSource === "provisional" && !name) return proposeProjectName(roi, tlf);
+  if (hasInput && p.nameSource === "auto" && name === legacyProposedProjectName(roi, tlf)) return proposeProjectName(roi, tlf);
+  return name || p.projectId;
+}
+
+/** Whether the agent may (re)write the name from meta.json. */
+export function isAgentNameable(source: ProjectNameSource | null | undefined): boolean {
+  return source === "auto" || source === "provisional";
 }

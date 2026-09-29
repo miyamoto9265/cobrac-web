@@ -86,7 +86,7 @@ export function Layout() {
                 <span className="truncate">{projectDisplayName(p)}</span>
                 <StatusBadge status={p.status} compact />
               </div>
-              <div className="truncate text-xs text-slate-400">{p.tlf || p.roi}</div>
+              <div className="truncate text-xs text-slate-400">{[p.roi, p.tlf].filter((s) => s?.trim()).join(" · ")}</div>
             </button>
           ))}
         </nav>

@@ -66,7 +66,7 @@ function NewProject() {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, name: name.trim() || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, locale });
+      const p = await api.createProject({ roi, tlf, name: (nameTouched && name.trim()) || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, locale });
       navigate(`/chat/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -297,7 +297,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
                 ))}
                 {xlsx && (
                   <button onClick={() => void download(xlsx.key)} className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs coarse:min-h-11 font-medium text-white hover:bg-emerald-700">
-                    <Download size={14} /> <span className="max-w-[14rem] truncate">{braDownloadFileName(project.name, project.projectId).utf8}</span>
+                    <Download size={14} /> <span className="max-w-[14rem] truncate">{braDownloadFileName(projectDisplayName(project), project.projectId).utf8}</span>
                   </button>
                 )}
               </>

@@ -80,7 +80,7 @@ export interface ProjectRecord {
   projectId: string;
   /** Display name; any language, may repeat. Absent on projects created before v0.7 (use projectId) */
   name?: string;
-  /** "auto" = proposed / written by the agent (may be replaced from meta.json); "user" = edited by the user */
+  /** "provisional" / "auto" may be replaced from meta.json by the agent; "user" (typed or edited by the user) never is */
   nameSource?: ProjectNameSource;
   /** Number of COMPLETED jobs (artifact revisions) */
   revision?: number;

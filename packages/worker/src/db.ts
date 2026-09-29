@@ -98,17 +98,17 @@ export async function refreshProjectUsage(userId: string, projectId: string): Pr
   });
 }
 
-/** Store the agent's name unless the user has named the project (nameSource "user" or a legacy project). */
+/** Store the agent's name (nameSource → "auto") unless the user has named the project (nameSource "user" or a legacy project). */
 export async function updateAutoProjectName(userId: string, projectId: string, name: string): Promise<boolean> {
   try {
     await ddb.send(
       new UpdateCommand({
         TableName: env.tables.projects,
         Key: { userId, projectId },
-        UpdateExpression: "SET #n = :n, updatedAt = :t",
-        ConditionExpression: "nameSource = :auto",
+        UpdateExpression: "SET #n = :n, nameSource = :auto, updatedAt = :t",
+        ConditionExpression: "nameSource IN (:auto, :provisional)",
         ExpressionAttributeNames: { "#n": "name" },
-        ExpressionAttributeValues: { ":n": name, ":t": nowIso(), ":auto": "auto" },
+        ExpressionAttributeValues: { ":n": name, ":t": nowIso(), ":auto": "auto", ":provisional": "provisional" },
       }),
     );
     return true;
