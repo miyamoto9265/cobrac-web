@@ -87,7 +87,7 @@ export async function writeSchemas(workDir: string): Promise<void> {
 async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
   const files = loadHcdFiles(paths);
   const first = checkHcd(files);
-  const ids = first.model ? hombaAnchorIds(first.model.ucs.map((u) => u.descriptor).filter(Boolean)) : [];
+  const ids = first.model ? hombaAnchorIds([...first.model.ucs, ...first.model.collections].map((u) => u.descriptor).filter(Boolean)) : [];
   if (!deps.lookupSabra || !ids.length) return first;
   return checkHcd(files, { sabra: await deps.lookupSabra(ids) });
 }

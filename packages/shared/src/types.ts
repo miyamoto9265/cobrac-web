@@ -263,12 +263,27 @@ export interface HcdEdge {
   sign?: EdgeSign;
 }
 
+/** Collection Circuit (Circuits.csv row with Uniform = FALSE other than the ROI row); not a node of the graph */
+export interface HcdCollection {
+  id: string;
+  names: string;
+  ucDescriptor?: string;
+  sourceOfId: string;
+  comments: string;
+  /** Direct members as written (UCs and Collections) */
+  subCircuits: string[];
+  /** Node IDs under it, nested Collections expanded */
+  members: string[];
+}
+
 export interface HcdGraph {
   kind: "hcd";
   projectId: string;
   generatedAt: string;
   nodes: HcdNode[];
   edges: HcdEdge[];
+  /** Absent in graphs built before Collections existed */
+  collections?: HcdCollection[];
   references: { referenceId: string; doi: string }[];
 }
 

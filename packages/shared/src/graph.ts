@@ -6,6 +6,7 @@ import type {
   FrgGraph,
   FrgNode,
   FrgNodeKind,
+  HcdCollection,
   HcdEdge,
   HcdGraph,
   HcdNode,
@@ -66,8 +67,8 @@ export function classifyEdgeSign(edge: Pick<HcdEdge, "comments">, sender?: Pick<
  */
 export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGraph; frg: FrgGraph } {
   const generatedAt = new Date().toISOString();
-  // The ROI row (`ROI_<ProjectID>`, a collection of the ROI-internal UCs) is not a node
-  const circuits = parseCsvObjects(src.circuitsCsv).filter((c) => !isRoiCircuitId(stripPrefix(col(c, "Circuit ID"))));
+  // The ROI row (`ROI_<ProjectID>`) and the Collections (Uniform = FALSE) are not nodes
+  const allCircuits = parseCsvObjects(src.circuitsCsv).filter((c) => !isRoiCircuitId(stripPrefix(col(c, "Circuit ID"))));
   const connections = parseCsvObjects(src.connectionsCsv);
   const frgRows = parseCsvObjects(src.frgCsv);
   const references = src.referencesCsv
@@ -166,6 +167,12 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   }
 
   // ---- HCD nodes ------------------------------------------------------------
+  // A Collection that is still an edge end (files not checked by the harness) stays a node so no edge is lost
+  const isCollectionRow = (c: Record<string, string>) => {
+    const id = stripPrefix(col(c, "Circuit ID"));
+    return col(c, "Uniform").toUpperCase() === "FALSE" && !outgoing.has(id) && !incoming.has(id);
+  };
+  const circuits = allCircuits.filter((c) => !isCollectionRow(c));
   const circuitIds = new Set<string>();
   const hcdNodes: HcdNode[] = circuits
     .map((c) => {
@@ -236,7 +243,23 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
     e.sign = classifyEdgeSign(e, nodeById.get(e.source));
   }
 
-  const hcd: HcdGraph = { kind: "hcd", projectId, generatedAt, nodes: hcdNodes, edges: hcdEdges, references };
+  const collectionRows = allCircuits.filter(isCollectionRow).map((c) => ({
+    id: stripPrefix(col(c, "Circuit ID")),
+    names: col(c, "Names", "Name"),
+    ucDescriptor: col(c, "UC Descriptor") || undefined,
+    sourceOfId: col(c, "Source of ID"),
+    comments: col(c, "Comments", "Comment"),
+    subCircuits: splitList(col(c, "Sub-Circuits")).map(stripPrefix),
+  }));
+  const subsById = new Map(collectionRows.map((c) => [c.id, c.subCircuits]));
+  const membersOf = (id: string, seen: Set<string>): string[] => {
+    if (seen.has(id)) return [];
+    seen.add(id);
+    return (subsById.get(id) ?? []).flatMap((k) => (subsById.has(k) ? membersOf(k, seen) : circuitIds.has(k) ? [k] : []));
+  };
+  const collections: HcdCollection[] = collectionRows.map((c) => ({ ...c, members: [...new Set(membersOf(c.id, new Set()))] }));
+
+  const hcd: HcdGraph = { kind: "hcd", projectId, generatedAt, nodes: hcdNodes, edges: hcdEdges, ...(collections.length ? { collections } : {}), references };
 
   // ---- FRG graph ------------------------------------------------------------
   const frgNodesById = new Map<string, FrgNode>();
