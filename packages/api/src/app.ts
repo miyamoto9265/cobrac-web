@@ -4,6 +4,9 @@ import { HTTPException } from "hono/http-exception";
 import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   AnswerRequest,
+  ArticleJobState,
+  ArticleMeta,
+  CreateArticleRequest,
   CreateProjectRequest,
   DeleteProjectResponse,
   FollowupRequest,
@@ -11,6 +14,7 @@ import type {
   ProjectRecord,
   EdgeStyle,
   GraphLayout,
+  ListArticlesResponse,
   NodeStyle,
   ReasoningEffort,
   RetryRequest,
@@ -32,9 +36,13 @@ import {
   PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
+  articleDownloadFileName,
+  articleLocaleOfKey,
+  articleMetaKey,
   braDownloadFileName,
   filterCodexModels,
   formatProjectId,
+  isArticleStale,
   isProjectIdLike,
   isUiLocale,
   newId,
@@ -400,6 +408,13 @@ app.get("/projects/:id/messages", async (c) => {
   return c.json({ ...r, items: ownedMessages(r.items, u.userId, new Set(jobs.map((j) => j.jobId))) });
 });
 
+/** Project fields after its active job is stopped. An article job leaves the finished BRA data as it was. */
+function afterStop(p: ProjectRecord, job: JobRecord | null): Partial<ProjectRecord> {
+  if (job?.type !== "article") return { status: "CANCELLED", activeJobId: null, pendingQuestion: null };
+  const articleJob: ArticleJobState | null = p.articleJob?.jobId === job.jobId ? { ...p.articleJob, status: "CANCELLED" } : (p.articleJob ?? null);
+  return { status: "COMPLETED", activeJobId: null, pendingQuestion: null, articleJob };
+}
+
 app.post("/projects/:id/cancel", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
@@ -410,7 +425,7 @@ app.post("/projects/:id/cancel", async (c) => {
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by user");
     await putMessage(p.projectId, job.jobId, "system", "status", "Job cancelled by the user.", { userId: p.userId, meta: { i18n: "sys.cancelled" } });
   }
-  await updateProject(u.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
+  await updateProject(u.userId, p.projectId, afterStop(p, job));
   return c.json({ ok: true });
 });
 
@@ -482,7 +497,7 @@ app.post("/projects/:id/retry", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
   const locale = readLocale(body?.locale);
   const jobs = await listJobsForProject(p.projectId, u.userId);
-  const last = jobs.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+  const last = jobs.filter((j) => j.type !== "article").sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const now = nowIso();
   const jobId = newId("job_");
   const job: JobRecord = {
@@ -523,7 +538,13 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
-  const fileName = key === `output/${p.projectId}.bra.xlsx` ? braDownloadFileName(projectDisplayName(p), p.projectId) : undefined;
+  const articleLocale = articleLocaleOfKey(key);
+  const fileName =
+    key === `output/${p.projectId}.bra.xlsx`
+      ? braDownloadFileName(projectDisplayName(p), p.projectId)
+      : articleLocale
+        ? articleDownloadFileName(projectDisplayName(p), p.projectId, articleLocale)
+        : undefined;
   const url = await presignDownload(u.userId, p.projectId, key, fileName);
   return c.json({ url, expiresIn: 900 });
 });
@@ -537,6 +558,69 @@ app.get("/projects/:id/artifacts/text", async (c) => {
   const text = await getObjectText(u.userId, p.projectId, key);
   if (text === null) throw notFound();
   return c.text(text);
+});
+
+// --- explanatory articles -----------------------------------------------------
+// Written on request from finished BRA data, one per language: article/<locale>.md + article/<locale>.json (ArticleMeta).
+
+app.post("/projects/:id/articles", async (c) => {
+  const u = c.get("user");
+  if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  if (p.status !== "COMPLETED" || p.stepStates?.XLSX !== "done") throw bad("解説記事は BRA データの完成後に作成できます");
+  const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest>;
+  if (!isUiLocale(body.locale)) throw bad("locale が不正です");
+  const locale = body.locale;
+  const now = nowIso();
+  const jobId = newId("job_");
+  const job: JobRecord = {
+    projectId: p.projectId,
+    jobId,
+    userId: u.userId,
+    type: "article",
+    status: "QUEUED",
+    instruction: null,
+    pendingAnswer: null,
+    articleLocale: locale,
+    ecsTaskArn: null,
+    retryCount: 0,
+    lastHeartbeat: null,
+    startedAt: null,
+    endedAt: null,
+    errorMessage: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putJob(job);
+  const articleJob: ArticleJobState = { jobId, locale, status: "QUEUED", errorMessage: null, requestedAt: now };
+  await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, articleJob });
+  await putMessage(p.projectId, jobId, "system", "status", `Explanatory article (${locale}) queued.`, {
+    userId: p.userId,
+    meta: { i18n: "sys.articleQueued", lang: locale },
+  });
+  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "article" });
+  return c.json({ ok: true, jobId, articleJob }, 202);
+});
+
+app.get("/projects/:id/articles", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const files = (await listArtifacts(u.userId, p.projectId)).filter((a) => a.category === "article");
+  const items: ListArticlesResponse["items"] = [];
+  for (const a of files) {
+    const locale = articleLocaleOfKey(a.key);
+    if (!locale) continue;
+    const text = await getObjectText(u.userId, p.projectId, articleMetaKey(locale));
+    let meta: ArticleMeta | null = null;
+    try {
+      meta = text ? (JSON.parse(text) as ArticleMeta) : null;
+    } catch {
+      meta = null;
+    }
+    const m: ArticleMeta = meta ?? { locale, language: locale, title: "", createdAt: a.lastModified, sourceRevision: -1, jobId: "", model: null, citedReferences: [] };
+    items.push({ ...m, locale, key: a.key, size: a.size, lastModified: a.lastModified, stale: isArticleStale(m, p) });
+  }
+  return c.json({ items } satisfies ListArticlesResponse);
 });
 
 app.get("/projects/:id/graph/:kind", async (c) => {
@@ -678,7 +762,7 @@ app.post("/admin/projects/:userId/:id/cancel", async (c) => {
     if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by admin");
     await putMessage(p.projectId, job.jobId, "system", "status", "Job stopped by an admin.", { userId: p.userId, meta: { i18n: "sys.adminStopped" } });
   }
-  await updateProject(p.userId, p.projectId, { status: "CANCELLED", activeJobId: null, pendingQuestion: null });
+  await updateProject(p.userId, p.projectId, afterStop(p, job));
   return c.json({ ok: true });
 });
 

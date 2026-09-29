@@ -31,7 +31,7 @@ Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this f
 
 ## Language and format
 
-- Write every artifact in English (all JSON values, the report and the decision log).
+- Write every artifact in English (all JSON values, the report and the decision log). The only exception is an explanatory article (`<ProjectID>/article/<locale>.md`), which a separate turn asks for in a given language.
 - JSON files: UTF-8, valid JSON (no comments or trailing commas), exactly the keys of the schema, every key present (use `""` for an empty value). Write long text as one JSON string (`\n` for line breaks). Edit files in place and keep the rest of a file unchanged.
 - Circuit IDs follow the UC naming rules of the HCD phase (SABRA abbreviation, e.g. `VTA`, `NAC(shell,DRD1+)`); GN node IDs (`R.`) have no spaces (kebab-case). In JSON write IDs without backticks; in markdown wrap them in backticks.
 - The `rcs` MCP server (ROSETTA Candidate Search) resolves region names to SABRA units (HOMBA/DHBA and BNA). Use it to anchor UCs; send it only region names and a short context (ROI, TLF, species).

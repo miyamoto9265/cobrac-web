@@ -2,6 +2,7 @@
 // Domain types shared by API, worker and web
 // ---------------------------------------------------------------------------
 
+import type { ArticleJobState, ArticleMeta } from "./article.js";
 import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ProjectNameSource } from "./projectId.js";
@@ -109,6 +110,8 @@ export interface ProjectRecord {
   costUsd?: number | null;
   /** Models that have actually been used by jobs of this project */
   usedModels?: string[];
+  /** Last explanatory-article request (the articles themselves are `article/<locale>.md`) */
+  articleJob?: ArticleJobState | null;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -126,7 +129,8 @@ export const isProjectDeleted = (p: Pick<ProjectRecord, "deletedAt">): boolean =
 export const canDeleteProject = (p: Pick<ProjectRecord, "status" | "deletedAt">): boolean =>
   !isProjectDeleted(p) && !ACTIVE_PROJECT_STATUSES.includes(p.status);
 
-export type JobType = "initial" | "followup";
+/** `article`: writes an explanatory article from the finished outputs; leaves the BRA data and the project thread alone */
+export type JobType = "initial" | "followup" | "article";
 
 export type JobStatus =
   | "QUEUED"
@@ -149,6 +153,8 @@ export interface JobRecord {
   pendingAnswer: string | null;
   /** Web UI language of the latest request for this job; the agent replies in it (absent = language the user wrote in) */
   locale?: UiLocale | null;
+  /** Language of the article (type === article) */
+  articleLocale?: UiLocale;
   ecsTaskArn: string | null;
   retryCount: number;
   lastHeartbeat: string | null;
@@ -202,7 +208,7 @@ export interface MessageRecord {
 // Job queue message (SQS)
 // ---------------------------------------------------------------------------
 
-export type RunMode = "initial" | "resume" | "followup" | "retry";
+export type RunMode = "initial" | "resume" | "followup" | "retry" | "article";
 
 export interface RunJobMessage {
   version: 1;
@@ -351,7 +357,15 @@ export interface ArtifactInfo {
   size: number;
   lastModified: string;
   /** `doc` = the free-text markdown at the workspace root (report.md, decision_log.md) */
-  category: "output" | "csv" | "hcd" | "frg" | "graph" | "doc" | "other";
+  category: "output" | "csv" | "hcd" | "frg" | "graph" | "doc" | "article" | "other";
+}
+
+export interface CreateArticleRequest {
+  locale: UiLocale;
+}
+
+export interface ListArticlesResponse {
+  items: (ArticleMeta & { key: string; size: number; lastModified: string; stale: boolean })[];
 }
 
 export interface ListProjectsResponse {

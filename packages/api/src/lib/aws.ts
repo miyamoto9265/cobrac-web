@@ -53,6 +53,7 @@ export async function listArtifacts(userId: string, projectId: string): Promise<
 function categorize(rel: string): ArtifactInfo["category"] {
   if (rel.startsWith("output/")) return "output";
   if (rel.startsWith("graph/")) return "graph";
+  if (/^article\/[^/]+\.md$/.test(rel)) return "article";
   if (rel.includes("_CSV/")) return "csv";
   if (rel.includes("_HCD/")) return "hcd";
   if (rel.includes("_FRG/")) return "frg";

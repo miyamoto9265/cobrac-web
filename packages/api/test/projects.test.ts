@@ -395,3 +395,95 @@ describe("reply language (web UI locale)", () => {
     expect(jobsOf(p.projectId).find((j) => j.jobId === r2.jobId)!.locale).toBe("en");
   });
 });
+
+describe("explanatory articles", () => {
+  const P = "u7m2q9xa-5";
+  async function seed(extra: Partial<ProjectRecord> = {}) {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: P, name: "報酬 学習", nameSource: "user", revision: 2, ...extra });
+    const aws = await import("../src/lib/aws.js");
+    vi.mocked(aws.enqueueRun).mockClear();
+    return aws;
+  }
+
+  it("queues an article job for finished BRA data only, without touching the steps", async () => {
+    const aws = await seed();
+    const r = await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" });
+    expect(r.status).toBe(202);
+    const { jobId } = (await r.json()) as { jobId: string };
+    const job = fake.items("jobs").find((j) => j.jobId === jobId)!;
+    expect(job).toMatchObject({ type: "article", status: "QUEUED", articleLocale: "ja" });
+    const p = fake.items("projects").find((x) => x.projectId === P)!;
+    expect(p).toMatchObject({ status: "QUEUED", activeJobId: jobId, articleJob: { jobId, locale: "ja", status: "QUEUED" }, stepStates: { XLSX: "done" } });
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith({ version: 1, userId: A.sub, projectId: P, jobId, mode: "article" });
+
+    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(400); // busy now
+    await seed({ status: "COMPLETED", stepStates: { HCD: "done", FRG: "done", CSV: "done", XLSX: "pending" } });
+    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(400);
+    await seed();
+    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja-JP" })).status).toBe(400);
+    expect((await call(B, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(404);
+  });
+
+  it("cancelling an article job leaves the project completed", async () => {
+    await seed();
+    const { jobId } = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "en" }));
+    await json(call(A, "POST", `/projects/${P}/cancel`));
+    const p = fake.items("projects").find((x) => x.projectId === P)!;
+    expect(p).toMatchObject({ status: "COMPLETED", activeJobId: null, articleJob: { jobId, status: "CANCELLED" } });
+    expect(fake.items("jobs").find((j) => j.jobId === jobId)!.status).toBe("CANCELLED");
+  });
+
+  it("lists articles with their metadata and a stale flag, and names downloads", async () => {
+    const aws = await seed();
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([
+      { key: "article/ja.md", name: "ja.md", size: 10, lastModified: now, category: "article" },
+      { key: "article/en.md", name: "en.md", size: 10, lastModified: now, category: "article" },
+      { key: "output/x.bra.xlsx", name: "x.bra.xlsx", size: 10, lastModified: now, category: "output" },
+    ]);
+    const meta = (locale: string, sourceRevision: number) =>
+      JSON.stringify({ locale, language: locale, title: "T", createdAt: now, sourceRevision, jobId: "job_x", model: "gpt-5.6", citedReferences: ["[A, 2000]"] });
+    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => (key === "article/ja.json" ? meta("ja", 2) : key === "article/en.json" ? meta("en", 1) : null));
+    const r = await json<{ items: { locale: string; stale: boolean; key: string }[] }>(call(A, "GET", `/projects/${P}/articles`));
+    vi.mocked(aws.getObjectText).mockReset();
+    vi.mocked(aws.getObjectText).mockResolvedValue(null);
+    expect(r.items.map((a) => [a.locale, a.stale, a.key])).toEqual([
+      ["ja", false, "article/ja.md"],
+      ["en", true, "article/en.md"],
+    ]);
+
+    await json(call(A, "GET", `/projects/${P}/artifacts/download?key=${encodeURIComponent("article/ja.md")}`));
+    expect(presign).toHaveBeenLastCalledWith(A.sub, P, "article/ja.md", { ascii: `${P}.article.ja.md`, utf8: `報酬_学習_${P}.article.ja.md` });
+  });
+
+  it("retries the last BRA job, not an article job", async () => {
+    const aws = await seed({ status: "FAILED" });
+    fake.put("jobs", { ...job(A.sub, "job_f", 1), projectId: P, type: "followup", instruction: "add X", status: "FAILED", createdAt: "2026-09-02T00:00:00.000Z" });
+    fake.put("jobs", { ...job(A.sub, "job_art", 1), projectId: P, type: "article", articleLocale: "ja", createdAt: "2026-09-03T00:00:00.000Z" });
+    await json(call(A, "POST", `/projects/${P}/retry`));
+    const retried = fake.items("jobs").filter((j) => j.projectId === P && j.status === "QUEUED");
+    expect(retried).toEqual([expect.objectContaining({ type: "followup", instruction: "add X" })]);
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "retry" }));
+  });
+});
+
+describe("janitor and article jobs", () => {
+  it("re-runs a stalled article job as an article job, then fails it without failing the project", async () => {
+    const { handler: janitor } = await import("../src/handlers/janitor.js");
+    const aws = await import("../src/lib/aws.js");
+    vi.mocked(aws.enqueueRun).mockClear();
+    const P = "u7m2q9xa-6";
+    const stalled = { ...job(A.sub, "job_art", 1), projectId: P, type: "article" as const, articleLocale: "ko" as const, status: "RUNNING" as const, lastHeartbeat: now };
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: P, status: "RUNNING", activeJobId: "job_art" });
+    fake.put("jobs", stalled);
+    await janitor();
+    const next = fake.items("jobs").find((j) => j.projectId === P && j.status === "QUEUED")!;
+    expect(next).toMatchObject({ type: "article", articleLocale: "ko", retryCount: 1 });
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith(expect.objectContaining({ jobId: next.jobId, mode: "article" }));
+    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject({ status: "QUEUED", articleJob: { jobId: next.jobId, locale: "ko", status: "QUEUED" } });
+
+    fake.put("jobs", { ...next, status: "RUNNING", lastHeartbeat: now, retryCount: 5 });
+    await janitor();
+    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject({ status: "COMPLETED", activeJobId: null, errorMessage: null, articleJob: { status: "FAILED" } });
+  });
+});

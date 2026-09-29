@@ -56,7 +56,8 @@ export function resolveModelSettings(project: { model?: string | null; reasoning
   return { model, reasoningEffort: effort };
 }
 
-export function openThread(codex: Codex, threadId: string | null, settings: ModelSettings): Thread {
+export function openThread(codex: Codex, threadId: string | null, settings: ModelSettings, opts: { webSearch?: boolean } = {}): Thread {
+  const webSearch = opts.webSearch ?? true;
   const options = {
     workingDirectory: env.workDir,
     skipGitRepoCheck: true,
@@ -64,8 +65,8 @@ export function openThread(codex: Codex, threadId: string | null, settings: Mode
     sandboxMode: "danger-full-access" as const,
     approvalPolicy: "never" as const,
     networkAccessEnabled: true,
-    webSearchEnabled: true,
-    webSearchMode: "live" as const,
+    webSearchEnabled: webSearch,
+    webSearchMode: webSearch ? ("live" as const) : ("disabled" as const),
     ...(settings.model ? { model: settings.model } : {}),
     ...(settings.reasoningEffort ? { modelReasoningEffort: settings.reasoningEffort } : {}),
   };

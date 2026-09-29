@@ -41,6 +41,8 @@ const EXACT: Record<string, string> = {
   "エージェントが所定回数の続行指示後も CSV を生成しませんでした。フォローアップ指示またはリトライで続きを実行してください。": "sys.csvMissing",
   "The agent did not produce the CSVs after the allowed continue attempts. Use a follow-up or retry.": "sys.csvMissing",
   "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.": "sys.legacyWorkspace",
+  "The article did not pass the checks after the allowed fix attempts. Try again.": "sys.articleFailed",
+  "Explanatory articles need a project made with v0.8 or later.": "sys.articleLegacy",
 };
 
 const STEP_RE = /^(?:ステップ |Step )(HCD|FRG|CSV|XLSX)(?: が完了しました。| completed\.)$/;
@@ -64,7 +66,7 @@ function usageFromMeta(meta: Record<string, unknown>): ResolvedSysMsg | null {
 
 function varsFromMeta(meta: Record<string, unknown>): Record<string, string | number> | undefined {
   const vars: Record<string, string | number> = {};
-  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count"] as const) {
+  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count", "lang"] as const) {
     const v = meta[k];
     if (typeof v === "string" || typeof v === "number") vars[k] = v;
   }

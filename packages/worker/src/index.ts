@@ -12,6 +12,8 @@
  *   - resume  : restore workspace + thread, deliver the user's answer, continue the current phase
  *   - followup: restore, apply the instruction, re-validate every phase, regenerate CSV/xlsx
  *   - retry   : restore, continue from the first phase not accepted yet
+ *   - article : restore the workspace read-only and write an explanatory article in the requested language on a
+ *               fresh thread (article.ts); the BRA data, step states, revision and project thread stay untouched
  *
  * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
  */
@@ -19,8 +21,27 @@ import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
 import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { PROJECT_FILES, REF_STATUSES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, harnessPromptNotice, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
+import type { ArticleJobState, ArticleMeta, JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
+import {
+  PROJECT_FILES,
+  REF_STATUSES,
+  addUsage,
+  articleKey,
+  articleMetaKey,
+  braDownloadFileName,
+  estimateCostUsd,
+  formatTokens,
+  formatUsd,
+  harnessPromptNotice,
+  isAgentNameable,
+  isUiLocale,
+  nowIso,
+  projectDisplayName,
+  replyLanguageInstruction,
+  uiLanguageName,
+  withReferenceList,
+} from "@cobrac/shared";
+import { articlePrompt, readReferences, runArticle } from "./article.js";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -37,13 +58,14 @@ import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { ReferenceVerifier } from "./references.js";
-import { downloadDir, projectPrefix, uploadDir } from "./s3sync.js";
+import { downloadDir, projectPrefix, putObject, uploadDir } from "./s3sync.js";
 import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt, type ReferenceReport } from "./pipeline.js";
 import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
 const LEGACY_WORKSPACE_MESSAGE =
   "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.";
+const LEGACY_ARTICLE_MESSAGE = "Explanatory articles need a project made with v0.8 or later.";
 
 const { userId, projectId, jobId, mode } = env.job;
 const prefix = projectPrefix(userId, projectId);
@@ -82,7 +104,17 @@ async function main() {
   console.log(`[worker] rcs=${rcsConn ? rcsConn.url : "(disabled)"}`);
 
   await updateJob(projectId, jobId, { status: "RUNNING", startedAt: job.startedAt ?? nowIso(), lastHeartbeat: nowIso(), ecsTaskArn: await taskArn() });
-  await updateProject(userId, projectId, { status: "RUNNING", activeJobId: jobId, pendingQuestion: null, errorMessage: null });
+  await updateProject(userId, projectId, {
+    status: "RUNNING",
+    activeJobId: jobId,
+    pendingQuestion: null,
+    errorMessage: null,
+    ...(mode === "article" ? { articleJob: articleState(project, job, "RUNNING") } : {}),
+  });
+  if (mode === "article") {
+    await articleJob(apiKey, project, job);
+    return;
+  }
 
   // --- workspace ------------------------------------------------------------
   await prepareWorkspace(project);
@@ -116,24 +148,7 @@ async function main() {
   console.log(`[worker] reply locale=${job.locale ?? "(user's language)"}`);
 
   const abort = new AbortController();
-  const heartbeat = setInterval(async () => {
-    try {
-      const j = await getJob(projectId, jobId);
-      if (j?.status === "CANCELLED" && !cancelled) {
-        cancelled = true;
-        await log("Cancel request received. Saving state and exiting.", { i18n: "sys.cancelReceived" });
-        abort.abort();
-        return;
-      }
-      await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
-      if (Date.now() - startedAt > env.workflowTimeoutMs) {
-        await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
-        process.exit(1);
-      }
-    } catch (e) {
-      console.error("[heartbeat]", e);
-    }
-  }, 60_000);
+  const heartbeat = startHeartbeat(abort);
 
   const sink: TurnSink = {
     onMessage: async (type, content, meta) => {
@@ -286,6 +301,136 @@ async function main() {
   }
 }
 
+/** Cancel detection, heartbeat and the run-time limit, once a minute. */
+function startHeartbeat(abort: AbortController): NodeJS.Timeout {
+  return setInterval(async () => {
+    try {
+      const j = await getJob(projectId, jobId);
+      if (j?.status === "CANCELLED" && !cancelled) {
+        cancelled = true;
+        await log("Cancel request received. Saving state and exiting.", { i18n: "sys.cancelReceived" });
+        abort.abort();
+        return;
+      }
+      await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+      if (Date.now() - startedAt > env.workflowTimeoutMs) {
+        await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
+        process.exit(1);
+      }
+    } catch (e) {
+      console.error("[heartbeat]", e);
+    }
+  }, 60_000);
+}
+
+// --- explanatory article -----------------------------------------------------
+
+function articleState(project: ProjectRecord, job: JobRecord, status: ArticleJobState["status"], errorMessage: string | null = null): ArticleJobState | null {
+  if (!isUiLocale(job.articleLocale)) return project.articleJob ?? null;
+  return { jobId: job.jobId, locale: job.articleLocale, status, errorMessage, requestedAt: project.articleJob?.jobId === job.jobId ? project.articleJob.requestedAt : job.createdAt };
+}
+
+/** The project goes back to COMPLETED whatever happens: the BRA data is unchanged by an article job. */
+async function endArticleJob(project: ProjectRecord, job: JobRecord, status: "COMPLETED" | "FAILED", errorMessage: string | null = null) {
+  await updateJob(projectId, jobId, { status, endedAt: nowIso(), ...(errorMessage ? { errorMessage } : {}) });
+  await updateProject(userId, projectId, { status: "COMPLETED", activeJobId: null, pendingQuestion: null, errorMessage: null, articleJob: articleState(project, job, status, errorMessage) });
+}
+
+async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord) {
+  const locale = job.articleLocale;
+  if (!isUiLocale(locale)) {
+    await fail("The article job has no valid language.");
+    return;
+  }
+  const lang = uiLanguageName(locale);
+  await mkdir(env.workDir, { recursive: true });
+  await mkdir(env.codexHome, { recursive: true });
+  const agents = (await readFile(join(env.promptsDir, "AGENTS.md"), "utf8")).replaceAll("{P}", projectId);
+  await writeFile(join(env.workDir, "AGENTS.md"), agents, "utf8");
+  await log("Restoring previous workspace…", { i18n: "sys.restoring" });
+  await downloadDir(`${prefix}workspace/`, paths.root);
+  if (isLegacyWorkspace(paths) || readReferences(paths).length === 0) {
+    await fail(LEGACY_ARTICLE_MESSAGE, { i18n: "sys.articleLegacy" });
+    return;
+  }
+  const sourceRevision = project.revision ?? 0;
+
+  const settings = resolveModelSettings(project);
+  resolvedModel = settings.model;
+  resolvedEffort = settings.reasoningEffort;
+  await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
+  const thread = openThread(createCodex(apiKey, null), null, settings, { webSearch: false });
+  const abort = new AbortController();
+  const heartbeat = startHeartbeat(abort);
+  const sink: TurnSink = {
+    onMessage: async (type, content, meta) => {
+      await putMessage(projectId, jobId, "agent", type, content, { meta, step: null });
+    },
+    onFileChange: async () => undefined,
+    onHeartbeat: () => updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).then(() => undefined),
+  };
+  try {
+    const first = await articlePrompt(env.promptsDir, projectId, locale);
+    await putMessage(projectId, jobId, "user", "prompt", first.shown, { meta: { mode, locale } });
+    await log(`Writing the explanatory article in ${lang}…`, { i18n: "sys.articleStarted", lang: locale });
+    const run = await runArticle(
+      {
+        paths,
+        locale,
+        maxNudges: env.maxNudges,
+        turn: async (p) => {
+          let turn;
+          try {
+            turn = await runTurn(thread, p.hidden ? `${p.shown}\n\n---\n\n${p.hidden}` : p.shown, sink, abort.signal);
+          } catch (e) {
+            if (cancelled) return false;
+            throw e;
+          }
+          if (cancelled) return false;
+          await accumulateUsage(turn.usage);
+          if (turn.failed) {
+            await fail(turn.errorMessage ?? "Codex turn failed");
+            return false;
+          }
+          return true;
+        },
+        onFix: (errors) =>
+          log(`Checks found ${errors.length} issue(s) in the article; asked the agent to fix them.`, {
+            i18n: "sys.articleFix",
+            count: errors.length,
+            details: errors.join("\n"),
+          }),
+      },
+      first,
+    );
+    if (run.result === "stopped") return;
+    if (run.result === "failed") {
+      await fail("The article did not pass the checks after the allowed fix attempts. Try again.", { i18n: "sys.articleFailed", details: run.errors.join("\n") });
+      return;
+    }
+    const markdown = withReferenceList(run.markdown, run.check.cited, readReferences(paths), locale);
+    const meta: ArticleMeta = {
+      locale,
+      language: lang,
+      title: run.check.title,
+      createdAt: nowIso(),
+      sourceRevision,
+      jobId,
+      model: resolvedModel,
+      citedReferences: run.check.cited,
+    };
+    await putObject(prefix + articleKey(locale), markdown, "text/markdown; charset=utf-8");
+    await putObject(prefix + articleMetaKey(locale), JSON.stringify(meta, null, 2) + "\n");
+    await endArticleJob(project, job, "COMPLETED");
+    await putMessage(projectId, jobId, "system", "artifact", `Explanatory article (${lang}) is ready.`, {
+      meta: { i18n: "sys.articleReady", lang: locale, articleKey: articleKey(locale) },
+    });
+    console.log(`[worker] article ${locale} written (${markdown.length} chars, ${run.check.cited.length} references)`);
+  } finally {
+    clearInterval(heartbeat);
+  }
+}
+
 // --- phases ------------------------------------------------------------------
 
 /** checkPhase with this run's RCS client, meta adoption and Project.csv options. */
@@ -400,6 +545,7 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
   const spec = async () => (freshThread && phase !== "CSV" ? await phaseSpec(phase) : undefined);
   switch (mode) {
     case "initial":
+    case "article":
       return phasePrompt(project, "HCD");
     case "resume":
       return {
@@ -505,6 +651,13 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
 
 async function fail(message: string, meta?: Record<string, unknown>) {
   if (cancelled) return;
+  if (mode === "article") {
+    const [project, job] = await Promise.all([getProject(userId, projectId), getJob(projectId, jobId)]);
+    if (project && job) await endArticleJob(project, job, "FAILED", message);
+    else await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
+    await putMessage(projectId, jobId, "system", "error", message, { meta });
+    return;
+  }
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
   await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null });
   await putMessage(projectId, jobId, "system", "error", message, { meta });
