@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-29
+
 ### Added
 - The harness checks that every reference is a real paper: each DOI is looked up in Crossref (other DOIs through doi.org) and each PMID in PubMed, and the record must have the Reference ID's first author, its year (±1) and, when given, a similar title. A DOI or PMID that does not exist or belongs to another paper goes back to the agent as a problem to fix, like the other checks
 - The checks also report `[Author, Year]` citations in the data files and the report that are not in `references.json`, references that are cited nowhere (or only in the report's bibliography), and two references with the same DOI or PMID
