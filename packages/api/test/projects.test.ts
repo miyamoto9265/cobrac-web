@@ -17,12 +17,16 @@ vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
 }));
 
 const presign = vi.hoisted(() => vi.fn(async () => "https://signed.example/x"));
+vi.hoisted(() => {
+  process.env.BRA_TEMPLATE_PATH = new URL("../../../prompts/templates/Template-v2-2.bra.xlsx", import.meta.url).pathname;
+});
 vi.mock("../src/lib/aws.js", () => ({
   presignDownload: presign,
   enqueueRun: vi.fn(async () => undefined),
   listArtifacts: vi.fn(async () => []),
   getObjectText: vi.fn(async () => null),
   putObjectText: vi.fn(async () => undefined),
+  putObjectBytes: vi.fn(async () => undefined),
   deleteObject: vi.fn(async () => undefined),
   encryptApiKey: vi.fn(async () => "enc"),
   stopEcsTask: vi.fn(async () => undefined),
@@ -187,6 +191,43 @@ describe("project IDs", () => {
     await json(call(A, "GET", `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv")}`));
     expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv", undefined);
   });
+
+  it("builds the Template-v2-2 workbook on demand from the workspace CSVs, and reuses a current one", async () => {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR learning", nameSource: "user" });
+    const aws = await import("../src/lib/aws.js");
+    const { readFileSync } = await import("node:fs");
+    const fixture = (f: string) => readFileSync(new URL(`../../shared/test/fixtures/${f}`, import.meta.url), "utf8");
+    const project = "Contributor,Project ID,List of contributors,Description,BRA version\nalice,u7m2q9xa-2,alice,VOR,CoBRAC-v1-0\n";
+    const bra = { key: "output/u7m2q9xa-2.bra.xlsx", name: "u7m2q9xa-2.bra.xlsx", size: 1, lastModified: "2026-09-02T00:00:00.000Z", category: "output" as const };
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra]);
+    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => {
+      const m = /^workspace\/u7m2q9xa-2_CSV\/(\w+)\.csv$/.exec(key);
+      return m ? (m[1] === "Project" ? project : fixture(`${m[1]}.csv`)) : null;
+    });
+    const r = await json<{ url: string }>(call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"));
+    vi.mocked(aws.getObjectText).mockReset();
+    vi.mocked(aws.getObjectText).mockResolvedValue(null);
+    expect(r.url).toBe("https://signed.example/x");
+    const [, , key, body, type] = vi.mocked(aws.putObjectBytes).mock.calls.at(-1)!;
+    expect(key).toBe("output/u7m2q9xa-2.template-v2-2.bra.xlsx");
+    expect(type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    const { readTemplateSheet } = await import("@cobrac/shared");
+    expect(readTemplateSheet(body as Uint8Array, "Circuits").get("A2")!.text).toBe("ROI_u7m2q9xa-2");
+    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.template-v2-2.bra.xlsx", {
+      ascii: "u7m2q9xa-2.template-v2-2.bra.xlsx",
+      utf8: "VOR_learning_u7m2q9xa-2.template-v2-2.bra.xlsx",
+    });
+
+    const puts = vi.mocked(aws.putObjectBytes).mock.calls.length;
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra, { ...bra, key: "output/u7m2q9xa-2.template-v2-2.bra.xlsx", lastModified: "2026-09-03T00:00:00.000Z" }]);
+    await json(call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"));
+    expect(vi.mocked(aws.putObjectBytes).mock.calls.length).toBe(puts);
+
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([]);
+    expect((await call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx")).status).toBe(404);
+    expect((await call(B, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx")).status).toBe(404);
+  }, 30_000);
 
   it("returns the report text for the viewer and refuses non-text keys", async () => {
     seedLegacyCollision();

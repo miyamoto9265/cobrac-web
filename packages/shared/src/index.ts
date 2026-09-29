@@ -15,3 +15,6 @@ export * from "./references.js";
 export * from "./quotes.js";
 export * from "./article.js";
 export * from "./research.js";
+export * from "./bibtex.js";
+export * from "./xlsxSheet.js";
+export * from "./braTemplate.js";

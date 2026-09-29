@@ -234,6 +234,14 @@ export class CobracAgentsStack extends Stack {
       ECS_USE_SPOT: "true",
     };
 
+    const bundling: cdk.aws_lambda_nodejs.BundlingOptions = {
+      format: OutputFormat.ESM,
+      target: "node22",
+      minify: true,
+      sourceMap: false,
+      externalModules: ["@aws-sdk/*"],
+      banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+    };
     const fn = (name: string, entry: string, handler: string, extra: Partial<cdk.aws_lambda_nodejs.NodejsFunctionProps> = {}) =>
       new NodejsFunction(this, name, {
         entry: resolve(apiSrc, entry),
@@ -244,18 +252,23 @@ export class CobracAgentsStack extends Stack {
         timeout: Duration.seconds(30),
         logGroup: new logs.LogGroup(this, `${name}Logs`, { retention: logs.RetentionDays.TWO_WEEKS, removalPolicy: RemovalPolicy.DESTROY }),
         environment: commonEnv,
-        bundling: {
-          format: OutputFormat.ESM,
-          target: "node22",
-          minify: true,
-          sourceMap: false,
-          externalModules: ["@aws-sdk/*"],
-          banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-        },
+        bundling,
         ...extra,
       });
 
-    const apiFn = fn("ApiFn", "handlers/http.ts", "handler");
+    // the API builds the Template-v2-2 workbook of older projects on demand, from the template bundled next to it
+    const braTemplate = resolve(repoRoot, "prompts/templates/Template-v2-2.bra.xlsx");
+    const apiFn = fn("ApiFn", "handlers/http.ts", "handler", {
+      memorySize: 1024,
+      bundling: {
+        ...bundling,
+        commandHooks: {
+          beforeBundling: () => [],
+          beforeInstall: () => [],
+          afterBundling: (_input: string, outputDir: string) => [`cp "${braTemplate}" "${outputDir}/Template-v2-2.bra.xlsx"`],
+        },
+      },
+    });
     const dispatcherFn = fn("DispatcherFn", "handlers/dispatcher.ts", "handler", { timeout: Duration.seconds(60) });
     const wsAuthFn = fn("WsAuthorizerFn", "handlers/ws.ts", "authorizer");
     const wsConnectFn = fn("WsConnectFn", "handlers/ws.ts", "connect");
@@ -271,6 +284,7 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantRead(apiFn);
     // user-arranged graph layouts are written by the API (graph/*.layout.json only)
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");
+    artifacts.grantPut(apiFn, "users/*/output/*.template-v2-2.bra.xlsx");
     artifacts.grantDelete(apiFn, "users/*/graph/*.layout.json");
     key.grantEncrypt(apiFn);
     jobQueue.grantSendMessages(apiFn);

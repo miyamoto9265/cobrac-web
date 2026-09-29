@@ -8,7 +8,22 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { buildGraphs, parseCsvObjects, replyLanguageInstruction, validateJsonSchema, type JsonSchema, type QuoteRequest } from "@cobrac/shared";
+import {
+  BRA_TEMPLATE_FILE,
+  CSV_FILE_NAMES,
+  buildGraphs,
+  buildTemplateXlsx,
+  parseCsvObjects,
+  parseReferencesJson,
+  readTemplateSheet,
+  replyLanguageInstruction,
+  templateHeaders,
+  templateInputFromFiles,
+  validateJsonSchema,
+  type JsonSchema,
+  type QuoteRequest,
+} from "@cobrac/shared";
+import { updateBibliography } from "../src/bibliography.js";
 import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
 import { QuoteVerifier } from "../src/quotes.js";
@@ -169,6 +184,25 @@ describe("phase pipeline with a mock agent", () => {
     expect(g.hcd.edges).toHaveLength(4);
     expect(g.hcd.collections).toEqual([expect.objectContaining({ id: "Mesolimbic", members: ["VTA", "NAC"] })]);
     expect(g.frg.nodes.find((n) => n.id === "R.Reward-Prediction-Error-Learning")?.kind).toBe("tlf");
+
+    // the same data in Template-v2-2 (finalize.ts), with BibTeX from the Crossref records
+    const lit = mockLiterature({ crossref: { [SCHULTZ_WORK.DOI]: SCHULTZ_WORK, [HABER_WORK.DOI]: HABER_WORK } });
+    const refs = parseReferencesJson(readFileSync(join(p.hcd, "references.json"), "utf8"));
+    const bibliography = await updateBibliography(refs, null, { fetch: lit.fetch, crossrefUrl: CROSSREF, eutilsUrl: EUTILS });
+    expect(Object.keys(bibliography.records).sort()).toEqual([`doi:${HABER_WORK.DOI}`, `doi:${SCHULTZ_WORK.DOI}`]);
+    const csvFiles = Object.fromEntries(CSV_FILE_NAMES.map((f) => [f, csv(f)]));
+    const input = templateInputFromFiles({ csv: csvFiles, referencesJson: JSON.stringify({ references: refs }), bibliographyJson: JSON.stringify(bibliography) }, { projectId: PROJECT_ID, contributor: "Tester" })!;
+    const template = readFileSync(join(PROMPTS, "templates", BRA_TEMPLATE_FILE));
+    const t = buildTemplateXlsx(template, input);
+    expect(templateHeaders(t.bytes)).toEqual(templateHeaders(template));
+    const tRefs = readTemplateSheet(t.bytes, "References");
+    expect(tRefs.get("E2")!.text).toContain("author = {Wolfram Schultz and Dayan and Montague}");
+    expect(tRefs.get("A3")!.text).toBe("Haber, 2010");
+    const tCircuits = readTemplateSheet(t.bytes, "Circuits");
+    expect(tCircuits.get("A3")!.text).toBe("Mesolimbic");
+    expect(tCircuits.get("A5")!.text).toBe("VTA");
+    expect(tCircuits.get("D5")!.text).toBe("2540");
+    expect(readTemplateSheet(t.bytes, "Connections").get("I2")!.text).toBe("Haber, 2010");
 
     if (process.env.COBRAC_TEST_XLSX === "1") expect(hasPandas, "python3 with pandas/openpyxl (prompts/requirements.txt)").toBe(true);
     if (hasPandas) {

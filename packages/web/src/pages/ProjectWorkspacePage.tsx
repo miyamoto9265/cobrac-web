@@ -1,8 +1,8 @@
-import { BookOpen, ChevronDown, ChevronUp, Download, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
-import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage } from "@cobrac/shared";
+import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -60,6 +60,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [artifacts, setArtifacts] = useState<ArtifactInfo[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [templateBusy, setTemplateBusy] = useState(false);
   const [showUsage, setShowUsage] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const chat = useChatDock();
@@ -144,7 +145,7 @@ function Workspace({ projectId }: { projectId: string }) {
     const graph = (name: string) => list.find((a) => a.category === "graph" && a.name === name) ?? null;
     const doc = (name: string) => list.find((a) => a.category === "doc" && a.name === name) ?? null;
     return {
-      xlsx: list.find((a) => a.category === "output" && a.name.endsWith(".xlsx")) ?? null,
+      xlsx: list.find((a) => a.category === "output" && a.name.endsWith(".xlsx") && !a.name.endsWith(TEMPLATE_XLSX_SUFFIX)) ?? null,
       hcd: graph("hcd.json"),
       frg: graph("frg.json"),
       report: doc(PROJECT_FILES.report),
@@ -177,6 +178,17 @@ function Workspace({ projectId }: { projectId: string }) {
   const download = async (key: string) => {
     const { url } = await api.downloadUrl(projectId, key);
     window.location.href = url;
+  };
+  const downloadTemplate = async () => {
+    setTemplateBusy(true);
+    try {
+      const { url } = await api.templateXlsxUrl(projectId);
+      window.location.href = url;
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTemplateBusy(false);
+    }
   };
   const deleteProject = async () => {
     await api.deleteProject(projectId);
@@ -243,6 +255,17 @@ function Workspace({ projectId }: { projectId: string }) {
                   className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 coarse:min-h-11"
                 >
                   <Download size={14} /> BRA xlsx
+                </button>
+              )}
+              {available.xlsx && (
+                <button
+                  data-testid="template-xlsx-download"
+                  onClick={() => void downloadTemplate()}
+                  disabled={templateBusy}
+                  title={`${t("ws.templateXlsxTip")}: ${templateDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
+                  className="flex items-center gap-1 rounded-md border border-emerald-600 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 coarse:min-h-11"
+                >
+                  <FileSpreadsheet size={14} /> BRA xlsx (Template-v2-2)
                 </button>
               )}
               <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />
