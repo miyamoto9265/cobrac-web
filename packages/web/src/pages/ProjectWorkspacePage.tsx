@@ -259,6 +259,7 @@ function Workspace({ projectId }: { projectId: string }) {
               <span className="font-mono">
                 <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
               </span>
+              {project.researchMode !== undefined && <span data-testid="research-mode">{t(project.researchMode ? "sys.researchOn" : "sys.researchOff")}</span>}
               <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800 coarse:py-1.5" title={t("chat.usageTip")}>
                 <UsageBadge usage={project.usage} costUsd={project.costUsd} model={project.usedModels?.join(", ") || project.model} />
                 {showUsage ? <ChevronUp size={12} /> : <ChevronDown size={12} />}

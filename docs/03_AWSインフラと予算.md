@@ -166,7 +166,7 @@ The GitHub Actions runs themselves (PR checks and the deploy workflow) use the p
 
 ### 5.5 OpenAI (outside AWS, paid by each user)
 
-A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps.
+A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps. Research mode (on by default, [01 §6.10](./01_設計仕様.md)) adds a literature survey before the HCD: roughly +10–60 minutes of Fargate time (about $0.01–0.05 at 1 vCPU / 2 GB Spot) and, on the OpenAI side, the cost of 1.5–6M mostly cached input tokens and 40–150k output tokens at reasoning effort `high` or more; the create screen shows the estimate for the selected model. Turn it off there for quick drafts.
 
 The app also tracks this. Each job records the model used, input/output tokens, and estimated cost. Totals and per-model breakdown appear on the project list, job breakdown in the chat header, and the admin screen. Estimates use the table in `packages/shared/src/pricing.ts` and may not match the OpenAI invoice (especially models missing from the table, shown as `$—`).
 

@@ -135,6 +135,7 @@ describe("lit client", () => {
     await expect(c.call("find_sentences", { pmid: "1" })).rejects.toThrow(/at least one term/);
     await expect(c.call("get_abstract", {})).rejects.toThrow(/pmid, pmcid or doi/);
     expect(await c.call("get_abstract", { pmid: "PMID: 99999999" })).toEqual({ found: false });
+    expect(await c.call("get_abstract", { pmid: 26232228 })).toMatchObject({ pmid: "26232228" });
   });
 
   it("splits sentences without breaking at et al., Fig. or decimals", () => {

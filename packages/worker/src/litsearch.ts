@@ -151,7 +151,7 @@ export class LitClient {
 
   /** Dispatch one MCP tool call. */
   async call(tool: LitTool, args: Record<string, unknown>): Promise<unknown> {
-    const str = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : "");
+    const str = (k: string) => (typeof args[k] === "string" ? (args[k] as string).trim() : typeof args[k] === "number" ? String(args[k]) : "");
     const num = (k: string) => (typeof args[k] === "number" ? (args[k] as number) : undefined);
     const id = { pmid: str("pmid").replace(/\D/g, ""), pmcid: str("pmcid"), doi: str("doi") };
     switch (tool) {
@@ -246,9 +246,13 @@ function epmcHit(r: EpmcRecord): PaperHit {
 
 const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 
+/** Tags that separate text; any other tag (italics, citations, superscripts) is removed without a space. */
+const BLOCK_TAG = /<\/?(?:p|div|br|sec|title|abstract|caption|label|li|list|tr|td|th|table|fig|h\d)\b[^>]*>/gi;
+
 export function stripTags(s: string): string {
   return s
-    .replace(/<[^>]+>/g, " ")
+    .replace(BLOCK_TAG, " ")
+    .replace(/<[^>]+>/g, "")
     .replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e: string) => {
       if (e[0] === "#") {
         const code = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);

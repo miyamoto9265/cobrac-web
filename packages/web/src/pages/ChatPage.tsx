@@ -1,8 +1,8 @@
-import { Loader2, Play, Send } from "lucide-react";
+import { BookOpenCheck, Loader2, Play, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { MessageRecord, ProjectRecord, ReasoningEffort } from "@cobrac/shared";
-import { projectDisplayName, projectNameKey } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, formatUsd, projectDisplayName, projectNameKey, researchModeEstimate } from "@cobrac/shared";
 import { ChatTimeline } from "../components/ChatTimeline";
 import { ModelSelect } from "../components/ModelSelect";
 import { QuestionCard } from "../components/QuestionCard";
@@ -31,6 +31,7 @@ function NewProject() {
   const [contributor, setContributor] = useState(me?.contributorName ?? "");
   const [model, setModel] = useState<string | null>(me?.defaultModel ?? null);
   const [effort, setEffort] = useState<ReasoningEffort | null>(me?.defaultReasoningEffort ?? null);
+  const [research, setResearch] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -59,7 +60,7 @@ function NewProject() {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, name: (nameTouched && name.trim()) || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, locale });
+      const p = await api.createProject({ roi, tlf, name: (nameTouched && name.trim()) || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, researchMode: research, locale });
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -141,6 +142,7 @@ function NewProject() {
               defaultLabel={t("model.default")}
             />
           </div>
+          <ResearchToggle on={research} onChange={setResearch} model={model || me?.defaultModel || DEFAULT_CODEX_MODEL} />
           {err && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
           <div className="mt-4 flex justify-end">
             <button
@@ -155,6 +157,30 @@ function NewProject() {
         <p className="mt-4 max-w-3xl text-center text-xs text-slate-400">{t("chat.runHelp")}</p>
       </div>
     </div>
+  );
+}
+
+function ResearchToggle({ on, onChange, model }: { on: boolean; onChange: (v: boolean) => void; model: string }) {
+  const { t } = useI18n();
+  const est = researchModeEstimate(model);
+  const vars = { min: est.minutes[0], max: est.minutes[1], model };
+  return (
+    <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5" data-testid="research-toggle">
+      <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600" />
+      <span className="min-w-0 text-sm">
+        <span className="flex items-center gap-1.5 font-medium text-slate-800">
+          <BookOpenCheck size={15} className="text-blue-600" aria-hidden /> {t("chat.research")}
+        </span>
+        <span className="mt-0.5 block text-xs text-slate-500">{on ? t("chat.researchHelp") : t("chat.researchOff")}</span>
+        {on && (
+          <span className="mt-1 block text-xs text-amber-700" data-testid="research-estimate">
+            {est.costUsd
+              ? t("chat.researchEstimate", { ...vars, cost: `${formatUsd(est.costUsd[0])}–${formatUsd(est.costUsd[1])}` })
+              : t("chat.researchEstimateNoPrice", vars)}
+          </span>
+        )}
+      </span>
+    </label>
   );
 }
 

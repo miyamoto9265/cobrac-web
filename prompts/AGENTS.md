@@ -18,6 +18,9 @@ Work only inside the project folder named after the Project ID in the prompt (us
 <ProjectID>/rcs_mcp_calls.jsonl             written by the worker only (every RCS call you make)
 <ProjectID>/reference_check.json            written by the worker only (status of each reference)
 <ProjectID>/quote_check.json                written by the worker only (Pointers on literature found in the paper or not)
+<ProjectID>/research.json                   literature survey (research mode only)
+<ProjectID>/research_queries.jsonl          written by the worker only (every literature search, research mode)
+<ProjectID>/research_check.json             written by the worker only (coverage check of research.json)
 ```
 
 Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this file); the validator checks it exactly. Read a schema when unsure of a field.
