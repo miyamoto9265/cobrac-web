@@ -588,4 +588,12 @@ export const pt: Record<MessageKey, string> = {
   "cc.C9c": "A citação (Pointers on literature) não foi encontrada no artigo",
   "cc.C12": "O agrupamento tem outros membros",
   "cc.C13": "Output Semantics difere (o texto do projeto fica no projeto)",
+  "c2c.title": "Enviar a outro Canon",
+  "c2c.note": "Propõe a revisão mais recente deste Canon a outro Canon: um seu, ou o Canon público de outra pessoa (o Canon ID está na página pública). O dono do Canon receptor revisa com as mesmas regras de conflito.",
+  "c2c.empty": "Este Canon ainda está vazio.",
+  "c2c.target": "Canon ID do receptor (ex.: u3k8d0hn-c1)",
+  "c2c.preview": "Verificar",
+  "c2c.send": "Enviar pull request",
+  "c2c.sent": "Pull requests enviadas",
+  "c2c.waiting": "Aguardando a revisão do dono do Canon receptor.",
 };

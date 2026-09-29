@@ -141,10 +141,15 @@ export const api = {
   previewCanonPush: (projectId: string) => request<{ canonId: string; diff: CanonDiff }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/preview`),
   pushToCanon: (projectId: string) => request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/push`),
   canonPulls: (id: string) => request<{ items: CanonPullRequestRecord[] }>("GET", `/canons/${encodeURIComponent(id)}/pulls`),
-  canonPull: (id: string, no: number) => request<{ pr: CanonPullRequestRecord; diff: CanonDiff | null; headRevision: number }>("GET", `/canons/${encodeURIComponent(id)}/pulls/${no}`),
+  canonPull: (id: string, no: number) =>
+    request<{ pr: CanonPullRequestRecord; diff: CanonDiff | null; headRevision: number; targetName: string; canReview: boolean; canWithdraw: boolean }>("GET", `/canons/${encodeURIComponent(id)}/pulls/${no}`),
   approvePull: (id: string, no: number, choices: Record<string, CanonChoice>) => request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/approve`, { choices }),
   rejectPull: (id: string, no: number, reason: string) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/reject`, { reason }),
   withdrawPull: (id: string, no: number) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/withdraw`, {}),
+  previewCanonPr: (targetId: string, sourceCanonId: string) => request<{ diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls/preview`, { sourceCanonId }),
+  sendCanonPr: (targetId: string, sourceCanonId: string) =>
+    request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls`, { sourceCanonId }),
+  canonOutgoing: (id: string) => request<{ items: (CanonPullRequestRecord & { targetName: string })[] }>("GET", `/canons/${encodeURIComponent(id)}/outgoing`),
   canonRevisions: (id: string) => request<{ items: CanonRevisionSummary[] }>("GET", `/canons/${encodeURIComponent(id)}/revisions`),
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 

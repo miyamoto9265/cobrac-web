@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { CanonConstraintMode, CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
+import { SendCanonPr } from "../components/SendCanonPr";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
 import { useI18n, useT, type MessageKey } from "../i18n";
@@ -326,6 +327,7 @@ export function CanonDetailPage() {
               <MembersCard detail={detail} projects={projects} onChanged={reload} />
               <PullsCard canonId={c.canonId} pulls={pulls} />
               <ContentsCard snapshot={snapshot} revisions={revisions} />
+              <SendCanonPr canon={c} />
               <div className="text-[11px] text-slate-400">
                 {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
               </div>

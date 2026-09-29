@@ -22,6 +22,7 @@ export function CanonPullPage() {
   const { canonId = "", no = "" } = useParams();
   const prNo = Number(no);
   const [pr, setPr] = useState<CanonPullRequestRecord | null>(null);
+  const [access, setAccess] = useState({ canReview: false, canWithdraw: false, targetName: "" });
   const [diff, setDiff] = useState<CanonDiff | null>(null);
   const [choices, setChoices] = useState<Record<string, CanonChoice>>({});
   const [reason, setReason] = useState("");
@@ -34,6 +35,7 @@ export function CanonPullPage() {
       .then((r) => {
         setPr(r.pr);
         setDiff(r.diff);
+        setAccess({ canReview: r.canReview, canWithdraw: r.canWithdraw, targetName: r.targetName });
       })
       .catch((e) => setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }));
   }, [canonId, prNo]);
@@ -41,6 +43,7 @@ export function CanonPullPage() {
 
   const blocking = useMemo(() => (diff ? blockingConflicts(diff, choices) : []), [diff, choices]);
   const open = pr?.state === "open";
+  const review = open && access.canReview;
 
   const run = async (fn: () => Promise<string>) => {
     setBusy(true);
@@ -66,10 +69,14 @@ export function CanonPullPage() {
       {pr && (
         <div className="max-w-4xl pb-24 sm:pb-0">
           <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
-            <GitPullRequest size={20} className="shrink-0" /> #{pr.prNo}
-            <Link to={sourceLink(pr.source)} className="min-w-0 break-words text-blue-700 hover:underline">
-              {pr.sourceName}
-            </Link>
+            <GitPullRequest size={20} className="shrink-0" /> {access.targetName} #{pr.prNo}
+            {pr.source.startsWith("project:") || access.canWithdraw ? (
+              <Link to={sourceLink(pr.source)} className="min-w-0 break-words text-blue-700 hover:underline">
+                ← {pr.sourceName}
+              </Link>
+            ) : (
+              <span className="min-w-0 break-words text-slate-700">← {pr.sourceName}</span>
+            )}
             <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-normal text-slate-600">{t(`pr.state.${pr.state}` as MessageKey)}</span>
           </h1>
           <div className="mb-3 mt-1 text-xs text-slate-500">
@@ -86,7 +93,7 @@ export function CanonPullPage() {
                 <ConflictList
                   conflicts={diff.conflicts}
                   choices={choices}
-                  onChoose={open ? (id, c) => setChoices((prev) => ({ ...prev, [id]: c })) : undefined}
+                  onChoose={review ? (id, c) => setChoices((prev) => ({ ...prev, [id]: c })) : undefined}
                   sourceLabel={t("pr.incoming")}
                 />
               </section>
@@ -113,7 +120,20 @@ export function CanonPullPage() {
               </section>
             </>
           )}
-          {open && (
+          {open && !access.canReview && access.canWithdraw && (
+            <div className="mt-4">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void run(async () => (await api.withdrawPull(canonId, prNo), t("pr.withdrawn")))}
+                className="flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11"
+              >
+                <Undo2 size={14} /> {t("pr.withdraw")}
+              </button>
+              <p className="mt-1 text-xs text-slate-500">{t("c2c.waiting")}</p>
+            </div>
+          )}
+          {review && (
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:static sm:mt-4 sm:rounded-xl sm:border sm:p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("pr.reason")} className={`${inputCls} sm:flex-1`} />
