@@ -5,15 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Collection Circuits: the agent records the circuits its HCD splits into finer UCs (e.g. a cortical area split into layer and cell-type UCs) under `collections` in `uc.json`. They become Circuits rows with Uniform = FALSE, Sub-Circuits and Source of ID `collection`; the ROI row lists them too. Whether a circuit is Uniform is decided per project, so the same area may be a UC in one project and a Collection in another
+- The harness checks Collections and sends problems back to the agent: members must be circuits of the project, no cycles, not all makeshift; a Collection is neither sender nor receiver of a connection (the feedback names its UCs) and is not an FRG leaf; a UC that the HCD also splits into finer UCs has to become a Collection
+- The HCD graph draws each Collection as a dashed box around its UCs (nested boxes for nested Collections; "Show Collections" in the menu hides them). Clicking a box label shows its Sub-Circuits, and a UC's details list the Collections it belongs to. The table view shows them as the `collections` sheet of `uc.json`
+
 ## [0.10.0] - 2026-09-29
 
 ### Added
 - References carry a Literature type (the 11 BRA values) and, for a document without DOI, an Alternative URL; the xlsx References sheet has both columns. A reference with neither DOI, PMID nor URL goes back to the agent. With a PMID the PubMed page is written as Alternative URL
 - The Circuits sheet starts with the ROI row (`ROI_<Project ID>`, Uniform = FALSE, Sub-Circuits = every ROI-internal UC), which the BRA format requires; the graphs do not show it
 - The Project sheet has the Review End Line of each sheet filled in, so the BRA Review Tool reviews every record
-- Collection Circuits: the agent records the circuits its HCD splits into finer UCs (e.g. a cortical area split into layer and cell-type UCs) under `collections` in `uc.json`. They become Circuits rows with Uniform = FALSE, Sub-Circuits and Source of ID `collection`; the ROI row lists them too. Whether a circuit is Uniform is decided per project, so the same area may be a UC in one project and a Collection in another
-- The harness checks Collections and sends problems back to the agent: members must be circuits of the project, no cycles, not all makeshift; a Collection is neither sender nor receiver of a connection (the feedback names its UCs) and is not an FRG leaf; a UC that the HCD also splits into finer UCs has to become a Collection
-- The HCD graph draws each Collection as a dashed box around its UCs (nested boxes for nested Collections; "Show Collections" in the menu hides them). Clicking a box label shows its Sub-Circuits, and a UC's details list the Collections it belongs to. The table view shows them as the `collections` sheet of `uc.json`
 - FRG group nodes get their Output Semantics: the items of their UCs that send output outside the group. Rows of UCs outside the ROI get the BRA fixed text "No need for description due to input/output circuit"
 
 ### Changed
