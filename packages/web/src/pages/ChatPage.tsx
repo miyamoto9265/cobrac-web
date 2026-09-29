@@ -11,7 +11,7 @@ import { ProjectTitle } from "../components/ProjectTitle";
 import { QuestionCard } from "../components/QuestionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { Stepper } from "../components/Stepper";
-import { useT, type MessageKey } from "../i18n";
+import { useI18n, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { isActive } from "../lib/format";
@@ -27,7 +27,7 @@ export function ChatPage() {
 // ---------------------------------------------------------------------------
 
 function NewProject() {
-  const t = useT();
+  const { t, locale } = useI18n();
   const navigate = useNavigate();
   const { me } = useAuth();
   const [roi, setRoi] = useState("");
@@ -66,7 +66,7 @@ function NewProject() {
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, name: name.trim() || undefined, contributor: contributor || undefined, model, reasoningEffort: effort });
+      const p = await api.createProject({ roi, tlf, name: name.trim() || undefined, contributor: contributor || undefined, model, reasoningEffort: effort, locale });
       navigate(`/chat/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -170,7 +170,7 @@ function NewProject() {
 // ---------------------------------------------------------------------------
 
 function ProjectChat({ projectId }: { projectId: string }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [project, setProject] = useState<ProjectRecord | null>(null);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [showUsage, setShowUsage] = useState(false);
@@ -308,7 +308,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
               </button>
             )}
             {(project.status === "FAILED" || project.status === "CANCELLED") && (
-              <button onClick={() => void act(() => api.retry(projectId))} disabled={busy} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50 disabled:opacity-50">
+              <button onClick={() => void act(() => api.retry(projectId, locale))} disabled={busy} className="flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs coarse:min-h-11 hover:bg-slate-50 disabled:opacity-50">
                 <RotateCcw size={12} /> {t("chat.retry")}
               </button>
             )}
@@ -416,7 +416,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
       <footer className="shrink-0 border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:px-5">
         {err && <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
         {project.status === "WAITING_USER_INPUT" && project.pendingQuestion ? (
-          <QuestionCard question={project.pendingQuestion} busy={busy} onAnswer={(a) => act(() => api.answer(projectId, a))} />
+          <QuestionCard question={project.pendingQuestion} busy={busy} onAnswer={(a) => act(() => api.answer(projectId, a, locale))} />
         ) : project.status === "COMPLETED" ? (
           <form
             className="flex gap-2"
@@ -425,7 +425,7 @@ function ProjectChat({ projectId }: { projectId: string }) {
               if (!followup.trim()) return;
               const text = followup.trim();
               setFollowup("");
-              void act(() => api.followup(projectId, text));
+              void act(() => api.followup(projectId, text, locale));
             }}
           >
             <textarea

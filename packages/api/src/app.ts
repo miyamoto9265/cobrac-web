@@ -12,7 +12,9 @@ import type {
   GraphLayout,
   NodeStyle,
   ReasoningEffort,
+  RetryRequest,
   TokenUsage,
+  UiLocale,
   UpdateProjectRequest,
   UpdateProjectResponse,
   UsageSummary,
@@ -31,6 +33,7 @@ import {
   filterCodexModels,
   formatProjectId,
   isProjectIdLike,
+  isUiLocale,
   newId,
   normalizeProjectName,
   nowIso,
@@ -101,6 +104,12 @@ const notFound = () => new HTTPException(404, { message: "not found" });
 app.get("/users/me", (c) => c.json(toPublicUser(c.get("user"))));
 
 const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
+/** Optional UI language of a request (absent / null = let the agent follow the user's language). */
+const readLocale = (v: unknown): UiLocale | null => {
+  if (v === undefined || v === null) return null;
+  if (!isUiLocale(v)) throw bad("locale が不正です");
+  return v;
+};
 const normModel = (v: unknown): string | null => {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v !== "string" || !/^[A-Za-z0-9._-]{1,64}$/.test(v)) throw bad("モデル名が不正です");
@@ -237,6 +246,7 @@ app.post("/projects", async (c) => {
     if (body.reasoningEffort !== null && body.reasoningEffort !== undefined && !isEffort(body.reasoningEffort)) throw bad("reasoning effort が不正です");
     reasoningEffort = body.reasoningEffort ?? null;
   }
+  const locale = readLocale(body.locale);
 
   const userKey = u.userKey ?? (await assignUserKey(u.userId));
   const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
@@ -279,6 +289,7 @@ app.post("/projects", async (c) => {
     status: "QUEUED",
     instruction: null,
     pendingAnswer: null,
+    locale,
     ecsTaskArn: null,
     retryCount: 0,
     lastHeartbeat: null,
@@ -376,12 +387,13 @@ app.post("/projects/:id/answer", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "WAITING_USER_INPUT" || !p.activeJobId) throw bad("回答待ちの質問はありません");
-  const { answer } = (await c.req.json()) as AnswerRequest;
-  const text = (answer ?? "").trim();
+  const body = (await c.req.json()) as AnswerRequest;
+  const text = (body.answer ?? "").trim();
   if (!text) throw bad("回答を入力してください");
+  const locale = readLocale(body.locale);
   const job = await getJob(p.projectId, p.activeJobId);
   if (!job) throw notFound();
-  await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text });
+  await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text, ...(locale ? { locale } : {}) });
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
   await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
   await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { userId: p.userId, meta: { i18n: "sys.answered" } });
@@ -394,9 +406,10 @@ app.post("/projects/:id/followup", async (c) => {
   if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "COMPLETED") throw bad("フォローアップは完了済みのプロジェクトにのみ送信できます");
-  const { instruction } = (await c.req.json()) as FollowupRequest;
-  const text = (instruction ?? "").trim();
+  const body = (await c.req.json()) as FollowupRequest;
+  const text = (body.instruction ?? "").trim();
   if (!text) throw bad("指示を入力してください");
+  const locale = readLocale(body.locale);
   const now = nowIso();
   const jobId = newId("job_");
   const job: JobRecord = {
@@ -407,6 +420,7 @@ app.post("/projects/:id/followup", async (c) => {
     status: "QUEUED",
     instruction: text,
     pendingAnswer: null,
+    locale,
     ecsTaskArn: null,
     retryCount: 0,
     lastHeartbeat: null,
@@ -434,6 +448,8 @@ app.post("/projects/:id/retry", async (c) => {
   if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
+  const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
+  const locale = readLocale(body?.locale);
   const jobs = await listJobsForProject(p.projectId, u.userId);
   const last = jobs.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const now = nowIso();
@@ -446,6 +462,7 @@ app.post("/projects/:id/retry", async (c) => {
     status: "QUEUED",
     instruction: last?.instruction ?? null,
     pendingAnswer: null,
+    locale: locale ?? last?.locale ?? null,
     ecsTaskArn: null,
     retryCount: (last?.retryCount ?? 0) + 1,
     lastHeartbeat: null,
