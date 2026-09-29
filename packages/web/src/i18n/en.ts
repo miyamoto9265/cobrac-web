@@ -594,6 +594,12 @@ export const en = {
   "c2c.send": "Send pull request",
   "c2c.sent": "Sent pull requests",
   "c2c.waiting": "Waiting for the receiving Canon's owner to review.",
+  "follow.pinnedOf": "rev {pinned} (latest {head})",
+  "follow.behind": "newer revision",
+  "follow.affected": "{n} changes affect this project",
+  "follow.update": "Update to latest",
+  "follow.align": "Align with Canon",
+  "sys.canonLoaded": "Canon \"{name}\" revision {revision} ({mode}): the agent follows its definitions.",
 } as const;
 
 export type MessageKey = keyof typeof en;

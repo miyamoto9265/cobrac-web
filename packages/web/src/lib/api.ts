@@ -150,6 +150,12 @@ export const api = {
   sendCanonPr: (targetId: string, sourceCanonId: string) =>
     request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls`, { sourceCanonId }),
   canonOutgoing: (id: string) => request<{ items: (CanonPullRequestRecord & { targetName: string })[] }>("GET", `/canons/${encodeURIComponent(id)}/outgoing`),
+  projectCanon: (projectId: string) =>
+    request<{ canonId: string; name: string; constraintMode: string; pinned: number; head: number; state: "current" | "behind" | "affected"; affected: { key: string; label: string; reason: string }[]; alignInstruction: string }>(
+      "GET",
+      `/projects/${encodeURIComponent(projectId)}/canon`,
+    ),
+  pullCanon: (projectId: string, revision?: number) => request<{ canonRevision: number }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/pull`, revision === undefined ? {} : { revision }),
   canonRevisions: (id: string) => request<{ items: CanonRevisionSummary[] }>("GET", `/canons/${encodeURIComponent(id)}/revisions`),
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 

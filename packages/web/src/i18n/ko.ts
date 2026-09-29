@@ -596,4 +596,10 @@ export const ko: Record<MessageKey, string> = {
   "c2c.send": "PR 보내기",
   "c2c.sent": "보낸 PR",
   "c2c.waiting": "받는 Canon 소유자의 검토를 기다리는 중입니다.",
+  "follow.pinnedOf": "rev {pinned} (최신 {head})",
+  "follow.behind": "새 버전이 있습니다",
+  "follow.affected": "이 프로젝트에 영향을 주는 변경 {n}건",
+  "follow.update": "최신으로 업데이트",
+  "follow.align": "Canon에 맞춰 업데이트",
+  "sys.canonLoaded": "Canon \"{name}\" rev {revision}({mode})의 정의를 따라 생성합니다.",
 };

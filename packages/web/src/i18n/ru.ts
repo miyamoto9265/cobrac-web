@@ -596,4 +596,10 @@ export const ru: Record<MessageKey, string> = {
   "c2c.send": "Отправить pull request",
   "c2c.sent": "Отправленные pull request",
   "c2c.waiting": "Ожидает проверки владельцем Canon-получателя.",
+  "follow.pinnedOf": "rev {pinned} (последняя {head})",
+  "follow.behind": "есть новая ревизия",
+  "follow.affected": "Изменений, затрагивающих проект: {n}",
+  "follow.update": "Обновить до последней",
+  "follow.align": "Привести к Canon",
+  "sys.canonLoaded": "Canon «{name}» ревизия {revision} ({mode}): агент следует его определениям.",
 };

@@ -298,7 +298,7 @@ function Workspace({ projectId }: { projectId: string }) {
               <span className="min-w-0 break-words">
                 <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
               </span>
-              {project.canonId && <CanonBadge canonId={project.canonId} />}
+              {project.canonId && <CanonBadge projectId={project.projectId} canonId={project.canonId} busy={active} onFollowup={() => void load()} />}
               {project.visibility === "public" && (
                 <Link to={publicProjectPath(project.projectId)} className="text-emerald-700 hover:underline coarse:py-1.5">
                   {t("vis.publicPage")} · {t("explore.clones", { n: cloneCount })}

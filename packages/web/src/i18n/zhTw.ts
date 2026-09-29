@@ -596,4 +596,10 @@ export const zhTw: Record<MessageKey, string> = {
   "c2c.send": "傳送拉取請求",
   "c2c.sent": "已傳送的拉取請求",
   "c2c.waiting": "等待接收方 Canon 擁有者審閱。",
+  "follow.pinnedOf": "rev {pinned}（最新 {head}）",
+  "follow.behind": "有新版本",
+  "follow.affected": "{n} 處變更影響此專案",
+  "follow.update": "更新到最新",
+  "follow.align": "依 Canon 更新",
+  "sys.canonLoaded": "依 Canon「{name}」rev {revision}（{mode}）的定義產生。",
 };
