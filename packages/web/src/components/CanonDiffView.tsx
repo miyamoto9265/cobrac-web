@@ -33,11 +33,20 @@ export function ConflictList({
   choices,
   onChoose,
   sourceLabel,
+  canonLabel = "Canon",
+  keepLabel,
+  takeLabel,
+  keepOnErrors = false,
 }: {
   conflicts: CanonConflict[];
   choices?: Record<string, CanonChoice>;
   onChoose?: (id: string, c: CanonChoice) => void;
   sourceLabel: string;
+  canonLabel?: string;
+  keepLabel?: string;
+  takeLabel?: string;
+  /** Seeding: a resolvable error may also be settled by keeping the earlier value */
+  keepOnErrors?: boolean;
 }) {
   const t = useT();
   if (!conflicts.length) return <div className="text-sm text-emerald-700">{t("pr.noConflicts")}</div>;
@@ -49,7 +58,7 @@ export function ConflictList({
         .map((c) => {
           const { Icon, cls, icon } = SEVERITY[c.severity];
           const canChoose = !!onChoose && (c.severity === "warning" || (c.severity === "error" && c.resolvable));
-          const onlyIncoming = c.severity === "error";
+          const onlyIncoming = c.severity === "error" && !keepOnErrors;
           return (
             <li key={c.id} className={`rounded-lg border p-3 text-sm ${cls}`}>
               <div className="flex items-start gap-2">
@@ -66,7 +75,7 @@ export function ConflictList({
                     <dl className="mt-1 grid gap-0.5 text-xs">
                       {c.canon !== undefined && (
                         <div className="flex gap-2">
-                          <dt className="w-16 shrink-0 text-slate-500">Canon</dt>
+                          <dt className="w-16 shrink-0 text-slate-500">{canonLabel}</dt>
                           <dd className="min-w-0 break-words">{c.canon || "—"}</dd>
                         </div>
                       )}
@@ -84,12 +93,12 @@ export function ConflictList({
                       {!onlyIncoming && (
                         <label className="flex items-center gap-1.5 coarse:min-h-11">
                           <input type="radio" name={c.id} checked={choices?.[c.id] === "canon"} onChange={() => onChoose!(c.id, "canon")} />
-                          {t("pr.keepCanon")}
+                          {keepLabel ?? t("pr.keepCanon")}
                         </label>
                       )}
                       <label className="flex items-center gap-1.5 coarse:min-h-11">
                         <input type={onlyIncoming ? "checkbox" : "radio"} name={c.id} checked={choices?.[c.id] === "incoming"} onChange={(e) => (onlyIncoming && !e.target.checked ? onChoose!(c.id, "canon") : onChoose!(c.id, "incoming"))} />
-                        {onlyIncoming ? t("pr.adoptIncoming") : t("pr.takeIncoming")}
+                        {onlyIncoming ? t("pr.adoptIncoming") : (takeLabel ?? t("pr.takeIncoming"))}
                       </label>
                     </div>
                   )}

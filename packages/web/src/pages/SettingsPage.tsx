@@ -1,6 +1,6 @@
 import { KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { ReasoningEffort } from "@cobrac/shared";
+import type { CanonRecord, ReasoningEffort } from "@cobrac/shared";
 import { ModelSelect } from "../components/ModelSelect";
 import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
@@ -15,6 +15,8 @@ export function SettingsPage() {
   const [keyStatus, setKeyStatus] = useState<{ registered: boolean; last4: string | null } | null>(null);
   const [defModel, setDefModel] = useState<string | null>(null);
   const [defEffort, setDefEffort] = useState<ReasoningEffort | null>(null);
+  const [defCanon, setDefCanon] = useState("");
+  const [canons, setCanons] = useState<CanonRecord[]>([]);
   const [oldPw, setOldPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -26,8 +28,10 @@ export function SettingsPage() {
       setContributorName(me.contributorName);
       setDefModel(me.defaultModel ?? null);
       setDefEffort(me.defaultReasoningEffort ?? null);
+      setDefCanon(me.defaultCanonId ?? "");
     }
     api.apiKeyStatus().then(setKeyStatus).catch(() => undefined);
+    api.listCanons().then((r) => setCanons(r.items)).catch(() => undefined);
   }, [me]);
 
   const run = async (fn: () => Promise<void>, okText: string) => {
@@ -132,12 +136,23 @@ export function SettingsPage() {
             }}
             defaultLabel={t("settings.codexDefault")}
           />
+          <label className="mt-3 block">
+            <span className="mb-1 block text-xs text-slate-500">{t("settings.defaultCanon")}</span>
+            <select value={defCanon} onChange={(e) => setDefCanon(e.target.value)} className={input} data-testid="default-canon">
+              <option value="">{t("cc3.none")}</option>
+              {canons.map((c) => (
+                <option key={c.canonId} value={c.canonId}>
+                  {c.name} ({c.canonId})
+                </option>
+              ))}
+            </select>
+          </label>
           <button
             disabled={busy}
             className={`${btn} mt-3`}
             onClick={() =>
               void run(async () => {
-                await api.updateMe({ defaultModel: defModel, defaultReasoningEffort: defEffort });
+                await api.updateMe({ defaultModel: defModel, defaultReasoningEffort: defEffort, defaultCanonId: defCanon || null });
                 await refreshMe();
               }, t("settings.defaultsSaved"))
             }
