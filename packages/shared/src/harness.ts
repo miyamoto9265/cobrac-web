@@ -30,10 +30,13 @@ import {
   checkUcNaming,
   namesStartWithOfficial,
   normalizeUcDescriptor,
+  bnaArea,
   parseUcDescriptor,
   sabraOfficialName,
   splitTopLevel,
   type SabraLookup,
+  type UcAnchor,
+  type UcDescriptor,
 } from "./ucNaming.js";
 
 /**
@@ -99,6 +102,8 @@ export interface UcRow {
   capability: string;
   mechanism: string;
   implementation: string;
+  /** Why a UC that spans several SABRA units is uniform in this HCD (empty for most UCs) */
+  uniformityNote: string;
 }
 
 /**
@@ -217,8 +222,9 @@ const SOURCE_OF_ID: JsonSchema = {
     "One value: DHBA for a UC that is a whole DHBA term (anchor only); BNA for a whole BNA area or group (anchor only); for a UC finer than its SABRA unit, the one Reference ID that defines the population, or makeshift",
 };
 
-function record(properties: Record<string, JsonSchema>): JsonSchema {
-  return { type: "object", required: Object.keys(properties), additionalProperties: false, properties };
+/** Object with exactly these keys, all required except those in `optional`. */
+function record(properties: Record<string, JsonSchema>, optional: Record<string, JsonSchema> = {}): JsonSchema {
+  return { type: "object", required: Object.keys(properties), additionalProperties: false, properties: { ...properties, ...optional } };
 }
 
 /** An `optional` array may be omitted or empty; the others need at least one item. */
@@ -290,6 +296,10 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         outputSemantics: str("Exactly one item `[<own Circuit ID>] content;` (empty only for external sinks)"),
         ...Object.fromEntries(Object.entries(FUNCTION_ITEM_DESCRIPTIONS).map(([k, d]) => [k, str(d)])),
         implementation: str("Equations only, e.g. `[U.A] = P([U.B]|[U.C])` (empty for external UCs)"),
+      }, {
+        uniformityNote: str(
+          "Optional. Only for a UC that spans several SABRA units (a BNAG gyrus or several anchors) and sends connections: why this HCD treats it as one uniform population instead of splitting it into the units and making it a Collection",
+        ),
       }),
     },
     collections: {
@@ -307,7 +317,7 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
           items: { type: "string", pattern: "^\\S+$" },
           description: "Circuit IDs of its members: UCs of ucs or other Collections (no cycles), at least one not makeshift",
         },
-        comments: str("What the grouping is and why the HCD decomposes it"),
+        comments: nonEmpty("Why the circuit is heterogeneous at this HCD's granularity: what distinguishes its sub-circuits (areas, projection sources, cell types), with [Author, Year] citations"),
       }),
     },
   }),
@@ -538,6 +548,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       capability: s(u.capability),
       mechanism: s(u.mechanism),
       implementation: s(u.implementation),
+      uniformityNote: s(u.uniformityNote),
     }))
     .filter((u) => u.id);
   const seen = new Set<string>();
@@ -641,6 +652,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       (senders.get(c.receiver) ?? senders.set(c.receiver, []).get(c.receiver)!).push(c.sender);
       (receivers.get(c.sender) ?? receivers.set(c.sender, []).get(c.sender)!).push(c.receiver);
     }
+    errors.push(...multiUnitSenderProblems(ucs.filter((u) => receivers.has(u.id))));
     for (const u of ucs) {
       if (!senders.has(u.id) && !receivers.has(u.id)) errors.push(`\`${u.id}\` has no connection in connections.json.`);
       const isSink = u.roi !== "roi" && !receivers.has(u.id);
@@ -774,17 +786,63 @@ function decomposedUcProblems(ucs: UcRow[]): string[] {
       if (!r || "errors" in r) return null;
       const [head] = normalizeUcDescriptor(u.descriptor).split("/");
       const values = new Set(r.descriptor.facets.flatMap((f) => f.values.map((v) => `${f.axis}:${v}`.toLowerCase())));
-      return { id: u.id, head, values };
+      return { id: u.id, head, values, d: r.descriptor };
     })
-    .filter((x): x is { id: string; head: string; values: Set<string> } => !!x);
+    .filter((x): x is { id: string; head: string; values: Set<string>; d: UcDescriptor } => !!x);
   const errors: string[] = [];
   for (const a of parsed) {
-    const finer = parsed.filter((b) => b !== a && b.head === a.head && b.values.size > a.values.size && [...a.values].every((v) => b.values.has(v)));
+    const finer = parsed.filter(
+      (b) =>
+        b !== a &&
+        ((b.head === a.head && b.values.size > a.values.size && [...a.values].every((v) => b.values.has(v))) ||
+          (b.head !== a.head && a.values.size === 0 && coversAnchors(a.d, b.d))),
+    );
     if (finer.length) {
       errors.push(
         `uc.json: \`${a.id}\` is also split into finer UCs (${finer.map((b) => `\`${b.id}\``).join(", ")}), so it is not uniform in this HCD. Move it to collections with those UCs as subCircuits (add UCs for the rest of its population if the HCD needs them) and connect the UCs instead.`,
       );
     }
+  }
+  return errors;
+}
+
+const bnaSide = (label: number) => (label % 2 === 1 ? "L" : "R");
+
+/** Whether anchor `b` (side `bLat`) lies inside anchor `a` (side `aLat`): the same anchor, or a BNA area of a BNAG group. */
+function anchorInside(a: UcAnchor, aLat: string | null, b: UcAnchor, bLat: string | null): boolean {
+  if (a.kind === "bnag" && b.kind === "bna") {
+    if (bnaArea(b.left)?.l2 !== a.l2) return false;
+    const side = b.right === null ? bnaSide(b.left) : bLat;
+    return !aLat || side === aLat;
+  }
+  if (a.kind !== b.kind || (aLat ?? "") !== (bLat ?? "")) return false;
+  if (a.kind === "bna" && b.kind === "bna") return (a.left === b.left && a.right === b.right) || (a.right !== null && b.right === null && (b.left === a.left || b.left === a.right));
+  if (a.kind === "bnag" && b.kind === "bnag") return a.l2 === b.l2;
+  return a.kind === "homba" && b.kind === "homba" && a.id === b.id;
+}
+
+/** Anchor-only `a` covers every anchor of `b` and `b` is strictly finer (other anchors, or facets on the same ones). */
+function coversAnchors(a: UcDescriptor, b: UcDescriptor): boolean {
+  if (a.facets.length) return false;
+  return b.anchors.every((y) => a.anchors.some((x) => anchorInside(x, a.laterality, y, b.laterality)));
+}
+
+/**
+ * Senders must be uniform in this HCD (205). A sender that spans several SABRA units — a BNAG gyrus or several anchors
+ * — is usually heterogeneous: split it into the units and make it a Collection, or say why it is uniform here.
+ */
+function multiUnitSenderProblems(senders: UcRow[]): string[] {
+  const errors: string[] = [];
+  for (const u of senders) {
+    if (u.uniformityNote) continue;
+    const r = u.descriptor ? parseUcDescriptor(u.descriptor) : null;
+    if (!r || "errors" in r || r.descriptor.facets.length) continue;
+    const d = r.descriptor;
+    const spans = d.anchors.length > 1 ? `${d.anchors.length} SABRA units` : d.anchors[0].kind === "bnag" ? `the BNA group ${d.anchors[0].l2} (several BNA areas)` : null;
+    if (!spans) continue;
+    errors.push(
+      `uc.json: \`${u.id}\` spans ${spans} and sends connections, but a sender must be uniform in this HCD (205). If its parts differ anatomically or functionally (distinct areas, different projection sources or targets), split it into UCs for the parts the HCD distinguishes (named with search_bna_candidates / RCS; a paper that reports only the whole region supports each part with relation \`<\`) and, if it helps the reader, list it in collections with those UCs. Layer or cell-type evidence is not needed for this. If this HCD really treats it as one population, write why in its uniformityNote.`,
+    );
   }
   return errors;
 }
@@ -994,8 +1052,10 @@ export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null, da
 }
 
 /** Circuits.csv Comments carry the noROI tag the BRA format (and the graph builder) read. */
-const circuitComments = (u: UcRow) =>
-  u.roi === "roi" || /noroi/i.test(u.comments) ? u.comments : [u.comments, ROI_TAG[u.roi]].filter(Boolean).join("; ");
+const circuitComments = (u: UcRow) => {
+  const base = [u.comments, u.uniformityNote ? `Uniform in this project: ${u.uniformityNote}` : ""].filter(Boolean).join("; ");
+  return u.roi === "roi" || /noroi/i.test(u.comments) ? base : [base, ROI_TAG[u.roi]].filter(Boolean).join("; ");
+};
 
 /** Relation and notation of one end; files written before 0.10 keep the old `=` + Circuit ID. */
 const literatureEnd = (relation: string, notation: string, circuitId: string) =>

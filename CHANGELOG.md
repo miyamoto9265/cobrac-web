@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The agent splits a region into Collections whenever it is anatomically or functionally heterogeneous at the chosen granularity — e.g. a whole gyrus with several distinct areas, or parts that are different projection sources — without needing layer or cell-type evidence; the parts must be named and the split justified (a Collection's comment is now required). A parent Collection stays a recommendation
+- A sender that spans several SABRA units (a whole gyrus / BNA group or several anchors) goes back to the agent unless it is split into its parts or its `uniformityNote` explains why this project treats it as one population; the note is written into the Circuits comments. A gyrus and one of its areas can no longer both be UCs
+- The literature survey also looks for which part of a large region sends or receives each projection
+
 ## [0.12.1] - 2026-09-29
 
 ### Fixed

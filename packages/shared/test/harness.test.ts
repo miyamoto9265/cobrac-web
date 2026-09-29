@@ -420,7 +420,7 @@ describe("Collection Circuits", () => {
     names: circuitId,
     sourceOfId: "collection",
     subCircuits,
-    comments: "",
+    comments: "Members differ in cell type and projection target",
     ...extra,
   });
   const WITH_COLLECTIONS = {
@@ -512,6 +512,12 @@ describe("Collection Circuits", () => {
     expect(hcdWith(WITH_COLLECTIONS).errors.join("\n")).not.toMatch(/not uniform/);
   });
 
+  it("requires a Collection to say why it is heterogeneous", () => {
+    const bad = structuredClone(WITH_COLLECTIONS) as { collections: Record<string, unknown>[] };
+    bad.collections[1].comments = "";
+    expect(hcdWith(bad).errors.join("\n")).toMatch(/\/collections\/1\/comments must not be empty/);
+  });
+
   it("keeps Collections out of the FRG leaves", () => {
     const hcd = hcdWith(WITH_COLLECTIONS).model!;
     const bad = structuredClone(FRG_JSON);
@@ -520,6 +526,60 @@ describe("Collection Circuits", () => {
     const msg = checkFrg({ ...FRG, frg: j(bad) }, hcd).errors.join("\n");
     expect(msg).toMatch(/`R\.Context`: `U\.Cb` is a Collection; FRG leaves are UCs, so attach its UCs \(GC\(granule\), PC\(purkinje\)\) instead/);
     expect(msg).toMatch(/requirement of `R\.Learning` refers to \[U\.Flocculus-loop\], which is a Collection/);
+  });
+});
+
+describe("Senders that span several SABRA units (205)", () => {
+  // Left fusiform gyrus (BNAG:FuG@L) sends to the ROI; BNA:105 / BNA:106 are the left / right medioventral area 37 in it
+  const gyrus = (extra: Record<string, unknown> = {}) => ({ ...UC, ucs: [...UC.ucs.map((u) => (u.circuitId === "VN" ? { ...u, circuitId: "FuG@L", descriptor: "BNAG:FuG@L", ...extra } : u))] });
+  const conns = () => {
+    const c = structuredClone(CONN);
+    for (const x of c.connections) {
+      if (x.sender === "VN") x.sender = "FuG@L";
+      if (x.receiver === "VN") x.receiver = "FuG@L";
+    }
+    return c;
+  };
+  const hcdOf = (uc: unknown) => checkHcd({ ...HCD, uc: j(uc), connections: j(conns()) });
+  const fix = (u: ReturnType<typeof gyrus>) => {
+    for (const x of u.ucs) for (const k of ["interface", "requirement", "requirementRealization", "capability", "mechanism", "implementation"] as const) if (typeof x[k] === "string") x[k] = (x[k] as string).replace(/U\.VN\b/g, "U.FuG@L");
+    return u;
+  };
+
+  it("asks a gyrus-level sender to be split into its areas or to say why it is uniform, without asking for layers", () => {
+    const msg = hcdOf(fix(gyrus())).errors.join("\n");
+    expect(msg).toMatch(/`FuG@L` spans the BNA group FuG \(several BNA areas\) and sends connections, but a sender must be uniform in this HCD \(205\)/);
+    expect(msg).toMatch(/Layer or cell-type evidence is not needed/);
+    expect(msg).toMatch(/uniformityNote/);
+  });
+
+  it("accepts the sender with a uniformityNote and writes the note into the Circuits comments", () => {
+    const r = hcdOf(fix(gyrus({ uniformityNote: "The cited papers report only the whole gyrus and its areas play one role for the TLF" })));
+    expect(r.errors.join("\n")).not.toMatch(/205/);
+    expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], fix(gyrus({ uniformityNote: "x" })))).toEqual([]);
+    const frg = checkFrg(FRG, r.model!).model!;
+    const circuits = parseCsvObjects(buildCsvs(r.model!, frg, { projectId: "VOR", contributor: "T", projectTemplate: TEMPLATE }).files!["Circuits.csv"]);
+    expect(circuits.find((c) => c["Circuit ID"] === "FuG@L")?.Comments).toBe("head velocity; Uniform in this project: The cited papers report only the whole gyrus and its areas play one role for the TLF; noROI(input)");
+  });
+
+  it("does not flag a single area, a bilateral pair or a gyrus that only receives", () => {
+    const one = hcdOf(fix(gyrus({ circuitId: "A37mv@L", descriptor: "BNA:105" })));
+    expect(one.errors.join("\n")).not.toMatch(/205/);
+    const pair = hcdOf(fix(gyrus({ circuitId: "A37mv", descriptor: "BNA:105-106" })));
+    expect(pair.errors.join("\n")).not.toMatch(/205/);
+    const sink = structuredClone(UC);
+    sink.ucs[4] = { ...sink.ucs[4], circuitId: "FTN", descriptor: "BNAG:FuG@L" };
+    expect(checkHcd({ ...HCD, uc: j(sink) }).errors.join("\n")).not.toMatch(/205/);
+  });
+
+  it("asks to turn a gyrus into a Collection when its areas are UCs too", () => {
+    const u = structuredClone(UC) as { ucs: Record<string, unknown>[] };
+    u.ucs.push(uc("FuG@L", "BNAG:FuG@L", { roi: "noROI(input)" }), uc("A37mv@L", "BNA:105", { roi: "noROI(input)" }), uc("A37mv@R", "BNA:106", { roi: "noROI(input)" }));
+    const msg = checkHcd({ ...HCD, uc: j(u) }).errors.join("\n");
+    expect(msg).toMatch(/`FuG@L` is also split into finer UCs \(`A37mv@L`\), so it is not uniform in this HCD/);
+    const pair = structuredClone(UC) as { ucs: Record<string, unknown>[] };
+    pair.ucs.push(uc("A37mv", "BNA:105-106", { roi: "noROI(input)" }), uc("A37mv@R", "BNA:106", { roi: "noROI(input)" }));
+    expect(checkHcd({ ...HCD, uc: j(pair) }).errors.join("\n")).toMatch(/`A37mv` is also split into finer UCs \(`A37mv@R`\)/);
   });
 });
 
