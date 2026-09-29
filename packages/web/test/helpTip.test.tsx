@@ -71,6 +71,15 @@ describe("HelpTip", () => {
     expect(tip().hidden).toBe(true);
   });
 
+  it("stays open on a tap, which focuses the button before the click", async () => {
+    await render(<HelpTip text="x" />);
+    await act(async () => btn().focus());
+    await act(async () => btn().click());
+    expect(tip().hidden).toBe(false);
+    await act(async () => btn().click());
+    expect(tip().hidden).toBe(true);
+  });
+
   it("opens on mouse hover", async () => {
     await render(<HelpTip text="x" />);
     await fire(btn(), Object.assign(new Event("pointerover", { bubbles: true }), { pointerType: "mouse" }));

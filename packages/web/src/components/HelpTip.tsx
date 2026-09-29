@@ -49,6 +49,7 @@ export function HelpTip({ text, label, className = "" }: { text: string; label?:
       if (!btn.current?.contains(e.target as Node)) {
         setPinned(false);
         setHover(false);
+        setDismissed(true);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -88,7 +89,8 @@ export function HelpTip({ text, label, className = "" }: { text: string; label?:
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (open) {
+          // a tap focuses the button first, so the click must pin rather than toggle what focus just opened
+          if (pinned) {
             setPinned(false);
             setDismissed(true);
           } else {
