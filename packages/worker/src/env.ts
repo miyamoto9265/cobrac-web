@@ -1,5 +1,5 @@
 import type { RunMode } from "@cobrac/shared";
-import { isProjectIdLike } from "@cobrac/shared";
+import { RESEARCH_BUDGET, isProjectIdLike } from "@cobrac/shared";
 
 function req(name: string): string {
   const v = process.env[name];
@@ -44,6 +44,8 @@ export const env = {
   promptsDir: process.env.PROMPTS_DIR ?? "/app/prompts",
   codexHome: process.env.CODEX_HOME_DIR ?? "/work/codex-home",
   maxNudges: Number(process.env.MAX_NUDGES ?? "3"),
+  /** Wall-clock budget of the research step (research mode), minutes */
+  researchTimeBudgetMin: Number(process.env.RESEARCH_TIME_BUDGET_MIN ?? String(RESEARCH_BUDGET.timeBudgetMinutes)),
   workflowTimeoutMs: Number(process.env.WORKFLOW_TIMEOUT_MS ?? String(6 * 60 * 60 * 1000)),
 };
 

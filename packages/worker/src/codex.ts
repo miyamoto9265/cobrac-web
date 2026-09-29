@@ -1,6 +1,7 @@
 import { Codex, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { fileURLToPath } from "node:url";
 import type { MessageType } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
 import { env } from "./env.js";
 import { RCS_TOKEN_ENV, rcsCodexConfig, type RcsConnection } from "./rcs.js";
 
@@ -20,7 +21,22 @@ export interface TurnSink {
   onMcpCall?(item: McpToolCallItem): Promise<void>;
 }
 
-export function createCodex(apiKey: string, rcs: RcsConnection | null = null): Codex {
+/** Codex config of the `lit` stdio MCP server (research mode): litMcp.js next to this file, run by this Node binary. */
+export function litCodexConfig(mailto?: string) {
+  return {
+    [LIT_MCP_SERVER]: {
+      command: process.execPath,
+      args: [fileURLToPath(new URL("./litMcp.js", import.meta.url))],
+      ...(mailto ? { env: { LIT_MAILTO: mailto } } : {}),
+      enabled_tools: [...LIT_TOOLS],
+      startup_timeout_sec: 20,
+      tool_timeout_sec: 90,
+    },
+  };
+}
+
+export function createCodex(apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean } = {}): Codex {
+  const mcpServers = { ...(rcs ? rcsCodexConfig(rcs).mcp_servers : {}), ...(opts.lit ? litCodexConfig(env.crossrefMailto) : {}) };
   return new Codex({
     apiKey,
     env: {
@@ -39,7 +55,7 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null): C
     config: {
       show_raw_agent_reasoning: false,
       shell_environment_policy: { exclude: [RCS_TOKEN_ENV] },
-      ...(rcs ? rcsCodexConfig(rcs) : {}),
+      ...(Object.keys(mcpServers).length ? { mcp_servers: mcpServers } : {}),
     },
   });
 }

@@ -5,6 +5,7 @@
 import type { ArticleJobState, ArticleMeta } from "./article.js";
 import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
+import type { ResearchStepMetrics } from "./research.js";
 import type { ProjectNameSource } from "./projectId.js";
 
 export type UserRole = "user" | "admin";
@@ -93,6 +94,8 @@ export interface ProjectRecord {
   /** Codex model / reasoning effort for this project (null = Codex default / env default) */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode: literature survey before the HCD (new projects default on; absent on older projects = off) */
+  researchMode?: boolean;
   status: ProjectStatus;
   /** Step that is currently running or the last one completed */
   currentStep: WorkflowStep | null;
@@ -166,6 +169,12 @@ export interface JobRecord {
   /** Model actually passed to Codex for this job */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode of the project when this job ran */
+  researchMode?: boolean;
+  /** Literature searches of this job by tool (`search_pubmed`, `web_search`, …): calls that returned / failed */
+  searches?: Record<string, { ok: number; failed: number }>;
+  /** Research step of this job, when it ran one */
+  researchStep?: ResearchStepMetrics;
   /** Accumulated token usage */
   usage?: TokenUsage;
   /** Estimated OpenAI cost (USD) for this job; null if the model has no price entry */
@@ -333,6 +342,8 @@ export interface CreateProjectRequest {
   contributor?: string;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
+  /** Research mode (default true); follow-ups and retries of the project inherit it */
+  researchMode?: boolean;
   /** Web UI language; the agent's chat replies use it */
   locale?: UiLocale | null;
 }

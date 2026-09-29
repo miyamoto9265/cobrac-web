@@ -113,7 +113,7 @@ describe("phase pipeline with a mock agent", () => {
     const p = freshWorkspace();
     await writeSchemas(workDir);
     const dir = join(workDir, "schemas");
-    expect(readdirSync(dir).sort()).toEqual(["connections.schema.json", "frg.schema.json", "meta.schema.json", "references.schema.json", "uc.schema.json"]);
+    expect(readdirSync(dir).sort()).toEqual(["connections.schema.json", "frg.schema.json", "meta.schema.json", "references.schema.json", "research.schema.json", "uc.schema.json"]);
     for (const [schema, file] of [
       ["meta", "meta.json"],
       ["references", "HCD/references.json"],

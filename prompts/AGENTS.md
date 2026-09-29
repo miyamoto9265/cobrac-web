@@ -18,6 +18,9 @@ Work only inside the project folder named after the Project ID in the prompt (us
 <ProjectID>/rcs_mcp_calls.jsonl             written by the worker only (every RCS call you make)
 <ProjectID>/reference_check.json            written by the worker only (status of each reference)
 <ProjectID>/quote_check.json                written by the worker only (Pointers on literature found in the paper or not)
+<ProjectID>/research.json                   literature survey (research mode only)
+<ProjectID>/research_queries.jsonl          written by the worker only (every literature search: lit tools and web search)
+<ProjectID>/research_check.json             written by the worker only (coverage check of research.json)
 ```
 
 Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this file); the validator checks it exactly. Read a schema when unsure of a field.
@@ -37,6 +40,7 @@ Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this f
 - Circuit IDs follow the UC naming rules of the HCD phase (SABRA abbreviation, e.g. `VTA`, `NAC(shell,DRD1+)`); GN node IDs (`R.`) have no spaces (kebab-case). In JSON write IDs without backticks; in markdown wrap them in backticks.
 - The `rcs` MCP server (ROSETTA Candidate Search) resolves region names to SABRA units (HOMBA/DHBA and BNA). Use it to anchor UCs; send it only region names and a short context (ROI, TLF, species).
 - Terminology: name tissue after SABRA. `names` start with the SABRA official name; everywhere else (function items, comments, the report) refer to a UC as `[U.<Circuit ID>]` in JSON and `` `<Circuit ID>` `` in markdown, not by colloquial or other-atlas names alone.
+- The `lit` MCP server searches the literature: `search_pubmed`, `search_europepmc`, `get_abstract`, and `find_sentences` (the sentences of a paper that contain given terms, from the open-access full text when there is one). Take PMIDs / DOIs from its results and copy `pointersOnLiterature` quotes from sentences it returns; the worker logs every call in `research_queries.jsonl`.
 - Cite literature as `[Author, Year]` Reference IDs that exist in `references.json`. Use web search actively; do not invent DOIs (use `N/A` when unknown). The worker checks every DOI / PMID against Crossref and PubMed and writes the result to `reference_check.json`. Quote papers only from text you retrieved; the worker compares every `pointersOnLiterature` with the paper's text (`quote_check.json`).
 - Where scientific accuracy cannot be guaranteed, say so in the value rather than overstating.
 

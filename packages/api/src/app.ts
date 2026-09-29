@@ -267,6 +267,8 @@ app.post("/projects", async (c) => {
     if (body.reasoningEffort !== null && body.reasoningEffort !== undefined && !isEffort(body.reasoningEffort)) throw bad("reasoning effort が不正です");
     reasoningEffort = body.reasoningEffort ?? null;
   }
+  if (body.researchMode !== undefined && typeof body.researchMode !== "boolean") throw bad("researchMode は true / false で指定してください");
+  const researchMode = body.researchMode ?? true;
   const locale = readLocale(body.locale);
 
   const userKey = u.userKey ?? (await assignUserKey(u.userId));
@@ -284,6 +286,7 @@ app.post("/projects", async (c) => {
     contributor,
     model,
     reasoningEffort,
+    researchMode,
     status: "QUEUED",
     currentStep: null,
     stepStates: { HCD: "pending", FRG: "pending", CSV: "pending", XLSX: "pending" },
@@ -324,11 +327,15 @@ app.post("/projects", async (c) => {
   const owner = { userId: u.userId };
   await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(not set)"}\nTLF: ${tlf || "(not set)"}`, {
     ...owner,
-    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort },
+    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort, researchMode },
   });
   await putMessage(projectId, jobId, "system", "status", `Model: ${model ?? "default"} / reasoning effort: ${reasoningEffort ?? "default"}`, {
     ...owner,
     meta: { i18n: "sys.model", model: model ?? "", effort: reasoningEffort ?? "" },
+  });
+  await putMessage(projectId, jobId, "system", "status", researchMode ? "Research mode: on" : "Research mode: off", {
+    ...owner,
+    meta: { i18n: researchMode ? "sys.researchOn" : "sys.researchOff" },
   });
   await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
