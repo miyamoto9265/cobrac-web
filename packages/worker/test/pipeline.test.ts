@@ -9,8 +9,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildGraphs, parseCsvObjects, replyLanguageInstruction, validateJsonSchema, type JsonSchema } from "@cobrac/shared";
-import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
+import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
+import { ReferenceVerifier } from "../src/references.js";
+import { CROSSREF, DOI_ORG, EUTILS, HABER_WORK, SCHULTZ_WORK, mockLiterature, type Failure } from "./mockLiterature.js";
 import { isLegacyWorkspace, loadHcdFiles, projectPaths, type ProjectPaths } from "../src/steps.js";
 import { startMockRcs, type MockRcs } from "./mockRcsServer.js";
 
@@ -66,22 +68,21 @@ function mockAgent(p: ProjectPaths, script: { brokenFirstHcd?: boolean; skipFrg?
   return { turn, turns };
 }
 
-function driver(p: ProjectPaths, agent: ReturnType<typeof mockAgent>, accepted: Phase[], warnings: string[][]): PhaseDriver {
-  const ctx: PhaseContext = { hcd: null, frg: null };
+function depsOf(): CheckDeps {
   const client = new RcsClient({ url: rcs.url, token: TOKEN });
+  return {
+    lookupSabra: (ids) => client.lookupHomba(ids),
+    csvOptions: async () => ({ projectId: PROJECT_ID, contributor: "Tester", projectTemplate: readFileSync(join(PROMPTS, "Project.csv"), "utf8") }),
+  };
+}
+
+function driver(p: ProjectPaths, agent: Pick<ReturnType<typeof mockAgent>, "turn">, accepted: Phase[], warnings: string[][]): PhaseDriver {
+  const ctx: PhaseContext = { hcd: null, frg: null };
+  const deps = depsOf();
   return {
     maxNudges: 2,
     turn: agent.turn,
-    check: (phase) =>
-      checkPhase(
-        phase,
-        p,
-        {
-          lookupSabra: (ids) => client.lookupHomba(ids),
-          csvOptions: async () => ({ projectId: PROJECT_ID, contributor: "Tester", projectTemplate: readFileSync(join(PROMPTS, "Project.csv"), "utf8") }),
-        },
-        ctx,
-      ),
+    check: (phase) => checkPhase(phase, p, deps, ctx),
     hasFiles: (phase) => readdirSync(phase === "HCD" ? p.hcd : phase === "FRG" ? p.frg : p.csv).length > 0,
     phasePrompt: async (phase) => ({ shown: `Run phase ${phase}` }),
     fixPrompt: async (phase, errors) => ({ shown: `Fix ${phase}\n${errors.join("\n")}` }),
@@ -196,6 +197,80 @@ describe("phase pipeline with a mock agent", () => {
     expect(turns).toHaveLength(2);
     expect(turns[0]).toMatch(/^Fix HCD\nuc\.json: write every value in English; non-English text at \/ucs\/1\/comments/);
     expect(turns[1]).toMatch(/^Fix CSV\nCircuits\.csv would contain non-English text/);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+});
+
+describe("reference checks in the phase pipeline", () => {
+  const verifier = (fail?: (url: string) => Failure | undefined) =>
+    new ReferenceVerifier({
+      fetch: mockLiterature({ crossref: { [SCHULTZ_WORK.DOI]: SCHULTZ_WORK, [HABER_WORK.DOI]: HABER_WORK } }, fail).fetch,
+      crossrefUrl: CROSSREF,
+      doiUrl: DOI_ORG,
+      eutilsUrl: EUTILS,
+      retries: 0,
+      sleep: async () => {},
+    });
+  const GHOST = { id: "[Ghost, 2019]", doi: "10.1016/j.neuron.2019.99999" };
+
+  /** The first HCD cites an invented paper; the fix turn removes it. */
+  function hallucinatingAgent(p: ProjectPaths, fixes: string[]) {
+    const agent = mockAgent(p);
+    const turn = async (prompt: Prompt) => {
+      if (prompt.shown.startsWith("Run phase HCD")) {
+        await agent.turn(prompt);
+        const refs = JSON.parse(fixture("HCD/references.json"));
+        refs.references.push(GHOST);
+        writeFileSync(join(p.hcd, "references.json"), JSON.stringify(refs, null, 2));
+        writeFileSync(p.report, fixture("report_hcd.md").replace("stores state values.", "stores state values [Ghost, 2019]."));
+        return true;
+      }
+      if (prompt.shown.startsWith("Fix HCD")) {
+        fixes.push(prompt.shown);
+        cpSync(join(FIXTURE, "HCD", "references.json"), join(p.hcd, "references.json"));
+        writeFileSync(p.report, fixture("report_hcd.md"));
+        return true;
+      }
+      return agent.turn(prompt);
+    };
+    return { turn, turns: agent.turns };
+  }
+
+  it("sends an invented reference back to the agent and records every reference's status", async () => {
+    const p = freshWorkspace();
+    const fixes: string[] = [];
+    const d = driver(p, hallucinatingAgent(p, fixes), [], []);
+    const v = verifier();
+    const run = await runPhases({ ...d, check: (phase) => checkPhase(phase, p, { ...depsOf(), verifyReferences: (r) => v.verify(r) }, { hcd: null, frg: null }) }, 0, {
+      shown: "Run phase HCD",
+    });
+    expect(run).toEqual({ result: "completed" });
+    expect(fixes).toHaveLength(1);
+    expect(fixes[0]).toContain("references.json: [Ghost, 2019]: DOI 10.1016/j.neuron.2019.99999 does not exist (not found in Crossref or doi.org)");
+
+    const report = JSON.parse(readFileSync(p.referenceCheck, "utf8"));
+    expect(report).toMatchObject({ phase: "FRG", lookup: "on", summary: { verified: 2, no_identifier: 1, not_found: 0 }, problems: [] });
+    expect(report.references.map((c: { id: string; status: string }) => [c.id, c.status])).toEqual([
+      ["[Schultz, 1997]", "verified"],
+      ["[Haber, 2010]", "verified"],
+      ["[Luo, 2011]", "no_identifier"],
+    ]);
+    expect(report.citedAt["[Schultz, 1997]"]).toContain("frg.json /nodes/0/capability");
+    rmSync(p.root, { recursive: true, force: true });
+  });
+
+  it("does not hold up the phases when the literature services are down", async () => {
+    const p = freshWorkspace();
+    const agent = mockAgent(p);
+    const d = driver(p, agent, [], []);
+    const v = verifier(() => 503);
+    const run = await runPhases({ ...d, check: (phase) => checkPhase(phase, p, { ...depsOf(), verifyReferences: (r) => v.verify(r) }, { hcd: null, frg: null }) }, 0, {
+      shown: "Run phase HCD",
+    });
+    expect(run).toEqual({ result: "completed" });
+    expect(agent.turns).toEqual(["Run phase HCD", "Run phase FRG"]);
+    const report = JSON.parse(readFileSync(p.referenceCheck, "utf8"));
+    expect(report.summary).toMatchObject({ unverified: 2, no_identifier: 1 });
     rmSync(p.root, { recursive: true, force: true });
   });
 });

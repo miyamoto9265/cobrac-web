@@ -81,11 +81,13 @@ The validator checks the syntax, that the head (and side) equals the anchor's ab
 
 Every key is required (use `""` for an empty value); schemas: `schemas/references.schema.json`, `schemas/uc.schema.json`, `schemas/connections.schema.json`.
 
-`references.json` - every reference cited anywhere in the project, each once:
+`references.json` - every reference cited anywhere in the project, each once. `id` is `[<first author's surname>, <year>]`; `title` is the paper's title as published; `pmid` is the PubMed ID or `""`; `journal` the journal name. Take DOI, PMID and title from the publisher page or PubMed, never from memory:
 
 ```json
-{ "references": [ { "id": "[Ito, 1982]", "doi": "10.1146/annurev.ne.05.030182.001423" } ] }
+{ "references": [ { "id": "[Ito, 1982]", "doi": "10.1146/annurev.ne.05.030182.001423", "pmid": "6803651", "title": "Cerebellar control of the vestibulo-ocular reflex--around the flocculus hypothesis", "journal": "Annual Review of Neuroscience" } ] }
 ```
+
+The worker looks up every DOI in Crossref / doi.org and every PMID in PubMed and checks that the record has the same first author, year (±1) and title; it also checks that every `[Author, Year]` in the JSON files and `report.md` is in `references.json` and that every reference is cited outside the report's bibliography. A DOI or PMID that does not exist, or that belongs to another paper, comes back as a problem to fix.
 
 `uc.json` - one entry per UC (fill progressively through steps 3-6). `sourceOfId`: main supporting Reference IDs; `names`: formal name; `transmitter` and `modulationType` (`Excitatory` / `Inhibitory` / `Modulatory`): `""` when unknown; `comments`: role and corresponding tissue (the worker adds the `noROI(...)` tag to the CSV from `roi`):
 

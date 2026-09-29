@@ -30,6 +30,12 @@ export const env = {
   rcsMcpSecretId: process.env.RCS_MCP_SECRET_ID || undefined,
   /** Local testing only: token given directly instead of the secret */
   rcsMcpToken: process.env.RCS_MCP_TOKEN || undefined,
+  /** `off` skips the DOI / PMID lookups of references.json (citations are still checked) */
+  referenceLookup: process.env.REFERENCE_LOOKUP !== "off",
+  /** Contact address sent to Crossref (polite pool); optional */
+  crossrefMailto: process.env.CROSSREF_MAILTO || undefined,
+  /** NCBI E-utilities key (10 instead of 3 requests/s); optional, PubMed works without it */
+  ncbiApiKey: process.env.NCBI_API_KEY || undefined,
   workDir: process.env.WORK_DIR ?? "/work",
   promptsDir: process.env.PROMPTS_DIR ?? "/app/prompts",
   codexHome: process.env.CODEX_HOME_DIR ?? "/work/codex-home",

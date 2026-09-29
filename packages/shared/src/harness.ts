@@ -13,6 +13,7 @@ export const PROJECT_FILES = {
   decisionLog: "decision_log.md",
   report: "report.md",
   rcsLog: "rcs_mcp_calls.jsonl",
+  referenceCheck: "reference_check.json",
 } as const;
 
 /** Data files in `<ProjectID>/<ProjectID>_HCD/` and `_FRG/`; each has a JSON Schema in `HARNESS_SCHEMAS`. */
@@ -85,6 +86,10 @@ export interface ConnRow {
 export interface RefRow {
   id: string;
   doi: string;
+  /** Optional in references.json so files with only id and doi stay valid; empty when absent */
+  pmid?: string;
+  title?: string;
+  journal?: string;
 }
 
 export interface HcdModel {
@@ -176,7 +181,16 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
   [HCD_FILES.references]: fileSchema(HCD_FILES.references, "Literature cited by the HCD / FRG", {
     references: {
       description: "Every reference cited anywhere in the project, each once",
-      item: record({ id: REF_ID, doi: nonEmpty("DOI without the https://doi.org/ prefix, or N/A when unknown (never invented)") }),
+      item: {
+        ...record({
+          id: REF_ID,
+          doi: nonEmpty("DOI without the https://doi.org/ prefix, or N/A when unknown (never invented)"),
+          pmid: { type: "string", pattern: "^(\\d{1,9})?$", description: "PubMed ID (digits only), or empty when unknown" },
+          title: str("Title of the paper exactly as published (the worker compares it with Crossref / PubMed)"),
+          journal: str("Journal or book title"),
+        }),
+        required: ["id", "doi"],
+      },
     },
   }),
   [HCD_FILES.uc]: fileSchema(HCD_FILES.uc, "Uniform Circuits (UCs) of the HCD", {
@@ -376,7 +390,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     const id = s(r.id);
     if (!id) continue;
     if (refIds.has(id)) errors.push(`references.json: ${id} is listed more than once.`);
-    else refs.push({ id, doi: s(r.doi) || "N/A" });
+    else refs.push({ id, doi: s(r.doi) || "N/A", pmid: s(r.pmid), title: s(r.title), journal: s(r.journal) });
     refIds.add(id);
   }
   const checkRefs = (where: string, ids: string[]) => {

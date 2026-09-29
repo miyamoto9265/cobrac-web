@@ -20,7 +20,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { JobRecord, ProjectRecord, StepState, WorkflowStep } from "@cobrac/shared";
-import { PROJECT_FILES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
+import { PROJECT_FILES, REF_STATUSES, addUsage, braDownloadFileName, estimateCostUsd, formatTokens, formatUsd, isAgentNameable, nowIso, projectDisplayName, replyLanguageInstruction } from "@cobrac/shared";
 import { createCodex, openThread, resolveModelSettings, runTurn, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -36,8 +36,9 @@ import {
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
+import { ReferenceVerifier } from "./references.js";
 import { downloadDir, projectPrefix, uploadDir } from "./s3sync.js";
-import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt } from "./pipeline.js";
+import { PHASES, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseCheck, type PhaseContext, type Prompt, type ReferenceReport } from "./pipeline.js";
 import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
@@ -56,6 +57,7 @@ let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let cancelled = false;
 let rcs: RcsClient | null = null;
+const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey }) : null;
 
 const log = async (content: string, meta?: Record<string, unknown>): Promise<void> => {
   await putMessage(projectId, jobId, "system", "status", content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
@@ -218,6 +220,7 @@ async function main() {
           });
         },
         onAccepted: async (phase) => {
+          if (phase !== "CSV" && ctx.references) await logReferenceSummary(ctx.references);
           accepted.add(phase);
           await syncStepStates();
           await persistState();
@@ -286,6 +289,7 @@ async function main() {
 async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseContext): Promise<PhaseCheck> {
   const deps: CheckDeps = {
     lookupSabra: rcs ? (ids) => rcs!.lookupHomba(ids) : undefined,
+    verifyReferences: referenceVerifier ? (refs) => referenceVerifier.verify(refs) : undefined,
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
@@ -306,6 +310,17 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
   const r = await checkPhase(phase, paths, deps, ctx);
   if (phase === "CSV" && r.errors.length === 0) await log("CSVs generated from the HCD/FRG data files.", { i18n: "sys.csvBuilt" });
   return r;
+}
+
+let lastReferenceSummary = "";
+async function logReferenceSummary(r: ReferenceReport) {
+  if (!r.summary) return;
+  const parts = REF_STATUSES.filter((s) => r.summary![s] > 0).map((s) => `${r.summary![s]} ${s.replace("_", " ")}`);
+  const line = `References: ${parts.join(", ")} (DOI / PMID checked against Crossref, doi.org and PubMed; details in ${PROJECT_FILES.referenceCheck}).`;
+  if (line === lastReferenceSummary) return;
+  lastReferenceSummary = line;
+  const open = r.references.filter((c) => c.status !== "verified").map((c) => `${c.id}: ${c.status}${c.problems.length ? ` (${c.problems.join("; ")})` : ""}`);
+  await log(line, open.length ? { details: open.join("\n") } : undefined);
 }
 
 const RCS_LOG_MAX_RESULT = 20_000;
