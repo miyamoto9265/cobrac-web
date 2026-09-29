@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-29
+
 ### Added
 - Collection Circuits: the agent records the circuits its HCD splits into finer UCs (e.g. a cortical area split into layer and cell-type UCs) under `collections` in `uc.json`. They become Circuits rows with Uniform = FALSE, Sub-Circuits and Source of ID `collection`; the ROI row lists them too. Whether a circuit is Uniform is decided per project, so the same area may be a UC in one project and a Collection in another
 - The harness checks Collections and sends problems back to the agent: members must be circuits of the project, no cycles, not all makeshift; a Collection is neither sender nor receiver of a connection (the feedback names its UCs) and is not an FRG leaf; a UC that the HCD also splits into finer UCs has to become a Collection
