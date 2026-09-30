@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 360" width="860" height="360" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Harness v1.1 vs v2: from one-way to round trips</title>
+<desc id="d">In v1.1 the agent finished the HCD before building the FRG; the worker never went back to an accepted phase and did not check whether the HCD and the FRG agree. In v2 the agent gathers literature in a research step, can go back from the FRG to the HCD to split or add UCs, and records why in the revisions section. The worker checks BRA values, references and quotes, records the HCD–FRG consistency checks X1–X9, sends one adjustment turn when X1–X3 or X8 are found, and validates the HCD again when a later step changes it.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="360" fill="#ffffff"/>
+<rect x="10" y="10" width="410" height="340" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+<rect x="10" y="10" width="410" height="36" rx="12" fill="#0d9488"/>
+<rect x="10" y="34" width="410" height="12" fill="#0d9488"/>
+<text x="215" y="33" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>v1.1 (app 0.8): one way</tspan></text>
+<rect x="26" y="62" width="378" height="92" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="84.625" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Worker (CoBRAC harness v1.1)</tspan></text>
+<text x="38" y="104.52499999999999" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Checks JSON Schemas and UC naming</tspan></text>
+<text x="38" y="123.37499999999999" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Never goes back to an accepted phase</tspan></text>
+<text x="38" y="142.225" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Does not check that HCD and FRG agree</tspan></text>
+<path d="M80 156 L80 212" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="92" y="180" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>phase spec</tspan></text>
+<text x="92" y="196" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>problem list</tspan></text>
+<path d="M350 212 L350 156" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="338" y="180" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>4 JSON files</tspan></text>
+<text x="338" y="196" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>+ 2 markdown</tspan></text>
+<rect x="26" y="214" width="378" height="92" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="236.625" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>Codex agent + RCS</tspan></text>
+<text x="38" y="256.525" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Finishes the HCD, then builds the FRG</tspan></text>
+<text x="38" y="275.375" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Literature from memory and web search</tspan></text>
+<text x="38" y="294.225" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Bends the FRG when the two disagree</tspan></text>
+<rect x="106.1" y="314" width="217.8" height="24" rx="12" fill="#fef2f2" stroke="#ef4444" stroke-width="1.2"/>
+<text x="116.12000000000005" y="330.32" font-size="12" font-weight="600" fill="#991b1b" text-anchor="start"><tspan>Flow: HCD → FRG → CSV, one way</tspan></text>
+<rect x="440" y="10" width="410" height="340" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+<rect x="440" y="10" width="410" height="36" rx="12" fill="#4338ca"/>
+<rect x="440" y="34" width="410" height="12" fill="#4338ca"/>
+<text x="645" y="33" font-size="14" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>v2 (app 0.13+): round trips</tspan></text>
+<rect x="456" y="62" width="378" height="92" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="468" y="84.625" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Worker (CoBRAC harness v2)</tspan></text>
+<text x="468" y="104.52499999999999" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Also checks BRA values, refs, quotes</tspan></text>
+<text x="468" y="123.37499999999999" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>HCD–FRG consistency checks X1–X9</tspan></text>
+<text x="468" y="142.225" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Re-validates an HCD changed later</tspan></text>
+<path d="M510 156 L510 212" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="522" y="180" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>phase spec</tspan></text>
+<text x="522" y="196" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>problems + adjust</tspan></text>
+<path d="M780 212 L780 156" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="768" y="180" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>JSON + </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">research.json</tspan></text>
+<text x="768" y="196" font-size="12" font-weight="400" fill="#475569" text-anchor="end"><tspan>revisions</tspan></text>
+<rect x="456" y="214" width="378" height="92" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="468" y="236.625" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>Codex agent + RCS + </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.9" fill="#1e293b">lit</tspan></text>
+<text x="468" y="256.525" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Gathers literature in a research step</tspan></text>
+<text x="468" y="275.375" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Goes back from FRG to split HCD UCs</tspan></text>
+<text x="468" y="294.225" font-size="13" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Records why in the revisions section</tspan></text>
+<rect x="484.4" y="314" width="321.2" height="24" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.2"/>
+<text x="494.40000000000003" y="330.32" font-size="12" font-weight="600" fill="#065f46" text-anchor="start"><tspan>Flow: FRG → HCD back-edge and consistency checks</tspan></text>
+</svg>

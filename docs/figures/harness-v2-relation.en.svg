@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 286" width="860" height="286" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">BRA connections: sCID / rCID relation and one reference per row</title>
+<desc id="d">For both ends of a connection, the relation says how the UC relates to the circuit the paper reports, and the Notation column keeps the paper's name. &lt; means the UC is part of the paper's circuit (UC A37lv@L, paper: fusiform gyrus), = the same (IFG@L and inferior frontal gyrus), &gt; the UC contains the paper's finer circuit (FuG@L and visual word form area). In v1.1 the relation was always = with the Circuit ID copied as notation, and one row joined several references. In v2 each row cites one paper: the same sender and receiver are repeated per paper, each with its taxon, method and quote.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="286" fill="#ffffff"/>
+<text x="10" y="24" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>How the UC relates to the paper's circuit</tspan></text>
+<rect x="10" y="38" width="166" height="178" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+<rect x="20" y="48" width="146" height="112" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="28" y="64" font-size="11.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>paper</tspan></text>
+<text x="28" y="79" font-size="11.5" font-weight="400" fill="#475569" text-anchor="start" font-style="italic"><tspan>fusiform gyrus</tspan></text>
+<rect x="38" y="92" width="110" height="56" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="93" y="124" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>UC </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">A37lv@L</tspan></text>
+<text x="22" y="190" font-size="17" font-weight="700" fill="#065f46" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="15.6" fill="#1e293b">&lt;</tspan></text>
+<text x="46" y="182" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>the UC is part of</tspan></text>
+<text x="46" y="197" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>the paper's circuit</tspan></text>
+<rect x="190" y="38" width="166" height="178" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+<rect x="200" y="48" width="146" height="112" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<rect x="203" y="51" width="140" height="106" rx="6" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="273" y="88" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>UC </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L</tspan></text>
+<text x="273" y="108" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>paper</tspan></text>
+<text x="273" y="123" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle" font-style="italic"><tspan>inferior frontal</tspan></text>
+<text x="273" y="137" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle" font-style="italic"><tspan>gyrus</tspan></text>
+<text x="202" y="190" font-size="17" font-weight="700" fill="#065f46" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="15.6" fill="#1e293b">=</tspan></text>
+<text x="226" y="182" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>UC and paper</tspan></text>
+<text x="226" y="197" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>name the same</tspan></text>
+<rect x="370" y="38" width="166" height="178" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+<rect x="380" y="48" width="146" height="112" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="388" y="66" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>UC </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">FuG@L</tspan></text>
+<rect x="394" y="84" width="118" height="64" rx="8" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="5 3"/>
+<text x="453" y="106" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>paper</tspan></text>
+<text x="453" y="121" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle" font-style="italic"><tspan>visual word</tspan></text>
+<text x="453" y="135" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle" font-style="italic"><tspan>form area</tspan></text>
+<text x="382" y="190" font-size="17" font-weight="700" fill="#065f46" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="15.6" fill="#1e293b">&gt;</tspan></text>
+<text x="406" y="182" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>the UC contains</tspan></text>
+<text x="406" y="197" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>a finer circuit</tspan></text>
+<text x="10" y="242" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>The paper's name goes to Notation (e.g. </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">visual word form area</tspan><tspan>)</tspan></text>
+<text x="560" y="24" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>One reference per row</tspan></text>
+<rect x="560" y="36" width="290" height="58" rx="8" fill="#fef2f2" stroke="#ef4444" stroke-width="1.3"/>
+<rect x="560" y="36" width="40" height="58" rx="8" fill="#0d9488"/>
+<rect x="590" y="36" width="10" height="58" fill="#0d9488"/>
+<text x="580" y="69" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>v1.1</tspan></text>
+<text x="610" y="54" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">FuG@L</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L</tspan></text>
+<text x="610" y="72" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">[A, 2014]; [B, 2017]</tspan></text>
+<text x="610" y="88" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>relation </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">=</tspan></text>
+<path d="M705 96 L705 110" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="560" y="110" width="290" height="58" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<rect x="560" y="110" width="40" height="58" rx="8" fill="#4338ca"/>
+<rect x="590" y="110" width="10" height="58" fill="#4338ca"/>
+<text x="580" y="143" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>v2</tspan></text>
+<text x="610" y="128" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">FuG@L</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L</tspan></text>
+<text x="610" y="146" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">[A, 2014]</tspan></text>
+<text x="610" y="162" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>Human, fMRI, quote</tspan></text>
+<rect x="560" y="176" width="290" height="58" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<rect x="560" y="176" width="40" height="58" rx="8" fill="#4338ca"/>
+<rect x="590" y="176" width="10" height="58" fill="#4338ca"/>
+<text x="580" y="209" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>v2</tspan></text>
+<text x="610" y="194" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">FuG@L</tspan><tspan> → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">IFG@L</tspan></text>
+<text x="610" y="212" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">[B, 2017]</tspan></text>
+<text x="610" y="228" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>Human, DW-MRI, quote</tspan></text>
+<text x="560" y="254" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>The same sender → receiver repeats per paper;</tspan></text>
+<text x="560" y="270" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>the graph keeps one edge</tspan></text>
+</svg>
