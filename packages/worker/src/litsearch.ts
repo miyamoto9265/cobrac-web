@@ -66,8 +66,8 @@ const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils";
 const EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest";
 const BIOC = "https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi";
 const MAX_HITS = 25;
-const DEFAULT_HITS = 10;
-const MAX_SENTENCES = 15;
+const DEFAULT_HITS = 8;
+const MAX_SENTENCES = 8;
 const MAX_SENTENCE_CHARS = 700;
 
 /** Minimum gap between request starts per provider (NCBI allows 3 requests/s without an API key). */

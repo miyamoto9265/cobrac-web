@@ -65,6 +65,7 @@ import {
   articleMetaKey,
   braDownloadFileName,
   estimateCostUsd,
+  fixTurnEffort,
   formatTokens,
   formatUsd,
   harnessPromptNotice,
@@ -246,11 +247,12 @@ async function main() {
   };
 
   /**
-   * One agent turn on the project thread (`effort` overrides the reasoning effort for this turn only).
+   * One agent turn on the project thread (the prompt's `effort`, else `o.effort`, overrides the reasoning effort for this turn only).
    * "stop" when the run must stop (question, failure, cancel); "budget" when `budget` cut the turn off.
    */
   const runAgentTurn = async (p: Prompt, o: { effort?: ReasoningEffort; budget?: AbortSignal; freshThread?: boolean } = {}): Promise<ResearchTurn> => {
-    const turnSettings: ModelSettings = o.effort ? { ...settings, reasoningEffort: o.effort } : settings;
+    const effort = p.effort ?? o.effort;
+    const turnSettings: ModelSettings = effort ? { ...settings, reasoningEffort: effort } : settings;
     const thread = openThread(codex, threadId, turnSettings);
     let turn;
     try {
@@ -565,7 +567,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
 
 type AgentTurnFn = (p: Prompt, o?: { effort?: ReasoningEffort; budget?: AbortSignal }) => Promise<ResearchTurn>;
 
-/** Research step before the HCD: survey turn + coverage fix turns at a raised effort, cut off by the time budget. */
+/** Research step before the HCD: survey turn at a raised effort + coverage fix turns at the fix-turn effort, cut off by the time budget. */
 async function researchStep(project: ProjectRecord, first: Prompt | null, turn: AgentTurnFn): Promise<"done" | "stopped"> {
   const time = { minutes: Math.max(1, env.researchTimeBudgetMin) };
   const budgetMs = time.minutes * 60_000;
@@ -702,6 +704,7 @@ function researchFixPrompt(errors: string[], attempt: number): Prompt {
   if (errors.length > MAX_REPORTED_ERRORS) list.push(`- …and ${errors.length - MAX_REPORTED_ERRORS} more of the same kinds`);
   return {
     shown: `The research coverage check found ${errors.length} gap(s) in ${RESEARCH_FILES.plan} (fix attempt ${attempt}/${RESEARCH_BUDGET.maxFixTurns}):\n${list.join("\n")}\n\nRun the missing searches, update ${RESEARCH_FILES.plan} and finish with status "done". Do not start the HCD yet.`,
+    effort: fixTurnEffort(resolvedEffort as ReasoningEffort | null),
   };
 }
 
@@ -947,6 +950,7 @@ function fixPrompt(phase: Phase, errors: string[], attempt: number): Prompt {
   const where = phase === "CSV" ? "while generating the CSVs from the HCD/FRG data files" : `in phase ${phase}`;
   return {
     shown: `The validator found ${errors.length} problem(s) ${where} (fix attempt ${attempt}/${env.maxNudges}):\n${list.join("\n")}\n\nFix them in the files and finish with status "done".`,
+    effort: fixTurnEffort(resolvedEffort as ReasoningEffort | null),
   };
 }
 

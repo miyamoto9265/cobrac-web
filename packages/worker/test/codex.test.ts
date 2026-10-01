@@ -170,9 +170,9 @@ describe("model metadata", () => {
     expect(codex.codexModelSlug("gpt-6-luna")).toBe("gpt-6-luna");
   });
 
-  it("compacts the conversation by default before it reaches the context window", async () => {
+  it("compacts the conversation by default well before it reaches the context window", async () => {
     const { env } = await import("../src/env.js");
-    expect(env.codexAutoCompactTokens).toBe(150_000);
+    expect(env.codexAutoCompactTokens).toBe(75_000);
     expect(env.codexAutoCompactTokens).toBeLessThan(codex.CODEX_CONTEXT_WINDOW);
   });
 });

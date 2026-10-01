@@ -26,8 +26,11 @@ export const env = {
   },
   codexModel: process.env.CODEX_MODEL || undefined,
   codexReasoningEffort: process.env.CODEX_REASONING_EFFORT || undefined,
-  /** Conversation size (tokens) at which Codex compacts it; below the OpenAI tokens-per-minute limit of the models used (200k for gpt-6-luna) */
-  codexAutoCompactTokens: Number(process.env.CODEX_AUTO_COMPACT_TOKENS ?? "150000"),
+  /**
+   * Conversation size (tokens) at which Codex compacts it. Well below the OpenAI tokens-per-minute limit (200k for
+   * gpt-6-luna): requests above ~80k context wait 15–40 s longer before the first token.
+   */
+  codexAutoCompactTokens: Number(process.env.CODEX_AUTO_COMPACT_TOKENS ?? "75000"),
   /** RCS MCP endpoint; empty = agent runs without RCS */
   rcsMcpUrl: process.env.RCS_MCP_URL || undefined,
   /** Secrets Manager secret with the accepted RCS bearer tokens (comma-separated) */
