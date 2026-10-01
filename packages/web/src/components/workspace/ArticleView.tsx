@@ -1,4 +1,4 @@
-import { AlertTriangle, BookOpen, Download, ListTree, Loader2, MessageSquare, RefreshCw, Sparkles } from "lucide-react";
+import { AlertTriangle, BookOpen, Bot, Download, ListTree, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ListArticlesResponse, ProjectRecord, UiLocale } from "@cobrac/shared";
 import { resolveSystemMessage } from "@cobrac/shared";
@@ -156,7 +156,7 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
               <span className="min-w-0 flex-1">{t(job!.status === "QUEUED" ? "article.queued" : "article.running", { lang: jobLang })}</span>
               {onOpenChat && (
                 <button type="button" onClick={onOpenChat} className="flex items-center gap-1 rounded-md border border-blue-200 bg-white px-2 py-0.5 hover:bg-blue-50 coarse:min-h-10">
-                  <MessageSquare size={12} /> {t("ws.openChat")}
+                  <Bot size={12} /> {t("ws.openAgent")}
                 </button>
               )}
             </div>

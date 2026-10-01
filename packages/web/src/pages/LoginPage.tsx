@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { useAuth } from "../lib/auth";
 
@@ -48,8 +49,9 @@ export function LoginPage() {
             {mode === "reset" && t("login.reset")}
             {mode === "resetConfirm" && t("login.resetConfirm")}
           </div>
-          <div className="mt-3 flex justify-center">
+          <div className="mt-3 flex items-center justify-center gap-2">
             <LanguageSelect variant="light" />
+            <ThemeToggle />
           </div>
         </div>
 

@@ -1,20 +1,16 @@
-import { ArrowUp, Loader2, Paperclip, Plus, Send } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ArrowUp, Loader2, Paperclip, Plus } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { MessageRecord, ProjectRecord } from "@cobrac/shared";
 import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
-import { ChatTimeline } from "../components/ChatTimeline";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
 import { PairFields } from "../components/create/PairFields";
 import { Popover } from "../components/create/Popover";
 import { HelpTip } from "../components/HelpTip";
-import { QuestionCard } from "../components/QuestionCard";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { isActive } from "../lib/format";
 
 export function ChatPage() {
   return <NewProject />;
@@ -164,83 +160,4 @@ function NewProject() {
 
 function Kbd({ children }: { children: string }) {
   return <kbd className="rounded border border-slate-200 bg-white px-1 font-mono text-[10px] text-slate-500">{children}</kbd>;
-}
-
-// ---------------------------------------------------------------------------
-// Existing project: chat panel (the workspace page owns project state and actions)
-// ---------------------------------------------------------------------------
-
-export function ProjectChatPanel({
-  projectId,
-  project,
-  messages,
-  busy,
-  err,
-  act,
-}: {
-  projectId: string;
-  project: ProjectRecord;
-  messages: MessageRecord[];
-  busy: boolean;
-  err: string | null;
-  act: (fn: () => Promise<unknown>) => Promise<void>;
-}) {
-  const { t, locale } = useI18n();
-  const [followup, setFollowup] = useState("");
-  const [autoScroll, setAutoScroll] = useState(true);
-  const listRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = listRef.current;
-    if (autoScroll && el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [messages.length, project.status, autoScroll]);
-
-  const onScroll = () => {
-    const el = listRef.current;
-    if (!el) return;
-    setAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
-  };
-
-  const active = isActive(project.status);
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      {/* messages */}
-      <div ref={listRef} onScroll={onScroll} className="min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4">
-        <ChatTimeline messages={messages} working={active && project.status !== "WAITING_USER_INPUT"} />
-      </div>
-
-      {/* footer */}
-      <footer className="shrink-0 border-t border-slate-200 bg-white px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
-        {err && <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
-        {project.status === "WAITING_USER_INPUT" && project.pendingQuestion ? (
-          <QuestionCard question={project.pendingQuestion} busy={busy} onAnswer={(a) => act(() => api.answer(projectId, a, locale))} />
-        ) : project.status === "COMPLETED" ? (
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!followup.trim()) return;
-              const text = followup.trim();
-              setFollowup("");
-              void act(() => api.followup(projectId, text, locale));
-            }}
-          >
-            <textarea
-              value={followup}
-              onChange={(e) => setFollowup(e.target.value)}
-              rows={2}
-              placeholder={t("chat.followupPh")}
-              className="flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-            <button type="submit" disabled={busy || !followup.trim()} className="flex items-center gap-1 self-end rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11">
-              <Send size={14} /> {t("send")}
-            </button>
-          </form>
-        ) : (
-          <div className="text-center text-xs text-slate-400">{active ? t("chat.noFollowupActive") : t("chat.noFollowupIdle")}</div>
-        )}
-      </footer>
-    </div>
-  );
 }
