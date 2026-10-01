@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-01
+
 ### Changed
 - The project's progress display (header and the empty artifact pane) follows the harness as it runs today: research (only in research mode) → HCD ⇄ FRG with the consistency check → CSV → xlsx, instead of HCD / FRG / CSV / xlsx in a row. HCD and FRG sit in one loop with a two-way arrow, because the FRG can go back to split or add HCD UCs and the adjustment turn revises both. The labels stay short; what each stage does (Collections, the X1–X9 check, the two workbooks) is in the "?" next to it. The empty pane now just says that artifacts appear as their steps finish
 - While a job runs, the stage it is on animates from the job's real status: the active stage pulses with a spinner, finished stages show a check, later ones stay grey, and the line into the active stage flows. During the research step the research stage is active (the HCD waits); during the HCD ↔ FRG adjustment turn the loop, HCD, FRG and the check animate together. A question pauses the display on that stage, a failed or cancelled job shows where it stopped, and nothing moves when the system asks for reduced motion. The worker now records the live stage of the job (`activeStage`) so the research step and the adjustment turn can be told apart; projects last run by an older worker fall back to the step states
