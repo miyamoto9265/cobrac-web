@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.14.1] - 2026-10-01
+
 ### Fixed
 - Jobs on gpt-6-luna and gpt-6-sol no longer show "Model metadata for `gpt-6-luna` not found. Defaulting to fallback metadata" in the chat. The agent runs on Codex 0.159.3 (was 0.154.0), which knows these models, so Codex uses their real settings instead of fallback metadata. The `gpt-5.6` alias, which Codex does not know, now runs as `gpt-5.6-sol`, the model OpenAI routes it to
 - Notices from Codex that do not stop the turn (fallback model metadata, falling back from WebSockets to HTTPS, reconnecting, rate-limit pauses) appear in the chat as grey status lines instead of "Error" rows. Real errors are still shown as errors
