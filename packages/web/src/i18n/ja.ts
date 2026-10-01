@@ -219,7 +219,7 @@ export const ja: Record<MessageKey, string> = {
   "stage.loop": "HCD と FRG の往復",
   "stage.research": "調査",
   "stage.cross": "整合",
-  "stage.help": "調査: 調査モードのとき、HCD の前に文献を集めます。\nHCD ⇄ FRG: 回路（HCD。粗い領域は Collection に分ける）と機能の分解（FRG）を作ります。FRG を作る途中で HCD に戻り、UC を分ける・足すことがあります。\n整合: ワーカーが HCD と FRG の食い違い（X1〜X9）を記録し、必要なら両方を直す調整ターンを 1 回送ります。\nCSV: JSON から 5 つの CSV を作ります。\nxlsx: 2 種類（CoBRAC-v1-1・Template-v2-2）の xlsx とグラフを書き出します。\n進み具合の確認と質問への回答はチャットで行います。",
+  "stage.help": "調査: 調査モードのとき、HCD の前に文献を集めます。\nHCD ⇄ FRG: 回路（粗い領域は Collection）と機能の分解を作ります。FRG から HCD に戻り、UC を分ける・足すことがあります。\n整合: HCD と FRG の食い違い（X1〜X9）を記録し、必要なら 1 回調整します。\nCSV: JSON から 5 つの CSV を作ります。\nxlsx: CoBRAC-v1-1 と Template-v2-2 の 2 種類です。\n質問への回答はチャットで行います。",
   "stage.helpLabel": "ステップの説明",
   "stage.pending": "未着手",
   "stage.active": "作業中",

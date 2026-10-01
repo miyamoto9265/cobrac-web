@@ -217,7 +217,7 @@ export const en = {
   "stage.loop": "HCD ⇄ FRG loop",
   "stage.research": "Research",
   "stage.cross": "Check",
-  "stage.help": "Research: with research mode on, the agent surveys the literature before the HCD.\nHCD ⇄ FRG: the agent builds the circuits (HCD; coarse regions become Collections) and the functional decomposition (FRG). While building the FRG it may go back and split or add HCD UCs.\nCheck: the worker records HCD ↔ FRG mismatches (X1–X9) and, when needed, asks for one adjustment turn that revises both.\nCSV: the five CSVs are generated from the JSON files.\nxlsx: two workbooks (CoBRAC-v1-1 and Template-v2-2) and the graphs.\nFollow progress and answer questions in the chat.",
+  "stage.help": "Research: in research mode, the literature is surveyed before the HCD.\nHCD ⇄ FRG: circuits (coarse regions become Collections) and the functional decomposition. The FRG may go back to split or add HCD UCs.\nCheck: HCD ↔ FRG mismatches (X1–X9) are recorded and, if needed, adjusted once.\nCSV: five CSVs from the JSON files.\nxlsx: two workbooks, CoBRAC-v1-1 and Template-v2-2.\nAnswer questions in the chat.",
   "stage.helpLabel": "About the steps",
   "stage.pending": "not started",
   "stage.active": "in progress",

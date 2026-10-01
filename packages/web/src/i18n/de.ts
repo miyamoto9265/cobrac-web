@@ -219,7 +219,7 @@ export const de: Record<MessageKey, string> = {
   "stage.loop": "HCD ⇄ FRG im Wechsel",
   "stage.research": "Recherche",
   "stage.cross": "Abgleich",
-  "stage.help": "Recherche: Im Recherchemodus sammelt der Agent vor dem HCD Literatur.\nHCD ⇄ FRG: Der Agent erstellt die Schaltkreise (HCD; grobe Regionen werden zu Collections) und die Funktionszerlegung (FRG). Beim FRG kann er zum HCD zurückkehren und UCs teilen oder ergänzen.\nAbgleich: Der Worker protokolliert Abweichungen zwischen HCD und FRG (X1–X9) und fordert bei Bedarf einen Abgleichsdurchgang an, der beide überarbeitet.\nCSV: Die fünf CSVs werden aus den JSON-Dateien erzeugt.\nxlsx: zwei Arbeitsmappen (CoBRAC-v1-1 und Template-v2-2) und die Graphen.\nFortschritt und Rückfragen finden Sie im Chat.",
+  "stage.help": "Recherche: Im Recherchemodus wird vor dem HCD Literatur gesammelt.\nHCD ⇄ FRG: Schaltkreise (grobe Regionen als Collections) und Funktionszerlegung. Das FRG kann zum HCD zurückgehen und UCs teilen oder ergänzen.\nAbgleich: Abweichungen HCD ↔ FRG (X1–X9) werden protokolliert und bei Bedarf einmal abgeglichen.\nCSV: fünf CSVs aus den JSON-Dateien.\nxlsx: zwei Arbeitsmappen, CoBRAC-v1-1 und Template-v2-2.\nRückfragen beantworten Sie im Chat.",
   "stage.helpLabel": "Zu den Schritten",
   "stage.pending": "nicht begonnen",
   "stage.active": "läuft",

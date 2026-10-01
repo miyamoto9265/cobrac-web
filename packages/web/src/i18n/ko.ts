@@ -219,7 +219,7 @@ export const ko: Record<MessageKey, string> = {
   "stage.loop": "HCD와 FRG 왕복",
   "stage.research": "조사",
   "stage.cross": "정합성",
-  "stage.help": "조사: 조사 모드일 때 HCD 전에 문헌을 모읍니다.\nHCD ⇄ FRG: 회로(HCD, 거친 영역은 Collection으로 나눔)와 기능 분해(FRG)를 만듭니다. FRG를 만드는 도중 HCD로 돌아가 UC를 나누거나 추가할 수 있습니다.\n정합성: 워커가 HCD와 FRG의 불일치(X1~X9)를 기록하고, 필요하면 둘 다 고치는 조정 턴을 한 번 보냅니다.\nCSV: JSON에서 CSV 5개를 만듭니다.\nxlsx: 두 종류(CoBRAC-v1-1, Template-v2-2)의 xlsx와 그래프를 출력합니다.\n진행 상황 확인과 질문 답변은 채팅에서 합니다.",
+  "stage.help": "조사: 조사 모드에서 HCD 전에 문헌을 모읍니다.\nHCD ⇄ FRG: 회로(거친 영역은 Collection)와 기능 분해. FRG에서 HCD로 돌아가 UC를 나누거나 추가할 수 있습니다.\n정합성: HCD와 FRG의 불일치(X1~X9)를 기록하고 필요하면 한 번 조정합니다.\nCSV: JSON에서 CSV 5개를 만듭니다.\nxlsx: CoBRAC-v1-1과 Template-v2-2 두 종류입니다.\n질문 답변은 채팅에서 합니다.",
   "stage.helpLabel": "단계 설명",
   "stage.pending": "시작 전",
   "stage.active": "진행 중",

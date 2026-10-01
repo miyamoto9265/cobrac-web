@@ -26,6 +26,8 @@ describe("pipelineView", () => {
   it("marks research done and the running step active once the research step has ended", () => {
     const v = pipelineView(project({ stepStates: steps("running"), activeStage: "HCD" }), researched);
     expect(v).toMatchObject({ research: "done", hcd: "active", frg: "pending" });
+    // before the job list is reloaded, the live stage alone tells that the research step is over
+    expect(pipelineView(project({ stepStates: steps("running"), activeStage: "HCD" }), [{}]).research).toBe("done");
   });
 
   it("runs HCD and FRG together in the adjustment turn", () => {

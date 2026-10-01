@@ -402,7 +402,7 @@ function EmptyState({ project, jobs, pending = false, showChatButton, onOpenChat
       <FolderOpen size={36} className="text-slate-300" />
       <h2 className="text-base font-semibold text-slate-700">{pending ? t("ws.viewPending") : t("ws.emptyTitle")}</h2>
       <p className="max-w-md text-sm text-slate-500">{t("ws.emptyHelp")}</p>
-      <PipelineProgress project={project} jobs={jobs} className="max-w-full justify-center" />
+      <PipelineProgress project={project} jobs={jobs} center className="max-w-full" />
       {showChatButton && (
         <button onClick={onOpenChat} className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
           <MessageSquare size={15} /> {t("ws.openChat")}

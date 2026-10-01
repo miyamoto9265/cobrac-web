@@ -219,7 +219,7 @@ export const fr: Record<MessageKey, string> = {
   "stage.loop": "Allers-retours HCD ⇄ FRG",
   "stage.research": "Recherche",
   "stage.cross": "Cohérence",
-  "stage.help": "Recherche : en mode recherche, l'agent rassemble la littérature avant le HCD.\nHCD ⇄ FRG : l'agent construit les circuits (HCD ; les régions grossières deviennent des Collections) et la décomposition fonctionnelle (FRG). En construisant le FRG, il peut revenir au HCD pour scinder ou ajouter des UC.\nCohérence : le worker consigne les écarts HCD ↔ FRG (X1–X9) et, si besoin, demande un tour d'ajustement qui révise les deux.\nCSV : les cinq CSV sont générés à partir des fichiers JSON.\nxlsx : deux classeurs (CoBRAC-v1-1 et Template-v2-2) et les graphes.\nSuivez la progression et répondez aux questions dans le chat.",
+  "stage.help": "Recherche : en mode recherche, la littérature est rassemblée avant le HCD.\nHCD ⇄ FRG : circuits (régions grossières en Collections) et décomposition fonctionnelle. Le FRG peut revenir au HCD pour scinder ou ajouter des UC.\nCohérence : les écarts HCD ↔ FRG (X1–X9) sont consignés et, si besoin, ajustés une fois.\nCSV : cinq CSV à partir des fichiers JSON.\nxlsx : deux classeurs, CoBRAC-v1-1 et Template-v2-2.\nRépondez aux questions dans le chat.",
   "stage.helpLabel": "À propos des étapes",
   "stage.pending": "pas commencé",
   "stage.active": "en cours",

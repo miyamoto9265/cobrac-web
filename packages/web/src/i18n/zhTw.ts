@@ -219,7 +219,7 @@ export const zhTw: Record<MessageKey, string> = {
   "stage.loop": "HCD 與 FRG 往返",
   "stage.research": "調查",
   "stage.cross": "一致性",
-  "stage.help": "調查：開啟調查模式時，在 HCD 之前蒐集文獻。\nHCD ⇄ FRG：建立迴路（HCD；粗略區域拆為 Collection）與功能分解（FRG）。建立 FRG 時可能回到 HCD 拆分或新增 UC。\n一致性：worker 記錄 HCD 與 FRG 的不一致（X1–X9），必要時送出一次同時修改兩者的調整回合。\nCSV：由 JSON 產生 5 個 CSV。\nxlsx：輸出兩種 xlsx（CoBRAC-v1-1 與 Template-v2-2）及圖。\n進度與提問請在聊天中查看與回答。",
+  "stage.help": "調查：調查模式下，在 HCD 之前蒐集文獻。\nHCD ⇄ FRG：迴路（粗略區域為 Collection）與功能分解。FRG 可能回到 HCD 拆分或新增 UC。\n一致性：記錄 HCD 與 FRG 的不一致（X1–X9），必要時調整一次。\nCSV：由 JSON 產生 5 個 CSV。\nxlsx：CoBRAC-v1-1 與 Template-v2-2 兩種。\n請在聊天中回答提問。",
   "stage.helpLabel": "步驟說明",
   "stage.pending": "未開始",
   "stage.active": "進行中",

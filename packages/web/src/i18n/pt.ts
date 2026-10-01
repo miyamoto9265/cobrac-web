@@ -219,7 +219,7 @@ export const pt: Record<MessageKey, string> = {
   "stage.loop": "Ida e volta HCD ⇄ FRG",
   "stage.research": "Pesquisa",
   "stage.cross": "Consistência",
-  "stage.help": "Pesquisa: com o modo pesquisa, o agente reúne a literatura antes do HCD.\nHCD ⇄ FRG: o agente constrói os circuitos (HCD; regiões grosseiras viram Collections) e a decomposição funcional (FRG). Ao construir o FRG, pode voltar ao HCD para dividir ou adicionar UCs.\nConsistência: o worker registra divergências HCD ↔ FRG (X1–X9) e, se necessário, pede um turno de ajuste que revisa ambos.\nCSV: os cinco CSVs são gerados a partir dos arquivos JSON.\nxlsx: duas planilhas (CoBRAC-v1-1 e Template-v2-2) e os grafos.\nAcompanhe o progresso e responda perguntas no chat.",
+  "stage.help": "Pesquisa: no modo pesquisa, a literatura é reunida antes do HCD.\nHCD ⇄ FRG: circuitos (regiões grosseiras como Collections) e decomposição funcional. O FRG pode voltar ao HCD para dividir ou adicionar UCs.\nConsistência: divergências HCD ↔ FRG (X1–X9) são registradas e, se necessário, ajustadas uma vez.\nCSV: cinco CSVs a partir dos JSON.\nxlsx: duas planilhas, CoBRAC-v1-1 e Template-v2-2.\nResponda às perguntas no chat.",
   "stage.helpLabel": "Sobre as etapas",
   "stage.pending": "não iniciado",
   "stage.active": "em andamento",

@@ -34,7 +34,8 @@ export function pipelineView(p: ProjectProgress, jobs: Pick<JobRecord, "research
   const s = p.stepStates;
   const of = (st: StepState): StageStatus => (st === "done" ? "done" : st !== "running" ? "pending" : live ? "active" : p.status === "QUEUED" ? "pending" : "stopped");
 
-  const researched = jobs.some((j) => j.researchStep) || s.HCD === "done";
+  // the job list is not pushed live, so a later live stage also means the research step has ended
+  const researched = jobs.some((j) => j.researchStep) || s.HCD === "done" || (stage !== null && stage !== "RESEARCH");
   const research: StageStatus | null =
     p.researchMode || jobs.some((j) => j.researchStep) ? (stage === "RESEARCH" ? "active" : researched ? "done" : "pending") : null;
 
