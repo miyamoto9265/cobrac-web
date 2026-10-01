@@ -1,13 +1,15 @@
-import { BookOpenCheck, Loader2, Play, Send } from "lucide-react";
+import { ArrowUp, Loader2, Paperclip, Plus, Send } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { MessageRecord, ProjectRecord, ReasoningEffort } from "@cobrac/shared";
-import { AttachmentPicker, EMPTY_ATTACHMENTS, attachmentRequest, attachmentsBusy, type AttachmentState } from "../components/AttachmentPicker";
-import { DEFAULT_CODEX_MODEL, formatUsd, researchModeEstimate } from "@cobrac/shared";
-import { CanonChoice, canonChoiceReady, canonRequest, initialCanonChoice, type CanonChoiceState } from "../components/CanonChoice";
+import type { MessageRecord, ProjectRecord } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
+import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
+import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ChatTimeline } from "../components/ChatTimeline";
-import { HelpLink, HelpTip } from "../components/HelpTip";
-import { ModelSelect } from "../components/ModelSelect";
+import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
+import { PairFields } from "../components/create/PairFields";
+import { Popover } from "../components/create/Popover";
+import { HelpTip } from "../components/HelpTip";
 import { QuestionCard } from "../components/QuestionCard";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
@@ -29,19 +31,29 @@ function NewProject() {
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
   const [attachments, setAttachments] = useState<AttachmentState>(EMPTY_ATTACHMENTS);
-  const [model, setModel] = useState<string | null>(me?.defaultModel ?? null);
-  const [effort, setEffort] = useState<ReasoningEffort | null>(me?.defaultReasoningEffort ?? null);
-  const [research, setResearch] = useState(true);
+  const [run, setRun] = useState<RunSettings>({ model: me?.defaultModel ?? null, effort: me?.defaultReasoningEffort ?? null, research: true });
   const [canon, setCanon] = useState<CanonChoiceState>(() => initialCanonChoice(me?.defaultCanonId));
+  const canonSources = useCanonSources();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const files = useAttachments(attachments, setAttachments, busy);
   const uploading = attachmentsBusy(attachments);
-
+  const canSubmit = !busy && !uploading && !!(roi.trim() || tlf.trim()) && !!me?.apiKeyRegistered && canonChoiceReady(canon);
   const submit = async () => {
+    if (!canSubmit) return;
     setBusy(true);
     setErr(null);
     try {
-      const p = await api.createProject({ roi, tlf, ...attachmentRequest(attachments), model, reasoningEffort: effort, researchMode: research, locale, canon: canonRequest(canon) });
+      const p = await api.createProject({
+        roi,
+        tlf,
+        ...attachmentRequest(attachments),
+        model: run.model,
+        reasoningEffort: run.effort,
+        researchMode: run.research,
+        locale,
+        canon: canonRequest(canon),
+      });
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -52,16 +64,15 @@ function NewProject() {
 
   const [needKeyBefore, needKeyAfter] = t("chat.needKey").split("{settings}");
   const [contribBefore, contribAfter] = t("chat.contributorLine", { name: me?.contributorName || me?.displayName || "—" }).split("{settings}");
+  const nAttached = attachmentCount(attachments);
+  const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:h-11 coarse:w-11";
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
-        <div className="mb-6 text-center sm:mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">{t("chat.newTitle")}</h1>
-          <p className="mt-1 text-sm text-slate-500">{t("chat.newHelp")}</p>
-        </div>
+      <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+        <h1 className="mb-5 text-center text-2xl font-semibold tracking-tight sm:mb-7">{t("chat.newTitle")}</h1>
         {!me?.apiKeyRegistered && (
-          <div className="mb-4 w-full max-w-3xl rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+          <div className="mb-4 w-full max-w-2xl rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             {needKeyBefore}
             <Link to="/settings" className="underline">
               {t("chat.settingsLink")}
@@ -69,96 +80,89 @@ function NewProject() {
             {needKeyAfter}
           </div>
         )}
-        <div className="w-full max-w-3xl rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.roi")}</span>
-              <textarea
-                value={roi}
-                onChange={(e) => setRoi(e.target.value)}
-                rows={3}
-                placeholder={t("chat.roiPh")}
-                className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">{t("chat.tlf")}</span>
-              <textarea
-                value={tlf}
-                onChange={(e) => setTlf(e.target.value)}
-                rows={3}
-                placeholder={t("chat.tlfPh")}
-                className="w-full resize-y rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </label>
+        {/* not a <form>: Enter in the menus' own fields (URL, search, custom model) must never start a run */}
+        <div
+          role="group"
+          aria-label={t("chat.newTitle")}
+          {...files.dropProps}
+          data-testid="composer"
+          className={`relative w-full max-w-2xl rounded-3xl border bg-white shadow-sm transition-[border-color,box-shadow] focus-within:border-slate-300 focus-within:shadow-md ${files.drag ? "border-blue-400 ring-4 ring-blue-100" : "border-slate-200"}`}
+        >
+          <div className="pt-1.5">
+            <PairFields roi={roi} tlf={tlf} onRoi={setRoi} onTlf={setTlf} onSubmit={() => void submit()} canSubmit={canSubmit} disabled={busy} />
           </div>
-          <div className="mt-4">
-            <AttachmentPicker value={attachments} onChange={setAttachments} disabled={busy} />
-          </div>
-          <div className="mt-4">
-            <ModelSelect
-              model={model}
-              effort={effort}
-              onChange={(v) => {
-                setModel(v.model);
-                setEffort(v.effort);
+          <AttachmentChips a={files} />
+          <div className="flex items-center gap-1 px-2 pb-2 pt-1 sm:gap-1.5 sm:px-3">
+            <Popover
+              testId="composer-plus"
+              title={t("attach.title")}
+              side="bottom"
+              disabled={busy}
+              trigger={{
+                label: nAttached ? `${t("chat.plus")} (${nAttached})` : t("chat.plus"),
+                className: tool,
+                content: (
+                  <span className="relative">
+                    <Plus size={18} aria-hidden />
+                    {nAttached > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold leading-none text-white">{nAttached}</span>}
+                  </span>
+                ),
               }}
-              defaultLabel={t("model.default")}
-            />
-          </div>
-          <ResearchToggle on={research} onChange={setResearch} model={model || me?.defaultModel || DEFAULT_CODEX_MODEL} />
-          <CanonChoice value={canon} onChange={setCanon} disabled={busy} />
-          <p className="mt-4 text-xs text-slate-500" data-testid="create-meta">
-            {contribBefore}
-            <Link to="/settings" className="underline hover:text-slate-700">
-              {t("chat.settingsLink")}
-            </Link>
-            {contribAfter}
-          </p>
-          {err && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
-          <div className="mt-4 flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
-            {uploading && <span className="text-center text-xs text-slate-500 sm:text-right">{t("attach.wait")}</span>}
-            <span className="hidden sm:inline-flex">
-              <HelpTip text={`${t("chat.runHelp")}\n${t("chat.autoName")}`} />
-            </span>
-            <button
-              onClick={() => void submit()}
-              disabled={busy || uploading || (!roi.trim() && !tlf.trim()) || !me?.apiKeyRegistered || !canonChoiceReady(canon)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:w-auto coarse:py-3"
             >
-              {busy ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} {t("chat.run")}
-            </button>
+              {(close) => <AttachMenu a={files} close={close} disabled={busy} />}
+            </Popover>
+            <CanonChip value={canon} onChange={setCanon} sources={canonSources} defaultCanonId={me?.defaultCanonId} disabled={busy} />
+            <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-1.5">
+              <ModelMenu value={run} onChange={setRun} fallbackModel={me?.defaultModel || DEFAULT_CODEX_MODEL} disabled={busy} />
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={!canSubmit}
+                data-testid="create-run"
+                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-blue-600 pl-3 pr-3.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none coarse:h-11"
+              >
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ArrowUp size={16} aria-hidden />} {t("chat.run")}
+              </button>
+            </div>
           </div>
+          {files.fileInput}
+          {files.drag && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-3xl bg-blue-50/80 text-sm font-medium text-blue-700">
+              <Paperclip size={16} className="mr-1.5" aria-hidden /> {t("attach.dropHere")}
+            </div>
+          )}
         </div>
-        <p className="mt-3 flex max-w-3xl items-center justify-center gap-1.5 text-center text-xs text-slate-400 sm:hidden">
-          {t("chat.run")} <HelpTip text={`${t("chat.runHelp")}\n${t("chat.autoName")}`} />
-        </p>
+        <div className="mt-2 flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 text-xs text-slate-400" data-testid="create-meta">
+          <span className="hidden items-center gap-1.5 sm:inline-flex coarse:hidden">
+            <Kbd>Enter</Kbd> {t("chat.keyNext")}
+            <span aria-hidden>·</span>
+            <Kbd>Shift</Kbd>+<Kbd>Enter</Kbd> {t("chat.keyNewline")}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span>
+              {contribBefore}
+              <Link to="/settings" className="underline hover:text-slate-700">
+                {t("chat.settingsLink")}
+              </Link>
+              {contribAfter}
+            </span>
+            <HelpTip text={`${t("chat.runHelp")}\n${t("chat.autoName")}`} />
+          </span>
+        </div>
+        {uploading && <div className="mt-2 text-xs text-slate-500">{t("attach.wait")}</div>}
+        {err && <div className="mt-3 w-full max-w-2xl rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+        {canon.mode === "new" && (
+          <div className="mt-4 w-full max-w-2xl">
+            <CanonNewPanel value={canon} onChange={setCanon} sources={canonSources} disabled={busy} />
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function ResearchToggle({ on, onChange, model }: { on: boolean; onChange: (v: boolean) => void; model: string }) {
-  const { t } = useI18n();
-  const est = researchModeEstimate(model);
-  const vars = { min: est.minutes[0], max: est.minutes[1], model };
-  return (
-    <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="research-toggle">
-      <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800 coarse:min-h-11">
-        <input type="checkbox" checked={on} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 shrink-0 accent-blue-600" />
-        <BookOpenCheck size={15} className="text-blue-600" aria-hidden /> {t("chat.research")}
-      </label>
-      <HelpTip text={t("chat.researchHelp")} />
-      {on && (
-        <span className="text-xs text-amber-700" data-testid="research-estimate">
-          {est.costUsd
-            ? t("chat.researchEstimate", { ...vars, cost: `${formatUsd(est.costUsd[0])}–${formatUsd(est.costUsd[1])}` })
-            : t("chat.researchEstimateNoPrice", vars)}
-        </span>
-      )}
-      <HelpLink section="research" className="ml-auto" />
-    </div>
-  );
+function Kbd({ children }: { children: string }) {
+  return <kbd className="rounded border border-slate-200 bg-white px-1 font-mono text-[10px] text-slate-500">{children}</kbd>;
 }
 
 // ---------------------------------------------------------------------------

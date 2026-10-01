@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** Tailwind breakpoints used for layout switches that CSS alone cannot express. */
+export const BELOW_SM = "(max-width: 639px)";
 export const BELOW_MD = "(max-width: 767px)";
 export const BELOW_LG = "(max-width: 1023px)";
 
