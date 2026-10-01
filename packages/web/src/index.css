@@ -223,6 +223,7 @@ html {
 }
 .markdown.docs pre code {
   overflow-wrap: normal;
+  color: inherit;
 }
 .markdown.docs .docs-table {
   margin: 1rem 0;
