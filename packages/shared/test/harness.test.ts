@@ -137,10 +137,10 @@ describe("parseInterface", () => {
   });
 
   it("parses interfaces whose Circuit IDs contain brackets and commas", () => {
-    expect(parseInterface("([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)])")).toEqual({
-      name: "NAC(shell,DRD1+)",
-      outputs: ["VTA(DA,out:NAC,rpe)", "Arc(AGRP+)"],
-      inputs: ["A9/46d@L(L3)", "VTA(DA,out:NAC,rpe)"],
+    expect(parseInterface("([U.VTA(DA.out-NAC.rpe)], [U.Arc(AGRP+)]) = NAC(shell.DRD1+)([U.A9/46d(L3.left)], [U.VTA(DA.out-NAC.rpe)])")).toEqual({
+      name: "NAC(shell.DRD1+)",
+      outputs: ["VTA(DA.out-NAC.rpe)", "Arc(AGRP+)"],
+      inputs: ["A9/46d(L3.left)", "VTA(DA.out-NAC.rpe)"],
     });
     expect(parseInterface("[U.NAC(shell)] = `U.VTA(DA)`([U.NAC(shell)])")).toEqual({ name: "VTA(DA)", outputs: ["NAC(shell)"], inputs: ["NAC(shell)"] });
     expect(parseInterface("([A]) = B()")).toEqual({ name: "B", outputs: ["A"], inputs: [] });
@@ -279,15 +279,15 @@ describe("BRA value rules in checkHcd", () => {
 
   it("requires the names of an anchor-only UC to start with the SABRA official name", () => {
     const u = structuredClone(UC);
-    u.ucs[0] = { ...u.ucs[0], circuitId: "A44d@L", descriptor: "BNA:29", names: "Broca's area" };
+    u.ucs[0] = { ...u.ucs[0], circuitId: "A44d(left)", descriptor: "BNA:29-30/side:left", names: "Broca's area" };
     const c = structuredClone(CONN);
-    for (const x of c.connections) if (x.sender === "VN") x.sender = "A44d@L";
-    for (const x of u.ucs) x.interface = x.interface.replaceAll("[U.VN]", "[U.A44d@L]");
-    for (const x of u.ucs) x.implementation = x.implementation.replaceAll("[U.VN]", "[U.A44d@L]");
-    u.ucs[0].outputSemantics = "[A44d@L] content;";
+    for (const x of c.connections) if (x.sender === "VN") x.sender = "A44d(left)";
+    for (const x of u.ucs) x.interface = x.interface.replaceAll("[U.VN]", "[U.A44d(left)]");
+    for (const x of u.ucs) x.implementation = x.implementation.replaceAll("[U.VN]", "[U.A44d(left)]");
+    u.ucs[0].outputSemantics = "[A44d(left)] content;";
     u.ucs[0].sourceOfId = "BNA";
     const msg = checkHcd({ ...HCD, uc: j(u), connections: j(c) }).errors;
-    expect(msg).toEqual([expect.stringMatching(/names of `A44d@L` must start with its SABRA official name "dorsal area 44"/)]);
+    expect(msg).toEqual([expect.stringMatching(/names of `A44d\(left\)` must start with its SABRA official name "dorsal area 44"/)]);
     u.ucs[0].names = "left dorsal area 44; Broca's area pars opercularis";
     expect(checkHcd({ ...HCD, uc: j(u), connections: j(c) }).errors).toEqual([]);
   });
@@ -530,25 +530,25 @@ describe("Collection Circuits", () => {
 });
 
 describe("Senders that span several SABRA units (BRA 203)", () => {
-  // Left fusiform gyrus (BNAG:FuG@L) sends to the ROI; BNA:105 / BNA:106 are the left / right medioventral area 37 in it
-  const gyrus = (extra: Record<string, unknown> = {}) => ({ ...UC, ucs: [...UC.ucs.map((u) => (u.circuitId === "VN" ? { ...u, circuitId: "FuG@L", descriptor: "BNAG:FuG@L", ...extra } : u))] });
+  // Left fusiform gyrus (BNAG:FuG/side:left) sends to the ROI; BNA:105-106/side:left / BNA:105-106/side:right are the left / right medioventral area 37 in it
+  const gyrus = (extra: Record<string, unknown> = {}) => ({ ...UC, ucs: [...UC.ucs.map((u) => (u.circuitId === "VN" ? { ...u, circuitId: "FuG(left)", descriptor: "BNAG:FuG/side:left", ...extra } : u))] });
   const conns = () => {
     const c = structuredClone(CONN);
     for (const x of c.connections) {
-      if (x.sender === "VN") x.sender = "FuG@L";
-      if (x.receiver === "VN") x.receiver = "FuG@L";
+      if (x.sender === "VN") x.sender = "FuG(left)";
+      if (x.receiver === "VN") x.receiver = "FuG(left)";
     }
     return c;
   };
   const hcdOf = (uc: unknown) => checkHcd({ ...HCD, uc: j(uc), connections: j(conns()) });
   const fix = (u: ReturnType<typeof gyrus>) => {
-    for (const x of u.ucs) for (const k of ["interface", "requirement", "requirementRealization", "capability", "mechanism", "implementation"] as const) if (typeof x[k] === "string") x[k] = (x[k] as string).replace(/U\.VN\b/g, "U.FuG@L");
+    for (const x of u.ucs) for (const k of ["interface", "requirement", "requirementRealization", "capability", "mechanism", "implementation"] as const) if (typeof x[k] === "string") x[k] = (x[k] as string).replace(/U\.VN\b/g, "U.FuG(left)");
     return u;
   };
 
   it("asks a gyrus-level sender to be split into its areas or to say why it is uniform, without asking for layers", () => {
     const msg = hcdOf(fix(gyrus())).errors.join("\n");
-    expect(msg).toMatch(/`FuG@L` spans the BNA group FuG \(several BNA areas\) and sends connections, but a sender must be uniform in this HCD \(BRA 203\)/);
+    expect(msg).toMatch(/`FuG\(left\)` spans the BNA group FuG \(several BNA areas\) and sends connections, but a sender must be uniform in this HCD \(BRA 203\)/);
     expect(msg).toMatch(/Layer or cell-type evidence is not needed/);
     expect(msg).toMatch(/uniformityNote/);
   });
@@ -559,27 +559,27 @@ describe("Senders that span several SABRA units (BRA 203)", () => {
     expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], fix(gyrus({ uniformityNote: "x" })))).toEqual([]);
     const frg = checkFrg(FRG, r.model!).model!;
     const circuits = parseCsvObjects(buildCsvs(r.model!, frg, { projectId: "VOR", contributor: "T", projectTemplate: TEMPLATE }).files!["Circuits.csv"]);
-    expect(circuits.find((c) => c["Circuit ID"] === "FuG@L")?.Comments).toBe("head velocity; Uniform in this project: The cited papers report only the whole gyrus and its areas play one role for the TLF; noROI(input)");
+    expect(circuits.find((c) => c["Circuit ID"] === "FuG(left)")?.Comments).toBe("head velocity; Uniform in this project: The cited papers report only the whole gyrus and its areas play one role for the TLF; noROI(input)");
   });
 
   it("does not flag a single area, a bilateral pair or a gyrus that only receives", () => {
-    const one = hcdOf(fix(gyrus({ circuitId: "A37mv@L", descriptor: "BNA:105" })));
+    const one = hcdOf(fix(gyrus({ circuitId: "A37mv(left)", descriptor: "BNA:105-106/side:left" })));
     expect(one.errors.join("\n")).not.toMatch(/BRA 203/);
     const pair = hcdOf(fix(gyrus({ circuitId: "A37mv", descriptor: "BNA:105-106" })));
     expect(pair.errors.join("\n")).not.toMatch(/BRA 203/);
     const sink = structuredClone(UC);
-    sink.ucs[4] = { ...sink.ucs[4], circuitId: "FTN", descriptor: "BNAG:FuG@L" };
+    sink.ucs[4] = { ...sink.ucs[4], circuitId: "FTN", descriptor: "BNAG:FuG/side:left" };
     expect(checkHcd({ ...HCD, uc: j(sink) }).errors.join("\n")).not.toMatch(/BRA 203/);
   });
 
   it("asks to turn a gyrus into a Collection when its areas are UCs too", () => {
     const u = structuredClone(UC) as { ucs: Record<string, unknown>[] };
-    u.ucs.push(uc("FuG@L", "BNAG:FuG@L", { roi: "noROI(input)" }), uc("A37mv@L", "BNA:105", { roi: "noROI(input)" }), uc("A37mv@R", "BNA:106", { roi: "noROI(input)" }));
+    u.ucs.push(uc("FuG(left)", "BNAG:FuG/side:left", { roi: "noROI(input)" }), uc("A37mv(left)", "BNA:105-106/side:left", { roi: "noROI(input)" }), uc("A37mv(right)", "BNA:105-106/side:right", { roi: "noROI(input)" }));
     const msg = checkHcd({ ...HCD, uc: j(u) }).errors.join("\n");
-    expect(msg).toMatch(/`FuG@L` is also split into finer UCs \(`A37mv@L`\), so it is not uniform in this HCD/);
+    expect(msg).toMatch(/`FuG\(left\)` is also split into finer UCs \(`A37mv\(left\)`\), so it is not uniform in this HCD/);
     const pair = structuredClone(UC) as { ucs: Record<string, unknown>[] };
-    pair.ucs.push(uc("A37mv", "BNA:105-106", { roi: "noROI(input)" }), uc("A37mv@R", "BNA:106", { roi: "noROI(input)" }));
-    expect(checkHcd({ ...HCD, uc: j(pair) }).errors.join("\n")).toMatch(/`A37mv` is also split into finer UCs \(`A37mv@R`\)/);
+    pair.ucs.push(uc("A37mv", "BNA:105-106", { roi: "noROI(input)" }), uc("A37mv(right)", "BNA:105-106/side:right", { roi: "noROI(input)" }));
+    expect(checkHcd({ ...HCD, uc: j(pair) }).errors.join("\n")).toMatch(/`A37mv` is also split into finer UCs \(`A37mv\(right\)`\)/);
   });
 });
 

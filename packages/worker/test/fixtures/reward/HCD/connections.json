@@ -36,7 +36,7 @@
   ],
   "connections": [
     {
-      "sender": "A9/46d@L",
+      "sender": "A9/46d(left)",
       "senderRelation": "<",
       "senderInLiterature": "dorsolateral prefrontal cortex",
       "receiver": "NAC",

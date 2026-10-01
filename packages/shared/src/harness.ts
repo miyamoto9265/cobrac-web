@@ -27,13 +27,16 @@ import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { normalizeProjectName } from "./projectId.js";
 import { RESEARCH_FILES, RESEARCH_SCHEMA } from "./research.js";
 import {
+  CIRCUIT_ID_RE,
   checkUcNaming,
+  modernCircuitId,
   namesStartWithOfficial,
   normalizeUcDescriptor,
   bnaArea,
   parseUcDescriptor,
   sabraOfficialName,
   splitTopLevel,
+  ucFacetValues,
   type SabraLookup,
   type UcAnchor,
   type UcDescriptor,
@@ -307,7 +310,7 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
       description:
         "Collection Circuits (Uniform = FALSE): circuits this HCD decomposes into Sub-Circuits, e.g. the SABRA unit whose facet UCs are listed in ucs. Never a sender or receiver of a connection, never an FRG leaf. Omit when the HCD decomposes nothing",
       item: record({
-        circuitId: { type: "string", pattern: "^\\S+$", description: "Circuit ID: for a SABRA unit its anchor-only Circuit ID by the UC naming rules (e.g. `A44d@L`); for another grouping a short name" },
+        circuitId: { type: "string", pattern: "^\\S+$", description: "Circuit ID: for a SABRA unit its anchor-only Circuit ID by the UC naming rules (e.g. `A44d`); for another grouping a short name" },
         descriptor: str("UC Descriptor when the Collection is one SABRA unit (anchor only, e.g. `BNA:29`) or a faceted population; empty for another grouping"),
         names: nonEmpty("SABRA official name first when it is a SABRA unit, then synonyms separated by `;`"),
         sourceOfId: { enum: ["collection"], description: "Always collection: a Collection is defined by its Sub-Circuits" },
@@ -578,6 +581,9 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     if (seen.has(c.id) || collectionIds.has(c.id)) errors.push(`uc.json: Circuit ID \`${c.id}\` is used by more than one circuit (UCs and Collections share one ID space).`);
     collectionIds.add(c.id);
     if (isRoiCircuitId(c.id)) errors.push(`uc.json: Collection \`${c.id}\`: Circuit IDs starting with ROI_ are reserved for the ROI row, which the worker writes.`);
+    else if (!c.descriptor && !CIRCUIT_ID_RE.test(c.id)) {
+      errors.push(`uc.json: Collection \`${c.id}\`: a Circuit ID uses only A-Z a-z 0-9 . _ ~ - / + (and parentheses for items)${modernCircuitId(c.id) !== c.id ? `; write \`${modernCircuitId(c.id)}\`` : ""}.`);
+    }
     const official = sabraOfficialName(c.descriptor, opts.sabra);
     if (official && c.names && !namesStartWithOfficial(c.names, official)) {
       errors.push(`uc.json: names of Collection \`${c.id}\` must start with its SABRA official name "${official}", then synonyms separated by ";".`);
@@ -788,8 +794,7 @@ function decomposedUcProblems(ucs: UcRow[]): string[] {
       const r = u.descriptor ? parseUcDescriptor(u.descriptor) : null;
       if (!r || "errors" in r) return null;
       const [head] = normalizeUcDescriptor(u.descriptor).split("/");
-      const values = new Set(r.descriptor.facets.flatMap((f) => f.values.map((v) => `${f.axis}:${v}`.toLowerCase())));
-      return { id: u.id, head, values, d: r.descriptor };
+      return { id: u.id, head, values: ucFacetValues(r.descriptor), d: r.descriptor };
     })
     .filter((x): x is { id: string; head: string; values: Set<string>; d: UcDescriptor } => !!x);
   const errors: string[] = [];
@@ -798,7 +803,7 @@ function decomposedUcProblems(ucs: UcRow[]): string[] {
       (b) =>
         b !== a &&
         ((b.head === a.head && b.values.size > a.values.size && [...a.values].every((v) => b.values.has(v))) ||
-          (b.head !== a.head && a.values.size === 0 && coversAnchors(a.d, b.d))),
+          (b.head !== a.head && a.d.facets.length === 0 && coversAnchors(a.d, b.d))),
     );
     if (finer.length) {
       errors.push(
@@ -809,25 +814,18 @@ function decomposedUcProblems(ucs: UcRow[]): string[] {
   return errors;
 }
 
-const bnaSide = (label: number) => (label % 2 === 1 ? "L" : "R");
-
-/** Whether anchor `b` (side `bLat`) lies inside anchor `a` (side `aLat`): the same anchor, or a BNA area of a BNAG group. */
-function anchorInside(a: UcAnchor, aLat: string | null, b: UcAnchor, bLat: string | null): boolean {
-  if (a.kind === "bnag" && b.kind === "bna") {
-    if (bnaArea(b.left)?.l2 !== a.l2) return false;
-    const side = b.right === null ? bnaSide(b.left) : bLat;
-    return !aLat || side === aLat;
-  }
-  if (a.kind !== b.kind || (aLat ?? "") !== (bLat ?? "")) return false;
-  if (a.kind === "bna" && b.kind === "bna") return (a.left === b.left && a.right === b.right) || (a.right !== null && b.right === null && (b.left === a.left || b.left === a.right));
+/** Whether anchor `b` lies inside anchor `a`: the same anchor, or a BNA area of a BNAG group. */
+function anchorInside(a: UcAnchor, b: UcAnchor): boolean {
+  if (a.kind === "bnag" && b.kind === "bna") return bnaArea(b.left)?.l2 === a.l2;
+  if (a.kind === "bna" && b.kind === "bna") return a.left === b.left;
   if (a.kind === "bnag" && b.kind === "bnag") return a.l2 === b.l2;
   return a.kind === "homba" && b.kind === "homba" && a.id === b.id;
 }
 
-/** Anchor-only `a` covers every anchor of `b` and `b` is strictly finer (other anchors, or facets on the same ones). */
+/** Anchor-only `a` (a side allowed) covers every anchor of `b` on the same side or both, and `b` is strictly finer. */
 function coversAnchors(a: UcDescriptor, b: UcDescriptor): boolean {
-  if (a.facets.length) return false;
-  return b.anchors.every((y) => a.anchors.some((x) => anchorInside(x, a.laterality, y, b.laterality)));
+  if (a.facets.length || (a.side && a.side !== b.side)) return false;
+  return b.anchors.every((y) => a.anchors.some((x) => anchorInside(x, y)));
 }
 
 /**

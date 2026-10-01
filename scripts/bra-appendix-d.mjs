@@ -61,7 +61,7 @@ export const ENFORCEMENT = {
   "cobrac:ref-id-unique": { kind: "validator", level: "full", how: "references.json の id の重複を検査" },
   101: { kind: "schema", level: "full", how: "circuitId は pattern ^\\S+$" },
   103: { kind: "validator", level: "full", how: "Circuit ID と UC Descriptor の重複を検査" },
-  "cobrac:circuit-id-chars": { kind: "validator", level: "violates", how: "CoBRAC 独自の構文（SABRA 略称、/ ( ) , @ + を含む）で検査。マニュアルの許容文字には合わない（上流に変更を依頼中、U11）" },
+  "cobrac:circuit-id-chars": { kind: "validator", level: "partial", how: "Circuit ID の文字を A-Za-z0-9 . _ ~ - / + と、項目を囲む ( ) に限って検査（WBAI 仮仕様の 8/6 の文字と 8/19 に合意した / +）。仮仕様から外れるのは CoBRAC の ( ) だけ" },
   107: { kind: "schema", level: "full", how: "sourceOfId は空文字不可" },
   108: { kind: "schema", level: "partial", how: "1 値の enum／Reference ID に制限し、UC Descriptor と整合するかを検証。`BNA` は CoBRAC の拡張値（上流に追加を依頼中、U9）" },
   120: { kind: "schema", level: "full", how: "collections の subCircuits は 1 件以上（schema）。ROI 行の Sub-Circuits は ROI 内の全回路（ワーカーが生成）" },
@@ -111,7 +111,7 @@ export const CODES = [
   ["cobrac:ref-id-unique", "Reference ID", "重複（Master にコードなし）", 14],
   [101, "Circuit ID", "未記載", 101],
   [103, "Circuit ID", "重複", 103],
-  ["cobrac:circuit-id-chars", "Circuit ID", "マニュアルの許容文字（英数字と . _ ~）以外（Master にコードなし）", 104],
+  ["cobrac:circuit-id-chars", "Circuit ID", "許容文字（英数字と . _ ~ - / + と ( )）以外（Master にコードなし）", 104],
   [107, "Source of ID", "未記載", 107],
   [108, "Source of ID", "無効な値（列挙の 1 値）", 108],
   [120, "Sub-Circuits", "collection なのに未記載", 128],
@@ -381,7 +381,7 @@ export function buildModel(bra) {
 
 // --- checks -------------------------------------------------------------------------------------------------------
 
-const MANUAL_ID_RE = /^[A-Za-z0-9._~-]+$/;
+const CIRCUIT_ID_CHARS_RE = /^[A-Za-z0-9._~\/+()-]+$/;
 const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 const REF_ID_RE = /^\[[^[\]]+\]$/;
 /** Template-v2-2 writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
@@ -457,8 +457,8 @@ function results(m, opts) {
   verdict(103, dupes(m.circuits.map((c) => c.id)).map((id) => `Circuits: ${id}`));
   verdict(
     "cobrac:circuit-id-chars",
-    m.circuits.filter((c) => c.id && !MANUAL_ID_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~-]/g, ""))].join(" ")}）`)),
-    "許容文字はマニュアルの英数字と . _ ~ に SHACL（§7.6）の - を加えたもの",
+    m.circuits.filter((c) => c.id && !CIRCUIT_ID_CHARS_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~\/+()-]/g, ""))].join(" ")}）`)),
+    "許容文字はマニュアルの英数字と . _ ~、SHACL（§7.6）の -、8/19 に合意した / +、CoBRAC の項目を囲む ( )",
   );
   verdict(107, m.circuits.filter((c) => c.id && !c.sourceOfId).map((c) => at("Circuits", c, c.id)));
   const src = m.circuits.filter((c) => c.id && c.sourceOfId);

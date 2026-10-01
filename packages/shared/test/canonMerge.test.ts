@@ -67,11 +67,11 @@ function files(ucs: Uc[], conns: Conn[], cols: Col[] = [], refs: [string, string
   };
 }
 
-const A44 = { id: "A44d@L", d: "BNA:29" };
-const A44IT = { id: "A44d@L(L3,IT)", d: "BNA:29/lay:L3/cell:IT" };
-const A44PT = { id: "A44d@L(L5,PT)", d: "BNA:29/lay:L5/cell:PT" };
-const A44L6 = { id: "A44d@L(L6,CT)", d: "BNA:29/lay:L6/cell:CT" };
-const A22 = { id: "A22c@L", d: "BNA:75" };
+const A44 = { id: "A44d(left)", d: "BNA:29-30/side:left" };
+const A44IT = { id: "A44d(L3.IT.left)", d: "BNA:29-30/lay:L3/cell:IT/side:left" };
+const A44PT = { id: "A44d(L5.PT.left)", d: "BNA:29-30/lay:L5/cell:PT/side:left" };
+const A44L6 = { id: "A44d(L6.CT.left)", d: "BNA:29-30/lay:L6/cell:CT/side:left" };
+const A22 = { id: "A22c(left)", d: "BNA:75-76/side:left" };
 
 /** Canon at rev 1 holding one project's content. */
 function canonWith(inc: CanonIncoming): CanonSnapshot {
@@ -94,8 +94,8 @@ describe("canonFromProject", () => {
       [A44.id, "collection"],
     ]);
     const col = inc.circuits.find((c) => c.circuitId === A44.id)!;
-    expect(col.subCircuits).toEqual(["bna:29/lay:l3/cell:it", "bna:29/lay:l5/cell:pt"]);
-    expect(inc.connections[0]).toMatchObject({ key: "bna:29/lay:l3/cell:it|bna:75|[Catani, 2005]", taxon: "Human", method: "DW-MRI", senderRelation: "<" });
+    expect(col.subCircuits).toEqual(["bna:29-30/lay:l3/cell:it/side:left", "bna:29-30/lay:l5/cell:pt/side:left"]);
+    expect(inc.connections[0]).toMatchObject({ key: "bna:29-30/lay:l3/cell:it/side:left|bna:75-76/side:left|[Catani, 2005]", taxon: "Human", method: "DW-MRI", senderRelation: "<" });
     expect(inc.references[0]).toMatchObject({ key: "[Catani, 2005]", doi: "10.1002/ana.20319" });
     expect(inc.bif).toHaveLength(1);
     expect(inc.roles[0].ucRoles.map((r) => r.circuitId)).toEqual([A44IT.id, A44PT.id, A22.id]);
@@ -113,7 +113,7 @@ describe("diffCanon: conflict rules", () => {
     const d = diffCanon(emptyCanonSnapshot("c", "t"), fine());
     expect(d.summary).toMatchObject({ added: 7, errors: 0, warnings: 0 });
     // Reference IDs written as `[Author, Year]` are not bracketed twice
-    expect(d.items.find((i) => i.kind === "connection")!.label).toBe("A44d@L(L3,IT) → A22c@L [Catani, 2005]");
+    expect(d.items.find((i) => i.kind === "connection")!.label).toBe("A44d(L3.IT.left) → A22c(left) [Catani, 2005]");
     expect(d.items.find((i) => i.kind === "bif")!.label).toBe("Broca area → Wernicke area [Catani, 2005]");
   });
 
@@ -121,18 +121,18 @@ describe("diffCanon: conflict rules", () => {
     const canon = canonWith(coarse());
     const d = diffCanon(canon, fine());
     const c1 = d.conflicts.find((c) => c.code === "C1")!;
-    expect(c1).toMatchObject({ severity: "error", key: "bna:29", canon: "uniform", incoming: "collection", resolvable: true });
-    // the coarse project's A44d@L → A22c@L would end on a Collection
-    expect(d.impacts).toEqual([{ projectId: "u7m2q9xa-1", keys: expect.arrayContaining(["bna:29"]) }]);
+    expect(c1).toMatchObject({ severity: "error", key: "bna:29-30/side:left", canon: "uniform", incoming: "collection", resolvable: true });
+    // the coarse project's A44d(left) → A22c(left) would end on a Collection
+    expect(d.impacts).toEqual([{ projectId: "u7m2q9xa-1", keys: expect.arrayContaining(["bna:29-30/side:left"]) }]);
     expect(blockingConflicts(d, {}).map((c) => c.code)).toContain("C1");
 
     // adopting the Collection is the only resolution, so the fine UCs are not reported as C3
     expect(d.conflicts.some((c) => c.code === "C3")).toBe(false);
-    // the other direction: the coarse project would make A44d@L uniform over the Canon's finer UCs
+    // the other direction: the coarse project would make A44d(left) uniform over the Canon's finer UCs
     expect(diffCanon(canonWith(fine()), coarse()).conflicts.map((c) => c.code)).toEqual(expect.arrayContaining(["C1", "C3"]));
     const next = mergeCanon(canon, fine(), d, { [c1.id]: "incoming" }, 2, "t2");
-    expect(next.circuits.find((c) => c.key === "bna:29")!.status).toBe("collection");
-    expect(next.connections.find((c) => c.sender === "bna:29")!.state).toBe("flagged");
+    expect(next.circuits.find((c) => c.key === "bna:29-30/side:left")!.status).toBe("collection");
+    expect(next.connections.find((c) => c.sender === "bna:29-30/side:left")!.state).toBe("flagged");
   });
 
   it("C2: a subset of the decomposition is fine, a superset is a warning, a different split is an error", () => {
@@ -145,15 +145,15 @@ describe("diffCanon: conflict rules", () => {
     const c2b = ds.conflicts.find((c) => c.code === "C2b")!;
     expect(c2b.severity).toBe("warning");
     const next = mergeCanon(canon, superset, ds, { [c2b.id]: "incoming" }, 2, "t2");
-    expect(next.circuits.find((c) => c.key === "bna:29")!.subCircuits).toHaveLength(3);
+    expect(next.circuits.find((c) => c.key === "bna:29-30/side:left")!.subCircuits).toHaveLength(3);
 
-    const byLayer = canonFromProject("u7m2q9xa-6", 1, files([{ id: "A44d@L(L3)", d: "BNA:29/lay:L3" }, { id: "A44d@L(L5)", d: "BNA:29/lay:L5" }], [], [{ id: A44.id, d: A44.d, subs: ["A44d@L(L3)", "A44d@L(L5)"] }]));
+    const byLayer = canonFromProject("u7m2q9xa-6", 1, files([{ id: "A44d(L3.left)", d: "BNA:29-30/lay:L3/side:left" }, { id: "A44d(L5.left)", d: "BNA:29-30/lay:L5/side:left" }], [], [{ id: A44.id, d: A44.d, subs: ["A44d(L3.left)", "A44d(L5.left)"] }]));
     expect(diffCanon(canon, byLayer).conflicts.find((c) => c.code === "C2c")).toMatchObject({ severity: "error", resolvable: true });
   });
 
   it("C3: a finer circuit next to a uniform one in the merged Canon", () => {
     const canon = canonWith(canonFromProject("u7m2q9xa-1", 1, files([{ id: "NAC", d: "BNA:223-224" }], [])));
-    const inc = canonFromProject("u7m2q9xa-2", 1, files([{ id: "NAC(shell,DRD1+)", d: "BNA:223-224/part:HOMBA:10341/mol:DRD1+" }], []));
+    const inc = canonFromProject("u7m2q9xa-2", 1, files([{ id: "NAC(shell.DRD1+)", d: "BNA:223-224/part:HOMBA:10341/mol:DRD1+" }], []));
     const c3 = diffCanon(canon, inc).conflicts.find((c) => c.code === "C3")!;
     expect(c3).toMatchObject({ severity: "error", key: "bna:223-224" });
     expect(c3.resolvable).toBeFalsy();
@@ -166,6 +166,63 @@ describe("diffCanon: conflict rules", () => {
     expect(codes).toEqual(expect.arrayContaining(["C4", "C6"]));
     const reused = canonFromProject("u7m2q9xa-3", 1, files([{ id: "NAC(shell)", d: "BNA:223-224/part:HOMBA:10342" }], []));
     expect(diffCanon(canon, reused).conflicts.map((c) => c.code)).toContain("C4");
+  });
+
+  it("keeps the two sides of one population as separate circuits; the both-sides circuit is coarser than either", () => {
+    const left = canonWith(coarse());
+    const right = canonFromProject("u7m2q9xa-2", 1, files([{ id: "A44d(right)", d: "BNA:29-30/side:right" }, { id: "A22c(right)", d: "BNA:75-76/side:right" }], [{ s: "A44d(right)", r: "A22c(right)", ref: "[Catani, 2005]" }]));
+    const d = diffCanon(left, right);
+    expect(d.conflicts).toEqual([]);
+    expect(mergeCanon(left, right, d, {}, 2, "t2").circuits.map((c) => [c.key, c.circuitId])).toEqual([
+      ["bna:29-30/side:left", "A44d(left)"],
+      ["bna:29-30/side:right", "A44d(right)"],
+      ["bna:75-76/side:left", "A22c(left)"],
+      ["bna:75-76/side:right", "A22c(right)"],
+    ]);
+    const both = canonFromProject("u7m2q9xa-3", 1, files([{ id: "A44d", d: "BNA:29-30" }], []));
+    expect(diffCanon(left, both).conflicts.find((c) => c.code === "C3")).toMatchObject({ key: "bna:29-30", field: "bna:29-30/side:left" });
+  });
+
+  it("reads Canons and projects written with one-sided anchors and older Circuit IDs in the current form", () => {
+    // a Canon stored before side became a facet: key bna:29, Circuit ID A44d@L
+    const older = canonWith(coarse());
+    for (const c of older.circuits) {
+      c.key = c.key.replace(/^bna:(\d+)-\d+\/side:left$/, "bna:$1");
+      c.descriptor = c.descriptor.replace(/^BNA:(\d+)-\d+\/side:left$/, "BNA:$1");
+      c.circuitId = c.circuitId.replace("(left)", "@L");
+    }
+    for (const c of older.connections) {
+      c.sender = "bna:29";
+      c.receiver = "bna:75";
+      c.key = `bna:29|bna:75|${c.referenceId}`;
+      c.senderCircuitId = "A44d@L";
+      c.receiverCircuitId = "A22c@L";
+    }
+    for (const r of older.roles) for (const u of r.ucRoles) u.key = u.key.replace(/^bna:(\d+)-\d+\/side:left$/, "bna:$1");
+    expect(older.circuits.map((c) => [c.key, c.circuitId])).toEqual([
+      ["bna:29", "A44d@L"],
+      ["bna:75", "A22c@L"],
+    ]);
+
+    const d = diffCanon(older, coarse());
+    expect(d.conflicts).toEqual([]);
+    expect(d.items.filter((i) => i.change === "added")).toEqual([]);
+    expect(d.items.find((i) => i.key === "bna:29-30/side:left")).toMatchObject({ change: "changed", fields: [{ field: "circuitId", from: "A44d@L", to: "A44d(left)" }] });
+    const next = mergeCanon(older, coarse(), d, {}, 2, "t2");
+    expect(next.circuits.map((c) => [c.key, c.circuitId])).toEqual([
+      ["bna:29-30/side:left", "A44d(left)"],
+      ["bna:75-76/side:left", "A22c(left)"],
+    ]);
+    expect(next.connections.map((c) => c.key)).toEqual(["bna:29-30/side:left|bna:75-76/side:left|[Catani, 2005]"]);
+
+    // a project that still has the old forms enters the Canon in the current form
+    const oldProject = canonFromProject("u7m2q9xa-4", 1, files([{ id: "A44d@L", d: "BNA:29", names: "A44d(left)" }, { id: "A22c@L", d: "BNA:75", names: "A22c(left)" }], [{ s: "A44d@L", r: "A22c@L", ref: "[Catani, 2005]" }]));
+    expect(oldProject.circuits.map((c) => [c.key, c.circuitId])).toEqual([
+      ["bna:29-30/side:left", "A44d(left)"],
+      ["bna:75-76/side:left", "A22c(left)"],
+    ]);
+    expect(oldProject.connections[0]).toMatchObject({ senderCircuitId: "A44d(left)", sender: "bna:29-30/side:left" });
+    expect(diffCanon(canonWith(coarse()), oldProject).conflicts).toEqual([]);
   });
 
   it("C5: a connection end that is a Collection in the Canon", () => {
@@ -262,8 +319,8 @@ describe("composeSeeds", () => {
     const c1 = pending.steps[1].blocking.find((c) => c.code === "C1")!;
     const won = composeSeeds("c", "t", [fine(), coarse()], { [c1.id]: "canon" }, {});
     expect(won.steps[1].outcome).toBe("merged");
-    expect(won.snapshot.circuits.find((c) => c.key === "bna:29")!.status).toBe("collection");
-    expect(won.snapshot.connections.find((c) => c.sender === "bna:29")!.state).toBe("flagged");
+    expect(won.snapshot.circuits.find((c) => c.key === "bna:29-30/side:left")!.status).toBe("collection");
+    expect(won.snapshot.connections.find((c) => c.sender === "bna:29-30/side:left")!.state).toBe("flagged");
     expect(won.snapshot.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-1", "u7m2q9xa-3"]);
   });
 });

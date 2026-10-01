@@ -104,7 +104,7 @@ describe("filterRows / sortRows", () => {
     ["VTA", "Dopamine", "10"],
     ["NAC", "GABA", "9"],
     ["LHb", "", "100"],
-    ["A9/46d@L", "Glutamate", ""],
+    ["A9/46d(left)", "Glutamate", ""],
   ];
 
   it("matches every term case-insensitively across cells", () => {
@@ -117,7 +117,7 @@ describe("filterRows / sortRows", () => {
   it("sorts numerically and keeps empty cells last in both directions", () => {
     expect(sortRows(rows, { col: 2, dir: "asc" }).map((r) => r[2])).toEqual(["9", "10", "100", ""]);
     expect(sortRows(rows, { col: 2, dir: "desc" }).map((r) => r[2])).toEqual(["100", "10", "9", ""]);
-    expect(sortRows(rows, { col: 1, dir: "asc" }).map((r) => r[0])).toEqual(["VTA", "NAC", "A9/46d@L", "LHb"]);
+    expect(sortRows(rows, { col: 1, dir: "asc" }).map((r) => r[0])).toEqual(["VTA", "NAC", "A9/46d(left)", "LHb"]);
     expect(sortRows(rows, null)).toBe(rows);
   });
 

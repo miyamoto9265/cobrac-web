@@ -119,18 +119,18 @@ describe("checkCross X9 (granularity, record-only)", () => {
     const withDescriptor = (id: string, descriptor: string, roi: UcRoi = "roi") => ({ ...uc(id, roi), descriptor });
     const hcd = hcdOf(
       [
-        withDescriptor("IN", "BNAG:MVOcC@L", "input"),
-        withDescriptor("FuG@L", "BNAG:FuG@L"),
-        withDescriptor("IPL@L(AnG)", "BNAG:IPL@L/part:HOMBA:12136"),
-        withDescriptor("A22c@L", "BNA:75"),
+        withDescriptor("IN", "BNAG:MVOcC/side:left", "input"),
+        withDescriptor("FuG(left)", "BNAG:FuG/side:left"),
+        withDescriptor("IPL(AnG.left)", "BNAG:IPL/part:HOMBA:12136/side:left"),
+        withDescriptor("A22c(left)", "BNA:75-76/side:left"),
         withDescriptor("Amyg", "BNA:211-212&BNA:213-214"),
-        withDescriptor("OUT", "BNA:9", "output"),
+        withDescriptor("OUT", "BNA:9-10/side:left", "output"),
       ],
-      [conn("IN", "FuG@L"), conn("FuG@L", "IPL@L(AnG)"), conn("IPL@L(AnG)", "A22c@L"), conn("A22c@L", "Amyg"), conn("Amyg", "OUT")],
+      [conn("IN", "FuG(left)"), conn("FuG(left)", "IPL(AnG.left)"), conn("IPL(AnG.left)", "A22c(left)"), conn("A22c(left)", "Amyg"), conn("Amyg", "OUT")],
     );
-    const frg: FrgModel = { gns: [gn("R.TLF", ["U.FuG@L", "U.IPL@L(AnG)", "U.A22c@L", "U.Amyg"], "")] };
+    const frg: FrgModel = { gns: [gn("R.TLF", ["U.FuG(left)", "U.IPL(AnG.left)", "U.A22c(left)", "U.Amyg"], "")] };
     const r = checkCross(hcd, frg);
-    expect(r.findings.filter((f) => f.code === "X9").map((f) => f.node)).toEqual(["FuG@L", "Amyg"]);
+    expect(r.findings.filter((f) => f.code === "X9").map((f) => f.node)).toEqual(["FuG(left)", "Amyg"]);
     expect(r.summary.X9).toBe(2);
   });
 });
@@ -143,10 +143,10 @@ describe("countRevisions", () => {
       "- [kept] not in the section",
       "## HCD-FRG revisions",
       "### 2026-09-29 adjustment",
-      "- [FRG->HCD] split `IFG@L` into `A44d@L` and `A45c@L` — R.Phonological-Assembly needs a separate output [Friederici, 2011]",
+      "- [FRG->HCD] split `IFG(left)` into `A44d(left)` and `A45c(left)` — R.Phonological-Assembly needs a separate output [Friederici, 2011]",
       "* [HCD -> FRG] merged R.A into R.B — no connection supports the split",
       "- [kept] X4 — indirect path via the thalamus",
-      "- [instruction] split `FuG@L` into BNA areas — the follow-up asked for finer ROI UCs [Lerma-Usabiaga, 2018]",
+      "- [instruction] split `FuG(left)` into BNA areas — the follow-up asked for finer ROI UCs [Lerma-Usabiaga, 2018]",
       "- untagged note",
       "## Follow-ups",
       "- [FRG->HCD] after the section",

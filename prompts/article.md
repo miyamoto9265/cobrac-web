@@ -4,7 +4,7 @@ This turn is not a phase. The BRA data of project {P} is finished; write an expl
 
 ## Language
 
-Write the article in **{LANG}**. This file is not a core artifact, so the "every artifact in English" rule of AGENTS.md does not apply to it. Keep Circuit IDs (`VTA`, `NAC(shell,DRD1+)`), GN IDs (`R.value-learning`), UC Descriptors and Reference IDs verbatim; wrap IDs in backticks. Give the English term in parentheses the first time a technical term appears, when that helps the reader.
+Write the article in **{LANG}**. This file is not a core artifact, so the "every artifact in English" rule of AGENTS.md does not apply to it. Keep Circuit IDs (`VTA`, `NAC(shell.DRD1+)`), GN IDs (`R.value-learning`), UC Descriptors and Reference IDs verbatim; wrap IDs in backticks. Give the English term in parentheses the first time a technical term appears, when that helps the reader.
 
 ## Sources
 
