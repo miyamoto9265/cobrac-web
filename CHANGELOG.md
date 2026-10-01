@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-10-01
+
 ### Fixed
 - The notices about starting the worker and the messages of the housekeeping job (the worker stopped responding and the job resumes automatically, or it failed; a question left unanswered for 7 days; no worker within 24 hours) were always in Japanese. They now follow the UI language like the other status lines, also on the project's error banner and for messages stored before this fix
 - A clone of a public project keeps the original's research-mode setting. Before, every clone ran without research mode, so a follow-up on a clone of a research-mode project did not get the research-mode instructions even though its data came from a research step
