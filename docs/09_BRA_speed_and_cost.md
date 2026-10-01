@@ -209,7 +209,7 @@ The investigation in chapter 3 showed that the real cost from the session record
 
 The cause was a misreading of the usage Codex reports at the end of a turn (`turn.completed`). It is not what that turn used but **the running total since the thread started**, and it keeps counting when a later job resumes the thread. The worker added this total every turn, so earlier turns were counted again and again as the run went on.
 
-![The values Codex reports at the end of turns 1–3 are running totals of 3.27, 5.83 and 6.09 million tokens. Up to 0.17.0 each was added, so the record reached 15.18 million, about 2.5 times the real usage. From 0.17.1 only the differences, 3.27, 2.56 and 0.26 million, are added, and the record equals the real 6.09 million](./figures/speed-cost-usage.en.svg "Figure 6. Usage counted twice: the running total was added every turn (input tokens of `ufwwj0jg-1`)")
+![The values Codex reports at the end of turns 1–3 are running totals of 3.27, 5.83 and 6.09 million tokens. Up to 0.17.0 each was added, so the record reached 15.18 million, about 2.5 times the real usage. From 0.17.1 only the differences, 3.27, 2.56 and 0.26 million, are added, and the record equals the real 6.09 million](./figures/speed-cost-usage.en.svg "Figure 6. Usage counted twice: the running total was added every turn (input tokens of ufwwj0jg-1)")
 
 In the records of `ufwwj0jg-1`, the value added to DynamoDB in each turn equals the running total in the session record at the end of that turn (`total_token_usage`) for all six turns.
 
