@@ -1,4 +1,4 @@
-import type { ProjectStatus, WorkflowStep } from "@cobrac/shared";
+import type { ProjectStatus } from "@cobrac/shared";
 import { dateTagFor } from "../i18n";
 
 export const STATUS_COLOR: Record<ProjectStatus, string> = {
@@ -10,8 +10,6 @@ export const STATUS_COLOR: Record<ProjectStatus, string> = {
   FAILED: "bg-rose-100 text-rose-700",
   CANCELLED: "bg-slate-300 text-slate-700",
 };
-
-export const STEP_LABEL: Record<WorkflowStep, string> = { HCD: "HCD", FRG: "FRG", CSV: "CSV", XLSX: "xlsx" };
 
 export function fmtDate(iso: string | null | undefined, locale: string = "en"): string {
   if (!iso) return "-";

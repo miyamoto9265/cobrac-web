@@ -595,7 +595,7 @@ app.get("/projects/:id/messages", async (c) => {
 
 /** Project fields after its active job is stopped. An article job leaves the finished BRA data as it was. */
 function afterStop(p: ProjectRecord, job: JobRecord | null): Partial<ProjectRecord> {
-  if (job?.type !== "article") return { status: "CANCELLED", activeJobId: null, pendingQuestion: null };
+  if (job?.type !== "article") return { status: "CANCELLED", activeJobId: null, activeStage: null, pendingQuestion: null };
   const articleJob: ArticleJobState | null = p.articleJob?.jobId === job.jobId ? { ...p.articleJob, status: "CANCELLED" } : (p.articleJob ?? null);
   return { status: "COMPLETED", activeJobId: null, pendingQuestion: null, articleJob };
 }

@@ -82,6 +82,9 @@ export const WORKFLOW_STEPS: WorkflowStep[] = ["HCD", "FRG", "CSV", "XLSX"];
 
 export type StepState = "pending" | "running" | "done";
 
+/** What the running job is doing: the research step, a workflow step, or the HCD ↔ FRG adjustment turn */
+export type PipelineStage = "RESEARCH" | WorkflowStep | "ADJUST";
+
 export interface ProjectRecord {
   userId: string;
   /** `<userKey>-<seq>`: globally unique, never changed or reused (not-yet-migrated projects keep their legacy slug) */
@@ -109,6 +112,8 @@ export interface ProjectRecord {
   /** Step that is currently running or the last one completed */
   currentStep: WorkflowStep | null;
   stepStates: Record<WorkflowStep, StepState>;
+  /** Live stage of the active job (null between stages and after the job; absent on projects last run by an older worker) */
+  activeStage?: PipelineStage | null;
   activeJobId: string | null;
   codexThreadId: string | null;
   /** Pending question text when status === WAITING_USER_INPUT */

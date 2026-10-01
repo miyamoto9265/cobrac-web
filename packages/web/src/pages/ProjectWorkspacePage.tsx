@@ -8,9 +8,9 @@ import { VisibilityToggle } from "../components/VisibilityToggle";
 import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { DocViewer } from "../components/DocViewer";
+import { PipelineProgress } from "../components/PipelineProgress";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { StatusBadge } from "../components/StatusBadge";
-import { Stepper } from "../components/Stepper";
 import { UsageBadge } from "../components/UsageBadge";
 import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
@@ -205,8 +205,8 @@ function Workspace({ projectId }: { projectId: string }) {
 
   const center = (() => {
     if (artifacts === null) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
-    if (!view) return <EmptyState project={project} onOpenChat={() => chat.setOpen(true)} showChatButton={!chat.open} />;
-    if (!has(view)) return <EmptyState project={project} pending onOpenChat={() => chat.setOpen(true)} showChatButton={!chat.open} />;
+    if (!view) return <EmptyState project={project} jobs={jobs} onOpenChat={() => chat.setOpen(true)} showChatButton={!chat.open} />;
+    if (!has(view)) return <EmptyState project={project} jobs={jobs} pending onOpenChat={() => chat.setOpen(true)} showChatButton={!chat.open} />;
     switch (view) {
       case "hcd":
         return <HcdGraphPage key={available.hcd!.lastModified} embedded />;
@@ -339,8 +339,8 @@ function Workspace({ projectId }: { projectId: string }) {
             {showMaterials && !!project.attachments?.length && <ProjectMaterials projectId={projectId} attachments={project.attachments} />}
             {showUsage && <UsageTable project={project} jobs={jobs} />}
           </div>
-          <div className={`mt-1.5 overflow-x-auto ${showDetails || active ? "" : "max-lg:hidden"}`}>
-            <Stepper states={project.stepStates} />
+          <div className={`mt-1.5 ${showDetails || active ? "" : "max-lg:hidden"}`}>
+            <PipelineProgress project={project} jobs={jobs} />
           </div>
           {project.errorMessage && (
             <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">
@@ -395,16 +395,14 @@ function Workspace({ projectId }: { projectId: string }) {
   );
 }
 
-function EmptyState({ project, pending = false, showChatButton, onOpenChat }: { project: ProjectRecord; pending?: boolean; showChatButton: boolean; onOpenChat: () => void }) {
+function EmptyState({ project, jobs, pending = false, showChatButton, onOpenChat }: { project: ProjectRecord; jobs: JobRecord[]; pending?: boolean; showChatButton: boolean; onOpenChat: () => void }) {
   const t = useT();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center">
       <FolderOpen size={36} className="text-slate-300" />
       <h2 className="text-base font-semibold text-slate-700">{pending ? t("ws.viewPending") : t("ws.emptyTitle")}</h2>
       <p className="max-w-md text-sm text-slate-500">{t("ws.emptyHelp")}</p>
-      <div className="max-w-full overflow-x-auto">
-        <Stepper states={project.stepStates} />
-      </div>
+      <PipelineProgress project={project} jobs={jobs} center className="max-w-full" />
       {showChatButton && (
         <button onClick={onOpenChat} className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
           <MessageSquare size={15} /> {t("ws.openChat")}
