@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-10-01
+
+### Fixed
+- Jobs that ran before 0.17.1 no longer show 2–3 times their real token usage and cost. Their stored records stay as they were; the usage and cost are corrected when they are read, from the usage line the job wrote after each turn, and the project list, the project's job table and total, the usage summary, the admin list and the usage lines in the Agent panel show the corrected values
+
 ## [0.18.0] - 2026-10-01
 
 ### Changed
