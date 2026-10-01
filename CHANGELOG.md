@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- BRA error codes now follow the WBAI "BRA data: Error code List (Master)" instead of the ontology report's Appendix D, which cites numbers the Master does not have or that mean something else there. A sender that is not uniform is reported as 203 (was 205, which does not exist), and a Collection without Sub-Circuits as 120 (was 128, which in the Master means an out-of-range Uniform value). This applies to the agent's validator feedback, the HCD phase instructions, the Canon conflict "a connection ends on a Collection" in all ten languages, the design specification and the harness article
+- Checks CoBRAC needs that have no Master code get a local `cobrac:` code instead of a borrowed number: a UC with Sub-Circuits (`cobrac:uc-no-sub-circuits`, was 129), a Collection that lists itself, forms a cycle or has only `makeshift` members (`cobrac:collection-members`), a Collection as receiver (`cobrac:collection-end`), a UC that is also split into finer UCs (`cobrac:nested-uc`, was cited as 127), a Collection whose Source of ID is not `collection` (`cobrac:collection-source`, was cited as 108)
+- The BRA output checker (`scripts/bra-appendix-d.mjs`) reports Master codes: 203, 120, 121, 402 / 403 (node ID prefix and kebab-case, was 415), 424 (U. node without Circuit ID, was 420), 430 (Projected Circuits, was 418), 562 / 563 (Output Semantics, was 430), and splits 252 / 253, 271 / 272 and 277 / 278 as the Master does. It adds 3 (duplicate DOI), 420 (Circuit ID not in Circuits) and 421 (the same Circuit ID on several FRG rows). Duplicate Reference IDs, Circuit ID characters, duplicate node IDs, a GN with a Circuit ID, missing Capability and FRG cycles have no Master code and are `cobrac:` codes. Each result keeps the old Appendix D number as `appendixD` (and the report shows it in its own column), so reports made before can still be compared
+
+### Changed
+- The FRG phase instructions call the leaves only Uniform Circuits (UCs); the old name "Uniform Components" is gone
+- The 10-word minimum for Pointers on literature is documented as Master code 272 rather than as a provisional reviewer rule; the threshold is unchanged
+
 ## [0.16.0] - 2026-10-01
 
 ### Added
