@@ -267,6 +267,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.restoring": "正在還原上次的工作區…",
   "sys.newThread": "找不到執行緒狀態；將用新執行緒繼續。",
   "sys.cancelReceived": "已收到取消要求。正在儲存狀態並結束。",
+  "sys.workerStopping": "工作程序即將停止（例如 Fargate Spot 中斷）。正在儲存目前的工作，作業會自動繼續。",
   "sys.timeout": "已超過最長執行時間（6 小時）。可重試以繼續。",
   "sys.waitingAnswer": "回答代理的問題後即可繼續作業。",
   "sys.nudged": "作業尚未完成；已送出繼續指示。",

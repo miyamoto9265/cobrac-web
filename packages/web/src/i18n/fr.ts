@@ -267,6 +267,7 @@ export const fr: Record<MessageKey, string> = {
   "sys.restoring": "Restauration de l’espace de travail précédent…",
   "sys.newThread": "État du fil introuvable ; reprise sur un nouveau fil.",
   "sys.cancelReceived": "Demande d’annulation reçue. Enregistrement de l’état puis arrêt.",
+  "sys.workerStopping": "Le worker va être arrêté (par exemple une interruption Fargate Spot). Le travail effectué est enregistré ; la tâche reprendra automatiquement.",
   "sys.timeout": "Durée maximale (6 heures) dépassée. Relancez pour continuer.",
   "sys.waitingAnswer": "Répondez à la question de l’agent pour reprendre.",
   "sys.nudged": "Travail incomplet ; une instruction de poursuite a été envoyée.",

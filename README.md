@@ -121,7 +121,7 @@ npm run dev:web
 - When the agent ends a turn with a question, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
 - The worker generates the five CSVs from the JSON files itself (the agent never writes CSVs), then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON, and `buildTemplateXlsx()` writes the same data into the official Template-v2-2.bra workbook (`prompts/templates/`, docs/01 §6.12). The free-text `report.md` and `decision_log.md` can be read and downloaded from the chat screen.
 - After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
-- If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption).
+- If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption). While a turn runs, the worker saves the workspace and thread to S3 every 5 minutes; on SIGTERM (Spot interruption, 120 s stop timeout) it saves them at once and marks its heartbeat stale, so the next janitor run (every 5 minutes) resumes the job.
 - User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.
 
 ## Operations notes

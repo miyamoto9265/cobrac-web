@@ -267,6 +267,7 @@ export const zh: Record<MessageKey, string> = {
   "sys.restoring": "正在恢复上次的工作区…",
   "sys.newThread": "找不到线程状态；将用新线程继续。",
   "sys.cancelReceived": "已收到取消请求。正在保存状态并退出。",
+  "sys.workerStopping": "工作进程即将停止（例如 Fargate Spot 中断）。正在保存目前的工作，作业会自动恢复。",
   "sys.timeout": "已超过最长运行时间（6 小时）。可重试以继续。",
   "sys.waitingAnswer": "回答智能体的问题后即可继续作业。",
   "sys.nudged": "作业尚未完成；已发送继续指示。",

@@ -267,6 +267,7 @@ export const de: Record<MessageKey, string> = {
   "sys.restoring": "Vorherigen Arbeitsbereich wird wiederhergestellt…",
   "sys.newThread": "Thread-Zustand fehlt; Fortsetzung in einem neuen Thread.",
   "sys.cancelReceived": "Abbruch angefordert. Zustand wird gespeichert, dann Beenden.",
+  "sys.workerStopping": "Der Worker wird gestoppt (z. B. Unterbrechung von Fargate Spot). Der bisherige Stand wird gespeichert; der Job wird automatisch fortgesetzt.",
   "sys.timeout": "Maximale Laufzeit (6 Stunden) überschritten. Mit „Retry“ fortsetzen.",
   "sys.waitingAnswer": "Beantworten Sie die Frage des Agenten, um fortzufahren.",
   "sys.nudged": "Arbeit unvollständig; eine Fortsetzungsanweisung wurde gesendet.",

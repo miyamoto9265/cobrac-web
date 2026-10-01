@@ -265,6 +265,7 @@ export const en = {
   "sys.restoring": "Restoring previous workspace…",
   "sys.newThread": "Thread state was missing; resuming on a new thread.",
   "sys.cancelReceived": "Cancel request received. Saving state and exiting.",
+  "sys.workerStopping": "The worker is being stopped (for example a Fargate Spot interruption). Saving the work so far; the job resumes automatically.",
   "sys.timeout": "Maximum run time (6 hours) exceeded. Retry to continue.",
   "sys.waitingAnswer": "Answer the agent’s question to resume work.",
   "sys.nudged": "Work was incomplete; a continue instruction was sent.",

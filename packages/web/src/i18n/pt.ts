@@ -267,6 +267,7 @@ export const pt: Record<MessageKey, string> = {
   "sys.restoring": "Restaurando o espaço de trabalho anterior…",
   "sys.newThread": "Estado da thread ausente; retomando em uma nova thread.",
   "sys.cancelReceived": "Cancelamento recebido. Salvando o estado e saindo.",
+  "sys.workerStopping": "O worker será interrompido (por exemplo, uma interrupção do Fargate Spot). O trabalho feito até aqui é salvo; o job será retomado automaticamente.",
   "sys.timeout": "Tempo máximo (6 horas) excedido. Tente de novo para continuar.",
   "sys.waitingAnswer": "Responda à pergunta do agente para retomar.",
   "sys.nudged": "O trabalho estava incompleto; uma instrução de continuação foi enviada.",

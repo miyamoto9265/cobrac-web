@@ -208,6 +208,8 @@ export class CobracAgentsStack extends Stack {
     const container = taskDef.addContainer("worker", {
       image: workerImage.toEcsDockerImageCode(),
       logging: ecs.LogDrivers.awsLogs({ logGroup: workerLogs, streamPrefix: "worker" }),
+      // the longest Fargate allows: on SIGTERM (Spot interruption) the worker saves the running turn's work to S3
+      stopTimeout: Duration.seconds(120),
       environment: {
         TABLE_CANONS: canons.tableName,
         TABLE_USERS: users.tableName,
@@ -342,7 +344,7 @@ export class CobracAgentsStack extends Stack {
         new DynamoEventSource(t, { startingPosition: lambda.StartingPosition.LATEST, batchSize: 25, retryAttempts: 2, bisectBatchOnError: true }),
       );
     }
-    new events.Rule(this, "JanitorSchedule", { schedule: events.Schedule.rate(Duration.minutes(15)), targets: [new targets.LambdaFunction(janitorFn)] });
+    new events.Rule(this, "JanitorSchedule", { schedule: events.Schedule.rate(Duration.minutes(5)), targets: [new targets.LambdaFunction(janitorFn)] });
 
     // -----------------------------------------------------------------------
     // HTTP API
