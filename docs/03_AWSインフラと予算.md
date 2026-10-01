@@ -36,7 +36,7 @@ Internet
                       ├─ DynamoDB × 7
                       ├─ SQS (+ DLQ) ── Lambda dispatcher ── ECS RunTask
                       ├─ DynamoDB Streams ── Lambda broadcaster ── WS
-                      ├─ EventBridge 15min ── Lambda janitor
+                      ├─ EventBridge 5min ── Lambda janitor
                       ├─ KMS (API keys)
                       └─ S3 Artifacts
 
@@ -56,7 +56,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 
 | Resource | Spec | When it runs |
 | -------- | ---- | ------------ |
-| Lambda × 8 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 15 minutes |
+| Lambda × 8 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 5 minutes |
 | ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
 | Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
 | CodeBuild | Image build at deploy | During `cdk deploy` |
@@ -195,7 +195,7 @@ The app also tracks this. Each job records the model used, input/output tokens, 
 - CloudFront Price Class 200.
 - Logs 14 days. Incomplete multipart uploads deleted after 3 days.
 - Concurrency caps prevent unnoticed piles of Spot tasks.
-- Janitor: auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue.
+- Janitor (every 5 minutes): auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue. On a Spot interruption the worker gets SIGTERM and up to 120 s (the task's stop timeout): it saves the workspace and thread to S3 and marks its heartbeat stale, so the job resumes at the next janitor run instead of after 15–30 minutes. During a turn the worker also saves every 5 minutes, so at most that much work is lost when the task dies without SIGTERM.
 
 ---
 

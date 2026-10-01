@@ -267,6 +267,7 @@ export const ko: Record<MessageKey, string> = {
   "sys.restoring": "이전 작업 공간을 복원하는 중…",
   "sys.newThread": "스레드 상태를 찾을 수 없어 새 스레드로 재개합니다.",
   "sys.cancelReceived": "취소 요청을 받았습니다. 상태를 저장하고 종료합니다.",
+  "sys.workerStopping": "워커가 중지됩니다(예: Fargate Spot 중단). 지금까지의 작업을 저장하며, 작업은 자동으로 재개됩니다.",
   "sys.timeout": "최대 실행 시간(6시간)을 초과했습니다. 재시도하면 이어서 진행할 수 있습니다.",
   "sys.waitingAnswer": "에이전트 질문에 답하면 작업이 재개됩니다.",
   "sys.nudged": "작업이 끝나지 않아 계속 지시를 보냈습니다.",

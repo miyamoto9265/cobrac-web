@@ -95,6 +95,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
+import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type PreparedMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { LiteratureHttp } from "./http.js";
@@ -142,6 +143,10 @@ let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 let stageOverride: "RESEARCH" | "ADJUST" | null = null;
 let lastStage: PipelineStage | null | undefined;
 let cancelled = false;
+/** SIGTERM received: the task is being stopped and the job goes back to the janitor */
+let stopping = false;
+/** The workspace was restored or created, so persistState has something to save */
+let workspaceReady = false;
 let rcs: RcsClient | null = null;
 let materials: PreparedMaterials | null = null;
 /** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
@@ -189,6 +194,7 @@ async function main() {
 
   // --- workspace ------------------------------------------------------------
   await prepareWorkspace(project);
+  workspaceReady = true;
   if (mode !== "initial" && isLegacyWorkspace(paths)) {
     await fail(LEGACY_WORKSPACE_MESSAGE, { i18n: "sys.legacyWorkspace" });
     return;
@@ -223,7 +229,7 @@ async function main() {
   console.log(`[worker] reply locale=${job.locale ?? "(user's language)"}`);
 
   const abort = new AbortController();
-  const heartbeat = startHeartbeat(abort);
+  const heartbeat = startHeartbeat(abort, { persist: true });
 
   const sink: TurnSink = {
     onMessage: async (type, content, meta) => {
@@ -233,7 +239,7 @@ async function main() {
       await syncStepStates();
     },
     onHeartbeat: async () => {
-      await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+      if (!stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
     },
     onMcpCall: async (item) => {
       if (item.server === "rcs") await recordRcsCall(item);
@@ -433,9 +439,14 @@ async function main() {
   }
 }
 
-/** Cancel detection, heartbeat and the run-time limit, once a minute. */
-function startHeartbeat(abort: AbortController): NodeJS.Timeout {
+/**
+ * Cancel detection, heartbeat and the run-time limit, once a minute. With `persist` (BRA runs; article jobs never
+ * write the workspace back) the workspace and thread also go to S3 every few minutes, so an interruption in the
+ * middle of a long turn loses at most that much work.
+ */
+function startHeartbeat(abort: AbortController, o: { persist?: boolean } = {}): NodeJS.Timeout {
   return setInterval(async () => {
+    if (stopping) return;
     try {
       const j = await getJob(projectId, jobId);
       if (j?.status === "CANCELLED" && !cancelled) {
@@ -449,6 +460,7 @@ function startHeartbeat(abort: AbortController): NodeJS.Timeout {
         await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
         process.exit(1);
       }
+      if (o.persist && workspaceReady && Date.now() - lastPersistAt >= PERIODIC_PERSIST_MS) await persistState();
     } catch (e) {
       console.error("[heartbeat]", e);
     }
@@ -499,7 +511,9 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
       await putMessage(projectId, jobId, "agent", type, content, { meta, step: null });
     },
     onFileChange: async () => undefined,
-    onHeartbeat: () => updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).then(() => undefined),
+    onHeartbeat: async () => {
+      if (!stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+    },
   };
   try {
     const first = await articlePrompt(env.promptsDir, projectId, locale);
@@ -1031,11 +1045,43 @@ async function prepareCanon(project: ProjectRecord) {
   }
 }
 
-async function persistState() {
+let lastPersistAt = Date.now();
+/** Workspace and Codex sessions to S3; calls from the heartbeat, the phases and SIGTERM run one at a time. */
+const persistState = serialized(async () => {
+  lastPersistAt = Date.now();
   const a = await uploadDir(paths.root, `${prefix}workspace/`, { deleteMissing: true });
   const b = await uploadDir(join(env.codexHome, "sessions"), `${prefix}thread/sessions/`);
   console.log(`[worker] persisted workspace(+${a.uploaded}/-${a.deleted}) thread(+${b.uploaded})`);
+});
+
+/**
+ * SIGTERM: Fargate Spot interruption (about 2 minutes' notice), or the StopTask of a cancel or an admin stop. The
+ * task definition's stop timeout leaves time to save the running turn's work; the janitor then retries the job.
+ */
+async function onSigterm() {
+  if (stopping) return;
+  stopping = true;
+  console.log("[worker] SIGTERM: saving state before the task stops");
+  try {
+    const outcome = await handleStop({
+      jobStatus: async () => (await getJob(projectId, jobId))?.status ?? null,
+      workspaceReady: () => workspaceReady,
+      notify: () =>
+        log("The worker is being stopped (for example a Fargate Spot interruption). Saving the work so far; the job resumes automatically.", {
+          i18n: "sys.workerStopping",
+        }),
+      persist: persistState,
+      // the janitor retries a job whose heartbeat is older than HEARTBEAT_STALE_MS
+      markStale: () => updateJob(projectId, jobId, { lastHeartbeat: new Date(0).toISOString() }),
+    });
+    console.log(`[worker] SIGTERM handled: ${outcome}`);
+  } catch (e) {
+    console.error("[worker] SIGTERM handling failed", e);
+  } finally {
+    process.exit(143);
+  }
 }
+process.once("SIGTERM", () => void onSigterm());
 
 async function setStage(override: typeof stageOverride) {
   stageOverride = override;
@@ -1104,7 +1150,7 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
 }
 
 async function fail(message: string, meta?: Record<string, unknown>) {
-  if (cancelled) return;
+  if (cancelled || stopping) return;
   if (mode === "article") {
     const [project, job] = await Promise.all([getProject(userId, projectId), getJob(projectId, jobId)]);
     if (project && job) await endArticleJob(project, job, "FAILED", message);

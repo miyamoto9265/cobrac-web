@@ -267,6 +267,7 @@ export const es: Record<MessageKey, string> = {
   "sys.restoring": "Restaurando el espacio de trabajo anterior…",
   "sys.newThread": "No se encontró el estado del hilo; se reanuda en uno nuevo.",
   "sys.cancelReceived": "Cancelación recibida. Guardando estado y saliendo.",
+  "sys.workerStopping": "El worker se va a detener (por ejemplo, una interrupción de Fargate Spot). Se guarda el trabajo hecho; el trabajo se reanudará automáticamente.",
   "sys.timeout": "Se superó el tiempo máximo (6 horas). Reintenta para continuar.",
   "sys.waitingAnswer": "Responde la pregunta del agente para reanudar.",
   "sys.nudged": "El trabajo no estaba completo; se envió una instrucción para continuar.",

@@ -267,6 +267,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.restoring": "前回の作業状態を復元しています…",
   "sys.newThread": "スレッド状態が見つからないため、新しいスレッドで再開します。",
   "sys.cancelReceived": "キャンセル要求を受信しました。状態を保存して終了します。",
+  "sys.workerStopping": "ワーカーが停止されます（Fargate Spot の中断など）。ここまでの作業を保存し、ジョブは自動で再開します。",
   "sys.timeout": "最大実行時間（6時間）を超過しました。リトライで続きから再開できます。",
   "sys.waitingAnswer": "エージェントからの質問に回答すると作業が再開されます。",
   "sys.nudged": "作業が未完了のため、続行を指示しました。",
