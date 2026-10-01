@@ -163,6 +163,7 @@ import {
   updateProject,
   updateUser,
 } from "./lib/db.js";
+import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
 import {
   addCanonMember,
@@ -277,8 +278,10 @@ app.get("/users/me/usage", async (c) => {
   const byModel = new Map<string, { usage: TokenUsage; cost: number; unpriced: boolean; jobs: number }>();
   let cost = 0;
   let priced = false;
-  for (const p of items) {
-    const jobs = await listJobsForProject(p.projectId, u.userId);
+  for (const stored of items) {
+    const recorded = await listJobsForProject(stored.projectId, u.userId);
+    const jobs = await correctJobs(stored.projectId, recorded);
+    const p = await correctProject(stored, recorded);
     const models = new Set<string>();
     for (const j of jobs) {
       if (!j.usage) continue;
@@ -355,7 +358,7 @@ app.get("/projects", async (c) => {
     if (q && ![p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((s) => (s ?? "").toLowerCase().includes(q))) return false;
     return true;
   });
-  return c.json({ items: filtered, nextCursor });
+  return c.json({ items: await correctProjects(filtered), nextCursor });
 });
 
 /** One reference file: validated here, then sent by the browser straight to S3 staging (presigned POST). */
@@ -543,8 +546,9 @@ async function loadOwnProject(u: UserRecord, projectId: string): Promise<Project
 
 app.get("/projects/:id", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const jobs = await listJobsForProject(p.projectId, u.userId);
+  const stored = await loadOwnProject(u, c.req.param("id"));
+  const recorded = await listJobsForProject(stored.projectId, u.userId);
+  const [p, jobs] = await Promise.all([correctProject(stored, recorded), correctJobs(stored.projectId, recorded)]);
   const cloneCount = p.visibility === "public" || p.publishedAt ? await getCloneCount(p.projectId) : 0;
   return c.json({ ...p, cloneCount, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
 });
@@ -590,7 +594,8 @@ app.get("/projects/:id/messages", async (c) => {
     listMessages(p.projectId, Number(c.req.query("limit") ?? 500), c.req.query("cursor")),
     listJobsForProject(p.projectId, u.userId),
   ]);
-  return c.json({ ...r, items: ownedMessages(r.items, u.userId, new Set(jobs.map((j) => j.jobId))) });
+  const items = ownedMessages(r.items, u.userId, new Set(jobs.map((j) => j.jobId)));
+  return c.json({ ...r, items: correctUsageMessages(items, await legacyCorrections(p.projectId, jobs)) });
 });
 
 /** Project fields after its active job is stopped. An article job leaves the finished BRA data as it was. */
@@ -1727,7 +1732,7 @@ app.put("/admin/users/:id", async (c) => {
 app.get("/admin/projects", async (c) => {
   requireAdmin(c.get("user"));
   const items = (await listAllProjects()).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  return c.json({ items });
+  return c.json({ items: await correctProjects(items) });
 });
 
 app.post("/admin/projects/:userId/:id/cancel", async (c) => {
