@@ -56,7 +56,8 @@ export function MessageItem({ m }: { m: MessageRecord }) {
     );
   }
 
-  if (m.role === "system") {
+  // the worker also stores Codex notices (reconnects, rate-limit pauses, CLI warnings) as agent status messages
+  if (m.role === "system" || m.type === "status") {
     const isErr = m.type === "error";
     const isArtifact = m.type === "artifact";
     const details = typeof m.meta?.details === "string" && m.meta.details ? m.meta.details : null;
