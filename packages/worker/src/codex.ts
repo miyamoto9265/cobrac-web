@@ -36,6 +36,19 @@ export function litCodexConfig(mailto?: string) {
   };
 }
 
+/**
+ * Context window Codex works with, also for a model missing from its catalog. OpenAI lists 1,050,000 tokens for the
+ * gpt-5.6 / gpt-6 models, but input above 272K is billed at 2x; Codex's own catalog uses 272,000 for all of them.
+ */
+export const CODEX_CONTEXT_WINDOW = 272_000;
+
+/** API aliases missing from Codex's model catalog, mapped to the model OpenAI routes them to. */
+export const CODEX_MODEL_ALIASES: Readonly<Record<string, string>> = { "gpt-5.6": "gpt-5.6-sol" };
+
+export function codexModelSlug(model: string): string {
+  return CODEX_MODEL_ALIASES[model] ?? model;
+}
+
 export function createCodex(apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean } = {}): Codex {
   const mcpServers = { ...(rcs ? rcsCodexConfig(rcs).mcp_servers : {}), ...(opts.lit ? litCodexConfig(env.crossrefMailto) : {}) };
   return new Codex({
@@ -55,8 +68,9 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null, op
     },
     config: {
       show_raw_agent_reasoning: false,
-      // compact the conversation before one request outgrows the organisation's tokens-per-minute limit (Codex does not
-      // know every model's context window and would otherwise let the thread grow until a request is refused)
+      model_context_window: CODEX_CONTEXT_WINDOW,
+      // compact the conversation before one request outgrows the organisation's tokens-per-minute limit, which is
+      // below the context window
       model_auto_compact_token_limit: env.codexAutoCompactTokens,
       shell_environment_policy: { exclude: [RCS_TOKEN_ENV] },
       ...(Object.keys(mcpServers).length ? { mcp_servers: mcpServers } : {}),
@@ -87,7 +101,7 @@ export function openThread(codex: Codex, threadId: string | null, settings: Mode
     networkAccessEnabled: true,
     webSearchEnabled: webSearch,
     webSearchMode: webSearch ? ("live" as const) : ("disabled" as const),
-    ...(settings.model ? { model: settings.model } : {}),
+    ...(settings.model ? { model: codexModelSlug(settings.model) } : {}),
     ...(settings.reasoningEffort ? { modelReasoningEffort: settings.reasoningEffort } : {}),
   };
   return threadId ? codex.resumeThread(threadId, options) : codex.startThread(options);
@@ -273,7 +287,8 @@ async function handleItem(item: ThreadItem, result: TurnResult, sink: TurnSink) 
       return;
     }
     case "error":
-      await sink.onMessage("error", item.message);
+      // non-fatal: Codex warnings such as "Model metadata for `x` not found"; turn failures arrive as `turn.failed` / `error` events
+      await sink.onMessage("status", item.message, { kind: "codexWarning" });
       return;
   }
 }
