@@ -33,6 +33,11 @@ export interface ArticleMeta {
   model: string | null;
   /** Reference IDs from references.json cited in the article, in order of first use */
   citedReferences: string[];
+  /**
+   * Figure files under `article/<locale>/figures/` (`circuit.svg`, `circuit.narrow.svg`, …) the article embeds as
+   * `./figures/<file>`; absent in articles written before figures (they have none)
+   */
+  figures?: string[];
 }
 
 /** Last article request of a project, so the UI can show progress or failure without touching the BRA status. */
@@ -130,20 +135,116 @@ export interface ArticleCheck {
   title: string;
   /** Known Reference IDs cited, in order of first use */
   cited: string[];
+  /** Figure names embedded (`circuit` for `./figures/circuit.svg`), in order of appearance */
+  figures: string[];
 }
 
+/** What an article in the documentation format may embed and mention (from the project's graph data). */
+export interface ArticleFormat {
+  /** Figures available as `./figures/<name>.svg` */
+  figures: string[];
+  /** Figures the article must embed */
+  requiredFigures: string[];
+  /** Connections of the HCD as [sender, receiver] Circuit IDs */
+  connections: [string, string][];
+  circuitIds: string[];
+  /** FRG node IDs (`R.…`) */
+  gnIds: string[];
+}
+
+/** Anchor of a heading as the article reader makes it (GitHub-style, like the Docs page). */
+export function articleHeadingSlug(text: string): string {
+  return text
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/(\*|_)(.*?)\1/g, "$2")
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{M}\p{N}\s_-]/gu, "")
+    .replace(/\s/g, "-");
+}
+
+function headingAnchors(md: string): Set<string> {
+  const out = new Set<string>();
+  const seen = new Map<string, number>();
+  for (const m of withoutFences(md).matchAll(/^#{1,6}\s+(.+?)\s*#*\s*$/gm)) {
+    const base = articleHeadingSlug(m[1]);
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    out.add(n ? `${base}-${n}` : base);
+  }
+  return out;
+}
+
+const withoutFences = (md: string) => md.replace(/^\s*(```|~~~)[\s\S]*?^\s*\1.*$/gm, "");
+const IMAGE_RE = /!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"([^"]*)")?\s*\)/g;
+const stripUc = (id: string) => id.trim().replace(/^U\./, "");
+
 /** Deterministic check of an agent-written article before the worker publishes it. */
-export function checkArticle(md: string | null | undefined, o: { referenceIds: string[]; locale: UiLocale }): ArticleCheck {
+export function checkArticle(md: string | null | undefined, o: { referenceIds: string[]; locale: UiLocale; format?: ArticleFormat }): ArticleCheck {
   const errors: string[] = [];
   const text = (md ?? "").trim();
-  if (!text) return { errors: ["The article file is missing or empty."], title: "", cited: [] };
+  if (!text) return { errors: ["The article file is missing or empty."], title: "", cited: [], figures: [] };
   const title = text.match(/^#\s+(.+?)\s*#*\s*$/m)?.[1]?.trim() ?? "";
   if (!/^#\s+\S/.test(text)) errors.push("Start the article with one `# ` title line.");
   if ((text.match(/^#\s+\S/gm) ?? []).length > 1) errors.push("Use a single `# ` title; use `##` / `###` for sections.");
   const sections = (prose(text).match(/^##\s+\S/gm) ?? []).length;
-  if (sections < 3) errors.push(`Organise the article in at least 3 \`##\` sections (found ${sections}).`);
+  const minSections = o.format ? 5 : 3;
+  if (sections < minSections) errors.push(`Organise the article in at least ${minSections} \`##\` sections (found ${sections}).`);
   if (text.length < articleMinChars(o.locale)) errors.push(`The article is too short (${text.length} characters); explain the whole project.`);
-  if (/!\[[^\]]*\]\(/.test(text)) errors.push("Do not embed images; the reader shows the HCD / FRG graphs separately.");
+  const figures: string[] = [];
+  if (!o.format) {
+    if (/!\[[^\]]*\]\(/.test(text)) errors.push("Do not embed images; the reader shows the HCD / FRG graphs separately.");
+  } else {
+    const f = o.format;
+    const afterTitle = text.split("\n").slice(1).find((l) => l.trim()) ?? "";
+    if (!afterTitle.trim().startsWith("|")) errors.push("Put the summary table (`| Item | Content |`) right after the `# ` title line.");
+    const available = new Set(f.figures);
+    const bad: string[] = [];
+    const noCaption: string[] = [];
+    for (const m of withoutFences(text).matchAll(IMAGE_RE)) {
+      const name = m[2].match(/^(?:\.\/)?figures\/([a-z0-9][a-z0-9-]*)\.svg$/)?.[1];
+      if (!name || !available.has(name)) {
+        bad.push(m[2]);
+        continue;
+      }
+      figures.push(name);
+      if (!m[1].trim() || !(m[3] ?? "").trim()) noCaption.push(name);
+    }
+    if (bad.length) errors.push(`Embed only the listed figures as \`./figures/<name>.svg\` (available: ${f.figures.join(", ")}); not available: ${bad.slice(0, 5).join(", ")}.`);
+    const missing = f.requiredFigures.filter((n) => !figures.includes(n));
+    if (missing.length) errors.push(`Embed these figures where the text explains them: ${missing.map((n) => `./figures/${n}.svg`).join(", ")}.`);
+    const twice = [...new Set(figures.filter((n, i) => figures.indexOf(n) !== i))];
+    if (twice.length) errors.push(`Embed each figure once (repeated: ${twice.join(", ")}).`);
+    if (noCaption.length) errors.push(`Give every figure an alt text and a caption: \`![<what it shows>](./figures/<name>.svg "<caption>")\` (missing for ${noCaption.join(", ")}).`);
+
+    const circuits = new Set(f.circuitIds.map(stripUc));
+    const pairs = new Set(f.connections.map(([a, b]) => `${stripUc(a)}\u0000${stripUc(b)}`));
+    const wrong = new Set<string>();
+    for (const m of withoutFences(text).matchAll(/`([^`\n]+)`\s*(?:→|->|⟶|⇒)\s*(?=`([^`\n]+)`)/g)) {
+      const a = stripUc(m[1]);
+      const b = stripUc(m[2]);
+      if (circuits.has(a) && circuits.has(b) && !pairs.has(`${a}\u0000${b}`)) wrong.add(`\`${a}\` → \`${b}\``);
+    }
+    if (wrong.size) {
+      errors.push(
+        `An arrow between two Circuit IDs stands for a connection in connections.json; these are not connections (check the direction, or describe the route step by step): ${[...wrong].slice(0, 10).join(", ")}.`,
+      );
+    }
+    const gns = new Set(f.gnIds);
+    const unknownGn = new Set([...withoutFences(text).matchAll(/`(R\.[^`\s]+)`/g)].map((m) => m[1]).filter((id) => !gns.has(id)));
+    if (unknownGn.size) errors.push(`These node IDs are not in frg.json: ${[...unknownGn].slice(0, 10).join(", ")}.`);
+    const anchors = headingAnchors(text);
+    const brokenLinks = new Set(
+      [...withoutFences(text).matchAll(/\]\(#([^)\s]+)\)/g)].map((m) => decodeURIComponent(m[1])).filter((a) => !anchors.has(a)),
+    );
+    if (brokenLinks.size) {
+      errors.push(
+        `These section links point to no heading: ${[...brokenLinks].slice(0, 6).map((a) => `#${a}`).join(", ")} (an anchor is the heading text in lower case, spaces as \`-\`, punctuation removed: \`## 4.2 情報の流れ\` → \`#42-情報の流れ\`).`,
+      );
+    }
+  }
   if (/<\/?[a-z][^>]*>/i.test(prose(text))) errors.push("Do not use HTML tags; write plain Markdown.");
   if (REFERENCE_HEADING_RE.test(prose(text))) errors.push("Remove the reference list section; the worker appends it from references.json.");
 
@@ -162,7 +263,7 @@ export function checkArticle(md: string | null | undefined, o: { referenceIds: s
   if (known.size && cited.length === 0) errors.push("Cite the supporting literature with Reference IDs from references.json.");
   const script = articleScriptProblem(text, o.locale);
   if (script) errors.push(script);
-  return { errors, title, cited };
+  return { errors, title, cited, figures };
 }
 
 /** The published article: the agent's text plus a reference list of the cited entries (from references.json). */

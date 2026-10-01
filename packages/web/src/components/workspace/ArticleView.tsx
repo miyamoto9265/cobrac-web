@@ -1,12 +1,13 @@
 import { AlertTriangle, BookOpen, Bot, Download, ListTree, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ListArticlesResponse, ProjectRecord, UiLocale } from "@cobrac/shared";
-import { resolveSystemMessage } from "@cobrac/shared";
+import { articleFigureKey, resolveSystemMessage, sanitizeSvg } from "@cobrac/shared";
 import { LOCALES, htmlLangFor, localeName, useI18n, useT, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { extractHeadings } from "../../lib/docs";
 import { fmtDate, isActive } from "../../lib/format";
-import { DocMarkdown } from "../DocMarkdown";
+import { DocMarkdown, type DocFigures } from "../DocMarkdown";
+import { isPriced, useModelList } from "../ModelSelect";
 
 type ArticleItem = ListArticlesResponse["items"][number];
 
@@ -31,6 +32,9 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
   const [items, setItems] = useState<ArticleItem[] | null>(null);
   const [selected, setSelected] = useState<UiLocale | null>(null);
   const [genLocale, setGenLocale] = useState<UiLocale>(uiLocale);
+  const [genModel, setGenModel] = useState<string>("");
+  const { models, priced, envDefault } = useModelList(null);
+  const projectModel = project.model || envDefault;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const job = project.articleJob ?? null;
@@ -66,7 +70,7 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
     setBusy(true);
     setErr(null);
     try {
-      await api.createArticle(projectId, genLocale);
+      await api.createArticle(projectId, genLocale, genModel || null);
       await onStarted();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -134,6 +138,25 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
               ))}
             </select>
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            <span className="whitespace-nowrap">{t("article.model")}</span>
+            <select
+              value={genModel}
+              onChange={(e) => setGenModel(e.target.value)}
+              data-testid="article-model"
+              className="max-w-[11rem] rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-800 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="">{projectModel ? t("article.modelDefault", { model: projectModel }) : t("model.default")}</option>
+              {models
+                .filter((m) => m !== project.model)
+                .map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                    {priced.length > 0 && !isPriced(m, priced) ? t("model.unpriced") : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => void create()}
@@ -190,6 +213,7 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
   const t = useT();
   const { locale } = useI18n();
   const [text, setText] = useState<string | null>(null);
+  const [figures, setFigures] = useState<DocFigures | null>(item.figures?.length ? null : {});
   const [err, setErr] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -204,6 +228,39 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
       live = false;
     };
   }, [projectId, item.key]);
+
+  // Figures are shown from sanitized copies through object URLs (an <img> never runs scripts or loads anything else).
+  useEffect(() => {
+    const files = item.figures ?? [];
+    if (!files.length) return;
+    let live = true;
+    const urls: string[] = [];
+    Promise.all(
+      files.map(async (f) => {
+        const svg = sanitizeSvg(await api.artifactText(projectId, articleFigureKey(item.locale, f)).catch(() => ""));
+        if (!svg) return [f, null] as const;
+        const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+        urls.push(url);
+        return [f, url] as const;
+      }),
+    ).then((pairs) => {
+      if (!live) {
+        for (const u of urls) URL.revokeObjectURL(u);
+        return;
+      }
+      const byFile = new Map(pairs);
+      const out: DocFigures = {};
+      for (const [f, url] of pairs) {
+        if (!url || f.endsWith(".narrow.svg")) continue;
+        out[f] = { url, narrow: byFile.get(f.replace(/\.svg$/, ".narrow.svg")) ?? undefined };
+      }
+      setFigures(out);
+    });
+    return () => {
+      live = false;
+      for (const u of urls) URL.revokeObjectURL(u);
+    };
+  }, [projectId, item.locale, item.figures]);
 
   const headings = useMemo(() => (text ? extractHeadings(text) : []), [text]);
   const toc = useMemo(() => headings.filter((h) => h.depth === 2 || h.depth === 3), [headings]);
@@ -294,12 +351,12 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
           )}
           {err ? (
             <div className="text-sm text-rose-600">{err}</div>
-          ) : text === null ? (
+          ) : text === null || figures === null ? (
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <Loader2 size={14} className="animate-spin" /> {t("loading")}
             </div>
           ) : (
-            <DocMarkdown text={text} headings={headings} resolveDoc={noDoc} onAnchor={onAnchor} />
+            <DocMarkdown text={text} headings={headings} resolveDoc={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? figures : undefined} />
           )}
         </article>
       </div>

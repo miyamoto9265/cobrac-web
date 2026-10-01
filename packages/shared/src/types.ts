@@ -475,6 +475,8 @@ export interface ArtifactInfo {
 
 export interface CreateArticleRequest {
   locale: UiLocale;
+  /** Model for the article (absent / null: the project's model) */
+  model?: string | null;
 }
 
 export interface ListArticlesResponse {

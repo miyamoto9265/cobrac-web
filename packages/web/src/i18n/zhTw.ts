@@ -320,6 +320,8 @@ export const zhTw: Record<MessageKey, string> = {
   "article.read": "閱讀語言",
   "article.none": "尚無解說文章",
   "article.cost": "需要幾分鐘，並使用您的 OpenAI API 金鑰（費用計入本專案的用量）。",
+  "article.model": "模型",
+  "article.modelDefault": "與專案相同（{model}）",
   "sys.articleQueued": "解說文章（{lang}）已加入佇列。",
   "sys.articleStarted": "正在用{lang}撰寫解說文章…",
   "sys.articleFix": "文章檢查發現 {count} 個問題，已要求代理修正。",
@@ -329,6 +331,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.noApiKey": "尚未註冊 OpenAI API 金鑰，也未獲准使用預設 API 金鑰。",
   "sys.orgKeyUnavailable": "尚未註冊預設 API 金鑰。請聯絡管理員。",
   "sys.orgKeyModel": "預設 API 金鑰的 Tier {tier} 不能使用模型 {model}。",
+  "sys.articleNoGraph": "無法讀取專案的 CSV，因此無法繪製文章的圖。",
 
   "admin.denied": "僅限管理員。",
   "admin.title": "管理",

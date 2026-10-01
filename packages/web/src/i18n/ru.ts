@@ -320,6 +320,8 @@ export const ru: Record<MessageKey, string> = {
   "article.read": "Читать на",
   "article.none": "Статьи пока нет",
   "article.cost": "Занимает несколько минут и использует ваш ключ OpenAI API (стоимость добавляется к использованию проекта).",
+  "article.model": "Модель",
+  "article.modelDefault": "Как в проекте ({model})",
   "sys.articleQueued": "Поясняющая статья ({lang}) поставлена в очередь.",
   "sys.articleStarted": "Пишется поясняющая статья на языке: {lang}…",
   "sys.articleFix": "Проверка нашла проблем в статье: {count}; агенту отправлен запрос на исправление.",
@@ -329,6 +331,7 @@ export const ru: Record<MessageKey, string> = {
   "sys.noApiKey": "Ключ OpenAI API не зарегистрирован, и доступ к API-ключу по умолчанию не разрешён.",
   "sys.orgKeyUnavailable": "API-ключ по умолчанию не зарегистрирован. Обратитесь к администратору.",
   "sys.orgKeyModel": "Модель {model} недоступна на Tier {tier} API-ключа по умолчанию.",
+  "sys.articleNoGraph": "Не удалось построить рисунки статьи: CSV проекта не читаются.",
 
   "admin.denied": "Только для администраторов.",
   "admin.title": "Админ",

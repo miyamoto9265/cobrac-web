@@ -489,6 +489,27 @@ describe("explanatory articles", () => {
     expect((await call(B, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(404);
   });
 
+  it("uses the model chosen for the article, or the project's when none is chosen", async () => {
+    await seed();
+    const first = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "ja" }));
+    expect(fake.items("jobs").find((j) => j.jobId === first.jobId)).toMatchObject({ model: null });
+    await seed();
+    const chosen = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "gpt-6-sol" }));
+    expect(fake.items("jobs").find((j) => j.jobId === chosen.jobId)).toMatchObject({ model: "gpt-6-sol" });
+    await seed();
+    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "text-embedding-3" })).status).toBe(400);
+    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "bad model" })).status).toBe(400);
+  });
+
+  it("serves article figures as text and nothing else outside the text types", async () => {
+    const aws = await seed();
+    vi.mocked(aws.getObjectText).mockResolvedValueOnce("<svg/>");
+    const ok = await call(A, "GET", `/projects/${P}/artifacts/text?key=${encodeURIComponent("article/ja/figures/circuit.narrow.svg")}`);
+    expect(ok.status).toBe(200);
+    expect(await ok.text()).toBe("<svg/>");
+    expect((await call(A, "GET", `/projects/${P}/artifacts/text?key=${encodeURIComponent("workspace/x.svg")}`)).status).toBe(400);
+  });
+
   it("cancelling an article job leaves the project completed", async () => {
     await seed();
     const { jobId } = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "en" }));

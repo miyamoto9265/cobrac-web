@@ -116,8 +116,8 @@ export const api = {
   artifactText: (id: string, key: string) =>
     request<string>("GET", `/projects/${encodeURIComponent(id)}/artifacts/text?key=${encodeURIComponent(key)}`, undefined, true),
   articles: (id: string) => request<ListArticlesResponse>("GET", `/projects/${encodeURIComponent(id)}/articles`),
-  createArticle: (id: string, locale: UiLocale) =>
-    request<{ ok: true; jobId: string; articleJob: ArticleJobState }>("POST", `/projects/${encodeURIComponent(id)}/articles`, { locale }),
+  createArticle: (id: string, locale: UiLocale, model: string | null = null) =>
+    request<{ ok: true; jobId: string; articleJob: ArticleJobState }>("POST", `/projects/${encodeURIComponent(id)}/articles`, { locale, model }),
   hcd: (id: string) => request<HcdGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/hcd`),
   frg: (id: string) => request<FrgGraph>("GET", `/projects/${encodeURIComponent(id)}/graph/frg`),
   getLayout: (id: string, kind: "hcd" | "frg") => request<GraphLayout>("GET", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),

@@ -17,6 +17,8 @@ export * from "./bnaLabels.js";
 export * from "./references.js";
 export * from "./quotes.js";
 export * from "./article.js";
+export * from "./articleFigures.js";
+export * from "./svgSanitize.js";
 export * from "./research.js";
 export * from "./bibtex.js";
 export * from "./xlsxSheet.js";

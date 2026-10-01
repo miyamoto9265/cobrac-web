@@ -320,6 +320,8 @@ export const zh: Record<MessageKey, string> = {
   "article.read": "阅读语言",
   "article.none": "尚无解说文章",
   "article.cost": "需要几分钟，并使用您的 OpenAI API 密钥（费用计入本项目的用量）。",
+  "article.model": "模型",
+  "article.modelDefault": "与项目相同（{model}）",
   "sys.articleQueued": "解说文章（{lang}）已加入队列。",
   "sys.articleStarted": "正在用{lang}撰写解说文章…",
   "sys.articleFix": "文章检查发现 {count} 个问题，已要求代理修正。",
@@ -329,6 +331,7 @@ export const zh: Record<MessageKey, string> = {
   "sys.noApiKey": "尚未登记 OpenAI API 密钥，也未获准使用默认 API 密钥。",
   "sys.orgKeyUnavailable": "尚未登记默认 API 密钥。请联系管理员。",
   "sys.orgKeyModel": "默认 API 密钥的 Tier {tier} 不能使用模型 {model}。",
+  "sys.articleNoGraph": "无法读取项目的 CSV，因此无法绘制文章的图。",
 
   "admin.denied": "仅限管理员。",
   "admin.title": "管理",

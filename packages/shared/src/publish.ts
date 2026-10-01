@@ -4,6 +4,7 @@
 // artifacts are copied into the cloner's new project and the clone count lives in the Catalog table.
 // ---------------------------------------------------------------------------
 
+import { ARTICLE_FIGURE_KEY_RE } from "./articleFigures.js";
 import { PROJECT_ID_REGEX } from "./projectId.js";
 
 export type Visibility = "private" | "public";
@@ -109,7 +110,7 @@ export function cloneTargetKey(rel: string, oldId: string, newId: string): strin
       .join("/");
   }
   if (/^graph\/(hcd|frg)\.json$/.test(rel)) return rel;
-  if (/^article\/[^/]+\.(md|json)$/.test(rel)) return rel;
+  if (/^article\/[^/]+\.(md|json)$/.test(rel) || ARTICLE_FIGURE_KEY_RE.test(rel)) return rel;
   return null;
 }
 
@@ -129,7 +130,7 @@ export function isPublicReadableKey(rel: string, projectId: string): boolean {
   if (/^workspace\/[^/]+\.md$/.test(rel)) return true;
   if (new RegExp(`^workspace/${projectId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_(HCD|FRG)/[^/]+\\.json$`).test(rel)) return true;
   if (/^graph\/(hcd|frg)\.json$/.test(rel)) return true;
-  return /^article\/[^/]+\.md$/.test(rel);
+  return /^article\/[^/]+\.md$/.test(rel) || ARTICLE_FIGURE_KEY_RE.test(rel);
 }
 
 export function cloneName(name: string): string {

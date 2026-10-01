@@ -18,15 +18,20 @@ type HastNode = { type: string; tagName?: string; value?: string; children?: Has
 
 const nodeText = (n: HastNode | undefined): string => (n ? (n.value ?? "") + (n.children ?? []).map(nodeText).join("") : "");
 
+/** Figure files of an explanatory article: `circuit.svg` → object URLs of the sanitized wide / phone versions. */
+export type DocFigures = Record<string, { url: string; narrow?: string }>;
+
 interface Props {
   text: string;
   headings: DocHeading[];
   /** Resolves a relative `Foo.md` link to a Docs page slug, or null if it is not a bundled document. */
   resolveDoc: (file: string) => string | null;
   onAnchor: (id: string) => void;
+  /** Resolves `./figures/<file>` instead of the bundled documentation figures */
+  figures?: DocFigures;
 }
 
-export function DocMarkdown({ text, headings, resolveDoc, onAnchor }: Props) {
+export function DocMarkdown({ text, headings, resolveDoc, onAnchor, figures }: Props) {
   const t = useT();
   const components = useMemo<Components>(() => {
     const idByLine = new Map(headings.map((h) => [h.line, h.id]));
@@ -67,8 +72,9 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor }: Props) {
       },
       img: ({ src = "", alt = "", title }) => {
         const file = src.match(/^(?:\.\/)?figures\/([^/?#]+)$/)?.[1];
-        const url = (file && FIGURES[file]) || src;
-        const narrow = file ? FIGURES[file.replace(/\.svg$/, ".narrow.svg")] : undefined;
+        if (figures && !(file && figures[file])) return null;
+        const url = figures ? figures[file!].url : (file && FIGURES[file]) || src;
+        const narrow = figures ? figures[file!].narrow : file ? FIGURES[file.replace(/\.svg$/, ".narrow.svg")] : undefined;
         return (
           <figure className={`docs-figure${narrow ? " has-narrow" : ""}`}>
             <div className="docs-figure-scroll">
@@ -121,7 +127,7 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor }: Props) {
         return <th style={style}>{version ? <span className={`version-pill version-${version}`}>{children}</span> : children}</th>;
       },
     };
-  }, [headings, resolveDoc, onAnchor, t]);
+  }, [headings, resolveDoc, onAnchor, t, figures]);
 
   return (
     <div className="markdown docs">

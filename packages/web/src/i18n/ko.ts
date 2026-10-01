@@ -320,6 +320,8 @@ export const ko: Record<MessageKey, string> = {
   "article.read": "읽을 언어",
   "article.none": "아직 해설 기사가 없습니다",
   "article.cost": "몇 분이 걸리며 OpenAI API 키를 사용합니다(비용은 이 프로젝트의 사용량에 더해집니다).",
+  "article.model": "모델",
+  "article.modelDefault": "프로젝트와 같음({model})",
   "sys.articleQueued": "해설 기사({lang}) 작성을 대기열에 등록했습니다.",
   "sys.articleStarted": "{lang}로 해설 기사를 작성하고 있습니다…",
   "sys.articleFix": "기사 검사에서 {count}건의 문제가 발견되어 에이전트에게 수정을 요청했습니다.",
@@ -329,6 +331,7 @@ export const ko: Record<MessageKey, string> = {
   "sys.noApiKey": "OpenAI API 키가 등록되어 있지 않고 기본 API 키 사용도 승인되지 않았습니다.",
   "sys.orgKeyUnavailable": "기본 API 키가 등록되어 있지 않습니다. 관리자에게 문의하세요.",
   "sys.orgKeyModel": "모델 {model}은(는) 기본 API 키 Tier {tier}에서 사용할 수 없습니다.",
+  "sys.articleNoGraph": "프로젝트의 CSV를 읽을 수 없어 기사 그림을 만들 수 없었습니다.",
 
   "admin.denied": "관리자만 이용할 수 있습니다.",
   "admin.title": "관리",
