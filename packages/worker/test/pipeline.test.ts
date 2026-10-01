@@ -88,7 +88,7 @@ function mockAgent(p: ProjectPaths, script: { brokenFirstHcd?: boolean; skipFrg?
       for (const f of ["references.json", "uc.json", "connections.json"]) cpSync(join(FIXTURE, "HCD", f), join(p.hcd, f));
       if (script.brokenFirstHcd) {
         const uc = JSON.parse(fixture("HCD/uc.json"));
-        uc.ucs[2].interface = "([U.VTA]) = NAC([U.A9/46d@L])";
+        uc.ucs[2].interface = "([U.VTA]) = NAC([U.A9/46d(left)])";
         writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
       }
     } else if (prompt.shown.startsWith("Fix HCD")) {
@@ -168,7 +168,7 @@ describe("phase pipeline with a mock agent", () => {
     expect(circuits.map((c) => [c["Circuit ID"], c["UC Descriptor"]])).toEqual([
       [`ROI_${PROJECT_ID}`, ""],
       ["Mesolimbic", ""],
-      ["A9/46d@L", "BNA:15"],
+      ["A9/46d(left)", "BNA:15-16/side:left"],
       ["VTA", "HOMBA:12261"],
       ["NAC", "BNA:223-224"],
       ["Arc", "HOMBA:10492"],
@@ -177,7 +177,7 @@ describe("phase pipeline with a mock agent", () => {
     expect(circuits[1]).toMatchObject({ "Source of ID": "collection", "Sub-Circuits": "VTA;NAC", Uniform: "FALSE" });
     expect(circuits[2].Comments).toBe("Prefrontal context input to the striatum; noROI(input)");
     const frg = parseCsvObjects(csv("FRG.csv"));
-    expect(frg.map((r) => r["Node ID"])).toEqual(["R.Reward-Prediction-Error-Learning", "R.Value-Learning", "U.A9/46d@L", "U.VTA", "U.NAC", "U.Arc"]);
+    expect(frg.map((r) => r["Node ID"])).toEqual(["R.Reward-Prediction-Error-Learning", "R.Value-Learning", "U.A9/46d(left)", "U.VTA", "U.NAC", "U.Arc"]);
     expect(frg.find((r) => r["Node ID"] === "U.NAC")?.["Projected Circuits"]).toBe("VTA;Arc");
 
     const g = buildGraphs(PROJECT_ID, {
@@ -233,7 +233,7 @@ describe("phase pipeline with a mock agent", () => {
             "print([x.value for x in wb['References'][1]])",
             "print([[x.value for x in r][:2] for r in wb['Project'].iter_rows(min_row=4, max_row=8)])",
             "f=wb['FRG']",
-            "print([[x.value for x in r][4] for r in f.iter_rows(min_row=2) if r[0].value in ('U.A9/46d@L','U.VTA')])",
+            "print([[x.value for x in r][4] for r in f.iter_rows(min_row=2) if r[0].value in ('U.A9/46d(left)','U.VTA')])",
             "print([x.value for x in wb['Connections'][2]][:6])",
           ].join("\n"),
           out,
@@ -244,12 +244,12 @@ describe("phase pipeline with a mock agent", () => {
       const lines = sheets.stdout.trim().split("\n");
       expect(lines[0]).toBe("['Project', 'References', 'Circuits', 'Connections', 'FRG']");
       expect(lines[1]).toMatch(/^\['Circuit ID', 'Source of ID', 'Names', 'Sub-Circuits', 'Super Class', 'Uniform', .*'Project ID', 'UC Descriptor'\]$/);
-      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'Mesolimbic;VTA;NAC', None, False], ['Mesolimbic', 'collection', 'Mesolimbic pathway', 'VTA;NAC', None, False], ['A9/46d@L', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
+      expect(lines[2]).toBe(`[['ROI_${PROJECT_ID}', 'collection', 'Mesolimbic dopamine system', 'Mesolimbic;VTA;NAC', None, False], ['Mesolimbic', 'collection', 'Mesolimbic pathway', 'VTA;NAC', None, False], ['A9/46d(left)', 'BNA', 'left dorsal area 9/46', None, None, True]]`);
       expect(lines[3]).toBe("['Reference ID', 'DOI', 'Literature type', 'Alternative URL']");
       expect(lines[4]).toBe("[['Sheet Name', 'Review End Line'], ['References', 4], ['Circuits', 7], ['Connections', 5], ['FRG', 7]]");
       expect(lines[5]).toMatch(/^\['No need for description due to input\/output circuit', 'Temporal-difference/);
       expect(lines[5]).not.toMatch(/grainest/);
-      expect(lines[6]).toBe("['A9/46d@L', '<', 'dorsolateral prefrontal cortex', 'NAC', '<', 'ventral striatum']");
+      expect(lines[6]).toBe("['A9/46d(left)', '<', 'dorsolateral prefrontal cortex', 'NAC', '<', 'ventral striatum']");
     }
     rmSync(p.root, { recursive: true, force: true });
   });
@@ -267,7 +267,7 @@ describe("phase pipeline with a mock agent", () => {
       await base.turn(prompt);
       if (prompt.shown.startsWith("Run phase FRG")) {
         const uc = JSON.parse(fixture("HCD/uc.json"));
-        uc.ucs[2].interface = "([U.VTA]) = NAC([U.A9/46d@L])";
+        uc.ucs[2].interface = "([U.VTA]) = NAC([U.A9/46d(left)])";
         writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
       }
       return true;
@@ -524,7 +524,7 @@ describe("quote checks in the phase pipeline", () => {
     const report = JSON.parse(readFileSync(p.quoteCheck, "utf8"));
     expect(report).toMatchObject({ lookup: "on", threshold: 0.9, summary: { verified_fulltext: 2, verified_abstract: 0, not_found: 0, unverified: 2 }, problems: [] });
     expect(report.quotes.map((c: { sender: string; receiver: string; status: string }) => `${c.sender}>${c.receiver} ${c.status}`)).toEqual([
-      "A9/46d@L>NAC verified_fulltext",
+      "A9/46d(left)>NAC verified_fulltext",
       "VTA>NAC unverified",
       "NAC>VTA verified_fulltext",
       "NAC>Arc unverified",

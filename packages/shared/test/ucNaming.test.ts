@@ -7,7 +7,9 @@ import {
   buildGraphs,
   checkFrg,
   checkHcd,
+  canonicalUcDescriptor,
   checkUcNaming,
+  modernCircuitId,
   hombaAnchorIds,
   normalizeUcDescriptor,
   parseCsvObjects,
@@ -33,17 +35,17 @@ const SABRA: SabraLookup = new Map<string, HombaSabraInfo | null>([
 const EXAMPLES: [string, string][] = [
   ["VTA", "HOMBA:12261"],
   ["NAC", "BNA:223-224"],
-  ["A4ul@L", "BNA:57"],
+  ["A4ul(left)", "BNA:57-58/side:left"],
   ["NC(NE)", "HOMBA:12499/nt:NE"],
   ["NAC(shell)", "BNA:223-224/part:HOMBA:10341"],
   ["Arc(AGRP+)", "HOMBA:10492/mol:AGRP+"],
-  ["NAC(shell,DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+"],
-  ["FNCb(floc,purkinje)", "HOMBA:12852/part:HOMBA:AA30423/cell:purkinje"],
-  ["rHipp(CA1,pyr,place)", "BNA:215-216/part:HOMBA:10297/cell:pyr/resp:place"],
-  ["VTA(DA,out:NAC,rpe)", "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe"],
-  ["A4ul@L(L5,pt,out:Sp)", "BNA:57/lay:L5/cell:pt/out:HOMBA:AA30565"],
-  ["Hipp(CA1,pyr)", "BNAG:Hipp/part:HOMBA:10297/cell:pyr"],
-  ["A9/46d@L(L3)", "BNA:15/lay:L3"],
+  ["NAC(shell.DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+"],
+  ["FNCb(floc.purkinje)", "HOMBA:12852/part:HOMBA:AA30423/cell:purkinje"],
+  ["rHipp(CA1.pyr.place)", "BNA:215-216/part:HOMBA:10297/cell:pyr/resp:place"],
+  ["VTA(DA.out-NAC.rpe)", "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe"],
+  ["A4ul(L5.pt.out-Sp.left)", "BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left"],
+  ["Hipp(CA1.pyr)", "BNAG:Hipp/part:HOMBA:10297/cell:pyr"],
+  ["A9/46d(L3.left)", "BNA:15-16/lay:L3/side:left"],
 ];
 
 const errorsFor = (id: string, descriptor: string, sabra: SabraLookup = SABRA) => checkUcNaming([{ id, descriptor }], sabra).join("\n");
@@ -69,28 +71,26 @@ describe("UC naming convention", () => {
       ["NC", "HOMBA:12499"],
       ["Arc", "HOMBA:10492"],
       ["NAC", "BNA:223-224"],
-      ["NAC@L", "BNA:223-224@L"],
-      ["A4ul@L", "BNA:57"],
-      ["A9/46d@R", "BNA:16"],
       ["Hipp", "BNAG:Hipp"],
     ];
     expect(checkUcNaming(anchorOnly.map(([id, descriptor]) => ({ id, descriptor })), SABRA)).toEqual([]);
-    expect(parseUcDescriptor("HOMBA:12261")).toEqual({ descriptor: { anchors: [{ kind: "homba", id: "HOMBA:12261" }], laterality: null, facets: [] } });
-    expect(parseCircuitId("VTA")).toEqual({ head: "VTA", laterality: null, items: [] });
+    expect(parseUcDescriptor("HOMBA:12261")).toEqual({ descriptor: { anchors: [{ kind: "homba", id: "HOMBA:12261" }], facets: [], side: null } });
+    expect(parseCircuitId("VTA")).toEqual({ head: "VTA", items: [], old: false, side: null });
   });
 
   it("keeps Circuit ID items and descriptor facets in step", () => {
     expect(errorsFor("VTA(DA)", "HOMBA:12261")).toMatch(/no facets.*anchor abbreviation alone/);
     expect(errorsFor("VTA", "HOMBA:12261/nt:DA")).toMatch(/0 parenthesized item\(s\) but its UC Descriptor has 1/);
     expect(errorsFor("Arc(AGRP+)", "HOMBA:10492/mol:AGRP+,NPY+")).toMatch(/1 parenthesized item\(s\).*2 facet value/);
-    expect(errorsFor("Arc(AGRP+,NPY+)", "HOMBA:10492/mol:AGRP+,NPY+")).toBe("");
+    expect(errorsFor("Arc(AGRP+.NPY+)", "HOMBA:10492/mol:AGRP+,NPY+")).toBe("");
+    expect(errorsFor("Arc(AGRP+.SST-.NPY~hi)", "HOMBA:10492/mol:AGRP+,SST-,NPY~hi")).toBe("");
   });
 
   it("parses Circuit IDs and descriptors", () => {
-    expect(parseCircuitId("A4ul@L(L5,pt,out:Sp)")).toEqual({ head: "A4ul", laterality: "L", items: ["L5", "pt", "out:Sp"] });
-    expect(parseCircuitId("A9/46d")).toEqual({ head: "A9/46d", laterality: null, items: [] });
-    expect(parseUcDescriptor("BNA:223-224@R/mol:DRD1+,ADORA2A-")).toEqual({
-      descriptor: { anchors: [{ kind: "bna", left: 223, right: 224 }], laterality: "R", facets: [{ axis: "mol", values: ["DRD1+", "ADORA2A-"] }] },
+    expect(parseCircuitId("A4ul(L5.pt.out-Sp.left)")).toEqual({ head: "A4ul", items: ["L5", "pt", "out-Sp", "left"], old: false, side: null });
+    expect(parseCircuitId("A9/46d")).toEqual({ head: "A9/46d", items: [], old: false, side: null });
+    expect(parseUcDescriptor("BNA:223-224/mol:DRD1+,ADORA2A-/side:right")).toEqual({
+      descriptor: { anchors: [{ kind: "bna", left: 223, right: 224 }], facets: [{ axis: "mol", values: ["DRD1+", "ADORA2A-"] }], side: "right" },
     });
     expect(hombaAnchorIds(EXAMPLES.map((e) => e[1]))).toEqual(["HOMBA:12261", "HOMBA:12499", "HOMBA:10492", "HOMBA:12852"]);
   });
@@ -103,20 +103,73 @@ describe("UC naming convention", () => {
     ]).join("\n")).toMatch(/same UC Descriptor/);
   });
 
-  it("requires the Circuit ID to start with the anchor's official abbreviation (exact case)", () => {
+  it("requires the Circuit ID to start with the anchor's official abbreviation (exact case, ID characters only)", () => {
     expect(errorsFor("NAc(shell)", "BNA:223-224/part:HOMBA:10341")).toMatch(/must start with `NAC`/);
     expect(errorsFor("NACs", "BNA:223-224/part:HOMBA:10341")).toMatch(/must start with `NAC`/);
     expect(errorsFor("ArH(AGRP+)", "HOMBA:10492/mol:AGRP+")).toMatch(/must start with `Arc`/);
-    expect(errorsFor("TE1.0_and_TE1.2@L", "BNA:73")).toBe("");
-    expect(errorsFor("TE1.0@L", "BNA:73")).toMatch(/must start with `TE1.0_and_TE1.2@L`/);
+    expect(errorsFor("TE1.0_and_TE1.2(left)", "BNA:73-74/side:left")).toBe("");
+    expect(errorsFor("TE1.0(left)", "BNA:73-74/side:left")).toMatch(/must start with `TE1.0_and_TE1.2`/);
+    // official abbreviations keep `/` and `+`; only spaces become `_`
+    expect(errorsFor("A9/46d", "BNA:15-16")).toBe("");
+    expect(errorsFor("V5/MT+", "BNA:201-202")).toBe("");
+    expect(errorsFor("A1/2/3ll(left)", "BNA:65-66/side:left")).toBe("");
+    expect(errorsFor("A9_46d", "BNA:15-16")).toMatch(/must start with `A9\/46d`/);
+    expect(errorsFor("V5_MT", "BNA:201-202")).toMatch(/must start with `V5\/MT\+`/);
   });
 
-  it("checks laterality", () => {
-    expect(errorsFor("A4ul(L5)", "BNA:57/lay:L5")).toMatch(/must start with `A4ul@L`/);
-    expect(errorsFor("A4ul@R", "BNA:58")).toBe("");
-    expect(errorsFor("A4ul@L", "BNA:58@L")).toMatch(/BNA:58 is the right label/);
-    expect(errorsFor("NAC@R(shell)", "BNA:223-224@R/part:HOMBA:10341")).toBe("");
-    expect(errorsFor("NAC(shell)", "BNA:223-224@R/part:HOMBA:10341")).toMatch(/must start with `NAC@R`/);
+  it("puts the side in the last facet and the last item", () => {
+    expect(errorsFor("A4ul(left)", "BNA:57-58/side:left")).toBe("");
+    expect(errorsFor("A8m(L3.left)", "BNA:1-2/lay:L3/side:left")).toBe("");
+    expect(errorsFor("NAC(shell.right)", "BNA:223-224/part:HOMBA:10341/side:right")).toBe("");
+    expect(errorsFor("A4ul(right)", "BNA:57-58/side:left")).toMatch(/must end with the item `left`/);
+    expect(errorsFor("A4ul(L5)", "BNA:57-58/lay:L5/side:left")).toMatch(/1 parenthesized item\(s\) but its UC Descriptor has 2/);
+    expect(errorsFor("A4ul(left)", "BNA:57-58/lay:L5")).toMatch(/names a side but its UC Descriptor has no side facet/);
+    expect(errorsFor("A4ul(left)", "BNA:57-58/side:up")).toMatch(/side is one value, left or right/);
+    expect(errorsFor("A4ul(left)", "BNA:57-58/side:left/lay:L5")).toMatch(/order/);
+  });
+
+  it("lets both sides of one population be separate circuits, with distinct IDs", () => {
+    const ucs = [
+      { id: "A4ul(left)", descriptor: "BNA:57-58/side:left" },
+      { id: "A4ul(right)", descriptor: "BNA:57-58/side:right" },
+    ];
+    expect(checkUcNaming(ucs, SABRA)).toEqual([]);
+    expect(checkUcNaming([...ucs, { id: "A4ul(left)", descriptor: "BNA:57-58/side:left" }], SABRA).join("\n")).toMatch(/same UC Descriptor/);
+  });
+
+  it("asks for the current form of older descriptors and Circuit IDs", () => {
+    expect(errorsFor("A4ul(left)", "BNA:57")).toBe(
+      "uc.json: write the UC Descriptor of `A4ul(left)` as `BNA:57-58/side:left` (anchors are left-right pairs; the side is the last facet side:left / side:right, omitted for both sides).",
+    );
+    expect(errorsFor("NAC(left)", "BNA:223-224@L")).toMatch(/as `BNA:223-224\/side:left`/);
+    expect(errorsFor("A4ul(left)", "BNA:58@L")).toMatch(/mixes left and right/);
+    expect(errorsFor("A4ul@L", "BNA:57-58/side:left")).toMatch(/`A4ul@L` uses the old syntax; write `A4ul\(left\)`/);
+    expect(errorsFor("NAC(shell,DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+")).toMatch(/write `NAC\(shell\.DRD1\+\)`/);
+    expect(errorsFor("A9/46d@L(L3)", "BNA:15-16/lay:L3/side:left")).toMatch(/write `A9\/46d\(L3\.left\)`/);
+  });
+
+  it("reads older forms and converts them to the current one", () => {
+    expect(canonicalUcDescriptor("BNA:57")).toEqual({ text: "BNA:57-58/side:left" });
+    expect(canonicalUcDescriptor("BNA:58/lay:L5")).toEqual({ text: "BNA:57-58/lay:L5/side:right" });
+    expect(canonicalUcDescriptor("BNAG:FuG@L")).toEqual({ text: "BNAG:FuG/side:left" });
+    expect(canonicalUcDescriptor("HOMBA:12261@R/nt:DA")).toEqual({ text: "HOMBA:12261/nt:DA/side:right" });
+    expect(canonicalUcDescriptor("BNA:57-58/side:left")).toEqual({ text: "BNA:57-58/side:left" });
+    expect(normalizeUcDescriptor("bna:29/lay:l3")).toBe("bna:29-30/lay:l3/side:left");
+    expect(normalizeUcDescriptor("BNA:29/lay:L3")).toBe(normalizeUcDescriptor("BNA:29-30/lay:L3/side:left"));
+    expect(normalizeUcDescriptor("BNA:29")).not.toBe(normalizeUcDescriptor("BNA:29-30"));
+    expect(parseUcDescriptor("BNA:57/lay:L5")).toEqual({ descriptor: { anchors: [{ kind: "bna", left: 57, right: 58 }], facets: [{ axis: "lay", values: ["L5"] }], side: "left" } });
+
+    expect(parseCircuitId("A4ul@L(L5,pt,out:Sp)")).toEqual({ head: "A4ul", items: ["L5", "pt", "out:Sp"], old: true, side: "left" });
+    expect(modernCircuitId("A4ul@L(L5,pt,out:Sp)")).toBe("A4ul(L5.pt.out-Sp.left)");
+    expect(modernCircuitId("Amyg(BL,out:CEN)")).toBe("Amyg(BL.out-CEN)");
+    expect(modernCircuitId("MVOcC(V1,L4Ca)")).toBe("MVOcC(V1.L4Ca)");
+    expect(modernCircuitId("VTA(DA,in:NAC)")).toBe("VTA(DA.in-NAC)");
+    expect(modernCircuitId("NAC(shell,DRD1+)")).toBe("NAC(shell.DRD1+)");
+    expect(modernCircuitId("A9/46d@L(L3)")).toBe("A9/46d(L3.left)");
+    expect(modernCircuitId("V5/MT+")).toBe("V5/MT+");
+    expect(modernCircuitId("A22c@R")).toBe("A22c(right)");
+    expect(modernCircuitId("NC(NE)")).toBe("NC(NE)");
+    expect(modernCircuitId("Mesolimbic-loop")).toBe("Mesolimbic-loop");
   });
 
   it("uses the common BNA L2 abbreviation for multi-unit anchors, else the first anchor", () => {
@@ -139,13 +192,14 @@ describe("UC naming convention", () => {
   it("reports syntax and facet problems", () => {
     expect(errorsFor("NAC", "")).toMatch(/has no UC Descriptor/);
     expect(errorsFor("NAC", "NAC/shell")).toMatch(/not a valid UC Descriptor/);
-    expect(errorsFor("NAC(DRD1)", "BNA:223-224/mol:DRD1")).toMatch(/needs a polarity/);
-    expect(errorsFor("NAC(DRD1+,shell)", "BNA:223-224/mol:DRD1+/part:HOMBA:10341")).toMatch(/order/);
+    expect(errorsFor("NAC(DRD1+)", "BNA:223-224/mol:DRD1")).toMatch(/needs a polarity/);
+    expect(errorsFor("NAC(DRD1.shell)", "BNA:223-224/mol:DRD1+/part:HOMBA:10341")).toMatch(/order/);
     expect(errorsFor("NAC", "BNA:224-225")).toMatch(/pair is \(odd, odd\+1\)/);
-    expect(errorsFor("NAC", "BNA:300")).toMatch(/1-246/);
+    expect(errorsFor("NAC", "BNA:299-300")).toMatch(/1-246/);
     expect(errorsFor("Xyz", "BNAG:Xyz")).toMatch(/not a BNA L2/);
     expect(errorsFor("NAC{shell}", "BNA:223-224/part:HOMBA:10341")).toMatch(/does not match/);
-    expect(errorsFor("NAC(shell;DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+")).toMatch(/does not match/);
+    expect(errorsFor("NAC(shell;DRD1)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+")).toMatch(/does not match/);
+    expect(errorsFor("NAC(shell.DRD1*)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+")).toMatch(/only A-Z a-z 0-9 \. _ ~ - \/ \+/);
   });
 });
 
@@ -158,26 +212,26 @@ const fn = (id: string) => ({ requirement: `req of [U.${id}]`, requirementRealiz
 const empty = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
 const base = { sourceOfId: "[Schultz, 1997]", transmitter: "", modulationType: "", comments: "" };
 const UCS = [
-  { ...base, ...empty, circuitId: "A9/46d@L(L3)", descriptor: "BNA:15/lay:L3", names: "left dorsal 9/46 layer III", roi: "noROI(input)", outputSemantics: "[A9/46d@L(L3)]context;" },
+  { ...base, ...empty, circuitId: "A9/46d(L3.left)", descriptor: "BNA:15-16/lay:L3/side:left", names: "left dorsal 9/46 layer III", roi: "noROI(input)", outputSemantics: "[A9/46d(L3.left)]context;" },
   {
     ...base,
-    ...fn("VTA(DA,out:NAC,rpe)"),
-    circuitId: "VTA(DA,out:NAC,rpe)",
+    ...fn("VTA(DA.out-NAC.rpe)"),
+    circuitId: "VTA(DA.out-NAC.rpe)",
     descriptor: "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe",
     names: "VTA DA neurons",
     roi: "internal",
-    interface: "([U.NAC(shell,DRD1+)]) = VTA(DA,out:NAC,rpe)([U.NAC(shell,DRD1+)])",
-    outputSemantics: "[VTA(DA,out:NAC,rpe)] RPE;",
+    interface: "([U.NAC(shell.DRD1+)]) = VTA(DA.out-NAC.rpe)([U.NAC(shell.DRD1+)])",
+    outputSemantics: "[VTA(DA.out-NAC.rpe)] RPE;",
   },
   {
     ...base,
-    ...fn("NAC(shell,DRD1+)"),
-    circuitId: "NAC(shell,DRD1+)",
+    ...fn("NAC(shell.DRD1+)"),
+    circuitId: "NAC(shell.DRD1+)",
     descriptor: "BNA:223-224/part:HOMBA:10341/mol:DRD1+",
     names: "NAc shell D1",
     roi: "internal",
-    interface: "([U.VTA(DA,out:NAC,rpe)], [U.Arc(AGRP+)]) = NAC(shell,DRD1+)([U.A9/46d@L(L3)], [U.VTA(DA,out:NAC,rpe)])",
-    outputSemantics: "[NAC(shell,DRD1+)] value;",
+    interface: "([U.VTA(DA.out-NAC.rpe)], [U.Arc(AGRP+)]) = NAC(shell.DRD1+)([U.A9/46d(L3.left)], [U.VTA(DA.out-NAC.rpe)])",
+    outputSemantics: "[NAC(shell.DRD1+)] value;",
   },
   { ...base, ...empty, circuitId: "Arc(AGRP+)", descriptor: "HOMBA:10492/mol:AGRP+", names: "arcuate AgRP", roi: "noROI(output)", outputSemantics: "" },
 ];
@@ -196,10 +250,10 @@ const conn = (sender: string, receiver: string) => ({
   pointersOnFigure: "Fig. 1",
 });
 const CONNS = [
-  conn("A9/46d@L(L3)", "NAC(shell,DRD1+)"),
-  conn("VTA(DA,out:NAC,rpe)", "NAC(shell,DRD1+)"),
-  conn("NAC(shell,DRD1+)", "VTA(DA,out:NAC,rpe)"),
-  conn("NAC(shell,DRD1+)", "Arc(AGRP+)"),
+  conn("A9/46d(L3.left)", "NAC(shell.DRD1+)"),
+  conn("VTA(DA.out-NAC.rpe)", "NAC(shell.DRD1+)"),
+  conn("NAC(shell.DRD1+)", "VTA(DA.out-NAC.rpe)"),
+  conn("NAC(shell.DRD1+)", "Arc(AGRP+)"),
 ];
 const BIF = [{ sender: "VTA", receiver: "NAc", comment: "", referenceIds: ["[Schultz, 1997]"] }];
 const REPORT = "# Reward\n\n## HCD\n\nx\n\n## FRG\n\nx\n";
@@ -214,9 +268,9 @@ const hcdFiles = (ucs: unknown[], conns: unknown[]) => ({
 const HCD = hcdFiles(UCS, CONNS);
 const frgFiles = (subnodes: string[]) => ({
   report: REPORT,
-  frg: j({ nodes: [{ id: "R.Reward", subnodes, comment: "TLF", interface: "([U.Arc(AGRP+)]) = R.Reward([U.A9/46d@L(L3)])", requirement: "r", requirementRealization: "rr", capability: "c", mechanism: "m" }] }),
+  frg: j({ nodes: [{ id: "R.Reward", subnodes, comment: "TLF", interface: "([U.Arc(AGRP+)]) = R.Reward([U.A9/46d(L3.left)])", requirement: "r", requirementRealization: "rr", capability: "c", mechanism: "m" }] }),
 });
-const FRG = frgFiles(["U.VTA(DA,out:NAC,rpe)", "U.NAC(shell,DRD1+)"]);
+const FRG = frgFiles(["U.VTA(DA.out-NAC.rpe)", "U.NAC(shell.DRD1+)"]);
 const TEMPLATE = "Contributor,Project ID,List of contributors,Description,BRA version\n,,,,CoBRAC-v1-1\n";
 
 describe("a project named by the convention", () => {
@@ -226,37 +280,37 @@ describe("a project named by the convention", () => {
     expect(hcd.model!.ucs.map((u) => u.descriptor)).toContain("BNA:223-224/part:HOMBA:10341/mol:DRD1+");
     const frg = checkFrg(FRG, hcd.model!);
     expect(frg.errors).toEqual([]);
-    expect(frg.model!.gns[0].subnodes).toEqual(["U.VTA(DA,out:NAC,rpe)", "U.NAC(shell,DRD1+)"]);
+    expect(frg.model!.gns[0].subnodes).toEqual(["U.VTA(DA.out-NAC.rpe)", "U.NAC(shell.DRD1+)"]);
 
     const { files, errors } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
     expect(errors).toEqual([]);
     expect(files!["Circuits.csv"].split("\n")[0]).toBe("Circuit ID,Source of ID,Names,Transmitter,Modulation Type,Comments,UC Descriptor,Sub-Circuits,Uniform");
     const circuits = parseCsvObjects(files!["Circuits.csv"]);
-    expect(circuits.find((c) => c["Circuit ID"] === "NAC(shell,DRD1+)")?.["UC Descriptor"]).toBe("BNA:223-224/part:HOMBA:10341/mol:DRD1+");
+    expect(circuits.find((c) => c["Circuit ID"] === "NAC(shell.DRD1+)")?.["UC Descriptor"]).toBe("BNA:223-224/part:HOMBA:10341/mol:DRD1+");
     const frgRows = parseCsvObjects(files!["FRG.csv"]);
-    expect(frgRows.find((r) => r["Node ID"] === "R.Reward")?.Subnodes).toBe("U.VTA(DA,out:NAC,rpe);U.NAC(shell,DRD1+)");
-    expect(frgRows.find((r) => r["Node ID"] === "U.NAC(shell,DRD1+)")?.["Projected Circuits"]).toBe("VTA(DA,out:NAC,rpe);Arc(AGRP+)");
+    expect(frgRows.find((r) => r["Node ID"] === "R.Reward")?.Subnodes).toBe("U.VTA(DA.out-NAC.rpe);U.NAC(shell.DRD1+)");
+    expect(frgRows.find((r) => r["Node ID"] === "U.NAC(shell.DRD1+)")?.["Projected Circuits"]).toBe("VTA(DA.out-NAC.rpe);Arc(AGRP+)");
 
     const g = buildGraphs("RW", { circuitsCsv: files!["Circuits.csv"], connectionsCsv: files!["Connections.csv"], frgCsv: files!["FRG.csv"] });
-    expect(g.hcd.nodes.map((n) => n.id).sort()).toEqual(["A9/46d@L(L3)", "Arc(AGRP+)", "NAC(shell,DRD1+)", "VTA(DA,out:NAC,rpe)"]);
-    expect(g.hcd.nodes.find((n) => n.id === "VTA(DA,out:NAC,rpe)")?.ucDescriptor).toBe("HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe");
+    expect(g.hcd.nodes.map((n) => n.id).sort()).toEqual(["A9/46d(L3.left)", "Arc(AGRP+)", "NAC(shell.DRD1+)", "VTA(DA.out-NAC.rpe)"]);
+    expect(g.hcd.nodes.find((n) => n.id === "VTA(DA.out-NAC.rpe)")?.ucDescriptor).toBe("HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe");
     expect(g.hcd.edges).toHaveLength(4);
     expect(g.frg.nodes.find((n) => n.id === "R.Reward")?.kind).toBe("tlf");
   });
 
   it("accepts a project whose UCs are all whole SABRA units (anchor only)", () => {
     const rename = (x: string) =>
-      x.replaceAll("A9/46d@L(L3)", "A9/46d@L").replaceAll("VTA(DA,out:NAC,rpe)", "VTA").replaceAll("NAC(shell,DRD1+)", "NAC").replaceAll("Arc(AGRP+)", "Arc");
+      x.replaceAll("A9/46d(L3.left)", "A9/46d(left)").replaceAll("VTA(DA.out-NAC.rpe)", "VTA").replaceAll("NAC(shell.DRD1+)", "NAC").replaceAll("Arc(AGRP+)", "Arc");
     const ucs = (JSON.parse(rename(j(UCS))) as { descriptor: string }[]).map((u, i) => ({
       ...u,
-      descriptor: ["BNA:15", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i],
+      descriptor: ["BNA:15-16/side:left", "HOMBA:12261", "BNA:223-224", "HOMBA:10492"][i],
       names: ["left dorsal area 9/46", "ventral tegmental area; VTA", "nucleus accumbens", "arcuate nucleus"][i],
       sourceOfId: ["BNA", "DHBA", "BNA", "DHBA"][i],
     }));
     const hcd = checkHcd(hcdFiles(ucs, JSON.parse(rename(j(CONNS)))), { sabra: SABRA });
     expect(hcd.errors).toEqual([]);
     expect(hcd.model!.ucs.map((u) => [u.id, u.descriptor])).toEqual([
-      ["A9/46d@L", "BNA:15"],
+      ["A9/46d(left)", "BNA:15-16/side:left"],
       ["VTA", "HOMBA:12261"],
       ["NAC", "BNA:223-224"],
       ["Arc", "HOMBA:10492"],
@@ -266,7 +320,7 @@ describe("a project named by the convention", () => {
     const { files } = buildCsvs(hcd.model!, frg.model!, { projectId: "RW", contributor: "T", projectTemplate: TEMPLATE });
     expect(parseCsvObjects(files!["Circuits.csv"]).map((c) => [c["UC Descriptor"], c["Source of ID"]])).toEqual([
       ["", "collection"],
-      ["BNA:15", "BNA"],
+      ["BNA:15-16/side:left", "BNA"],
       ["HOMBA:12261", "DHBA"],
       ["BNA:223-224", "BNA"],
       ["HOMBA:10492", "DHBA"],
@@ -280,10 +334,10 @@ describe("a project named by the convention", () => {
   it("reports naming problems and an interface that names another UC", () => {
     const ucs = structuredClone(UCS);
     ucs[3].descriptor = "HOMBA:10492/mol:AGRP";
-    ucs[1].interface = "([U.NAC(shell,DRD1+)]) = VTA([U.NAC(shell,DRD1+)])";
+    ucs[1].interface = "([U.NAC(shell.DRD1+)]) = VTA([U.NAC(shell.DRD1+)])";
     const msg = checkHcd(hcdFiles(ucs, CONNS), { sabra: SABRA }).errors.join("\n");
     expect(msg).toMatch(/mol value `AGRP` needs a polarity/);
-    expect(msg).toMatch(/interface of `VTA\(DA,out:NAC,rpe\)` names `VTA`/);
+    expect(msg).toMatch(/interface of `VTA\(DA\.out-NAC\.rpe\)` names `VTA`/);
   });
 
   it("always enforces the convention", () => {

@@ -4,6 +4,7 @@
  * in `{P}/cross_check.json` without sending it back to the agent yet (record-only).
  */
 import { parseInterface, type FrgModel, type GnRow, type HcdModel } from "./harness.js";
+import { parseUcDescriptor } from "./ucNaming.js";
 
 export const CROSS_CODES = ["X1", "X2", "X3", "X4", "X5", "X6", "X8", "X9"] as const;
 export type CrossCode = (typeof CROSS_CODES)[number];
@@ -233,7 +234,8 @@ export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
   for (const u of hcd.ucs) {
     if (u.roi !== "roi" || !u.descriptor) continue;
     const anchor = u.descriptor.split("/")[0];
-    const faceted = u.descriptor.includes("/");
+    const parsed = parseUcDescriptor(u.descriptor);
+    const faceted = "errors" in parsed ? u.descriptor.includes("/") : parsed.descriptor.facets.length > 0;
     if (anchor.includes("&")) add("X9", u.id, `[U.${u.id}] spans several SABRA units (${u.descriptor}); check whether the literature separates them into UCs`);
     else if (anchor.startsWith("BNAG:") && !faceted)
       add("X9", u.id, `[U.${u.id}] is a whole gyrus-level BNA group (${u.descriptor}); check whether its BNA areas (or parts) have different inputs, outputs or Output Semantics`);

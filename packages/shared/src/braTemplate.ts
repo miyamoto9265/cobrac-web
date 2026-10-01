@@ -17,7 +17,7 @@ import { OUT_OF_ROI_CAPABILITY, roiCircuitId } from "./bra.js";
 import { parseCsv } from "./csv.js";
 import type { RefRow } from "./harness.js";
 import { normalizeDoi, normalizePmid, parseRefId, type RefCheck } from "./references.js";
-import { parseCircuitId, parseUcDescriptor } from "./ucNaming.js";
+import { parseCircuitId, parseUcDescriptor, sabraAbbr } from "./ucNaming.js";
 import {
   cellFormula,
   cellText,
@@ -205,7 +205,7 @@ function dhbaCells(id: string, sourceOfId: string, descriptor: string, terms: Ma
     if (anchors.length !== 1) return empty("several anchors");
     anchorOnly = d.descriptor.facets.length === 0;
   } else if (sourceOfId !== "DHBA") return empty();
-  const term = terms.get(head);
+  const term = terms.get(head) ?? [...terms].find(([acronym]) => sabraAbbr(acronym) === head)?.[1];
   if (!term) return empty(`DHBA acronym ${head} not in the template`);
   if (anchorOnly) return { graphOrder: term.graphOrder, name: term.name, levels: term.levels };
   const n = (seq.get(head) ?? 0) + 1;

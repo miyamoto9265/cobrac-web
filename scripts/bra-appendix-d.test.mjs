@@ -124,15 +124,15 @@ test("a v0-style folder violates Source of ID, Reference ID, Pointers, Literatur
     csv([
       ["Circuit ID", "Source of ID", "Names", "Transmitter", "Modulation Type", "Comments"],
       ["Broca", "[A, 2001]; [B, 2002]", "Broca's area (IFG pars opercularis)", "Glutamate", "Excitatory", ""],
-      ["A9/46d", "[A, 2001]", "dorsal area 9/46", "Glutamate", "Excitatory", ""],
+      ["A9/46d@L", "[A, 2001]", "dorsal area 9/46", "Glutamate", "Excitatory", ""],
     ]),
   );
   writeFileSync(
     join(dir, "X_connections.csv"),
     csv([
       ["Sender Circuit ID (sCID)", "Receiver Circuit ID (rCID)", "Comments", "Reference ID", "Taxon", "Measurement method", "Pointers on literature", "Pointers on figure"],
-      ["Broca", "A9/46d", "", "[A, 2001]; [B, 2002]", "Human", "DTI", "p.1594", "A 2001 schematic"],
-      ["A9/46d", "Ghost", "", "", "Human", "fMRI", "", ""],
+      ["Broca", "A9/46d@L", "", "[A, 2001]; [B, 2002]", "Human", "DTI", "p.1594", "A 2001 schematic"],
+      ["A9/46d@L", "Ghost", "", "", "Human", "fMRI", "", ""],
     ]),
   );
   writeFileSync(
@@ -141,7 +141,7 @@ test("a v0-style folder violates Source of ID, Reference ID, Pointers, Literatur
       ["Node ID", "Subnodes", "Circuit ID", "Projected Circuits", "Capability", "Mechanism", "Implementation of Uniform Circuit", "Requirements Realization by Interface", "Requirements", "Output Semantics", "Comments"],
       ["R.Top", "R.Sub", "", "", "c", "", "", "", "", "", ""],
       ["R.Sub", "R.Top", "Broca", "R.Top", "c", "", "", "", "", "", ""],
-      ["U.Broca", "", "Broca", "A9/46d", "", "", "", "", "", "[Broca]plan", ""],
+      ["U.Broca", "", "Broca", "A9/46d@L", "", "", "", "", "", "[Broca]plan", ""],
     ]),
   );
   const s = status(checkBra(loadBra(dir)));
@@ -177,6 +177,12 @@ test("Circuit IDs with commas stay whole in Projected Circuits; N/A pointers cou
   let s = status(checkBra(loadBra(dir)));
   assert.equal(s[430], "ok");
   assert.equal(s["cobrac:circuit-id-chars"], "violation");
+  for (const name of ["Circuits.csv", "Connections.csv", "FRG.csv", "Project.csv"]) {
+    const rows = loadBra(dir).sheets[name.replace(".csv", "")].map((r) => r.map((c) => c.replace("A44d(L3,pyr)", "A9/46d(L3.DRD1+.left)")));
+    writeFileSync(join(dir, name), csv(rows));
+  }
+  s = status(checkBra(loadBra(dir)));
+  assert.equal(s["cobrac:circuit-id-chars"], "ok");
   const conn = loadBra(dir).sheets.Connections;
   conn[1][6] = "N/A";
   conn[1][7] = "N/A";
