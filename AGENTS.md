@@ -10,7 +10,7 @@ package.json        npm workspaces。version がアプリ全体の版番号（�
 CHANGELOG.md        リリースノート（Keep a Changelog 形式）
 scripts/release.mjs 版番号更新・CHANGELOG 確定・git tag
 scripts/retain-guard.mjs  CI デプロイ前の RETAIN ガード（cdk diff の置換・削除検知）
-scripts/bra-appendix-d.mjs BRA 出力（xlsx / CSV フォルダ）を付録D のエラーコードごとに判定し、CoBRAC の担保方法を併記する（担保の表 ENFORCEMENT は検証器を変えたら直す）
+scripts/bra-appendix-d.mjs BRA 出力（xlsx / CSV フォルダ）を BRA のエラーコード（Error code List (Master)。Master に無い検査は `cobrac:` のローカルコード、旧来の付録D の番号は `appendixD` に残す）ごとに判定し、CoBRAC の担保方法を併記する（担保の表 ENFORCEMENT は検証器を変えたら直す）
 .github/workflows/  ci.yml（PR 用。AWS 認証なし）・deploy.yml（main 用。OIDC で cdk deploy）
 prompts/            エージェント共通ルール（AGENTS.md）、フェーズ仕様（phases/）、Project.csv テンプレート、csv_to_excel.py、公式テンプレート templates/Template-v2-2.bra.xlsx（Template-v2-2 形式の出力の土台。手で編集しない）
 packages/shared     型・CSV パーサ・グラフ JSON・単価表（pricing.ts）

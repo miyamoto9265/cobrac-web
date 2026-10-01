@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { CODES, ENFORCEMENT, checkBra, loadBra, parseCsv, parseOutputSemantics, readXlsx } from "./bra-appendix-d.mjs";
+import { APPENDIX_D_TO_CODES, CODES, ENFORCEMENT, checkBra, loadBra, parseCsv, parseOutputSemantics, readXlsx } from "./bra-appendix-d.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const csv = (rows) => rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\r\n") + "\r\n";
@@ -82,9 +82,30 @@ function zip(entries) {
 
 const status = (r) => Object.fromEntries(r.codes.map((c) => [c.code, c.status]));
 
-test("every Appendix D code has an enforcement entry", () => {
-  assert.equal(CODES.length, 32);
-  for (const [code] of CODES) assert.ok(ENFORCEMENT[code], `missing enforcement for ${code}`);
+test("every code has an enforcement entry; local codes are marked cobrac:", () => {
+  assert.equal(CODES.length, 42);
+  assert.equal(new Set(CODES.map(([code]) => code)).size, CODES.length);
+  for (const [code] of CODES) {
+    assert.ok(ENFORCEMENT[code], `missing enforcement for ${code}`);
+    assert.ok(Number.isInteger(code) || /^cobrac:[a-z-]+$/.test(code), `code ${code}`);
+  }
+});
+
+test("Appendix D numbers that differ from the Master map to the Master or local codes", () => {
+  assert.deepEqual(APPENDIX_D_TO_CODES[205], [203]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[128], [120]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[129], ["cobrac:uc-no-sub-circuits"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[14], ["cobrac:ref-id-unique"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[104], ["cobrac:circuit-id-chars"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[415], [402, 403, "cobrac:u-node-circuit"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[416], ["cobrac:node-id-unique"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[418], [430]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[420], [424]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[421], ["cobrac:gn-no-circuit-id"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[430], [562, 563]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[440], ["cobrac:capability-required"]);
+  assert.deepEqual(APPENDIX_D_TO_CODES[445], ["cobrac:frg-acyclic"]);
+  for (const gone of [14, 104, 129, 205, 415, 416, 418, 440, 445]) assert.ok(!CODES.some(([code]) => code === gone), `${gone} is not a code any more`);
 });
 
 test("a conforming CoBRAC-v1-1 folder has no violation", () => {
@@ -124,11 +145,13 @@ test("a v0-style folder violates Source of ID, Reference ID, Pointers, Literatur
     ]),
   );
   const s = status(checkBra(loadBra(dir)));
-  for (const code of [1, 2, 10, 14, 104, 108, 205, 224, 252, 271, 277, 418, 421, 430, 440, 445]) assert.equal(s[code], code === 205 ? "suspect" : "violation", `code ${code}`);
-  for (const code of [101, 103, 107, 127, 128, 129, 201, 202, 219, 415, 416, 420]) assert.equal(s[code], "ok", `code ${code}`);
+  const violated = [1, 2, 10, "cobrac:ref-id-unique", "cobrac:circuit-id-chars", 108, 224, 252, 253, 271, 272, 277, 278, 421, 430, 562, "cobrac:gn-no-circuit-id", "cobrac:capability-required", "cobrac:frg-acyclic"];
+  for (const code of violated) assert.equal(s[code], "violation", `code ${code}`);
+  assert.equal(s[203], "suspect");
+  for (const code of [3, 101, 103, 107, 120, 121, 127, "cobrac:uc-no-sub-circuits", 201, 202, 219, 402, 403, "cobrac:u-node-circuit", "cobrac:node-id-unique", 420, 424, 563]) assert.equal(s[code], "ok", `code ${code}`);
 });
 
-test("BNA as Source of ID is reported as a CoBRAC extension, a Collection sender as 205", () => {
+test("BNA as Source of ID is reported as a CoBRAC extension, a Collection sender as 203", () => {
   const dir = conformingFolder();
   writeFileSync(
     join(dir, "Circuits.csv"),
@@ -141,8 +164,8 @@ test("BNA as Source of ID is reported as a CoBRAC extension, a Collection sender
   );
   const s = status(checkBra(loadBra(dir)));
   assert.equal(s[108], "extension");
-  assert.equal(s[205], "violation");
-  assert.equal(s[128], "violation");
+  assert.equal(s[203], "violation");
+  assert.equal(s[120], "violation");
 });
 
 test("Circuit IDs with commas stay whole in Projected Circuits; N/A pointers count as empty", () => {
@@ -152,8 +175,8 @@ test("Circuit IDs with commas stay whole in Projected Circuits; N/A pointers cou
     writeFileSync(join(dir, name), csv(rows));
   }
   let s = status(checkBra(loadBra(dir)));
-  assert.equal(s[418], "ok");
-  assert.equal(s[104], "violation");
+  assert.equal(s[430], "ok");
+  assert.equal(s["cobrac:circuit-id-chars"], "violation");
   const conn = loadBra(dir).sheets.Connections;
   conn[1][6] = "N/A";
   conn[1][7] = "N/A";
@@ -162,7 +185,7 @@ test("Circuit IDs with commas stay whole in Projected Circuits; N/A pointers cou
   assert.equal(r.codes.find((c) => c.code === 271).note, "literature と figure の両方が空");
 });
 
-test("a whole cortical BNA gyrus as sender is a 205 suspect; template-style Reference IDs without brackets match", () => {
+test("a whole cortical BNA gyrus as sender is a 203 suspect; template-style Reference IDs without brackets match", () => {
   const dir = conformingFolder();
   const cir = loadBra(dir).sheets.Circuits.map((r) => r.map((c) => (c === "BNA:31/lay:L3" ? "BNAG:IFG@L" : c)));
   writeFileSync(join(dir, "Circuits.csv"), csv(cir));
@@ -172,8 +195,9 @@ test("a whole cortical BNA gyrus as sender is a 205 suspect; template-style Refe
   conn[1][3] = "Catani et al., 2005";
   writeFileSync(join(dir, "Connections.csv"), csv(conn));
   const s = status(checkBra(loadBra(dir)));
-  assert.equal(s[205], "suspect");
+  assert.equal(s[203], "suspect");
   assert.equal(s[252], "ok");
+  assert.equal(s[253], "ok");
 });
 
 test("reads the same result from an xlsx", () => {
@@ -204,5 +228,5 @@ test("parsers", () => {
 test("CLI prints the report and exits 0", () => {
   const r = spawnSync(process.execPath, [join(here, "bra-appendix-d.mjs"), conformingFolder()], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /集計（32 コード）: 違反 0/);
+  assert.match(r.stdout, /集計（42 コード）: 違反 0/);
 });
