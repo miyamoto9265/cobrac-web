@@ -33,7 +33,7 @@ Facts for the summary table: project `{NAME}`, Project ID `{P}`, data revision {
 2. Right after the title, a two-column summary table (header row `| Item | Content |` in {LANG}; Japanese `| 項目 | 内容 |`) with the rows: Document (what the article explains), Readers, Data (the project name, Project ID, revision and model above), Related (the HCD graph, the FRG graph and the tables of this project, on the same project page).
 3. Then `---` and numbered `##` sections, with `---` between sections. Use `### N.M` subsections where a section has several parts. Use these sections in this order (headings in {LANG}); add one when the data needs it (for example for Collections), and leave out a subsection that has nothing to say:
    1. **In short** — two or three paragraphs: what the region does for the function, the main route of information from the inputs (ROI_Input) to the outputs (ROI_Output), and how the FRG divides the function. Embed the circuit figure here.
-   2. **Terms** — a table `Term | Meaning`: ROI, TLF, HCD, FRG, UC, GN, ROI_Input / ROI_Output, and the domain terms the article uses (transmitters, receptor types or cell types that appear in Circuit IDs).
+   2. **Terms** — a table `Term | Meaning`: ROI, TLF, HCD, FRG, UC, GN, ROI_Input / ROI_Output, and the domain terms the article uses (transmitters, receptor types or cell types that appear in Circuit IDs). Spell the BRA terms out exactly as: ROI = region of interest, TLF = top-level function, HCD = hypothetical component diagram, FRG = function realization graph, UC = uniform circuit, GN = group node.
    3. **The region and the function** — what the ROI and the TLF are and why this region; a table of the inputs and outputs of the ROI (circuit, what it sends or receives, Reference IDs).
    4. **Circuits and connections (HCD)** — the UCs and their roles (a table `Circuit ID | Role | Main inputs | Main outputs`), then the information flow along the connections in subsections, following the circuit figure.
    5. **How the FRG decomposes the function** — the FRG figure, then each GN: what it computes, its UCs, and how its interface follows from the UCs (a table or one `###` per GN).
@@ -51,7 +51,7 @@ The worker drew these figures from the BRA data, each in a wide version and a on
 {FIGURES}
 
 - Embed each of them exactly once, on its own line, where the text explains it: `![<one sentence on what the figure shows>](./figures/<name>.svg "<caption>")`. Number the captions in order of appearance (Japanese: `図 1　<title>` with a full-width space; English: `Figure 1. <title>`).
-- Tell the reader in the text what to look at in each figure. Describe only what the figure shows.
+- Tell the reader in the text what to look at in each figure. Describe only what the figure shows, and refer to its parts by their labels (the input band, the ROI band, a GN's card), not by position: the phone version arranges them differently.
 - Only when an important point cannot be shown with these figures (for example the computation inside one UC given by its `implementation`), you may draw up to 2 figures of your own as SVG files `{P}/article/figures/<name>.svg` (kebab-case name, at most 880 px wide; optionally `<name>.narrow.svg`, 430 px wide, for phones) and embed them the same way. Use only shapes, text and arrows: no scripts, styles, links, images or external fonts. Draw only what the data contains. Most articles need none.
 
 ## Format

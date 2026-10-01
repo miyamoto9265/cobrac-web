@@ -524,7 +524,7 @@ function circuitFigure(hcd: HcdGraph, roiName: string, L: Labels, lang: string):
     narrow: vertical(NARROW_W),
     title: L.circuitTitle,
     summary:
-      "All circuits of the HCD and every connection between them: inputs to the ROI on the left, the ROI circuits in the middle (ordered along the forward connections), outputs on the right; " +
+      "All circuits of the HCD and every connection between them, in three labelled bands: inputs to the ROI, the ROI circuits (in layers along the forward connections) and outputs of the ROI; " +
       "arrow colour and head show the sign (excitatory / inhibitory / modulatory / not stated), each box shows the Circuit ID and its transmitter.",
   };
 }
