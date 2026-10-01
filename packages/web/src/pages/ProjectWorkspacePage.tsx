@@ -1,4 +1,4 @@
-import { BookOpen, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, MessageSquare, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
@@ -12,6 +12,7 @@ import { PipelineProgress } from "../components/PipelineProgress";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
+import { AgentPanel } from "../components/workspace/AgentPanel";
 import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
 import { ProjectMaterials } from "../components/workspace/ProjectMaterials";
@@ -22,7 +23,6 @@ import { isActive } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
 import { useProjectSocket } from "../lib/ws";
-import { ProjectChatPanel } from "./ChatPage";
 import { publicProjectPath } from "./ExplorePage";
 import { FrgGraphPage } from "./FrgGraphPage";
 import { HcdGraphPage } from "./HcdGraphPage";
@@ -48,7 +48,7 @@ export function LegacyChatRedirect() {
   return <Navigate to={`${workspacePath(projectId)}${search}${hash}`} replace />;
 }
 
-/** Project workspace: artifacts in the centre, chat in the right sidebar. `/projects/:projectId/:view?` */
+/** Project workspace: artifacts in the centre, the agent panel in the right sidebar. `/projects/:projectId/:view?` */
 export function ProjectWorkspacePage() {
   const { projectId = "" } = useParams();
   return <Workspace key={projectId} projectId={projectId} />;
@@ -260,7 +260,7 @@ function Workspace({ projectId }: { projectId: string }) {
                   data-testid="xlsx-download"
                   onClick={() => void download(available.xlsx!.key)}
                   title={`${t("ws.xlsxTip")}: ${braDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
-                  className="flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 coarse:min-h-11"
+                  className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 coarse:min-h-11"
                 >
                   <Download size={14} /> BRA xlsx
                 </button>
@@ -380,7 +380,7 @@ function Workspace({ projectId }: { projectId: string }) {
           <div className="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 sm:px-4">
             <span className="flex-1">{t("ws.question")}</span>
             <button onClick={() => chat.setOpen(true)} className="flex items-center gap-1 rounded-md bg-amber-600 px-2.5 py-1 font-medium text-white hover:bg-amber-700 coarse:min-h-11">
-              <MessageSquare size={13} /> {t("ws.answer")}
+              <Bot size={13} /> {t("ws.answer")}
             </button>
           </div>
         )}
@@ -388,8 +388,8 @@ function Workspace({ projectId }: { projectId: string }) {
         <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
       </div>
 
-      <ChatDock state={chat} attention={waiting}>
-        <ProjectChatPanel projectId={projectId} project={project} messages={messages} busy={busy} err={err} act={act} />
+      <ChatDock state={chat} attention={waiting} working={active && !waiting}>
+        <AgentPanel projectId={projectId} project={project} messages={messages} busy={busy} err={err} act={act} />
       </ChatDock>
     </div>
   );
@@ -405,7 +405,7 @@ function EmptyState({ project, jobs, pending = false, showChatButton, onOpenChat
       <PipelineProgress project={project} jobs={jobs} center className="max-w-full" />
       {showChatButton && (
         <button onClick={onOpenChat} className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
-          <MessageSquare size={15} /> {t("ws.openChat")}
+          <Bot size={15} /> {t("ws.openAgent")}
         </button>
       )}
     </div>

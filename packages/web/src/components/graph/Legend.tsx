@@ -2,6 +2,8 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { EdgeSign } from "@cobrac/shared";
 import { useT } from "../../i18n";
+import { edgeColor, nodeFill } from "../../lib/graphTheme";
+import { useDark } from "../../lib/theme";
 
 export interface LegendItem {
   color: string;
@@ -13,7 +15,8 @@ export interface LegendItem {
   shape?: "rect" | "pill";
 }
 
-export function EdgeGlyph({ color, sign }: { color: string; sign?: EdgeSign }) {
+export function EdgeGlyph({ color: raw, sign }: { color: string; sign?: EdgeSign }) {
+  const color = edgeColor(raw, useDark());
   return (
     <svg width={26} height={12} className="shrink-0" aria-hidden>
       <path d="M0,6 L16,6" stroke={color} strokeWidth={1.8} strokeDasharray={sign === "modulatory" ? "3 2" : undefined} />
@@ -22,9 +25,10 @@ export function EdgeGlyph({ color, sign }: { color: string; sign?: EdgeSign }) {
   );
 }
 
-export function NodeGlyph({ color, accent, shape }: { color: string; accent?: string; shape?: "rect" | "pill" }) {
+export function NodeGlyph({ color: raw, accent, shape }: { color: string; accent?: string; shape?: "rect" | "pill" }) {
+  const color = nodeFill(raw, useDark());
   return (
-    <span aria-hidden className={`relative inline-block h-3.5 w-6 shrink-0 overflow-hidden border border-black/15 ${shape === "pill" ? "rounded-full" : "rounded-sm"}`} style={{ background: color }}>
+    <span aria-hidden className={`relative inline-block h-3.5 w-6 shrink-0 overflow-hidden border border-black/15 dark:border-white/20 ${shape === "pill" ? "rounded-full" : "rounded-sm"}`} style={{ background: color }}>
       {accent && shape !== "pill" && <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: accent }} />}
     </span>
   );

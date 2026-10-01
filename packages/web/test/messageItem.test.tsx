@@ -41,14 +41,30 @@ describe("MessageItem", () => {
     const warning = "Model metadata for `gpt-x` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.";
     const el = await render(msg("agent", "status", warning, { kind: "codexWarning" }));
     expect(el.textContent).toContain(warning);
-    expect(el.textContent).not.toContain("Error");
-    expect(el.querySelector(".bg-slate-100")).not.toBeNull();
-    expect(el.querySelector(".bg-rose-50")).toBeNull();
+    expect(el.querySelector('[data-kind="notice"]')?.getAttribute("data-tone")).toBe("neutral");
   });
 
   it("still shows real errors as errors", async () => {
     const el = await render(msg("agent", "error", "Turn failed: invalid_request_error"));
-    expect(el.textContent).toContain("Error");
     expect(el.textContent).toContain("Turn failed: invalid_request_error");
+    expect(el.querySelector('[data-kind="notice"]')?.getAttribute("data-tone")).toBe("error");
+  });
+
+  it("marks finished steps as done", async () => {
+    const el = await render(msg("system", "status", "Step HCD completed.", { i18n: "sys.stepDone", step: "HCD", stepDone: "HCD" }));
+    expect(el.querySelector('[data-kind="notice"]')?.getAttribute("data-tone")).toBe("done");
+  });
+
+  it("renders agent answers as plain prose, without a bubble or avatar", async () => {
+    const el = await render(msg("agent", "agent_message", "Done. **6 circuits**"));
+    const answer = el.querySelector('[data-kind="answer"]')!;
+    expect(answer.querySelector("strong")?.textContent).toBe("6 circuits");
+    expect(answer.querySelector(".rounded-2xl")).toBeNull();
+  });
+
+  it("labels the user's prompts by kind", async () => {
+    const el = await render(msg("user", "prompt", "Option 1 please", { kind: "answer" }));
+    expect(el.querySelector('[data-kind="prompt"]')?.textContent).toContain("Answer");
+    expect(el.textContent).toContain("Option 1 please");
   });
 });

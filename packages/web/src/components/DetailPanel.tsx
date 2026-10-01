@@ -1,6 +1,8 @@
 import { X } from "lucide-react";
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { useT } from "../i18n";
+import { inkOn, nodeFill } from "../lib/graphTheme";
+import { useDark } from "../lib/theme";
 
 /** Where the graph viewer puts the panel: a column beside the canvas, or a sheet over its lower part. */
 export type DetailPanelMode = "side" | "sheet";
@@ -70,8 +72,10 @@ export function Section({ title }: { title: string }) {
 }
 
 export function Badge({ children, color, text = "#334155" }: { children: ReactNode; color: string; text?: string }) {
+  const dark = useDark();
+  const fill = nodeFill(color, dark);
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-black/5 px-2 py-0.5 text-[10.5px] font-medium" style={{ background: color, color: text }}>
+    <span className="inline-flex items-center gap-1 rounded-full border border-black/5 px-2 py-0.5 text-[10.5px] font-medium dark:border-white/10" style={{ background: fill, color: dark ? inkOn(fill) : text }}>
       {children}
     </span>
   );

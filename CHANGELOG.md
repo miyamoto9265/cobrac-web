@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Dark mode on every screen (create, projects, project workspace with the HCD / FRG viewer, tables, report and articles, docs, Canon, explore, settings, admin and sign-in). It follows the system setting by default; the switch at the bottom of the sidebar (and on the sign-in card) chooses system, light or dark and is remembered in this browser. The page opens in the chosen theme without a light flash
+- In dark mode the graphs keep their colour coding: node fills become dark tints of the same hue with light labels, lines and arrowheads are brightened so they stand out from the dark canvas, and the style panel's swatches show the colour as it will be drawn. Saved layouts are unchanged and look the same as before in light mode
+
+### Changed
+- The project's right-hand panel is now called "Agent" (「エージェント」) instead of "Chat" in all ten languages, because it shows the agent's run and is where you answer its questions and give follow-up instructions
+- The Agent panel reads like a coding agent: the agent's answers are full-width text instead of bubbles, your own prompts are quiet grey blocks labelled request / answer / follow-up, and notices (step done, files ready, usage, errors) are one-line rows with the time. Thoughts and tool calls fold into one activity row with the step count, elapsed time and to-do progress; while the agent works the row is live with the latest step, failed commands are marked red and running ones show a spinner
+- A question from the agent is an amber callout at the end of the log; numbered choices in it are buttons that put the choice in the reply box. The composer at the bottom changes with the project: answer the question, give a follow-up instruction after completion, stop while the agent works, or retry after a failure. Enter sends and Shift+Enter adds a line (never while typing with an IME; on touch screens the button sends). When you scroll up, a "new" button brings you back to the latest entry. Explanations moved into the composer's "?"
+- Animations in the panel (the shimmering "Working" label, items sliding in, the pulsing question marker, smooth scrolling) are off when the system asks for reduced motion
+- The green "BRA xlsx" button is a darker green so its white label reaches 4.5:1 contrast
+
 ## [0.15.0] - 2026-10-01
 
 ### Changed

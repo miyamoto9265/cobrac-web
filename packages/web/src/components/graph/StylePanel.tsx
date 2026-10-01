@@ -2,6 +2,8 @@ import { RotateCcw, X } from "lucide-react";
 import type { ArrowHead, EdgeLineType, EdgeSign, EdgeStyle, NodeStyle } from "@cobrac/shared";
 import { ARROW_HEADS, EDGE_LINE_TYPES } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
+import { edgeColor, nodeFill } from "../../lib/graphTheme";
+import { useDark } from "../../lib/theme";
 import type { ResolvedEdgeStyle } from "./StyledEdge";
 
 export const PALETTE = ["#475569", "#94a3b8", "#2563eb", "#0ea5e9", "#059669", "#16a34a", "#ca8a04", "#ea580c", "#dc2626", "#db2777", "#7c3aed", "#0f172a"];
@@ -17,8 +19,11 @@ const shell = (v: StylePanelVariant) =>
     : "w-64 rounded-lg border border-slate-200 bg-white/95 p-3 text-xs shadow-lg backdrop-blur";
 const lbl = "mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-500";
 
-function Swatches({ colors, value, onPick }: { colors: string[]; value: string; onPick: (c: string) => void }) {
+/** Swatches show the colour as it is drawn in the current theme; the stored value is the light-theme colour. */
+function Swatches({ colors, value, onPick, kind }: { colors: string[]; value: string; onPick: (c: string) => void; kind: "edge" | "node" }) {
   const t = useT();
+  const dark = useDark();
+  const shown = (c: string) => (kind === "edge" ? edgeColor(c, dark) : nodeFill(c, dark));
   return (
     <div className="flex flex-wrap items-center gap-1">
       {colors.map((c) => (
@@ -27,7 +32,7 @@ function Swatches({ colors, value, onPick }: { colors: string[]; value: string; 
           type="button"
           onClick={() => onPick(c)}
           className={`h-4 w-4 rounded border coarse:h-8 coarse:w-8 ${value.toLowerCase() === c ? "ring-2 ring-blue-500 ring-offset-1" : "border-black/10"}`}
-          style={{ background: c }}
+          style={{ background: shown(c) }}
           title={c}
         />
       ))}
@@ -119,7 +124,7 @@ export function EdgeStylePanel({ variant = "float", edgeId, sign, resolved, over
 
       <div className="mb-2">
         <span className={lbl}>{t("edge.color")}</span>
-        <Swatches colors={PALETTE} value={resolved.color} onPick={(c) => onChange({ color: c })} />
+        <Swatches kind="edge" colors={PALETTE} value={resolved.color} onPick={(c) => onChange({ color: c })} />
       </div>
 
       <div className="mb-2 grid grid-cols-2 gap-2">
@@ -215,11 +220,11 @@ export function NodeStylePanel({ variant = "float", nodeId, fill, border, overri
       </div>
       <div className="mb-2">
         <span className={lbl}>{t("node.fill")}</span>
-        <Swatches colors={NODE_PALETTE} value={fill} onPick={(c) => onChange({ color: c })} />
+        <Swatches kind="node" colors={NODE_PALETTE} value={fill} onPick={(c) => onChange({ color: c })} />
       </div>
       <div className="mb-2">
         <span className={lbl}>{t("node.border")}</span>
-        <Swatches colors={PALETTE} value={border} onPick={(c) => onChange({ border: c })} />
+        <Swatches kind="edge" colors={PALETTE} value={border} onPick={(c) => onChange({ border: c })} />
       </div>
       <div className="flex flex-wrap gap-1 border-t border-slate-100 pt-2">
         {(override?.width || override?.height) && (

@@ -22,6 +22,8 @@ import type { EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../i18n";
 import { groupBoxes, groupParents, lineage, neighborhood, searchNodes } from "../lib/graphView";
 import type { GraphLayoutController, XY } from "../lib/useGraphLayout";
+import { CANVAS, edgeColor, nodeFill } from "../lib/graphTheme";
+import { useDark } from "../lib/theme";
 import { useElementSize } from "../lib/useElementSize";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { DetailPanelModeContext } from "./DetailPanel";
@@ -191,6 +193,8 @@ function Inner({
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState(false);
   const coarse = useMediaQuery("(pointer: coarse)");
+  const dark = useDark();
+  const canvas = CANVAS[dark ? "dark" : "light"];
   const { width: rootW } = useElementSize(rootRef);
   const measured = rootW > 0;
   const wide = !measured || rootW >= WIDE;
@@ -340,7 +344,8 @@ function Inner({
     };
     const list = edges.map<StyledEdgeType>((e) => {
       const override = L.edges[e.id];
-      const style = resolveEdgeStyle(e.sign, override, e.dashed);
+      const resolved = resolveEdgeStyle(e.sign, override, e.dashed);
+      const style = dark ? { ...resolved, color: edgeColor(resolved.color, true) } : resolved;
       addMarker({ type: style.markerStart, color: style.color, width: style.width });
       addMarker({ type: style.markerEnd, color: style.color, width: style.width });
       const self = e.source === e.target;
@@ -372,7 +377,7 @@ function Inner({
       };
     });
     return { rfEdges: list, markers: [...mk.values()] };
-  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing]);
+  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing, dark]);
 
   // Reconnect = move an edge end to another handle of the *same* node.
   const onReconnect = useCallback(
@@ -497,7 +502,7 @@ function Inner({
       const h = Math.ceil(bounds.height + pad * 2);
       const vp = getViewportForBounds(bounds, w, h, 0.1, 4, pad / Math.max(w, h));
       const url = await toPng(el, {
-        backgroundColor: "#ffffff",
+        backgroundColor: dark ? CANVAS.dark.bg : "#ffffff",
         width: w * scale,
         height: h * scale,
         pixelRatio: 1,
@@ -593,6 +598,7 @@ function Inner({
     <div ref={rootRef} className="relative flex h-full min-h-0 w-full overflow-hidden bg-slate-50" style={{ containerType: "size" }}>
       <div ref={canvasRef} className="relative min-w-0 flex-1">
         <ReactFlow<CanvasNode, StyledEdgeType>
+          colorMode={dark ? "dark" : "light"}
           nodes={rfNodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
@@ -637,7 +643,7 @@ function Inner({
           deleteKeyCode={null}
         >
           <MarkerDefs markers={markers} />
-          <Background gap={snap ? 10 : 24} size={snap ? 1 : 1.2} color={snap ? "#cbd5e1" : "#dbe3ee"} />
+          <Background gap={snap ? 10 : 24} size={snap ? 1 : 1.2} color={snap ? canvas.snapDot : canvas.dot} />
           <Controls showInteractive={false} showFitView={false} position="bottom-right" aria-label={t("graph.zoomControls")} />
           {wide && !stylePanel && (
             <MiniMap
@@ -648,10 +654,10 @@ function Inner({
               nodeColor={(n) => {
                 if (n.type === "group-box") return "transparent";
                 const d = n.data as NodeData;
-                return d.style?.color ?? d.g.accent ?? d.g.color;
+                return d.g.accent && !d.style?.color ? d.g.accent : nodeFill(d.style?.color ?? d.g.color, dark);
               }}
               nodeStrokeWidth={0}
-              maskColor="rgba(241,245,249,0.7)"
+              maskColor={canvas.mask}
               className="!rounded-md !border !border-slate-200 !bg-white"
             />
           )}

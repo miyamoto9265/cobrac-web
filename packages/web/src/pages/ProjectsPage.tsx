@@ -1,4 +1,4 @@
-import { Coins, Download, GitFork, MessageSquare, Network, Search } from "lucide-react";
+import { Coins, Download, FolderOpen, GitFork, Network, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared";
@@ -65,7 +65,7 @@ function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownl
   return (
     <>
       <Link title={t("projects.chat")} aria-label={t("projects.chat")} to={`/projects/${encodeURIComponent(p.projectId)}`} className={cls}>
-        <MessageSquare size={15} />
+        <FolderOpen size={15} />
       </Link>
       {p.hasArtifacts && (
         <>

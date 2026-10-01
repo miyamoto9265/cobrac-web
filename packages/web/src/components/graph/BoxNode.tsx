@@ -2,6 +2,8 @@ import { Handle, NodeResizer, Position, useConnection, useStore, type Node, type
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { memo, type CSSProperties } from "react";
 import type { NodeStyle } from "@cobrac/shared";
+import { CANVAS, edgeColor, inkOn, nodeFill } from "../../lib/graphTheme";
+import { useDark } from "../../lib/theme";
 
 export interface GNode {
   id: string;
@@ -78,8 +80,12 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
   const { g, dim, emphasis, style } = data;
   const connecting = useConnection((c) => c.inProgress);
   const far = useStore((s) => zoomBucket(s.transform[2]));
-  const fill = style?.color ?? g.color;
-  const border = selected ? "#1d4ed8" : style?.border ?? g.border ?? "rgba(15,23,42,0.18)";
+  const dark = useDark();
+  const canvas = CANVAS[dark ? "dark" : "light"];
+  const fill = nodeFill(style?.color ?? g.color, dark);
+  const ink = inkOn(fill);
+  const custom = style?.border ?? g.border;
+  const border = selected ? canvas.selected : custom ? edgeColor(custom, dark) : canvas.nodeBorder;
   const pill = g.shape === "pill";
   return (
     <div
@@ -121,12 +127,16 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
         )),
       )}
       <div
-        className={`w-full break-words font-semibold leading-tight text-slate-900 ${far ? "line-clamp-2 font-sans" : "font-mono"}`}
-        style={{ fontSize: far === 2 ? 22 : far === 1 ? 16 : 12.5, hyphens: "auto" }}
+        className={`w-full break-words font-semibold leading-tight ${far ? "line-clamp-2 font-sans" : "font-mono"}`}
+        style={{ color: ink, fontSize: far === 2 ? 22 : far === 1 ? 16 : 12.5, hyphens: "auto" }}
       >
         {g.label}
       </div>
-      {g.caption && !far && <div className="mt-0.5 w-full truncate text-[10.5px] leading-tight text-slate-600">{g.caption}</div>}
+      {g.caption && !far && (
+        <div className="mt-0.5 w-full truncate text-[10.5px] leading-tight opacity-75" style={{ color: ink }}>
+          {g.caption}
+        </div>
+      )}
       {g.collapse && g.collapse.count > 0 && (
         <button
           type="button"
@@ -134,7 +144,8 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
             e.stopPropagation();
             data.onToggleCollapse?.(id);
           }}
-          className="nodrag absolute bottom-0.5 right-1 flex items-center rounded px-0.5 text-[10px] font-medium text-slate-600 hover:bg-black/5 hover:text-slate-900"
+          className="nodrag absolute bottom-0.5 right-1 flex items-center rounded px-0.5 text-[10px] font-medium opacity-75 hover:bg-black/5 hover:opacity-100 dark:hover:bg-white/10"
+          style={{ color: ink }}
           title={data.collapseLabel}
           aria-label={data.collapseLabel}
           aria-expanded={!g.collapse.collapsed}

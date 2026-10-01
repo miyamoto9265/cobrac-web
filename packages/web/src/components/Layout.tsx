@@ -9,6 +9,7 @@ import { useAuth } from "../lib/auth";
 import { useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { StatusBadge } from "./StatusBadge";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function Layout() {
   const t = useT();
@@ -48,7 +49,7 @@ export function Layout() {
     <div className="flex h-full">
       {navOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden" onClick={() => setNavOpen(false)} aria-hidden />}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none ${
+        className={`theme-static fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none dark:border-r dark:border-slate-800 ${
           navOpen ? "translate-x-0" : "-translate-x-full max-lg:invisible"
         }`}
       >
@@ -116,8 +117,9 @@ export function Layout() {
           <button onClick={() => void doSignOut()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60 coarse:py-3">
             <LogOut size={16} /> {t("nav.signOut")}
           </button>
-          <div className="px-3 pt-1">
+          <div className="flex items-center gap-2 px-3 pt-1">
             <LanguageSelect />
+            <ThemeToggle onDark />
           </div>
           <div className="truncate px-3 pt-1 text-xs text-slate-500">{me?.email}</div>
           <Link to="/docs/CHANGELOG" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
@@ -126,7 +128,7 @@ export function Layout() {
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex shrink-0 items-center gap-1 bg-slate-900 px-1 pt-[env(safe-area-inset-top)] text-slate-100 lg:hidden">
+        <header className="theme-static flex shrink-0 items-center gap-1 bg-slate-900 px-1 pt-[env(safe-area-inset-top)] text-slate-100 lg:hidden">
           <button type="button" data-testid="nav-toggle" onClick={() => setNavOpen(true)} className={iconBtn} aria-label={t("nav.openMenu")} aria-expanded={navOpen} title={t("nav.openMenu")}>
             <Menu size={20} />
           </button>
