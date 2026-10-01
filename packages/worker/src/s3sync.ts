@@ -135,5 +135,6 @@ function contentType(name: string): string {
   if (n.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   if (n.endsWith(".jsonl")) return "application/x-ndjson";
   if (n.endsWith(".txt")) return "text/plain; charset=utf-8";
+  if (n.endsWith(".svg")) return "image/svg+xml";
   return "application/octet-stream";
 }

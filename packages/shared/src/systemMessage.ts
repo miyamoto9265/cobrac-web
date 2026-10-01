@@ -49,6 +49,7 @@ const EXACT: Record<string, string> = {
   "24 時間以内にワーカーを起動できませんでした。": "sys.queueTimeout",
   "No worker could be started within 24 hours.": "sys.queueTimeout",
   "Explanatory articles need a project made with v0.8 or later.": "sys.articleLegacy",
+  "The CSVs of the project could not be read to draw the article figures.": "sys.articleNoGraph",
 };
 
 const STEP_RE = /^(?:ステップ |Step )(HCD|FRG|CSV|XLSX)(?: が完了しました。| completed\.)$/;

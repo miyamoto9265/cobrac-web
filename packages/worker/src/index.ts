@@ -61,6 +61,7 @@ import {
   RESEARCH_FILES,
   REF_STATUSES,
   addUsage,
+  articleFigureKey,
   articleKey,
   articleMetaKey,
   braDownloadFileName,
@@ -79,7 +80,7 @@ import {
   uiLanguageName,
   withReferenceList,
 } from "@cobrac/shared";
-import { articlePrompt, readReferences, runArticle } from "./article.js";
+import { articlePrompt, prepareArticleFigures, readReferences, runArticle } from "./article.js";
 import { createCodex, isRequestTooLarge, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -506,8 +507,14 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
     return;
   }
   const sourceRevision = project.revision ?? 0;
+  const figures = prepareArticleFigures(paths, projectId, locale, project.roi ?? "");
+  if (!figures) {
+    await fail("The CSVs of the project could not be read to draw the article figures.", { i18n: "sys.articleNoGraph" });
+    return;
+  }
 
-  const settings = resolveModelSettings(project);
+  // the model chosen for the article (job), else the project's
+  const settings = resolveModelSettings({ model: job.model || project.model, reasoningEffort: job.reasoningEffort || project.reasoningEffort });
   resolvedModel = settings.model;
   resolvedEffort = settings.reasoningEffort;
   await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
@@ -524,7 +531,8 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
     },
   };
   try {
-    const first = await articlePrompt(env.promptsDir, projectId, locale);
+    const facts = { name: project.name || projectId, revision: sourceRevision, model: project.usedModels?.join(", ") || project.model || "-" };
+    const first = await articlePrompt(env.promptsDir, projectId, locale, facts, figures.generated);
     const notice = harnessPromptNotice(mode, first.shown);
     await putMessage(projectId, jobId, "system", "status", notice.content, { meta: { ...notice.meta, lang: locale } });
     const run = await runArticle(
@@ -532,6 +540,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
         paths,
         locale,
         maxNudges: env.maxNudges,
+        figures,
         turn: async (p) => {
           let turn;
           try {
@@ -563,6 +572,19 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
       return;
     }
     const markdown = withReferenceList(run.markdown, run.check.cited, readReferences(paths), locale);
+    const figureDir = join(env.workDir, ".article-figures", locale);
+    await rm(figureDir, { recursive: true, force: true });
+    await mkdir(figureDir, { recursive: true });
+    const figureFiles: string[] = [];
+    for (const f of run.figures) {
+      await writeFile(join(figureDir, `${f.name}.svg`), f.svg, "utf8");
+      figureFiles.push(`${f.name}.svg`);
+      if (f.narrow) {
+        await writeFile(join(figureDir, `${f.name}.narrow.svg`), f.narrow, "utf8");
+        figureFiles.push(`${f.name}.narrow.svg`);
+      }
+    }
+    await uploadDir(figureDir, `${prefix}${articleFigureKey(locale, "")}`, { deleteMissing: true });
     const meta: ArticleMeta = {
       locale,
       language: lang,
@@ -572,6 +594,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
       jobId,
       model: resolvedModel,
       citedReferences: run.check.cited,
+      figures: figureFiles,
     };
     await putObject(prefix + articleKey(locale), markdown, "text/markdown; charset=utf-8");
     await putObject(prefix + articleMetaKey(locale), JSON.stringify(meta, null, 2) + "\n");

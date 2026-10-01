@@ -320,6 +320,8 @@ export const de: Record<MessageKey, string> = {
   "article.read": "Lesen auf",
   "article.none": "Noch kein Artikel",
   "article.cost": "Dauert einige Minuten und nutzt Ihren OpenAI-API-Schlüssel (die Kosten zählen zur Nutzung dieses Projekts).",
+  "article.model": "Modell",
+  "article.modelDefault": "Wie das Projekt ({model})",
   "sys.articleQueued": "Erklärartikel ({lang}) in die Warteschlange gestellt.",
   "sys.articleStarted": "Erklärartikel wird auf {lang} geschrieben…",
   "sys.articleFix": "Die Prüfung fand {count} Problem(e) im Artikel; der Agent wurde um Korrektur gebeten.",
@@ -329,6 +331,7 @@ export const de: Record<MessageKey, string> = {
   "sys.noApiKey": "Es ist kein OpenAI API-Schlüssel registriert, und Sie sind nicht für den Standard-API-Schlüssel freigegeben.",
   "sys.orgKeyUnavailable": "Es ist kein Standard-API-Schlüssel registriert. Wenden Sie sich an einen Admin.",
   "sys.orgKeyModel": "Das Modell {model} ist mit Tier {tier} des Standard-API-Schlüssels nicht verfügbar.",
+  "sys.articleNoGraph": "Die Abbildungen des Artikels konnten nicht erstellt werden, weil die CSVs des Projekts nicht lesbar waren.",
 
   "admin.denied": "Nur für Admins.",
   "admin.title": "Admin",

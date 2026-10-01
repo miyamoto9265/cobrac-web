@@ -79,6 +79,7 @@ import {
   DEFAULT_KEY_CATALOG_KEY,
   isOrgTier,
   policyAllows,
+  ARTICLE_FIGURE_KEY_RE,
   articleDownloadFileName,
   articleLocaleOfKey,
   articleMetaKey,
@@ -848,7 +849,7 @@ app.get("/projects/:id/artifacts/text", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
   if (!key || key.includes("..") || key.startsWith("thread/")) throw bad("invalid key");
-  if (!/\.(md|csv|txt|json)$/i.test(key)) throw bad("text files only");
+  if (!/\.(md|csv|txt|json)$/i.test(key) && !ARTICLE_FIGURE_KEY_RE.test(key)) throw bad("text files only");
   const text = await getObjectText(u.userId, p.projectId, key);
   if (text === null) throw notFound();
   return c.text(text);
@@ -866,7 +867,9 @@ app.post("/projects/:id/articles", async (c) => {
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
   const locale = body.locale;
   // a model chosen for the article itself, else the project's
-  requireModel(policy, normModel(body.model) || p.model || deploymentDefaultModel());
+  const model = normModel(body.model);
+  if (model && filterCodexModels([model]).length === 0) throw bad("このモデルは解説記事に使えません");
+  requireModel(policy, model || p.model || deploymentDefaultModel());
   const now = nowIso();
   const jobId = newId("job_");
   const job: JobRecord = {
@@ -879,6 +882,8 @@ app.post("/projects/:id/articles", async (c) => {
     instruction: null,
     pendingAnswer: null,
     articleLocale: locale,
+    model,
+    reasoningEffort: null,
     ecsTaskArn: null,
     retryCount: 0,
     lastHeartbeat: null,

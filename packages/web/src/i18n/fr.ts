@@ -320,6 +320,8 @@ export const fr: Record<MessageKey, string> = {
   "article.read": "Lire en",
   "article.none": "Pas encore d’article",
   "article.cost": "Prend quelques minutes et utilise votre clé API OpenAI (le coût s’ajoute à l’usage de ce projet).",
+  "article.model": "Modèle",
+  "article.modelDefault": "Comme le projet ({model})",
   "sys.articleQueued": "Article explicatif ({lang}) en file d’attente.",
   "sys.articleStarted": "Rédaction de l’article explicatif en {lang}…",
   "sys.articleFix": "Les vérifications ont trouvé {count} problème(s) dans l’article ; l’agent a été invité à les corriger.",
@@ -329,6 +331,7 @@ export const fr: Record<MessageKey, string> = {
   "sys.noApiKey": "Aucune clé API OpenAI n’est enregistrée et vous n’êtes pas autorisé à utiliser la clé API par défaut.",
   "sys.orgKeyUnavailable": "Aucune clé API par défaut n’est enregistrée. Contactez un administrateur.",
   "sys.orgKeyModel": "Le modèle {model} n’est pas disponible au Tier {tier} de la clé API par défaut.",
+  "sys.articleNoGraph": "Les figures de l’article n’ont pas pu être dessinées : les CSV du projet sont illisibles.",
 
   "admin.denied": "Réservé aux admins.",
   "admin.title": "Admin",
