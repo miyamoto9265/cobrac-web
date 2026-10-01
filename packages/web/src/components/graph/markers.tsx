@@ -23,7 +23,7 @@ export function markerKey(m: MarkerSpec) {
 }
 
 /** Size of the marker box in px (scaled with stroke width, userSpaceOnUse). */
-function boxSize(width: number) {
+export function markerBoxSize(width: number) {
   return Math.max(8, 7 + width * 2.2);
 }
 
@@ -57,7 +57,7 @@ export function MarkerDefs({ markers }: { markers: MarkerSpec[] }) {
       <defs>
         {markers.map((m) => {
           if (m.type === "none") return null;
-          const s = boxSize(m.width);
+          const s = markerBoxSize(m.width);
           const { el, refX } = shape(m.type, m.color);
           return (
             <marker key={markerId(m)} id={markerId(m)} viewBox="0 0 10 10" markerWidth={s} markerHeight={s} markerUnits="userSpaceOnUse" refX={refX} refY={5} orient="auto-start-reverse">

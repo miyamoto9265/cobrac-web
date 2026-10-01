@@ -581,7 +581,7 @@ export const ja: Record<MessageKey, string> = {
   "cc.C2c": "分解の分け方が違う（部分集合でも上位集合でもない）",
   "cc.C3": "Uniform の回路の隣に、それより細かい回路が入る（粗い方は Collection にする必要がある）",
   "cc.C4": "Circuit ID と UC Descriptor が 1 対 1 でない",
-  "cc.C5": "接続の端が Collection（Sender / Receiver は Uniform に限る。205）",
+  "cc.C5": "接続の端が Collection（Sender / Receiver は Uniform に限る。BRA 203）",
   "cc.C6": "SABRA の正式名が違う",
   "cc.C7": "回路の性質が違う",
   "cc.C8": "同じ Reference ID が別の論文（DOI / PMID）を指している",

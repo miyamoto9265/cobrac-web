@@ -68,7 +68,7 @@ v2 では、① に戻り道と調整ターン、② に後段での再検証、
 | 文献の検査 | ID が `references.json` にあるか | DOI・PMID を Crossref・PubMed で照合し、第一著者・年・題名を確かめる |
 | 引用文（Pointers on literature） | 自由記述（v0 の実例では 2〜6 語の要約） | 論文の原文。全文か抄録と照合する |
 | BRA の値 | Source of ID と Reference ID は連結、relation はいつも `=` | 列挙値、1 行 1 文献、relation と論文上の名前、ROI 行、Review End Line（CoBRAC-v1-1） |
-| 粒度 | UC だけ（Uniform） | Collection。複数の単位にまたがる送り手は理由が要る（205） |
+| 粒度 | UC だけ（Uniform） | Collection。複数の単位にまたがる送り手は理由が要る（203） |
 | xlsx | CoBRAC 形式 1 種類 | CoBRAC-v1-1 と Template-v2-2 形式の 2 種類 |
 | 入力 | ROI・TLF・指示 | ＋参考資料（ファイル・URL）、Canon の定義 |
 | 長いジョブ | レート制限や大きすぎる会話で失敗 | 待って再開、会話の自動圧縮、新しいスレッドで続ける |
@@ -87,7 +87,7 @@ v2 では、① に戻り道と調整ターン、② に後段での再検証、
 | 文献を知識で書き、実在を確かめない | 調査ステップと `lit` ツール、文献の照合 | [4.5](#45-調査ステップと-lit-ツール)、[4.6](#46-文献の照合と引用文の照合) |
 | 引用文が要約で、原文か分からない | 原文の引用に限り、全文か抄録と照合する | [4.6](#46-文献の照合と引用文の照合) |
 | BRA の Review Tool のエラーになる値 | BRA の値の規則（CoBRAC-v1-1） | [4.7](#47-bra-仕様への準拠cobrac-v1-1) |
-| 粗い領域が均一な送り手のまま | Collection と、複数の単位にまたがる送り手の検査 | [4.8](#48-collection-と-uniform205uniformitynote) |
+| 粗い領域が均一な送り手のまま | Collection と、複数の単位にまたがる送り手の検査 | [4.8](#48-collection-と-uniform203uniformitynote) |
 | 公式テンプレートの形で出せない | Template-v2-2 形式の xlsx | [4.9](#49-template-v2-2-形式の-xlsx) |
 | プロジェクトごとに回路の定義がばらばら | Canon の定義を生成時の制約にする | [4.10](#410-canon-の定義を生成時の制約にする) |
 | 手元の資料を渡せない | 参考資料の添付 | [4.11](#411-参考資料の添付) |
@@ -168,17 +168,17 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 
 ### 4.7 BRA 仕様への準拠（CoBRAC-v1-1）
 
-0.10.0 で、BRA Data Preparation Manual と Template-v2-2.bra が定める値を HCD の検査で強制するようにしました（`packages/shared/src/bra.ts`）。BRA の Review Tool のエラー（付録 D のコード 1、10/11、108、252、271/277、430 など）が、作りの上で出ないようにするためです。
+0.10.0 で、BRA Data Preparation Manual と Template-v2-2.bra が定める値を HCD の検査で強制するようにしました（`packages/shared/src/bra.ts`）。BRA の Review Tool のエラー（BRA data Error code List（Master）のコード 1、10/11、108、252/253、271/277、272、278、562 など。この記事は当初オントロジーの付録 D の番号で書いていました。4.8 を参照）が、作りの上で出ないようにするためです。
 
 | 項目 | v1.1 | v2 |
 | ---- | ---- | -- |
 | Source of ID（108） | 支持する文献の一覧 | 1 値。DHBA の語そのものなら `DHBA`、BNA の領域なら `BNA`、細かい UC なら定義した文献 1 件か `makeshift` |
 | Reference ID（252） | 1 つの接続に複数の文献 | 1 行 1 文献。同じ送り手 → 受け手を文献ごとに繰り返し、それぞれに Taxon・計測法・引用文を書く |
 | sCID / rCID relation | いつも `=`、Notation は Circuit ID の写し | UC と論文の回路の関係（`<`・`=`・`>`）と、論文上の名前 |
-| Pointers（271/277） | ページや節、短い要約 | literature は原文の引用（暫定で 10 語以上）、figure は図番号（`Fig. 3B`）。どちらか 1 つは必須 |
+| Pointers（271/277、272、278） | ページや節、短い要約 | literature は原文の引用（10 語以上。272）、figure は図番号（`Fig. 3B`）。どちらか 1 つは必須 |
 | 列挙値 | 自由記述 | Taxon・Measurement method・Transmitter・Modulation Type・Literature type はテンプレートの一覧の値 |
 | 文献 | DOI | Literature type。DOI がなければ Alternative URL か PMID |
-| Output Semantics（430） | 自由 | UC は `[<自分の Circuit ID>] 内容;` の 1 項目。GN にも、子の UC の外向きの項目が入る |
+| Output Semantics（562 / 563） | 自由 | UC は `[<自分の Circuit ID>] 内容;` の 1 項目。GN にも、子の UC の外向きの項目が入る |
 | 名前 | 自由 | Names は SABRA の正式名から始める。機能の記述では `[U.<Circuit ID>]` で組織を指す |
 | ROI 行・Review End Line | なし | Circuits の先頭に `ROI_<Project ID>`。Project に各シートの最後の行 |
 
@@ -187,15 +187,16 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 - xlsx の BRA version は `CoBRAC-v1-1` です。列は末尾に足しただけで、既存の列の位置は変わりません。
 - `BNA`（Source of ID）は CoBRAC の拡張値で、上流に追加を依頼しています。
 
-### 4.8 Collection と Uniform（205・uniformityNote）
+### 4.8 Collection と Uniform（203・uniformityNote）
 
 - **Collection**（0.11.0）。HCD が細かい UC に分けた回路（例：皮質の野を層と細胞種の UC に分けたときの野）を、`uc.json` の `collections` に書きます。Circuits の行では Uniform = FALSE、Sub-Circuits に構成要素、Source of ID は `collection` です。均一かどうかは HCD ごとに決まるので、同じ領域が、粗いプロジェクトでは UC、細かいプロジェクトでは Collection になりえます。
-- **検査**。構成要素がプロジェクトの回路であること、循環がないこと、すべてが `makeshift` でないこと（128）。Collection は接続の送り手にも受け手にもならず（205 より厳しい）、FRG の葉にもなりません。回とその中の野を両方とも UC にしたら、粗い方を `collections` に移すよう求めます（127）。
+- **検査**。構成要素が 1 つ以上あること（120）、プロジェクトの回路であること（121）、循環がなく、すべてが `makeshift` でないこと（`cobrac:collection-members`）。Collection は接続の送り手（203）にも受け手（`cobrac:collection-end`。Master より厳しい）にもならず、FRG の葉にもなりません。回とその中の野を両方とも UC にしたら、粗い方を `collections` に移すよう求めます（`cobrac:nested-uc`）。
+- **コード**。番号は BRA data Error code List（Master）のものです。`cobrac:` は Master にコードの無い CoBRAC の検査です。0.16.0 までは、この記事と検証のメッセージがオントロジーの付録 D の番号 128（Master では 120）、205（Master では 203）、129（Master に無い。いまは `cobrac:uc-no-sub-circuits`）を引いていました。
 - **作る条件の緩和**（0.13.0）。0.11.0 の言語野の実行では、エージェントが「層や細胞種の根拠が文献にない」として Collection を 1 つも作らず、回全体を Uniform の送り手のまま残しました。0.13.0 から、選んだ粒度で解剖学的・機能的に不均一な領域（複数の野を含む回、投射元が分かれる領域）には、層・細胞種の根拠がなくても Collection を作ります。部分は命名し、分ける理由を `comments`（必須）に書きます。
-- **205（新設）**。記述子が複数の SABRA 単位にまたがる送り手（ファセットのない `BNAG:` の回、`&` で結んだ複数のアンカー）は、`uniformityNote` がなければエラーです。直し方は 2 つあり、エラーの文面が示します。
+- **203（新設）**。記述子が複数の SABRA 単位にまたがる送り手（ファセットのない `BNAG:` の回、`&` で結んだ複数のアンカー）は、`uniformityNote` がなければエラーです。直し方は 2 つあり、エラーの文面が示します。
   - 部分（野など）の UC に分け、必要なら Collection にまとめる。回全体しか報告していない文献は、relation `<` で使う。
   - この HCD で本当に 1 つの集団として扱うなら、その理由を `uniformityNote` に書く（Circuits の Comments に `Uniform in this project: …` として出ます）。
-- 単一の野、左右のペア、ファセット付きの UC、受け手にしかならない UC は 205 の対象外です。
+- 単一の野、左右のペア、ファセット付きの UC、受け手にしかならない UC は 203 の対象外です。
 - HCD のグラフは Collection を UC を囲む破線の箱で描き、表示・非表示を切り替えられます。
 
 ### 4.9 Template-v2-2 形式の xlsx
@@ -292,7 +293,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 
 ![調査ステップは v2 だけで 3,621 トークン。HCD は v1.1 の 4,915 から v2 の 8,145（調査モードでは +1,786）。FRG は 5,979 から 9,506（調査モードでは +1,786）。増えた分の大半は HCD.md と AGENTS.md](./figures/harness-v2-instruction-tokens.ja.svg "図 8　各段で、リクエストのたびに文脈に載っている指示の量（v1.1 と v2）")
 
-- `HCD.md` の増分（+2,300）は、BRA の値の規則（Source of ID、relation と表記、1 行 1 文献、引用文、列挙値）と、Collection・205・`uniformityNote` です。`FRG.md` の増分（+297）は戻り道です。
+- `HCD.md` の増分（+2,300）は、BRA の値の規則（Source of ID、relation と表記、1 行 1 文献、引用文、列挙値）と、Collection・203・`uniformityNote` です。`FRG.md` の増分（+297）は戻り道です。
 - `AGENTS.md` の増分（+930）は、文献ツールと原文の引用の規則、参考資料、revisions 節の書き方、ワーカーが書くファイルの説明、返信の言語です。
 - Canon の注記（`canon/` がある実行だけ）と、調整ターンのプロンプト（X1〜X3・X8 があるときだけ）は、この表に含めていません。
 
@@ -331,7 +332,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 | Spot 中断でターンの途中の作業が消える | 作業場所を S3 に保存するのは、フェーズの受理・質問・完了・失敗のときだけ | 試行では 15 分ぶんの作業を失い、中断の検出にも 27 分かかった。ターンの途中の保存と、早い検出が要る |
 | 失敗したターンの費用 | 失敗で終わったターン（`turn.failed`）は、セッション記録に残るスレッドの累計から使用量を記録する。時間切れや取消で打ち切ったターンと、`codex exec` が理由を返さずに落ちたターンは記録されない | 打ち切ったターンも、次の実行の前にセッション記録から数えるか |
 | 複製と調査モード | 複製したプロジェクトは調査モードの設定を引き継がない | 試行の仕上げのジョブには、調査モードの注記が付かなかった |
-| 上流への依頼 | Circuit ID の `@`（104、U11）、Source of ID の `BNA`（108、U9）、Template-v2-2 に UC Descriptor の置き場所がない（U21） | 回答待ち。それまで Review Tool はこれらを違反として示しうる |
+| 上流への依頼 | Circuit ID の `@`（Master にコードなし。`cobrac:circuit-id-chars`、U11）、Source of ID の `BNA`（108、U9）、Template-v2-2 に UC Descriptor の置き場所がない（U21） | 回答待ち。それまで Review Tool はこれらを違反として示しうる |
 | Template-v2-2 の数式の値 | テンプレートの数式は、Excel で開いたときに再計算する（`fullCalcOnLoad`） | 再計算しない読み手（スクリプト、Review Tool の取り込み）には、Capability などが `!! Error !!` に見える |
 | 同じ引用文の使い回し | 0.11.0 の言語野で 3 組・6 行。1 つの引用文が複数の経路をまとめて述べている | 手動審査（274）で指摘されうる。接続ごとの文か図番号を求めるかを検討する |
 | 文献ツールの本番での成功率 | 0.12.0 の再試行とフォールバックの後、本番ではまだ測っていない | 次の調査モードの実行で、`find_sentences` と `search_europepmc` の成否を見る |
@@ -341,7 +342,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 ## 8. 互換性
 
 - xlsx の BRA version は `CoBRAC-v1-1` です（0.10.0 から）。列は末尾に足しただけで、`CoBRAC-v1-0` の列の位置は変わりません。グラフは v1-0 と v1-1 の CSV を同じように読みます。
-- 0.9 以前に作ったプロジェクトは、次のフォローアップで新しい規則（Source of ID の一覧、1 接続に複数の文献、Literature type や relation の欠け、ページの位置の引用文、一覧にない値）で検査され、修正のターンが返ります。0.13.0 からは、回全体を送り手にしている UC も 205 として返ります（例：言語野の `ufwwj0jg-1` の `FuG@L`・`IPL@L`・`IFG@L`）。直るまでの間も CSV と xlsx は作ります。
+- 0.9 以前に作ったプロジェクトは、次のフォローアップで新しい規則（Source of ID の一覧、1 接続に複数の文献、Literature type や relation の欠け、ページの位置の引用文、一覧にない値）で検査され、修正のターンが返ります。0.13.0 からは、回全体を送り手にしている UC も 203 として返ります（例：言語野の `ufwwj0jg-1` の `FuG@L`・`IPL@L`・`IFG@L`）。直るまでの間も CSV と xlsx は作ります。
 - `phase_baseline.json` のない作業場所（0.12.0 より前に検査したもの）は、今の状態を基準にします。
 - 調査モードの設定のない、0.11.0 より前のプロジェクトは、調査モードなしで動きます。
 - Template-v2-2 形式の xlsx は、0.11.0 より前に完了したプロジェクトでも、最初のダウンロードのときに作ります。
@@ -365,5 +366,5 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 | Canon の制約 | `packages/shared/src/canonConstraints.ts` |
 | 参考資料 | `packages/shared/src/attachments.ts`、`packages/worker/src/materials.ts` |
 | Codex の実行（レート制限、圧縮、新しいスレッド） | `packages/worker/src/codex.ts`、`index.ts` |
-| 付録 D チェッカー、整合チェックの測定 | `scripts/bra-appendix-d.mjs`、`scripts/cross-check-artifacts.mjs` |
+| BRA エラーコードのチェッカー（旧 付録 D チェッカー）、整合チェックの測定 | `scripts/bra-appendix-d.mjs`、`scripts/cross-check-artifacts.mjs` |
 | テスト | `packages/shared/test/cross.test.ts`、`harness.test.ts`、`packages/worker/test/pipeline.test.ts` ほか |

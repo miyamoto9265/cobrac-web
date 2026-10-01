@@ -28,7 +28,7 @@ function setup(data: LiteratureData = DATA, fail?: (url: string, n: number) => F
 const ref = (id: string, doi: string, pmid = ""): RefRow => ({ id, doi, pmid });
 const HABER = ref("[Haber, 2010]", "10.1038/npp.2009.129");
 const SCHULTZ = ref("[Schultz, 1997]", "10.1126/science.275.5306.1593", "9054347");
-const req = (quote: string, r: RefRow = HABER, sender = "A9/46d@L", receiver = "NAC"): QuoteRequest => ({ sender, receiver, referenceIds: [r.id], quote, refs: [r] });
+const req = (quote: string, r: RefRow = HABER, sender = "A9/46d(left)", receiver = "NAC"): QuoteRequest => ({ sender, receiver, referenceIds: [r.id], quote, refs: [r] });
 
 const IN_BODY = "Fibers from the dorsolateral prefrontal cortex terminate in the central and dorsal parts of the ventral striatum, including the accumbens.";
 const IN_CAPTION = "Schematic of the ventral striatal projections to the midbrain dopamine neurons in the primate";

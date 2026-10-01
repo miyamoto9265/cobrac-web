@@ -117,15 +117,15 @@ beforeEach(async () => {
   s3.clear();
   fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", projectSeq: 20, createdAt: now, updatedAt: now });
   fake.put("users", { userId: B.sub, email: B.email, displayName: "b", contributorName: "b", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u3k8d0hn", createdAt: now, updatedAt: now });
-  // coarse: A44d@L uniform; fine: A44d@L split into IT / PT
+  // coarse: A44d(left) uniform; fine: A44d(left) split into IT / PT
   fake.put("projects", project("u7m2q9xa-1"));
-  writeProject("u7m2q9xa-1", [uc("A44d@L", "BNA:29"), uc("A22c@L", "BNA:75")], [], [["A44d@L", "A22c@L"]]);
+  writeProject("u7m2q9xa-1", [uc("A44d(left)", "BNA:29-30/side:left"), uc("A22c(left)", "BNA:75-76/side:left")], [], [["A44d(left)", "A22c(left)"]]);
   fake.put("projects", project("u7m2q9xa-2"));
   writeProject(
     "u7m2q9xa-2",
-    [uc("A44d@L(L3,IT)", "BNA:29/lay:L3/cell:IT"), uc("A44d@L(L5,PT)", "BNA:29/lay:L5/cell:PT"), uc("A22c@L", "BNA:75", "Glutamate; GABA")],
-    [{ circuitId: "A44d@L", descriptor: "BNA:29", names: "A44d@L", sourceOfId: "collection", subCircuits: ["A44d@L(L3,IT)", "A44d@L(L5,PT)"], comments: "" }],
-    [["A44d@L(L3,IT)", "A22c@L"]],
+    [uc("A44d(L3.IT.left)", "BNA:29-30/lay:L3/cell:IT/side:left"), uc("A44d(L5.PT.left)", "BNA:29-30/lay:L5/cell:PT/side:left"), uc("A22c(left)", "BNA:75-76/side:left", "Glutamate; GABA")],
+    [{ circuitId: "A44d(left)", descriptor: "BNA:29-30/side:left", names: "A44d(left)", sourceOfId: "collection", subCircuits: ["A44d(L3.IT.left)", "A44d(L5.PT.left)"], comments: "" }],
+    [["A44d(L3.IT.left)", "A22c(left)"]],
   );
   fake.put("projects", project("u7m2q9xa-3", { status: "RUNNING" }));
   canon = await json<CanonRecord>(call(A, "POST", "/canons", { name: "Language" }));
@@ -153,7 +153,7 @@ describe("push and pull requests", () => {
     const d = await json<{ canon: CanonRecord }>(call(A, "GET", C()));
     expect(d.canon.headRevision).toBe(1);
     const snap = await json<CanonSnapshot>(call(A, "GET", `${C()}/revisions/1`));
-    expect(snap.circuits.map((c) => c.circuitId).sort()).toEqual(["A22c@L", "A44d@L"]);
+    expect(snap.circuits.map((c) => c.circuitId).sort()).toEqual(["A22c(left)", "A44d(left)"]);
     expect(snap.connections[0].origin).toMatchObject({ projectId: "u7m2q9xa-1", pr: 1 });
     expect((await json<{ items: { revision: number }[] }>(call(A, "GET", `${C()}/revisions`))).items.map((r) => r.revision)).toEqual([1]);
     expect((await call(A, "POST", `${C()}/pulls/1/approve`, {})).status).toBe(409);
@@ -175,9 +175,9 @@ describe("push and pull requests", () => {
 
     expect(await json(call(A, "POST", `${C()}/pulls/2/approve`, { choices: { [c1.id]: "incoming", [c7.id]: "canon" } }))).toEqual({ revision: 2 });
     const snap = await json<CanonSnapshot>(call(A, "GET", `${C()}/revisions/2`));
-    expect(snap.circuits.find((c) => c.key === "bna:29")!.status).toBe("collection");
-    expect(snap.circuits.find((c) => c.key === "bna:75")!.transmitter).toBe("Glutamate");
-    expect(snap.connections.find((c) => c.sender === "bna:29")!.state).toBe("flagged");
+    expect(snap.circuits.find((c) => c.key === "bna:29-30/side:left")!.status).toBe("collection");
+    expect(snap.circuits.find((c) => c.key === "bna:75-76/side:left")!.transmitter).toBe("Glutamate");
+    expect(snap.connections.find((c) => c.sender === "bna:29-30/side:left")!.state).toBe("flagged");
   });
 
   it("re-judges a PR against the current head at approval", async () => {
@@ -185,7 +185,7 @@ describe("push and pull requests", () => {
     const { pr } = await pushed("u7m2q9xa-1");
     expect(pr.baseRevision).toBe(0);
     await json(call(A, "POST", `${C()}/pulls/1/approve`, {}));
-    // #2 was clean against rev 0 but now makes A44d@L uniform over the fine UCs
+    // #2 was clean against rev 0 but now makes A44d(left) uniform over the fine UCs
     const r = await call(A, "POST", `${C()}/pulls/2/approve`, {});
     expect(r.status).toBe(409);
     const body = (await r.json()) as { blocking: { code: string }[]; diff: CanonDiff };
@@ -239,7 +239,7 @@ describe("Canon → Canon pull requests", () => {
 
     expect(await json(call(B, "POST", `/canons/${bc.canonId}/pulls/${pr.prNo}/approve`, {}))).toEqual({ revision: 1 });
     const snap = await json<CanonSnapshot>(call(B, "GET", `/canons/${bc.canonId}/revisions/1`));
-    const col = snap.circuits.find((c) => c.key === "bna:29")!;
+    const col = snap.circuits.find((c) => c.key === "bna:29-30/side:left")!;
     expect(col.origin).toMatchObject({ projectId: "u7m2q9xa-2", via: `${canon.canonId}@1`, pr: 1 });
     expect(snap.roles.map((r) => r.projectId)).toEqual(["u7m2q9xa-2"]);
 
@@ -262,7 +262,7 @@ describe("Canon → Canon pull requests", () => {
     await aliceRev1();
     const coarseCanon = await json<CanonRecord>(call(A, "POST", "/canons", { name: "Coarse" }));
     fake.put("projects", project("u7m2q9xa-5"));
-    writeProject("u7m2q9xa-5", [uc("A44d@L", "BNA:29"), uc("A22c@L", "BNA:75")], [], [["A44d@L", "A22c@L"]]);
+    writeProject("u7m2q9xa-5", [uc("A44d(left)", "BNA:29-30/side:left"), uc("A22c(left)", "BNA:75-76/side:left")], [], [["A44d(left)", "A22c(left)"]]);
     await json(call(A, "POST", `/canons/${coarseCanon.canonId}/members`, { projectId: "u7m2q9xa-5" }));
     await json(call(A, "POST", "/projects/u7m2q9xa-5/canon/push"));
     await json(call(A, "POST", `/canons/${coarseCanon.canonId}/pulls/1/approve`, {}));
@@ -286,7 +286,7 @@ describe("following a Canon", () => {
     expect(stored("u7m2q9xa-1").canonRevision).toBe(1);
     expect(stored("u7m2q9xa-2").canonRevision).toBe(0);
 
-    // the fine project makes A44d@L a Collection
+    // the fine project makes A44d(left) a Collection
     const { diff } = await pushed("u7m2q9xa-2");
     const choices = Object.fromEntries(diff.conflicts.filter((c) => c.code === "C1" || c.severity === "warning").map((c) => [c.id, c.code === "C1" ? "incoming" : "canon"]));
     await json(call(A, "POST", `${C()}/pulls/2/approve`, { choices }));

@@ -26,8 +26,9 @@ import { CANVAS, edgeColor, nodeFill } from "../lib/graphTheme";
 import { useDark } from "../lib/theme";
 import { useElementSize } from "../lib/useElementSize";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { parallelLanes, selfLoopIndex } from "../lib/parallelEdges";
 import { DetailPanelModeContext } from "./DetailPanel";
-import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
+import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, parseHandleId, type BoxNodeType, type GNode, type HandleSide, type NodeData } from "./graph/BoxNode";
 import { GroupBox, type GGroup, type GroupBoxType, type GroupData } from "./graph/GroupBox";
 import { OverflowMenu, SaveStatus, SearchBox, ToolButton, ToolDivider, type MenuItem } from "./graph/GraphToolbar";
 import { Legend, type LegendItem } from "./graph/Legend";
@@ -149,6 +150,14 @@ function autoHandles(a: XY & Size, b: XY & Size): { source: string; target: stri
     t = dy > 0 ? "top" : "bottom";
   }
   return { source: handleId(s, 0.5), target: handleId(t, 0.5) };
+}
+
+/** How far an edge end may slide from its handle along the node side (keeps a margin to the corner). */
+function sideRoom(handle: string, size: Size | undefined): number {
+  const h = parseHandleId(handle);
+  if (!h) return 0;
+  const len = h.side === "left" || h.side === "right" ? (size?.height ?? DEFAULT_NODE_H) : (size?.width ?? DEFAULT_NODE_W);
+  return Math.min(h.f, 1 - h.f) * len - 6;
 }
 
 const NO_GROUPS: GGroup[] = [];
@@ -342,6 +351,8 @@ function Inner({
     const addMarker = (m: MarkerSpec) => {
       if (m.type !== "none") mk.set(markerKey(m), m);
     };
+    const lanes = parallelLanes(edges, (id) => !!L.edges[id]?.waypoints?.length);
+    const loops = selfLoopIndex(edges);
     const list = edges.map<StyledEdgeType>((e) => {
       const override = L.edges[e.id];
       const resolved = resolveEdgeStyle(e.sign, override, e.dashed);
@@ -354,13 +365,16 @@ function Inner({
       const autoH = self ? SELF_LOOP_HANDLES : a && b ? autoHandles({ ...a, ...sizes[e.source] }, { ...b, ...sizes[e.target] }) : { source: handleId("bottom", 0.5), target: handleId("top", 0.5) };
       const related = !!focus?.edges?.has(e.id);
       const showLabel = override?.showLabel ?? showLabels;
+      const sourceHandle = override?.sourceHandle ?? autoH.source;
+      const targetHandle = override?.targetHandle ?? autoH.target;
+      const lane = lanes.get(e.id);
       return {
         id: e.id,
         type: "styled",
         source: e.source,
         target: e.target,
-        sourceHandle: override?.sourceHandle ?? autoH.source,
-        targetHandle: override?.targetHandle ?? autoH.target,
+        sourceHandle,
+        targetHandle,
         selected: e.id === selectedEdgeId,
         reconnectable: editing,
         zIndex: e.id === selectedEdgeId || related ? 1 : 0,
@@ -370,6 +384,9 @@ function Inner({
           title: e.title,
           related,
           self,
+          loopIndex: loops.get(e.id),
+          lane,
+          laneRoom: lane ? { source: sideRoom(sourceHandle, sizes[e.source]), target: sideRoom(targetHandle, sizes[e.target]) } : undefined,
           dim: !!focus && (focus.edges ? !related : !(focus.nodes.has(e.source) && focus.nodes.has(e.target))),
           editing: editing && e.id === selectedEdgeId,
           onWaypointsChange,

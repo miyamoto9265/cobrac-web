@@ -68,7 +68,7 @@ v2 answers ① with the back-edge and the adjustment turn, ② with re-validatio
 | Reference check | The ID exists in `references.json` | DOI / PMID looked up in Crossref / PubMed; first author, year and title must match |
 | Quotes (Pointers on literature) | Free text (2–6-word summaries in the v0 example) | Verbatim quotes, compared with the full text or abstract |
 | BRA values | Source of ID and Reference ID joined lists, relation always `=` | Enumerations, one reference per row, relations and the paper's names, ROI row, Review End Lines (CoBRAC-v1-1) |
-| Granularity | UCs only (Uniform) | Collections; a sender spanning several units needs a reason (205) |
+| Granularity | UCs only (Uniform) | Collections; a sender spanning several units needs a reason (203) |
 | xlsx | One CoBRAC workbook | CoBRAC-v1-1 and Template-v2-2 |
 | Inputs | ROI, TLF, instructions | + reference materials (files, URLs), Canon definitions |
 | Long jobs | Failed on rate limits and oversized conversations | Wait and resume, automatic compaction, continue on a new thread |
@@ -87,7 +87,7 @@ How the weaknesses of 3.1, and others found after v1.1, map to the changes:
 | References written from memory, never verified | Research step, `lit` tools, reference checks | [4.5](#45-research-step-and-the-lit-tools), [4.6](#46-reference-and-quote-checks) |
 | Quotes were summaries, not the source's words | Verbatim quotes only, checked against full text or abstract | [4.6](#46-reference-and-quote-checks) |
 | Values that fail the BRA Review Tool | BRA value rules (CoBRAC-v1-1) | [4.7](#47-bra-spec-compliance-cobrac-v1-1) |
-| Coarse regions stayed uniform senders | Collections and the check of multi-unit senders | [4.8](#48-collections-and-uniform-205-uniformitynote) |
+| Coarse regions stayed uniform senders | Collections and the check of multi-unit senders | [4.8](#48-collections-and-uniform-203-uniformitynote) |
 | No output in the official template layout | Template-v2-2 workbook | [4.9](#49-template-v2-2-workbook) |
 | Circuit definitions differ from project to project | Canon definitions as generation constraints | [4.10](#410-canon-definitions-as-generation-constraints) |
 | No way to hand over one's own material | Reference materials | [4.11](#411-reference-materials) |
@@ -168,17 +168,17 @@ The agent writes one line per change, with its reason and evidence, under `## HC
 
 ### 4.7 BRA spec compliance (CoBRAC-v1-1)
 
-Since 0.10.0 the HCD check enforces the values the BRA Data Preparation Manual and Template-v2-2.bra prescribe (`packages/shared/src/bra.ts`), so that the output does not produce BRA Review Tool errors (Appendix D codes 1, 10/11, 108, 252, 271/277, 430 and others) by construction.
+Since 0.10.0 the HCD check enforces the values the BRA Data Preparation Manual and Template-v2-2.bra prescribe (`packages/shared/src/bra.ts`), so that the output does not produce BRA Review Tool errors (codes 1, 10/11, 108, 252/253, 271/277, 272, 278, 562 and others of the BRA data Error code List (Master); this article first cited the ontology appendix D numbers, see 4.8) by construction.
 
 | Item | v1.1 | v2 |
 | ---- | ---- | -- |
 | Source of ID (108) | A list of supporting papers | One value: `DHBA` for a whole DHBA term, `BNA` for a Brainnetome area, the one defining paper or `makeshift` for a finer UC |
 | Reference ID (252) | Several papers per connection | One per row; the same sender → receiver repeats per paper, each with its taxon, method and quote |
 | sCID / rCID relation | Always `=`, notation copied from the Circuit ID | The UC's relation to the paper's circuit (`<`, `=`, `>`) and the paper's own name |
-| Pointers (271/277) | Pages, sections, short summaries | Literature: a verbatim quote (at least 10 words for now); figure: a figure number (`Fig. 3B`); one of the two required |
+| Pointers (271/277, 272, 278) | Pages, sections, short summaries | Literature: a verbatim quote (at least 10 words, 272); figure: a figure number (`Fig. 3B`); one of the two required |
 | Enumerations | Free text | Taxon, Measurement method, Transmitter, Modulation Type and Literature type from the template lists |
 | References | DOI | Literature type; without DOI an Alternative URL or PMID |
-| Output Semantics (430) | Free | One item `[<own Circuit ID>] content;` per UC; GNs get their UCs' outward items |
+| Output Semantics (562 / 563) | Free | One item `[<own Circuit ID>] content;` per UC; GNs get their UCs' outward items |
 | Names | Free | Names start with the SABRA official name; function texts refer to tissue as `[U.<Circuit ID>]` |
 | ROI row, Review End Line | None | `ROI_<Project ID>` first in Circuits; the last row of each sheet in Project |
 
@@ -187,15 +187,16 @@ Since 0.10.0 the HCD check enforces the values the BRA Data Preparation Manual a
 - The BRA version in the xlsx is `CoBRAC-v1-1`. Columns were only appended; existing column positions are unchanged.
 - `BNA` as Source of ID is a CoBRAC extension; adding it upstream has been requested.
 
-### 4.8 Collections and Uniform (205, uniformityNote)
+### 4.8 Collections and Uniform (203, uniformityNote)
 
 - **Collections** (0.11.0). A circuit that the HCD splits into finer UCs (for example a cortical area split into layer and cell-type UCs) goes under `collections` in `uc.json`. Its Circuits row has Uniform = FALSE, its members as Sub-Circuits and Source of ID `collection`. Uniformity is decided per HCD, so the same area can be a UC in a coarse project and a Collection in a fine one.
-- **Checks.** Members are circuits of the project, no cycles, not all `makeshift` (128). A Collection is neither sender nor receiver of a connection (stricter than 205) and not an FRG leaf. A gyrus and an area inside it cannot both be UCs: the coarser one moves to `collections` (127).
+- **Checks.** At least one member (120), members are circuits of the project (121), no cycles and not all `makeshift` (`cobrac:collection-members`). A Collection is neither sender (203) nor receiver (`cobrac:collection-end`, stricter than the Master) of a connection and not an FRG leaf. A gyrus and an area inside it cannot both be UCs: the coarser one moves to `collections` (`cobrac:nested-uc`).
+- **Codes.** Numbers are those of the BRA data Error code List (Master); `cobrac:` codes are CoBRAC checks the Master has no code for. Up to 0.16.0 this article and the validator messages cited the ontology appendix D numbers 128 (Master: 120), 205 (Master: 203) and 129 (not in the Master; now `cobrac:uc-no-sub-circuits`).
 - **Looser conditions** (0.13.0). In the 0.11.0 language-area run the agent created no Collection, judging that the literature had no layer or cell-type evidence, and left whole gyri as uniform senders. Since 0.13.0, a region that is anatomically or functionally heterogeneous at the chosen granularity (a gyrus containing several areas, a region whose parts project differently) becomes a Collection without layer or cell-type evidence. The parts are named, and why they are separated goes into `comments` (required).
-- **205 (new).** A sender whose descriptor spans several SABRA units (a `BNAG:` gyrus without facets, or several anchors joined with `&`) is an error without `uniformityNote`. The message offers two fixes:
+- **203 (new).** A sender whose descriptor spans several SABRA units (a `BNAG:` gyrus without facets, or several anchors joined with `&`) is an error without `uniformityNote`. The message offers two fixes:
   - split it into its parts (areas) as UCs, grouped in a Collection if useful; papers that report only the whole gyrus are cited with relation `<`, or
   - if this HCD really treats it as one population, say why in `uniformityNote` (written to the Circuits comments as `Uniform in this project: …`).
-- Single areas, left–right pairs, faceted UCs and UCs that only receive are exempt from 205.
+- Single areas, left–right pairs, faceted UCs and UCs that only receive are exempt from 203.
 - The HCD graph draws Collections as dashed boxes around their UCs, which can be shown or hidden.
 
 ### 4.9 Template-v2-2 workbook
@@ -292,7 +293,7 @@ The instructions present in the context of every request, per step. In research 
 
 ![The research step exists only in v2, with 3,621 tokens. HCD goes from 4,915 in v1.1 to 8,145 in v2 (+1,786 in research mode). FRG goes from 5,979 to 9,506 (+1,786 in research mode). Most of the increase is HCD.md and AGENTS.md](./figures/harness-v2-instruction-tokens.en.svg "Figure 8. Instructions in the context of every request, by step (v1.1 vs v2)")
 
-- The `HCD.md` increase (+2,300) is the BRA value rules (Source of ID, relations and notations, one reference per row, quotes, enumerations) and Collections, 205 and `uniformityNote`. The `FRG.md` increase (+297) is the back-edge.
+- The `HCD.md` increase (+2,300) is the BRA value rules (Source of ID, relations and notations, one reference per row, quotes, enumerations) and Collections, 203 and `uniformityNote`. The `FRG.md` increase (+297) is the back-edge.
 - The `AGENTS.md` increase (+930) is the literature tools and the verbatim-quote rule, reference materials, how to write the revisions section, the files the worker writes, and the reply language.
 - Not included: the Canon notes (only in runs with `canon/`) and the adjustment prompt (only when X1–X3 or X8 are found).
 
@@ -331,7 +332,7 @@ The instructions present in the context of every request, per step. In research 
 | Spot interruptions lose in-turn work | The workspace is saved to S3 only when a phase is accepted, and before a question, completion or failure | The trial lost 15 minutes of work, and detecting the interruption took 27 minutes; in-turn saving and faster detection are needed |
 | Cost of failed turns | A turn that ends in `turn.failed` is measured from the thread's running total in the session file. Turns cut off by the time budget or a cancel, and turns where `codex exec` dies without a reason, are not recorded | Whether to count cut-off turns from the session file before the next run |
 | Clones and research mode | A cloned project does not inherit the research-mode setting | The trial's finishing job ran without the research-mode notes |
-| Upstream requests | `@` in Circuit IDs (104, U11), `BNA` as Source of ID (108, U9), no place for the UC Descriptor in Template-v2-2 (U21) | Waiting for answers; until then the Review Tool may flag these |
+| Upstream requests | `@` in Circuit IDs (no Master code; `cobrac:circuit-id-chars`, U11), `BNA` as Source of ID (108, U9), no place for the UC Descriptor in Template-v2-2 (U21) | Waiting for answers; until then the Review Tool may flag these |
 | Formula values in Template-v2-2 | The template's formulas are recalculated when Excel opens the file (`fullCalcOnLoad`) | Readers that do not recalculate (scripts, Review Tool import) see `!! Error !!` in Capability and similar cells |
 | Reused quotes | In the 0.11.0 language area, 3 pairs / 6 rows, one quote describing several pathways at once | Could be flagged in manual review (274); consider asking for a sentence or figure per connection |
 | Success rate of the literature tools in production | Not measured again since the retries and fallbacks of 0.12.0 | Check `find_sentences` and `search_europepmc` in the next research-mode run |
@@ -341,7 +342,7 @@ The instructions present in the context of every request, per step. In research 
 ## 8. Compatibility
 
 - The BRA version in the xlsx is `CoBRAC-v1-1` (since 0.10.0). Columns were only appended, so the `CoBRAC-v1-0` column positions are unchanged. The graphs read v1-0 and v1-1 CSVs alike.
-- Projects created with 0.9 or earlier are checked with the new rules on their next follow-up (a Source of ID list, several references per connection, missing Literature type or relations, locators as quotes, values outside the lists), and the problems come back as fix turns. Since 0.13.0, whole gyri used as senders also come back as 205 (for example `FuG@L`, `IPL@L` and `IFG@L` in the language-area project `ufwwj0jg-1`). The CSVs and xlsx are still produced until they are fixed.
+- Projects created with 0.9 or earlier are checked with the new rules on their next follow-up (a Source of ID list, several references per connection, missing Literature type or relations, locators as quotes, values outside the lists), and the problems come back as fix turns. Since 0.13.0, whole gyri used as senders also come back as 203 (for example `FuG@L`, `IPL@L` and `IFG@L` in the language-area project `ufwwj0jg-1`). The CSVs and xlsx are still produced until they are fixed.
 - A workspace without `phase_baseline.json` (checked before 0.12.0) takes its current state as the baseline.
 - Projects created before 0.11.0 have no research-mode setting and run without it.
 - The Template-v2-2 workbook is built on the first download for projects finished before 0.11.0.
@@ -365,5 +366,5 @@ The instructions present in the context of every request, per step. In research 
 | Canon constraints | `packages/shared/src/canonConstraints.ts` |
 | Reference materials | `packages/shared/src/attachments.ts`, `packages/worker/src/materials.ts` |
 | Running Codex (rate limits, compaction, new thread) | `packages/worker/src/codex.ts`, `index.ts` |
-| Appendix D checker, consistency measurement | `scripts/bra-appendix-d.mjs`, `scripts/cross-check-artifacts.mjs` |
+| BRA error-code checker (formerly Appendix D), consistency measurement | `scripts/bra-appendix-d.mjs`, `scripts/cross-check-artifacts.mjs` |
 | Tests | `packages/shared/test/cross.test.ts`, `harness.test.ts`, `packages/worker/test/pipeline.test.ts` and others |

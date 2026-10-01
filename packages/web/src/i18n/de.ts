@@ -581,7 +581,7 @@ export const de: Record<MessageKey, string> = {
   "cc.C2c": "Die Zerlegung ist anders aufgeteilt (weder Teil- noch Obermenge)",
   "cc.C3": "Ein feinerer Schaltkreis läge neben einem Uniform-Schaltkreis (der gröbere muss Collection sein)",
   "cc.C4": "Circuit ID und UC Descriptor entsprechen sich nicht eins zu eins",
-  "cc.C5": "Eine Verbindung endet an einer Collection (Sender / Receiver müssen Uniform sein, 205)",
+  "cc.C5": "Eine Verbindung endet an einer Collection (Sender / Receiver müssen Uniform sein, BRA 203)",
   "cc.C6": "Der offizielle SABRA-Name unterscheidet sich",
   "cc.C7": "Eine Eigenschaft des Schaltkreises unterscheidet sich",
   "cc.C8": "Dieselbe Reference ID verweist auf ein anderes Paper (DOI / PMID)",

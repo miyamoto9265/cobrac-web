@@ -4,7 +4,8 @@
 // how far a project is behind its Canon.
 // ---------------------------------------------------------------------------
 
-import { canonFromProject, diffCanon, type CanonConflict, type CanonSnapshot, type ProjectCanonFiles } from "./canonMerge.js";
+import { canonFromProject, currentCanonSnapshot, diffCanon, type CanonConflict, type CanonSnapshot, type ProjectCanonFiles } from "./canonMerge.js";
+import { modernCircuitId as cid } from "./ucNaming.js";
 
 /** Folder next to the project folder (`<workDir>/canon/`); not synced back to the project. */
 export const CANON_AGENT_DIR = "canon";
@@ -20,12 +21,13 @@ export interface CanonRunInfo {
 const GENERATION_ERRORS = new Set(["C1", "C2c", "C3", "C4", "C5", "C6", "C8"]);
 const GENERATION_WARNINGS = new Set(["C2b", "C7", "C8b", "C9b", "C12"]);
 
-/** Files written to `<workDir>/canon/` for the agent (JSON with Circuit IDs, so the agent can copy them). */
-export function canonAgentFiles(snapshot: CanonSnapshot, info: CanonRunInfo, projectId: string): Record<string, string> {
-  const idOf = new Map(snapshot.circuits.map((c) => [c.key, c.circuitId]));
-  for (const g of snapshot.groups) idOf.set(g.key, g.circuitId);
+/** Files written to `<workDir>/canon/` for the agent (JSON with Circuit IDs in their current form, so the agent can copy them). */
+export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, projectId: string): Record<string, string> {
+  const snapshot = currentCanonSnapshot(stored);
+  const idOf = new Map(snapshot.circuits.map((c) => [c.key, cid(c.circuitId)]));
+  for (const g of snapshot.groups) idOf.set(g.key, cid(g.circuitId));
   const circuits = snapshot.circuits.map((c) => ({
-    circuitId: c.circuitId,
+    circuitId: cid(c.circuitId),
     descriptor: c.descriptor,
     names: c.names,
     uniform: c.status === "uniform",
@@ -37,8 +39,8 @@ export function canonAgentFiles(snapshot: CanonSnapshot, info: CanonRunInfo, pro
     state: c.state,
   }));
   const connections = snapshot.connections.map((c) => ({
-    sender: c.senderCircuitId,
-    receiver: c.receiverCircuitId,
+    sender: cid(c.senderCircuitId),
+    receiver: cid(c.receiverCircuitId),
     referenceIds: c.referenceId ? [c.referenceId] : [],
     senderRelation: c.senderRelation,
     senderInLiterature: c.senderInLiterature,
@@ -56,7 +58,7 @@ export function canonAgentFiles(snapshot: CanonSnapshot, info: CanonRunInfo, pro
   // what this project already uses, plus circuits on the same anchors (their parents, children and siblings)
   const mine = new Set(snapshot.roles.find((r) => r.projectId === projectId)?.ucRoles.map((u) => u.key) ?? []);
   const heads = new Set([...mine].map((k) => k.split("/")[0]));
-  const relevant = snapshot.circuits.filter((c) => mine.has(c.key) || heads.has(c.key.split("/")[0])).map((c) => c.circuitId);
+  const relevant = [...new Set(snapshot.circuits.filter((c) => mine.has(c.key) || heads.has(c.key.split("/")[0])).map((c) => cid(c.circuitId)))];
   const readme =
     `# Canon "${info.name}" (${info.canonId}), revision ${info.revision}\n\n` +
     (info.policy ? `## Granularity policy\n\n${info.policy}\n\n` : "") +
@@ -147,9 +149,9 @@ export function canonCheckedReferences(snapshot: CanonSnapshot): Map<string, { d
 /** Quotes of the Canon that were found in the paper: `<sender>|<receiver>|<Reference ID>` (Circuit IDs) → quote. */
 export function canonCheckedQuotes(snapshot: CanonSnapshot): Map<string, { quote: string; status: string }> {
   return new Map(
-    snapshot.connections
+    currentCanonSnapshot(snapshot).connections
       .filter((c) => c.quoteCheck.startsWith("verified"))
-      .map((c) => [`${c.senderCircuitId}|${c.receiverCircuitId}|${c.referenceId}`, { quote: c.pointersOnLiterature, status: c.quoteCheck }]),
+      .map((c) => [`${cid(c.senderCircuitId)}|${cid(c.receiverCircuitId)}|${c.referenceId}`, { quote: c.pointersOnLiterature, status: c.quoteCheck }]),
   );
 }
 
@@ -164,7 +166,9 @@ export interface CanonFollowStatus {
 }
 
 /** How the project's pinned revision compares with the head, judged on what the project uses. */
-export function canonFollowStatus(pinned: CanonSnapshot, head: CanonSnapshot, projectId: string): CanonFollowStatus {
+export function canonFollowStatus(storedPin: CanonSnapshot, storedHead: CanonSnapshot, projectId: string): CanonFollowStatus {
+  const pinned = currentCanonSnapshot(storedPin);
+  const head = currentCanonSnapshot(storedHead);
   if (pinned.revision === head.revision) return { pinned: pinned.revision, head: head.revision, state: "current", affected: [] };
   const uses = new Set([...(head.roles.find((r) => r.projectId === projectId)?.ucRoles ?? []), ...(pinned.roles.find((r) => r.projectId === projectId)?.ucRoles ?? [])].map((u) => u.key));
   const before = new Map(pinned.circuits.map((c) => [c.key, c]));
