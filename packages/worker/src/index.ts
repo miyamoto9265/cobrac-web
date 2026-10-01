@@ -31,6 +31,7 @@ import type {
   ArticleMeta,
   CrossCode,
   JobRecord,
+  PipelineStage,
   ProjectRecord,
   ReasoningEffort,
   ResearchCheck,
@@ -119,7 +120,7 @@ import {
   type ReferenceReport,
   type ResearchTurn,
 } from "./pipeline.js";
-import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, projectPaths } from "./steps.js";
+import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, liveStageOf, projectPaths } from "./steps.js";
 
 const MAX_REPORTED_ERRORS = 30;
 const LEGACY_WORKSPACE_MESSAGE =
@@ -136,6 +137,9 @@ const startedAt = Date.now();
 const accepted = new Set<WorkflowStep>();
 let xlsxDone = false;
 let lastStepStates: Record<WorkflowStep, StepState> | null = null;
+/** The research step or the adjustment turn while it runs (the step states cannot tell either apart) */
+let stageOverride: "RESEARCH" | "ADJUST" | null = null;
+let lastStage: PipelineStage | null | undefined;
 let cancelled = false;
 let rcs: RcsClient | null = null;
 let materials: PreparedMaterials | null = null;
@@ -313,7 +317,9 @@ async function main() {
       await putMessage(projectId, jobId, "system", "status", notice.content, { meta: notice.meta });
     }
     if (researchFirst) {
+      await setStage("RESEARCH");
       if ((await researchStep(project, first, runAgentTurn)) === "stopped") return;
+      await setStage(null);
       first = await phasePrompt(project, "HCD");
     }
 
@@ -347,6 +353,7 @@ async function main() {
           if (phase === "HCD" && ctx.quotes) await logQuoteSummary(ctx.quotes);
           if (phase !== "HCD" && ctx.cross) await logCrossSummary(ctx.cross);
           accepted.add(phase);
+          if (phase === "FRG") stageOverride = null;
           await syncStepStates();
           await persistState();
         },
@@ -358,6 +365,7 @@ async function main() {
           await log(`The HCD and the FRG do not fit together yet (${counts.map(([c, n]) => `${c} ${n}`).join(", ")}); asked the agent for one adjustment turn.`, {
             details: ctx.adjustment.findings.map((f) => `${f.code} ${f.message}`).join("\n"),
           });
+          await setStage("ADJUST");
           return freshThread ? { ...p, hidden: `${header(project)}\n\nReference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` } : p;
         },
       },
@@ -399,6 +407,7 @@ async function main() {
     await updateProject(userId, projectId, {
       status: "COMPLETED",
       activeJobId: null,
+      activeStage: null,
       hasArtifacts: true,
       completedAt: nowIso(),
       pendingQuestion: null,
@@ -1024,12 +1033,21 @@ async function persistState() {
   console.log(`[worker] persisted workspace(+${a.uploaded}/-${a.deleted}) thread(+${b.uploaded})`);
 }
 
+async function setStage(override: typeof stageOverride) {
+  stageOverride = override;
+  await syncStepStates();
+}
+
 async function syncStepStates() {
   const states = detectStepStates(paths, accepted, xlsxDone);
-  if (lastStepStates && JSON.stringify(states) === JSON.stringify(lastStepStates)) return;
+  const stage = liveStageOf(states, stageOverride);
+  const changed = !lastStepStates || JSON.stringify(states) !== JSON.stringify(lastStepStates);
+  if (!changed && stage === lastStage) return;
   const prev = lastStepStates;
   lastStepStates = states;
-  await updateProject(userId, projectId, { stepStates: states, currentStep: currentStepOf(states) });
+  lastStage = stage;
+  await updateProject(userId, projectId, { ...(changed ? { stepStates: states, currentStep: currentStepOf(states) } : {}), activeStage: stage });
+  if (!changed) return;
   for (const s of ["HCD", "FRG", "CSV", "XLSX"] as WorkflowStep[]) {
     if (states[s] === "done" && prev && prev[s] !== "done") {
       await putMessage(projectId, jobId, "system", "status", `Step ${s} completed.`, { step: s, meta: { i18n: "sys.stepDone", step: s, stepDone: s } });
@@ -1091,7 +1109,7 @@ async function fail(message: string, meta?: Record<string, unknown>) {
     return;
   }
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
-  await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null });
+  await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null, activeStage: null });
   await putMessage(projectId, jobId, "system", "error", message, { meta });
 }
 

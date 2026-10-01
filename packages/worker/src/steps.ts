@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { FrgInputs, HcdInputs, StepState, WorkflowStep } from "@cobrac/shared";
+import type { FrgInputs, HcdInputs, PipelineStage, StepState, WorkflowStep } from "@cobrac/shared";
 import { CSV_FILE_NAMES, FRG_FILES, HCD_FILES, PROJECT_FILES, RESEARCH_FILES } from "@cobrac/shared";
 
 export const CSV_FILES: readonly string[] = CSV_FILE_NAMES;
@@ -78,6 +78,12 @@ export function currentStepOf(states: Record<WorkflowStep, StepState>): Workflow
   for (const s of ["HCD", "FRG", "CSV", "XLSX"] as WorkflowStep[]) if (states[s] === "running") return s;
   for (const s of ["XLSX", "CSV", "FRG", "HCD"] as WorkflowStep[]) if (states[s] === "done") return s;
   return null;
+}
+
+/** The stage shown as in progress: the research step or adjustment turn when one runs, else the first running step. */
+export function liveStageOf(states: Record<WorkflowStep, StepState>, override: "RESEARCH" | "ADJUST" | null): PipelineStage | null {
+  if (override) return override;
+  return (["HCD", "FRG", "CSV", "XLSX"] as WorkflowStep[]).find((s) => states[s] === "running") ?? null;
 }
 
 function readIfExists(path: string): string | null {
