@@ -102,13 +102,14 @@ async function dispatch(msg: RunJobMessage) {
       launch = "Fargate (On-Demand fallback)";
     }
     await updateJob(msg.projectId, msg.jobId, { ecsTaskArn: taskArn, lastHeartbeat: nowIso() });
-    await putMessage(msg.projectId, msg.jobId, "system", "status", `ワーカーを起動しました（${launch}）。`, { userId: msg.userId, meta: { taskArn, launch } });
+    await putMessage(msg.projectId, msg.jobId, "system", "status", `Worker started (${launch}).`, { userId: msg.userId, meta: { i18n: "sys.workerStarted", taskArn, launch } });
     // mark project RUNNING so the UI reflects progress even before the worker boots
     await updateProject(msg.userId, msg.projectId, { status: "RUNNING" });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("runTask failed; re-enqueue", message);
-    await putMessage(msg.projectId, msg.jobId, "system", "status", `ワーカー起動を再試行します（${message.slice(0, 200)}）`, { userId: msg.userId });
+    const reason = message.slice(0, 200);
+    await putMessage(msg.projectId, msg.jobId, "system", "status", `Retrying the worker start (${reason}).`, { userId: msg.userId, meta: { i18n: "sys.workerStartRetry", reason } });
     await enqueueRun(msg, RETRY_DELAY_SECONDS);
   }
 }

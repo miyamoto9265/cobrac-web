@@ -6,6 +6,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [Unreleased]
 
 ### Fixed
+- The notices about starting the worker and the messages of the housekeeping job (the worker stopped responding and the job resumes automatically, or it failed; a question left unanswered for 7 days; no worker within 24 hours) were always in Japanese. They now follow the UI language like the other status lines, also on the project's error banner and for messages stored before this fix
 - A clone of a public project keeps the original's research-mode setting. Before, every clone ran without research mode, so a follow-up on a clone of a research-mode project did not get the research-mode instructions even though its data came from a research step
 - A Fargate Spot interruption no longer throws away the work of the running turn. The worker now saves the workspace and the conversation to S3 every 5 minutes while a turn runs, and at once when the task is told to stop (it gets up to 2 minutes for that). The chat says that the worker is stopping and that the job resumes automatically
 - An interrupted job resumes within about 5 minutes instead of 15–30: the worker hands the job back as soon as it is told to stop, and the housekeeping that resumes stalled jobs runs every 5 minutes instead of every 15
@@ -43,8 +44,6 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Circuit IDs use only the characters of WBAI's interim specification (`A-Z a-z 0-9 . _ ~ -`, with `/` and `+` as agreed on 2026-08-19) plus the parentheses around the items, and the checks enforce it: items are separated by `.` instead of `,` (`MVOcC(V1.L4Ca)`, `NAC(shell.DRD1+)`), and projection and input partners are written `out-` / `in-` (`Amyg(BL.out-CEN)`). Official abbreviations keep their `/` and `+` (`A9/46d`, `V5/MT+`); only spaces become `_` (`TE1.0_and_TE1.2`). The HCD instructions, examples and checks follow the new form
 - The BRA output checker's Circuit ID character check (`cobrac:circuit-id-chars`, formerly 104) accepts the same characters as the HCD checks (`A-Z a-z 0-9 . _ ~ - / +` and the parentheses) and reports anything else, such as the `@` and `,` of older IDs
 - Projects and Canons written in the older forms (`BNA:57`, `@L` / `@R`, `A4ul@L(L5,pt,out:Sp)`, `NAC(shell,DRD1+)`) are read as they are; stored files are not rewritten. The Canon treats the old and new forms as the same circuit and the same Circuit ID: a project that still has the old forms brings them to the Canon in the new form, the agent's Canon files list the new form, and when a project brings the new form of a circuit the Canon stored in the old form, the pull request shows the rename and the Canon takes the new form. The next follow-up of an older project asks the agent to rewrite its descriptors and Circuit IDs in the new form
-
-## [0.16.0] - 2026-10-01
 
 ### Added
 - Dark mode on every screen (create, projects, project workspace with the HCD / FRG viewer, tables, report and articles, docs, Canon, explore, settings, admin and sign-in). It follows the system setting by default; the switch at the bottom of the sidebar (and on the sign-in card) chooses system, light or dark and is remembered in this browser. The page opens in the chosen theme without a light flash

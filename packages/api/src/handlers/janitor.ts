@@ -19,19 +19,19 @@ export async function handler() {
       const hb = j.lastHeartbeat ? Date.parse(j.lastHeartbeat) : Date.parse(j.createdAt);
       if (now - hb <= HEARTBEAT_STALE_MS) continue;
       if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
-      else await failJob(j, "ワーカーからの応答が途絶えました（Spot 中断など）。「続きからリトライ」で再開できます。");
+      else await failJob(j, "The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.", "sys.heartbeatLost");
     }
   }
 
   for (const j of await listJobsByStatus("WAITING_USER_INPUT")) {
     if (now - Date.parse(j.updatedAt) > WAITING_INPUT_TIMEOUT_MS) {
-      await failJob(j, "質問への回答待ちが 7 日間を超えたため終了しました。「続きからリトライ」で再開できます。");
+      await failJob(j, "Stopped after waiting more than 7 days for an answer to the question. Use “Retry from here” to continue.", "sys.answerTimeout");
     }
   }
 
   for (const j of await listJobsByStatus("QUEUED")) {
     if (now - Date.parse(j.createdAt) > 24 * 60 * 60 * 1000) {
-      await failJob(j, "24 時間以内にワーカーを起動できませんでした。");
+      await failJob(j, "No worker could be started within 24 hours.", "sys.queueTimeout");
     }
   }
 }
@@ -63,14 +63,16 @@ async function autoRetry(prev: JobRecord) {
     errorMessage: null,
     ...(article && prev.articleLocale ? { articleJob: { jobId, locale: prev.articleLocale, status: "QUEUED" as const, errorMessage: null, requestedAt: now } } : {}),
   });
-  await putMessage(prev.projectId, jobId, "system", "status", `ワーカーからの応答が途絶えたため、自動で再開します（${job.retryCount}/${MAX_AUTO_RETRY}）。`, {
+  await putMessage(prev.projectId, jobId, "system", "status", `The worker stopped responding; resuming automatically (${job.retryCount}/${MAX_AUTO_RETRY}).`, {
     userId: prev.userId,
+    meta: { i18n: "sys.autoRetry", attempt: job.retryCount, max: MAX_AUTO_RETRY },
   });
   await enqueueRun({ version: 1, userId: prev.userId, projectId: prev.projectId, jobId, mode: article ? "article" : "retry" });
 }
 
 /** A failed article job leaves the project COMPLETED: its BRA data is unchanged. */
-async function failJob(j: JobRecord, reason: string) {
+/** `reason` is stored in English; the UI shows it in its language through `resolveSystemMessage` (`i18n` key). */
+async function failJob(j: JobRecord, reason: string, i18n: string) {
   const { projectId, jobId, userId } = j;
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: reason, endedAt: nowIso() });
   if (j.type === "article" && j.articleLocale) {
@@ -81,5 +83,5 @@ async function failJob(j: JobRecord, reason: string) {
       articleJob: { jobId, locale: j.articleLocale, status: "FAILED", errorMessage: reason, requestedAt: j.createdAt },
     });
   } else await updateProject(userId, projectId, { status: "FAILED", errorMessage: reason, activeJobId: null });
-  await putMessage(projectId, jobId, "system", "error", reason, { userId });
+  await putMessage(projectId, jobId, "system", "error", reason, { userId, meta: { i18n } });
 }
