@@ -75,8 +75,8 @@ export const isRoiCircuitId = (id: string) => /^ROI_/.test(id);
 
 export interface BraRules {
   /**
-   * Minimum words of Pointers on literature. Provisional: the "10 words" rule comes from reviewer feedback and is
-   * not written in the manual, the ontology or the template.
+   * Minimum words of Pointers on literature: BRA error 272 of the Error code List (Master) asks for at least 10. The
+   * manual, the ontology and the template do not state it.
    */
   minQuoteWords: number;
 }

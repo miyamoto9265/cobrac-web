@@ -732,7 +732,10 @@ export function collectionLeaves(collections: CollectionRow[], id: string): stri
   return [...out];
 }
 
-/** Sub-Circuits of each Collection: defined in uc.json, not itself, no cycle, at least one not makeshift (manual; 128). */
+/**
+ * Sub-Circuits of each Collection: at least one (BRA 120), each defined in uc.json (BRA 121); not itself, no cycle, at
+ * least one not makeshift (cobrac:collection-members, no BRA code).
+ */
 function collectionProblems(collections: CollectionRow[], ucs: UcRow[]): string[] {
   const errors: string[] = [];
   const ucById = new Map(ucs.map((u) => [u.id, u]));
@@ -828,7 +831,7 @@ function coversAnchors(a: UcDescriptor, b: UcDescriptor): boolean {
 }
 
 /**
- * Senders must be uniform in this HCD (205). A sender that spans several SABRA units — a BNAG gyrus or several anchors
+ * Senders must be uniform in this HCD (BRA 203). A sender that spans several SABRA units — a BNAG gyrus or several anchors
  * — is usually heterogeneous: split it into the units and make it a Collection, or say why it is uniform here.
  */
 function multiUnitSenderProblems(senders: UcRow[]): string[] {
@@ -841,7 +844,7 @@ function multiUnitSenderProblems(senders: UcRow[]): string[] {
     const spans = d.anchors.length > 1 ? `${d.anchors.length} SABRA units` : d.anchors[0].kind === "bnag" ? `the BNA group ${d.anchors[0].l2} (several BNA areas)` : null;
     if (!spans) continue;
     errors.push(
-      `uc.json: \`${u.id}\` spans ${spans} and sends connections, but a sender must be uniform in this HCD (205). If its parts differ anatomically or functionally (distinct areas, different projection sources or targets), split it into UCs for the parts the HCD distinguishes (named with search_bna_candidates / RCS; a paper that reports only the whole region supports each part with relation \`<\`) and, if it helps the reader, list it in collections with those UCs. Layer or cell-type evidence is not needed for this. If this HCD really treats it as one population, write why in its uniformityNote.`,
+      `uc.json: \`${u.id}\` spans ${spans} and sends connections, but a sender must be uniform in this HCD (BRA 203). If its parts differ anatomically or functionally (distinct areas, different projection sources or targets), split it into UCs for the parts the HCD distinguishes (named with search_bna_candidates / RCS; a paper that reports only the whole region supports each part with relation \`<\`) and, if it helps the reader, list it in collections with those UCs. Layer or cell-type evidence is not needed for this. If this HCD really treats it as one population, write why in its uniformityNote.`,
     );
   }
   return errors;

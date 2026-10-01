@@ -581,7 +581,7 @@ export const ko: Record<MessageKey, string> = {
   "cc.C2c": "분해 방식이 다름(부분 집합도 상위 집합도 아님)",
   "cc.C3": "Uniform 회로 옆에 더 세분된 회로가 들어감(거친 쪽은 Collection이어야 함)",
   "cc.C4": "Circuit ID와 UC Descriptor가 1:1이 아님",
-  "cc.C5": "연결의 끝이 Collection(Sender / Receiver는 Uniform만, 205)",
+  "cc.C5": "연결의 끝이 Collection(Sender / Receiver는 Uniform만, BRA 203)",
   "cc.C6": "SABRA 정식 이름이 다름",
   "cc.C7": "회로의 속성이 다름",
   "cc.C8": "같은 Reference ID가 다른 논문(DOI / PMID)을 가리킴",

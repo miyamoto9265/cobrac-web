@@ -581,7 +581,7 @@ export const pt: Record<MessageKey, string> = {
   "cc.C2c": "A decomposição está dividida de outra forma (nem subconjunto nem superconjunto)",
   "cc.C3": "Um circuito mais fino ficaria ao lado de um Uniform (o mais grosso deve ser Collection)",
   "cc.C4": "Circuit ID e UC Descriptor não correspondem um a um",
-  "cc.C5": "Uma conexão termina em uma Collection (Sender / Receiver devem ser Uniform, 205)",
+  "cc.C5": "Uma conexão termina em uma Collection (Sender / Receiver devem ser Uniform, BRA 203)",
   "cc.C6": "O nome oficial SABRA difere",
   "cc.C7": "Uma propriedade do circuito difere",
   "cc.C8": "O mesmo Reference ID aponta para outro artigo (DOI / PMID)",
