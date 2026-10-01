@@ -79,7 +79,7 @@ const S = {
       key: { title: "Canon のキー", lines: ["正規化した記述子", "`bna:57-58/side:left`"] },
       entry: { title: "Canon のエントリ", lines: ["Circuit ID・正式名", "Uniform/Collection・Sub-Circuits"] },
       push: "push / PR",
-      resolve: "正規化",
+      match: "照合",
       checksHead: "キーで照合して見る主な衝突（生成時は修正ターンで戻す）",
       checks: [
         { title: "C4", lines: ["Circuit ID と記述子が", "1 対 1 でない"] },
@@ -163,7 +163,7 @@ const S = {
       key: { title: "Canon key", lines: ["normalized descriptor", "`bna:57-58/side:left`"] },
       entry: { title: "Canon entry", lines: ["Circuit ID, official name", "Uniform/Collection, Sub-Circuits"] },
       push: "push / PR",
-      resolve: "normalize",
+      match: "match",
       checksHead: "Main conflicts checked by the key (fixed in a fix turn)",
       checks: [
         { title: "C4", lines: ["Circuit ID and descriptor", "are not one-to-one"] },
@@ -341,7 +341,7 @@ function canon(lang, narrow = false) {
       [s.key, "agent"],
       [s.entry, "worker"],
     ];
-    const labels = [s.push, s.resolve];
+    const labels = [s.push, s.match];
     steps.forEach(([b, kind], i) => {
       body.push(box({ x: 10, y, w, h: 62, kind, title: b.title, lines: b.lines, size: 11.5, titleSize: 12.5, align: "middle" }));
       y += 62;
@@ -359,7 +359,7 @@ function canon(lang, narrow = false) {
       [s.key, "agent"],
       [s.entry, "worker"],
     ];
-    const labels = [s.push, s.resolve];
+    const labels = [s.push, s.match];
     steps.forEach(([b, kind], i) => {
       const bx = 20 + i * (bw + gap);
       body.push(box({ x: bx, y, w: bw, h: 70, kind, title: b.title, lines: b.lines, size: 12, titleSize: 13, align: "middle" }));
