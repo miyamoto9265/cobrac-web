@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 270" width="430" height="270" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">BRA 作成 1 件の時間の内訳（本番の 3 件の平均 60.2 分、v0.16.0）</title>
+<desc id="d">段ごとに見ると、起動 0.7 分、調査 12.8 分、HCD 41.1 分、FRG 5.5 分、CSV・xlsx・グラフ 0.1 分。性質ごとに見ると、モデルの応答待ち 52.9 分（88%）、ツール実行の待ち 6.0 分（10%）、ワーカーの検証と CSV・xlsx 0.6 分（1%）、起動 0.7 分（1%）。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="270" fill="#ffffff"/>
+<text x="10" y="20" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>段ごと</tspan></text>
+<rect x="10.0" y="30" width="4.8" height="28" fill="#94a3b8" stroke="#ffffff" stroke-width="1"/>
+<rect x="14.8" y="30" width="87.2" height="28" fill="#f59e0b" stroke="#ffffff" stroke-width="1"/>
+<text x="58.355481727574755" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>12.8</tspan></text>
+<rect x="101.9" y="30" width="279.9" height="28" fill="#3b82f6" stroke="#ffffff" stroke-width="1"/>
+<text x="241.9019933554817" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>41.1</tspan></text>
+<rect x="381.9" y="30" width="37.5" height="28" fill="#8b5cf6" stroke="#ffffff" stroke-width="1"/>
+<text x="400.5897009966777" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>5.5</tspan></text>
+<rect x="419.3" y="30" width="0.7" height="28" fill="#10b981" stroke="#ffffff" stroke-width="1"/>
+<rect x="10" y="69" width="16" height="14" rx="3" fill="#94a3b8"/>
+<text x="32" y="80" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>起動 0.7 分（1%）</tspan></text>
+<rect x="147.44" y="69" width="16" height="14" rx="3" fill="#f59e0b"/>
+<text x="169.44" y="80" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>調査 12.8 分（21%）</tspan></text>
+<rect x="10" y="89" width="16" height="14" rx="3" fill="#3b82f6"/>
+<text x="32" y="100" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>HCD 41.1 分（68%）</tspan></text>
+<rect x="160.64" y="89" width="16" height="14" rx="3" fill="#8b5cf6"/>
+<text x="182.64" y="100" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>FRG 5.5 分（9%）</tspan></text>
+<rect x="10" y="109" width="16" height="14" rx="3" fill="#10b981"/>
+<text x="32" y="120" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>CSV・xlsx 0.1 分（0%）</tspan></text>
+<text x="10" y="156" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>性質ごと</tspan></text>
+<rect x="10.0" y="166" width="360.3" height="28" fill="#4338ca" stroke="#ffffff" stroke-width="1"/>
+<text x="190.14119601328903" y="184.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>52.9</tspan></text>
+<rect x="370.3" y="166" width="40.9" height="28" fill="#0d9488" stroke="#ffffff" stroke-width="1"/>
+<text x="390.7142857142857" y="184.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>6.0</tspan></text>
+<rect x="411.1" y="166" width="4.1" height="28" fill="#10b981" stroke="#ffffff" stroke-width="1"/>
+<rect x="415.2" y="166" width="4.8" height="28" fill="#94a3b8" stroke="#ffffff" stroke-width="1"/>
+<rect x="10" y="205" width="16" height="14" rx="3" fill="#4338ca"/>
+<text x="32" y="216" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>モデルの応答待ち 52.9 分（88%）</tspan></text>
+<rect x="10" y="225" width="16" height="14" rx="3" fill="#0d9488"/>
+<text x="32" y="236" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>ツール実行の待ち 6.0 分（10%）</tspan></text>
+<rect x="10" y="245" width="16" height="14" rx="3" fill="#10b981"/>
+<text x="32" y="256" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>ワーカーの検証・出力 0.6 分（1%）</tspan></text>
+<rect x="243.43999999999997" y="245" width="16" height="14" rx="3" fill="#94a3b8"/>
+<text x="265.43999999999994" y="256" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>起動 0.7 分（1%）</tspan></text>
+</svg>

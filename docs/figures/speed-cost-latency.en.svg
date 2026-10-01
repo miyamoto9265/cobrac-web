@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 212" width="860" height="212" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Context length and response latency (4 runs, 482 responses)</title>
+<desc id="d">Each response's latency was fitted as a fixed wait plus output tokens divided by a speed. The 203 responses with a context under 80k tokens had a fixed wait of 3.9 s, the 140 between 80k and 120k 16.3 s, and the 139 above 120k 41.8 s. The output speed was about 110 tokens/s in every band. The model time adds up to 48, 81 and 124 minutes, so responses above 80k take 80% of it. Around a compaction, responses that took 25–68 s drop to 2–6 s.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="212" fill="#ffffff"/>
+<text x="10" y="20" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Fixed wait of one response (s)</tspan></text>
+<text x="92" y="48" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>&lt; 80k</tspan></text>
+<text x="92" y="63" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>203 resp.</tspan></text>
+<rect x="102" y="36" width="22.0" height="26" rx="3" fill="#10b981"/>
+<text x="130.01333333333332" y="54" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>3.9 s</tspan></text>
+<text x="92" y="88" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>80k–120k</tspan></text>
+<text x="92" y="103" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>140 resp.</tspan></text>
+<rect x="102" y="76" width="92.0" height="26" rx="3" fill="#f59e0b"/>
+<text x="200.00444444444446" y="94" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>16.3 s</tspan></text>
+<text x="92" y="128" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>&gt; 120k</tspan></text>
+<text x="92" y="143" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>139 resp.</tspan></text>
+<rect x="102" y="116" width="235.9" height="26" rx="3" fill="#ef4444"/>
+<text x="343.9377777777778" y="134" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>41.8 s</tspan></text>
+<text x="440" y="20" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Total model time (min)</tspan></text>
+<text x="522" y="48" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>&lt; 80k</tspan></text>
+<text x="522" y="63" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>203 resp.</tspan></text>
+<rect x="532" y="36" width="93.8" height="26" rx="3" fill="#10b981"/>
+<text x="631.7846153846153" y="54" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>48 min</tspan></text>
+<text x="522" y="88" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>80k–120k</tspan></text>
+<text x="522" y="103" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>140 resp.</tspan></text>
+<rect x="532" y="76" width="158.3" height="26" rx="3" fill="#f59e0b"/>
+<text x="696.2615384615385" y="94" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>81 min</tspan></text>
+<text x="522" y="128" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>&gt; 120k</tspan></text>
+<text x="522" y="143" font-size="11" font-weight="400" fill="#94a3b8" text-anchor="end"><tspan>139 resp.</tspan></text>
+<rect x="532" y="116" width="242.3" height="26" rx="3" fill="#ef4444"/>
+<text x="780.2769230769231" y="134" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>124 min</tspan></text>
+<text x="10" y="176" font-size="12.5" font-weight="600" fill="#475569" text-anchor="start"><tspan>Rows are the context length of the request (tokens)</tspan></text>
+<text x="10" y="196" font-size="12.5" font-weight="600" fill="#475569" text-anchor="start"><tspan>Output speed is about 110 tokens/s in every band. Around a compaction: 25–68 s → 2–6 s</tspan></text>
+</svg>

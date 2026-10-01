@@ -12,6 +12,7 @@ import { C, NW, arrow, badge, box, legendRows, pill, svg, text, textWidth } from
 import { HARNESS_V1_1_FIGURES } from "./docs-figures-harness-v1-1.mjs";
 import { HARNESS_V2_FIGURES } from "./docs-figures-harness-v2.mjs";
 import { CIRCUIT_NAMING_FIGURES } from "./docs-figures-circuit-naming.mjs";
+import { SPEED_COST_FIGURES } from "./docs-figures-speed-cost.mjs";
 
 export { textWidth };
 
@@ -789,6 +790,7 @@ const FIGURES = {
   ...HARNESS_V1_1_FIGURES,
   ...HARNESS_V2_FIGURES,
   ...CIRCUIT_NAMING_FIGURES,
+  ...SPEED_COST_FIGURES,
   "harness-overview": [overview, (lang) => overview(lang, true)],
   "harness-v0-flow": [v0Flow, v0FlowNarrow],
   "harness-v1-flow": [v1Flow, v1FlowNarrow],

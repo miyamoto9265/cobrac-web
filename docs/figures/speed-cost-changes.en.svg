@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 250.39999999999998" width="860" height="250.39999999999998" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">The three changes of v0.18.0 and why they save time</title>
+<desc id="d">The compaction threshold drops from 150k to 75k tokens, and the tool results and the way files are written are made smaller, so the conversation stays under 80k tokens and the fixed wait of a response stays around 4 s. Fix turns run at reasoning effort medium, so they reason for less time. In the 3-vs-3 comparison, waiting for the model fell from 41.7 to 24.2 minutes and the total from 48.6 to 31.0 minutes.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="250.39999999999998" fill="#ffffff"/>
+<rect x="10" y="10" width="340" height="51.4" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="31.55" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>① Compaction at 75k instead of 150k</tspan></text>
+<text x="22" y="49.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>default of </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">CODEX_AUTO_COMPACT_TOKENS</tspan></text>
+<rect x="10" y="73.4" width="340" height="86.19999999999999" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="94.95" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>② Smaller tool results and edits</tspan></text>
+<text x="22" y="113.35000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">find_sentences</tspan><tspan> 15 → 8, searches 10 → 8 hits</tspan></text>
+<text x="22" y="130.75" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>write a file once, then small edits</tspan></text>
+<text x="22" y="148.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>RCS </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">top_k</tspan><tspan> ≤ 5, batch independent lookups</tspan></text>
+<rect x="10" y="171.6" width="340" height="68.8" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="193.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>③ Fix turns at effort medium</tspan></text>
+<text x="22" y="211.54999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>validator, coverage and CSV fix turns</tspan></text>
+<text x="22" y="228.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>main and adjustment turns unchanged</tspan></text>
+<rect x="400" y="47.4" width="260" height="74.8" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="412" y="71.95" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Conversation stays under 80k</tspan></text>
+<text x="412" y="90.35000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>fixed wait of a response stays</tspan></text>
+<text x="412" y="107.75000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>around 4 s (not 42 s)</tspan></text>
+<rect x="400" y="177.3" width="260" height="57.4" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="412" y="201.85000000000002" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Fix turns reason less</tspan></text>
+<text x="412" y="220.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>turns that only fix listed problems</tspan></text>
+<path d="M350 35.7 L376 35.7 L376 84.8 L400 84.8" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M350 116.5 L376 116.5 L376 84.8 L400 84.8" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M350 206 L400 206" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="700" y="100.20000000000002" width="150" height="81.69999999999999" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="775" y="128.55" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan>Model wait</tspan></text>
+<text x="775" y="147.35" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>41.7 → 24.2 min</tspan></text>
+<text x="775" y="164.75" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>total 48.6 → 31.0 min</tspan></text>
+<path d="M660 84.8 L680 84.8 L680 141.05 L700 141.05" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M660 206 L680 206 L680 141.05 L700 141.05" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+</svg>
