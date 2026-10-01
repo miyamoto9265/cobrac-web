@@ -44,7 +44,7 @@ After the HCD step the worker compares the result with the Canon. **Conflicts go
 - the official name differs;
 - a Reference ID points to another paper.
 
-Smaller differences (extra Sub-Circuits, other properties, the same paper under another ID, a connection written differently) are shown in the chat as notes and do not block the run. References and quotes that the Canon already checked are not looked up again.
+Smaller differences (extra Sub-Circuits, other properties, the same paper under another ID, a connection written differently) are shown in the Agent panel as notes and do not block the run. References and quotes that the Canon already checked are not looked up again.
 
 Every Canon works this way; there is no weaker "advisory" setting. Canons created with the former advisory setting now behave the same.
 
