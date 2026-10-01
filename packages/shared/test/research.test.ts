@@ -11,6 +11,7 @@ import {
   isResearchMode,
   parseResearchLog,
   researchEffort,
+  fixTurnEffort,
   researchModeEstimate,
   validateJsonSchema,
 } from "../src/index.js";
@@ -38,6 +39,14 @@ describe("research mode", () => {
     expect(researchEffort("high")).toBe("high");
     expect(researchEffort("xhigh")).toBe("xhigh");
     expect(researchEffort("max")).toBe("max");
+  });
+
+  it("caps the reasoning effort of fix turns at medium but never raises it", () => {
+    expect(fixTurnEffort(null)).toBe("medium");
+    expect(fixTurnEffort("high")).toBe("medium");
+    expect(fixTurnEffort("max")).toBe("medium");
+    expect(fixTurnEffort("medium")).toBe("medium");
+    expect(fixTurnEffort("low")).toBe("low");
   });
 
   it("estimates the extra time and cost from the price table", () => {

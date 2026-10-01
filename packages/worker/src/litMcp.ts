@@ -21,7 +21,7 @@ export const LIT_TOOL_DEFS: { name: LitTool; description: string; inputSchema: R
       "Search PubMed (relevance order). Use PubMed syntax: field tags ([tiab], [mh]), AND/OR, quotes. Returns PMID, DOI, title, authors, year, journal and whether a PMC copy exists.",
     inputSchema: {
       type: "object",
-      properties: { query: { type: "string" }, max_results: { type: "integer", minimum: 1, maximum: 25, description: "default 10" } },
+      properties: { query: { type: "string" }, max_results: { type: "integer", minimum: 1, maximum: 25, description: "default 8" } },
       required: ["query"],
     },
   },
@@ -33,7 +33,7 @@ export const LIT_TOOL_DEFS: { name: LitTool; description: string; inputSchema: R
       type: "object",
       properties: {
         query: { type: "string" },
-        max_results: { type: "integer", minimum: 1, maximum: 25, description: "default 10" },
+        max_results: { type: "integer", minimum: 1, maximum: 25, description: "default 8" },
         open_access_only: { type: "boolean" },
       },
       required: ["query"],

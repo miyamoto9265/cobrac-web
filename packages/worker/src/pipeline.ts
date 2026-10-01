@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraLookup } from "@cobrac/shared";
 import {
   ADJUSTMENT_CODES,
   CROSS_RULES,
@@ -51,6 +51,8 @@ export interface Prompt {
   hidden?: string;
   /** Local image files sent with the text (user-provided reference images) */
   images?: string[];
+  /** Reasoning effort of this turn only (fix turns); unset: the run's effort */
+  effort?: ReasoningEffort;
 }
 
 /** Text sent to the agent for one turn: shown part, hidden part and the reply-language line, separated by rules. */

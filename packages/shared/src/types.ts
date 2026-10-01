@@ -47,6 +47,15 @@ export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | 
 
 export const REASONING_EFFORTS: ReasoningEffort[] = ["minimal", "low", "medium", "high", "xhigh", "max", "ultra", "persistent"];
 
+/** Highest reasoning effort of a fix turn (validator, research coverage and CSV problems sent back to the agent). */
+export const FIX_TURN_EFFORT: ReasoningEffort = "medium";
+
+/** Reasoning effort of a fix turn: the run's effort, capped at `FIX_TURN_EFFORT` (unset: the cap). */
+export function fixTurnEffort(effort: ReasoningEffort | null | undefined): ReasoningEffort {
+  if (!effort) return FIX_TURN_EFFORT;
+  return REASONING_EFFORTS.indexOf(effort) <= REASONING_EFFORTS.indexOf(FIX_TURN_EFFORT) ? effort : FIX_TURN_EFFORT;
+}
+
 export const REASONING_EFFORT_LABEL: Record<ReasoningEffort, string> = {
   minimal: "minimal（最速・最小）",
   low: "low",

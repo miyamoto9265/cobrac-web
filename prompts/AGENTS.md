@@ -46,6 +46,14 @@ Each JSON file has a JSON Schema in `schemas/<name>.schema.json` (next to this f
 - Cite literature as `[Author, Year]` Reference IDs that exist in `references.json`. Use web search actively; do not invent DOIs (use `N/A` when unknown). The worker checks every DOI / PMID against Crossref and PubMed and writes the result to `reference_check.json`. Quote papers only from text you retrieved; the worker compares every `pointersOnLiterature` with the paper's text (`quote_check.json`).
 - Where scientific accuracy cannot be guaranteed, say so in the value rather than overstating.
 
+## Working efficiently
+
+Every tool result stays in the conversation and makes each later step slower, so keep the conversation small:
+
+- Write each file once, when its content is decided. After that, change only what must change with small edits (a patch or a short script that sets the fields concerned); never write a whole file again to change a few values.
+- Do not print whole files to check them: read only the part you need (a key, a few lines). The worker checks schemas, IDs, references and consistency itself and sends back what is wrong.
+- Ask the tools for small results: `max_results` 5–8 for literature searches, `top_k` 5 or less for RCS. Run independent searches and lookups together in one step.
+
 ## Reference materials from the user
 
 When the prompt has a `Reference materials:` line, the user attached files or URLs when creating the project. They are in `materials/` next to this file (read-only; do not edit or copy them into the project folder). Start with `materials/INDEX.md`: it lists every item with its original file, the extracted or fetched text, and whether extraction worked. Images are also attached to your first prompt; open other images with your image viewer when needed.
