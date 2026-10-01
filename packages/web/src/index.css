@@ -17,6 +17,10 @@ body,
 :root.dark ::after {
   --tw-ring-offset-color: theme("backgroundColor.white");
 }
+/* Form fields without a background class use the panel colour, not the browser's grey dark-mode field. Zero specificity so utilities still win. */
+:where(:root.dark) :where(input:not([type="checkbox"], [type="radio"], [type="color"], [type="range"]), textarea, select) {
+  background-color: theme("backgroundColor.white");
+}
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
