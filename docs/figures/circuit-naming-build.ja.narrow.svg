@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 690" width="430" height="690" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">UC Descriptor から Circuit ID を組み立てる</title>
+<desc id="d">UC Descriptor BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left から Circuit ID A4ul(L5.pt.out-Sp.left) を組み立てる。アンカー BNA:57-58 は正式略称 A4ul になり、ファセットの値は記述子の順に括弧の中へ . で区切って並ぶ。層 L5 と細胞クラス pt は語のまま、投射先 out:HOMBA:AA30565（脊髄）は out-Sp、左右 side:left は最後の項目 left になる。ファセットの軸は part、lay、cell、nt、mol、in、out、resp、side の 9 本で、この順に並べ、空の軸は書かない。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="690" fill="#ffffff"/>
+<rect x="10" y="10" width="214" height="30" rx="8" fill="#8b5cf6"/><text x="117" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>UC Descriptor</tspan></text>
+<rect x="252" y="10" width="168" height="30" rx="8" fill="#0d9488"/><text x="336" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>Circuit ID</tspan></text>
+<rect x="10" y="50" width="410" height="32" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="215" y="70.3125" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left</tspan></text>
+<path d="M215 82 L215 96" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="10" y="96" width="410" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="215" y="116.6875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">A4ul(L5.pt.out-Sp.left)</tspan></text>
+<rect x="10" y="144" width="214" height="46" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="22" y="163.15" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNA:57-58</tspan></text>
+<text x="22" y="179.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>アンカー（BNA の左右ペア）</tspan></text>
+<rect x="252" y="144" width="168" height="46" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="264" y="163.15" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">A4ul</tspan></text>
+<text x="264" y="179.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>正式略称そのまま</tspan></text>
+<path d="M224 167 L252 167" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="10" y="200" width="214" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="219.15" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">lay:L5</tspan></text>
+<text x="22" y="235.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>層</tspan></text>
+<rect x="252" y="200" width="168" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="264" y="219.15" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">L5</tspan></text>
+<text x="264" y="235.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>語のまま</tspan></text>
+<path d="M224 223 L252 223" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="256" width="214" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="275.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">cell:pt</tspan></text>
+<text x="22" y="291.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>細胞クラス（錐体路細胞）</tspan></text>
+<rect x="252" y="256" width="168" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="264" y="275.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">pt</tspan></text>
+<text x="264" y="291.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>語のまま</tspan></text>
+<path d="M224 279 L252 279" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="312" width="214" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="331.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">out:HOMBA:AA30565</tspan></text>
+<text x="22" y="347.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>投射先（脊髄）</tspan></text>
+<rect x="252" y="312" width="168" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="264" y="331.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">out-Sp</tspan></text>
+<text x="264" y="347.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">out-</tspan><tspan> + 相手の略称</tspan></text>
+<path d="M224 335 L252 335" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="368" width="214" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="387.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">side:left</tspan></text>
+<text x="22" y="403.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>左右（いつも最後の軸）</tspan></text>
+<rect x="252" y="368" width="168" height="46" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="264" y="387.15000000000003" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">left</tspan></text>
+<text x="264" y="403.1" font-size="11" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>いつも最後の項目</tspan></text>
+<path d="M224 391 L252 391" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<text x="10" y="438" font-size="11.5" font-weight="600" fill="#0f172a" text-anchor="start"><tspan>括弧の中は </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">.</tspan><tspan> で区切り、ファセットの順に並べる。</tspan></text>
+<text x="10" y="456" font-size="11.5" font-weight="600" fill="#0f172a" text-anchor="start"><tspan>ファセットが無ければ略称だけ（</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.6" fill="#1e293b">VTA</tspan><tspan>）</tspan></text>
+<text x="10" y="492" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>ファセットの 9 本の軸（この順に並べ、空の軸は書かない）</tspan></text>
+<rect x="10" y="504" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="75" y="525.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">part</tspan></text>
+<text x="75" y="542.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>部位</tspan></text>
+<path d="M140 529 L150 529" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="150" y="504" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="215" y="525.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">lay</tspan></text>
+<text x="215" y="542.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>層</tspan></text>
+<path d="M280 529 L290 529" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="290" y="504" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="355" y="525.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">cell</tspan></text>
+<text x="355" y="542.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>細胞</tspan></text>
+<rect x="10" y="566" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="75" y="587.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">nt</tspan></text>
+<text x="75" y="604.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>伝達物質</tspan></text>
+<path d="M140 591 L150 591" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="150" y="566" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="215" y="587.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">mol</tspan></text>
+<text x="215" y="604.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>分子</tspan></text>
+<path d="M280 591 L290 591" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="290" y="566" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="355" y="587.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">in</tspan></text>
+<text x="355" y="604.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>入力元</tspan></text>
+<rect x="10" y="628" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="75" y="649.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">out</tspan></text>
+<text x="75" y="666.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>投射先</tspan></text>
+<path d="M140 653 L150 653" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="150" y="628" width="130" height="50" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="215" y="649.9375" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">resp</tspan></text>
+<text x="215" y="666.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>反応</tspan></text>
+<path d="M280 653 L290 653" fill="none" stroke="#8b5cf6" stroke-width="1.3" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="290" y="628" width="130" height="50" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="355" y="649.9375" font-size="13" font-weight="700" fill="#92400e" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">side</tspan></text>
+<text x="355" y="666.6875" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>左右</tspan></text>
+</svg>

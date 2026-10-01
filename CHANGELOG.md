@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- A new article on the Documentation page, "Naming circuits: UC Descriptor, facets and Circuit ID (v0.17.0)" (English and Japanese, with a language switch): why free circuit names could not be matched across projects, the SABRA anchors and how RCS finds them, the nine facet axes (part, lay, cell, nt, mol, in, out, resp, side), the UC Descriptor as the machine key and the Circuit ID as its readable alias with the `( )` and `.` separators and the allowed characters, laterality as the `side` facet and the older forms that are still read, how the Canon keys circuits by the descriptor, the error codes aligned with WBAI's Error code List (Master) including the local `cobrac:` codes, and the points still to settle with WBAI. It has diagrams of the old and new naming, how a Circuit ID is built, how older forms are read and how the Canon uses the descriptor, each with a phone layout
+
 ## [0.19.0] - 2026-10-02
 
 ### Added

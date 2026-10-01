@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 554" width="430" height="554" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">旧い形の読み替え（v0.17.0）</title>
+<desc id="d">保存済みのデータは書き換えない。読むときに UC Descriptor は canonicalUcDescriptor で現在の形にする。BNA:57 は BNA:57-58/side:left、BNAG:FuG@L は BNAG:FuG/side:left、HOMBA:12261@R は HOMBA:12261/side:right になる。Circuit ID は modernCircuitId で現在の形にする。A4ul@L(L5,pt,out:Sp) は A4ul(L5.pt.out-Sp.left)、NAC(shell,DRD1+) は NAC(shell.DRD1+)、A9/46d@L(L3) は A9/46d(L3.left) になる。検証は次のフォローアップで現在の形への書き直しを求め、Canon は旧い形と新しい形を同じ回路・同じ ID として比べ、ビューアと CSV・xlsx は保存された ID をそのまま出す。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="554" fill="#ffffff"/>
+<rect x="10" y="10" width="186" height="30" rx="8" fill="#b45309"/><text x="103" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>保存済みの旧い形</tspan></text>
+<rect x="214" y="10" width="206" height="30" rx="8" fill="#0d9488"/><text x="317" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>読むときの現在の形</tspan></text>
+<text x="12" y="65" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>UC Descriptor（</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">canonicalUcDescriptor</tspan><tspan>）</tspan></text>
+<rect x="10" y="74" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="94.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNA:57</tspan></text>
+<rect x="214" y="74" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="94.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNA:57-58/side:left</tspan></text>
+<path d="M196 90 L214 90" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="114" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="134.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNAG:FuG@L</tspan></text>
+<rect x="214" y="114" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="134.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">BNAG:FuG/side:left</tspan></text>
+<path d="M196 130 L214 130" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="154" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="174.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">HOMBA:12261@R</tspan></text>
+<rect x="214" y="154" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="174.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">HOMBA:12261/side:right</tspan></text>
+<path d="M196 170 L214 170" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<text x="12" y="213" font-size="12.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Circuit ID（</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.5" fill="#1e293b">modernCircuitId</tspan><tspan>）</tspan></text>
+<rect x="10" y="222" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="242.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">A4ul@L(L5,pt,out:Sp)</tspan></text>
+<rect x="214" y="222" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="242.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">A4ul(L5.pt.out-Sp.left)</tspan></text>
+<path d="M196 238 L214 238" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="262" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="282.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">NAC(shell,DRD1+)</tspan></text>
+<rect x="214" y="262" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="282.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">NAC(shell.DRD1+)</tspan></text>
+<path d="M196 278 L214 278" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="302" width="186" height="32" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="103" y="322.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">A9/46d@L(L3)</tspan></text>
+<rect x="214" y="302" width="206" height="32" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="322.125" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="10.1" fill="#1e293b">A9/46d(L3.left)</tspan></text>
+<path d="M196 318 L214 318" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="10" y="352" width="410" height="58" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="22" y="368.7" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>検証</tspan></text>
+<text x="22" y="386.34999999999997" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>次のフォローアップで</tspan></text>
+<text x="22" y="403.025" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>現在の形への書き直しを求める</tspan></text>
+<rect x="10" y="418" width="410" height="58" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="22" y="434.7" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Canon</tspan></text>
+<text x="22" y="452.34999999999997" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>旧い形と現在の形を</tspan></text>
+<text x="22" y="469.025" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>同じ回路・同じ ID として比べる</tspan></text>
+<rect x="10" y="484" width="410" height="58" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="22" y="500.7" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>出力</tspan></text>
+<text x="22" y="518.35" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ビューアと CSV・xlsx は</tspan></text>
+<text x="22" y="535.025" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>保存された ID をそのまま出す</tspan></text>
+</svg>
