@@ -646,7 +646,7 @@ export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: C
     }
   }
 
-  // connections now ending on a Collection need their projects' attention (205); they stay, flagged
+  // connections now ending on a Collection need their projects' attention (BRA 203 / cobrac:collection-end); they stay, flagged
   for (const c of connections.values()) {
     if (circuits.get(c.sender)?.status === "collection" || circuits.get(c.receiver)?.status === "collection") c.state = "flagged";
   }

@@ -579,7 +579,7 @@ export const en = {
   "cc.C2c": "The decomposition is split differently (neither subset nor superset)",
   "cc.C3": "A finer circuit would sit next to a Uniform one (the coarser one must be a Collection)",
   "cc.C4": "Circuit ID and UC Descriptor do not match one to one",
-  "cc.C5": "A connection ends on a Collection (Sender / Receiver must be Uniform, 205)",
+  "cc.C5": "A connection ends on a Collection (Sender / Receiver must be Uniform, BRA 203)",
   "cc.C6": "The SABRA official name differs",
   "cc.C7": "A property of the circuit differs",
   "cc.C8": "The same Reference ID points to another paper (DOI / PMID)",

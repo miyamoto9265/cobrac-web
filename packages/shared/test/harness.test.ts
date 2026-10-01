@@ -529,7 +529,7 @@ describe("Collection Circuits", () => {
   });
 });
 
-describe("Senders that span several SABRA units (205)", () => {
+describe("Senders that span several SABRA units (BRA 203)", () => {
   // Left fusiform gyrus (BNAG:FuG@L) sends to the ROI; BNA:105 / BNA:106 are the left / right medioventral area 37 in it
   const gyrus = (extra: Record<string, unknown> = {}) => ({ ...UC, ucs: [...UC.ucs.map((u) => (u.circuitId === "VN" ? { ...u, circuitId: "FuG@L", descriptor: "BNAG:FuG@L", ...extra } : u))] });
   const conns = () => {
@@ -548,14 +548,14 @@ describe("Senders that span several SABRA units (205)", () => {
 
   it("asks a gyrus-level sender to be split into its areas or to say why it is uniform, without asking for layers", () => {
     const msg = hcdOf(fix(gyrus())).errors.join("\n");
-    expect(msg).toMatch(/`FuG@L` spans the BNA group FuG \(several BNA areas\) and sends connections, but a sender must be uniform in this HCD \(205\)/);
+    expect(msg).toMatch(/`FuG@L` spans the BNA group FuG \(several BNA areas\) and sends connections, but a sender must be uniform in this HCD \(BRA 203\)/);
     expect(msg).toMatch(/Layer or cell-type evidence is not needed/);
     expect(msg).toMatch(/uniformityNote/);
   });
 
   it("accepts the sender with a uniformityNote and writes the note into the Circuits comments", () => {
     const r = hcdOf(fix(gyrus({ uniformityNote: "The cited papers report only the whole gyrus and its areas play one role for the TLF" })));
-    expect(r.errors.join("\n")).not.toMatch(/205/);
+    expect(r.errors.join("\n")).not.toMatch(/BRA 203/);
     expect(validateJsonSchema(HARNESS_SCHEMAS["uc.json"], fix(gyrus({ uniformityNote: "x" })))).toEqual([]);
     const frg = checkFrg(FRG, r.model!).model!;
     const circuits = parseCsvObjects(buildCsvs(r.model!, frg, { projectId: "VOR", contributor: "T", projectTemplate: TEMPLATE }).files!["Circuits.csv"]);
@@ -564,12 +564,12 @@ describe("Senders that span several SABRA units (205)", () => {
 
   it("does not flag a single area, a bilateral pair or a gyrus that only receives", () => {
     const one = hcdOf(fix(gyrus({ circuitId: "A37mv@L", descriptor: "BNA:105" })));
-    expect(one.errors.join("\n")).not.toMatch(/205/);
+    expect(one.errors.join("\n")).not.toMatch(/BRA 203/);
     const pair = hcdOf(fix(gyrus({ circuitId: "A37mv", descriptor: "BNA:105-106" })));
-    expect(pair.errors.join("\n")).not.toMatch(/205/);
+    expect(pair.errors.join("\n")).not.toMatch(/BRA 203/);
     const sink = structuredClone(UC);
     sink.ucs[4] = { ...sink.ucs[4], circuitId: "FTN", descriptor: "BNAG:FuG@L" };
-    expect(checkHcd({ ...HCD, uc: j(sink) }).errors.join("\n")).not.toMatch(/205/);
+    expect(checkHcd({ ...HCD, uc: j(sink) }).errors.join("\n")).not.toMatch(/BRA 203/);
   });
 
   it("asks to turn a gyrus into a Collection when its areas are UCs too", () => {

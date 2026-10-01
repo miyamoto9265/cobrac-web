@@ -4,7 +4,7 @@ Build the FRG in `{P}/{P}_FRG/frg.json` from the TLF and the ROI-internal UCs of
 
 ## Concepts
 
-- Root: the TLF node. Intermediate: **GN**s, sub-functions over several levels; each is necessary for its parent and sufficiently realized by the combination of its children. Leaves: **UC**s (the HCD's ROI-internal Uniform Circuits, called Uniform Components here). Collections of `uc.json` are not FRG nodes: attach their UCs.
+- Root: the TLF node. Intermediate: **GN**s, sub-functions over several levels; each is necessary for its parent and sufficiently realized by the combination of its children. Leaves: **UC**s (the HCD's ROI-internal Uniform Circuits). Collections of `uc.json` are not FRG nodes: attach their UCs.
 - Node IDs: kebab-case, no spaces, prefix `R.` for the TLF and GNs (e.g. `R.Motor-Learning`), `U.` + Circuit ID for UCs (e.g. `U.VTA`, `U.NAC(shell,DRD1+)`; Circuit IDs keep their own format).
 
 ## Steps
