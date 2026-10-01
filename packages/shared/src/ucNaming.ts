@@ -1,27 +1,33 @@
 /**
  * UC naming convention: UC Descriptor (machine-readable unique key) and Circuit ID (its human-readable alias).
  *
- *   UC Descriptor = <anchor>{&<anchor>}[@L|@R]{/<axis>:<value>[,<value>]}   e.g. BNA:223-224/part:HOMBA:10341/mol:DRD1+
- *   Circuit ID    = <anchor abbreviation>[@L|@R][(<item>{,<item>})]           e.g. NAC(shell,DRD1+)
+ *   UC Descriptor = <anchor>{&<anchor>}{/<axis>:<value>[,<value>]}   e.g. BNA:223-224/part:HOMBA:10341/mol:DRD1+/side:left
+ *   Circuit ID    = <anchor abbreviation>[(<item>{.<item>})]          e.g. NAC(shell.DRD1.left)
  *
- * The anchor is always one SABRA unit (a BNA label / left-right pair / L2 group, or a HOMBA term that has a DHBA
- * name). Everything finer than SABRA goes into the facets; a UC that is a whole SABRA unit has none and is the
- * common case (`HOMBA:12261` / `VTA`). SABRA has no IDs of its own, so neither does a UC: the
- * normalized descriptor is the cross-project key. Pure functions; HOMBA facts come from RCS via `SabraLookup`.
+ * The anchor is always one SABRA unit (a BNA left-right pair or L2 group, or a HOMBA term that has a DHBA name).
+ * Everything finer than SABRA goes into the facets; a UC that is a whole SABRA unit has none and is the common case
+ * (`HOMBA:12261` / `VTA`). SABRA has no IDs of its own, so neither does a UC: the normalized descriptor is the
+ * cross-project key. Pure functions; HOMBA facts come from RCS via `SabraLookup`.
+ *
+ * Laterality is the last facet `side` (`left` / `right`; none = both sides, not distinguished). Anchors are always
+ * pairs: older descriptors with a single BNA label (`BNA:57`) or `@L` / `@R` after the anchors are read and normalized
+ * to the pair plus `side` (`canonicalUcDescriptor`). Circuit IDs use only `A-Za-z0-9._~-/+` (WBAI interim spec of
+ * 2026-08-06 with `/` and `+` added on 2026-08-19) plus the parentheses; older IDs (`A4ul@L(L5,out:Sp)`,
+ * `NAC(shell,DRD1+)`) are read as they are and compared in their current form (`modernCircuitId`).
  */
 import { BNA_AREAS } from "./bnaLabels.js";
 
-export const UC_FACET_AXES = ["part", "lay", "cell", "nt", "mol", "in", "out", "resp"] as const;
+export const UC_FACET_AXES = ["part", "lay", "cell", "nt", "mol", "in", "out", "resp", "side"] as const;
 export type UcFacetAxis = (typeof UC_FACET_AXES)[number];
+export const UC_SIDES = ["left", "right"] as const;
+export type UcSide = (typeof UC_SIDES)[number];
 
 const ANCHOR_SRC = String.raw`(?:HOMBA:[0-9A-Z]+|BNA:\d{1,3}(?:-\d{1,3})?|BNAG:[A-Za-z]+)`;
-export const UC_DESCRIPTOR_RE = new RegExp(
-  String.raw`^${ANCHOR_SRC}(?:&${ANCHOR_SRC})*(?:@[LR])?(?:/(?:${UC_FACET_AXES.join("|")}):[A-Za-z0-9:+~,\-&]+)*$`,
-);
-const ITEM_SRC = String.raw`(?:(?:in|out):)?[A-Za-z0-9][A-Za-z0-9/._+-]*`;
-export const CIRCUIT_ID_RE = new RegExp(String.raw`^[A-Za-z0-9][A-Za-z0-9/._+-]*(?:@[LR])?(?:\(${ITEM_SRC}(?:,${ITEM_SRC})*\))?$`);
-
-export type Laterality = "L" | "R";
+/** Syntax of a descriptor in its current form (no `@L` / `@R`; see `canonicalUcDescriptor` for older ones). */
+export const UC_DESCRIPTOR_RE = new RegExp(String.raw`^${ANCHOR_SRC}(?:&${ANCHOR_SRC})*(?:/(?:${UC_FACET_AXES.join("|")}):[A-Za-z0-9:+~,\-&]+)*$`);
+const ITEM_SRC = String.raw`[A-Za-z0-9][A-Za-z0-9_~/+-]*`;
+/** A Circuit ID in its current form: the characters `A-Za-z0-9._~-/+`, items in parentheses separated by `.`. */
+export const CIRCUIT_ID_RE = new RegExp(String.raw`^[A-Za-z0-9][A-Za-z0-9._~/+-]*(?:\(${ITEM_SRC}(?:\.${ITEM_SRC})*\))?$`);
 
 export type UcAnchor =
   | { kind: "homba"; id: string }
@@ -30,8 +36,10 @@ export type UcAnchor =
 
 export interface UcDescriptor {
   anchors: UcAnchor[];
-  laterality: Laterality | null;
+  /** Facets other than `side` */
   facets: { axis: UcFacetAxis; values: string[] }[];
+  /** The `side` facet; null = both sides (not distinguished) */
+  side: UcSide | null;
 }
 
 /** SABRA facts about one HOMBA term, as returned by RCS `get_homba_term` (`sabra` annotation + own DHBA acronym). */
@@ -57,8 +65,14 @@ export type SabraLookup = ReadonlyMap<string, HombaSabraInfo | null>;
 const BNA_BY_LEFT = new Map(BNA_AREAS.map((a) => [a[0], a]));
 const BNA_L2 = new Set(BNA_AREAS.map((a) => a[2]));
 
-/** Official abbreviation as used in a Circuit ID (the only conversion: spaces → `_`). */
-export const sabraAbbr = (s: string) => s.trim().replace(/\s+/g, "_");
+/**
+ * Official abbreviation as used in a Circuit ID: as written (`A9/46d`, `V5/MT+`), except that spaces and any other
+ * character outside the ID character set become `_` (`TE1.0 and TE1.2` → `TE1.0_and_TE1.2`).
+ */
+export const sabraAbbr = (s: string) => s.trim().replace(/[^A-Za-z0-9._~/+-]+/g, "_");
+
+/** One item inside the parentheses: like `sabraAbbr`, and `.` (the item separator) becomes `_` too. */
+export const circuitItem = (s: string) => sabraAbbr(s).replace(/\./g, "_");
 
 /** BNA area for a label ID 1–246 (either side). */
 export function bnaArea(label: number): { left: number; abbr: string; l2: string; name: string } | null {
@@ -98,20 +112,50 @@ function parseAnchor(s: string): UcAnchor | string {
   return { kind: "bna", left: a, right: b };
 }
 
-/** Parse and semantically check a UC Descriptor; returns the problems instead when it is invalid. */
-export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | { errors: string[] } {
+const sideOfLabel = (n: number): UcSide => (n % 2 === 1 ? "left" : "right");
+
+/**
+ * The descriptor in its current form: single BNA labels become their pair and the side (from the label or from an
+ * older `@L` / `@R`) becomes the facet `side:left` / `side:right`. Works on any case (also on normalized keys).
+ */
+export function canonicalUcDescriptor(text: string): { text: string } | { error: string } {
   const s = text.trim();
-  if (!UC_DESCRIPTOR_RE.test(s)) return { errors: [`\`${s}\` is not a valid UC Descriptor (<anchor>[@L|@R]{/axis:value})`] };
+  const [rawHead, ...facets] = s.split("/");
+  const lat = /@([LR])$/i.exec(rawHead);
+  const sides = new Set<UcSide>();
+  if (lat) sides.add(lat[1].toUpperCase() === "L" ? "left" : "right");
+  const anchors = (lat ? rawHead.slice(0, -2) : rawHead).split("&").map((a) => {
+    const m = /^(bna):(\d{1,3})$/i.exec(a);
+    if (!m) return a;
+    const n = Number(m[2]);
+    sides.add(sideOfLabel(n));
+    const left = n % 2 === 1 ? n : n - 1;
+    return `${m[1]}:${left}-${left + 1}`;
+  });
+  const sideFacet = facets.find((f) => /^side:/i.test(f));
+  if (sideFacet && sides.size) sides.add(sideFacet.slice(5).toLowerCase() as UcSide);
+  if (sides.size > 1) return { error: `\`${s}\` mixes left and right (single BNA labels are one side: odd = left, even = right); a UC has at most one side:left / side:right` };
+  if (!sides.size) return { text: s };
+  const side = [...sides][0];
+  return { text: [[...new Set(anchors)].join("&"), ...facets.filter((f) => f !== sideFacet), `side:${side}`].join("/") };
+}
+
+/** Parse and semantically check a UC Descriptor (older forms are normalized first); returns the problems when invalid. */
+export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | { errors: string[] } {
+  const c = canonicalUcDescriptor(text);
+  if ("error" in c) return { errors: [c.error] };
+  const s = c.text;
+  if (!UC_DESCRIPTOR_RE.test(s)) return { errors: [`\`${s}\` is not a valid UC Descriptor (<anchor>{/axis:value}, e.g. BNA:57-58/lay:L5/side:left)`] };
   const errors: string[] = [];
   const [head, ...facetParts] = s.split("/");
-  const lat = /@([LR])$/.exec(head);
   const anchors: UcAnchor[] = [];
-  for (const a of (lat ? head.slice(0, -2) : head).split("&")) {
+  for (const a of head.split("&")) {
     const r = parseAnchor(a);
     if (typeof r === "string") errors.push(r);
     else anchors.push(r);
   }
   const facets: UcDescriptor["facets"] = [];
+  let side: UcSide | null = null;
   let lastIdx = -1;
   for (const f of facetParts) {
     const i = f.indexOf(":");
@@ -120,6 +164,11 @@ export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | 
     const idx = UC_FACET_AXES.indexOf(axis);
     if (idx <= lastIdx) errors.push(`\`${s}\`: facets must appear once each in the order ${UC_FACET_AXES.join(", ")} (\`${axis}\` is out of order or repeated)`);
     lastIdx = Math.max(lastIdx, idx);
+    if (axis === "side") {
+      if (values.length === 1 && (UC_SIDES as readonly string[]).includes(values[0])) side = values[0] as UcSide;
+      else errors.push(`\`${s}\`: side is one value, left or right (omit it for both sides)`);
+      continue;
+    }
     if (axis === "mol") {
       for (const v of values) if (!/(?:[+-]|~hi|~lo)$/.test(v)) errors.push(`\`${s}\`: mol value \`${v}\` needs a polarity (+, -, ~hi, ~lo)`);
     }
@@ -131,29 +180,55 @@ export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | 
     }
     facets.push({ axis, values });
   }
-  const single = anchors.find((a): a is Extract<UcAnchor, { kind: "bna" }> => a.kind === "bna" && a.right === null);
-  if (lat && single && anchors.length === 1 && (single.left % 2 === 1 ? "L" : "R") !== lat[1]) {
-    errors.push(`\`${s}\`: BNA:${single.left} is the ${single.left % 2 === 1 ? "left" : "right"} label; drop @${lat[1]}`);
-  }
   if (errors.length) return { errors };
-  return { descriptor: { anchors, laterality: (lat?.[1] as Laterality) ?? null, facets } };
+  return { descriptor: { anchors, facets, side } };
 }
 
-/** Case-insensitive comparison key: facet order is fixed, mol values sorted, whole string lower-cased. */
+/** Case-insensitive comparison key: the current form, mol values sorted, whole string lower-cased. Idempotent. */
 export function normalizeUcDescriptor(text: string): string {
-  const [head, ...facets] = text.trim().split("/");
+  const c = canonicalUcDescriptor(text);
+  const [head, ...facets] = ("text" in c ? c.text : text.trim()).split("/");
   const norm = facets.map((f) => {
-    if (!f.startsWith("mol:")) return f;
+    if (!/^mol:/i.test(f)) return f;
     return "mol:" + f.slice(4).split(",").sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())).join(",");
   });
   return [head, ...norm].join("/").toLowerCase();
 }
 
-/** `A4ul@L(L5,pt,out:Sp)` → head `A4ul`, laterality `L`, items. */
-export function parseCircuitId(id: string): { head: string; laterality: Laterality | null; items: string[] } {
+/** Facet values as `axis:value` (lower case), the side included: the population's finer-than-anchor properties. */
+export function ucFacetValues(d: UcDescriptor): Set<string> {
+  const values = d.facets.flatMap((f) => f.values.map((v) => `${f.axis}:${v}`.toLowerCase()));
+  if (d.side) values.push(`side:${d.side}`);
+  return new Set(values);
+}
+
+const OLD_ID_RE = /[@,:]/;
+
+/**
+ * Head and items of a Circuit ID. An older ID (with `@L` / `@R`, `,` between items or `in:` / `out:`) is
+ * read in its own syntax and flagged `old`; `side` is its `@L` / `@R`.
+ */
+export function parseCircuitId(id: string): { head: string; items: string[]; old: boolean; side: UcSide | null } {
   const m = /^([^@(]*)(?:@([LR]))?(?:\((.*)\))?$/.exec(id);
-  if (!m) return { head: id.split(/[@(]/)[0], laterality: null, items: [] };
-  return { head: m[1], laterality: (m[2] as Laterality) ?? null, items: m[3] ? m[3].split(",") : [] };
+  if (!m) return { head: id.split(/[@(]/)[0], items: [], old: OLD_ID_RE.test(id), side: null };
+  const old = OLD_ID_RE.test(id);
+  const items = m[3] ? m[3].split(old ? "," : ".") : [];
+  return { head: m[1], items, old, side: m[2] ? (m[2] === "L" ? "left" : "right") : null };
+}
+
+/**
+ * A Circuit ID in its current form; current IDs are returned unchanged. Older ones are converted:
+ * `A4ul@L(L5,pt,out:Sp)` → `A4ul(L5.pt.out-Sp.left)`, `NAC(shell,DRD1+)` → `NAC(shell.DRD1+)`, `A9/46d@L(L3)` → `A9/46d(L3.left)`.
+ */
+export function modernCircuitId(id: string): string {
+  const p = parseCircuitId(id);
+  if (!p.old) return id;
+  const items = p.items.map((x) => {
+    const io = /^(in|out):(.*)$/.exec(x);
+    return io ? `${io[1]}-${circuitItem(io[2])}` : circuitItem(x);
+  });
+  if (p.side) items.push(p.side);
+  return sabraAbbr(p.head) + (items.length ? `(${items.join(".")})` : "");
 }
 
 /** HOMBA IDs used as anchors in the given descriptors (for RCS lookups). */
@@ -166,7 +241,7 @@ export function hombaAnchorIds(descriptors: string[]): string[] {
   return [...ids];
 }
 
-type Expected = { head: string; laterality: Laterality | null } | { unknown: true } | { error: string };
+type Expected = { head: string } | { unknown: true } | { error: string };
 
 function anchorHead(a: UcAnchor, sabra: SabraLookup | undefined): { head: string; l2: string | null } | { unknown: true } | { error: string } {
   if (a.kind === "bnag") return { head: a.l2, l2: a.l2 };
@@ -187,7 +262,7 @@ function anchorHead(a: UcAnchor, sabra: SabraLookup | undefined): { head: string
   return { head: sabraAbbr(info.dhbaAcronym), l2: null };
 }
 
-/** Expected Circuit ID head and laterality for a parsed descriptor. */
+/** Expected Circuit ID head for a parsed descriptor. */
 export function expectedCircuitHead(d: UcDescriptor, sabra?: SabraLookup): Expected {
   const heads = d.anchors.map((a) => anchorHead(a, sabra));
   const err = heads.find((h): h is { error: string } => "error" in h);
@@ -196,18 +271,11 @@ export function expectedCircuitHead(d: UcDescriptor, sabra?: SabraLookup): Expec
   const common = heads.length > 1 && l2s[0] && l2s.every((x) => x === l2s[0]) ? l2s[0] : null;
   const first = heads[0];
   if (!common && !("head" in first)) return { unknown: true };
-  const head = common ?? (first as { head: string }).head;
-
-  let laterality = d.laterality;
-  if (!laterality) {
-    const sides = d.anchors.map((a) => (a.kind === "bna" && a.right === null ? (a.left % 2 === 1 ? "L" : "R") : null));
-    if (sides.every((x) => x && x === sides[0])) laterality = sides[0] as Laterality;
-  }
-  return { head, laterality };
+  return { head: common ?? (first as { head: string }).head };
 }
 
 /**
- * SABRA official name of an anchor-only UC: the BNA area name, or the DHBA name from RCS. Null for faceted UCs,
+ * SABRA official name of an anchor-only UC: the BNA area name, or the DHBA name from RCS. Null for faceted UCs (the side does not count),
  * several anchors, BNA groups and HOMBA terms that could not be looked up.
  */
 export function sabraOfficialName(descriptor: string, sabra?: SabraLookup): string | null {
@@ -232,17 +300,26 @@ export interface NamedUc {
   descriptor: string;
 }
 
-/** Circuit ID / UC Descriptor checks for one uc.json (syntax, head = anchor abbreviation, uniqueness). */
+/** Circuit ID / UC Descriptor checks for one uc.json (syntax, head = anchor abbreviation, items, uniqueness). */
 export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
   const errors: string[] = [];
   const byNorm = new Map<string, string>();
   for (const u of ucs) {
-    if (!CIRCUIT_ID_RE.test(u.id)) {
-      errors.push(`uc.json: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[@L|@R][(item,item)] (e.g. \`NAC(shell,DRD1+)\`).`);
+    const got = parseCircuitId(u.id);
+    if (got.old) {
+      errors.push(
+        `uc.json: Circuit ID \`${u.id}\` uses the old syntax; write \`${modernCircuitId(u.id)}\` (also in connections, Sub-Circuits, Output Semantics and [U.…] references). Items are separated by \`.\`, \`in-\` / \`out-\` name the partner, the side is the last item \`left\` / \`right\`, and a Circuit ID uses only A-Z a-z 0-9 . _ ~ - / + and the parentheses.`,
+      );
+    } else if (!CIRCUIT_ID_RE.test(u.id)) {
+      errors.push(`uc.json: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[(item.item)] with only A-Z a-z 0-9 . _ ~ - / + and the parentheses (e.g. \`NAC(shell.DRD1+)\`, \`A4ul(left)\`).`);
     }
     if (!u.descriptor) {
       errors.push(`uc.json: \`${u.id}\` has no UC Descriptor.`);
       continue;
+    }
+    const canon = canonicalUcDescriptor(u.descriptor);
+    if ("text" in canon && canon.text !== u.descriptor.trim()) {
+      errors.push(`uc.json: write the UC Descriptor of \`${u.id}\` as \`${canon.text}\` (anchors are left-right pairs; the side is the last facet side:left / side:right, omitted for both sides).`);
     }
     const parsed = parseUcDescriptor(u.descriptor);
     if ("errors" in parsed) {
@@ -253,25 +330,28 @@ export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
     const dup = byNorm.get(norm);
     if (dup) errors.push(`uc.json: \`${dup}\` and \`${u.id}\` have the same UC Descriptor \`${u.descriptor}\` (one UC per descriptor; merge them or add a facet).`);
     else byNorm.set(norm, u.id);
+    if (got.old) continue;
 
-    const got = parseCircuitId(u.id);
-    const values = parsed.descriptor.facets.reduce((n, f) => n + f.values.length, 0);
+    const d = parsed.descriptor;
+    const values = d.facets.reduce((n, f) => n + f.values.length, 0) + (d.side ? 1 : 0);
     if (values === 0 && got.items.length) {
       errors.push(`uc.json: \`${u.id}\` has no facets in its UC Descriptor, so its Circuit ID is the anchor abbreviation alone (drop the parenthesized items, or add the facets if the UC really is finer than the SABRA unit).`);
     } else if (values !== got.items.length) {
-      errors.push(`uc.json: Circuit ID \`${u.id}\` has ${got.items.length} parenthesized item(s) but its UC Descriptor has ${values} facet value(s); write one item per facet value, in facet order.`);
+      errors.push(`uc.json: Circuit ID \`${u.id}\` has ${got.items.length} parenthesized item(s) but its UC Descriptor has ${values} facet value(s); write one item per facet value, in facet order, the side last.`);
+    } else if (d.side && got.items[got.items.length - 1] !== d.side) {
+      errors.push(`uc.json: Circuit ID \`${u.id}\` must end with the item \`${d.side}\` (its UC Descriptor has side:${d.side}).`);
+    } else if (!d.side && got.items.some((x) => (UC_SIDES as readonly string[]).includes(x))) {
+      errors.push(`uc.json: Circuit ID \`${u.id}\` names a side but its UC Descriptor has no side facet; add side:left / side:right or drop the item.`);
     }
 
-    const exp = expectedCircuitHead(parsed.descriptor, sabra);
+    const exp = expectedCircuitHead(d, sabra);
     if ("error" in exp) {
       errors.push(`uc.json: UC Descriptor of \`${u.id}\`: ${exp.error}.`);
       continue;
     }
     if ("unknown" in exp) continue;
-    const want = exp.head + (exp.laterality ? `@${exp.laterality}` : "");
-    const have = got.head + (got.laterality ? `@${got.laterality}` : "");
-    if (have !== want) {
-      errors.push(`uc.json: Circuit ID \`${u.id}\` must start with \`${want}\` (the SABRA abbreviation of its anchor \`${u.descriptor.split("/")[0]}\`, exact case${exp.laterality ? ", with laterality" : ""}).`);
+    if (got.head !== exp.head) {
+      errors.push(`uc.json: Circuit ID \`${u.id}\` must start with \`${exp.head}\` (the SABRA abbreviation of its anchor \`${u.descriptor.split("/")[0]}\`, exact case).`);
     }
   }
   return errors;

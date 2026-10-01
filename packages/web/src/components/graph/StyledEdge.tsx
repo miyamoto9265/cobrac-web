@@ -2,7 +2,8 @@ import { BaseEdge, EdgeLabelRenderer, Position, getBezierPath, getSmoothStepPath
 import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type { ArrowHead, EdgeLineType, EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../../i18n";
-import { markerUrl } from "./markers";
+import { SELF_LOOP_STEP, laneGeometry, laneLabelPlacement, type Lane, type LaneRoom, type Side } from "../../lib/parallelEdges";
+import { markerBoxSize, markerUrl } from "./markers";
 
 export type XY = { x: number; y: number };
 
@@ -26,6 +27,11 @@ export type EdgeData = {
   dim: boolean;
   /** source === target: drawn as a loop on the node's right side */
   self?: boolean;
+  /** 0, 1, 2 … among the self loops of the same node */
+  loopIndex?: number;
+  /** set when other edges share this node pair: the lane keeps them apart */
+  lane?: Lane;
+  laneRoom?: LaneRoom;
   /** true when this edge is selected → show waypoint editing handles */
   editing: boolean;
   onWaypointsChange?: (id: string, wps: XY[]) => void;
@@ -68,7 +74,7 @@ export function resolveEdgeStyle(sign: EdgeSign | undefined, override: EdgeStyle
 const isHorizontal = (p: Position) => p === Position.Left || p === Position.Right;
 
 /** Insert right-angle corners between consecutive anchor points. */
-function orthogonalPoints(pts: XY[], sourcePos: Position, targetPos: Position): XY[] {
+function orthogonalPoints(pts: XY[], sourcePos: Position, targetPos: Position, center: XY = { x: 0, y: 0 }): XY[] {
   const out: XY[] = [pts[0]];
   const last = pts.length - 2;
   let prevHorizontal = isHorizontal(sourcePos);
@@ -85,10 +91,10 @@ function orthogonalPoints(pts: XY[], sourcePos: Position, targetPos: Position): 
     if (i === 0 && i === last) {
       // direct connection: leave and enter perpendicular to the node sides
       if (!srcH && !tgtH) {
-        const my = (a.y + b.y) / 2;
+        const my = (a.y + b.y) / 2 + center.y;
         out.push({ x: a.x, y: my }, { x: b.x, y: my }, b);
       } else if (srcH && tgtH) {
-        const mx = (a.x + b.x) / 2;
+        const mx = (a.x + b.x) / 2 + center.x;
         out.push({ x: mx, y: a.y }, { x: mx, y: b.y }, b);
       } else if (srcH) {
         out.push({ x: b.x, y: a.y }, b);
@@ -161,15 +167,28 @@ export function buildEdgePath(
   ty: number,
   sourcePosition: Position,
   targetPosition: Position,
+  /** parallel lanes: shift of the middle segment of orthogonal / step routes and of the middle of curves */
+  lane?: { center: XY; normal: XY; shift: number; base: { source: XY; target: XY } },
 ): { path: string; labelX: number; labelY: number; renderPts: XY[] } {
   const anchors: XY[] = [{ x: sx, y: sy }, ...wps, { x: tx, y: ty }];
+  const center = lane?.center ?? { x: 0, y: 0 };
   switch (s.lineType) {
     case "straight": {
       const [path, labelX, labelY] = getStraightPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty });
       return { path, labelX, labelY, renderPts: anchors };
     }
     case "smoothstep": {
-      const [path, labelX, labelY] = getSmoothStepPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition, borderRadius: s.rounded ? 8 : 0 });
+      const [path, labelX, labelY] = getSmoothStepPath({
+        sourceX: sx,
+        sourceY: sy,
+        targetX: tx,
+        targetY: ty,
+        sourcePosition,
+        targetPosition,
+        borderRadius: s.rounded ? 8 : 0,
+        centerX: (sx + tx) / 2 + center.x,
+        centerY: (sy + ty) / 2 + center.y,
+      });
       return { path, labelX, labelY, renderPts: anchors };
     }
     case "polyline": {
@@ -177,16 +196,74 @@ export function buildEdgePath(
       return { path: pointsToPath(anchors, s.rounded ? 10 : 0), labelX: m.x, labelY: m.y, renderPts: anchors };
     }
     case "orthogonal": {
-      const pts = orthogonalPoints(anchors, sourcePosition, targetPosition);
+      const pts = orthogonalPoints(anchors, sourcePosition, targetPosition, center);
       const m = midpoint(pts);
       return { path: pointsToPath(pts, s.rounded ? 8 : 0), labelX: m.x, labelY: m.y, renderPts: pts };
     }
     case "bezier":
     default: {
+      if (lane && lane.shift) return laneBezier(lane, sx, sy, tx, ty, sourcePosition, targetPosition);
       const [path, labelX, labelY] = getBezierPath({ sourceX: sx, sourceY: sy, targetX: tx, targetY: ty, sourcePosition, targetPosition });
       return { path, labelX, labelY, renderPts: anchors };
     }
   }
+}
+
+/** Control point of React Flow's default bezier (curvature 0.25), so a bowed curve keeps the usual shape. */
+function bezierControl(pos: Position, x1: number, y1: number, x2: number, y2: number): XY {
+  const off = (d: number) => (d >= 0 ? 0.5 * d : 0.25 * 25 * Math.sqrt(-d));
+  switch (pos) {
+    case Position.Left:
+      return { x: x1 - off(x1 - x2), y: y1 };
+    case Position.Right:
+      return { x: x1 + off(x2 - x1), y: y1 };
+    case Position.Top:
+      return { x: x1, y: y1 - off(y1 - y2) };
+    default:
+      return { x: x1, y: y1 + off(y2 - y1) };
+  }
+}
+
+const cubicMid = (p0: XY, c1: XY, c2: XY, p3: XY): XY => ({ x: (p0.x + 3 * c1.x + 3 * c2.x + p3.x) / 8, y: (p0.y + 3 * c1.y + 3 * c2.y + p3.y) / 8 });
+
+/**
+ * Bezier of a parallel lane: the middle sits `shift` away from the middle of the unshifted curve, measured across the
+ * curve's own direction there (a flat S-curve would otherwise bring two lanes almost together).
+ */
+function laneBezier(
+  lane: { normal: XY; shift: number; base: { source: XY; target: XY } },
+  sx: number,
+  sy: number,
+  tx: number,
+  ty: number,
+  sourcePosition: Position,
+  targetPosition: Position,
+) {
+  const { source: b0, target: b3 } = lane.base;
+  const b1 = bezierControl(sourcePosition, b0.x, b0.y, b3.x, b3.y);
+  const b2 = bezierControl(targetPosition, b3.x, b3.y, b0.x, b0.y);
+  const mid0 = cubicMid(b0, b1, b2, b3);
+  let tanX = b3.x + b2.x - b1.x - b0.x;
+  let tanY = b3.y + b2.y - b1.y - b0.y;
+  const tl = Math.hypot(tanX, tanY) || 1;
+  tanX /= tl;
+  tanY /= tl;
+  let m = { x: -tanY, y: tanX };
+  if (m.x * lane.normal.x + m.y * lane.normal.y < 0) m = { x: -m.x, y: -m.y };
+  const want = { x: mid0.x + m.x * lane.shift, y: mid0.y + m.y * lane.shift };
+  const p0 = { x: sx, y: sy };
+  const p3 = { x: tx, y: ty };
+  const c1 = bezierControl(sourcePosition, sx, sy, tx, ty);
+  const c2 = bezierControl(targetPosition, tx, ty, sx, sy);
+  const have = cubicMid(p0, c1, c2, p3);
+  // moving both control points by d moves the midpoint by 3/4·d
+  const dx = ((want.x - have.x) * 4) / 3;
+  const dy = ((want.y - have.y) * 4) / 3;
+  c1.x += dx;
+  c1.y += dy;
+  c2.x += dx;
+  c2.y += dy;
+  return { path: `M${sx},${sy} C${c1.x},${c1.y} ${c2.x},${c2.y} ${tx},${ty}`, labelX: want.x, labelY: want.y, renderPts: [p0, p3] };
 }
 
 const EDITABLE: EdgeLineType[] = ["orthogonal", "polyline"];
@@ -207,7 +284,18 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
   }, [s.waypoints]);
 
   const loop = !!d.self && wps.length === 0;
-  const { path, labelX, labelY, renderPts } = loop ? selfLoopPath(sourceX, sourceY, targetX, targetY) : buildEdgePath(s, wps, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition);
+  const lane = !loop && wps.length === 0 ? d.lane : undefined;
+  const geo = lane ? laneGeometry(lane, { x: sourceX, y: sourceY }, { x: targetX, y: targetY }, sourcePosition as Side, targetPosition as Side, d.laneRoom) : null;
+  const sx = geo?.source.x ?? sourceX;
+  const sy = geo?.source.y ?? sourceY;
+  const tx = geo?.target.x ?? targetX;
+  const ty = geo?.target.y ?? targetY;
+  const { path, labelX, labelY, renderPts } = loop
+    ? selfLoopPath(sourceX, sourceY, targetX, targetY, d.loopIndex ?? 0)
+    : buildEdgePath(s, wps, sx, sy, tx, ty, sourcePosition, targetPosition, geo ? { ...geo, base: { source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } } } : undefined);
+  const labelPlace = geo
+    ? laneLabelPlacement(geo.outward, labelX, labelY, Math.abs(tx - sx), markerBoxSize(s.width))
+    : { transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` };
 
   const startMarker = markerUrl(s.markerStart === "none" ? null : { type: s.markerStart, color: s.color, width: s.width });
   const endMarker = markerUrl(s.markerEnd === "none" ? null : { type: s.markerEnd, color: s.color, width: s.width });
@@ -250,7 +338,7 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
   };
 
   // Midpoints of each anchor segment (for the "add bend" handles). Index = insertion index into wps.
-  const anchors: XY[] = [{ x: sourceX, y: sourceY }, ...wps, { x: targetX, y: targetY }];
+  const anchors: XY[] = [{ x: sx, y: sy }, ...wps, { x: tx, y: ty }];
   const mids = canEdit
     ? anchors.slice(0, -1).map((a, i) => {
         const b = anchors[i + 1];
@@ -285,7 +373,7 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
         <EdgeLabelRenderer>
           <div
             className="nodrag nopan pointer-events-none absolute max-w-[200px] truncate rounded border border-slate-200 bg-white/90 px-1 text-[10px] text-slate-600"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, opacity }}
+            style={{ transform: labelPlace.transform, maxWidth: selected || d.related ? undefined : labelPlace.maxWidth, opacity }}
             title={d.title}
           >
             {d.label}
@@ -324,12 +412,14 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
   );
 }
 
-/** Recurrent connection: leave and re-enter the node's right side through an outward loop. */
-export function selfLoopPath(sx: number, sy: number, tx: number, ty: number): { path: string; labelX: number; labelY: number; renderPts: XY[] } {
-  const reach = 46;
+/** Recurrent connection: leave and re-enter the node's right side through an outward loop; further loops nest outside. */
+export function selfLoopPath(sx: number, sy: number, tx: number, ty: number, index = 0): { path: string; labelX: number; labelY: number; renderPts: XY[] } {
+  const reach = 46 + index * SELF_LOOP_STEP;
+  const bulge = 18 + index * 14;
   const x = Math.max(sx, tx) + reach;
-  const path = `M${sx},${sy} C${x},${sy - 18} ${x},${ty + 18} ${tx},${ty}`;
-  return { path, labelX: x - 8, labelY: (sy + ty) / 2, renderPts: [{ x: sx, y: sy }, { x: tx, y: ty }] };
+  const path = `M${sx},${sy} C${x},${sy - bulge} ${x},${ty + bulge} ${tx},${ty}`;
+  // labels of nested loops stack downwards so they do not cover each other
+  return { path, labelX: x - 8, labelY: (sy + ty) / 2 + index * 18, renderPts: [{ x: sx, y: sy }, { x: tx, y: ty }] };
 }
 
 /** Is p inside the bounding box spanned by a and b (with tolerance)? */

@@ -7,7 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { checkHcd, type HcdModel } from "./harness.js";
-import { normalizeUcDescriptor, parseUcDescriptor } from "./ucNaming.js";
+import { modernCircuitId, normalizeUcDescriptor, parseUcDescriptor, ucFacetValues } from "./ucNaming.js";
 
 export type CanonCircuitStatus = "uniform" | "collection";
 export type CanonEntryState = "valid" | "flagged" | "invalidated";
@@ -182,6 +182,7 @@ function parseJson(text: string | null | undefined): unknown {
 /**
  * Converts a project's HCD / FRG files into Canon form: circuits keyed by their UC Descriptor, connections by
  * (sender, receiver, paper). UCs without a descriptor cannot be matched across projects and are skipped (listed).
+ * Circuit IDs of older projects enter the Canon in their current form (`modernCircuitId`).
  */
 export function canonFromProject(projectId: string, projectRevision: number, files: ProjectCanonFiles): CanonIncoming {
   const r = checkHcd({ uc: files.uc, connections: files.connections, references: files.references, meta: files.meta });
@@ -202,7 +203,7 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
     circuits.push({
       descriptor: u.descriptor,
       key: normalizeUcDescriptor(u.descriptor),
-      circuitId: u.id,
+      circuitId: modernCircuitId(u.id),
       names: u.names,
       status: "uniform",
       subCircuits: [],
@@ -223,7 +224,7 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
       circuits.push({
         descriptor: c.descriptor,
         key: normalizeUcDescriptor(c.descriptor),
-        circuitId: c.id,
+        circuitId: modernCircuitId(c.id),
         names: c.names,
         status: "collection",
         subCircuits: [...new Set(members)].sort(),
@@ -236,7 +237,7 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
         state: "valid",
       });
     } else {
-      groups.push({ key: `group:${c.id}`, circuitId: c.id, names: c.names, members: [...new Set(members)].sort(), origin, sources: [projectId], state: "valid" });
+      groups.push({ key: `group:${c.id}`, circuitId: modernCircuitId(c.id), names: c.names, members: [...new Set(members)].sort(), origin, sources: [projectId], state: "valid" });
     }
   }
 
@@ -252,8 +253,8 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
         key: connKey(s, rcv, ref),
         sender: s,
         receiver: rcv,
-        senderCircuitId: c.sender,
-        receiverCircuitId: c.receiver,
+        senderCircuitId: modernCircuitId(c.sender),
+        receiverCircuitId: modernCircuitId(c.receiver),
         referenceId: ref,
         taxon: c.taxon,
         method: c.method,
@@ -294,7 +295,7 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
     .filter((u) => u.descriptor)
     .map((u) => ({
       key: normalizeUcDescriptor(u.descriptor),
-      circuitId: u.id,
+      circuitId: modernCircuitId(u.id),
       roi: u.roi,
       interface: u.interfaceText,
       outputSemantics: u.outputSemantics,
@@ -315,7 +316,8 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
  * What a Canon brings to another Canon: its head revision as it is. Entries keep their original project origin and
  * record the sending Canon in `via`; the role layer carries every member project of the sender.
  */
-export function canonFromCanon(snapshot: CanonSnapshot): CanonIncoming {
+export function canonFromCanon(stored: CanonSnapshot): CanonIncoming {
+  const snapshot = currentCanonSnapshot(stored);
   const via = `${snapshot.canonId}@${snapshot.revision}`;
   const tag = <T extends { origin: CanonOrigin; sources: string[] }>(x: T): T => ({ ...clone(x), origin: { ...x.origin, pr: 0, via }, sources: [snapshot.canonId] });
   return {
@@ -390,7 +392,30 @@ function facetsOf(descriptor: string): Facets | null {
   const r = parseUcDescriptor(descriptor);
   if ("errors" in r) return null;
   const [head] = normalizeUcDescriptor(descriptor).split("/");
-  return { head, values: new Set(r.descriptor.facets.flatMap((f) => f.values.map((v) => `${f.axis}:${v}`.toLowerCase()))) };
+  return { head, values: ucFacetValues(r.descriptor) };
+}
+
+const sameCircuitId = (a: string, b: string) => modernCircuitId(a) === modernCircuitId(b);
+
+/**
+ * A stored snapshot keyed in the current descriptor form: keys of older one-sided descriptors (`bna:29`, `…@l`) become
+ * the pair plus `side` (`bna:29-30/side:left`). Circuit IDs stay as stored (compare them with `modernCircuitId`).
+ * Stored revisions are not rewritten; a merge writes the next revision with these keys.
+ */
+export function currentCanonSnapshot(snapshot: CanonSnapshot): CanonSnapshot {
+  const k = (key: string) => (key.startsWith("group:") ? key : normalizeUcDescriptor(key));
+  return {
+    ...snapshot,
+    circuits: snapshot.circuits.map((c) => ({ ...c, key: k(c.key), subCircuits: c.subCircuits.map(k) })),
+    groups: snapshot.groups.map((g) => ({ ...g, members: g.members.map(k) })),
+    connections: snapshot.connections.map((c) => ({
+      ...c,
+      key: connKey(k(c.sender), k(c.receiver), c.referenceId),
+      sender: k(c.sender),
+      receiver: k(c.receiver),
+    })),
+    roles: snapshot.roles.map((r) => ({ ...r, ucRoles: r.ucRoles.map((u) => ({ ...u, key: k(u.key) })) })),
+  };
 }
 
 /** b is finer than a: same anchors (and side) and a strict superset of a's facet values. */
@@ -410,7 +435,8 @@ const conflict = (c: Omit<CanonConflict, "id" | "choosable"> & { choosable?: boo
 });
 
 /** Compares what a project brings with the Canon at `base`, and lists the conflicts (design §4.3). */
-export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDiff {
+export function diffCanon(stored: CanonSnapshot, incoming: CanonIncoming): CanonDiff {
+  const base = currentCanonSnapshot(stored);
   const items: CanonDiffItem[] = [];
   const conflicts: CanonConflict[] = [];
   const src = incoming.projectId;
@@ -421,7 +447,7 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
     const b = baseCircuits.get(c.key);
     if (!b) {
       items.push({ kind: "circuit", key: c.key, label: c.circuitId, change: "added" });
-      const clash = base.circuits.find((x) => x.circuitId === c.circuitId && x.key !== c.key);
+      const clash = base.circuits.find((x) => x.key !== c.key && sameCircuitId(x.circuitId, c.circuitId));
       if (clash) conflicts.push(conflict({ code: "C4", severity: "error", kind: "circuit", key: c.key, field: "circuitId", canon: clash.descriptor, incoming: c.descriptor }));
       continue;
     }
@@ -442,9 +468,12 @@ export function diffCanon(base: CanonSnapshot, incoming: CanonIncoming): CanonDi
         conflicts.push(conflict({ code: "C2c", severity: "error", kind: "circuit", key: c.key, field: "subCircuits", canon: b.subCircuits.join(", "), incoming: c.subCircuits.join(", "), resolvable: true }));
       }
     }
-    if (b.circuitId !== c.circuitId) {
+    if (!sameCircuitId(b.circuitId, c.circuitId)) {
       fields.push({ field: "circuitId", from: b.circuitId, to: c.circuitId });
       conflicts.push(conflict({ code: "C4", severity: "error", kind: "circuit", key: c.key, field: "circuitId", canon: b.circuitId, incoming: c.circuitId }));
+    } else if (b.circuitId !== c.circuitId && modernCircuitId(b.circuitId) === c.circuitId) {
+      // an older ID takes the current form the project now writes
+      fields.push({ field: "circuitId", from: b.circuitId, to: c.circuitId });
     }
     if (officialName(b.names) && officialName(c.names) && officialName(b.names) !== officialName(c.names)) {
       fields.push({ field: "names", from: b.names, to: c.names });
@@ -597,7 +626,8 @@ function mergeNames(canon: string, incoming: string): string {
  * The next revision: the Canon plus what the project brings. Callers must have checked that `diff` (computed against
  * `base`) has no errors and that every warning is settled. Existing values win unless the reviewer chose "incoming".
  */
-export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: CanonDiff, choices: Record<string, CanonChoice>, pr: number, createdAt: string): CanonSnapshot {
+export function mergeCanon(stored: CanonSnapshot, incoming: CanonIncoming, diff: CanonDiff, choices: Record<string, CanonChoice>, pr: number, createdAt: string): CanonSnapshot {
+  const base = currentCanonSnapshot(stored);
   const pick = (id: string) => choices[id] === "incoming";
   const origin = (o: CanonOrigin): CanonOrigin => ({ ...o, pr });
   const src = incoming.projectId;
@@ -611,6 +641,7 @@ export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: C
     }
     b.names = mergeNames(b.names, c.names);
     b.sources = union(b.sources, [src]);
+    if (b.circuitId !== c.circuitId && modernCircuitId(b.circuitId) === c.circuitId) b.circuitId = c.circuitId;
     if (pick(`C1:circuit:${c.key}:status`)) {
       b.status = c.status;
       b.subCircuits = c.subCircuits;
@@ -646,7 +677,7 @@ export function mergeCanon(base: CanonSnapshot, incoming: CanonIncoming, diff: C
     }
   }
 
-  // connections now ending on a Collection need their projects' attention (205); they stay, flagged
+  // connections now ending on a Collection need their projects' attention (BRA 203 / cobrac:collection-end); they stay, flagged
   for (const c of connections.values()) {
     if (circuits.get(c.sender)?.status === "collection" || circuits.get(c.receiver)?.status === "collection") c.state = "flagged";
   }

@@ -1,8 +1,8 @@
 {
   "ucs": [
     {
-      "circuitId": "A9/46d@L",
-      "descriptor": "BNA:15",
+      "circuitId": "A9/46d(left)",
+      "descriptor": "BNA:15-16/side:left",
       "names": "left dorsal area 9/46",
       "roi": "noROI(input)",
       "sourceOfId": "BNA",
@@ -15,7 +15,7 @@
       "capability": "",
       "mechanism": "",
       "implementation": "",
-      "outputSemantics": "[A9/46d@L] task context;"
+      "outputSemantics": "[A9/46d(left)] task context;"
     },
     {
       "circuitId": "VTA",
@@ -32,7 +32,7 @@
       "requirementRealization": "The single input [U.NAC] supplies the expected value that is subtracted from the received reward; the output returns the error to [U.NAC].",
       "capability": "Temporal-difference error computation [Schultz, 1997].",
       "mechanism": "Phasic firing rises above baseline for unexpected reward and dips below baseline when an expected reward is omitted.",
-      "implementation": "[U.VTA] = r + gamma*V(t+1) - [U.NAC]"
+      "implementation": "[U.VTA] = r + gamma*V(t1) - [U.NAC]"
     },
     {
       "circuitId": "NAC",
@@ -43,13 +43,13 @@
       "transmitter": "GABA",
       "modulationType": "Inhibitory",
       "comments": "Ventral striatum storing state values",
-      "interface": "([U.VTA], [U.Arc]) = NAC([U.A9/46d@L], [U.VTA])",
+      "interface": "([U.VTA], [U.Arc]) = NAC([U.A9/46d(left)], [U.VTA])",
       "outputSemantics": "[NAC] state value;",
-      "requirement": "Learn state values. input: [U.A9/46d@L] (task context), [U.VTA] (prediction error); output: [U.VTA] (expected value), [U.Arc] (value-based drive).",
-      "requirementRealization": "Context from [U.A9/46d@L] selects the state, the error from [U.VTA] updates its value, and the value is sent to [U.VTA] and [U.Arc].",
+      "requirement": "Learn state values. input: [U.A9/46d(left)] (task context), [U.VTA] (prediction error); output: [U.VTA] (expected value), [U.Arc] (value-based drive).",
+      "requirementRealization": "Context from [U.A9/46d(left)] selects the state, the error from [U.VTA] updates its value, and the value is sent to [U.VTA] and [U.Arc].",
       "capability": "Value learning by a three-factor plasticity rule [Haber, 2010].",
       "mechanism": "Dopamine-gated plasticity of cortico-striatal synapses stores the value of each context.",
-      "implementation": "[U.NAC] = V([U.A9/46d@L]); dV = alpha*[U.VTA]"
+      "implementation": "[U.NAC] = V([U.A9/46d(left)]); dV = alpha*[U.VTA]"
     },
     {
       "circuitId": "Arc",

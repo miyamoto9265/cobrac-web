@@ -581,7 +581,7 @@ export const ru: Record<MessageKey, string> = {
   "cc.C2c": "Разбиение сделано иначе (ни подмножество, ни надмножество)",
   "cc.C3": "Рядом с Uniform-цепью оказалась бы более детальная (грубая должна быть Collection)",
   "cc.C4": "Circuit ID и UC Descriptor не соответствуют один к одному",
-  "cc.C5": "Связь заканчивается на Collection (Sender / Receiver должны быть Uniform, 205)",
+  "cc.C5": "Связь заканчивается на Collection (Sender / Receiver должны быть Uniform, BRA 203)",
   "cc.C6": "Официальное имя SABRA различается",
   "cc.C7": "Свойство цепи различается",
   "cc.C8": "Один Reference ID указывает на другую статью (DOI / PMID)",

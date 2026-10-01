@@ -1,4 +1,6 @@
 import { Codex, type Input, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType } from "@cobrac/shared";
@@ -12,7 +14,58 @@ export interface TurnResult {
   question: string | null;
   failed: boolean;
   errorMessage: string | null;
-  usage: { input: number; cachedInput: number; output: number; reasoningOutput: number };
+  /** Tokens of this turn alone (Codex reports the thread's running total; see `turnUsage`) */
+  usage: TurnUsage;
+}
+
+export interface TurnUsage {
+  input: number;
+  cachedInput: number;
+  output: number;
+  reasoningOutput: number;
+}
+
+const NO_USAGE: TurnUsage = { input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 };
+
+/**
+ * The thread's running token total as Codex last wrote it to the session file (`<codexHome>/sessions/…/rollout-…-<id>.jsonl`,
+ * the last `token_count` event); null when there is no such file or event. Codex keeps this total across resumed runs.
+ */
+export function sessionTotalUsage(threadId: string, codexHome: string = env.codexHome): TurnUsage | null {
+  const file = findSessionFile(join(codexHome, "sessions"), threadId);
+  if (!file) return null;
+  const lines = readFileSync(file, "utf8").split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].includes('"token_count"')) continue;
+    try {
+      const t = (JSON.parse(lines[i]) as { payload?: { type?: string; info?: { total_token_usage?: Record<string, number> } | null } }).payload;
+      const u = t?.type === "token_count" ? t.info?.total_token_usage : undefined;
+      if (u) return { input: u.input_tokens ?? 0, cachedInput: u.cached_input_tokens ?? 0, output: u.output_tokens ?? 0, reasoningOutput: u.reasoning_output_tokens ?? 0 };
+    } catch {
+      // a line still being written
+    }
+  }
+  return null;
+}
+
+function findSessionFile(dir: string, threadId: string): string | null {
+  if (!existsSync(dir)) return null;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, e.name);
+    if (e.isDirectory()) {
+      const found = findSessionFile(path, threadId);
+      if (found) return found;
+    } else if (e.name.endsWith(`${threadId}.jsonl`)) return path;
+  }
+  return null;
+}
+
+/** Usage of one turn: the running total after it minus the total before it (never below 0). */
+export function turnUsage(after: TurnUsage | null, before: TurnUsage | null): TurnUsage {
+  if (!after) return { ...NO_USAGE };
+  const b = before ?? NO_USAGE;
+  const d = (k: keyof TurnUsage) => Math.max(0, after[k] - b[k]);
+  return { input: d("input"), cachedInput: d("cachedInput"), output: d("output"), reasoningOutput: d("reasoningOutput") };
 }
 
 export interface TurnSink {
@@ -139,16 +192,24 @@ export function rateLimitWaitMs(message: string, attempt: number): number {
 export interface RunTurnOptions {
   /** Pause between rate-limit retries (tests); rejects when the signal aborts */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
+  /** The thread's running token total so far (tests); default: `sessionTotalUsage` */
+  threadTotal?: (threadId: string) => TurnUsage | null;
 }
 
 /** Stream state of one Codex run; `error` events alone do not fail a turn that completes. */
 interface TurnState {
   completed: boolean;
+  /** Running total of the thread reported with `turn.completed` */
+  total: TurnUsage | null;
   failedMessage: string | null;
   lastError: string | null;
 }
 
-/** Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause. */
+/**
+ * Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause.
+ * `turn.completed` carries the thread's running total (also after a resume in a new process), so the turn's own usage
+ * is that total minus the total before the turn. A turn that never completes is measured from the session file.
+ */
 export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
   const result: TurnResult = {
     threadId: thread.id ?? null,
@@ -156,13 +217,17 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
     question: null,
     failed: false,
     errorMessage: null,
-    usage: { input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 },
+    usage: { ...NO_USAGE },
   };
   const sleep = o.sleep ?? ((ms: number, s?: AbortSignal) => delay(ms, undefined, s ? { signal: s } : {}));
+  const threadTotal = o.threadTotal ?? ((id: string) => sessionTotalUsage(id));
+  const before = thread.id ? threadTotal(thread.id) : null;
+  if (thread.id && !before) console.warn(`[worker] no token total found for thread ${thread.id}; this turn's usage may include earlier turns`);
+  let after: TurnUsage | null = null;
 
   let input = prompt;
   for (let attempt = 0; ; attempt++) {
-    const state: TurnState = { completed: false, failedMessage: null, lastError: null };
+    const state: TurnState = { completed: false, total: null, failedMessage: null, lastError: null };
     const { events } = await thread.runStreamed(input, { outputSchema: TURN_OUTPUT_SCHEMA, ...(signal ? { signal } : {}) });
     let lastHeartbeat = Date.now();
     try {
@@ -178,6 +243,7 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
       if (!state.failedMessage || signal?.aborted) throw e;
     }
     result.threadId = thread.id ?? result.threadId;
+    if (state.total) after = state.total;
     const error = state.failedMessage ?? (state.completed ? null : state.lastError);
     result.failed = error !== null;
     result.errorMessage = error;
@@ -194,6 +260,9 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
     result.finalMessage = "";
   }
 
+  if (!after && result.threadId) after = threadTotal(result.threadId);
+  result.usage = turnUsage(after, before);
+
   const structured = parseTurnOutput(result.finalMessage);
   if (structured) result.question = structured.status === "question" ? (structured.question ?? structured.message) : null;
   else result.question = QUESTION_REGEX.exec(result.finalMessage)?.[1].trim() ?? null;
@@ -209,10 +278,7 @@ async function handleEvent(ev: ThreadEvent, result: TurnResult, state: TurnState
       return;
     case "turn.completed":
       state.completed = true;
-      result.usage.input += ev.usage.input_tokens;
-      result.usage.cachedInput += ev.usage.cached_input_tokens;
-      result.usage.output += ev.usage.output_tokens;
-      result.usage.reasoningOutput += ev.usage.reasoning_output_tokens;
+      state.total = { input: ev.usage.input_tokens, cachedInput: ev.usage.cached_input_tokens, output: ev.usage.output_tokens, reasoningOutput: ev.usage.reasoning_output_tokens };
       return;
     case "turn.failed":
       state.failedMessage = ev.error.message;

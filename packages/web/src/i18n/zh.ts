@@ -581,7 +581,7 @@ export const zh: Record<MessageKey, string> = {
   "cc.C2c": "分解方式不同（既非子集也非超集）",
   "cc.C3": "Uniform 电路旁出现更细的电路（较粗者必须为 Collection）",
   "cc.C4": "Circuit ID 与 UC Descriptor 不是一一对应",
-  "cc.C5": "连接端点是 Collection（Sender / Receiver 必须为 Uniform，205）",
+  "cc.C5": "连接端点是 Collection（Sender / Receiver 必须为 Uniform，BRA 203）",
   "cc.C6": "SABRA 正式名称不同",
   "cc.C7": "电路属性不同",
   "cc.C8": "同一 Reference ID 指向另一篇论文（DOI / PMID）",

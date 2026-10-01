@@ -3,6 +3,9 @@
  * fail on an OpenAI rate limit (resumed after a pause instead of failing the job).
  */
 import type { Thread, ThreadEvent } from "@openai/codex-sdk";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 type CodexModule = typeof import("../src/codex.js");
@@ -68,7 +71,7 @@ describe("runTurn", () => {
     expect(messages.some((m) => m.type === "error")).toBe(false);
   });
 
-  it("resumes a turn that failed on a rate limit after the suggested pause, and adds up the usage", async () => {
+  it("resumes a turn that failed on a rate limit after the suggested pause, and reports the usage once", async () => {
     const { thread, inputs } = scriptedThread([
       [{ type: "turn.started" }, { type: "turn.failed", error: { message: TPM } }],
       [{ type: "error", message: `Reconnecting... 1/5 (${TPM})` }, ...done()],
@@ -82,6 +85,32 @@ describe("runTurn", () => {
     expect(waits.reduce((a, b) => a + b, 0)).toBe(30_000);
     expect(messages.some((m) => m.type === "status" && /OpenAI rate limit: resuming the turn in 30 s \(retry 1\/3\)/.test(m.content))).toBe(true);
     expect(r.usage).toEqual({ input: 10, cachedInput: 5, output: 2, reasoningOutput: 1 });
+  });
+
+  it("reports a resumed thread's turn as the running total minus the total before it", async () => {
+    // Codex's turn.completed carries the thread's running total, also when the thread was resumed in a new process
+    const { thread } = scriptedThread([
+      [{ type: "turn.started" }, { type: "turn.failed", error: { message: TPM } }],
+      [
+        { type: "item.completed", item: { id: "m", type: "agent_message", text: '{"status":"done","message":"ok","question":null}' } },
+        { type: "turn.completed", usage: { input_tokens: 1_150, cached_input_tokens: 1_005, output_tokens: 32, reasoning_output_tokens: 11 } },
+      ],
+    ]);
+    const threadTotal = vi.fn(() => ({ input: 1_000, cachedInput: 900, output: 20, reasoningOutput: 5 }));
+    const r = await codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {}, threadTotal });
+    expect(r.usage).toEqual({ input: 150, cachedInput: 105, output: 12, reasoningOutput: 6 });
+    expect(threadTotal).toHaveBeenCalledTimes(1);
+  });
+
+  it("measures a turn that never completed from the session total", async () => {
+    const { thread } = scriptedThread([[{ type: "turn.started" }, { type: "turn.failed", error: { message: "invalid_request_error: bad schema" } }]]);
+    const totals = [
+      { input: 1_000, cachedInput: 900, output: 20, reasoningOutput: 5 },
+      { input: 1_400, cachedInput: 1_200, output: 50, reasoningOutput: 9 },
+    ];
+    const r = await codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {}, threadTotal: () => totals.shift() ?? null });
+    expect(r.failed).toBe(true);
+    expect(r.usage).toEqual({ input: 400, cachedInput: 300, output: 30, reasoningOutput: 4 });
   });
 
   it("fails after the allowed retries, with backoff between them", async () => {
@@ -161,6 +190,34 @@ describe("runTurn", () => {
     const p = codex.runTurn(thread, "go", sink().s, abort.signal);
     setTimeout(() => abort.abort(new Error("cancelled")), 20);
     await expect(p).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("session token totals", () => {
+  it("reads the thread's last running total from its session file", () => {
+    const home = mkdtempSync(join(tmpdir(), "codex-home-"));
+    const dir = join(home, "sessions", "2026", "10", "01");
+    mkdirSync(dir, { recursive: true });
+    const total = (input: number) => ({ input_tokens: input, cached_input_tokens: input - 10, output_tokens: 7, reasoning_output_tokens: 3, total_tokens: input + 7 });
+    const line = (payload: unknown) => JSON.stringify({ timestamp: "2026-10-01T00:00:00Z", type: "event_msg", payload });
+    writeFileSync(
+      join(dir, "rollout-2026-10-01T00-00-00-thread-9.jsonl"),
+      [
+        line({ type: "token_count", info: { total_token_usage: total(100), last_token_usage: total(100) } }),
+        line({ type: "token_count", info: null }),
+        line({ type: "token_count", info: { total_token_usage: total(250), last_token_usage: total(150) } }),
+        line({ type: "task_complete" }),
+        "",
+      ].join("\n"),
+    );
+    expect(codex.sessionTotalUsage("thread-9", home)).toEqual({ input: 250, cachedInput: 240, output: 7, reasoningOutput: 3 });
+    expect(codex.sessionTotalUsage("thread-other", home)).toBeNull();
+    expect(codex.sessionTotalUsage("thread-9", join(home, "missing"))).toBeNull();
+  });
+
+  it("never reports negative usage", () => {
+    expect(codex.turnUsage({ input: 5, cachedInput: 5, output: 1, reasoningOutput: 0 }, { input: 9, cachedInput: 2, output: 1, reasoningOutput: 0 })).toEqual({ input: 0, cachedInput: 3, output: 0, reasoningOutput: 0 });
+    expect(codex.turnUsage(null, null)).toEqual({ input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 });
   });
 });
 

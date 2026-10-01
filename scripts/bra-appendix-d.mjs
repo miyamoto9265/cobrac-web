@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 /**
- * Appendix D checker: reads one BRA output of CoBRAC and reports, for each error code of the ontology report's
- * Appendix D (29 automatic codes + the manual-review codes 273 / 274 / 279), whether the output violates it, next to
- * how the current CoBRAC harness enforces that rule. It reads the output only, independently of the harness code, so
- * it can judge outputs of any version (v0 desktop CSVs, CoBRAC-v1-0 / v1-1 xlsx, the CSV folder of a project).
+ * BRA error-code checker: reads one BRA output of CoBRAC and reports, for each error code it covers, whether the
+ * output violates it, next to how the current CoBRAC harness enforces that rule. It reads the output only,
+ * independently of the harness code, so it can judge outputs of any version (v0 desktop CSVs, CoBRAC-v1-0 / v1-1
+ * xlsx, the CSV folder of a project).
+ *
+ * Codes are those of "BRA data: Error code List (Master)" (the list Template-v2-2 / v2-3 refer to). The checker
+ * started from the ontology report's Appendix D, whose numbers partly do not exist in the Master or mean something
+ * else there (BRA-DB discrepancy review, 2026-08-19); each entry keeps its Appendix D number as `appendixD` so that
+ * reports made before can be compared. Checks CoBRAC needs that have no Master code use local `cobrac:` codes.
  *
  *   node scripts/bra-appendix-d.mjs <Project>_CSV/            # the five CSVs (Project, References, Circuits, …)
  *   node scripts/bra-appendix-d.mjs <Project>/                # a project workspace: reads its <Project>_CSV/
@@ -39,10 +44,10 @@ export const SOURCE_OF_ID_EXTENSIONS = ["BNA"];
 export const RELATIONS = ["<", "=", ">"];
 export const OUT_OF_ROI_CAPABILITY = "No need for description due to input/output circuit";
 
-// --- enforcement in CoBRAC main (0.10.0) --------------------------------------------------------------------------
+// --- enforcement in CoBRAC main ---------------------------------------------------------------------------------
 
 /**
- * How the harness of app 0.10.0 guarantees each rule. `kind`: schema (JSON Schema of the agent's files),
+ * How the harness of app main guarantees each rule. `kind`: schema (JSON Schema of the agent's files),
  * validator (deterministic check, problems go back to the agent), generator (the worker writes the value itself),
  * prompt (instruction only), none. `level`: full / partial / form (the value is present but its meaning is not
  * checked) / none / violates (CoBRAC's format itself breaks the upstream rule, by decision).
@@ -50,72 +55,100 @@ export const OUT_OF_ROI_CAPABILITY = "No need for description due to input/outpu
 export const ENFORCEMENT = {
   1: { kind: "validator", level: "full", how: "DOI が N/A なら alternativeUrl か PMID を要求（PMID から PubMed の URL を生成）" },
   2: { kind: "validator", level: "full", how: "DOI を Crossref / doi.org、PMID を PubMed で照合。照合先に届かないときは unverified で先へ進む" },
+  3: { kind: "validator", level: "full", how: "references.json の DOI の重複を検査（大文字小文字・doi.org の接頭辞を除いて比較）" },
   10: { kind: "schema", level: "full", how: "references.json の literatureType は必須" },
   11: { kind: "schema", level: "full", how: "literatureType は Template の 11 値の enum" },
-  14: { kind: "validator", level: "full", how: "references.json の id の重複を検査" },
+  "cobrac:ref-id-unique": { kind: "validator", level: "full", how: "references.json の id の重複を検査" },
   101: { kind: "schema", level: "full", how: "circuitId は pattern ^\\S+$" },
   103: { kind: "validator", level: "full", how: "Circuit ID と UC Descriptor の重複を検査" },
-  104: { kind: "validator", level: "violates", how: "CoBRAC 独自の構文（SABRA 略称、/ ( ) , @ + を含む）で検査。マニュアルの許容文字には合わない（上流に変更を依頼中、U11）" },
+  "cobrac:circuit-id-chars": { kind: "validator", level: "partial", how: "Circuit ID の文字を A-Za-z0-9 . _ ~ - / + と、項目を囲む ( ) に限って検査（WBAI 仮仕様の 8/6 の文字と 8/19 に合意した / +）。仮仕様から外れるのは CoBRAC の ( ) だけ" },
   107: { kind: "schema", level: "full", how: "sourceOfId は空文字不可" },
   108: { kind: "schema", level: "partial", how: "1 値の enum／Reference ID に制限し、UC Descriptor と整合するかを検証。`BNA` は CoBRAC の拡張値（上流に追加を依頼中、U9）" },
-  127: { kind: "generator", level: "form", how: "UC 行は常に TRUE、ROI 行は FALSE をワーカーが書く。均質かどうかの判断は無い" },
-  128: { kind: "generator", level: "partial", how: "Collection は ROI 行だけで、その Sub-Circuits は ROI 内の全 UC（ワーカーが生成）。ほかの Collection は作れない" },
-  129: { kind: "generator", level: "full", how: "UC 行の Sub-Circuits は常に空欄" },
+  120: { kind: "schema", level: "full", how: "collections の subCircuits は 1 件以上（schema）。ROI 行の Sub-Circuits は ROI 内の全回路（ワーカーが生成）" },
+  121: { kind: "validator", level: "full", how: "subCircuits の各要素が uc.json の UC か Collection であることを検査（自分自身・循環・全員 makeshift は cobrac:collection-members）" },
+  127: { kind: "generator", level: "full", how: "UC 行は TRUE、Collection と ROI 行は FALSE をワーカーが必ず書く" },
+  "cobrac:uc-no-sub-circuits": { kind: "generator", level: "full", how: "UC 行の Sub-Circuits は常に空欄（uc.json の ucs にはキーが無い）" },
   201: { kind: "schema", level: "full", how: "sender は空文字不可" },
   202: { kind: "validator", level: "full", how: "sender が uc.json にあるかを検査" },
-  205: { kind: "generator", level: "form", how: "全 UC が Uniform=TRUE なので形式上は起きない。新皮質の野全体を UC にしても止めない（Collection 対応は次の版）" },
+  203: { kind: "validator", level: "partial", how: "Collection を sender にすると返す。複数の SABRA 単位にまたがる sender は uniformityNote が無ければ返す。均質かどうかの判断そのものはエージェント" },
   219: { kind: "schema", level: "full", how: "receiver は空文字不可" },
   224: { kind: "validator", level: "full", how: "receiver が uc.json にあるかを検査" },
-  252: { kind: "schema", level: "full", how: "referenceIds は 1 件ちょうど（minItems / maxItems 1）、references.json にあるかを検査" },
-  271: { kind: "validator", level: "full", how: "Pointers の少なくとも一方を要求。literature は 10 語以上、ページ・節の記載だけは不可" },
-  277: { kind: "validator", level: "full", how: "同上。figure は `Fig. 3B` の形に正規化し、形でないものを返す" },
-  273: { kind: "none", level: "none", how: "引用文が文献中にあるかは照合していない（全文照合は開発中）" },
+  252: { kind: "schema", level: "full", how: "referenceIds は 1 件ちょうど（minItems / maxItems 1）" },
+  253: { kind: "validator", level: "full", how: "referenceIds が references.json にあるかを検査" },
+  271: { kind: "validator", level: "full", how: "Pointers on literature / figure の少なくとも一方を要求" },
+  272: { kind: "validator", level: "full", how: "Pointers on literature は 10 語以上（DEFAULT_BRA_RULES.minQuoteWords）で、ページ・節の記載だけは不可" },
+  277: { kind: "validator", level: "full", how: "271 と同じ（少なくとも一方を要求）" },
+  278: { kind: "validator", level: "full", how: "figure は `Fig. 3B` の形に正規化し、形でないものを返す" },
+  273: { kind: "validator", level: "partial", how: "引用文を文献の全文か抄録と照合（quote_check.json）。全文が無い論文は抄録だけ" },
   274: { kind: "none", level: "none", how: "引用文から接続を保証できるかは判定していない" },
   279: { kind: "none", level: "none", how: "図の中身は判定しない（図番号の形だけ検査）" },
-  415: { kind: "schema", level: "partial", how: "GN は ^R\\.\\S+$ と空白なし。kebab-case は指示のみ。U. 行はワーカーが U.+Circuit ID を生成" },
-  416: { kind: "validator", level: "full", how: "frg.json のノード ID の重複を検査（U. 行は Circuit ID の一意性で担保）" },
-  418: { kind: "generator", level: "full", how: "Projected Circuits は connections の receiver から生成（receiver は uc.json にあると検証済み）" },
-  420: { kind: "generator", level: "full", how: "U. 行には Circuit ID を必ず書く" },
-  421: { kind: "generator", level: "full", how: "GN 行の Circuit ID は空欄" },
-  430: { kind: "validator", level: "full", how: "UC は `[自分の Circuit ID] 内容;` 1 項目ちょうどを検証。GN は UC の項目からワーカーが生成" },
-  440: { kind: "validator", level: "full", how: "ROI 内 UC と GN の capability を必須にし、ROI 外 UC の行は定型文をワーカーが書く" },
-  445: { kind: "validator", level: "full", how: "FRG の循環と根の数を検査" },
+  402: { kind: "schema", level: "full", how: "GN は ^R\\.\\S+$。U. 行はワーカーが U.+Circuit ID を生成" },
+  403: { kind: "prompt", level: "partial", how: "GN の kebab-case は指示のみ（空白なしだけを schema で検査）。U. 行は Circuit ID の形式に従う（cobrac:circuit-id-chars）" },
+  "cobrac:u-node-circuit": { kind: "generator", level: "full", how: "U. 行のノード ID はワーカーが U.+Circuit ID で生成" },
+  "cobrac:node-id-unique": { kind: "validator", level: "full", how: "frg.json のノード ID の重複を検査（U. 行は Circuit ID の一意性で担保）" },
+  420: { kind: "generator", level: "full", how: "U. 行の Circuit ID は uc.json の UC からワーカーが書く" },
+  421: { kind: "generator", level: "full", how: "UC ごとに U. 行を 1 行だけ書く（GN の親が 2 つでも 1 行）" },
+  424: { kind: "generator", level: "full", how: "U. 行には Circuit ID を必ず書く" },
+  "cobrac:gn-no-circuit-id": { kind: "generator", level: "full", how: "GN 行の Circuit ID は空欄" },
+  430: { kind: "generator", level: "full", how: "Projected Circuits は connections の receiver から生成（receiver は uc.json にあると検証済み）" },
+  562: { kind: "validator", level: "full", how: "UC は `[自分の Circuit ID] 内容;` 1 項目ちょうどを検証。GN は UC の項目からワーカーが生成" },
+  563: { kind: "validator", level: "full", how: "UC の項目は自分の Circuit ID だけ。GN の項目は子の UC のもの（ワーカーが生成）" },
+  "cobrac:capability-required": { kind: "validator", level: "full", how: "ROI 内 UC と GN の capability を必須にし、ROI 外 UC の行は定型文をワーカーが書く" },
+  "cobrac:frg-acyclic": { kind: "validator", level: "full", how: "FRG の循環と根の数を検査" },
 };
 
+/**
+ * `[code, field, label, appendixD]`: numeric codes are those of the Master, `cobrac:` codes are CoBRAC checks with no
+ * Master code. `appendixD` is the number the ontology's Appendix D (and this checker before) used for the same check;
+ * null when the check is new.
+ */
 export const CODES = [
-  [1, "DOI", "DOI 未記載（Alternative URL もなし）"],
-  [2, "DOI", "DOI 形式不正"],
-  [10, "Literature type", "タイプ未選択"],
-  [11, "Literature type", "無効な値"],
-  [14, "Reference ID", "重複"],
-  [101, "Circuit ID", "未記載"],
-  [103, "Circuit ID", "重複"],
-  [104, "Circuit ID", "形式不正（英数字と . _ ~）"],
-  [107, "Source of ID", "未記載"],
-  [108, "Source of ID", "無効な値（列挙の 1 値）"],
-  [127, "Uniform", "未記載"],
-  [128, "Sub-Circuits", "Collection 時に未記載"],
-  [129, "Sub-Circuits", "Uniform 時に記載あり"],
-  [201, "sCID", "Sender 未記載"],
-  [202, "sCID", "Sender 未定義"],
-  [205, "sCID", "Sender が非 Uniform"],
-  [219, "rCID", "Receiver 未記載"],
-  [224, "rCID", "Receiver 未定義"],
-  [252, "Reference ID", "未記載（1 件、References にあること）"],
-  [271, "Pointers", "literature 未記載"],
-  [277, "Pointers", "figure 未記載"],
-  [273, "Pointers（手動）", "引用文が文献中に無い"],
-  [274, "Pointers（手動）", "引用文から接続の存在を保証できない"],
-  [279, "Pointers（手動）", "図から接続の存在を保証できない"],
-  [415, "Node ID", "形式不正"],
-  [416, "Node ID", "重複"],
-  [418, "Output", "投射先未定義"],
-  [420, "Circuit ID", "U. ノードで Circuit 未指定"],
-  [421, "Circuit ID", "非 U. ノードで Circuit 指定"],
-  [430, "Output Semantics", "形式不正"],
-  [440, "Capability", "未記載"],
-  [445, "Subnodes", "循環参照"],
+  [1, "DOI", "DOI 未記載（Alternative URL もなし）", 1],
+  [2, "DOI", "DOI 形式不正", 2],
+  [3, "DOI", "DOI 重複", null],
+  [10, "Literature type", "タイプ未選択", 10],
+  [11, "Literature type", "無効な値", 11],
+  ["cobrac:ref-id-unique", "Reference ID", "重複（Master にコードなし）", 14],
+  [101, "Circuit ID", "未記載", 101],
+  [103, "Circuit ID", "重複", 103],
+  ["cobrac:circuit-id-chars", "Circuit ID", "許容文字（英数字と . _ ~ - / + と ( )）以外（Master にコードなし）", 104],
+  [107, "Source of ID", "未記載", 107],
+  [108, "Source of ID", "無効な値（列挙の 1 値）", 108],
+  [120, "Sub-Circuits", "collection なのに未記載", 128],
+  [121, "Sub-Circuits", "未定義の Circuit ID", null],
+  [127, "Uniform", "未記載", 127],
+  ["cobrac:uc-no-sub-circuits", "Sub-Circuits", "Uniform=TRUE なのに記載あり（Master にコードなし）", 129],
+  [201, "sCID", "Sender 未記載", 201],
+  [202, "sCID", "Sender 未定義", 202],
+  [203, "sCID", "Sender が Uniform Circuit でない", 205],
+  [219, "rCID", "Receiver 未記載", 219],
+  [224, "rCID", "Receiver 未定義", 224],
+  [252, "Reference ID", "未記載", 252],
+  [253, "Reference ID", "範囲外（References に無い、複数を連結）", null],
+  [271, "Pointers on literature", "figure も literature も空", 271],
+  [272, "Pointers on literature", "10 語未満（またはページ・節の記載）", null],
+  [277, "Pointers on figure", "literature も figure も空", 277],
+  [278, "Pointers on figure", "1 つの図を指す形でない", null],
+  [273, "Pointers on literature（手動）", "引用文が文献中に無い", 273],
+  [274, "Pointers on literature（手動）", "引用文から接続の存在を保証できない", 274],
+  [279, "Pointers on figure（手動）", "図から接続の存在を保証できない", 279],
+  [402, "Node ID", "接頭辞が R. / C. / A. / U. でない", 415],
+  [403, "Node ID", "GN の接頭辞の後が kebab-case でない", 415],
+  ["cobrac:u-node-circuit", "Node ID", "U. ノードの ID が U.+定義済みの Circuit ID でない（Master にコードなし）", 415],
+  ["cobrac:node-id-unique", "Node ID", "重複（Master にコードなし）", 416],
+  [420, "Circuit ID", "Circuits に無い Circuit ID", null],
+  [421, "Circuit ID", "異なる行に同じ Circuit ID", null],
+  [424, "Circuit ID", "U. ノードで Circuit ID 未記載", 420],
+  ["cobrac:gn-no-circuit-id", "Circuit ID", "U. 以外のノードに Circuit ID（Master にコードなし）", 421],
+  [430, "Projected Circuits", "Circuits に無い Circuit ID", 418],
+  [562, "Output Semantics", "「[Circuit ID] 説明;」の記法でない", 430],
+  [563, "Output Semantics", "その行の回路以外の Circuit ID", 430],
+  ["cobrac:capability-required", "Capability", "未記載（Master にコードなし）", 440],
+  ["cobrac:frg-acyclic", "Subnodes", "循環参照（Master にコードなし）", 445],
 ];
+
+/** Appendix D number → the codes that replace it, for reading reports made before the codes followed the Master. */
+export const APPENDIX_D_TO_CODES = CODES.reduce((a, [code, , , d]) => (d === null ? a : ((a[d] ??= []).push(code), a)), {});
 
 // --- readers ------------------------------------------------------------------------------------------------------
 
@@ -348,7 +381,7 @@ export function buildModel(bra) {
 
 // --- checks -------------------------------------------------------------------------------------------------------
 
-const MANUAL_ID_RE = /^[A-Za-z0-9._~-]+$/;
+const CIRCUIT_ID_CHARS_RE = /^[A-Za-z0-9._~\/+()-]+$/;
 const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 const REF_ID_RE = /^\[[^[\]]+\]$/;
 /** Template-v2-2 writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
@@ -359,7 +392,8 @@ const NO_DOI_RE = /^(|n\/?a|none|-)$/i;
 const LOCATOR_RE = /^["'“‘]?\s*(?:pp?\.\s*\d|pages?\s+\d|§\s*\d|sections?\s+\d)/i;
 const FIGURE_RE = /^(supplementary\s+|suppl\.\s*|extended\s+data\s+)?fig(?:ure)?s?\.?\s*S?\d+[A-Za-z]?(?![A-Za-z0-9])/i;
 const OS_ITEM_RE = /\s*\[\s*([^[\]\s;]+)\s*\]\s*((?:[^[\];]|\[[^[\]]*\d{4}[a-z]?\])*?)\s*;/y;
-const NODE_GN_RE = /^R\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const NODE_GN_RE = /^[RCA]\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/;
+const NODE_PREFIX_RE = /^[RCAU]\./;
 const isRoiRow = (id) => /^ROI_/.test(id);
 const splitList = (x) => x.split(";").map((s) => s.trim()).filter(Boolean);
 const EMPTY_POINTER_RE = /^(n\/?a|none|-|—)$/i;
@@ -412,17 +446,19 @@ function results(m, opts) {
   // References
   verdict(1, m.refs.filter((r) => NO_DOI_RE.test(r.doi) && !r.altUrl).map((r) => at("References", r, `${r.id} DOI="${r.doi}"${m.columns.altUrl ? "" : "（Alternative URL 列なし）"}`)));
   verdict(2, m.refs.filter((r) => !NO_DOI_RE.test(r.doi) && !DOI_RE.test(r.doi.replace(/^https?:\/\/(dx\.)?doi\.org\//i, ""))).map((r) => at("References", r, `${r.id} DOI="${r.doi}"`)));
+  const doiKey = (d) => d.replace(/^https?:\/\/(dx\.)?doi\.org\//i, "").toLowerCase();
+  verdict(3, dupes(m.refs.filter((r) => !NO_DOI_RE.test(r.doi)).map((r) => doiKey(r.doi))).map((d) => `References: DOI ${d}`));
   verdict(10, m.refs.filter((r) => !r.literatureType).map((r) => at("References", r, `${r.id}${m.columns.literatureType ? "" : "（Literature type 列なし）"}`)));
   verdict(11, m.refs.filter((r) => r.literatureType && !LITERATURE_TYPES.includes(r.literatureType)).map((r) => at("References", r, `${r.id} "${r.literatureType}"`)));
-  verdict(14, dupes(m.refs.map((r) => r.id)).map((id) => `References: ${id}`));
+  verdict("cobrac:ref-id-unique", dupes(m.refs.map((r) => r.id)).map((id) => `References: ${id}`));
 
   // Circuits
   verdict(101, m.circuits.filter((c) => !c.id).map((c) => at("Circuits", c, "Circuit ID が空")));
   verdict(103, dupes(m.circuits.map((c) => c.id)).map((id) => `Circuits: ${id}`));
   verdict(
-    104,
-    m.circuits.filter((c) => c.id && !MANUAL_ID_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~-]/g, ""))].join(" ")}）`)),
-    "許容文字はマニュアルの英数字と . _ ~ に SHACL（§7.6）の - を加えたもの",
+    "cobrac:circuit-id-chars",
+    m.circuits.filter((c) => c.id && !CIRCUIT_ID_CHARS_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~\/+()-]/g, ""))].join(" ")}）`)),
+    "許容文字はマニュアルの英数字と . _ ~、SHACL（§7.6）の -、8/19 に合意した / +、CoBRAC の項目を囲む ( )",
   );
   verdict(107, m.circuits.filter((c) => c.id && !c.sourceOfId).map((c) => at("Circuits", c, c.id)));
   const src = m.circuits.filter((c) => c.id && c.sourceOfId);
@@ -440,29 +476,35 @@ function results(m, opts) {
   if (badSrc.length) put(108, "violation", badSrc.map(describeSrc), extSrc.length ? `ほかに CoBRAC 拡張値 BNA が ${extSrc.length} 件` : "");
   else put(108, extSrc.length ? "extension" : "ok", extSrc.map((c) => at("Circuits", c, `${c.id} = BNA（上流の列挙に無い拡張値）`)));
 
-  verdict(127, m.circuits.filter((c) => c.id && c.uniform === null).map((c) => at("Circuits", c, c.id)), m.defaults.join(" / "));
   const collections = m.circuits.filter((c) => c.uniform === false);
-  verdict(128, collections.filter((c) => !c.subCircuits).map((c) => at("Circuits", c, c.id)), m.circuits.some((c) => isRoiRow(c.id)) ? "" : "ROI 行（ROI_<Project ID>）が無い");
-  verdict(129, m.circuits.filter((c) => c.uniform === true && c.subCircuits).map((c) => at("Circuits", c, `${c.id} Sub-Circuits="${c.subCircuits}"`)));
+  verdict(
+    120,
+    m.circuits.filter((c) => (c.uniform === false || c.sourceOfId === "collection") && !c.subCircuits).map((c) => at("Circuits", c, c.id)),
+    m.circuits.some((c) => isRoiRow(c.id)) ? "" : "ROI 行（ROI_<Project ID>）が無い",
+  );
+  verdict(121, m.circuits.flatMap((c) => splitList(c.subCircuits).filter((k) => !ids.has(k)).map((k) => at("Circuits", c, `${c.id} -> ${k}`))));
+  verdict(127, m.circuits.filter((c) => c.id && c.uniform === null).map((c) => at("Circuits", c, c.id)), m.defaults.join(" / "));
+  verdict("cobrac:uc-no-sub-circuits", m.circuits.filter((c) => c.uniform === true && c.subCircuits).map((c) => at("Circuits", c, `${c.id} Sub-Circuits="${c.subCircuits}"`)));
 
   // Connections
   verdict(201, m.connections.filter((c) => !c.sender).map((c) => at("Connections", c, "sCID が空")));
   verdict(202, m.connections.filter((c) => c.sender && !ids.has(c.sender)).map((c) => at("Connections", c, c.sender)));
   const nonUniformSenders = m.connections.filter((c) => circuitOf.get(c.sender)?.uniform === false).map((c) => at("Connections", c, `${c.sender} -> ${c.receiver}`));
   const wholeAreaSenders = [...new Set(m.connections.map((c) => c.sender))].filter((id) => circuitOf.get(id)?.uniform && neocorticalWholeArea(circuitOf.get(id)));
-  if (nonUniformSenders.length) put(205, "violation", nonUniformSenders);
+  if (nonUniformSenders.length) put(203, "violation", nonUniformSenders);
   else if (wholeAreaSenders.length && !collections.some((c) => !isRoiRow(c.id)))
-    put(205, "suspect", wholeAreaSenders.map((id) => `Circuits: ${id}（${circuitOf.get(id).names || "名前なし"}）`), `Uniform=TRUE の新皮質の野全体が Sender（${wholeAreaSenders.length} UC）。層・細胞種の Uniform に分解していない`);
-  else put(205, "ok");
+    put(203, "suspect", wholeAreaSenders.map((id) => `Circuits: ${id}（${circuitOf.get(id).names || "名前なし"}）`), `Uniform=TRUE の新皮質の野全体が Sender（${wholeAreaSenders.length} UC）。層・細胞種の Uniform に分解していない`);
+  else put(203, "ok");
   verdict(219, m.connections.filter((c) => !c.receiver).map((c) => at("Connections", c, "rCID が空")));
   verdict(224, m.connections.filter((c) => c.receiver && !ids.has(c.receiver)).map((c) => at("Connections", c, c.receiver)));
+  verdict(252, m.connections.filter((c) => !c.referenceId).map((c) => at("Connections", c, `${c.sender} -> ${c.receiver}`)));
   verdict(
-    252,
+    253,
     m.connections
-      .filter((c) => !c.referenceId || !isRefId(c.referenceId) || !refIds.has(refKey(c.referenceId)))
+      .filter((c) => c.referenceId && (!isRefId(c.referenceId) || !refIds.has(refKey(c.referenceId))))
       .map((c) => {
         const n = c.referenceId.match(/\[[^\]]+\]/g)?.length ?? 0;
-        return at("Connections", c, `${c.sender} -> ${c.receiver}: ${!c.referenceId ? "空" : n > 1 ? `${n} 件を連結` : "References に無い"}（"${c.referenceId.slice(0, 60)}"）`);
+        return at("Connections", c, `${c.sender} -> ${c.receiver}: ${n > 1 ? `${n} 件を連結` : "References に無い"}（"${c.referenceId.slice(0, 60)}"）`);
       }),
   );
   const noPointer = m.connections.filter((c) => !c.pointersOnLiterature && !c.pointersOnFigure).map((c) => at("Connections", c, `${c.sender} -> ${c.receiver}`));
@@ -470,13 +512,10 @@ function results(m, opts) {
     .filter((c) => c.pointersOnLiterature && (LOCATOR_RE.test(c.pointersOnLiterature) || words(c.pointersOnLiterature) < minWords))
     .map((c) => at("Connections", c, `${words(c.pointersOnLiterature)} 語 "${c.pointersOnLiterature.slice(0, 60)}"`));
   const notFigure = m.connections.filter((c) => c.pointersOnFigure && !FIGURE_RE.test(c.pointersOnFigure)).map((c) => at("Connections", c, `"${c.pointersOnFigure.slice(0, 60)}"`));
-  const pointerVerdict = (code, contentProblems, label) => {
-    if (noPointer.length) put(code, "violation", noPointer, "literature と figure の両方が空");
-    else if (contentProblems.length) put(code, "violation", contentProblems, label);
-    else put(code, "ok");
-  };
-  pointerVerdict(271, notQuote, `引用文になっていない（${minWords} 語未満、またはページ・節の記載）`);
-  pointerVerdict(277, notFigure, "図番号（Fig. 3B の形）になっていない");
+  verdict(271, noPointer, noPointer.length ? "literature と figure の両方が空" : "");
+  verdict(272, notQuote, notQuote.length ? `引用文になっていない（${minWords} 語未満、またはページ・節の記載）` : "");
+  verdict(277, noPointer, noPointer.length ? "literature と figure の両方が空" : "");
+  verdict(278, notFigure, notFigure.length ? "図番号（Fig. 3B の形）になっていない" : "");
   const quotes = m.connections.filter((c) => c.pointersOnLiterature && !LOCATOR_RE.test(c.pointersOnLiterature) && words(c.pointersOnLiterature) >= minWords);
   put(273, "manual", [], `照合対象の引用文 ${quotes.length} / ${m.connections.length} 件（文献の全文との照合は手動）`);
   put(274, "manual", [], `判定対象 ${quotes.length} 件`);
@@ -484,37 +523,31 @@ function results(m, opts) {
 
   // FRG
   const nodeIds = m.frg.map((f) => f.nodeId);
-  verdict(
-    415,
-    m.frg
-      .filter((f) => {
-        if (f.nodeId.startsWith("U.")) return !ids.has(f.nodeId.slice(2));
-        return !NODE_GN_RE.test(f.nodeId);
-      })
-      .map((f) => at("FRG", f, f.nodeId)),
-    "GN は R.+kebab-case、UC は U.+Circuit ID",
-  );
-  verdict(416, dupes(nodeIds).map((id) => `FRG: ${id}`));
+  verdict(402, m.frg.filter((f) => !NODE_PREFIX_RE.test(f.nodeId)).map((f) => at("FRG", f, f.nodeId)));
+  verdict(403, m.frg.filter((f) => NODE_PREFIX_RE.test(f.nodeId) && !f.nodeId.startsWith("U.") && !NODE_GN_RE.test(f.nodeId)).map((f) => at("FRG", f, f.nodeId)), "U. ノードは U.+Circuit ID（Circuit ID の文字は cobrac:circuit-id-chars）");
+  verdict("cobrac:u-node-circuit", m.frg.filter((f) => f.nodeId.startsWith("U.") && !ids.has(f.nodeId.slice(2))).map((f) => at("FRG", f, f.nodeId)));
+  verdict("cobrac:node-id-unique", dupes(nodeIds).map((id) => `FRG: ${id}`));
   const badProjected = m.frg.flatMap((f) => splitList(f.projected).filter((p) => !ids.has(p.replace(/^U\./, ""))).map((p) => ({ f, p })));
   verdict(
-    418,
+    430,
     badProjected.map(({ f, p }) => at("FRG", f, `${f.nodeId} -> ${p}`)),
     badProjected.some(({ p }) => p.startsWith("R.")) ? "GN 行の Projected Circuits に FRG ノード（R.）が書かれている" : "",
   );
-  verdict(420, m.frg.filter((f) => f.nodeId.startsWith("U.") && !f.circuitId).map((f) => at("FRG", f, f.nodeId)));
-  verdict(421, m.frg.filter((f) => !f.nodeId.startsWith("U.") && f.circuitId).map((f) => at("FRG", f, `${f.nodeId} Circuit ID="${f.circuitId}"`)));
-  const osBad = m.frg
-    .filter((f) => f.outputSemantics)
-    .filter((f) => {
-      const items = parseOutputSemantics(f.outputSemantics);
-      if (!items) return true;
-      if (f.nodeId.startsWith("U.")) return items.length !== 1 || items[0].id !== f.nodeId.slice(2);
-      return items.some((i) => !ids.has(i.id));
-    })
-    .map((f) => at("FRG", f, `${f.nodeId} "${f.outputSemantics.slice(0, 60)}"`));
+  verdict(420, m.frg.filter((f) => f.circuitId && !ids.has(f.circuitId)).map((f) => at("FRG", f, `${f.nodeId} Circuit ID="${f.circuitId}"`)));
+  verdict(421, dupes(m.frg.map((f) => f.circuitId)).map((id) => `FRG: ${id}`));
+  verdict(424, m.frg.filter((f) => f.nodeId.startsWith("U.") && !f.circuitId).map((f) => at("FRG", f, f.nodeId)));
+  verdict("cobrac:gn-no-circuit-id", m.frg.filter((f) => !f.nodeId.startsWith("U.") && f.circuitId).map((f) => at("FRG", f, `${f.nodeId} Circuit ID="${f.circuitId}"`)));
+  const withOs = m.frg.filter((f) => f.outputSemantics).map((f) => ({ f, items: parseOutputSemantics(f.outputSemantics) }));
+  const osAt = ({ f }) => at("FRG", f, `${f.nodeId} "${f.outputSemantics.slice(0, 60)}"`);
   const gnNoOs = m.frg.filter((f) => !f.nodeId.startsWith("U.") && !f.outputSemantics).length;
-  verdict(430, osBad, gnNoOs ? `GN ${gnNoOs} 行が空欄（書式の違反ではないが、日本語版マニュアルは GN にも記載を求める）` : "");
-  verdict(440, m.frg.filter((f) => !f.capability).map((f) => at("FRG", f, f.nodeId)));
+  verdict(562, withOs.filter((x) => !x.items).map(osAt), gnNoOs ? `GN ${gnNoOs} 行が空欄（書式の違反ではないが、日本語版マニュアルは GN にも記載を求める）` : "");
+  verdict(
+    563,
+    withOs
+      .filter(({ f, items }) => items && (f.nodeId.startsWith("U.") ? items.length !== 1 || items[0].id !== f.nodeId.slice(2) : items.some((i) => !ids.has(i.id))))
+      .map(osAt),
+  );
+  verdict("cobrac:capability-required", m.frg.filter((f) => !f.capability).map((f) => at("FRG", f, f.nodeId)));
   const kids = new Map(m.frg.map((f) => [f.nodeId, splitList(f.subnodes)]));
   const state = new Map();
   let cycle = null;
@@ -526,11 +559,11 @@ function results(m, opts) {
     state.set(id, 2);
   };
   for (const id of kids.keys()) visit(id, []);
-  verdict(445, cycle ? [cycle.join(" -> ")] : []);
+  verdict("cobrac:frg-acyclic", cycle ? [cycle.join(" -> ")] : []);
   return out;
 }
 
-/** Findings outside Appendix D: template value lists, required cells and the quality of the content. */
+/** Findings outside the codes above: template value lists, required cells and the quality of the content. */
 function extras(m, opts) {
   const minWords = opts.minWords ?? 10;
   const list = (items, values) => items.filter((v) => v && !values.includes(v));
@@ -575,7 +608,7 @@ export function checkBra(bra, opts = {}) {
     format: bra.format,
     sheets: model.present,
     counts: { references: model.refs.length, circuits: model.circuits.length, connections: model.connections.length, frg: model.frg.length },
-    codes: CODES.map(([code, field, label]) => ({ ...res.get(code), field, label, enforcement: ENFORCEMENT[code] })),
+    codes: CODES.map(([code, field, label, appendixD]) => ({ ...res.get(code), field, label, appendixD, enforcement: ENFORCEMENT[code] })),
     extras: extras(model, opts),
     defaults: model.defaults,
   };
@@ -590,20 +623,21 @@ const cell = (x) => String(x ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
 export function toMarkdown(r) {
   const n = (s) => r.codes.filter((c) => c.status === s).length;
   const lines = [
-    `# 付録D チェック: ${r.source}`,
+    `# BRA エラーコード チェック: ${r.source}`,
     "",
     `- 形式: ${r.format}。シート: ${Object.entries(r.sheets).map(([k, v]) => `${k}${v ? "" : "（なし）"}`).join(", ")}`,
     `- 件数: References ${r.counts.references}、Circuits ${r.counts.circuits}、Connections ${r.counts.connections}、FRG ${r.counts.frg}`,
-    `- 集計（32 コード）: 違反 ${n("violation")}、実質違反の疑い ${n("suspect")}、CoBRAC 拡張値 ${n("extension")}、OK ${n("ok")}、手動審査 ${n("manual")}`,
+    `- 集計（${r.codes.length} コード）: 違反 ${n("violation")}、実質違反の疑い ${n("suspect")}、CoBRAC 拡張値 ${n("extension")}、OK ${n("ok")}、手動審査 ${n("manual")}`,
+    "- コードは BRA data: Error code List (Master) のもの。`cobrac:` は Master にコードの無い CoBRAC の検査。付録D 列は付録D（と以前のこのチェッカー）の番号",
     ...r.defaults.map((d) => `- 注: ${d}`),
     "",
-    "| コード | 項目 | 内容 | 判定 | 件数 | 例・注 | CoBRAC の担保（main） |",
-    "|---|---|---|---|---|---|---|",
+    "| コード | 付録D | 項目 | 内容 | 判定 | 件数 | 例・注 | CoBRAC の担保（main） |",
+    "|---|---|---|---|---|---|---|---|",
     ...r.codes.map((c) =>
-      `| ${c.code} | ${cell(c.field)} | ${cell(c.label)} | ${STATUS[c.status]} | ${c.status === "ok" || c.status === "manual" ? "" : c.count} | ${cell([c.note, ...c.examples].filter(Boolean).join("<br>"))} | ${LEVEL[c.enforcement.level]}（${c.enforcement.kind}）: ${cell(c.enforcement.how)} |`,
+      `| ${c.code} | ${c.appendixD ?? ""} | ${cell(c.field)} | ${cell(c.label)} | ${STATUS[c.status]} | ${c.status === "ok" || c.status === "manual" ? "" : c.count} | ${cell([c.note, ...c.examples].filter(Boolean).join("<br>"))} | ${LEVEL[c.enforcement.level]}（${c.enforcement.kind}）: ${cell(c.enforcement.how)} |`,
     ),
     "",
-    "## 付録D の範囲外（テンプレートの列挙値・内容の指標）",
+    "## コードの範囲外（テンプレートの列挙値・内容の指標）",
     "",
     "| 項目 | 結果 |",
     "|---|---|",
