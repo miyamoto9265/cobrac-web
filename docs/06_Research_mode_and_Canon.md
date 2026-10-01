@@ -4,7 +4,7 @@ A user guide to two options of CoBRAC Agents: **research mode**, which surveys t
 
 ## Research mode
 
-A checkbox on the create screen, on by default.
+A switch in the model menu ("v") at the bottom right of the create screen, on by default. While it is on, a book icon shows next to the model name.
 
 - **On**: before the HCD step, the agent surveys the literature in PubMed and Europe PMC — tract-tracing studies, primate and rodent evidence, layers and cell types — and writes what it found for each candidate projection. The worker checks the survey (enough searches per candidate, evidence with a PMID or DOI) and asks the agent to fill gaps up to twice. The HCD and FRG are then built from the survey.
 - **Off**: the agent searches the web while it builds the HCD, as before. Faster and cheaper, but the survey is shallower.
@@ -22,11 +22,11 @@ A **Canon** is a set of your projects that share circuit definitions. Inside a C
 
 ### Using a Canon for a new project
 
-The create screen has a "Canon" section:
+Choose it with the "Canon" button under the inputs of the create screen. It opens a list (searchable when there are many Canons); the button then shows the Canon's name and rev. The default Canon from Settings is marked "default".
 
 - **None**: the project is not in a Canon.
 - **Existing Canon**: the project joins the Canon and follows its latest revision from the first run.
-- **New Canon from existing projects**: pick completed projects that are not in a Canon, in priority order (top first). The preview shows how they combine into rev 1. When two projects disagree, choose which value to keep, let the higher one win for all remaining conflicts, or keep a project as a pending pull request (or leave it out).
+- **New Canon from existing projects**: a panel opens under the inputs. Enter a name and a granularity policy and pick completed projects that are not in a Canon, in priority order (top first; they are numbered and can be reordered with the arrows). The preview shows how they combine into rev 1. When two projects disagree, choose which value to keep, let the higher one win for all remaining conflicts, or keep a project as a pending pull request (or leave it out).
 
 The default Canon for new projects can be set in Settings.
 

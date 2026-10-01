@@ -1,0 +1,111 @@
+import type { Locale } from "../../i18n";
+
+/** ROI / TLF example pairs shown as the rotating placeholder of the create screen. Same order in every language. */
+export type ExamplePair = readonly [roi: string, tlf: string];
+
+const en: ExamplePair[] = [
+  ["Cerebellar flocculus", "Adaptation of the vestibulo-ocular reflex (VOR)"],
+  ["Primary visual cortex (V1)", "Orientation selectivity"],
+  ["Hippocampus", "Spatial memory"],
+  ["Basal ganglia", "Action selection"],
+  ["Language areas (Broca, Wernicke, angular gyrus, VWFA)", "Nonword reading"],
+  ["Amygdala", "Fear conditioning"],
+  ["Superior colliculus", "Saccade generation"],
+  ["Anterior cingulate cortex (ACC)", "Error detection and conflict monitoring"],
+];
+
+export const EXAMPLES: Record<Locale, ExamplePair[]> = {
+  en,
+  ja: [
+    ["小脳フロキュラス（flocculus）", "前庭動眼反射（VOR）の適応学習"],
+    ["一次視覚野（V1）", "方位選択性"],
+    ["海馬", "空間記憶"],
+    ["大脳基底核", "行動選択"],
+    ["言語野（ブローカ野・ウェルニッケ野・角回・VWFA）", "非単語の音読"],
+    ["扁桃体", "恐怖条件づけ"],
+    ["上丘", "サッカードの生成"],
+    ["前帯状皮質（ACC）", "エラー検出と葛藤モニタリング"],
+  ],
+  zh: [
+    ["小脑绒球（flocculus）", "前庭眼反射（VOR）的适应性学习"],
+    ["初级视皮层（V1）", "方位选择性"],
+    ["海马", "空间记忆"],
+    ["基底神经节", "动作选择"],
+    ["语言区（布洛卡区、韦尼克区、角回、VWFA）", "假词朗读"],
+    ["杏仁核", "恐惧条件反射"],
+    ["上丘", "扫视的产生"],
+    ["前扣带皮层（ACC）", "错误检测与冲突监控"],
+  ],
+  zhTw: [
+    ["小腦絨球（flocculus）", "前庭眼反射（VOR）的適應性學習"],
+    ["初級視覺皮質（V1）", "方位選擇性"],
+    ["海馬迴", "空間記憶"],
+    ["基底核", "動作選擇"],
+    ["語言區（布洛卡區、韋尼克區、角迴、VWFA）", "假詞朗讀"],
+    ["杏仁核", "恐懼制約"],
+    ["上丘", "掃視的產生"],
+    ["前扣帶皮質（ACC）", "錯誤偵測與衝突監控"],
+  ],
+  ko: [
+    ["소뇌 편엽(flocculus)", "전정안구반사(VOR)의 적응 학습"],
+    ["일차 시각피질(V1)", "방위 선택성"],
+    ["해마", "공간 기억"],
+    ["기저핵", "행동 선택"],
+    ["언어 영역(브로카, 베르니케, 각회, VWFA)", "비단어 읽기"],
+    ["편도체", "공포 조건화"],
+    ["상구", "단속 운동(사카드) 생성"],
+    ["전대상피질(ACC)", "오류 탐지와 갈등 감시"],
+  ],
+  de: [
+    ["Flocculus des Kleinhirns", "Adaptation des vestibulookulären Reflexes (VOR)"],
+    ["Primärer visueller Cortex (V1)", "Orientierungsselektivität"],
+    ["Hippocampus", "Räumliches Gedächtnis"],
+    ["Basalganglien", "Handlungsauswahl"],
+    ["Sprachareale (Broca, Wernicke, Gyrus angularis, VWFA)", "Lesen von Pseudowörtern"],
+    ["Amygdala", "Furchtkonditionierung"],
+    ["Colliculus superior", "Erzeugung von Sakkaden"],
+    ["Anteriorer cingulärer Cortex (ACC)", "Fehlererkennung und Konfliktüberwachung"],
+  ],
+  fr: [
+    ["Flocculus cérébelleux", "Adaptation du réflexe vestibulo-oculaire (RVO)"],
+    ["Cortex visuel primaire (V1)", "Sélectivité à l’orientation"],
+    ["Hippocampe", "Mémoire spatiale"],
+    ["Ganglions de la base", "Sélection de l’action"],
+    ["Aires du langage (Broca, Wernicke, gyrus angulaire, VWFA)", "Lecture de pseudomots"],
+    ["Amygdale", "Conditionnement de la peur"],
+    ["Colliculus supérieur", "Génération des saccades"],
+    ["Cortex cingulaire antérieur (CCA)", "Détection des erreurs et contrôle des conflits"],
+  ],
+  es: [
+    ["Flóculo cerebeloso", "Adaptación del reflejo vestíbulo-ocular (RVO)"],
+    ["Corteza visual primaria (V1)", "Selectividad a la orientación"],
+    ["Hipocampo", "Memoria espacial"],
+    ["Ganglios basales", "Selección de acciones"],
+    ["Áreas del lenguaje (Broca, Wernicke, giro angular, VWFA)", "Lectura de pseudopalabras"],
+    ["Amígdala", "Condicionamiento del miedo"],
+    ["Colículo superior", "Generación de sacadas"],
+    ["Corteza cingulada anterior (CCA)", "Detección de errores y monitorización del conflicto"],
+  ],
+  pt: [
+    ["Flóculo cerebelar", "Adaptação do reflexo vestíbulo-ocular (RVO)"],
+    ["Córtex visual primário (V1)", "Seletividade à orientação"],
+    ["Hipocampo", "Memória espacial"],
+    ["Núcleos da base", "Seleção de ações"],
+    ["Áreas da linguagem (Broca, Wernicke, giro angular, VWFA)", "Leitura de pseudopalavras"],
+    ["Amígdala", "Condicionamento de medo"],
+    ["Colículo superior", "Geração de sacadas"],
+    ["Córtex cingulado anterior (CCA)", "Detecção de erros e monitoramento de conflito"],
+  ],
+  ru: [
+    ["Клочок мозжечка (flocculus)", "Адаптация вестибулоокулярного рефлекса (ВОР)"],
+    ["Первичная зрительная кора (V1)", "Избирательность к ориентации"],
+    ["Гиппокамп", "Пространственная память"],
+    ["Базальные ганглии", "Выбор действия"],
+    ["Речевые зоны (Брока, Вернике, угловая извилина, VWFA)", "Чтение псевдослов"],
+    ["Миндалина", "Обусловливание страха"],
+    ["Верхнее двухолмие", "Генерация саккад"],
+    ["Передняя поясная кора (ППК)", "Обнаружение ошибок и мониторинг конфликта"],
+  ],
+};
+
+export const examplesFor = (locale: Locale): ExamplePair[] => EXAMPLES[locale] ?? en;

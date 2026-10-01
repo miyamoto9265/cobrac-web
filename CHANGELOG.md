@@ -5,6 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The create screen is rebuilt around its two inputs. ROI and TLF sit in one composer, one above the other and joined by "×", instead of two boxes among form sections. While they are empty they show a rotating example pair (cerebellum × VOR adaptation, V1 × orientation selectivity, hippocampus × spatial memory, basal ganglia × action selection, the language areas × nonword reading, amygdala × fear conditioning and more, in every UI language); the rotation pauses while a field is focused or has text and stays still when the system asks for reduced motion, and "Use example" fills both fields. Enter moves from ROI to TLF and runs from TLF, Shift+Enter adds a line (on touch screens Enter in TLF adds a line)
+- Typing a Brainnetome abbreviation or English area name in the ROI (for example "A44" or "hippocampus") suggests matching BNA areas; choosing one writes the area with its BNA label pair
+- Reference materials moved behind a "+" button in the composer (add files or a URL); attached items show as small chips with upload progress, and files can be dropped anywhere on the composer
+- Model, reasoning effort and research mode moved into a compact "v" menu at the bottom right; the button shows the model that will run and a book icon while research mode is on
+- The Canon choice is a button in the composer that opens a searchable list (none, your Canons with their rev and project count, the default Canon marked, or a new Canon from projects); the button shows the chosen Canon's name and rev. A new Canon is set up in a panel under the composer, where the chosen projects are numbered in priority order and can be reordered or removed
+
 ## [0.13.1] - 2026-09-29
 
 ### Added
