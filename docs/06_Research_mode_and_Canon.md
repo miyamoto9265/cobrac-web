@@ -64,5 +64,5 @@ The project header shows the Canon and the revision the project follows, e.g. "r
 ## Public library and cloning
 
 - A project (once it has results) or a Canon can be made **public** from its page, and private again at any time. Every signed-in user can then read it in the **public library**. Chat history, cost and e-mail addresses are never shown.
-- **Clone**: a public project can be copied into a new private project of your own (HCD, FRG, tables, report, articles). The original does not change; the BRA xlsx is rebuilt by a follow-up.
+- **Clone**: a public project can be copied into a new private project of your own (HCD, FRG, tables, report, articles). The copy keeps the original's research-mode setting. The original does not change; the BRA xlsx is rebuilt by a follow-up.
 - **Pull requests from other users**: a public Canon accepts PRs from other users' Canons unless its owner turns this off. The owner always reviews them.

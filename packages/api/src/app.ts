@@ -1663,6 +1663,8 @@ app.post("/public/projects/:id/clone", async (c) => {
     contributor: src.contributor,
     model: u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL,
     reasoningEffort: u.defaultReasoningEffort ?? null,
+    // the copied workspace was built with (or without) the research step, so follow-ups keep the original's setting
+    ...(src.researchMode !== undefined ? { researchMode: src.researchMode } : {}),
     status: "COMPLETED",
     currentStep: "CSV",
     // copied steps are done or pending, never running (the original may be mid-run or failed); the BRA xlsx carries
