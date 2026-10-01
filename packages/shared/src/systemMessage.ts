@@ -42,12 +42,22 @@ const EXACT: Record<string, string> = {
   "The agent did not produce the CSVs after the allowed continue attempts. Use a follow-up or retry.": "sys.csvMissing",
   "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.": "sys.legacyWorkspace",
   "The article did not pass the checks after the allowed fix attempts. Try again.": "sys.articleFailed",
+  "ワーカーからの応答が途絶えました（Spot 中断など）。「続きからリトライ」で再開できます。": "sys.heartbeatLost",
+  "The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.": "sys.heartbeatLost",
+  "質問への回答待ちが 7 日間を超えたため終了しました。「続きからリトライ」で再開できます。": "sys.answerTimeout",
+  "Stopped after waiting more than 7 days for an answer to the question. Use “Retry from here” to continue.": "sys.answerTimeout",
+  "24 時間以内にワーカーを起動できませんでした。": "sys.queueTimeout",
+  "No worker could be started within 24 hours.": "sys.queueTimeout",
   "Explanatory articles need a project made with v0.8 or later.": "sys.articleLegacy",
 };
 
 const STEP_RE = /^(?:ステップ |Step )(HCD|FRG|CSV|XLSX)(?: が完了しました。| completed\.)$/;
 const MODEL_RE = /^(?:モデル|Model): (.+) \/ reasoning effort: (.+)$/;
 const XLSX_RE = /^(?:Generated )?(.+\.bra\.xlsx)(?: を生成しました。|\.?)$/;
+// messages stored before the dispatcher and the janitor wrote English text with an i18n key
+const WORKER_STARTED_RE = /^ワーカーを起動しました（(.+)）。$/;
+const WORKER_START_RETRY_RE = /^ワーカー起動を再試行します（([\s\S]*)）$/;
+const AUTO_RETRY_RE = /^ワーカーからの応答が途絶えたため、自動で再開します（(\d+)\/(\d+)）。$/;
 
 function usageFromMeta(meta: Record<string, unknown>): ResolvedSysMsg | null {
   const u = meta.usage;
@@ -66,7 +76,7 @@ function usageFromMeta(meta: Record<string, unknown>): ResolvedSysMsg | null {
 
 function varsFromMeta(meta: Record<string, unknown>): Record<string, string | number> | undefined {
   const vars: Record<string, string | number> = {};
-  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count", "lang", "minutes", "candidates", "supported", "queries", "revision"] as const) {
+  for (const k of ["step", "model", "effort", "name", "input", "cached", "output", "cost", "roi", "tlf", "count", "lang", "minutes", "candidates", "supported", "queries", "revision", "launch", "reason", "attempt", "max"] as const) {
     const v = meta[k];
     if (typeof v === "string" || typeof v === "number") vars[k] = v;
   }
@@ -98,6 +108,13 @@ export function resolveSystemMessage(content: string, meta?: Record<string, unkn
     const defE = model[2] === "既定" || model[2] === "default";
     return { key: "sys.model", vars: { model: def ? "" : model[1], effort: defE ? "" : model[2] } };
   }
+
+  const started = content.match(WORKER_STARTED_RE);
+  if (started) return { key: "sys.workerStarted", vars: { launch: started[1] } };
+  const startRetry = content.match(WORKER_START_RETRY_RE);
+  if (startRetry) return { key: "sys.workerStartRetry", vars: { reason: startRetry[1] } };
+  const autoRetry = content.match(AUTO_RETRY_RE);
+  if (autoRetry) return { key: "sys.autoRetry", vars: { attempt: Number(autoRetry[1]), max: Number(autoRetry[2]) } };
 
   const xlsx = content.match(XLSX_RE);
   if (xlsx && /\.bra\.xlsx$/.test(xlsx[1])) return { key: "sys.xlsxReady", vars: { name: xlsx[1] } };

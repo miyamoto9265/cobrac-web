@@ -24,6 +24,29 @@ describe("resolveSystemMessage", () => {
     ).toEqual({ key: "sys.legacyWorkspace" });
   });
 
+  it("translates the dispatcher and janitor messages, new (meta) and stored in Japanese before", () => {
+    expect(resolveSystemMessage("Worker started (Fargate Spot).", { i18n: "sys.workerStarted", taskArn: "arn", launch: "Fargate Spot" })).toEqual({
+      key: "sys.workerStarted",
+      vars: { launch: "Fargate Spot" },
+    });
+    expect(resolveSystemMessage("ワーカーを起動しました（Fargate (On-Demand fallback)）。", { taskArn: "arn", launch: "Fargate (On-Demand fallback)" })).toEqual({
+      key: "sys.workerStarted",
+      vars: { launch: "Fargate (On-Demand fallback)" },
+    });
+    expect(resolveSystemMessage("ワーカー起動を再試行します（runTask returned no task: Capacity）")).toEqual({
+      key: "sys.workerStartRetry",
+      vars: { reason: "runTask returned no task: Capacity" },
+    });
+    expect(resolveSystemMessage("…", { i18n: "sys.autoRetry", attempt: 1, max: 2 })).toEqual({ key: "sys.autoRetry", vars: { attempt: 1, max: 2 } });
+    expect(resolveSystemMessage("ワーカーからの応答が途絶えたため、自動で再開します（2/2）。")).toEqual({ key: "sys.autoRetry", vars: { attempt: 2, max: 2 } });
+    // the janitor's failure reasons are also the project's errorMessage, resolved without meta
+    expect(resolveSystemMessage("The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.")).toEqual({ key: "sys.heartbeatLost" });
+    expect(resolveSystemMessage("ワーカーからの応答が途絶えました（Spot 中断など）。「続きからリトライ」で再開できます。")).toEqual({ key: "sys.heartbeatLost" });
+    expect(resolveSystemMessage("質問への回答待ちが 7 日間を超えたため終了しました。「続きからリトライ」で再開できます。")).toEqual({ key: "sys.answerTimeout" });
+    expect(resolveSystemMessage("No worker could be started within 24 hours.")).toEqual({ key: "sys.queueTimeout" });
+    expect(resolveSystemMessage("24 時間以内にワーカーを起動できませんでした。")).toEqual({ key: "sys.queueTimeout" });
+  });
+
   it("parses Japanese step notices without meta", () => {
     expect(resolveSystemMessage("ステップ FRG が完了しました。")).toEqual({
       key: "sys.stepDone",
