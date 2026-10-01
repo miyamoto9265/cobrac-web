@@ -5,6 +5,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-01
+
+### Fixed
+- The token usage and estimated cost of a job were counted too high, about 2–3 times the real amount for a full run: Codex reports the conversation's running total at the end of every turn, and the worker added that total each time. A turn now adds only the tokens it used itself (the total after the turn minus the total before it, also when the conversation is resumed in a later job). Jobs recorded before this fix keep their old numbers
+- A turn that ends in an error now records the tokens it used, so a failed job no longer shows less usage than it had
+
 ## [0.17.0] - 2026-10-01
 
 ### Fixed
