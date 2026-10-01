@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-01
+
 ### Changed
 - BRA data generation should take less time. Production runs spent most of their time waiting for answers to requests with a long conversation behind them (over about 80k tokens a request waited 15–40 s longer), so the agent's conversation is now compacted at 75k tokens instead of 150k. Compaction takes a few seconds, and the project files keep the work
 - The literature tools return shorter results: `find_sentences` gives up to 8 matching sentences instead of 15, and searches return 8 hits by default instead of 10. The agent is told to write each file once and then change it with small edits instead of rewriting whole files, to read only the part of a file it needs, to ask RCS for 5 candidates or fewer, and to run independent lookups together
