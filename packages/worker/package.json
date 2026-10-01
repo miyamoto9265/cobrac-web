@@ -18,7 +18,7 @@
     "@aws-sdk/client-secrets-manager": "^3.1131.0",
     "@aws-sdk/lib-dynamodb": "^3.700.0",
     "@cobrac/shared": "*",
-    "@openai/codex-sdk": "^0.154.0"
+    "@openai/codex-sdk": "^0.159.3"
   },
   "devDependencies": {
     "@types/node": "^20.17.6",

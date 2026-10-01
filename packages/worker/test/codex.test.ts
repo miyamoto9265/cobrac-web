@@ -138,12 +138,42 @@ describe("runTurn", () => {
     await expect(codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {} })).rejects.toThrow(/exited with code 1/);
   });
 
+  it("shows a non-fatal Codex warning item as a status line without failing the turn", async () => {
+    const warning = "Model metadata for `gpt-x` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.";
+    const { thread } = scriptedThread([[{ type: "item.completed", item: { id: "item_0", type: "error", message: warning } }, ...done()]]);
+    const { s, messages } = sink();
+    const r = await codex.runTurn(thread, "go", s, undefined, { sleep: async () => {} });
+    expect(r).toMatchObject({ failed: false, errorMessage: null });
+    expect(messages.find((m) => m.content === warning)?.type).toBe("status");
+    expect(messages.some((m) => m.type === "error")).toBe(false);
+  });
+
+  it("still reports a stream error event as an error", async () => {
+    const { thread } = scriptedThread([[{ type: "error", message: "unexpected status 401 Unauthorized" }, ...done()]]);
+    const { s, messages } = sink();
+    await codex.runTurn(thread, "go", s, undefined, { sleep: async () => {} });
+    expect(messages).toContainEqual({ type: "error", content: "Error: unexpected status 401 Unauthorized" });
+  });
+
   it("stops waiting when the job is cancelled during the pause", async () => {
     const { thread } = scriptedThread([[{ type: "turn.failed", error: { message: TPM } }], done()]);
     const abort = new AbortController();
     const p = codex.runTurn(thread, "go", sink().s, abort.signal);
     setTimeout(() => abort.abort(new Error("cancelled")), 20);
     await expect(p).rejects.toMatchObject({ name: "AbortError" });
+  });
+});
+
+describe("model metadata", () => {
+  it("hands Codex the model an API alias routes to, and other models unchanged", () => {
+    expect(codex.codexModelSlug("gpt-5.6")).toBe("gpt-5.6-sol");
+    expect(codex.codexModelSlug("gpt-6-luna")).toBe("gpt-6-luna");
+  });
+
+  it("compacts the conversation by default before it reaches the context window", async () => {
+    const { env } = await import("../src/env.js");
+    expect(env.codexAutoCompactTokens).toBe(150_000);
+    expect(env.codexAutoCompactTokens).toBeLessThan(codex.CODEX_CONTEXT_WINDOW);
   });
 });
 
