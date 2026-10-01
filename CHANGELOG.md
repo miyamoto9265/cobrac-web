@@ -6,6 +6,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [Unreleased]
 
 ### Fixed
+- A clone of a public project keeps the original's research-mode setting. Before, every clone ran without research mode, so a follow-up on a clone of a research-mode project did not get the research-mode instructions even though its data came from a research step
 - A Fargate Spot interruption no longer throws away the work of the running turn. The worker now saves the workspace and the conversation to S3 every 5 minutes while a turn runs, and at once when the task is told to stop (it gets up to 2 minutes for that). The chat says that the worker is stopping and that the job resumes automatically
 - An interrupted job resumes within about 5 minutes instead of 15–30: the worker hands the job back as soon as it is told to stop, and the housekeeping that resumes stalled jobs runs every 5 minutes instead of every 15
 
