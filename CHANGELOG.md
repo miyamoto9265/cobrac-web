@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-01
+
 ### Changed
 - The create screen is rebuilt around its two inputs. ROI and TLF sit in one composer, one above the other and joined by "×", instead of two boxes among form sections. While they are empty they show a rotating example pair (cerebellum × VOR adaptation, V1 × orientation selectivity, hippocampus × spatial memory, basal ganglia × action selection, the language areas × nonword reading, amygdala × fear conditioning and more, in every UI language); the rotation pauses while a field is focused or has text and stays still when the system asks for reduced motion, and "Use example" fills both fields. Enter moves from ROI to TLF and runs from TLF, Shift+Enter adds a line (on touch screens Enter in TLF adds a line)
 - Typing a Brainnetome abbreviation or English area name in the ROI (for example "A44" or "hippocampus") suggests matching BNA areas; choosing one writes the area with its BNA label pair
