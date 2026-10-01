@@ -12,6 +12,8 @@ import { isPriced, useModelList } from "../ModelSelect";
 type ArticleItem = ListArticlesResponse["items"][number];
 
 const SPY_OFFSET = 96;
+/** Below this article width the one-column figures are shown (also next to the Agent panel on a wide screen). */
+const NARROW_FIGURES_BELOW = 640;
 const noDoc = () => null;
 
 interface Props {
@@ -144,7 +146,7 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
               value={genModel}
               onChange={(e) => setGenModel(e.target.value)}
               data-testid="article-model"
-              className="max-w-[11rem] rounded-md border border-slate-300 bg-white px-2 py-1 font-mono text-xs text-slate-800 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="max-w-[15rem] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <option value="">{projectModel ? t("article.modelDefault", { model: projectModel }) : t("model.default")}</option>
               {models
@@ -216,7 +218,17 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
   const [figures, setFigures] = useState<DocFigures | null>(item.figures?.length ? null : {});
   const [err, setErr] = useState<string | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [narrowColumn, setNarrowColumn] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const el = articleRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setNarrowColumn(e.contentRect.width < NARROW_FIGURES_BELOW));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -262,6 +274,10 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
     };
   }, [projectId, item.locale, item.figures]);
 
+  const shownFigures = useMemo<DocFigures | null>(
+    () => (figures && narrowColumn ? Object.fromEntries(Object.entries(figures).map(([f, v]) => [f, { url: v.narrow ?? v.url, narrow: v.narrow }])) : figures),
+    [figures, narrowColumn],
+  );
   const headings = useMemo(() => (text ? extractHeadings(text) : []), [text]);
   const toc = useMemo(() => headings.filter((h) => h.depth === 2 || h.depth === 3), [headings]);
 
@@ -329,7 +345,7 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
             {tocList()}
           </nav>
         )}
-        <article className="min-w-0 max-w-[48rem] flex-1" lang={htmlLangFor(item.locale)}>
+        <article ref={articleRef} className="min-w-0 max-w-[48rem] flex-1" lang={htmlLangFor(item.locale)}>
           <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
             <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-700">{localeName(item.locale, t)}</span>
             <span>{t("article.written", { date: fmtDate(item.createdAt, locale) })}</span>
@@ -356,7 +372,7 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
               <Loader2 size={14} className="animate-spin" /> {t("loading")}
             </div>
           ) : (
-            <DocMarkdown text={text} headings={headings} resolveDoc={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? figures : undefined} />
+            <DocMarkdown text={text} headings={headings} resolveDoc={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? shownFigures ?? undefined : undefined} />
           )}
         </article>
       </div>
