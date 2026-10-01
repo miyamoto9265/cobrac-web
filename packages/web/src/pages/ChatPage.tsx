@@ -119,9 +119,10 @@ function NewProject() {
                 onClick={() => void submit()}
                 disabled={!canSubmit}
                 data-testid="create-run"
-                className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-blue-600 pl-3 pr-3.5 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none coarse:h-11"
+                aria-label={t("chat.run")}
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-blue-600 text-sm font-medium max-sm:w-11 sm:pl-3 sm:pr-3.5 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none coarse:h-11"
               >
-                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ArrowUp size={16} aria-hidden />} {t("chat.run")}
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ArrowUp size={16} aria-hidden />} <span className="max-sm:sr-only">{t("chat.run")}</span>
               </button>
             </div>
           </div>

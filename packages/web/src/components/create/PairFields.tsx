@@ -152,9 +152,9 @@ export function PairFields({
                 onPointerEnter={() => setActive(i)}
                 className={`flex cursor-pointer items-baseline gap-2 px-3 py-1.5 text-sm coarse:py-2.5 ${i === active ? "bg-blue-50" : ""}`}
               >
-                <span className="w-16 shrink-0 font-mono text-xs font-semibold text-blue-700">{h.abbr}</span>
+                <span className="w-14 shrink-0 font-mono text-xs font-semibold text-blue-700 sm:w-16">{h.abbr}</span>
                 <span className="min-w-0 flex-1 truncate text-slate-700">{h.name}</span>
-                <span className="shrink-0 font-mono text-[11px] text-slate-400">
+                <span className="hidden shrink-0 font-mono text-[11px] text-slate-400 sm:inline">
                   {h.l2} · BNA:{h.left}-{h.left + 1}
                 </span>
               </li>
@@ -162,7 +162,7 @@ export function PairFields({
           </ul>
         )}
       </Row>
-      <div className="relative ml-[4rem] border-t border-dashed border-slate-200 sm:ml-[4.75rem]" aria-hidden>
+      <div className="relative ml-[4rem] mr-4 border-t border-dashed border-slate-200 sm:ml-[4.75rem]" aria-hidden>
         <span className="absolute -left-[2.625rem] top-0 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-[11px] leading-none text-slate-400 sm:-left-[3rem]">×</span>
       </div>
       <Row

@@ -84,7 +84,7 @@ export function CanonChip({ value, onChange, sources, defaultCanonId, disabled }
       disabled={disabled}
       trigger={{
         label: `Canon: ${label}${status ? ` · ${status}` : ""}`,
-        className: `flex max-w-[13rem] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 coarse:min-h-11 sm:max-w-[18rem] ${
+        className: `flex max-w-[8rem] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 coarse:min-h-11 sm:max-w-[18rem] ${
           on ? "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" : "border-slate-200 text-slate-500 hover:bg-slate-100"
         }`,
         content: (
@@ -248,7 +248,7 @@ export function CanonNewPanel({ value, onChange, sources, disabled = false }: { 
                 {value.seeds.map((id, i) => (
                   <li key={id} className="flex min-w-0 items-center gap-2 rounded-lg border border-violet-100 bg-violet-50/70 py-1 pl-1.5 pr-1 text-sm">
                     <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-600 font-mono text-[11px] text-white">{i + 1}</span>
-                    <span className="min-w-0 flex-1 truncate">{nameOf(id)}</span>
+                    <span className="line-clamp-2 min-w-0 flex-1 break-words leading-snug">{nameOf(id)}</span>
                     {i === 0 && <span className="hidden shrink-0 text-[10px] text-violet-500 sm:inline">{t("cc3.first")}</span>}
                     <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className={iconBtn} aria-label={`${t("cc3.up")}: ${nameOf(id)}`}>
                       <ArrowUp size={13} />

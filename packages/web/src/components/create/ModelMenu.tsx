@@ -36,7 +36,7 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
       trigger={{
         label: `${t("model.label")}: ${shown}${value.effort ? ` · ${value.effort}` : ""}${value.research ? ` · ${t("chat.research")}` : ""}`,
         className:
-          "flex max-w-[11rem] items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:min-h-11 sm:max-w-[16rem]",
+          "flex max-w-[7.5rem] items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:min-h-11 sm:max-w-[16rem]",
         content: (
           <>
             {value.research && <BookOpenCheck size={14} className="shrink-0 text-blue-600" aria-hidden />}
