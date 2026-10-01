@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-01
+
 ### Added
 - Dark mode on every screen (create, projects, project workspace with the HCD / FRG viewer, tables, report and articles, docs, Canon, explore, settings, admin and sign-in). It follows the system setting by default; the switch at the bottom of the sidebar (and on the sign-in card) chooses system, light or dark and is remembered in this browser. The page opens in the chosen theme without a light flash
 - In dark mode the graphs keep their colour coding: node fills become dark tints of the same hue with light labels, lines and arrowheads are brightened so they stand out from the dark canvas, and the style panel's swatches show the colour as it will be drawn. Saved layouts are unchanged and look the same as before in light mode
