@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 270" width="430" height="270" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Where the time of one BRA run goes (3 production runs, average 60.2 min, v0.16.0)</title>
+<desc id="d">By stage: start-up 0.7 min, research 12.8, HCD 41.1, FRG 5.5, CSV / xlsx / graphs 0.1. By kind: waiting for the model 52.9 min (88%), waiting for tools 6.0 (10%), the worker's checks and CSV / xlsx 0.6 (1%), start-up 0.7 (1%).</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="270" fill="#ffffff"/>
+<text x="10" y="20" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>By stage</tspan></text>
+<rect x="10.0" y="30" width="4.8" height="28" fill="#94a3b8" stroke="#ffffff" stroke-width="1"/>
+<rect x="14.8" y="30" width="87.2" height="28" fill="#f59e0b" stroke="#ffffff" stroke-width="1"/>
+<text x="58.355481727574755" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>12.8</tspan></text>
+<rect x="101.9" y="30" width="279.9" height="28" fill="#3b82f6" stroke="#ffffff" stroke-width="1"/>
+<text x="241.9019933554817" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>41.1</tspan></text>
+<rect x="381.9" y="30" width="37.5" height="28" fill="#8b5cf6" stroke="#ffffff" stroke-width="1"/>
+<text x="400.5897009966777" y="48.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>5.5</tspan></text>
+<rect x="419.3" y="30" width="0.7" height="28" fill="#10b981" stroke="#ffffff" stroke-width="1"/>
+<rect x="10" y="69" width="16" height="14" rx="3" fill="#94a3b8"/>
+<text x="32" y="80" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Start-up 0.7 min (1%)</tspan></text>
+<rect x="171.44" y="69" width="16" height="14" rx="3" fill="#f59e0b"/>
+<text x="193.44" y="80" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Research 12.8 min (21%)</tspan></text>
+<rect x="10" y="89" width="16" height="14" rx="3" fill="#3b82f6"/>
+<text x="32" y="100" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>HCD 41.1 min (68%)</tspan></text>
+<rect x="155.35999999999999" y="89" width="16" height="14" rx="3" fill="#8b5cf6"/>
+<text x="177.35999999999999" y="100" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>FRG 5.5 min (9%)</tspan></text>
+<rect x="10" y="109" width="16" height="14" rx="3" fill="#10b981"/>
+<text x="32" y="120" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>CSV / xlsx 0.1 min (0%)</tspan></text>
+<text x="10" y="156" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>By kind</tspan></text>
+<rect x="10.0" y="166" width="360.3" height="28" fill="#4338ca" stroke="#ffffff" stroke-width="1"/>
+<text x="190.14119601328903" y="184.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>52.9</tspan></text>
+<rect x="370.3" y="166" width="40.9" height="28" fill="#0d9488" stroke="#ffffff" stroke-width="1"/>
+<text x="390.7142857142857" y="184.5" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>6.0</tspan></text>
+<rect x="411.1" y="166" width="4.1" height="28" fill="#10b981" stroke="#ffffff" stroke-width="1"/>
+<rect x="415.2" y="166" width="4.8" height="28" fill="#94a3b8" stroke="#ffffff" stroke-width="1"/>
+<rect x="10" y="205" width="16" height="14" rx="3" fill="#4338ca"/>
+<text x="32" y="216" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Waiting for the model 52.9 min (88%)</tspan></text>
+<rect x="10" y="225" width="16" height="14" rx="3" fill="#0d9488"/>
+<text x="32" y="236" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Waiting for tools 6.0 min (10%)</tspan></text>
+<rect x="10" y="245" width="16" height="14" rx="3" fill="#10b981"/>
+<text x="32" y="256" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Worker checks, output 0.6 min (1%)</tspan></text>
+<rect x="247.03999999999996" y="245" width="16" height="14" rx="3" fill="#94a3b8"/>
+<text x="269.03999999999996" y="256" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Start-up 0.7 min (1%)</tspan></text>
+</svg>

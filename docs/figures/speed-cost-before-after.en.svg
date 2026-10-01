@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 230" width="860" height="230" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Before and after (same ROI and TLF, 3 runs each, averages)</title>
+<desc id="d">Total 48.6 → 31.0 min, research 15.8 → 9.0, HCD 24.3 → 16.5, FRG 7.9 → 5.0, waiting for the model 41.7 → 24.2. Real cost $0.174 → $0.134, median context 80k → 48k tokens, input tokens 7.63M → 3.90M. Before: two runs on v0.16.0 and one on v0.17.0; after: v0.18.0.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="230" fill="#ffffff"/>
+<rect x="10" y="11" width="16" height="12" rx="2" fill="#f59e0b"/>
+<text x="32" y="22" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Before (v0.16.0 × 2, v0.17.0 × 1)</tspan></text>
+<rect x="232.23999999999995" y="11" width="16" height="12" rx="2" fill="#3b82f6"/>
+<text x="254.23999999999995" y="22" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>After (v0.18.0)</tspan></text>
+<text x="170" y="59" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Total (min)</tspan></text>
+<rect x="180" y="42" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="366" y="53" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>48.6</tspan></text>
+<rect x="180" y="58" width="114.8" height="13" rx="2" fill="#3b82f6"/>
+<text x="300.8148148148148" y="69" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>31.0</tspan></text>
+<text x="170" y="107" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Research (min)</tspan></text>
+<rect x="180" y="90" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="366" y="101" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>15.8</tspan></text>
+<rect x="180" y="106" width="102.5" height="13" rx="2" fill="#3b82f6"/>
+<text x="288.53164556962025" y="117" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>9.0</tspan></text>
+<text x="170" y="155" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>HCD (min)</tspan></text>
+<rect x="180" y="138" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="366" y="149" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>24.3</tspan></text>
+<rect x="180" y="154" width="122.2" height="13" rx="2" fill="#3b82f6"/>
+<text x="308.22222222222223" y="165" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>16.5</tspan></text>
+<text x="170" y="203" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>FRG (min)</tspan></text>
+<rect x="180" y="186" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="366" y="197" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>7.9</tspan></text>
+<rect x="180" y="202" width="113.9" height="13" rx="2" fill="#3b82f6"/>
+<text x="299.92405063291136" y="213" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>5.0</tspan></text>
+<text x="600" y="59" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Model wait (min)</tspan></text>
+<rect x="610" y="42" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="796" y="53" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>41.7</tspan></text>
+<rect x="610" y="58" width="104.5" height="13" rx="2" fill="#3b82f6"/>
+<text x="720.4604316546763" y="69" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>24.2</tspan></text>
+<text x="600" y="107" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Real cost (USD)</tspan></text>
+<rect x="610" y="90" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="796" y="101" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>0.174</tspan></text>
+<rect x="610" y="106" width="138.6" height="13" rx="2" fill="#3b82f6"/>
+<text x="754.6206896551724" y="117" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>0.134</tspan></text>
+<text x="600" y="155" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Median context (k)</tspan></text>
+<rect x="610" y="138" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="796" y="149" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>80</tspan></text>
+<rect x="610" y="154" width="108.0" height="13" rx="2" fill="#3b82f6"/>
+<text x="724" y="165" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>48</tspan></text>
+<text x="600" y="203" font-size="12" font-weight="700" fill="#0f172a" text-anchor="end"><tspan>Input tokens (M)</tspan></text>
+<rect x="610" y="186" width="180.0" height="13" rx="2" fill="#f59e0b"/>
+<text x="796" y="197" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>7.63</tspan></text>
+<rect x="610" y="202" width="92.0" height="13" rx="2" fill="#3b82f6"/>
+<text x="708.0052424639581" y="213" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>3.90</tspan></text>
+</svg>

@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 250.39999999999998" width="860" height="250.39999999999998" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">v0.18.0 の 3 つの変更と、時間が縮む仕組み</title>
+<desc id="d">圧縮しきい値を 15 万から 7.5 万トークンに下げ、ツールの結果と書き方を小さくして、会話を 8 万トークン未満に保つ。そうすると 1 回の応答の固定の待ちが約 4 秒で済む。修正ターンは推論レベルを medium にして推論の時間を減らす。3 件ずつの比較で、モデルの応答待ちは 41.7 分から 24.2 分に、合計は 48.6 分から 31.0 分になった。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="250.39999999999998" fill="#ffffff"/>
+<rect x="10" y="10" width="340" height="51.4" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="31.55" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>① 圧縮しきい値 15 万 → 7.5 万</tspan></text>
+<text x="22" y="49.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">CODEX_AUTO_COMPACT_TOKENS</tspan><tspan> の既定値</tspan></text>
+<rect x="10" y="73.4" width="340" height="86.19999999999999" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="94.95" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>② ツールの結果と書き方を小さく</tspan></text>
+<text x="22" y="113.35000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">find_sentences</tspan><tspan> 15 → 8 文、検索 10 → 8 件</tspan></text>
+<text x="22" y="130.75" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ファイルは一度書き、後は小さな編集で直す</tspan></text>
+<text x="22" y="148.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>RCS は </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">top_k</tspan><tspan> 5 以下、照会はまとめて</tspan></text>
+<rect x="10" y="171.6" width="340" height="68.8" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="22" y="193.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>③ 修正ターンは推論 medium</tspan></text>
+<text x="22" y="211.54999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>検証の指摘・調査の被覆・CSV の修正</tspan></text>
+<text x="22" y="228.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>本ターンと調整ターンは今までどおり</tspan></text>
+<rect x="400" y="47.4" width="260" height="74.8" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="412" y="71.95" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>会話を 8 万トークン未満に保つ</tspan></text>
+<text x="412" y="90.35000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>1 回の応答の固定の待ちが</tspan></text>
+<text x="412" y="107.75000000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>約 4 秒で済む（42 秒にならない）</tspan></text>
+<rect x="400" y="177.3" width="260" height="57.4" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="412" y="201.85000000000002" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>修正ターンの推論が短い</tspan></text>
+<text x="412" y="220.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>指摘を直すだけのターン</tspan></text>
+<path d="M350 35.7 L376 35.7 L376 84.8 L400 84.8" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M350 116.5 L376 116.5 L376 84.8 L400 84.8" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M350 206 L400 206" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="700" y="100.20000000000002" width="150" height="81.69999999999999" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="775" y="128.55" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan>応答待ち</tspan></text>
+<text x="775" y="147.35" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>41.7 → 24.2 分</tspan></text>
+<text x="775" y="164.75" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>合計 48.6 → 31.0 分</tspan></text>
+<path d="M660 84.8 L680 84.8 L680 141.05 L700 141.05" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M660 206 L680 206 L680 141.05 L700 141.05" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+</svg>
