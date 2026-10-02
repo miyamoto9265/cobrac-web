@@ -61,6 +61,7 @@ import {
   RESEARCH_FILES,
   REF_STATUSES,
   addUsage,
+  orgKeyProviderOf,
   articleKey,
   articleMetaKey,
   braDownloadFileName,
@@ -87,6 +88,7 @@ import {
   getProject,
   getUser,
   incrementProjectRevision,
+  listUsers,
   putMessage,
   refreshProjectUsage,
   updateAutoProjectName,
@@ -98,6 +100,7 @@ import { finalizeProject } from "./finalize.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type PreparedMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
+import { planRunKey } from "./runKey.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
@@ -169,9 +172,15 @@ async function main() {
     console.log("[worker] job already cancelled; exiting");
     return;
   }
-  if (!user.encryptedApiKey) throw new Error("OpenAI API key is not registered for this user");
-
-  const apiKey = await decryptApiKey(user.encryptedApiKey, userId);
+  const runModel = resolveModelSettings(mode === "article" ? { model: job.model || project.model } : project).model!;
+  const key = planRunKey(user, user.encryptedApiKey ? null : orgKeyProviderOf(await listUsers()), runModel);
+  if ("error" in key) {
+    await fail(key.error, key.meta);
+    return;
+  }
+  console.log(`[worker] key=${key.source}`);
+  const apiKey = await decryptApiKey(key.encryptedApiKey, key.keyUserId);
+  if (job.keySource !== key.source) await updateJob(projectId, jobId, { keySource: key.source });
   const rcsConn = await resolveRcsConnection(
     { url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region },
     (m) => console.warn(`[worker] ${m}`),

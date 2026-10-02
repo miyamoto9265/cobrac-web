@@ -15,7 +15,7 @@ export interface RunSettings {
 /** The composer's "v" menu: model, reasoning effort and research mode. The chip shows the model that will run. */
 export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value: RunSettings; onChange: (v: RunSettings) => void; fallbackModel: string; disabled?: boolean }) {
   const t = useT();
-  const { models, priced, envDefault, custom, setCustom } = useModelList(value.model);
+  const { models, priced, envDefault, orgTier, restricted, custom, setCustom } = useModelList(value.model);
   const shown = value.model || envDefault || fallbackModel;
   const est = researchModeEstimate(value.model || fallbackModel);
   const vars = { min: est.minutes[0], max: est.minutes[1], model: value.model || fallbackModel };
@@ -67,12 +67,14 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
                 {priced.length > 0 && !isPriced(m, priced) && <span className="shrink-0 text-[11px] text-slate-400">{t("model.unpriced")}</span>}
               </label>
             ))}
-            <label className={row}>
-              <input type="radio" name="cm-model" className={radio} checked={custom} onChange={() => (setCustom(true), set({ model: value.model ?? "" }))} />
-              {tick(custom)}
-              <span className="flex-1">{t("model.custom")}</span>
-            </label>
-            {custom && (
+            {!restricted && (
+              <label className={row}>
+                <input type="radio" name="cm-model" className={radio} checked={custom} onChange={() => (setCustom(true), set({ model: value.model ?? "" }))} />
+                {tick(custom)}
+                <span className="flex-1">{t("model.custom")}</span>
+              </label>
+            )}
+            {custom && !restricted && (
               <input
                 value={value.model ?? ""}
                 onChange={(e) => set({ model: e.target.value.trim() || null })}
@@ -83,6 +85,11 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
             )}
           </div>
           {models.length === 0 && <div className="px-4 pb-1 text-[11px] text-slate-400">{t("model.needKey")}</div>}
+          {orgTier && (
+            <div className="px-4 pb-1 text-[11px] text-slate-500" data-testid="org-tier-note">
+              {t("model.orgTier", { tier: orgTier })}
+            </div>
+          )}
 
           <MenuHeading>{t("model.effort")}</MenuHeading>
           <div role="radiogroup" aria-label={t("model.effort")} className="flex flex-wrap gap-1 px-3">

@@ -125,7 +125,8 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null, op
       // compact the conversation before one request outgrows the organisation's tokens-per-minute limit, which is
       // below the context window
       model_auto_compact_token_limit: env.codexAutoCompactTokens,
-      shell_environment_policy: { exclude: [RCS_TOKEN_ENV] },
+      // the OpenAI key may be the shared organization key, so agent commands never see it either
+      shell_environment_policy: { exclude: [RCS_TOKEN_ENV, "CODEX_API_KEY", "OPENAI_API_KEY"] },
       ...(Object.keys(mcpServers).length ? { mcp_servers: mcpServers } : {}),
     },
   });

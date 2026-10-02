@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
+  AdminUpdateUserRequest,
   AnswerRequest,
   ArticleJobState,
   ArticleMeta,
@@ -26,6 +27,10 @@ import type {
   DeleteProjectResponse,
   FollowupRequest,
   JobRecord,
+  KeySource,
+  MeResponse,
+  ModelPolicy,
+  ModelsResponse,
   ProjectAttachment,
   ProjectRecord,
   EdgeStyle,
@@ -69,6 +74,9 @@ import {
   PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
+  allowedDefaultModel,
+  isOrgTier,
+  policyAllows,
   articleDownloadFileName,
   articleLocaleOfKey,
   articleMetaKey,
@@ -148,6 +156,8 @@ import {
   findProjectByLegacyId,
   getJob,
   getProject,
+  getUser,
+  listAllJobs,
   listAllProjects,
   listJobsForProject,
   listMessages,
@@ -165,6 +175,7 @@ import {
 } from "./lib/db.js";
 import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
+import { modelPolicy, orgKeyStatus, orgUsage } from "./lib/orgKey.js";
 import {
   addCanonMember,
   advanceCanonHead,
@@ -225,7 +236,12 @@ const notFound = () => new HTTPException(404, { message: "not found" });
 // Users
 // ---------------------------------------------------------------------------
 
-app.get("/users/me", (c) => c.json(toPublicUser(c.get("user"))));
+app.get("/users/me", async (c) => {
+  const u = c.get("user");
+  const { policy } = await modelPolicy(u);
+  const res: MeResponse = { ...toPublicUser(u), keySource: policy.source, orgTier: policy.tier };
+  return c.json(res);
+});
 
 const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
 /** Optional UI language of a request (absent / null = let the agent follow the user's language). */
@@ -240,13 +256,37 @@ const normModel = (v: unknown): string | null => {
   return v;
 };
 
+/** Model of a job when neither the job nor the project names one (the worker resolves it the same way). */
+const deploymentDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
+
+/** The caller's key and model policy; 400 when the caller has no key to run a job with. */
+async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: KeySource }> {
+  const { policy } = await modelPolicy(u);
+  if (policy.source) return { ...policy, source: policy.source };
+  if (u.orgAccess) throw bad("組織の API キーが現在使えません。管理者に連絡してください");
+  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者に組織のキーの利用承認を依頼してください");
+}
+
+/** 403 when the organization-key tier does not include `model`. */
+function requireModel(policy: ModelPolicy, model: string) {
+  if (!policyAllows(policy, model)) {
+    throw new HTTPException(403, { message: `モデル ${model} は Tier ${policy.tier} では使えません（使えるモデル: ${policy.allowed!.join(", ")}）` });
+  }
+}
+
+/** A default (user setting, deployment) the user did not pick for this job: replaced by an allowed model when the tier excludes it. */
+const implicitModel = (policy: ModelPolicy, preferred: string) => (policy.allowed ? allowedDefaultModel(policy, preferred) : preferred);
+
 app.put("/users/me", async (c) => {
   const body = (await c.req.json()) as Partial<Pick<UserRecord, "displayName" | "contributorName" | "defaultModel" | "defaultReasoningEffort" | "defaultCanonId">>;
   const u = c.get("user");
   const values: Partial<UserRecord> = {};
   if (typeof body.displayName === "string" && body.displayName.trim()) values.displayName = body.displayName.trim().slice(0, 80);
   if (typeof body.contributorName === "string" && body.contributorName.trim()) values.contributorName = body.contributorName.trim().slice(0, 120);
-  if ("defaultModel" in body) values.defaultModel = normModel(body.defaultModel);
+  if ("defaultModel" in body) {
+    values.defaultModel = normModel(body.defaultModel);
+    if (values.defaultModel) requireModel((await modelPolicy(u)).policy, values.defaultModel);
+  }
   if ("defaultReasoningEffort" in body) {
     if (body.defaultReasoningEffort !== null && body.defaultReasoningEffort !== undefined && !isEffort(body.defaultReasoningEffort)) throw bad("reasoning effort が不正です");
     values.defaultReasoningEffort = body.defaultReasoningEffort ?? null;
@@ -256,18 +296,26 @@ app.put("/users/me", async (c) => {
     values.defaultCanonId = body.defaultCanonId || null;
   }
   await updateUser(u.userId, values);
-  return c.json(toPublicUser({ ...u, ...values }));
+  const { policy } = await modelPolicy(u);
+  const res: MeResponse = { ...toPublicUser({ ...u, ...values }), keySource: policy.source, orgTier: policy.tier };
+  return c.json(res);
 });
 
-app.get("/users/me/models", (c) => {
+app.get("/users/me/models", async (c) => {
   const u = c.get("user");
-  return c.json({
-    models: filterCodexModels(u.availableModels ?? []),
+  const { policy, provider } = await modelPolicy(u);
+  const keyModels = policy.source === "org" ? (provider?.availableModels ?? []) : (u.availableModels ?? []);
+  const res: ModelsResponse = {
+    models: policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels),
     efforts: REASONING_EFFORTS,
-    envDefaultModel: env.codexModel || DEFAULT_CODEX_MODEL,
+    envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
+    keySource: policy.source,
+    orgTier: policy.tier,
+    restricted: policy.allowed !== null,
     pricedModels: Object.keys(PRICING),
     pricingAsOf: PRICING_AS_OF,
-  });
+  };
+  return c.json(res);
 });
 
 /** Token / cost summary across the caller's projects (per model and per project). */
@@ -419,7 +467,7 @@ function attachmentUrls(list: CreateProjectRequest["urls"]): string[] {
 
 app.post("/projects", async (c) => {
   const u = c.get("user");
-  if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です。設定画面で登録してください。");
+  const policy = await requireRunKey(u);
   const body = (await c.req.json()) as CreateProjectRequest;
   const roi = (body.roi ?? "").trim();
   const tlf = (body.tlf ?? "").trim();
@@ -429,7 +477,9 @@ app.post("/projects", async (c) => {
   const name = proposeProjectName(roi, tlf);
   const contributor = u.contributorName?.trim() || u.displayName;
   // Always persist a concrete model so usage can be priced (project → user default → env → DEFAULT_CODEX_MODEL)
-  const model = ("model" in body ? normModel(body.model) : null) || u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL;
+  const chosen = "model" in body ? normModel(body.model) : null;
+  if (chosen) requireModel(policy, chosen);
+  const model = chosen || implicitModel(policy, u.defaultModel || deploymentDefaultModel());
   let reasoningEffort: ReasoningEffort | null = u.defaultReasoningEffort ?? null;
   if ("reasoningEffort" in body) {
     if (body.reasoningEffort !== null && body.reasoningEffort !== undefined && !isEffort(body.reasoningEffort)) throw bad("reasoning effort が不正です");
@@ -489,6 +539,7 @@ app.post("/projects", async (c) => {
     userId: u.userId,
     type: "initial",
     status: "QUEUED",
+    keySource: policy.source,
     instruction: null,
     pendingAnswer: null,
     locale,
@@ -623,13 +674,15 @@ app.post("/projects/:id/answer", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "WAITING_USER_INPUT" || !p.activeJobId) throw bad("回答待ちの質問はありません");
+  const policy = await requireRunKey(u);
+  requireModel(policy, p.model || deploymentDefaultModel());
   const body = (await c.req.json()) as AnswerRequest;
   const text = (body.answer ?? "").trim();
   if (!text) throw bad("回答を入力してください");
   const locale = readLocale(body.locale);
   const job = await getJob(p.projectId, p.activeJobId);
   if (!job) throw notFound();
-  await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text, ...(locale ? { locale } : {}) });
+  await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text, keySource: policy.source, ...(locale ? { locale } : {}) });
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
   await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
   await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { userId: p.userId, meta: { i18n: "sys.answered" } });
@@ -639,9 +692,10 @@ app.post("/projects/:id/answer", async (c) => {
 
 app.post("/projects/:id/followup", async (c) => {
   const u = c.get("user");
-  if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
+  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "COMPLETED") throw bad("フォローアップは完了済みのプロジェクトにのみ送信できます");
+  requireModel(policy, p.model || deploymentDefaultModel());
   const body = (await c.req.json()) as FollowupRequest;
   const text = (body.instruction ?? "").trim();
   if (!text) throw bad("指示を入力してください");
@@ -654,6 +708,7 @@ app.post("/projects/:id/followup", async (c) => {
     userId: u.userId,
     type: "followup",
     status: "QUEUED",
+    keySource: policy.source,
     instruction: text,
     pendingAnswer: null,
     locale,
@@ -681,9 +736,10 @@ app.post("/projects/:id/followup", async (c) => {
 
 app.post("/projects/:id/retry", async (c) => {
   const u = c.get("user");
-  if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
+  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
+  requireModel(policy, p.model || deploymentDefaultModel());
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
   const locale = readLocale(body?.locale);
   const jobs = await listJobsForProject(p.projectId, u.userId);
@@ -696,6 +752,7 @@ app.post("/projects/:id/retry", async (c) => {
     userId: u.userId,
     type: last?.type ?? "initial",
     status: "QUEUED",
+    keySource: policy.source,
     instruction: last?.instruction ?? null,
     pendingAnswer: null,
     locale: locale ?? last?.locale ?? null,
@@ -795,12 +852,14 @@ app.get("/projects/:id/artifacts/text", async (c) => {
 
 app.post("/projects/:id/articles", async (c) => {
   const u = c.get("user");
-  if (!u.apiKeyRegistered) throw bad("OpenAI API キーが未登録です");
+  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "COMPLETED" || p.stepStates?.XLSX !== "done") throw bad("解説記事は BRA データの完成後に作成できます");
-  const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest>;
+  const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest> & { model?: unknown };
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
   const locale = body.locale;
+  // a model chosen for the article itself, else the project's
+  requireModel(policy, normModel(body.model) || p.model || deploymentDefaultModel());
   const now = nowIso();
   const jobId = newId("job_");
   const job: JobRecord = {
@@ -809,6 +868,7 @@ app.post("/projects/:id/articles", async (c) => {
     userId: u.userId,
     type: "article",
     status: "QUEUED",
+    keySource: policy.source,
     instruction: null,
     pendingAnswer: null,
     articleLocale: locale,
@@ -1633,6 +1693,7 @@ const CONTENT_TYPES: Record<string, string> = { json: "application/json", jsonl:
 app.post("/public/projects/:id/clone", async (c) => {
   const u = c.get("user");
   const src = await loadPublicProject(c.req.param("id"));
+  const { policy } = await modelPolicy(u);
   const userKey = u.userKey ?? (await assignUserKey(u.userId));
   const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
   let copied = 0;
@@ -1661,7 +1722,7 @@ app.post("/public/projects/:id/clone", async (c) => {
     roi: src.roi,
     tlf: src.tlf,
     contributor: src.contributor,
-    model: u.defaultModel || env.codexModel || DEFAULT_CODEX_MODEL,
+    model: implicitModel(policy, u.defaultModel || deploymentDefaultModel()),
     reasoningEffort: u.defaultReasoningEffort ?? null,
     // the copied workspace was built with (or without) the research step, so follow-ups keep the original's setting
     ...(src.researchMode !== undefined ? { researchMode: src.researchMode } : {}),
@@ -1722,13 +1783,44 @@ app.put("/admin/users/:id", async (c) => {
   const me = c.get("user");
   requireAdmin(me);
   const id = c.req.param("id");
-  const body = (await c.req.json()) as { disabled?: boolean; role?: "user" | "admin" };
+  const body = (await c.req.json()) as AdminUpdateUserRequest;
   if (id === me.userId && body.disabled) throw bad("自分自身を無効化することはできません");
+  if (!(await getUser(id))) throw notFound();
   const values: Partial<UserRecord> = {};
   if (typeof body.disabled === "boolean") values.disabled = body.disabled;
   if (body.role === "user" || body.role === "admin") values.role = body.role;
+  if ("orgTier" in body) {
+    if (body.orgTier === null || body.orgTier === 0) values.orgAccess = null;
+    else if (isOrgTier(body.orgTier)) values.orgAccess = { tier: body.orgTier, approvedAt: nowIso(), approvedBy: me.userId };
+    else throw bad("orgTier は 0（未承認）・1・2 のいずれかです");
+  }
   await updateUser(id, values);
   return c.json({ ok: true });
+});
+
+app.get("/admin/org-key", async (c) => {
+  requireAdmin(c.get("user"));
+  return c.json(orgKeyStatus(await listUsers()));
+});
+
+/** Shares the caller's own registered key as the organization key (`share: false` stops sharing whoever's key it is). */
+app.put("/admin/org-key", async (c) => {
+  const me = c.get("user");
+  requireAdmin(me);
+  const { share } = (await c.req.json().catch(() => ({}))) as { share?: unknown };
+  if (typeof share !== "boolean") throw bad("share は true か false です");
+  const users = await listUsers();
+  if (share && !me.apiKeyRegistered) throw bad("組織のキーにするには、先に設定画面でご自身の API キーを登録してください");
+  for (const x of users) if (x.orgKeyProvider && (!share || x.userId !== me.userId)) await updateUser(x.userId, { orgKeyProvider: false });
+  if (share) await updateUser(me.userId, { orgKeyProvider: true });
+  const after = users.map((x) => ({ ...x, orgKeyProvider: share && x.userId === me.userId }));
+  return c.json(orgKeyStatus(after));
+});
+
+/** Organization-key usage per user (jobs recorded with keySource "org"). */
+app.get("/admin/org-usage", async (c) => {
+  requireAdmin(c.get("user"));
+  return c.json(orgUsage(await listAllJobs(), nowIso().slice(0, 7)));
 });
 
 app.get("/admin/projects", async (c) => {

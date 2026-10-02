@@ -36,6 +36,11 @@ import type {
   UpdateProjectResponse,
   UsageSummary,
   UserPublic,
+  AdminUpdateUserRequest,
+  MeResponse,
+  ModelsResponse,
+  OrgKeyStatus,
+  OrgUsageResponse,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -75,13 +80,12 @@ async function request<T>(method: string, path: string, body?: unknown, raw = fa
 }
 
 export const api = {
-  me: () => request<UserPublic>("GET", "/users/me"),
+  me: () => request<MeResponse>("GET", "/users/me"),
   updateMe: (b: { displayName?: string; contributorName?: string; defaultModel?: string | null; defaultReasoningEffort?: ReasoningEffort | null; defaultCanonId?: string | null }) =>
-    request<UserPublic>("PUT", "/users/me", b),
+    request<MeResponse>("PUT", "/users/me", b),
   apiKeyStatus: () => request<{ registered: boolean; last4: string | null }>("GET", "/users/me/apikey/status"),
   setApiKey: (apiKey: string) => request<{ registered: boolean; last4: string; models: string[] }>("PUT", "/users/me/apikey", { apiKey }),
-  models: () =>
-    request<{ models: string[]; efforts: ReasoningEffort[]; envDefaultModel: string | null; pricedModels: string[]; pricingAsOf: string }>("GET", "/users/me/models"),
+  models: () => request<ModelsResponse>("GET", "/users/me/models"),
   usage: () => request<UsageSummary>("GET", "/users/me/usage"),
   deleteApiKey: () => request<{ registered: boolean }>("DELETE", "/users/me/apikey"),
 
@@ -169,7 +173,10 @@ export const api = {
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
-  adminUpdateUser: (id: string, b: { disabled?: boolean; role?: "user" | "admin" }) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
+  adminUpdateUser: (id: string, b: AdminUpdateUserRequest) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
+  adminOrgKey: () => request<OrgKeyStatus>("GET", "/admin/org-key"),
+  adminShareOrgKey: (share: boolean) => request<OrgKeyStatus>("PUT", "/admin/org-key", { share }),
+  adminOrgUsage: () => request<OrgUsageResponse>("GET", "/admin/org-usage"),
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),
   adminCancel: (userId: string, id: string) => request<{ ok: true }>("POST", `/admin/projects/${userId}/${encodeURIComponent(id)}/cancel`),
 };

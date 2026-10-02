@@ -9,6 +9,7 @@ import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ResearchStepMetrics } from "./research.js";
 import type { ProjectNameSource } from "./projectId.js";
+import type { KeySource, OrgAccess, OrgTier } from "./orgKey.js";
 
 export type UserRole = "user" | "admin";
 
@@ -36,11 +37,43 @@ export interface UserRecord {
   /** Defaults applied to new projects (null/undefined = Codex default) */
   defaultModel?: string | null;
   defaultReasoningEffort?: ReasoningEffort | null;
+  /** Approval to run jobs with the organization key when the user has no key of their own (absent / null: not approved) */
+  orgAccess?: OrgAccess | null;
+  /** Set on the one admin whose registered key is the organization key */
+  orgKeyProvider?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export type UserPublic = Omit<UserRecord, "encryptedApiKey">;
+
+/** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the organization-key tier */
+export interface MeResponse extends UserPublic {
+  keySource: KeySource | null;
+  orgTier: OrgTier | null;
+}
+
+/** PUT /admin/users/:id (orgTier 0 / null: not approved for the organization key) */
+export interface AdminUpdateUserRequest {
+  disabled?: boolean;
+  role?: UserRole;
+  orgTier?: OrgTier | 0 | null;
+}
+
+/** GET /users/me/models */
+export interface ModelsResponse {
+  /** Models the user may choose (Tier 1: exactly the Tier 1 models) */
+  models: string[];
+  efforts: ReasoningEffort[];
+  /** Model a job runs when the user picks "default" */
+  envDefaultModel: string;
+  keySource: KeySource | null;
+  orgTier: OrgTier | null;
+  /** Only `models` may be chosen (no custom model ID) */
+  restricted: boolean;
+  pricedModels: string[];
+  pricingAsOf: string;
+}
 
 /** Mirrors ModelReasoningEffort of @openai/codex-sdk */
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra" | "persistent";
@@ -198,6 +231,8 @@ export interface JobRecord {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Key the job runs with (absent on jobs before v0.19: the user's own key) */
+  keySource?: KeySource;
   /** Model actually passed to Codex for this job */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
