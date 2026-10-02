@@ -12,7 +12,7 @@ import {
   updatePassword,
 } from "aws-amplify/auth";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { UserPublic } from "@cobrac/shared";
+import type { MeResponse } from "@cobrac/shared";
 import { api } from "./api";
 import type { RuntimeConfig } from "./config";
 
@@ -20,7 +20,7 @@ interface AuthState {
   ready: boolean;
   signedIn: boolean;
   email: string | null;
-  me: UserPublic | null;
+  me: MeResponse | null;
   refreshMe: () => Promise<void>;
   doSignIn: (email: string, password: string) => Promise<void>;
   doSignUp: (email: string, password: string) => Promise<"confirm" | "done">;
@@ -53,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
-  const [me, setMe] = useState<UserPublic | null>(null);
+  const [me, setMe] = useState<MeResponse | null>(null);
 
   const refreshMe = useCallback(async () => {
     try {

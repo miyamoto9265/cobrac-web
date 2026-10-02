@@ -65,6 +65,16 @@ export function SettingsPage() {
             {t("settings.status")}{" "}
             {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
           </div>
+          {me?.orgAccess && (
+            <div className="mb-2 flex items-center gap-1 text-xs text-slate-600" data-testid="org-key-status">
+              {me.keySource === "org"
+                ? t("settings.orgKeyInUse", { tier: me.orgAccess.tier })
+                : me.keySource === "own"
+                  ? t("settings.orgKeyStandby", { tier: me.orgAccess.tier })
+                  : t("settings.orgKeyDown")}
+              <HelpTip text={t("settings.orgKeyHelp")} />
+            </div>
+          )}
           <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className={input} autoComplete="off" />
           <div className="mt-3 flex flex-wrap gap-2">
             <button

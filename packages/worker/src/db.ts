@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type {
   CanonRecord,
   JobRecord,
@@ -21,6 +21,18 @@ const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region 
 export async function getUser(userId: string): Promise<UserRecord | null> {
   const r = await ddb.send(new GetCommand({ TableName: env.tables.users, Key: { userId } }));
   return (r.Item as UserRecord) ?? null;
+}
+
+/** Every user (paginated Scan); used to find the organization-key provider. */
+export async function listUsers(): Promise<UserRecord[]> {
+  const out: UserRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(new ScanCommand({ TableName: env.tables.users, ExclusiveStartKey: start }));
+    out.push(...((r.Items as UserRecord[]) ?? []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
 }
 
 export async function getProject(userId: string, projectId: string): Promise<ProjectRecord | null> {

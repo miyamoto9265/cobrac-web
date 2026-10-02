@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ReasoningEffort } from "@cobrac/shared";
+import type { OrgTier, ReasoningEffort } from "@cobrac/shared";
 import { REASONING_EFFORTS } from "@cobrac/shared";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
@@ -11,11 +11,16 @@ export function isPriced(model: string, priced: string[]): boolean {
   return priced.includes(model) || priced.includes(model.replace(/-\d{4}-\d{2}-\d{2}$/, ""));
 }
 
-/** Models of the user's registered OpenAI key; `custom` starts true when the chosen model is not among them. */
+/**
+ * Models the user may choose (their own key's, or the organization-key tier's); `custom` starts true when the chosen
+ * model is not among them. `restricted`: only `models` are allowed, so there is no custom model ID.
+ */
 export function useModelList(model: string | null) {
   const [models, setModels] = useState<string[]>([]);
   const [priced, setPriced] = useState<string[]>([]);
   const [envDefault, setEnvDefault] = useState<string | null>(null);
+  const [orgTier, setOrgTier] = useState<OrgTier | null>(null);
+  const [restricted, setRestricted] = useState(false);
   const [custom, setCustom] = useState(false);
   useEffect(() => {
     api
@@ -24,11 +29,13 @@ export function useModelList(model: string | null) {
         setModels(r.models);
         setPriced(r.pricedModels ?? []);
         setEnvDefault(r.envDefaultModel);
-        if (model && !r.models.includes(model)) setCustom(true);
+        setOrgTier(r.orgTier ?? null);
+        setRestricted(!!r.restricted);
+        if (model && !r.models.includes(model) && !r.restricted) setCustom(true);
       })
       .catch(() => undefined);
   }, [model]);
-  return { models, priced, envDefault, custom, setCustom };
+  return { models, priced, envDefault, orgTier, restricted, custom, setCustom };
 }
 
 interface Props {
@@ -44,7 +51,7 @@ interface Props {
 export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false }: Props) {
   const t = useT();
   const fallbackLabel = defaultLabel ?? t("model.default");
-  const { models, priced, envDefault, custom, setCustom } = useModelList(model);
+  const { models, priced, envDefault, orgTier, restricted, custom, setCustom } = useModelList(model);
 
   const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
   const lbl = "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
@@ -76,8 +83,9 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
               {priced.length > 0 && !isPriced(m, priced) ? t("model.unpriced") : ""}
             </option>
           ))}
-          <option value={CUSTOM}>{t("model.custom")}</option>
+          {!restricted && <option value={CUSTOM}>{t("model.custom")}</option>}
         </select>
+        {orgTier && <span className="mt-1 block text-[11px] text-slate-500" data-testid="org-tier-note">{t("model.orgTier", { tier: orgTier })}</span>}
         {custom && (
           <input
             value={model ?? ""}

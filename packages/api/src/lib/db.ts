@@ -233,6 +233,17 @@ export async function listJobsByStatus(status: JobRecord["status"]): Promise<Job
   );
   return (r.Items as JobRecord[]) ?? [];
 }
+/** Every job (paginated Scan; admin usage only). */
+export async function listAllJobs(): Promise<JobRecord[]> {
+  const out: JobRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(new ScanCommand({ TableName: env.tables.jobs, ExclusiveStartKey: start }));
+    out.push(...((r.Items as JobRecord[]) ?? []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
+}
 /** Jobs of one project owned by `userId` (legacy Project IDs could be shared by several users). */
 export async function listJobsForProject(projectId: string, userId: string): Promise<JobRecord[]> {
   const r = await ddb.send(

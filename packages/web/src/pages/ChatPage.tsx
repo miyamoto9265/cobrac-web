@@ -1,7 +1,7 @@
 import { ArrowUp, Loader2, Paperclip, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, orgTierAllows } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
@@ -27,14 +27,16 @@ function NewProject() {
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
   const [attachments, setAttachments] = useState<AttachmentState>(EMPTY_ATTACHMENTS);
-  const [run, setRun] = useState<RunSettings>({ model: me?.defaultModel ?? null, effort: me?.defaultReasoningEffort ?? null, research: true });
+  // a saved default the organization-key tier no longer includes falls back to the tier's default
+  const defaultModel = me?.defaultModel && (!me.orgTier || orgTierAllows(me.orgTier, me.defaultModel)) ? me.defaultModel : null;
+  const [run, setRun] = useState<RunSettings>({ model: defaultModel, effort: me?.defaultReasoningEffort ?? null, research: true });
   const [canon, setCanon] = useState<CanonChoiceState>(() => initialCanonChoice(me?.defaultCanonId));
   const canonSources = useCanonSources();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const files = useAttachments(attachments, setAttachments, busy);
   const uploading = attachmentsBusy(attachments);
-  const canSubmit = !busy && !uploading && !!(roi.trim() || tlf.trim()) && !!me?.apiKeyRegistered && canonChoiceReady(canon);
+  const canSubmit = !busy && !uploading && !!(roi.trim() || tlf.trim()) && !!me?.keySource && canonChoiceReady(canon);
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
@@ -67,7 +69,7 @@ function NewProject() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
         <h1 className="mb-5 text-center text-2xl font-semibold tracking-tight sm:mb-7">{t("chat.newTitle")}</h1>
-        {!me?.apiKeyRegistered && (
+        {!me?.keySource && (
           <div className="mb-4 w-full max-w-2xl rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             {needKeyBefore}
             <Link to="/settings" className="underline">
@@ -109,7 +111,7 @@ function NewProject() {
             </Popover>
             <CanonChip value={canon} onChange={setCanon} sources={canonSources} defaultCanonId={me?.defaultCanonId} disabled={busy} />
             <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-1.5">
-              <ModelMenu value={run} onChange={setRun} fallbackModel={me?.defaultModel || DEFAULT_CODEX_MODEL} disabled={busy} />
+              <ModelMenu value={run} onChange={setRun} fallbackModel={defaultModel || DEFAULT_CODEX_MODEL} disabled={busy} />
               <button
                 type="button"
                 onClick={() => void submit()}

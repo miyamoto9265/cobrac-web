@@ -13,7 +13,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("../src/lib/api", () => ({ api, uploadFile: vi.fn(), ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({
-  useAuth: () => ({ me: { apiKeyRegistered: true, defaultModel: null, defaultReasoningEffort: null, defaultCanonId: null, contributorName: "Tester", displayName: "Tester" } }),
+  useAuth: () => ({ me: { apiKeyRegistered: true, keySource: "own", defaultModel: null, defaultReasoningEffort: null, defaultCanonId: null, contributorName: "Tester", displayName: "Tester" } }),
 }));
 
 const { I18nProvider, LOCALES } = await import("../src/i18n");
@@ -173,5 +173,17 @@ describe("create screen composer", () => {
     await act(async () => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect($("composer-model-panel")).toBeNull();
     expect(document.activeElement).toBe(btn);
+  });
+
+  it("offers only the tier's models, without a custom model ID, to a Tier 1 organization-key user", async () => {
+    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", keySource: "org", orgTier: 1, restricted: true });
+    await render(<ChatPage />);
+    await click($("composer-model"));
+    const menu = $("model-menu")!;
+    const options = [...menu.querySelectorAll('input[name="cm-model"]')].map((i) => i.parentElement!.textContent);
+    expect(options).toHaveLength(3);
+    expect(options.slice(1)).toEqual(["gpt-6-luna", "gpt-5.6-luna"]);
+    expect(menu.textContent).not.toContain("その他（手入力）");
+    expect($("org-tier-note")?.textContent).toBe("組織のキー（Tier 1）を使用");
   });
 });
