@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-02
+
 ### Added
 - Collaborators no longer need their own OpenAI API key. On the admin page, an admin shares the key registered on their own account as the organization key and approves users at Tier 1 (gpt-6-luna and gpt-5.6-luna only) or Tier 2 (every model). Approved users without a key of their own run jobs with the organization key; a user who registers a key runs on it instead, without the tier limit. The key is used where it is stored (KMS-encrypted on the admin's account) and never sent to other users or written to logs
 - The admin page shows each user's organization-key cost (total and this month) next to the tier, and the organization key's status with buttons to share it or stop sharing it. Settings shows an approved user which key their jobs use
