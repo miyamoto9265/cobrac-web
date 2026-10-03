@@ -5,6 +5,7 @@ import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   AdminUpdateUserRequest,
   AnswerRequest,
+  DefaultApiKeyRecord,
   ArticleJobState,
   ArticleMeta,
   CanonDetailResponse,
@@ -75,6 +76,7 @@ import {
   REASONING_EFFORTS,
   addUsage,
   allowedDefaultModel,
+  DEFAULT_KEY_CATALOG_KEY,
   isOrgTier,
   policyAllows,
   articleDownloadFileName,
@@ -136,6 +138,7 @@ import { getCatalogItem, getCloneCount, incrementCloneCount, listCatalog, putCat
 import {
   deleteObject,
   encryptApiKey,
+  encryptDefaultApiKey,
   enqueueRun,
   getCanonJson,
   getObjectBytes,
@@ -175,7 +178,7 @@ import {
 } from "./lib/db.js";
 import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
-import { modelPolicy, orgKeyStatus, orgUsage } from "./lib/orgKey.js";
+import { defaultKeyStatus, deleteDefaultKey, getDefaultKey, modelPolicy, orgUsage, putDefaultKey } from "./lib/orgKey.js";
 import {
   addCanonMember,
   advanceCanonHead,
@@ -263,11 +266,11 @@ const deploymentDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
 async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: KeySource }> {
   const { policy } = await modelPolicy(u);
   if (policy.source) return { ...policy, source: policy.source };
-  if (u.orgAccess) throw bad("組織の API キーが現在使えません。管理者に連絡してください");
-  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者に組織のキーの利用承認を依頼してください");
+  if (u.orgAccess) throw bad("デフォルトの API キーが登録されていません。管理者に連絡してください");
+  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者にデフォルトの API キーの利用承認を依頼してください");
 }
 
-/** 403 when the organization-key tier does not include `model`. */
+/** 403 when the default-API-key tier does not include `model`. */
 function requireModel(policy: ModelPolicy, model: string) {
   if (!policyAllows(policy, model)) {
     throw new HTTPException(403, { message: `モデル ${model} は Tier ${policy.tier} では使えません（使えるモデル: ${policy.allowed!.join(", ")}）` });
@@ -303,8 +306,8 @@ app.put("/users/me", async (c) => {
 
 app.get("/users/me/models", async (c) => {
   const u = c.get("user");
-  const { policy, provider } = await modelPolicy(u);
-  const keyModels = policy.source === "org" ? (provider?.availableModels ?? []) : (u.availableModels ?? []);
+  const { policy, defaultKey } = await modelPolicy(u);
+  const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
   const res: ModelsResponse = {
     models: policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels),
     efforts: REASONING_EFFORTS,
@@ -370,15 +373,19 @@ app.get("/users/me/apikey/status", (c) => {
   return c.json({ registered: !!u.apiKeyRegistered, last4: u.apiKeyLast4 ?? null });
 });
 
-app.put("/users/me/apikey", async (c) => {
-  const { apiKey } = (await c.req.json()) as { apiKey?: string };
-  const key = (apiKey ?? "").trim();
+/** A pasted OpenAI key, checked against OpenAI; returns the key and its Codex models. */
+async function verifiedOpenAiKey(apiKey: unknown): Promise<{ key: string; models: string[] }> {
+  const key = (typeof apiKey === "string" ? apiKey : "").trim();
   if (!key || key.length < 20) throw bad("API キーの形式が不正です");
-  // Validate by calling OpenAI
   const r = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
   if (r.status === 401 || r.status === 403) throw bad("OpenAI がこの API キーを拒否しました（無効なキー）");
   if (!r.ok) throw new HTTPException(502, { message: `OpenAI への疎通確認に失敗しました (${r.status})` });
-  const models = filterCodexModels((((await r.json()) as { data?: { id: string }[] }).data ?? []).map((m) => m.id));
+  return { key, models: filterCodexModels((((await r.json()) as { data?: { id: string }[] }).data ?? []).map((m) => m.id)) };
+}
+
+app.put("/users/me/apikey", async (c) => {
+  const { apiKey } = (await c.req.json()) as { apiKey?: string };
+  const { key, models } = await verifiedOpenAiKey(apiKey);
   const u = c.get("user");
   const encryptedApiKey = await encryptApiKey(key, u.userId);
   await updateUser(u.userId, { encryptedApiKey, apiKeyRegistered: true, apiKeyLast4: key.slice(-4), availableModels: models });
@@ -1798,26 +1805,36 @@ app.put("/admin/users/:id", async (c) => {
   return c.json({ ok: true });
 });
 
-app.get("/admin/org-key", async (c) => {
+/** The default API key: write-only (only the last 4 characters and the date are ever returned). */
+app.get("/admin/default-api-key", async (c) => {
   requireAdmin(c.get("user"));
-  return c.json(orgKeyStatus(await listUsers()));
+  return c.json(defaultKeyStatus(await getDefaultKey()));
 });
 
-/** Shares the caller's own registered key as the organization key (`share: false` stops sharing whoever's key it is). */
-app.put("/admin/org-key", async (c) => {
+app.put("/admin/default-api-key", async (c) => {
   const me = c.get("user");
   requireAdmin(me);
-  const { share } = (await c.req.json().catch(() => ({}))) as { share?: unknown };
-  if (typeof share !== "boolean") throw bad("share は true か false です");
-  const users = await listUsers();
-  if (share && !me.apiKeyRegistered) throw bad("組織のキーにするには、先に設定画面でご自身の API キーを登録してください");
-  for (const x of users) if (x.orgKeyProvider && (!share || x.userId !== me.userId)) await updateUser(x.userId, { orgKeyProvider: false });
-  if (share) await updateUser(me.userId, { orgKeyProvider: true });
-  const after = users.map((x) => ({ ...x, orgKeyProvider: share && x.userId === me.userId }));
-  return c.json(orgKeyStatus(after));
+  const { apiKey } = (await c.req.json().catch(() => ({}))) as { apiKey?: unknown };
+  const { key, models } = await verifiedOpenAiKey(apiKey);
+  const record: DefaultApiKeyRecord = {
+    ...DEFAULT_KEY_CATALOG_KEY,
+    encryptedApiKey: await encryptDefaultApiKey(key),
+    last4: key.slice(-4),
+    availableModels: models,
+    updatedAt: nowIso(),
+    updatedBy: me.userId,
+  };
+  await putDefaultKey(record);
+  return c.json(defaultKeyStatus(record));
 });
 
-/** Organization-key usage per user (jobs recorded with keySource "org"). */
+app.delete("/admin/default-api-key", async (c) => {
+  requireAdmin(c.get("user"));
+  await deleteDefaultKey();
+  return c.json(defaultKeyStatus(null));
+});
+
+/** Default-API-key usage per user (jobs recorded with keySource "org"). */
 app.get("/admin/org-usage", async (c) => {
   requireAdmin(c.get("user"));
   return c.json(orgUsage(await listAllJobs(), nowIso().slice(0, 7)));

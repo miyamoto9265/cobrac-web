@@ -1,26 +1,32 @@
-import type { JobRecord, ModelPolicy, OrgKeyStatus, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
-import { EMPTY_USAGE, addUsage, modelPolicyOf, orgKeyProviderOf } from "@cobrac/shared";
-import { listUsers } from "./db.js";
+import { DeleteCommand, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, modelPolicyOf } from "@cobrac/shared";
+import { env } from "../env.js";
+import { ddb } from "./db.js";
 
-export async function findOrgKeyProvider(): Promise<UserRecord | null> {
-  return orgKeyProviderOf(await listUsers());
+export async function getDefaultKey(): Promise<DefaultApiKeyRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { ...DEFAULT_KEY_CATALOG_KEY } }));
+  const item = (r.Item as DefaultApiKeyRecord | undefined) ?? null;
+  return item?.encryptedApiKey ? item : null;
 }
 
-/** The caller's key and model policy (the users table is read only when the organization key could apply). */
-export async function modelPolicy(u: UserRecord): Promise<{ policy: ModelPolicy; provider: UserRecord | null }> {
-  const provider = !u.apiKeyRegistered && u.orgAccess ? await findOrgKeyProvider() : null;
-  return { policy: modelPolicyOf(u, !!provider), provider };
+export async function putDefaultKey(item: DefaultApiKeyRecord): Promise<void> {
+  await ddb.send(new PutCommand({ TableName: env.tables.catalog, Item: item }));
 }
 
-export function orgKeyStatus(users: UserRecord[]): OrgKeyStatus {
-  const flagged = users.find((u) => u.orgKeyProvider) ?? null;
-  return {
-    provider: flagged ? { userId: flagged.userId, email: flagged.email, last4: flagged.apiKeyRegistered ? (flagged.apiKeyLast4 ?? null) : null } : null,
-    available: !!orgKeyProviderOf(users),
-  };
+export async function deleteDefaultKey(): Promise<void> {
+  await ddb.send(new DeleteCommand({ TableName: env.tables.catalog, Key: { ...DEFAULT_KEY_CATALOG_KEY } }));
 }
 
-/** Organization-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */
+export const defaultKeyStatus = (k: DefaultApiKeyRecord | null): DefaultKeyStatus => ({ registered: !!k, last4: k?.last4 ?? null, updatedAt: k?.updatedAt ?? null });
+
+/** The caller's key and model policy (the default key is read only when it could apply). */
+export async function modelPolicy(u: UserRecord): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
+  const defaultKey = !u.apiKeyRegistered && u.orgAccess ? await getDefaultKey() : null;
+  return { policy: modelPolicyOf(u, !!defaultKey), defaultKey };
+}
+
+/** Default-API-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */
 export function orgUsage(jobs: JobRecord[], month: string): OrgUsageResponse {
   const rows = new Map<string, OrgUsageRow>();
   for (const j of jobs) {

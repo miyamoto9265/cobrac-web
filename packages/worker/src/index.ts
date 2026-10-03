@@ -61,7 +61,6 @@ import {
   RESEARCH_FILES,
   REF_STATUSES,
   addUsage,
-  orgKeyProviderOf,
   articleKey,
   articleMetaKey,
   braDownloadFileName,
@@ -86,9 +85,9 @@ import {
   getJob,
   getCanonMeta,
   getProject,
+  getDefaultApiKey,
   getUser,
   incrementProjectRevision,
-  listUsers,
   putMessage,
   refreshProjectUsage,
   updateAutoProjectName,
@@ -173,13 +172,13 @@ async function main() {
     return;
   }
   const runModel = resolveModelSettings(mode === "article" ? { model: job.model || project.model } : project).model!;
-  const key = planRunKey(user, user.encryptedApiKey ? null : orgKeyProviderOf(await listUsers()), runModel);
+  const key = planRunKey(user, user.encryptedApiKey ? null : await getDefaultApiKey(), runModel);
   if ("error" in key) {
     await fail(key.error, key.meta);
     return;
   }
   console.log(`[worker] key=${key.source}`);
-  const apiKey = await decryptApiKey(key.encryptedApiKey, key.keyUserId);
+  const apiKey = await decryptApiKey(key.encryptedApiKey, key.context);
   if (job.keySource !== key.source) await updateJob(projectId, jobId, { keySource: key.source });
   const rcsConn = await resolveRcsConnection(
     { url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region },
@@ -1172,10 +1171,8 @@ async function fail(message: string, meta?: Record<string, unknown>) {
   await putMessage(projectId, jobId, "system", "error", message, { meta });
 }
 
-async function decryptApiKey(ciphertextB64: string, uid: string): Promise<string> {
-  const r = await kms.send(
-    new DecryptCommand({ CiphertextBlob: Buffer.from(ciphertextB64, "base64"), EncryptionContext: { userId: uid, purpose: "openai-api-key" } }),
-  );
+async function decryptApiKey(ciphertextB64: string, context: Record<string, string>): Promise<string> {
+  const r = await kms.send(new DecryptCommand({ CiphertextBlob: Buffer.from(ciphertextB64, "base64"), EncryptionContext: context }));
   if (!r.Plaintext) throw new Error("KMS decrypt returned empty plaintext");
   return Buffer.from(r.Plaintext).toString("utf8");
 }

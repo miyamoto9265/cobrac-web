@@ -8,11 +8,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [0.19.0] - 2026-10-02
 
 ### Added
-- Collaborators no longer need their own OpenAI API key. On the admin page, an admin shares the key registered on their own account as the organization key and approves users at Tier 1 (gpt-6-luna and gpt-5.6-luna only) or Tier 2 (every model). Approved users without a key of their own run jobs with the organization key; a user who registers a key runs on it instead, without the tier limit. The key is used where it is stored (KMS-encrypted on the admin's account) and never sent to other users or written to logs
-- The admin page shows each user's organization-key cost (total and this month) next to the tier, and the organization key's status with buttons to share it or stop sharing it. Settings shows an approved user which key their jobs use
+- Collaborators no longer need their own OpenAI API key. On the admin page, an admin registers a default API key (the organization's key) and approves users at Tier 1 (gpt-6-luna and gpt-5.6-luna only) or Tier 2 (every model). Approved users without a key of their own run jobs with the default key; a user who registers a key runs on it instead, without the tier limit. The default key belongs to no user account, is stored encrypted, and after saving only its last 4 characters and the date are shown; admins can replace or delete it
+- The admin page shows each user's default-key cost (total and this month) next to the tier. Settings shows an approved user which key their jobs use
 
 ### Changed
-- Every request that starts a job (new project, follow-up, retry, answer, explanatory article) and every clone checks the tier: a model outside it is refused, and a saved default outside it falls back to gpt-6-luna. The model menus list only the models the user may run. The worker checks the approval again whenever a job starts or resumes, so revoking an approval or stopping the shared key takes effect for the next job without stopping a running turn
+- Every request that starts a job (new project, follow-up, retry, answer, explanatory article) and every clone checks the tier: a model outside it is refused, and a saved default outside it falls back to gpt-6-luna. The model menus list only the models the user may run. The worker checks the approval again whenever a job starts or resumes, so revoking an approval or deleting the default key takes effect for the next job without stopping a running turn
 - New users and existing users without a key start unapproved; nothing changes for users who have their own key
 
 ## [0.18.2] - 2026-10-01

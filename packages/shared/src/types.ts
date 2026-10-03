@@ -37,23 +37,21 @@ export interface UserRecord {
   /** Defaults applied to new projects (null/undefined = Codex default) */
   defaultModel?: string | null;
   defaultReasoningEffort?: ReasoningEffort | null;
-  /** Approval to run jobs with the organization key when the user has no key of their own (absent / null: not approved) */
+  /** Approval to run jobs with the default API key when the user has no key of their own (absent / null: not approved) */
   orgAccess?: OrgAccess | null;
-  /** Set on the one admin whose registered key is the organization key */
-  orgKeyProvider?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export type UserPublic = Omit<UserRecord, "encryptedApiKey">;
 
-/** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the organization-key tier */
+/** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the default-API-key tier */
 export interface MeResponse extends UserPublic {
   keySource: KeySource | null;
   orgTier: OrgTier | null;
 }
 
-/** PUT /admin/users/:id (orgTier 0 / null: not approved for the organization key) */
+/** PUT /admin/users/:id (orgTier 0 / null: not approved for the default API key) */
 export interface AdminUpdateUserRequest {
   disabled?: boolean;
   role?: UserRole;
@@ -231,7 +229,7 @@ export interface JobRecord {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Key the job runs with (absent on jobs before v0.19: the user's own key) */
+  /** Key the job runs with: own, or the default API key (absent on jobs before v0.19: the user's own key) */
   keySource?: KeySource;
   /** Model actually passed to Codex for this job */
   model?: string | null;

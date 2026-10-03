@@ -212,6 +212,7 @@ export class CobracAgentsStack extends Stack {
       stopTimeout: Duration.seconds(120),
       environment: {
         TABLE_CANONS: canons.tableName,
+        TABLE_CATALOG: catalog.tableName,
         TABLE_USERS: users.tableName,
         TABLE_PROJECTS: projects.tableName,
         TABLE_JOBS: jobs.tableName,
@@ -231,6 +232,14 @@ export class CobracAgentsStack extends Stack {
     for (const t of [users, projects, jobs, messages]) t.grantReadWriteData(taskDef.taskRole);
     // the worker reads the pinned Canon revision (META here, snapshot under canons/ in the artifacts bucket)
     canons.grantReadData(taskDef.taskRole);
+    // and the default API key (Catalog kind "config"); nothing else of the Catalog
+    taskDef.taskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:GetItem"],
+        resources: [catalog.tableArn],
+        conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } },
+      }),
+    );
     artifacts.grantReadWrite(taskDef.taskRole);
     key.grantDecrypt(taskDef.taskRole);
     // read at run time (not injected by ECS) so a missing secret only disables RCS instead of failing task start
