@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.19.5] - 2026-10-03
+
 ### Changed
 - Users on the default API key no longer see their approval level anywhere: the settings status, the note in the model menus, the tooltips and the error for a model they cannot use (now just "this model is not available") leave it out. The admin page is unchanged
 - Users on the default API key are never offered a model they cannot run. A default model saved earlier shows as "default" in Settings and on the create screen, and the project header shows the model the next job will run. A follow-up, retry or answer on a project made with such a model (for example with their own key) now runs on the default model of the key instead of failing, and the project keeps that model; an explanatory article without a chosen model is written with it too
