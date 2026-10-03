@@ -1,4 +1,7 @@
 import type {
+  CanonAiState,
+  CanonPrEventRecord,
+  CanonPullDetailResponse,
   ArticleJobState,
   ArtifactInfo,
   CanonChoice,
@@ -148,9 +151,14 @@ export const api = {
   previewCanonPush: (projectId: string) => request<{ canonId: string; diff: CanonDiff }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/preview`),
   pushToCanon: (projectId: string) => request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/push`),
   canonPulls: (id: string) => request<{ items: CanonPullRequestRecord[] }>("GET", `/canons/${encodeURIComponent(id)}/pulls`),
-  canonPull: (id: string, no: number) =>
-    request<{ pr: CanonPullRequestRecord; diff: CanonDiff | null; headRevision: number; targetName: string; canReview: boolean; canWithdraw: boolean }>("GET", `/canons/${encodeURIComponent(id)}/pulls/${no}`),
-  approvePull: (id: string, no: number, choices: Record<string, CanonChoice>) => request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/approve`, { choices }),
+  canonPull: (id: string, no: number) => request<CanonPullDetailResponse>("GET", `/canons/${encodeURIComponent(id)}/pulls/${no}`),
+  approvePull: (id: string, no: number, choices: Record<string, CanonChoice>, note?: string) =>
+    request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/approve`, { choices, ...(note ? { note } : {}) }),
+  requestChanges: (id: string, no: number, note: string) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/request-changes`, { note }),
+  commentPull: (id: string, no: number, text: string, item?: string | null) =>
+    request<{ event: CanonPrEventRecord }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/comments`, { text, ...(item ? { item } : {}) }),
+  aiReviewPull: (id: string, no: number, model: string | null, locale: UiLocale) =>
+    request<{ ai: CanonAiState }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/ai-review`, { model, locale }),
   rejectPull: (id: string, no: number, reason: string) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/reject`, { reason }),
   withdrawPull: (id: string, no: number) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/withdraw`, {}),
   previewCanonPr: (targetId: string, sourceCanonId: string) => request<{ diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls/preview`, { sourceCanonId }),
