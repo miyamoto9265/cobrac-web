@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType } from "@cobrac/shared";
 import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
+import { childEnv } from "./childEnv.js";
 import { env } from "./env.js";
 import { RCS_TOKEN_ENV, rcsCodexConfig, type RcsConnection } from "./rcs.js";
 
@@ -102,23 +103,19 @@ export function codexModelSlug(model: string): string {
   return CODEX_MODEL_ALIASES[model] ?? model;
 }
 
-export function createCodex(apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean } = {}): Codex {
+/**
+ * `config` is merged over the worker's Codex config; only the worker image check uses it (to point Codex at a mock
+ * model server).
+ */
+export function createCodex(apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean; config?: Record<string, unknown> } = {}): Codex {
   const mcpServers = { ...(rcs ? rcsCodexConfig(rcs).mcp_servers : {}), ...(opts.lit ? litCodexConfig(env.crossrefMailto) : {}) };
   return new Codex({
     apiKey,
-    env: {
-      ...(process.env as Record<string, string>),
+    env: childEnv({
       CODEX_HOME: env.codexHome,
-      // never leak the worker's AWS credentials to commands run by the agent
-      AWS_ACCESS_KEY_ID: "",
-      AWS_SECRET_ACCESS_KEY: "",
-      AWS_SESSION_TOKEN: "",
-      AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: "",
-      AWS_CONTAINER_CREDENTIALS_FULL_URI: "",
-      NCBI_API_KEY: "",
       // Codex itself sends it as the MCP bearer token; shell_environment_policy keeps it out of agent commands
-      [RCS_TOKEN_ENV]: rcs?.token ?? "",
-    },
+      ...(rcs ? { [RCS_TOKEN_ENV]: rcs.token } : {}),
+    }),
     config: {
       show_raw_agent_reasoning: false,
       model_context_window: CODEX_CONTEXT_WINDOW,
@@ -128,6 +125,7 @@ export function createCodex(apiKey: string, rcs: RcsConnection | null = null, op
       // the OpenAI key may be the default API key, so agent commands never see it either
       shell_environment_policy: { exclude: [RCS_TOKEN_ENV, "CODEX_API_KEY", "OPENAI_API_KEY"] },
       ...(Object.keys(mcpServers).length ? { mcp_servers: mcpServers } : {}),
+      ...opts.config,
     },
   });
 }

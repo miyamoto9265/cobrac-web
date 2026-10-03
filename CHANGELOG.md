@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The worker container no longer lets the agent read the OpenAI API key or the task's AWS credentials from another process. The `node`, Codex and `git` binaries are made execute-only in the image, so the worker, Codex and git processes become non-dumpable and their `/proc/<pid>/environ` cannot be read by the agent's commands (which run as the same OS user). The worker's AWS credentials and credentials URI, the RCS token and the NCBI key are also removed from the environment of every process the worker starts, and the agent can no longer edit the Codex configuration to add an MCP server, hook or notify command. Jobs run unchanged. A new `scripts/worker-image-check.sh` builds the image and verifies both the isolation and that Codex turns still run
+
 ## [0.19.3] - 2026-10-03
 
 ### Changed

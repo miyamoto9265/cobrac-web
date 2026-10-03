@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { BibliographyFile } from "@cobrac/shared";
 import { BIBLIOGRAPHY_FILE, BRA_TEMPLATE_FILE, CSV_FILE_NAMES, HCD_FILES, buildGraphs, buildTemplateXlsx, parseReferencesJson, templateInputFromFiles, templateXlsxKey } from "@cobrac/shared";
 import { updateBibliography, type BibliographyOptions } from "./bibliography.js";
+import { childEnv } from "./childEnv.js";
 import { env } from "./env.js";
 import { projectPrefix, putObject } from "./s3sync.js";
 import { CSV_FILES, csvComplete, type ProjectPaths } from "./steps.js";
@@ -122,7 +123,7 @@ async function buildTemplateWorkbook(p: ProjectPaths, projectId: string, contrib
 function runPython(script: string, args: string[], cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const py = process.env.PYTHON_BIN ?? "python3";
-    const child = spawn(py, [script, ...args], { cwd, env: { ...process.env, PYTHONIOENCODING: "utf-8" } });
+    const child = spawn(py, [script, ...args], { cwd, env: childEnv({ PYTHONIOENCODING: "utf-8" }) });
     let out = "";
     child.stdout.on("data", (d) => (out += d.toString()));
     child.stderr.on("data", (d) => (out += d.toString()));

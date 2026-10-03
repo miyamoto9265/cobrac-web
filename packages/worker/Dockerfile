@@ -40,7 +40,28 @@ ENV NODE_ENV=production \
     WORK_DIR=/work \
     PROMPTS_DIR=/app/prompts \
     CODEX_HOME_DIR=/work/codex-home \
+    CODEX_SQLITE_HOME=/work/codex-home/sqlite \
     PYTHON_BIN=python3
-RUN mkdir -p /work && useradd -m -u 10001 worker && chown -R worker:worker /work /app
+# The worker, Codex and the agent's commands all run as `worker` (docs/02, section 5). So that the agent cannot read
+# the API key or the task role's credentials URI from the other processes:
+# - node, the Codex binaries and git's ELF binaries are made execute-only. Linux makes a process started from a file
+#   it cannot read non-dumpable, and then other processes of the same user cannot read its /proc/<pid>/environ or
+#   memory. git is included because Codex runs it with its own environment (which holds CODEX_API_KEY): it clones the
+#   plugins repo at startup and diffs each turn. Only ELF binaries are touched; git-core also has shell scripts, which
+#   must stay readable to be executed, so chmod-ing them would break those subcommands.
+# - /app stays root-owned, so neither those binaries nor the worker code can be replaced or made readable again.
+# - Codex's config files cannot be written: CODEX_HOME and /work/.codex (the project config of the trusted /work) are
+#   root-owned, only the subdirectories Codex writes to belong to `worker`, and the sticky /work keeps both in place.
+RUN useradd -m -u 10001 worker \
+ && for f in /usr/local/bin/node /usr/bin/git /usr/lib/git-core/* /app/node_modules/@openai/codex-linux-*/vendor/*/bin/*; do \
+      if [ -f "$f" ] && [ "$(head -c4 "$f" 2>/dev/null)" = "$(printf '\177ELF')" ]; then chmod 0111 "$f"; fi; \
+    done \
+ && install -d -o root -g worker -m 1775 /work \
+ && install -d -m 0755 /work/.codex /work/codex-home \
+ && printf '[projects."/work"]\ntrust_level = "trusted"\n' > /work/codex-home/config.toml \
+ && for d in sessions sqlite shell_snapshots log tmp .tmp skills memories cache thread-writer-locks; do \
+      install -d -o worker -g worker "/work/codex-home/$d"; \
+    done \
+ && install -o worker -g worker -m 0600 /dev/null /work/codex-home/installation_id
 USER worker
 CMD ["node", "/app/worker/index.js"]
