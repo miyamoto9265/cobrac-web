@@ -170,6 +170,7 @@ function PullsCard({ canonId, pulls }: { canonId: string; pulls: CanonPullReques
               <span className="font-mono text-slate-500">#{p.prNo}</span>
               <span className="min-w-0 break-words font-medium text-blue-700">{p.sourceName}</span>
               <span className={`rounded px-1.5 py-0.5 text-[11px] ${p.state === "open" ? "bg-violet-100 text-violet-800" : "bg-slate-100 text-slate-600"}`}>{t(`pr.state.${p.state}` as MessageKey)}</span>
+              {p.state === "open" && p.reviewState === "changes_requested" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">{t("rv.changesRequested")}</span>}
             </Link>
             <div className="text-[11px] text-slate-500">
               {t("pr.added", { n: p.summary.added })} · {t("pr.changed", { n: p.summary.changed })} · {t("pr.errors", { n: p.summary.errors })} · {t("pr.warnings", { n: p.summary.warnings })} · {fmtDate(p.createdAt, locale)}

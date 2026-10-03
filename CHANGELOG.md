@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-03
+
+### Added
+- A review screen for Canon pull requests. The Changes tab draws the Canon and the Canon after approval side by side (added, changed, no longer in the project and conflicting circuits and connections in their own colours; click one to open it) and lists the changes by kind with filters; a row opens the Canon's and the incoming value field by field, its findings and its comments. Phones show one graph at a time and the list in one column
+- System checks on every pull request, grouped as IDs, duplicates and conflicts, connections, evidence and provenance, each with the code of WBAI's BRA Error code List (Master) or a local `cobrac:` code: UC Descriptor syntax, Circuit ID characters and form, circuits that may duplicate an entry under another descriptor, existing entries on the same anchor, undefined connection ends, connections that run the other way than the Canon's for the same paper, opposite excitatory / inhibitory signs, missing or unknown Reference IDs, connections without quote or figure, unverified quotes and references, a Canon or source that moved on since the push, a source that left or was deleted, affected projects and what the project no longer uses. They do not block approval; the conflict rules still do
+- An AI review on the pull request page: the Canon's owner picks a model and a language, and the model reads the same material (diff, conflicts, checks, both sides of each changed item, references) and returns a summary, flagged inconsistencies with reasons and links to the items and papers, points to verify and draft comments. With the default API key only the models the owner may use are offered. It runs on the worker without web search, never recommends approving or rejecting, and anything pointing at items or papers that are not in the pull request is removed. Its cost counts in the owner's usage and in the default-key usage
+- Comments on a pull request or on one of its items (the Canon's owner and the sender), and "Request changes" with a required note, which keeps the pull request open until it is pushed again. Approving takes an optional note; rejecting still needs one
+- A history on every pull request: pushes, replacements, re-judging against a newer revision, comments, change requests, AI reviews, approval (with the revision and the conflict choices), rejection and withdrawal, with who and when. Pull requests made before this version show their push and decision
+
 ## [0.19.4] - 2026-10-03
 
 ### Changed
