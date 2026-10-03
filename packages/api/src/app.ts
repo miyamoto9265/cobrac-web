@@ -271,12 +271,31 @@ async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: Key
   throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者にデフォルトの API キーの利用承認を依頼してください");
 }
 
-/** 403 when the default-API-key tier does not include `model`. */
+/** 403 when the default-API-key tier does not include `model` (the message never names the tier). */
 function requireModel(policy: ModelPolicy, model: string) {
-  if (!policyAllows(policy, model)) {
-    throw new HTTPException(403, { message: `モデル ${model} は Tier ${policy.tier} では使えません（使えるモデル: ${policy.allowed!.join(", ")}）` });
-  }
+  if (!policyAllows(policy, model)) throw new HTTPException(403, { message: `このモデル（${model}）は利用できません` });
 }
+
+/**
+ * The model a project's next job runs. A project made with a model the user can no longer run (made with their own
+ * key, or before the tier changed) moves to the tier's default model and keeps it; null when nothing changes.
+ */
+async function moveToAllowedModel(u: UserRecord, p: ProjectRecord, policy: ModelPolicy): Promise<string | null> {
+  const current = p.model || deploymentDefaultModel();
+  const model = implicitModel(policy, current);
+  if (model === current) return null;
+  await updateProject(u.userId, p.projectId, { model });
+  p.model = model;
+  return model;
+}
+
+const noteModel = (p: ProjectRecord, jobId: string, model: string | null) =>
+  model
+    ? putMessage(p.projectId, jobId, "system", "status", `Model: ${model} / reasoning effort: ${p.reasoningEffort ?? "default"}`, {
+        userId: p.userId,
+        meta: { i18n: "sys.model", model, effort: p.reasoningEffort ?? "" },
+      })
+    : undefined;
 
 /** A default (user setting, deployment) the user did not pick for this job: replaced by an allowed model when the tier excludes it. */
 const implicitModel = (policy: ModelPolicy, preferred: string) => (policy.allowed ? allowedDefaultModel(policy, preferred) : preferred);
@@ -683,16 +702,17 @@ app.post("/projects/:id/answer", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "WAITING_USER_INPUT" || !p.activeJobId) throw bad("回答待ちの質問はありません");
   const policy = await requireRunKey(u);
-  requireModel(policy, p.model || deploymentDefaultModel());
   const body = (await c.req.json()) as AnswerRequest;
   const text = (body.answer ?? "").trim();
   if (!text) throw bad("回答を入力してください");
   const locale = readLocale(body.locale);
   const job = await getJob(p.projectId, p.activeJobId);
   if (!job) throw notFound();
+  const moved = await moveToAllowedModel(u, p, policy);
   await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text, keySource: policy.source, ...(locale ? { locale } : {}) });
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
   await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
+  await noteModel(p, job.jobId, moved);
   await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { userId: p.userId, meta: { i18n: "sys.answered" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId: job.jobId, mode: "resume" });
   return c.json({ ok: true });
@@ -703,10 +723,10 @@ app.post("/projects/:id/followup", async (c) => {
   const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "COMPLETED") throw bad("フォローアップは完了済みのプロジェクトにのみ送信できます");
-  requireModel(policy, p.model || deploymentDefaultModel());
   const body = (await c.req.json()) as FollowupRequest;
   const text = (body.instruction ?? "").trim();
   if (!text) throw bad("指示を入力してください");
+  const moved = await moveToAllowedModel(u, p, policy);
   const locale = readLocale(body.locale);
   const now = nowIso();
   const jobId = newId("job_");
@@ -737,6 +757,7 @@ app.post("/projects/:id/followup", async (c) => {
     stepStates: { ...p.stepStates, XLSX: "pending" },
   });
   await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
+  await noteModel(p, jobId, moved);
   await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return c.json({ ok: true, jobId });
@@ -747,7 +768,7 @@ app.post("/projects/:id/retry", async (c) => {
   const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
-  requireModel(policy, p.model || deploymentDefaultModel());
+  const moved = await moveToAllowedModel(u, p, policy);
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
   const locale = readLocale(body?.locale);
   const jobs = await listJobsForProject(p.projectId, u.userId);
@@ -775,6 +796,7 @@ app.post("/projects/:id/retry", async (c) => {
   };
   await putJob(job);
   await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, pendingQuestion: null });
+  await noteModel(p, jobId, moved);
   await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { userId: p.userId, meta: { i18n: "sys.retryQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
   return c.json({ ok: true, jobId });
@@ -866,10 +888,12 @@ app.post("/projects/:id/articles", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest> & { model?: unknown };
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
   const locale = body.locale;
-  // a model chosen for the article itself, else the project's
-  const model = normModel(body.model);
-  if (model && filterCodexModels([model]).length === 0) throw bad("このモデルは解説記事に使えません");
-  requireModel(policy, model || p.model || deploymentDefaultModel());
+  // a model chosen for the article itself, else the project's (or the tier's default when the project's is outside it)
+  const chosen = normModel(body.model);
+  if (chosen && filterCodexModels([chosen]).length === 0) throw bad("このモデルは解説記事に使えません");
+  if (chosen) requireModel(policy, chosen);
+  const projectModel = p.model || deploymentDefaultModel();
+  const model = chosen || (policyAllows(policy, projectModel) ? null : implicitModel(policy, projectModel));
   const now = nowIso();
   const jobId = newId("job_");
   const job: JobRecord = {

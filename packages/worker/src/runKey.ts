@@ -18,7 +18,7 @@ export function planRunKey(user: UserRecord, defaultKey: DefaultApiKeyRecord | n
   }
   if (!defaultKey?.encryptedApiKey) return { error: "No default API key is registered. Ask an admin.", meta: { i18n: "sys.orgKeyUnavailable" } };
   if (!orgTierAllows(access.tier, model)) {
-    return { error: `Model ${model} is not available on Tier ${access.tier} of the default API key.`, meta: { i18n: "sys.orgKeyModel", model, tier: access.tier } };
+    return { error: `Model ${model} is not available.`, meta: { i18n: "sys.orgKeyModel", model } };
   }
   return { source: "org", encryptedApiKey: defaultKey.encryptedApiKey, context: { ...DEFAULT_KEY_ENCRYPTION_CONTEXT } };
 }
