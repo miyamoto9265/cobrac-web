@@ -14,6 +14,8 @@
  *   - retry   : restore, continue from the first phase not accepted yet
  *   - article : restore the workspace read-only and write an explanatory article in the requested language on a
  *               fresh thread (article.ts); the BRA data, step states, revision and project thread stay untouched
+ *   - canon-review: AI review of a Canon pull request (canonReview.ts). JOB_PROJECT_ID is the Canon ID; the worker
+ *               reads the packet the API wrote, runs one turn without tools and writes the result; no project is touched
  *
  * The `lit` MCP tools (PubMed / Europe PMC, litMcp.ts) are available in every BRA run. Research mode (on by default for
  * new projects) adds a research step before the HCD: a literature survey into research.json at a raised reasoning
@@ -44,7 +46,12 @@ import type {
 import {
   ATTACHMENT_DERIVED_PREFIX,
   CANON_AGENT_DIR,
+  CANON_AI_REVIEW_SCHEMA,
+  canonAiReviewKey,
+  type CanonAiPacket,
+  type CanonAiReviewResult,
   DEFAULT_BRA_RULES,
+  DEFAULT_CODEX_MODEL,
   EMPTY_USAGE,
   canonAgentFiles,
   canonRevisionKey,
@@ -81,6 +88,7 @@ import {
   withReferenceList,
 } from "@cobrac/shared";
 import { articlePrompt, prepareArticleFigures, readReferences, runArticle } from "./article.js";
+import { runCanonReview } from "./canonReview.js";
 import { createCodex, isRequestTooLarge, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
@@ -166,6 +174,10 @@ const log = async (content: string, meta?: Record<string, unknown>): Promise<voi
 
 async function main() {
   console.log(`[worker] start job=${jobId} project=${projectId} mode=${mode}`);
+  if (mode === "canon-review") {
+    await canonReviewJob();
+    return;
+  }
   const [user, project, job] = await Promise.all([getUser(userId), getProject(userId, projectId), getJob(projectId, jobId)]);
   if (!user || !project || !job) throw new Error("user/project/job not found");
   if (job.status === "CANCELLED") {
@@ -951,6 +963,7 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
   switch (mode) {
     case "initial":
     case "article":
+    case "canon-review":
       return phasePrompt(project, "HCD");
     case "resume":
       return {
@@ -1182,6 +1195,10 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
 
 async function fail(message: string, meta?: Record<string, unknown>) {
   if (cancelled || stopping) return;
+  if (mode === "canon-review") {
+    await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
+    return;
+  }
   if (mode === "article") {
     const [project, job] = await Promise.all([getProject(userId, projectId), getJob(projectId, jobId)]);
     if (project && job) await endArticleJob(project, job, "FAILED", message);
@@ -1192,6 +1209,59 @@ async function fail(message: string, meta?: Record<string, unknown>) {
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
   await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null, activeStage: null });
   await putMessage(projectId, jobId, "system", "error", message, { meta });
+}
+
+// --- AI review of a Canon pull request -------------------------------------------
+
+/** `projectId` is the Canon ID here; the job, the packet and the result are all that is read or written. */
+async function canonReviewJob() {
+  const [user, job] = await Promise.all([getUser(userId), getJob(projectId, jobId)]);
+  if (!user || !job || job.type !== "canon-review" || !job.reviewPrNo || !isUiLocale(job.reviewLocale)) throw new Error("user/review job not found");
+  if (job.status !== "QUEUED") {
+    console.log(`[worker] review job is ${job.status}; exiting`);
+    return;
+  }
+  const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
+  const key = planRunKey(user, user.encryptedApiKey ? null : await getDefaultApiKey(), model);
+  if ("error" in key) {
+    await fail(key.error);
+    return;
+  }
+  const apiKey = await decryptApiKey(key.encryptedApiKey, key.context);
+  await updateJob(projectId, jobId, { status: "RUNNING", startedAt: nowIso(), lastHeartbeat: nowIso(), ecsTaskArn: await taskArn(), keySource: key.source });
+  const packet = await getJsonObject<CanonAiPacket>(canonAiReviewKey(projectId, job.reviewPrNo, jobId, "input.json"));
+  if (!packet) {
+    await fail("The material of the pull request could not be read.");
+    return;
+  }
+  const settings: ModelSettings = { model, reasoningEffort: (env.codexReasoningEffort as ModelSettings["reasoningEffort"]) ?? null };
+  const thread = openThread(createCodex(apiKey), null, settings, { webSearch: false });
+  const heartbeat = setInterval(() => void updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined), 45_000);
+  try {
+    const outcome = await runCanonReview({
+      packet,
+      locale: job.reviewLocale,
+      turn: async (prompt) => {
+        const t = await thread.run(prompt, { outputSchema: CANON_AI_REVIEW_SCHEMA });
+        const u = t.usage;
+        return {
+          text: t.finalResponse,
+          usage: { inputTokens: u?.input_tokens ?? 0, cachedInputTokens: u?.cached_input_tokens ?? 0, outputTokens: u?.output_tokens ?? 0, reasoningOutputTokens: u?.reasoning_output_tokens ?? 0 },
+        };
+      },
+    });
+    const usage = { usage: outcome.usage, costUsd: estimateCostUsd(model, outcome.usage), model };
+    if (outcome.result === "failed") {
+      await updateJob(projectId, jobId, { ...usage, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
+      return;
+    }
+    const result: CanonAiReviewResult = { review: outcome.review, dropped: outcome.dropped, model, locale: job.reviewLocale, createdAt: nowIso() };
+    await putObject(canonAiReviewKey(projectId, job.reviewPrNo, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
+    await updateJob(projectId, jobId, { ...usage, status: "COMPLETED", endedAt: nowIso() });
+    console.log(`[worker] canon review written (${outcome.review.flags.length} flags, ${outcome.dropped} dropped)`);
+  } finally {
+    clearInterval(heartbeat);
+  }
 }
 
 async function decryptApiKey(ciphertextB64: string, context: Record<string, string>): Promise<string> {
