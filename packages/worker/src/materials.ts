@@ -16,6 +16,7 @@ import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { ProjectAttachment } from "@cobrac/shared";
 import { ATTACHMENT_DERIVED_PREFIX, MATERIALS_DIR, attachmentTypeOf, isPrivateAddress, normalizeAttachmentUrl } from "@cobrac/shared";
+import { childEnv } from "./childEnv.js";
 
 export const MATERIALS_INDEX = "INDEX.md";
 const MANIFEST = "manifest.json";
@@ -217,7 +218,7 @@ export function materialsHeaderLine(m: PreparedMaterials | null): string | null 
 
 function run(cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout: EXTRACT_TIMEOUT_MS, maxBuffer: 1024 * 1024 }, (err, _out, stderr) => {
+    execFile(cmd, args, { timeout: EXTRACT_TIMEOUT_MS, maxBuffer: 1024 * 1024, env: childEnv() }, (err, _out, stderr) => {
       if (err) reject(new Error(`${cmd} failed: ${(stderr || err.message).toString().trim().slice(0, 200)}`));
       else resolve();
     });
