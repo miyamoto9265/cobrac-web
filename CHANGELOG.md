@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.19.2] - 2026-10-03
+
 ### Added
 - A new article on the Documentation page, "BRA generation: speed and cost (v0.17.1–v0.18.2)" (English and Japanese, with a language switch): the investigation that found 88% of a run waiting for the model and the response latency growing with the context length, the three changes of 0.18.0 (compaction at 75k tokens, shorter tool results and smaller edits, fix turns at reasoning effort medium) with the other options considered and why parallel work could save little (the OpenAI TPM limit, the HCD → FRG order), the before/after comparison of three runs each (48.6 → 31.0 minutes, $0.174 → $0.134, median context 80k → 48k) with its caveats (small sample, fewer research candidates, the before runs on two versions), the usage double count fixed in 0.17.1 and the read-time correction of older jobs in 0.18.1 with its limits, and the Spot interruption handling, the 5-minute janitor, and the message language and clone fixes of 0.18.2. It has diagrams of the time breakdown, latency by context length, the changes, the sequential steps and the TPM limit, the before/after numbers, the double count and the interruption recovery, each with a phone layout
 
