@@ -1,6 +1,6 @@
 {
   "name": "cobrac-web",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "private": true,
   "description": "CoBRAC Agents - BRA data generation web application powered by Codex SDK",
   "repository": {
