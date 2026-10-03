@@ -691,7 +691,7 @@ export const fr: Record<MessageKey, string> = {
   "rc.impact": "Affecte un autre projet",
   "rc.dropped": "Plus utilisé dans le projet",
   "rv.ai.title": "Revue IA",
-  "rv.ai.help": "Un modèle lit les mêmes éléments que cette page (diff, conflits, vérifications, les deux côtés de chaque élément, références) et signale les incohérences avec raisons et preuves. Il n’approuve ni ne refuse. Il utilise votre clé API, ou la clé API par défaut avec les modèles de votre tier ; son coût apparaît dans votre consommation.",
+  "rv.ai.help": "Un modèle lit les mêmes éléments que cette page (diff, conflits, vérifications, les deux côtés de chaque élément, références) et signale les incohérences avec raisons et preuves. Il n’approuve ni ne refuse. Il utilise votre clé API ou la clé API par défaut (la liste ne montre que les modèles disponibles pour vous) ; son coût apparaît dans votre consommation.",
   "rv.ai.notice": "Suggestions de l’IA. Elles peuvent être fausses ; vérifiez les preuves. C’est vous qui décidez.",
   "rv.ai.run": "Lancer la revue IA",
   "rv.ai.rerun": "Relancer",

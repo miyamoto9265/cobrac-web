@@ -691,7 +691,7 @@ export const de: Record<MessageKey, string> = {
   "rc.impact": "Betrifft ein anderes Projekt",
   "rc.dropped": "Nicht mehr im Projekt",
   "rv.ai.title": "KI-Review",
-  "rv.ai.help": "Ein Modell liest dasselbe Material wie diese Seite (Diff, Konflikte, Prüfungen, beide Seiten jedes Eintrags, Referenzen) und weist mit Begründung und Belegen auf Unstimmigkeiten hin. Es genehmigt oder lehnt nicht ab. Es läuft mit Ihrem API-Schlüssel oder dem Standard-API-Schlüssel mit den Modellen Ihres Tiers; die Kosten erscheinen in Ihrer Nutzung.",
+  "rv.ai.help": "Ein Modell liest dasselbe Material wie diese Seite (Diff, Konflikte, Prüfungen, beide Seiten jedes Eintrags, Referenzen) und weist mit Begründung und Belegen auf Unstimmigkeiten hin. Es genehmigt oder lehnt nicht ab. Es läuft mit Ihrem API-Schlüssel oder dem Standard-API-Schlüssel (die Liste zeigt nur die für Sie verfügbaren Modelle); die Kosten erscheinen in Ihrer Nutzung.",
   "rv.ai.notice": "KI-Vorschläge. Sie können falsch sein; prüfen Sie die Belege. Sie entscheiden.",
   "rv.ai.run": "KI-Review starten",
   "rv.ai.rerun": "Erneut starten",
