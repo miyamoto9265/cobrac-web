@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.19.3] - 2026-10-03
+
 ### Changed
 - Explanatory articles now follow the format of the documentation explainers (the harness articles): a title with a subtitle, a summary table, numbered sections separated by rules (in short, terms, region and function, circuits and connections, the FRG decomposition, which connections serve which function, certainty and open questions, where the data is), tables for listable facts, numbered figure captions and a table of contents with direct links to every heading. Japanese articles are written in the polite form (です・ます) in a plain explanatory tone
 - Articles have figures drawn from the project's BRA data, not by the model: the circuits and every connection between them (inputs, the ROI, outputs; arrows by sign as in the graph view), the FRG tree, and a map of which connections each function's circuits send and receive. Each figure has a one-column version that phones show instead. The model may add up to two figures of its own only where these cannot show a point. Every figure is cleaned of scripts, links and other active content before it is stored and again before it is shown
