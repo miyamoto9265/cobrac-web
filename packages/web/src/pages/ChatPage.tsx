@@ -1,7 +1,7 @@
 import { ArrowUp, Loader2, Paperclip, Plus } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { DEFAULT_CODEX_MODEL, orgTierAllows } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
@@ -11,6 +11,7 @@ import { HelpTip } from "../components/HelpTip";
 import { useI18n } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { usableDefaultModel } from "../lib/models";
 
 export function ChatPage() {
   return <NewProject />;
@@ -27,8 +28,7 @@ function NewProject() {
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
   const [attachments, setAttachments] = useState<AttachmentState>(EMPTY_ATTACHMENTS);
-  // a saved default the organization-key tier no longer includes falls back to the tier's default
-  const defaultModel = me?.defaultModel && (!me.orgTier || orgTierAllows(me.orgTier, me.defaultModel)) ? me.defaultModel : null;
+  const defaultModel = usableDefaultModel(me);
   const [run, setRun] = useState<RunSettings>({ model: defaultModel, effort: me?.defaultReasoningEffort ?? null, research: true });
   const [canon, setCanon] = useState<CanonChoiceState>(() => initialCanonChoice(me?.defaultCanonId));
   const canonSources = useCanonSources();

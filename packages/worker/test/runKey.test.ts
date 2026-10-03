@@ -39,7 +39,8 @@ describe("planRunKey", () => {
   it("stops a run whose approval was revoked, whose tier excludes the model, or when no default key is registered", () => {
     expect(planRunKey(user(), defaultKey, "gpt-6-luna")).toMatchObject({ meta: { i18n: "sys.noApiKey" } });
     expect(planRunKey(user({ orgAccess: null }), defaultKey, "gpt-6-luna")).toMatchObject({ meta: { i18n: "sys.noApiKey" } });
-    expect(planRunKey(user(tier(1)), defaultKey, "gpt-6-sol")).toMatchObject({ meta: { i18n: "sys.orgKeyModel", model: "gpt-6-sol", tier: 1 } });
+    const outside = planRunKey(user(tier(1)), defaultKey, "gpt-6-sol");
+    expect(outside).toEqual({ error: "Model gpt-6-sol is not available.", meta: { i18n: "sys.orgKeyModel", model: "gpt-6-sol" } });
     expect(planRunKey(user(tier(2)), null, "gpt-6-luna")).toMatchObject({ meta: { i18n: "sys.orgKeyUnavailable" } });
   });
 });

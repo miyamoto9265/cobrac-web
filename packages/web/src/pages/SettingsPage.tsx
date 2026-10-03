@@ -6,6 +6,7 @@ import { ModelSelect } from "../components/ModelSelect";
 import { LanguageSelect, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { usableDefaultModel } from "../lib/models";
 
 export function SettingsPage() {
   const t = useT();
@@ -27,7 +28,7 @@ export function SettingsPage() {
     if (me) {
       setDisplayName(me.displayName);
       setContributorName(me.contributorName);
-      setDefModel(me.defaultModel ?? null);
+      setDefModel(usableDefaultModel(me));
       setDefEffort(me.defaultReasoningEffort ?? null);
       setDefCanon(me.defaultCanonId ?? "");
     }
@@ -68,9 +69,9 @@ export function SettingsPage() {
           {me?.orgAccess && (
             <div className="mb-2 flex items-center gap-1 text-xs text-slate-600" data-testid="default-key-status">
               {me.keySource === "org"
-                ? t("settings.orgKeyInUse", { tier: me.orgAccess.tier })
+                ? t("settings.orgKeyInUse")
                 : me.keySource === "own"
-                  ? t("settings.orgKeyStandby", { tier: me.orgAccess.tier })
+                  ? t("settings.orgKeyStandby")
                   : t("settings.orgKeyDown")}
               <HelpTip text={t("settings.orgKeyHelp")} />
             </div>
