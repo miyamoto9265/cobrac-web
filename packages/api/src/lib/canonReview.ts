@@ -24,7 +24,7 @@ export function prTrail(pr: CanonPullRequestRecord, stored: CanonPrEvent[], jobs
   }));
   const has = (t: CanonPrEventType) => out.some((e) => e.type === t);
   const name = (id: string | null | undefined) => (id ? (names.get(id) ?? "") : "");
-  if (!has("pushed")) out.push({ type: "pushed", at: pr.createdAt, actor: pr.createdBy, actorName: name(pr.createdBy) });
+  if (!has("pushed")) out.push({ type: "pushed", at: pr.createdAt, actor: pr.createdBy, actorName: name(pr.createdBy), revision: pr.sourceRevision });
   const closing = CLOSING[pr.state];
   if (closing && !has(closing)) {
     const byPr = closing === "superseded" ? Number(/#(\d+)/.exec(pr.reason ?? "")?.[1] ?? 0) || null : null;
