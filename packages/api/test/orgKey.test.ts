@@ -178,7 +178,10 @@ describe("default API key", () => {
 
     const sol = await create(ALICE, { model: "gpt-6-sol" });
     expect(sol.status).toBe(403);
-    expect(await sol.text()).toContain("Tier 1");
+    // users are never told about tiers
+    const solText = await sol.text();
+    expect(solText).toBe("このモデル（gpt-6-sol）は利用できません");
+    expect(solText).not.toMatch(/tier/i);
     expect((await call(ALICE, "PUT", "/users/me", { defaultModel: "gpt-6-sol" })).status).toBe(403);
 
     const luna = await json<ProjectRecord>(create(ALICE, { model: "gpt-5.6-luna" }));
@@ -189,24 +192,34 @@ describe("default API key", () => {
     setUser(ALICE, { defaultModel: "gpt-6-sol" });
     expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-luna");
 
-    // follow-ups, retries, answers and articles check the model the job will run
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    // a chosen article model outside the tier is refused
     fake.put("projects", completed(ALICE.sub, "ua11ce00-91", "gpt-6-luna"));
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" })).status).toBe(403);
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja" })).status).toBe(403);
-    // the article of a project made with a model outside the tier can still be written with a model inside it
-    const art = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja", model: "gpt-6-luna" }));
-    expect(jobsOf("ua11ce00-90").find((j) => j.jobId === art.jobId)).toMatchObject({ model: "gpt-6-luna", keySource: "org" });
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
     expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja", model: "gpt-6-astra" })).status).toBe(403);
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja" })).status).toBe(202);
+    const plain = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja" }));
+    expect(jobsOf("ua11ce00-91").find((j) => j.jobId === plain.jobId)).toMatchObject({ model: null });
+
+    // a project made with a model outside the tier is never offered that model: its jobs run the tier's default
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    const art = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja" }));
+    expect(jobsOf("ua11ce00-90").find((j) => j.jobId === art.jobId)).toMatchObject({ model: "gpt-6-luna", keySource: "org" });
+    // (an article leaves the project's model alone)
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("gpt-6-sol");
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    const fu = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" }));
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("gpt-6-luna");
+    expect(fake.items("messages").find((m) => m.jobId === fu.jobId && (m.meta as { i18n?: string })?.i18n === "sys.model")).toMatchObject({ meta: { model: "gpt-6-luna" } });
     fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-92", "gpt-6-sol"), status: "FAILED" });
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-92/retry", {})).status).toBe(403);
+    expect((await call(ALICE, "POST", "/projects/ua11ce00-92/retry", {})).status).toBe(200);
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-92")?.model).toBe("gpt-6-luna");
     fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-93", "gpt-6-sol"), status: "WAITING_USER_INPUT", activeJobId: "job_w" });
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-93/answer", { answer: "yes" })).status).toBe(403);
+    fake.put("jobs", { projectId: "ua11ce00-93", jobId: "job_w", userId: ALICE.sub, type: "initial", status: "WAITING_USER_INPUT", instruction: null, pendingAnswer: null, ecsTaskArn: null, retryCount: 0, lastHeartbeat: null, startedAt: now, endedAt: null, errorMessage: null, createdAt: now, updatedAt: now });
+    expect((await call(ALICE, "POST", "/projects/ua11ce00-93/answer", { answer: "yes" })).status).toBe(200);
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-93")?.model).toBe("gpt-6-luna");
+    // a project the tier allows keeps its model
     fake.put("projects", completed(ALICE.sub, "ua11ce00-94", "gpt-5.6-luna"));
     const { jobId } = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-94/followup", { instruction: "more" }));
     expect(jobsOf("ua11ce00-94").find((j) => j.jobId === jobId)?.keySource).toBe("org");
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-94")?.model).toBe("gpt-5.6-luna");
   });
 
   it("lets Tier 2 use every model of the default key", async () => {

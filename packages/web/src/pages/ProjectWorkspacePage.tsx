@@ -12,6 +12,7 @@ import { PipelineProgress } from "../components/PipelineProgress";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
+import { useModelList } from "../components/ModelSelect";
 import { AgentPanel } from "../components/workspace/AgentPanel";
 import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
@@ -71,6 +72,8 @@ function Workspace({ projectId }: { projectId: string }) {
   const [showDetails, setShowDetails] = useState(false);
   const [showMaterials, setShowMaterials] = useState(false);
   const chat = useChatDock();
+  // with the default API key, a project model the user can no longer run is replaced by the tier's default on the next job
+  const { models: usableModels, envDefault, restricted } = useModelList(null);
 
   const loadArtifacts = useCallback(() => {
     api
@@ -181,6 +184,7 @@ function Workspace({ projectId }: { projectId: string }) {
   if (rawView && !view) return <Navigate to={workspacePath(projectId)} replace />;
   if (err && !project) return <div className="p-6 text-sm text-rose-600">{err}</div>;
   if (!project) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
+  const shownModel = restricted && project.model && !usableModels.includes(project.model) ? envDefault : project.model;
 
   const active = isActive(project.status);
   const download = async (key: string) => {
@@ -316,7 +320,7 @@ function Workspace({ projectId }: { projectId: string }) {
                 </span>
               )}
               <span className="font-mono">
-                <b className="font-sans text-slate-700">{t("chat.model")}:</b> {project.model ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
+                <b className="font-sans text-slate-700">{t("chat.model")}:</b> {shownModel ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}
               </span>
               {project.researchMode !== undefined && <span data-testid="research-mode">{t(project.researchMode ? "sys.researchOn" : "sys.researchOff")}</span>}
               <button type="button" onClick={() => setShowUsage((v) => !v)} className="flex items-center gap-1 hover:text-slate-800 coarse:py-1.5" title={t("chat.usageTip")}>
