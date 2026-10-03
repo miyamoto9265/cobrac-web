@@ -35,8 +35,11 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
   const [selected, setSelected] = useState<UiLocale | null>(null);
   const [genLocale, setGenLocale] = useState<UiLocale>(uiLocale);
   const [genModel, setGenModel] = useState<string>("");
-  const { models, priced, envDefault } = useModelList(null);
+  const { models, priced, envDefault, restricted } = useModelList(null);
   const projectModel = project.model || envDefault;
+  // under a default-key tier the project's model may be outside it; the default is then the tier's model
+  const projectAllowed = !restricted || (!!project.model && models.includes(project.model));
+  const defaultModel = projectAllowed ? project.model : envDefault;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const job = project.articleJob ?? null;
@@ -72,7 +75,7 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
     setBusy(true);
     setErr(null);
     try {
-      await api.createArticle(projectId, genLocale, genModel || null);
+      await api.createArticle(projectId, genLocale, genModel || (projectAllowed ? null : envDefault));
       await onStarted();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -148,9 +151,15 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
               data-testid="article-model"
               className="max-w-[15rem] rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 coarse:py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
-              <option value="">{projectModel ? t("article.modelDefault", { model: projectModel }) : t("model.default")}</option>
+              <option value="">
+                {projectAllowed
+                  ? projectModel
+                    ? t("article.modelDefault", { model: projectModel })
+                    : t("model.default")
+                  : `${t("model.default")}${t("model.defaultWith", { model: envDefault ?? "" })}`}
+              </option>
               {models
-                .filter((m) => m !== project.model)
+                .filter((m) => m !== defaultModel)
                 .map((m) => (
                   <option key={m} value={m}>
                     {m}

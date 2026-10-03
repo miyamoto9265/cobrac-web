@@ -12,7 +12,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Articles written before this version keep rendering as they were
 
 ### Added
-- A model menu next to the article language: the article can be written with another model of your API key than the project's (default: the project's model)
+- A model menu next to the article language: the article can be written with another model of your API key than the project's (default: the project's model). With the default API key the menu lists only the models of your tier, and when the project was made with a model outside the tier the article uses the tier's default model
 
 ## [0.19.2] - 2026-10-03
 

@@ -194,6 +194,10 @@ describe("default API key", () => {
     fake.put("projects", completed(ALICE.sub, "ua11ce00-91", "gpt-6-luna"));
     expect((await call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" })).status).toBe(403);
     expect((await call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja" })).status).toBe(403);
+    // the article of a project made with a model outside the tier can still be written with a model inside it
+    const art = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja", model: "gpt-6-luna" }));
+    expect(jobsOf("ua11ce00-90").find((j) => j.jobId === art.jobId)).toMatchObject({ model: "gpt-6-luna", keySource: "org" });
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
     expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja", model: "gpt-6-astra" })).status).toBe(403);
     expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja" })).status).toBe(202);
     fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-92", "gpt-6-sol"), status: "FAILED" });

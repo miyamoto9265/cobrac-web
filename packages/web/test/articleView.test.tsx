@@ -90,6 +90,30 @@ describe("article model", () => {
   });
 });
 
+describe("article model under a default-key tier", () => {
+  it("offers only the tier's models and sends the tier's default when the project's model is outside it", async () => {
+    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", restricted: true, orgTier: 1 });
+    api.articles.mockResolvedValue({ items: [] });
+    const sol = { ...project, model: "gpt-6-sol" } as ProjectRecord;
+    await render(<ArticleView projectId="p-1" project={sol} braReady version="v" onStarted={() => undefined} />);
+    const options = [...$<HTMLSelectElement>("article-model")!.options].map((o) => [o.value, o.textContent]);
+    expect(options.map((o) => o[0])).toEqual(["", "gpt-5.6-luna"]);
+    expect(options[0][1]).toContain("gpt-6-luna");
+    expect(options.flat().join(" ")).not.toContain("gpt-6-sol");
+    await act(async () => $("article-create")!.click());
+    expect(api.createArticle).toHaveBeenLastCalledWith("p-1", "ja", "gpt-6-luna");
+  });
+
+  it("keeps the project's model as the default when the tier allows it", async () => {
+    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: [], envDefaultModel: "gpt-6-luna", restricted: true, orgTier: 1 });
+    api.articles.mockResolvedValue({ items: [] });
+    await render(<ArticleView projectId="p-1" project={project} braReady version="v" onStarted={() => undefined} />);
+    expect([...$<HTMLSelectElement>("article-model")!.options].map((o) => o.value)).toEqual(["", "gpt-5.6-luna"]);
+    await act(async () => $("article-create")!.click());
+    expect(api.createArticle).toHaveBeenLastCalledWith("p-1", "ja", null);
+  });
+});
+
 describe("article figures", () => {
   it("shows the sanitized figures with their phone versions", async () => {
     api.articles.mockResolvedValue({ items: [item({ figures: ["circuit.svg", "circuit.narrow.svg"] })] });
