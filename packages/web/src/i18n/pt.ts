@@ -691,7 +691,7 @@ export const pt: Record<MessageKey, string> = {
   "rc.impact": "Afeta outro projeto",
   "rc.dropped": "Não está mais no projeto",
   "rv.ai.title": "Revisão por IA",
-  "rv.ai.help": "Um modelo lê o mesmo material desta página (diff, conflitos, verificações, os dois lados de cada item, referências) e aponta inconsistências com motivos e evidências. Ele não aprova nem rejeita. Roda com sua chave de API, ou com a chave de API padrão com os modelos do seu tier; o custo aparece no seu uso.",
+  "rv.ai.help": "Um modelo lê o mesmo material desta página (diff, conflitos, verificações, os dois lados de cada item, referências) e aponta inconsistências com motivos e evidências. Ele não aprova nem rejeita. Roda com sua chave de API ou com a chave de API padrão (a lista mostra só os modelos disponíveis para você); o custo aparece no seu uso.",
   "rv.ai.notice": "Sugestões da IA. Podem estar erradas; confira as evidências. Você decide.",
   "rv.ai.run": "Executar revisão por IA",
   "rv.ai.rerun": "Executar novamente",
