@@ -211,7 +211,7 @@ describe("cloning", () => {
   });
 
   it("gives a Tier 1 cloner's copy a model the tier allows", async () => {
-    fake.put("users", { userId: "sub-admin", email: "admin@example.com", displayName: "admin", contributorName: "admin", role: "admin", disabled: false, apiKeyRegistered: true, encryptedApiKey: "org", orgKeyProvider: true, createdAt: now, updatedAt: now });
+    fake.put("catalog", { kind: "config", id: "default-api-key", encryptedApiKey: "default", last4: "abcd", availableModels: [], updatedAt: now, updatedBy: "sub-admin" });
     const bob = fake.items("users").find((u) => u.userId === B.sub)!;
     fake.put("users", { ...bob, apiKeyRegistered: false, defaultModel: "gpt-6-sol", orgAccess: { tier: 1, approvedAt: now, approvedBy: "sub-admin" } });
     fake.put("projects", project(A.sub, P, { model: "gpt-6-astra" }));

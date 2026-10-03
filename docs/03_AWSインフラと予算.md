@@ -166,13 +166,13 @@ CodeBuild builds a Node + Python image (about 2 minutes in practice). Tokyo gene
 
 The GitHub Actions runs themselves (PR checks and the deploy workflow) use the private repository's Actions minutes, not AWS. Merges that do not bump the version skip the deploy job.
 
-### 5.5 OpenAI (outside AWS, paid by each user or by the organization key)
+### 5.5 OpenAI (outside AWS, paid by each user or by the default API key)
 
 A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps. Research mode (on by default, [01 §6.11](./01_設計仕様.md)) adds a literature survey before the HCD: roughly +10–60 minutes of Fargate time (about $0.01–0.05 at 1 vCPU / 2 GB Spot) and, on the OpenAI side, the cost of 1.5–6M mostly cached input tokens and 40–150k output tokens at reasoning effort `high` or more; the create screen shows the estimate for the selected model. Turn it off there for quick drafts.
 
 The app also tracks this. Each job records the model used, input/output tokens, and estimated cost. Totals and per-model breakdown appear on the project list, job breakdown in the chat header, and the admin screen. Estimates use the table in `packages/shared/src/pricing.ts` and may not match the OpenAI invoice (especially models missing from the table, shown as `$—`).
 
-Jobs of approved users without their own key run on the organization key, the key an admin shares from the admin page ([01 §4.1](./01_設計仕様.md)), so their cost lands on that key's OpenAI bill. Tier 1 users can run only `gpt-6-luna` and `gpt-5.6-luna` (the cheapest rows of the rate table); Tier 2 users can run every model. The admin page shows each user's organization-key cost, in total and for the current month. The app has no spending cap of its own; set a monthly budget on the OpenAI project of the shared key.
+Jobs of approved users without their own key run on the default API key, the organization's key an admin registers on the admin page ([01 §4.1](./01_設計仕様.md)), so their cost lands on that key's OpenAI bill. Tier 1 users can run only `gpt-6-luna` and `gpt-5.6-luna` (the cheapest rows of the rate table); Tier 2 users can run every model. The admin page shows each user's default-key cost, in total and for the current month. The app has no spending cap of its own; set a monthly budget on the OpenAI project of the default key.
 
 ---
 

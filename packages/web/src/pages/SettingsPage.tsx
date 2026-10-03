@@ -66,7 +66,7 @@ export function SettingsPage() {
             {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
           </div>
           {me?.orgAccess && (
-            <div className="mb-2 flex items-center gap-1 text-xs text-slate-600" data-testid="org-key-status">
+            <div className="mb-2 flex items-center gap-1 text-xs text-slate-600" data-testid="default-key-status">
               {me.keySource === "org"
                 ? t("settings.orgKeyInUse", { tier: me.orgAccess.tier })
                 : me.keySource === "own"

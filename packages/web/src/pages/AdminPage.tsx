@@ -1,6 +1,6 @@
-import { KeyRound } from "lucide-react";
+import { KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { OrgKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
+import type { DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
 import { formatUsd, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
@@ -16,16 +16,18 @@ export function AdminPage() {
   const { me } = useAuth();
   const [users, setUsers] = useState<UserPublic[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [orgKey, setOrgKey] = useState<OrgKeyStatus | null>(null);
+  const [defaultKey, setDefaultKey] = useState<DefaultKeyStatus | null>(null);
+  const [newKey, setNewKey] = useState("");
+  const [keyBusy, setKeyBusy] = useState(false);
   const [orgUsage, setOrgUsage] = useState<OrgUsageRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const load = () =>
-    Promise.all([api.adminUsers(), api.adminProjects(), api.adminOrgKey(), api.adminOrgUsage()])
+    Promise.all([api.adminUsers(), api.adminProjects(), api.adminDefaultKey(), api.adminOrgUsage()])
       .then(([u, p, k, usage]) => {
         setUsers(u.items);
         setProjects(p.items);
-        setOrgKey(k);
+        setDefaultKey(k);
         setOrgUsage(usage.items);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
@@ -40,42 +42,60 @@ export function AdminPage() {
 
   const emailOf = (uid: string) => users.find((u) => u.userId === uid)?.email ?? uid;
   const usageOf = (uid: string) => orgUsage.find((r) => r.userId === uid);
-  const meShares = orgKey?.provider?.userId === me.userId;
+  const keyAction = (fn: () => Promise<DefaultKeyStatus>) => {
+    setKeyBusy(true);
+    setErr(null);
+    fn()
+      .then((k) => {
+        setDefaultKey(k);
+        setNewKey("");
+      })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setKeyBusy(false));
+  };
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-4 text-xl font-semibold">{t("admin.title")}</h1>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
-      <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="org-key">
+      <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="default-key">
         <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <KeyRound size={16} aria-hidden /> {t("admin.orgKey")} <HelpTip text={t("admin.orgKeyHelp")} />
+          <KeyRound size={16} aria-hidden /> {t("admin.defaultKey")} <HelpTip text={t("admin.defaultKeyHelp")} />
         </h2>
-        <div className="mb-3 text-sm">
-          {!orgKey?.provider ? (
-            <span className="text-slate-500">{t("admin.orgKeyNone")}</span>
-          ) : orgKey.available ? (
-            <span className="font-medium text-emerald-700">{t("admin.orgKeyShared", { email: orgKey.provider.email, last4: orgKey.provider.last4 ?? "" })}</span>
+        <div className="mb-3 text-sm" data-testid="default-key-status">
+          {defaultKey?.registered ? (
+            <span className="font-medium text-emerald-700">{t("admin.defaultKeyRegistered", { last4: defaultKey.last4 ?? "", date: defaultKey.updatedAt ? fmtDate(defaultKey.updatedAt, locale) : "" })}</span>
           ) : (
-            <span className="font-medium text-rose-600">{t("admin.orgKeyUnavailable", { email: orgKey.provider.email })}</span>
+            <span className="font-medium text-amber-700">{t("admin.defaultKeyNone")}</span>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!meShares && (
+          <input
+            type="password"
+            value={newKey}
+            onChange={(e) => setNewKey(e.target.value)}
+            placeholder="sk-..."
+            autoComplete="off"
+            aria-label={t("admin.defaultKey")}
+            className="min-w-0 flex-1 basis-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
+          />
+          <button
+            disabled={keyBusy || newKey.trim().length < 20}
+            onClick={() => keyAction(() => api.adminSetDefaultKey(newKey.trim()))}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11"
+          >
+            <Save size={14} aria-hidden /> {t("settings.register")}
+          </button>
+          {defaultKey?.registered && (
             <button
-              disabled={!me.apiKeyRegistered}
-              onClick={() => act(api.adminShareOrgKey(true))}
-              className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11"
+              disabled={keyBusy}
+              onClick={() => window.confirm(t("admin.defaultKeyConfirmDelete")) && keyAction(() => api.adminDeleteDefaultKey())}
+              className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
             >
-              {t("admin.orgKeyShare")}
+              <Trash2 size={14} aria-hidden /> {t("delete")}
             </button>
           )}
-          {orgKey?.provider && (
-            <button onClick={() => act(api.adminShareOrgKey(false))} className="rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 coarse:min-h-11">
-              {t("admin.orgKeyStop")}
-            </button>
-          )}
-          {!me.apiKeyRegistered && !meShares && <span className="text-xs text-slate-500">{t("admin.orgKeyNeedOwn")}</span>}
         </div>
       </section>
 

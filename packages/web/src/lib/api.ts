@@ -39,7 +39,7 @@ import type {
   AdminUpdateUserRequest,
   MeResponse,
   ModelsResponse,
-  OrgKeyStatus,
+  DefaultKeyStatus,
   OrgUsageResponse,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
@@ -174,8 +174,9 @@ export const api = {
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
   adminUpdateUser: (id: string, b: AdminUpdateUserRequest) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
-  adminOrgKey: () => request<OrgKeyStatus>("GET", "/admin/org-key"),
-  adminShareOrgKey: (share: boolean) => request<OrgKeyStatus>("PUT", "/admin/org-key", { share }),
+  adminDefaultKey: () => request<DefaultKeyStatus>("GET", "/admin/default-api-key"),
+  adminSetDefaultKey: (apiKey: string) => request<DefaultKeyStatus>("PUT", "/admin/default-api-key", { apiKey }),
+  adminDeleteDefaultKey: () => request<DefaultKeyStatus>("DELETE", "/admin/default-api-key"),
   adminOrgUsage: () => request<OrgUsageResponse>("GET", "/admin/org-usage"),
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),
   adminCancel: (userId: string, id: string) => request<{ ok: true }>("POST", `/admin/projects/${userId}/${encodeURIComponent(id)}/cancel`),

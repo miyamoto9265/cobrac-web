@@ -175,7 +175,7 @@ describe("create screen composer", () => {
     expect(document.activeElement).toBe(btn);
   });
 
-  it("offers only the tier's models, without a custom model ID, to a Tier 1 organization-key user", async () => {
+  it("offers only the tier's models, without a custom model ID, to a Tier 1 default-API-key user", async () => {
     api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", keySource: "org", orgTier: 1, restricted: true });
     await render(<ChatPage />);
     await click($("composer-model"));
@@ -184,6 +184,6 @@ describe("create screen composer", () => {
     expect(options).toHaveLength(3);
     expect(options.slice(1)).toEqual(["gpt-6-luna", "gpt-5.6-luna"]);
     expect(menu.textContent).not.toContain("その他（手入力）");
-    expect($("org-tier-note")?.textContent).toBe("組織のキー（Tier 1）を使用");
+    expect($("org-tier-note")?.textContent).toBe("デフォルトの API キー（Tier 1）を使用");
   });
 });

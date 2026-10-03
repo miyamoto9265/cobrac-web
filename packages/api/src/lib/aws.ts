@@ -4,7 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import type { ArtifactInfo, RunJobMessage } from "@cobrac/shared";
-import { contentDisposition } from "@cobrac/shared";
+import { DEFAULT_KEY_ENCRYPTION_CONTEXT, contentDisposition } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 
@@ -21,6 +21,12 @@ export async function encryptApiKey(plain: string, userId: string): Promise<stri
       EncryptionContext: { userId, purpose: "openai-api-key" },
     }),
   );
+  return Buffer.from(r.CiphertextBlob!).toString("base64");
+}
+
+/** The default API key, under its own encryption context (no userId), so it is tied to no user. */
+export async function encryptDefaultApiKey(plain: string): Promise<string> {
+  const r = await kms.send(new EncryptCommand({ KeyId: env.kmsKeyId, Plaintext: Buffer.from(plain, "utf8"), EncryptionContext: { ...DEFAULT_KEY_ENCRYPTION_CONTEXT } }));
   return Buffer.from(r.CiphertextBlob!).toString("base64");
 }
 

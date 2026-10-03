@@ -16,6 +16,8 @@ export const env = {
     messages: req("TABLE_MESSAGES"),
     /** Optional: without it the worker ignores Canons */
     canons: process.env.TABLE_CANONS ?? "",
+    /** Holds the default API key (kind "config"); without it approved users without a key cannot run */
+    catalog: process.env.TABLE_CATALOG ?? "",
   },
   artifactsBucket: req("ARTIFACTS_BUCKET"),
   job: {
