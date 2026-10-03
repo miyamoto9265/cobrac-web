@@ -1,6 +1,18 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import type { CanonMemberRecord, CanonOutgoingRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
-import { CANON_MEMBER_PREFIX, CANON_META_SK, CANON_OUT_PREFIX, CANON_PR_PREFIX, CANON_REVISION_PREFIX, canonMemberSk, canonPrSk, nowIso } from "@cobrac/shared";
+import { randomBytes } from "node:crypto";
+import type { CanonMemberRecord, CanonOutgoingRecord, CanonPrEvent, CanonPrEventRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
+import {
+  CANON_MEMBER_PREFIX,
+  CANON_META_SK,
+  CANON_OUT_PREFIX,
+  CANON_PR_PREFIX,
+  CANON_REVISION_PREFIX,
+  canonMemberSk,
+  canonPrEventPrefix,
+  canonPrEventSk,
+  canonPrSk,
+  nowIso,
+} from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb, updateItem } from "./db.js";
 
@@ -260,4 +272,22 @@ export async function putOutgoing(o: CanonOutgoingRecord) {
 
 export async function listOutgoing(canonId: string): Promise<CanonOutgoingRecord[]> {
   return (await queryPrefix<CanonOutgoingRecord>(canonId, CANON_OUT_PREFIX)).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+}
+
+// --- audit trail of pull requests -----------------------------------------------
+
+let eventSeq = 0;
+
+/** Appends one entry to a PR's audit trail (never updated or deleted). Entries written in one request keep their order. */
+export async function putPrEvent(canonId: string, prNo: number, e: Omit<CanonPrEvent, "at"> & { at?: string }): Promise<CanonPrEventRecord> {
+  const at = e.at ?? nowIso();
+  eventSeq = (eventSeq + 1) % 1_679_616;
+  const nonce = `${eventSeq.toString(36).padStart(4, "0")}${randomBytes(2).toString("hex")}`;
+  const item: CanonPrEventRecord = { ...e, at, canonId, prNo, sk: canonPrEventSk(prNo, at, nonce) };
+  await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: item, ConditionExpression: "attribute_not_exists(sk)" }));
+  return item;
+}
+
+export async function listPrEvents(canonId: string, prNo: number): Promise<CanonPrEventRecord[]> {
+  return (await queryPrefix<CanonPrEventRecord>(canonId, canonPrEventPrefix(prNo))).sort((a, b) => (a.sk < b.sk ? -1 : 1));
 }

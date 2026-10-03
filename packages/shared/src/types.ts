@@ -195,8 +195,11 @@ export const isProjectDeleted = (p: Pick<ProjectRecord, "deletedAt">): boolean =
 export const canDeleteProject = (p: Pick<ProjectRecord, "status" | "deletedAt">): boolean =>
   !isProjectDeleted(p) && !ACTIVE_PROJECT_STATUSES.includes(p.status);
 
-/** `article`: writes an explanatory article from the finished outputs; leaves the BRA data and the project thread alone */
-export type JobType = "initial" | "followup" | "article";
+/**
+ * `article`: writes an explanatory article from the finished outputs; leaves the BRA data and the project thread alone.
+ * `canon-review`: AI assistance for a Canon pull request; `projectId` holds the Canon ID and no project is touched.
+ */
+export type JobType = "initial" | "followup" | "article" | "canon-review";
 
 export type JobStatus =
   | "QUEUED"
@@ -221,6 +224,10 @@ export interface JobRecord {
   locale?: UiLocale | null;
   /** Language of the article (type === article) */
   articleLocale?: UiLocale;
+  /** Pull request number of the Canon in `projectId` (type === canon-review) */
+  reviewPrNo?: number;
+  /** Language the AI review is written in (type === canon-review) */
+  reviewLocale?: UiLocale;
   ecsTaskArn: string | null;
   retryCount: number;
   lastHeartbeat: string | null;
@@ -282,7 +289,7 @@ export interface MessageRecord {
 // Job queue message (SQS)
 // ---------------------------------------------------------------------------
 
-export type RunMode = "initial" | "resume" | "followup" | "retry" | "article";
+export type RunMode = "initial" | "resume" | "followup" | "retry" | "article" | "canon-review";
 
 export interface RunJobMessage {
   version: 1;
