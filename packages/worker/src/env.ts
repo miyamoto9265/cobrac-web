@@ -1,5 +1,5 @@
 import type { RunMode } from "@cobrac/shared";
-import { RESEARCH_BUDGET, isProjectIdLike } from "@cobrac/shared";
+import { RESEARCH_BUDGET, isCanonId, isProjectIdLike } from "@cobrac/shared";
 
 function req(name: string): string {
   const v = process.env[name];
@@ -22,7 +22,7 @@ export const env = {
   artifactsBucket: req("ARTIFACTS_BUCKET"),
   job: {
     userId: req("JOB_USER_ID"),
-    projectId: projectIdOf(req("JOB_PROJECT_ID")),
+    projectId: projectIdOf(req("JOB_PROJECT_ID"), process.env.JOB_MODE),
     jobId: req("JOB_ID"),
     mode: (process.env.JOB_MODE ?? "initial") as RunMode,
   },
@@ -58,8 +58,8 @@ export const env = {
   workflowTimeoutMs: Number(process.env.WORKFLOW_TIMEOUT_MS ?? String(6 * 60 * 60 * 1000)),
 };
 
-/** The ID names the work directory and S3 prefix, so only ID-shaped values are accepted. */
-function projectIdOf(v: string): string {
-  if (!isProjectIdLike(v)) throw new Error(`Invalid JOB_PROJECT_ID: ${v}`);
+/** The ID names the work directory and S3 prefix, so only ID-shaped values are accepted (a Canon ID for an AI review). */
+function projectIdOf(v: string, mode: string | undefined): string {
+  if (!(mode === "canon-review" ? isCanonId(v) : isProjectIdLike(v))) throw new Error(`Invalid JOB_PROJECT_ID: ${v}`);
   return v;
 }

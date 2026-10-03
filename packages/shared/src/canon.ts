@@ -54,6 +54,8 @@ export const canonRevisionSk = (rev: number) => `${CANON_REVISION_PREFIX}${pad(r
 /** S3 keys (artifacts bucket). Revision snapshots are written once and never changed. */
 export const canonRevisionKey = (canonId: string, rev: number) => `canons/${canonId}/rev/${rev}/canon.json`;
 export const canonPrKey = (canonId: string, no: number, file: "incoming.json" | "diff.json") => `canons/${canonId}/pr/${no}/${file}`;
+/** AI review of a PR: what the API gave the worker, and what the worker wrote back (one folder per job). */
+export const canonAiReviewKey = (canonId: string, no: number, jobId: string, file: "input.json" | "result.json") => `canons/${canonId}/pr/${no}/ai/${jobId}/${file}`;
 
 export type CanonPrState = "open" | "approved" | "rejected" | "withdrawn" | "superseded";
 
@@ -78,7 +80,56 @@ export interface CanonPullRequestRecord {
   reason?: string | null;
   /** Revision created by approving it */
   mergedRevision?: number | null;
+  /** The reviewer asked for changes; the PR stays open until it is re-pushed (superseded), approved or rejected */
+  reviewState?: "changes_requested" | null;
+  reviewNote?: string | null;
 }
+
+export const CANON_PR_EVENT_PREFIX = "PEV#";
+/** Query prefix of one PR's audit trail. `PEV#` does not start with `PR#`, so PR listings never see these items. */
+export const canonPrEventPrefix = (no: number) => `${CANON_PR_EVENT_PREFIX}${pad(no)}#`;
+export const canonPrEventSk = (no: number, at: string, nonce: string) => `${canonPrEventPrefix(no)}${at}#${nonce}`;
+
+export type CanonPrEventType =
+  | "pushed"
+  | "superseded"
+  | "rebased"
+  | "comment"
+  | "changes_requested"
+  | "approved"
+  | "rejected"
+  | "withdrawn"
+  | "ai_requested"
+  | "ai_completed"
+  | "ai_failed";
+
+/** One entry of a PR's audit trail (who did what, when). Comments may point at one diff item (`<kind>:<key>`). */
+export interface CanonPrEvent {
+  type: CanonPrEventType;
+  at: string;
+  /** userId; null for entries derived from older PRs without a trail */
+  actor: string | null;
+  actorName: string;
+  note?: string | null;
+  item?: string | null;
+  itemLabel?: string | null;
+  revision?: number | null;
+  /** The PR that replaced this one (superseded) */
+  byPr?: number | null;
+  jobId?: string | null;
+  model?: string | null;
+  /** Conflict choices the approval was made with */
+  choices?: Record<string, "canon" | "incoming"> | null;
+}
+
+/** `PEV#<000012>#<at>#<nonce>` item: append-only, never updated or deleted. */
+export interface CanonPrEventRecord extends CanonPrEvent {
+  canonId: string;
+  sk: string;
+  prNo: number;
+}
+
+export const CANON_PR_NOTE_MAX = 2000;
 
 /** `OUT#<targetCanonId>#<000012>` item in the sending Canon: a pull request it sent to another Canon. */
 export interface CanonOutgoingRecord {

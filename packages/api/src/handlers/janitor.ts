@@ -18,7 +18,8 @@ export async function handler() {
     for (const j of await listJobsByStatus(status)) {
       const hb = j.lastHeartbeat ? Date.parse(j.lastHeartbeat) : Date.parse(j.createdAt);
       if (now - hb <= HEARTBEAT_STALE_MS) continue;
-      if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
+      if (j.type === "canon-review") await failReview(j, "The worker stopped responding. Run the AI review again.");
+      else if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
       else await failJob(j, "The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.", "sys.heartbeatLost");
     }
   }
@@ -31,7 +32,8 @@ export async function handler() {
 
   for (const j of await listJobsByStatus("QUEUED")) {
     if (now - Date.parse(j.createdAt) > 24 * 60 * 60 * 1000) {
-      await failJob(j, "No worker could be started within 24 hours.", "sys.queueTimeout");
+      if (j.type === "canon-review") await failReview(j, "No worker could be started within 24 hours.");
+      else await failJob(j, "No worker could be started within 24 hours.", "sys.queueTimeout");
     }
   }
 }
@@ -68,6 +70,11 @@ async function autoRetry(prev: JobRecord) {
     meta: { i18n: "sys.autoRetry", attempt: job.retryCount, max: MAX_AUTO_RETRY },
   });
   await enqueueRun({ version: 1, userId: prev.userId, projectId: prev.projectId, jobId, mode: article ? "article" : "retry" });
+}
+
+/** An AI review of a Canon pull request has no project to update; the PR page shows the job's error. */
+async function failReview(j: JobRecord, reason: string) {
+  await updateJob(j.projectId, j.jobId, { status: "FAILED", errorMessage: reason, endedAt: nowIso() });
 }
 
 /** A failed article job leaves the project COMPLETED: its BRA data is unchanged. */
