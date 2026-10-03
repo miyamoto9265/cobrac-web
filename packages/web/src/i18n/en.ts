@@ -689,7 +689,7 @@ export const en = {
   "rc.impact": "Affects another project",
   "rc.dropped": "No longer in the project",
   "rv.ai.title": "AI review",
-  "rv.ai.help": "A model reads the same material as this page (diff, conflicts, checks, both sides of each item, references) and points at inconsistencies with reasons and evidence. It does not approve or reject. It runs on your API key, or on the default API key with your tier's models, and its cost appears in your usage.",
+  "rv.ai.help": "A model reads the same material as this page (diff, conflicts, checks, both sides of each item, references) and points at inconsistencies with reasons and evidence. It does not approve or reject. It runs on your API key or on the default API key (the list shows only the models available to you), and its cost appears in your usage.",
   "rv.ai.notice": "AI suggestions. They may be wrong; check the evidence. You decide.",
   "rv.ai.run": "Run AI review",
   "rv.ai.rerun": "Run again",
