@@ -128,7 +128,7 @@ jobs:
           COBRAC_ADMIN_EMAILS: ${{ secrets.COBRAC_ADMIN_EMAILS }}
         run: |
           set -o pipefail
-          npm run -s cdk -- diff CobracAgents --no-color 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
+          npm run -s cdk -- diff CobracAgents BraDb --no-color 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
 
       - name: RETAIN guard
         env:

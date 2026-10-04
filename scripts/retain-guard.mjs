@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * RETAIN guard for CI deploys: reads the text output of `cdk diff` and fails when a stateful
- * resource (DynamoDB / S3 / KMS / Cognito User Pool) would be replaced, removed, or orphaned.
+ * resource (DynamoDB / S3 / KMS / Cognito User Pool; the BRA-DB instance, its data volume and its attachment) would
+ * be replaced, removed, or orphaned.
  *
  *   node scripts/retain-guard.mjs cdk-diff.txt
  *   ALLOW_RETAIN_REPLACEMENT=true node scripts/retain-guard.mjs cdk-diff.txt   # report only
@@ -18,6 +19,10 @@ export const GUARDED_TYPES = [
   "AWS::S3::Bucket",
   "AWS::KMS::Key",
   "AWS::Cognito::UserPool",
+  // BraDb stack: the cluster lives on the volume; replacing the instance or the attachment needs a manual detach
+  "AWS::EC2::Instance",
+  "AWS::EC2::Volume",
+  "AWS::EC2::VolumeAttachment",
 ];
 
 const STACK = "CobracAgents";

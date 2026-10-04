@@ -29,6 +29,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export interface CobracAgentsStackProps extends StackProps {
+  /** Name of the BRA-DB registration Lambda (BraDb stack); empty when BRA-DB is not deployed */
+  braDbImportFunction: string;
   adminEmails: string;
   selfSignUp: boolean;
   maxConcurrentJobs: number;
@@ -233,7 +235,7 @@ export class CobracAgentsStack extends Stack {
       file: "packages/worker/Dockerfile",
       platform: cdk.aws_ecr_assets.Platform.LINUX_AMD64,
       // keep in sync with .dockerignore (asset upload only; the Docker build itself honours .dockerignore)
-      exclude: ["**/node_modules", "**/dist", "**/cdk.out", ".git", ".env", ".env.*", "archive", "packages/web/src", "packages/web/index.html", "packages/infra/lib", "packages/infra/bin", "packages/api/src"],
+      exclude: ["**/node_modules", "**/dist", "**/cdk.out", ".git", ".env", ".env.*", "archive", "packages/web/src", "packages/web/index.html", "packages/infra/lib", "packages/infra/bin", "packages/infra/bradb", "packages/api/src", "packages/api/test"],
     });
     const container = taskDef.addContainer("worker", {
       image: workerImage.toEcsDockerImageCode(),
@@ -304,6 +306,7 @@ export class CobracAgentsStack extends Stack {
       ECS_SUBNETS: vpc.publicSubnets.map((s) => s.subnetId).join(","),
       ECS_SECURITY_GROUP: workerSg.securityGroupId,
       ECS_USE_SPOT: "true",
+      BRADB_IMPORT_FUNCTION: props.braDbImportFunction,
     };
 
     const bundling: cdk.aws_lambda_nodejs.BundlingOptions = {
@@ -383,6 +386,12 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantDelete(apiFn, "staging/*");
     artifacts.grantPut(apiFn, "users/*/attachments/files/*");
     key.grantEncrypt(apiFn);
+    // registering versions in BRA-DB (the function is in the BraDb stack; called by its fixed name)
+    if (props.braDbImportFunction) {
+      apiFn.addToRolePolicy(
+        new iam.PolicyStatement({ actions: ["lambda:InvokeFunction"], resources: [`arn:${this.partition}:lambda:${this.region}:${this.account}:function:${props.braDbImportFunction}`] }),
+      );
+    }
     jobQueue.grantSendMessages(apiFn);
     jobQueue.grantSendMessages(dispatcherFn);
     jobQueue.grantSendMessages(janitorFn);

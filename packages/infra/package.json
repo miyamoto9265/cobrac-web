@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@cdklabs/deploy-time-build": "^0.1.10",
+    "@cobrac/shared": "*",
     "aws-cdk-lib": "^2.170.0",
     "constructs": "^10.4.2",
     "dotenv": "^16.4.5"

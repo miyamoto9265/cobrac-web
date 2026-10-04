@@ -1,7 +1,9 @@
 import type {
   BraVersionDetailResponse,
   BraVersionDiffResponse,
+  BradbRegisterResponse,
   ListBraVersionsResponse,
+  ProjectBradbResponse,
   CanonEditorSummary,
   CanonAiState,
   CanonPrEventRecord,
@@ -128,6 +130,8 @@ export const api = {
   version: (id: string, n: number) => request<BraVersionDetailResponse>("GET", `/projects/${encodeURIComponent(id)}/versions/${n}`),
   versionDiff: (id: string, n: number, base?: number) =>
     request<BraVersionDiffResponse>("GET", `/projects/${encodeURIComponent(id)}/versions/${n}/diff${base === undefined ? "" : `?base=${base}`}`),
+  bradb: (id: string) => request<ProjectBradbResponse>("GET", `/projects/${encodeURIComponent(id)}/bradb`),
+  registerBradb: (id: string, n: number, allowShrink = false) => request<BradbRegisterResponse>("POST", `/projects/${encodeURIComponent(id)}/versions/${n}/bradb`, { allowShrink }),
   articles: (id: string) => request<ListArticlesResponse>("GET", `/projects/${encodeURIComponent(id)}/articles`),
   createArticle: (id: string, locale: UiLocale, model: string | null = null) =>
     request<{ ok: true; jobId: string; articleJob: ArticleJobState }>("POST", `/projects/${encodeURIComponent(id)}/articles`, { locale, model }),

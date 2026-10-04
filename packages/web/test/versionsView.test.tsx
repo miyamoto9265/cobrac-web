@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   version: vi.fn(),
   versionDiff: vi.fn(),
   artifactText: vi.fn(),
+  bradb: vi.fn(),
+  registerBradb: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 
@@ -85,6 +87,7 @@ beforeEach(() => {
     },
   };
   api.versionDiff.mockResolvedValue(diff);
+  api.bradb.mockResolvedValue({ enabled: false });
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -133,5 +136,29 @@ describe("VersionsView", () => {
     await render(<VersionsView projectId={P} project={{ ...project, revision: 2 }} />);
     expect($("version-detail")?.textContent).toContain("v2 として保存します");
     expect($("version-bradb")).toBeNull();
+  });
+
+  it("registers a version in BRA-DB and asks before shrinking", async () => {
+    const reg = (status: string, extra = {}) => ({
+      registrationId: 1, versionId: `${P}@v4`, version: 4, parentVersionId: `${P}@v3`, contentSha256: "c".repeat(64), status, mode: "replace", reason: null,
+      counts: null, changes: null, skippedCircuits: [], warnings: [], requestedBy: "Alice A.", registeredAt: now, ...extra,
+    });
+    api.bradb.mockResolvedValue({ enabled: true, projectId: P, current: { versionId: `${P}@v3`, contentSha256: "a".repeat(64), registeredAt: now, projectKey: 1 }, registrations: [] });
+    api.registerBradb
+      .mockResolvedValueOnce({ registration: reg("rejected"), code: "shrink", shrink: { before: { circuits: 8, connections: 13 }, after: { circuits: 7, connections: 12 } } })
+      .mockResolvedValueOnce({ registration: reg("registered") });
+    await render(<VersionsView projectId={P} project={project} />);
+    expect($("bradb-current")?.textContent).toContain(`${P}@v3`);
+    await act(async () => $("bradb-register")!.click());
+    expect(api.registerBradb).toHaveBeenLastCalledWith(P, 4, false);
+    expect($("bradb-panel")?.textContent).toContain("Connections 13 → 12");
+    await act(async () => $("bradb-shrink")!.click());
+    expect(api.registerBradb).toHaveBeenLastCalledWith(P, 4, true);
+    expect($("bradb-panel")?.textContent).toContain(`${P}@v4 として登録しました`);
+  });
+
+  it("shows no BRA-DB section when the deployment has none", async () => {
+    await render(<VersionsView projectId={P} project={project} />);
+    expect($("bradb-panel")).toBeNull();
   });
 });

@@ -140,6 +140,8 @@ export interface ProjectRecord {
   revision?: number;
   /** Latest frozen version (`revisions/{n}/`); absent on projects that have none yet */
   latestVersion?: BraVersionSummary | null;
+  /** The version BRA-DB holds (last successful registration from CoBRAC); absent when never registered */
+  bradb?: { versionId: string; version: number; contentSha256: string; registeredAt: string; registrationId: number } | null;
   /** Project ID before the migration to `<userKey>-<seq>` */
   legacyId?: string;
   roi: string;

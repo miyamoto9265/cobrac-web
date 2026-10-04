@@ -3,7 +3,8 @@ import { CopyObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCom
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
-import type { ArtifactInfo, RunJobMessage } from "@cobrac/shared";
+import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
+import type { ArtifactInfo, BradbRequest, RunJobMessage } from "@cobrac/shared";
 import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
@@ -12,6 +13,15 @@ const kms = new KMSClient({ region: env.region });
 const s3 = new S3Client({ region: env.region });
 const sqs = new SQSClient({ region: env.region });
 const ecs = new ECSClient({ region: env.region });
+const lambdaClient = new LambdaClient({ region: env.region });
+
+/** Calls the BRA-DB registration Lambda and returns its result (throws on a function error). */
+export async function invokeBradb<T>(payload: BradbRequest): Promise<T> {
+  const r = await lambdaClient.send(new InvokeCommand({ FunctionName: env.bradbImportFunction, InvocationType: "RequestResponse", Payload: Buffer.from(JSON.stringify(payload)) }));
+  const text = r.Payload ? Buffer.from(r.Payload).toString("utf8") : "null";
+  if (r.FunctionError) throw new Error(`BRA-DB: ${(JSON.parse(text) as { errorMessage?: string }).errorMessage ?? r.FunctionError}`);
+  return JSON.parse(text) as T;
+}
 
 export async function encryptApiKey(plain: string, userId: string): Promise<string> {
   const r = await kms.send(

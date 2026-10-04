@@ -6,6 +6,11 @@ import type {
   AdminUpdateUserRequest,
   AnswerRequest,
   BraVersionDetailResponse,
+  BradbPackageManifest,
+  BradbRegisterResponse,
+  BradbStatusResponse,
+  ProjectBradbResponse,
+  RegisterBradbRequest,
   BraVersionDiffResponse,
   BraVersionListItem,
   BraVersionManifest,
@@ -157,6 +162,7 @@ import {
   templateInputFromFiles,
   templateXlsxKey,
   REVISIONS_PREFIX,
+  bradbPackagePrefix,
   csvPath,
   diffBraCsvs,
   summarizeManifest,
@@ -177,6 +183,7 @@ import {
   getObjectText,
   headStaging,
   listArtifacts,
+  invokeBradb,
   listVersionNumbers,
   moveStagingToProject,
   presignDownload,
@@ -1019,6 +1026,53 @@ app.get("/projects/:id/versions/:n/diff", async (c) => {
   if (rawBase && !base) throw bad("base is not a version of this project");
   const res: BraVersionDiffResponse = { head: item.version, base: base?.version ?? null, diff: base ? diffBraCsvs(await versionCsvs(p, base), await versionCsvs(p, item)) : null };
   return c.json(res);
+});
+
+// --- BRA-DB registration ---------------------------------------------------------
+// A frozen version's package (revisions/{n}/bradb/) goes to the registration Lambda in the BRA-DB VPC (BraDb stack).
+
+const bradbOff = () => new HTTPException(404, { message: "この環境には BRA-DB がありません" });
+
+app.get("/projects/:id/bradb", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  if (!env.bradbImportFunction) return c.json({ enabled: false } satisfies ProjectBradbResponse);
+  const status = await invokeBradb<BradbStatusResponse>({ action: "status", projectId: p.projectId });
+  return c.json({ enabled: true, ...status } satisfies ProjectBradbResponse);
+});
+
+/** Registers version n (owner). `rejected` comes back with a code: `shrink` asks to resend with `allowShrink`. */
+app.post("/projects/:id/versions/:n/bradb", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  if (!env.bradbImportFunction) throw bradbOff();
+  const { item, manifest } = await loadVersion(p, c.req.param("n"));
+  if (!manifest?.bradb) throw bad("この版には BRA-DB 登録パッケージがありません（保存済みで 5 つの CSV がそろった版だけを登録できます）");
+  const body = (await c.req.json().catch(() => ({}))) as RegisterBradbRequest;
+  const prefix = bradbPackagePrefix(item.version);
+  const pkgText = await getObjectText(u.userId, p.projectId, `${prefix}manifest.json`);
+  if (!pkgText) throw notFound();
+  const pkg = JSON.parse(pkgText) as BradbPackageManifest;
+  const files: Record<string, string> = {};
+  for (const f of pkg.files) {
+    const text = await getObjectText(u.userId, p.projectId, prefix + f.name);
+    if (text === null) throw notFound();
+    files[f.name] = text;
+  }
+  const r = await invokeBradb<BradbRegisterResponse>({
+    action: "register",
+    manifest: pkg,
+    files,
+    project: { roi: p.roi, tlf: p.tlf },
+    allowShrink: body.allowShrink === true,
+    requestedBy: u.contributorName || u.displayName || u.userId,
+  });
+  if (r.registration.status === "registered") {
+    await updateProject(u.userId, p.projectId, {
+      bradb: { versionId: r.registration.versionId, version: r.registration.version, contentSha256: r.registration.contentSha256, registeredAt: r.registration.registeredAt, registrationId: r.registration.registrationId },
+    });
+  }
+  return c.json(r);
 });
 
 // --- explanatory articles -----------------------------------------------------
