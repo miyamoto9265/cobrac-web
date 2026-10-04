@@ -1,4 +1,3 @@
-import { unzipSync, strFromU8 } from "fflate";
 import { describe, expect, it } from "vitest";
 import {
   type BraVersionManifest,
@@ -13,7 +12,6 @@ import {
   versionFileKey,
   versionManifestKey,
   versionOfKey,
-  zipBradbPackage,
 } from "../src/index.js";
 
 const P = "u7m2q9xa-12";
@@ -158,14 +156,5 @@ describe("BRA-DB package", () => {
     expect(buildBradbManifest(manifest({ parent: null, changes: null }), []).import).toEqual({ replace: false, allowShrink: false });
     const clone = manifest({ version: 1, parent: { versionId: "u2abcdef-3@v4", projectId: "u2abcdef-3", version: 4 }, changes: null });
     expect(buildBradbManifest(clone, []).import.replace).toBe(false);
-  });
-
-  it("zips the files at the top level with the same bytes every time", () => {
-    const files = { [`${P}_project.csv`]: "a,b\n", "manifest.json": "{}\n" };
-    const z1 = zipBradbPackage(files);
-    expect(Buffer.from(zipBradbPackage(files)).equals(Buffer.from(z1))).toBe(true);
-    const back = unzipSync(z1);
-    expect(Object.keys(back).sort()).toEqual([`${P}_project.csv`, "manifest.json"].sort());
-    expect(strFromU8(back["manifest.json"])).toBe("{}\n");
   });
 });

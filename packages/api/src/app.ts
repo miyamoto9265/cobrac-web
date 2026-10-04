@@ -156,8 +156,6 @@ import {
   templateDownloadFileName,
   templateInputFromFiles,
   templateXlsxKey,
-  bradbZipFileName,
-  bradbZipKey,
   csvPath,
   diffBraCsvs,
   summarizeManifest,
@@ -1008,17 +1006,12 @@ app.get("/projects/:id/versions/:n", async (c) => {
   return c.json(res);
 });
 
-/** `?path=` a file of the version (as listed by the detail), or `bradb.zip` for the BRA-DB registration package. */
+/** `?path=` a file of the version, as listed by the detail. */
 app.get("/projects/:id/versions/:n/download", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   const { item, manifest } = await loadVersion(p, c.req.param("n"));
   const path = c.req.query("path") ?? "";
-  if (path === "bradb.zip") {
-    if (!manifest?.bradb) throw notFound();
-    const name = bradbZipFileName(p.projectId, item.version);
-    return c.json({ url: await presignDownload(u.userId, p.projectId, bradbZipKey(item.version), { ascii: name, utf8: name }), expiresIn: 900 });
-  }
   const listed = manifest ? manifest.files.some((f) => f.path === path) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId)).some((f) => f.path === path);
   if (!listed) throw notFound();
   const key = manifest ? versionFileKey(item.version, path) : path;

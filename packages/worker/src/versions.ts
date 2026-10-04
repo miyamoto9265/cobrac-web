@@ -11,7 +11,6 @@ import {
   braVersionId,
   bradbCsvName,
   bradbPackagePrefix,
-  bradbZipKey,
   buildBradbManifest,
   contentHashInput,
   csvPath,
@@ -19,7 +18,6 @@ import {
   templateXlsxKey,
   versionFileKey,
   versionManifestKey,
-  zipBradbPackage,
 } from "@cobrac/shared";
 
 /** S3 access of the snapshot writer (keys are full bucket keys); tests pass an in-memory store. */
@@ -62,7 +60,7 @@ async function* walk(dir: string): AsyncGenerator<string> {
 
 /**
  * Freezes the project's current data as version `input.version`: copies of the files under `revisions/{n}/files/`,
- * the BRA-DB package under `revisions/{n}/bradb/` (+ `bradb.zip`) and, last, `manifest.json`, written only if absent.
+ * the BRA-DB package under `revisions/{n}/bradb/` (read by the BRA-DB importer) and, last, `manifest.json`, written only if absent.
  * The manifest makes the version exist, so a crash before it leaves nothing that counts; running again for the same
  * job returns the existing version, and a version written by another job is reported as a conflict and left alone.
  */
@@ -116,17 +114,10 @@ export async function freezeVersion(input: FreezeInput, store: VersionStore): Pr
 
   if (csv.size === CSV_FILE_NAMES.length) {
     const pkgFiles = CSV_FILE_NAMES.map((name) => ({ name: bradbCsvName(P, name), source: name, sha256: csvSha[name]!, size: csv.get(name)!.length }));
-    manifest.bradb = { prefix: bradbPackagePrefix(n), zip: bradbZipKey(n), files: [...pkgFiles.map((f) => f.name), "manifest.json"] };
+    manifest.bradb = { prefix: bradbPackagePrefix(n), files: [...pkgFiles.map((f) => f.name), "manifest.json"] };
     const pkgManifest = JSON.stringify(buildBradbManifest(manifest, pkgFiles), null, 2) + "\n";
-    const zipped: Record<string, Buffer | string> = {};
-    for (const f of pkgFiles) {
-      const body = csv.get(f.source)!;
-      await store.put(prefix + bradbPackagePrefix(n) + f.name, body, "text/csv; charset=utf-8");
-      zipped[f.name] = body;
-    }
+    for (const f of pkgFiles) await store.put(prefix + bradbPackagePrefix(n) + f.name, csv.get(f.source)!, "text/csv; charset=utf-8");
     await store.put(prefix + bradbPackagePrefix(n) + "manifest.json", pkgManifest, "application/json");
-    zipped["manifest.json"] = pkgManifest;
-    await store.put(prefix + bradbZipKey(n), Buffer.from(zipBradbPackage(zipped)), "application/zip");
   }
 
   const written = await store.putIfAbsent(manifestKey, JSON.stringify(manifest, null, 2) + "\n", "application/json");

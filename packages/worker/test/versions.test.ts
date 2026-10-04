@@ -1,7 +1,6 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 import type { BradbPackageManifest, BraVersionManifest } from "@cobrac/shared";
 import { contentHashInput } from "@cobrac/shared";
@@ -98,9 +97,7 @@ describe("freezeVersion", () => {
     expect(store.objects.get(`${prefix}revisions/1/bradb/${P}_circuits.csv`)?.toString()).toBe(CSV["Circuits.csv"]);
     const pkg = store.json<BradbPackageManifest>("revisions/1/bradb/manifest.json");
     expect(pkg).toMatchObject({ projectId: P, versionId: `${P}@v1`, parentVersionId: null, contentSha256: expected, importType: "cobrac", cobracGenerated: true });
-    const zip = unzipSync(store.objects.get(`${prefix}revisions/1/bradb.zip`)!);
-    expect(Object.keys(zip)).toHaveLength(6);
-    expect(JSON.parse(strFromU8(zip["manifest.json"]))).toEqual(pkg);
+    expect(store.objects.has(`${prefix}revisions/1/bradb.zip`)).toBe(false);
   });
 
   it("summarizes the changes against a frozen parent", async () => {
