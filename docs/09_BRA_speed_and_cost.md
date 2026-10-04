@@ -254,7 +254,7 @@ The correction has these limits.
 - **Usage that was never recorded cannot be restored.** Before 0.17.1, failed turns were recorded as 0. The correction only derives differences from the recorded totals, so this usage cannot be recovered. The gap between the corrected $0.202 and the real $0.309 of `ufwwj0jg-1` is the failed turns of its two follow-up jobs. Corrected values can therefore be lower than the real cost.
 - **Updates over WebSocket are not corrected.** Right after a new job finishes on an older project, the uncorrected total shows until the page is reloaded.
 - **The research step metrics** (`researchStep.usage`) are not corrected.
-- Even from 0.17.1, turns cut off by a timeout (the research step's 60 minutes) or a cancel, and turns where `codex exec` stops without giving a reason, recorded no usage. A later version counts these turns (and turns cut off by a SIGTERM or the 6-hour limit) from the session record and adds them to the cost of the job that ran them ([chapter 8](#8-open-issues-and-next-candidates)).
+- Even from 0.17.1, turns cut off by a timeout (the research step's 60 minutes) or a cancel, and turns where `codex exec` stops without giving a reason, recorded no usage. From 0.24.1 the worker counts these turns (and turns cut off by a SIGTERM or the 6-hour limit) from the session record and adds them to the cost of the job that ran them ([chapter 8](#8-open-issues-and-next-candidates)).
 
 ---
 
