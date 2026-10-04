@@ -1,5 +1,5 @@
 // Registration against a real PostgreSQL 17 + Apache AGE built by packages/infra/bradb/bootstrap.sh.
-//   BRADB_TEST_URL=postgres://cobrac_import:…@127.0.0.1/bra_db_v4_6
+//   BRADB_TEST_URL=postgres://cobrac_import:…@127.0.0.1/bra_db_v4_6?sslmode=no-verify   (TLS like the Lambda, not verified)
 //   BRADB_TEST_ADMIN_URL=postgres://bra:…@127.0.0.1/bra_db_v4_6   (empties the tables before the run)
 // Skipped when BRADB_TEST_URL is not set (CI has no database).
 import { createHash } from "node:crypto";

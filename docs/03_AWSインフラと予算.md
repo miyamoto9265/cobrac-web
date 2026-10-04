@@ -90,7 +90,30 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 
 CloudWatch Logs **14 days** for both Lambda and the worker. Insights is not used.
 
-### 3.5 Deployed (reference, 2026-09-13)
+### 3.5 BRA-DB (stack `BraDb`, since 0.26.0)
+
+BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6; design spec 6.21) runs in its own stack and VPC. Nothing in it accepts traffic from the internet. `COBRAC_BRADB=false` at synth leaves the stack out (and the API then reports that this deployment has no BRA-DB).
+
+| Resource | Settings |
+| -------- | -------- |
+| VPC | `10.42.0.0/24`, one AZ: a private subnet (instance, registration Lambda) and a public subnet that only holds the NAT instance. S3 gateway endpoint (free) |
+| NAT instance | t4g.nano, Amazon Linux 2023 (`NatProvider.instanceV2`), outbound only: package updates, Secrets Manager, SSM. Accepts traffic from the VPC only. A NAT Gateway would cost about $45/month more |
+| EC2 `Db` | t4g.small, Ubuntu 24.04 arm64 (AMI pinned in `packages/infra/lib/bradb-stack.ts`), root gp3 16 GB encrypted, IMDSv2, termination protection, no SSH (SSM Session Manager). Security group: 5432 from the registration Lambda only |
+| Data volume | gp3 20 GB encrypted, **RETAIN**, attached as `/dev/sdf` and mounted at `/srv/bradb` (the cluster's data directory) |
+| Snapshots | Data Lifecycle Manager: daily at 18:00 UTC, 7 kept (tag `bradb-backup=daily`) |
+| Secrets Manager | `cobrac/bradb/bra` (owner), `cobrac/bradb/cobrac_import` (registration Lambda), `cobrac/bradb/cobrac_read` (read-only). `bootstrap.sh` sets the role passwords from them at every boot, so rotating a secret takes effect on the next reboot |
+| Lambda `cobrac-bradb-import` | Node 22 arm64, in the private subnet, 25 s. Called only by the CobracAgents API (`lambda:InvokeFunction` on this name) |
+
+**Boot and schema.** The user data runs `packages/infra/bradb/bootstrap.sh` at every boot (`cloud_final_modules: scripts-user always`): installs `postgresql-17` and `postgresql-17-age` from PGDG, formats and mounts the data volume the first time, creates or re-registers the cluster on it, sets `shared_preload_libraries = 'age'` and scram-sha-256 from the VPC only, sets the role passwords, creates `bra_db_v4_6` and applies the files in `packages/infra/bradb/sql/` that `cobrac.schema_migrations` does not list yet (`*_grants.sql` is re-applied when it changes; other applied files must not change: add a new numbered file). A change to those files changes the user data, so CloudFormation stops and starts the instance (about a minute of downtime) and the new files are applied at boot. The log is `/var/log/bradb-bootstrap.log`.
+
+**Operations.**
+
+- Shell: `aws ssm start-session --target <InstanceId>`; then `sudo -u postgres psql -d bra_db_v4_6`.
+- From a laptop (for example for BRA-DB maintainers): `aws ssm start-session --target <InstanceId> --document-name AWS-StartPortForwardingSession --parameters portNumber=5432,localPortNumber=15432`, then connect to `127.0.0.1:15432` as `bra` or `cobrac_read` with the password from Secrets Manager.
+- Restore: create a volume from a snapshot in the same AZ, stop the instance, detach the data volume, attach the restored one as `/dev/sdf`, start. Then bring the stack back in line (`DataVolume` in the template) in a PR.
+- Replacing the instance (a new AMI, another instance type family): the RETAIN guard stops the deploy because `AWS::EC2::Instance` / `AWS::EC2::VolumeAttachment` would be replaced. Detach the data volume first (stop the instance, detach), then re-run with `allow_retain_replacement=true`; the new instance re-registers the cluster on the volume at boot.
+
+### 3.6 Deployed (reference, 2026-09-13)
 
 | Output | Value |
 | ------ | ----- |
@@ -167,7 +190,24 @@ CodeBuild builds a Node + Python image (about 2 minutes in practice). Tokyo gene
 
 The GitHub Actions runs themselves (PR checks and the deploy workflow) use the private repository's Actions minutes, not AWS. Merges that do not bump the version skip the deploy job.
 
-### 5.5 OpenAI (outside AWS, paid by each user or by the default API key)
+### 5.5 BRA-DB (stack `BraDb`, always on)
+
+Tokyo on-demand prices, October 2026; the data is a few MB, so storage and transfer are small.
+
+| Item | Monthly (USD) |
+| ---- | ------------- |
+| EC2 t4g.small (730 h × $0.0216) | 15.8 |
+| NAT instance t4g.nano (730 h × $0.0054) | 3.9 |
+| Public IPv4 of the NAT instance (730 h × $0.005) | 3.7 |
+| EBS gp3: root 16 GB + data 20 GB + NAT 8 GB ($0.096/GB) | 4.2 |
+| Snapshots (7 daily, incremental, a few GB) | 0.3 |
+| Secrets Manager (3 secrets × $0.40) | 1.2 |
+| Lambda, CloudWatch Logs, data transfer | < 0.5 |
+| **Total** | **about 30 (about ¥4,500)** |
+
+A 1-year Compute Savings Plan lowers the two instances by about 30 %. Stopping the instance at night is possible but saves only about $8 and makes registration unavailable.
+
+### 5.6 OpenAI (outside AWS, paid by each user or by the default API key)
 
 A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps. Research mode (on by default, [01 §6.11](./01_設計仕様.md)) adds a literature survey before the HCD: roughly +10–60 minutes of Fargate time (about $0.01–0.05 at 1 vCPU / 2 GB Spot) and, on the OpenAI side, the cost of 1.5–6M mostly cached input tokens and 40–150k output tokens at reasoning effort `high` or more; the create screen shows the estimate for the selected model. Turn it off there for quick drafts.
 
@@ -187,6 +227,7 @@ Jobs of approved users without their own key run on the default API key, the org
 | 50 jobs/month and Spot is unhealthy | $15–25 | A $30 Budget can detect this |
 | Change to include NAT | above +$32~ | Not recommended |
 | Always-on t3.medium | around $30 | Still billed while waiting. This architecture is cheaper |
+| BRA-DB stack (always on) | +about $30 | §5.5; `COBRAC_BRADB=false` leaves it out |
 
 ---
 
@@ -282,7 +323,7 @@ work branch ── PR ── ci.yml (no AWS credentials) ── merge ──▶ 
 | Workflow permissions | Default `read`. `id-token: write` only on the deploy job, `contents: write` only on the tag job, none on the health job |
 | Settings | Actions Variables and Secret `COBRAC_ADMIN_EMAILS` (§9). Validated before any AWS call; admin addresses are masked in the log |
 | Approval | Merging a PR that bumps the version (`npm run release -- <patch/minor/major> --no-git`) |
-| RETAIN guard | `scripts/retain-guard.mjs` reads `cdk diff`. Replace / may be replaced / destroy / orphan / removal of `AWS::DynamoDB::Table`, `AWS::DynamoDB::GlobalTable`, `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::Cognito::UserPool` stops the job before deploy. To proceed after review: `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` |
+| RETAIN guard | `scripts/retain-guard.mjs` reads `cdk diff` of `CobracAgents` and `BraDb`. Replace / may be replaced / destroy / orphan / removal of `AWS::DynamoDB::Table`, `AWS::DynamoDB::GlobalTable`, `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::Cognito::UserPool`, and of the BRA-DB `AWS::EC2::Instance`, `AWS::EC2::Volume`, `AWS::EC2::VolumeAttachment` stops the job before deploy. To proceed after review: `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` |
 | Serialisation | `concurrency: deploy-cobrac-agents`, runs never cancelled mid-deploy |
 | Actions | Pinned by commit SHA |
 
