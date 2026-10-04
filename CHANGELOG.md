@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-10-04
+
 ### Added
 - A "Release notes" entry in the sidebar for everyone, with a table of contents of the versions. The version label at the bottom of the sidebar opens it too
 
@@ -15,6 +17,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Removed
 - The release notes are no longer listed under "Docs"
+
 ## [0.21.0] - 2026-10-04
 
 ### Changed
