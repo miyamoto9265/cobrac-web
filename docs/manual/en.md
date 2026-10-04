@@ -126,6 +126,8 @@ Each time a run or a follow-up finishes, its result is kept as a version (v1, v2
 
 Projects finished before versions were kept show their current data as "Not saved yet"; the next follow-up saves it as a version before changing anything.
 
+When the site has a BRA-DB, a saved version also has a **BRA-DB** box: it says which version BRA-DB holds, and "Register v<n> in BRA-DB" puts this version in BRA-DB. BRA-DB keeps the history of every registration (which version, its content hash, who and when). Registering the same content again changes nothing; if the version has fewer circuits or connections than BRA-DB holds, you are asked to confirm first.
+
 ## Explanatory articles
 
 When the BRA data is complete, the "Article" tab makes an illustrated article about it in a language you choose.
