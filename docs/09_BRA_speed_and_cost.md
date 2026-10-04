@@ -254,7 +254,7 @@ The correction has these limits.
 - **Usage that was never recorded cannot be restored.** Before 0.17.1, failed turns were recorded as 0. The correction only derives differences from the recorded totals, so this usage cannot be recovered. The gap between the corrected $0.202 and the real $0.309 of `ufwwj0jg-1` is the failed turns of its two follow-up jobs. Corrected values can therefore be lower than the real cost.
 - **Updates over WebSocket are not corrected.** Right after a new job finishes on an older project, the uncorrected total shows until the page is reloaded.
 - **The research step metrics** (`researchStep.usage`) are not corrected.
-- Even from 0.17.1, turns cut off by a timeout (the research step's 60 minutes) or a cancel, and turns where `codex exec` stops without giving a reason, record no usage ([chapter 8](#8-open-issues-and-next-candidates)).
+- Even from 0.17.1, turns cut off by a timeout (the research step's 60 minutes) or a cancel, and turns where `codex exec` stops without giving a reason, recorded no usage. A later version counts these turns (and turns cut off by a SIGTERM or the 6-hour limit) from the session record and adds them to the cost of the job that ran them ([chapter 8](#8-open-issues-and-next-candidates)).
 
 ---
 
@@ -297,7 +297,7 @@ A production Spot interruption cannot be triggered on purpose, so the changes in
 | Why long contexts are slow | Believed to be server-side, not confirmed | Sending the same small request with 40k and 140k of context would tell. It costs a few cents but is a paid call, so only with permission |
 | Priority service tier (`service_tier`) | Whether it is available and how much faster it is is unknown | Also needs a paid measurement |
 | Parallel work | Deferred | Consider parallel research once the OpenAI usage tier and the TPM limit are higher |
-| Usage of cut-off turns | Turns ended by a timeout, a cancel or a crash without a reason record no usage | Decide whether to count them from the session record before the next run, and which job to charge them to |
+| Usage of cut-off turns | Fixed: turns ended by a timeout, a cancel, a SIGTERM or a crash without a reason are counted from the session record and charged to the job that ran them | Jobs from before the fix cannot be restored |
 | Correction of older jobs | WebSocket updates and the research step metrics are not corrected; failed turns cannot be restored | Address if it becomes necessary |
 | Spot interruption handling | Checked with unit tests and synth only | Confirm from the logs at the next real interruption |
 

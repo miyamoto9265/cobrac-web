@@ -188,11 +188,37 @@ export function rateLimitWaitMs(message: string, attempt: number): number {
   return Math.min(RATE_LIMIT_MAX_WAIT_MS, Math.max(Math.ceil(hinted) + 5_000, RATE_LIMIT_MIN_WAIT_MS * 2 ** attempt));
 }
 
+/**
+ * The usage of the turn that is running, for a turn that never returns: cut off by a cancel or the research time budget,
+ * a `codex exec` that dies without a failed turn, a SIGTERM, or the run-time limit. Whichever of those paths comes first
+ * takes it, so the turn is counted once.
+ */
+export class InFlightTurn {
+  private measure: (() => TurnUsage) | null = null;
+
+  start(measure: () => TurnUsage): void {
+    this.measure = measure;
+  }
+
+  end(): void {
+    this.measure = null;
+  }
+
+  /** The running turn's usage so far, read from the session file; null when no turn is running or it was taken already. */
+  take(): TurnUsage | null {
+    const m = this.measure;
+    this.measure = null;
+    return m ? m() : null;
+  }
+}
+
 export interface RunTurnOptions {
   /** Pause between rate-limit retries (tests); rejects when the signal aborts */
   sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
   /** The thread's running token total so far (tests); default: `sessionTotalUsage` */
   threadTotal?: (threadId: string) => TurnUsage | null;
+  /** Registered while the turn runs; cleared when `runTurn` returns (it then reports the usage itself) */
+  inFlight?: InFlightTurn;
 }
 
 /** Stream state of one Codex run; `error` events alone do not fail a turn that completes. */
@@ -207,7 +233,8 @@ interface TurnState {
 /**
  * Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause.
  * `turn.completed` carries the thread's running total (also after a resume in a new process), so the turn's own usage
- * is that total minus the total before the turn. A turn that never completes is measured from the session file.
+ * is that total minus the total before the turn. A turn that never completes is measured from the session file; one
+ * that throws (cancel, time budget, crash) leaves that measurement in `o.inFlight` for the caller to count.
  */
 export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
   const result: TurnResult = {
@@ -223,6 +250,10 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
   const before = thread.id ? threadTotal(thread.id) : null;
   if (thread.id && !before) console.warn(`[worker] no token total found for thread ${thread.id}; this turn's usage may include earlier turns`);
   let after: TurnUsage | null = null;
+  o.inFlight?.start(() => {
+    const id = thread.id ?? result.threadId;
+    return id ? turnUsage(threadTotal(id), before) : { ...NO_USAGE };
+  });
 
   let input = prompt;
   for (let attempt = 0; ; attempt++) {
@@ -259,6 +290,7 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
     result.finalMessage = "";
   }
 
+  o.inFlight?.end();
   if (!after && result.threadId) after = threadTotal(result.threadId);
   result.usage = turnUsage(after, before);
 
