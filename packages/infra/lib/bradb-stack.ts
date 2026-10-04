@@ -33,10 +33,24 @@ export class BraDbStack extends Stack {
   constructor(scope: Construct, id: string, props: StackProps = {}) {
     super(scope, id, props);
 
+    // CDK's default NAT script runs `yum install` (killed for memory on a t4g.nano) and `route` (not on AL2023)
+    const natUserData = ec2.UserData.forLinux();
+    natUserData.addCommands(
+      "set -eux",
+      "if ! swapon --show | grep -q /swapfile; then fallocate -l 512M /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile; fi",
+      "for i in 1 2 3 4 5; do dnf install -y iptables-services && break; sleep 15; done",
+      "systemctl enable --now iptables",
+      "echo 'net.ipv4.ip_forward=1' > /etc/sysctl.d/90-nat.conf && sysctl -p /etc/sysctl.d/90-nat.conf",
+      "IF=$(ip route show default | awk '{print $5; exit}')",
+      'iptables -t nat -C POSTROUTING -o "$IF" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o "$IF" -j MASQUERADE',
+      "iptables -F FORWARD",
+      "service iptables save",
+    );
     const nat = ec2.NatProvider.instanceV2({
-      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.NANO),
+      instanceType: ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       machineImage: ec2.MachineImage.latestAmazonLinux2023({ cpuType: ec2.AmazonLinuxCpuType.ARM_64 }),
       defaultAllowedTraffic: ec2.NatTrafficDirection.OUTBOUND_ONLY,
+      userData: natUserData,
     });
     const vpc = new ec2.Vpc(this, "Vpc", {
       ipAddresses: ec2.IpAddresses.cidr("10.42.0.0/24"),
@@ -50,6 +64,9 @@ export class BraDbStack extends Stack {
       gatewayEndpoints: { S3: { service: ec2.GatewayVpcEndpointAwsService.S3 } },
     });
     nat.connections.allowFrom(ec2.Peer.ipv4(vpc.vpcCidrBlock), ec2.Port.allTraffic(), "outbound traffic of the private subnet");
+    // a NAT instance runs its user data only once: a new logical ID replaces it whenever its setup changes
+    const natInstance = vpc.publicSubnets[0].node.findChild("NatInstance").node.defaultChild as ec2.CfnInstance;
+    natInstance.overrideLogicalId("NatInstanceMicro");
 
     const secret = (name: string, username: string) =>
       new secretsmanager.Secret(this, name, {

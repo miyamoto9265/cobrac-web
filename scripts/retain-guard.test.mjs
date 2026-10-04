@@ -93,6 +93,9 @@ test("guards the BRA-DB instance and its data volume in the BraDb stack", () => 
     "[-] AWS::EC2::Volume DataVolume DataVolume1234 orphan",
     "[~] AWS::EC2::VolumeAttachment DataVolumeAttachment DataVolumeAttachment1 replace",
     "[~] AWS::Lambda::Function ImportFn ImportFn1234",
+    // the NAT instance holds no data and may be replaced
+    "[-] AWS::EC2::Instance Vpc/publicSubnet1/NatInstance VpcpublicSubnet1NatInstance6B5DA608 destroy",
+    "[~] AWS::EC2::Instance Vpc/publicSubnet1/NatInstance NatInstanceMicro replace",
     "Stack CobracAgents",
   ].join("\n");
   assert.deepEqual(findRetainRisks(text), {

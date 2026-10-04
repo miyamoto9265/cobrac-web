@@ -97,7 +97,7 @@ BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6; design spec 6.21) runs in i
 | Resource | Settings |
 | -------- | -------- |
 | VPC | `10.42.0.0/24`, one AZ: a private subnet (instance, registration Lambda) and a public subnet that only holds the NAT instance. S3 gateway endpoint (free) |
-| NAT instance | t4g.nano, Amazon Linux 2023 (`NatProvider.instanceV2`), outbound only: package updates, Secrets Manager, SSM. Accepts traffic from the VPC only. A NAT Gateway would cost about $45/month more |
+| NAT instance | t4g.micro, Amazon Linux 2023 (`NatProvider.instanceV2` with its own setup script: swap, `iptables-services`, IP forwarding, masquerade; CDK's default script is killed for memory on a t4g.nano), outbound only: package updates, Secrets Manager, SSM. Accepts traffic from the VPC only. A NAT instance runs its user data once, so the stack gives it a new logical ID when its setup changes (it holds no data; the RETAIN guard does not cover it). A NAT Gateway would cost about $40/month more |
 | EC2 `Db` | t4g.small, Ubuntu 24.04 arm64 (AMI pinned in `packages/infra/lib/bradb-stack.ts`), root gp3 16 GB encrypted, IMDSv2, termination protection, no SSH (SSM Session Manager). Security group: 5432 from the registration Lambda only |
 | Data volume | gp3 20 GB encrypted, **RETAIN**, attached as `/dev/sdf` and mounted at `/srv/bradb` (the cluster's data directory) |
 | Snapshots | Data Lifecycle Manager: daily at 18:00 UTC, 7 kept (tag `bradb-backup=daily`) |
@@ -197,13 +197,13 @@ Tokyo on-demand prices, October 2026; the data is a few MB, so storage and trans
 | Item | Monthly (USD) |
 | ---- | ------------- |
 | EC2 t4g.small (730 h × $0.0216) | 15.8 |
-| NAT instance t4g.nano (730 h × $0.0054) | 3.9 |
+| NAT instance t4g.micro (730 h × $0.0108) | 7.9 |
 | Public IPv4 of the NAT instance (730 h × $0.005) | 3.7 |
 | EBS gp3: root 16 GB + data 20 GB + NAT 8 GB ($0.096/GB) | 4.2 |
 | Snapshots (7 daily, incremental, a few GB) | 0.3 |
 | Secrets Manager (3 secrets × $0.40) | 1.2 |
 | Lambda, CloudWatch Logs, data transfer | < 0.5 |
-| **Total** | **about 30 (about ¥4,500)** |
+| **Total** | **about 34 (about ¥5,100)** |
 
 A 1-year Compute Savings Plan lowers the two instances by about 30 %. Stopping the instance at night is possible but saves only about $8 and makes registration unavailable.
 
@@ -227,7 +227,7 @@ Jobs of approved users without their own key run on the default API key, the org
 | 50 jobs/month and Spot is unhealthy | $15–25 | A $30 Budget can detect this |
 | Change to include NAT | above +$32~ | Not recommended |
 | Always-on t3.medium | around $30 | Still billed while waiting. This architecture is cheaper |
-| BRA-DB stack (always on) | +about $30 | §5.5; `COBRAC_BRADB=false` leaves it out |
+| BRA-DB stack (always on) | +about $34 | §5.5; `COBRAC_BRADB=false` leaves it out |
 
 ---
 
@@ -323,7 +323,7 @@ work branch ── PR ── ci.yml (no AWS credentials) ── merge ──▶ 
 | Workflow permissions | Default `read`. `id-token: write` only on the deploy job, `contents: write` only on the tag job, none on the health job |
 | Settings | Actions Variables and Secret `COBRAC_ADMIN_EMAILS` (§9). Validated before any AWS call; admin addresses are masked in the log |
 | Approval | Merging a PR that bumps the version (`npm run release -- <patch/minor/major> --no-git`) |
-| RETAIN guard | `scripts/retain-guard.mjs` reads `cdk diff` of `CobracAgents` and `BraDb`. Replace / may be replaced / destroy / orphan / removal of `AWS::DynamoDB::Table`, `AWS::DynamoDB::GlobalTable`, `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::Cognito::UserPool`, and of the BRA-DB `AWS::EC2::Instance`, `AWS::EC2::Volume`, `AWS::EC2::VolumeAttachment` stops the job before deploy. To proceed after review: `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` |
+| RETAIN guard | `scripts/retain-guard.mjs` reads `cdk diff` of `CobracAgents` and `BraDb`. Replace / may be replaced / destroy / orphan / removal of `AWS::DynamoDB::Table`, `AWS::DynamoDB::GlobalTable`, `AWS::S3::Bucket`, `AWS::KMS::Key`, `AWS::Cognito::UserPool`, and of the BRA-DB instance, data volume and their attachment (`AWS::EC2::Instance` `Db`, `AWS::EC2::Volume` `DataVolume`, `AWS::EC2::VolumeAttachment`; matched by construct path, so the NAT instance can be replaced) stops the job before deploy. To proceed after review: `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` |
 | Serialisation | `concurrency: deploy-cobrac-agents`, runs never cancelled mid-deploy |
 | Actions | Pinned by commit SHA |
 

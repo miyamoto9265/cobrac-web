@@ -19,11 +19,19 @@ export const GUARDED_TYPES = [
   "AWS::S3::Bucket",
   "AWS::KMS::Key",
   "AWS::Cognito::UserPool",
-  // BraDb stack: the cluster lives on the volume; replacing the instance or the attachment needs a manual detach
-  "AWS::EC2::Instance",
-  "AWS::EC2::Volume",
-  "AWS::EC2::VolumeAttachment",
 ];
+
+/**
+ * BraDb stack: the BRA-DB instance, its data volume and the attachment (the cluster lives on the volume; replacing
+ * the instance or the attachment needs a manual detach). Matched by construct path, so stateless EC2 resources such
+ * as the NAT instance can be replaced.
+ */
+export const GUARDED_PATHS = [
+  { type: "AWS::EC2::Instance", path: /^Db / },
+  { type: "AWS::EC2::Volume", path: /^DataVolume / },
+  { type: "AWS::EC2::VolumeAttachment", path: /^DataVolumeAttachment / },
+];
+const isGuarded = (type, resource) => GUARDED_TYPES.includes(type) || GUARDED_PATHS.some((g) => g.type === type && g.path.test(resource));
 
 const STACK = "CobracAgents";
 // `[~] AWS::Type construct/path LogicalId <impact>` — impact wording from the aws-cdk diff formatter
@@ -42,7 +50,7 @@ export function findRetainRisks(diffText) {
     const m = RESOURCE_LINE.exec(line.trimEnd());
     if (!m) continue;
     const [, symbol, type, resource, impact] = m;
-    if (!GUARDED_TYPES.includes(type)) continue;
+    if (!isGuarded(type, resource)) continue;
     const change = impact ?? (symbol === "-" ? "remove" : "");
     if (change) risks.push({ type, resource, change });
   }
