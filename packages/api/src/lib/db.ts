@@ -125,6 +125,19 @@ export async function nextProjectSeq(userId: string): Promise<number> {
   return Number(r.Attributes?.projectSeq);
 }
 
+/** The user registered with this e-mail address (case-insensitive); a Scan, as there is no e-mail index (few users). */
+export async function findUserByEmail(email: string): Promise<UserRecord | null> {
+  const want = email.trim().toLowerCase();
+  if (!want) return null;
+  return (await listUsers()).find((u) => (u.email ?? "").trim().toLowerCase() === want) ?? null;
+}
+
+/** Every job recorded under this ID, whoever started it (a Canon's AI reviews are run by its owner and co-editors). */
+export async function listJobsForCanon(canonId: string): Promise<JobRecord[]> {
+  const r = await ddb.send(new QueryCommand({ TableName: env.tables.jobs, KeyConditionExpression: "projectId = :p", ExpressionAttributeValues: { ":p": canonId } }));
+  return (r.Items as JobRecord[]) ?? [];
+}
+
 export async function listUsers(): Promise<UserRecord[]> {
   const r = await ddb.send(new ScanCommand({ TableName: env.tables.users }));
   return (r.Items as UserRecord[]) ?? [];

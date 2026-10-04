@@ -1,4 +1,5 @@
 import type {
+  CanonEditorSummary,
   CanonAiState,
   CanonPrEventRecord,
   CanonPullDetailResponse,
@@ -134,6 +135,8 @@ export const api = {
   updateCanon: (id: string, b: UpdateCanonRequest) => request<CanonRecord>("PUT", `/canons/${encodeURIComponent(id)}`, b),
   deleteCanon: (id: string) => request<{ canonId: string; deletedAt: string }>("DELETE", `/canons/${encodeURIComponent(id)}`),
   addCanonMember: (id: string, projectId: string) => request<{ projectId: string; canonId: string }>("POST", `/canons/${encodeURIComponent(id)}/members`, { projectId }),
+  addCanonEditor: (id: string, email: string) => request<CanonEditorSummary>("POST", `/canons/${encodeURIComponent(id)}/editors`, { email }),
+  removeCanonEditor: (id: string, userId: string) => request<{ ok: true }>("DELETE", `/canons/${encodeURIComponent(id)}/editors/${encodeURIComponent(userId)}`),
   removeCanonMember: (id: string, projectId: string) =>
     request<{ ok: true }>("DELETE", `/canons/${encodeURIComponent(id)}/members/${encodeURIComponent(projectId)}`),
 

@@ -1,9 +1,11 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { randomBytes } from "node:crypto";
-import type { CanonMemberRecord, CanonOutgoingRecord, CanonPrEvent, CanonPrEventRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
+import type { CanonEditorRecord, CanonMemberRecord, CanonOutgoingRecord, CanonPrEvent, CanonPrEventRecord, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CanonRevisionSummary } from "@cobrac/shared";
 import {
+  CANON_EDITOR_PREFIX,
   CANON_MEMBER_PREFIX,
   CANON_META_SK,
+  canonEditorSk,
   CANON_OUT_PREFIX,
   CANON_PR_PREFIX,
   CANON_REVISION_PREFIX,
@@ -89,7 +91,15 @@ export const listCanonMembers = (canonId: string) => queryPrefix<CanonMemberReco
 export async function listCanonRevisions(canonId: string): Promise<CanonRevisionSummary[]> {
   const items = await queryPrefix<CanonRevisionRecord>(canonId, CANON_REVISION_PREFIX);
   return items
-    .map((r) => ({ revision: r.revision, createdAt: r.createdAt, prNo: r.prNo, source: r.source, circuitCount: r.circuitCount, connectionCount: r.connectionCount }))
+    .map((r) => ({
+      revision: r.revision,
+      createdAt: r.createdAt,
+      prNo: r.prNo,
+      source: r.source,
+      circuitCount: r.circuitCount,
+      connectionCount: r.connectionCount,
+      ...(r.approvedByName ? { approvedByName: r.approvedByName, approvedAt: r.approvedAt } : {}),
+    }))
     .sort((a, b) => b.revision - a.revision);
 }
 
@@ -290,4 +300,35 @@ export async function putPrEvent(canonId: string, prNo: number, e: Omit<CanonPrE
 
 export async function listPrEvents(canonId: string, prNo: number): Promise<CanonPrEventRecord[]> {
   return (await queryPrefix<CanonPrEventRecord>(canonId, canonPrEventPrefix(prNo))).sort((a, b) => (a.sk < b.sk ? -1 : 1));
+}
+
+// --- co-editors -------------------------------------------------------------------
+
+export async function getCanonEditor(canonId: string, userId: string): Promise<CanonEditorRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonEditorSk(userId) } }));
+  return (r.Item as CanonEditorRecord) ?? null;
+}
+
+export const listCanonEditors = (canonId: string) => queryPrefix<CanonEditorRecord>(canonId, CANON_EDITOR_PREFIX);
+
+/** false when the user already is a co-editor */
+export async function putCanonEditor(e: CanonEditorRecord): Promise<boolean> {
+  try {
+    await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: e, ConditionExpression: "attribute_not_exists(sk)" }));
+    return true;
+  } catch (err) {
+    if (isConditionFailure(err)) return false;
+    throw err;
+  }
+}
+
+/** false when the user was not a co-editor */
+export async function deleteCanonEditor(canonId: string, userId: string): Promise<boolean> {
+  try {
+    await ddb.send(new DeleteCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonEditorSk(userId) }, ConditionExpression: "attribute_exists(sk)" }));
+    return true;
+  } catch (err) {
+    if (isConditionFailure(err)) return false;
+    throw err;
+  }
 }

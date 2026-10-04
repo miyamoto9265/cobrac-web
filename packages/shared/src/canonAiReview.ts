@@ -264,9 +264,12 @@ export interface CanonPullDetailResponse {
   diff: CanonDiff | null;
   headRevision: number;
   targetName: string;
+  /** Owner or co-editor of the target Canon */
   canReview: boolean;
   canWithdraw: boolean;
   canComment: boolean;
+  /** null: the sender of a Canon → Canon pull request who has no role in the target */
+  viewerRole: "owner" | "editor" | "admin" | null;
   checks: ReviewReport | null;
   entries: Record<string, ReviewEntry>;
   graph: ReviewGraph | null;

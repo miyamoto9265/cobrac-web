@@ -22,6 +22,38 @@ const sourceLink = (source: string) => {
 };
 
 type Tab = "changes" | "checks" | "ai" | "trail";
+
+/** Who decided the pull request (or asked for changes), when, and with what note. */
+function DecisionBanner({ data }: { data: CanonPullDetailResponse }) {
+  const t = useT();
+  const { locale } = useI18n();
+  const pr = data.pr;
+  const last = (type: string) => [...data.events].reverse().find((e) => e.type === type);
+  const show = (kind: "approved" | "rejected" | "withdrawn" | "changes_requested", name: string | null | undefined, at: string | null | undefined, note: string | null | undefined) => {
+    const cls = { approved: "border-emerald-200 bg-emerald-50 text-emerald-800", rejected: "border-rose-200 bg-rose-50 text-rose-800", withdrawn: "border-slate-200 bg-slate-50 text-slate-700", changes_requested: "border-amber-200 bg-amber-50 text-amber-900" }[kind];
+    const Icon = { approved: Check, rejected: X, withdrawn: Undo2, changes_requested: Undo2 }[kind];
+    return (
+      <div className={`mb-3 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${cls}`} data-testid="decision-banner">
+        <Icon size={16} className="mt-0.5 shrink-0" />
+        <div className="min-w-0">
+          <div>
+            <span className="font-medium">{t(`ed.decided.${kind}` as MessageKey, { name: name || "—", rev: pr.mergedRevision ?? "" })}</span>
+            {at && <span className="ml-2 text-xs opacity-80">{fmtDate(at, locale)}</span>}
+          </div>
+          {note && <div className="mt-0.5 whitespace-pre-wrap break-words text-xs">{note}</div>}
+        </div>
+      </div>
+    );
+  };
+  if (pr.state === "approved") return show("approved", pr.decidedByName ?? last("approved")?.actorName, pr.decidedAt, pr.reason);
+  if (pr.state === "rejected") return show("rejected", pr.decidedByName ?? last("rejected")?.actorName, pr.decidedAt, pr.reason);
+  if (pr.state === "withdrawn") return show("withdrawn", pr.decidedByName ?? last("withdrawn")?.actorName, pr.decidedAt, null);
+  if (pr.state === "open" && pr.reviewState === "changes_requested") {
+    const e = last("changes_requested");
+    return show("changes_requested", pr.reviewedByName ?? e?.actorName, pr.reviewedAt ?? e?.at, pr.reviewNote);
+  }
+  return null;
+}
 const AI_POLL_MS = 5000;
 
 /**
@@ -164,7 +196,7 @@ export function CanonPullPage() {
         <div className={`max-w-7xl ${review ? "pb-44 lg:pb-0" : ""}`}>
           <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold">
             <GitPullRequest size={20} className="shrink-0" /> {data.targetName} #{pr.prNo}
-            {pr.source.startsWith("project:") || data.canWithdraw ? (
+            {(pr.source.startsWith("project:") && data.viewerRole === "owner") || data.canWithdraw ? (
               <Link to={sourceLink(pr.source)} className="min-w-0 break-words text-blue-700 hover:underline">
                 ← {pr.sourceName}
               </Link>
@@ -182,6 +214,7 @@ export function CanonPullPage() {
             {pr.mergedRevision ? <span>· {t("pr.merged", { n: pr.mergedRevision })}</span> : null}
             <HelpLink section="push" />
           </div>
+          <DecisionBanner data={data} />
           {diff && <DiffSummary diff={diff} />}
           {diff && diff.skipped.length > 0 && <div className="mt-2 text-xs text-amber-700">{t("pr.skipped", { ids: diff.skipped.join(", ") })}</div>}
 

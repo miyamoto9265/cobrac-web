@@ -59,6 +59,7 @@ function detail(ai: CanonAiState | null = null): CanonPullDetailResponse {
     canReview: true,
     canWithdraw: true,
     canComment: true,
+    viewerRole: "owner",
     checks: canonReviewChecks(base, inc, diff),
     entries: reviewEntries(base, inc, diff),
     graph: reviewGraph(base, inc, diff),
@@ -112,6 +113,27 @@ afterEach(async () => {
 });
 
 describe("Canon PR review page", () => {
+  it("shows who decided the pull request and when", async () => {
+    const d = detail();
+    d.pr = { ...d.pr, state: "approved", decidedBy: "bob", decidedByName: "Bob", decidedAt: now, mergedRevision: 2, approvals: [{ userId: "bob", name: "Bob", at: now }] };
+    api.canonPull.mockResolvedValue(d);
+    await render();
+    expect($('[data-testid="decision-banner"]')!.textContent).toContain("Approved by Bob → rev 2");
+    expect($('[data-testid="review-decision"]')).toBeNull();
+  });
+
+  it("shows who requested changes on an open pull request", async () => {
+    const d = detail();
+    d.pr = { ...d.pr, reviewState: "changes_requested", reviewNote: "Split A22c", reviewedBy: "bob", reviewedByName: "Bob", reviewedAt: now };
+    d.viewerRole = "editor";
+    api.canonPull.mockResolvedValue(d);
+    await render();
+    expect($('[data-testid="decision-banner"]')!.textContent).toContain("Changes requested by Bob");
+    expect($('[data-testid="decision-banner"]')!.textContent).toContain("Split A22c");
+    // a co-editor reviews like the owner
+    expect($('[data-testid="review-decision"]')).not.toBeNull();
+  });
+
   it("shows the graph and the structured diff, and keeps approval blocked until the conflicts are decided", async () => {
     api.canonPull.mockResolvedValue(detail());
     await render();

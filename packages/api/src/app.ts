@@ -98,6 +98,12 @@ import {
   blockingConflicts,
   buildCanonAiPacket,
   canonAiReviewKey,
+  canonEditorSk,
+  requiredApprovals,
+  type CanonApproval,
+  type CanonEditorRecord,
+  type CanonEditorSummary,
+  type CanonRole,
   canonReviewChecks,
   parseReviewItemId,
   reviewEntries,
@@ -174,7 +180,9 @@ import {
   getUser,
   listAllJobs,
   listAllProjects,
+  listJobsForCanon,
   listJobsForProject,
+  findUserByEmail,
   listMessages,
   listProjects,
   listUserProjects,
@@ -202,6 +210,10 @@ import {
   listPullRequests,
   listPrEvents,
   putPrEvent,
+  deleteCanonEditor,
+  getCanonEditor,
+  listCanonEditors,
+  putCanonEditor,
   putOutgoing,
   nextPrNumber,
   putCanonRevision,
@@ -396,8 +408,9 @@ app.get("/users/me/usage", async (c) => {
     });
   }
   // AI reviews of pull requests run as jobs of the reviewer's Canons
-  for (const canon of await listOwnCanons(u.userId)) {
-    for (const j of await listJobsForProject(canon.canonId, u.userId)) {
+  const reviewCanons = new Set([...(await listOwnCanons(u.userId)).map((x) => x.canonId), ...(u.editorCanons ?? [])]);
+  for (const canonId of reviewCanons) {
+    for (const j of await listJobsForProject(canonId, u.userId)) {
       if (j.type !== "canon-review" || !j.usage) continue;
       const m = j.model ?? "(unknown)";
       const e = byModel.get(m) ?? { usage: EMPTY_USAGE, cost: 0, unpriced: false, jobs: 0 };
@@ -1085,12 +1098,25 @@ app.delete("/projects/:id/graph/:kind/layout", async (c) => {
 // Canons (a set of the owner's projects whose circuit definitions must agree)
 // ---------------------------------------------------------------------------
 
-/** The caller's own, not-deleted Canon (admins may read any); anything else is 404. */
-async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean } = {}): Promise<CanonRecord> {
+async function canonRoleOf(u: UserRecord, canon: CanonRecord): Promise<CanonRole | null> {
+  if (canon.ownerUserId === u.userId) return "owner";
+  if (await getCanonEditor(canon.canonId, u.userId)) return "editor";
+  return u.role === "admin" ? "admin" : null;
+}
+
+/**
+ * A not-deleted Canon the caller may use; anything else is 404. `write`: the owner only (settings, members,
+ * co-editors, visibility, deletion). `review`: the owner or a co-editor (decide, comment, AI review). Otherwise
+ * the owner, a co-editor or an admin may read it.
+ */
+async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean; review?: boolean } = {}): Promise<CanonRecord> {
   if (!isCanonId(canonId)) throw notFound();
   const canon = await getCanon(canonId);
   if (!canon || isCanonDeleted(canon)) throw notFound();
-  if (canon.ownerUserId !== u.userId && (opts.write || u.role !== "admin")) throw notFound();
+  if (canon.ownerUserId === u.userId) return canon;
+  if (opts.write) throw notFound();
+  const role = await canonRoleOf(u, canon);
+  if (!role || (opts.review && role !== "editor")) throw notFound();
   return canon;
 }
 
@@ -1116,7 +1142,13 @@ function canonFields(body: CreateCanonRequest | UpdateCanonRequest, partial: boo
 app.get("/canons", async (c) => {
   const u = c.get("user");
   const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  return c.json({ items });
+  const shared: (CanonRecord & { ownerName: string })[] = [];
+  for (const id of u.editorCanons ?? []) {
+    const canon = isCanonId(id) ? await getCanon(id) : null;
+    if (!canon || isCanonDeleted(canon) || !(await getCanonEditor(id, u.userId))) continue;
+    shared.push({ ...canon, ownerName: actorName(await getUser(canon.ownerUserId)) });
+  }
+  return c.json({ items, shared });
 });
 
 app.post("/canons", async (c) => {
@@ -1159,8 +1191,60 @@ app.get("/canons/:id", async (c) => {
     });
   }
   members.sort((a, b) => (a.joinedAt < b.joinedAt ? -1 : 1));
-  const res: CanonDetailResponse = { canon, members };
+  const role = (await canonRoleOf(u, canon))!;
+  const editors = await editorSummaries(canon, role === "owner");
+  const owner = canon.ownerUserId === u.userId ? u : await getUser(canon.ownerUserId);
+  const res: CanonDetailResponse = { canon, members, role, editors, ownerName: actorName(owner) };
   return c.json(res);
+});
+
+/** Co-editors with their current display names; the e-mail address only for the owner. */
+async function editorSummaries(canon: CanonRecord, withEmail: boolean): Promise<CanonEditorSummary[]> {
+  const out: CanonEditorSummary[] = [];
+  for (const e of await listCanonEditors(canon.canonId)) {
+    const user = await getUser(e.userId);
+    out.push({ userId: e.userId, name: actorName(user) || e.name, ...(withEmail ? { email: e.email } : {}), addedAt: e.addedAt });
+  }
+  return out.sort((a, b) => (a.addedAt < b.addedAt ? -1 : 1));
+}
+
+async function setEditorCanon(userId: string, canonId: string, on: boolean) {
+  const user = await getUser(userId);
+  if (!user) return;
+  const list = new Set(user.editorCanons ?? []);
+  if (on) list.add(canonId);
+  else list.delete(canonId);
+  await updateUser(userId, { editorCanons: [...list] });
+}
+
+/**
+ * The owner adds a co-editor by the e-mail address the person signed up with (an existing user; there are no
+ * e-mail invitations). Co-editors review pull requests; the Canon stays the owner's.
+ */
+app.post("/canons/:id/editors", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const { email } = (await c.req.json().catch(() => ({}))) as { email?: unknown };
+  if (typeof email !== "string" || !/^[^@\s]+@[^@\s]+$/.test(email.trim())) throw bad("メールアドレスを入力してください");
+  const user = await findUserByEmail(email);
+  if (!user || user.disabled) throw new HTTPException(404, { message: "このメールアドレスで登録したユーザーがいません。先に CoBRAC Agents にサインアップしてもらってから追加してください" });
+  if (user.userId === canon.ownerUserId) throw bad("所有者は共同編集者に追加できません");
+  const rec: CanonEditorRecord = { canonId: canon.canonId, sk: canonEditorSk(user.userId), userId: user.userId, name: actorName(user), email: user.email, addedBy: u.userId, addedAt: nowIso() };
+  if (!(await putCanonEditor(rec))) throw new HTTPException(409, { message: "このユーザーは既に共同編集者です" });
+  await setEditorCanon(user.userId, canon.canonId, true);
+  const res: CanonEditorSummary = { userId: rec.userId, name: rec.name, email: rec.email, addedAt: rec.addedAt };
+  return c.json(res, 201);
+});
+
+/** The owner removes a co-editor, or a co-editor leaves. */
+app.delete("/canons/:id/editors/:userId", async (c) => {
+  const u = c.get("user");
+  const target = c.req.param("userId");
+  const canon = await loadCanon(u, c.req.param("id"));
+  if (canon.ownerUserId !== u.userId && target !== u.userId) throw notFound();
+  if (!(await deleteCanonEditor(canon.canonId, target))) throw notFound();
+  await setEditorCanon(target, canon.canonId, false);
+  return c.json({ ok: true });
 });
 
 app.put("/canons/:id", async (c) => {
@@ -1421,15 +1505,18 @@ async function loadPr(canon: CanonRecord, no: string): Promise<CanonPullRequestR
   return pr;
 }
 
-/** Owner (and admins) of the target Canon, or whoever sent the pull request (a Canon → Canon PR of another user). */
-async function loadPrForViewer(u: UserRecord, canonId: string, no: string): Promise<{ canon: CanonRecord; pr: CanonPullRequestRecord; isOwner: boolean }> {
+/**
+ * Owner, co-editors (and admins) of the target Canon, or whoever sent the pull request (a Canon → Canon PR of
+ * another user). `isOwner` here means "may review": the owner or a co-editor.
+ */
+async function loadPrForViewer(u: UserRecord, canonId: string, no: string): Promise<{ canon: CanonRecord; pr: CanonPullRequestRecord; isOwner: boolean; role: CanonRole | null }> {
   if (!isCanonId(canonId)) throw notFound();
   const canon = await getCanon(canonId);
   if (!canon || isCanonDeleted(canon)) throw notFound();
   const pr = await loadPr(canon, no);
-  const isOwner = canon.ownerUserId === u.userId;
-  if (!isOwner && pr.createdBy !== u.userId && u.role !== "admin") throw notFound();
-  return { canon, pr, isOwner };
+  const role = await canonRoleOf(u, canon);
+  if (!role && pr.createdBy !== u.userId) throw notFound();
+  return { canon, pr, isOwner: role === "owner" || role === "editor", role };
 }
 
 /** Where the PR comes from and whether that source still exists (and has moved on) now. */
@@ -1463,9 +1550,9 @@ async function prReviewMaterial(canon: CanonRecord, pr: CanonPullRequestRecord) 
 
 app.get("/canons/:id/pulls/:no", async (c) => {
   const u = c.get("user");
-  const { canon, pr, isOwner } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
+  const { canon, pr, isOwner, role } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
   const m = await prReviewMaterial(canon, pr);
-  const [events, jobs] = await Promise.all([listPrEvents(canon.canonId, pr.prNo), listJobsForProject(canon.canonId, canon.ownerUserId)]);
+  const [events, jobs] = await Promise.all([listPrEvents(canon.canonId, pr.prNo), listJobsForCanon(canon.canonId)]);
   const reviews = reviewJobsOf(jobs, pr.prNo);
   const names = new Map<string, string>();
   for (const id of new Set([pr.createdBy, pr.decidedBy].filter((x): x is string => !!x))) names.set(id, actorName(id === u.userId ? u : await getUser(id)));
@@ -1483,6 +1570,7 @@ app.get("/canons/:id/pulls/:no", async (c) => {
     canReview: isOwner,
     canWithdraw: pr.createdBy === u.userId,
     canComment: isOwner || pr.createdBy === u.userId,
+    viewerRole: role,
     checks: m.checks,
     entries: m.entries,
     graph: m.graph,
@@ -1523,13 +1611,14 @@ app.post("/canons/:id/pulls/:no/comments", async (c) => {
 
 app.post("/canons/:id/pulls/:no/request-changes", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
   const pr = await loadPr(canon, c.req.param("no"));
   if (pr.state !== "open") throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   const { note } = (await c.req.json().catch(() => ({}))) as { note?: unknown };
   const text = reviewNote(note, true, "依頼する変更を書いてください");
-  await updatePullRequest(canon.canonId, pr.prNo, { reviewState: "changes_requested", reviewNote: text });
-  await putPrEvent(canon.canonId, pr.prNo, { type: "changes_requested", actor: u.userId, actorName: actorName(u), note: text });
+  const at = nowIso();
+  await updatePullRequest(canon.canonId, pr.prNo, { reviewState: "changes_requested", reviewNote: text, reviewedBy: u.userId, reviewedByName: actorName(u), reviewedAt: at });
+  await putPrEvent(canon.canonId, pr.prNo, { type: "changes_requested", at, actor: u.userId, actorName: actorName(u), note: text });
   return c.json({ ok: true });
 });
 
@@ -1537,7 +1626,7 @@ app.post("/canons/:id/pulls/:no/request-changes", async (c) => {
 app.post("/canons/:id/pulls/:no/ai-review", async (c) => {
   const u = c.get("user");
   const policy = await requireRunKey(u);
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
   const pr = await loadPr(canon, c.req.param("no"));
   if (pr.state !== "open") throw new HTTPException(409, { message: "閉じた取り込み依頼には AI レビューを実行できません" });
   const body = (await c.req.json().catch(() => ({}))) as { model?: unknown; locale?: unknown };
@@ -1546,7 +1635,7 @@ app.post("/canons/:id/pulls/:no/ai-review", async (c) => {
   if (picked && filterCodexModels([picked]).length === 0) throw bad("このモデルは AI レビューに使えません");
   const model = picked ?? implicitModel(policy, deploymentDefaultModel());
   requireModel(policy, model);
-  const jobs = reviewJobsOf(await listJobsForProject(canon.canonId, u.userId), pr.prNo);
+  const jobs = reviewJobsOf(await listJobsForCanon(canon.canonId), pr.prNo);
   if (jobs.some(isActiveJob)) throw new HTTPException(409, { message: "この PR の AI レビューは実行中です" });
   const m = await prReviewMaterial(canon, pr);
   if (!m.diff || !m.incoming || !m.base || !m.checks) throw new HTTPException(409, { message: "この PR の差分を読めません" });
@@ -1592,7 +1681,7 @@ app.post("/canons/:id/pulls/:no/ai-review", async (c) => {
 
 app.post("/canons/:id/pulls/:no/approve", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
   const pr = await loadPr(canon, c.req.param("no"));
   if (pr.state !== "open") throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   const body = (await c.req.json().catch(() => ({}))) as { choices?: Record<string, CanonChoice>; note?: unknown };
@@ -1614,6 +1703,10 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
   const blocking = blockingConflicts(diff, choices);
   if (blocking.length) return c.json({ error: "解決していない衝突があります", blocking, diff }, 409);
   const now = nowIso();
+  const approval: CanonApproval = { userId: u.userId, name: actorName(u), at: now };
+  const approvals = [...(pr.approvals ?? []).filter((a) => a.userId !== u.userId), approval];
+  // one approval is enough for now (requiredApprovals); the list is kept for a future setting
+  if (approvals.length < requiredApprovals(canon)) return c.json({ error: "承認がまだ足りません", approvals }, 409);
   const next = mergeCanon(head, incoming, diff, choices, pr.prNo, now);
   await putCanonJson(canonRevisionKey(canon.canonId, next.revision), next);
   if (!(await advanceCanonHead(canon.canonId, head.revision))) {
@@ -1628,8 +1721,11 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
     createdAt: now,
     circuitCount: next.circuits.length,
     connectionCount: next.connections.length,
+    approvedBy: u.userId,
+    approvedByName: approval.name,
+    approvedAt: now,
   });
-  await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedAt: now, mergedRevision: next.revision, ...(note ? { reason: note } : {}) });
+  await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedByName: approval.name, decidedAt: now, approvals, mergedRevision: next.revision, ...(note ? { reason: note } : {}) });
   await putPrEvent(canon.canonId, pr.prNo, { type: "approved", at: now, actor: u.userId, actorName: actorName(u), note, revision: next.revision, choices });
   // the pushing project follows the revision that contains its own content (Q9)
   if (pr.source.startsWith("project:")) {
@@ -1642,12 +1738,12 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
 
 app.post("/canons/:id/pulls/:no/reject", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
   const pr = await loadPr(canon, c.req.param("no"));
   const { reason } = (await c.req.json().catch(() => ({}))) as { reason?: string };
   const text = reviewNote(reason, true, "却下の理由を書いてください");
   const at = nowIso();
-  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "rejected", decidedBy: u.userId, decidedAt: at, reason: text }))) {
+  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "rejected", decidedBy: u.userId, decidedByName: actorName(u), decidedAt: at, reason: text }))) {
     throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   }
   await putPrEvent(canon.canonId, pr.prNo, { type: "rejected", at, actor: u.userId, actorName: actorName(u), note: text });
@@ -1659,7 +1755,7 @@ app.post("/canons/:id/pulls/:no/withdraw", async (c) => {
   const { canon, pr } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
   if (pr.createdBy !== u.userId) throw notFound();
   const at = nowIso();
-  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "withdrawn", decidedBy: u.userId, decidedAt: at }))) {
+  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "withdrawn", decidedBy: u.userId, decidedByName: actorName(u), decidedAt: at }))) {
     throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   }
   await putPrEvent(canon.canonId, pr.prNo, { type: "withdrawn", at, actor: u.userId, actorName: actorName(u) });
@@ -1706,7 +1802,7 @@ async function loadPrTarget(u: UserRecord, canonId: string): Promise<CanonRecord
   if (!isCanonId(canonId)) throw notFound();
   const canon = await getCanon(canonId);
   if (!canon || isCanonDeleted(canon)) throw notFound();
-  if (canon.ownerUserId === u.userId) return canon;
+  if (canon.ownerUserId === u.userId || (await getCanonEditor(canon.canonId, u.userId))) return canon;
   if (canon.visibility !== "public") throw notFound();
   if (canon.acceptPullRequests === false) throw new HTTPException(403, { message: "この Canon はほかのユーザーからの取り込み依頼を受け付けていません" });
   return canon;
