@@ -152,7 +152,7 @@ export interface ProjectRecord {
   researchMode?: boolean;
   /** BNA/DHBA boundary the HCD validator enforces: `neocortex` on projects created from v0.24.0; absent on older ones (their BNA anchors stay valid) */
   sabraBoundary?: "neocortex";
-  /** Harness rule set the checks follow (`HARNESS_RULES`: ROI elements and side, reused-quote warnings): set on projects created from this rule set; absent on older ones, which are checked as before */
+  /** Harness rule set the checks follow (`HARNESS_RULES`: ROI elements and side, reused-quote warnings): set on projects created from v0.25.0; absent on older ones, which are checked as before */
   harnessRules?: number;
   status: ProjectStatus;
   /** Step that is currently running or the last one completed */

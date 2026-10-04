@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-10-04
+
 ### Added
 - New projects follow three more HCD rules (projects created earlier are checked as before, also in their follow-ups; copies keep the original's rules):
   - Every element of the ROI gets at least one ROI-internal UC of its own. The agent lists the ROI's elements and their UCs in `meta.json` (`roiElements`), and the check sends back an element that shares its only UC with another (for example one UC for both the VWFA and the posterior fusiform gyrus), a ROI-internal UC that belongs to no element, and an ROI that names more regions than it lists
