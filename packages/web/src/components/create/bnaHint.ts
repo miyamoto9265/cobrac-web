@@ -1,4 +1,4 @@
-import { BNA_AREAS } from "@cobrac/shared";
+import { BNA_AREAS, bnaLabelIsNeocortex } from "@cobrac/shared";
 
 export interface BnaHint {
   /** Left label ID (odd); the right one is +1 */
@@ -11,12 +11,14 @@ export interface BnaHint {
 /**
  * Brainnetome areas that match what was typed as the ROI: area abbreviation, gyrus (L2) abbreviation or words of the
  * area name. Only short Latin-script input is matched (the atlas names are English); anything else gives no hints.
+ * Only neocortical areas are offered: the other BNA areas (subcortical, hippocampus, entorhinal) are not SABRA units.
  */
 export function bnaHints(input: string, limit = 6): BnaHint[] {
   const q = input.trim().toLowerCase();
   if (q.length < 2 || q.length > 40 || !/^[\x20-\x7e]+$/.test(q)) return [];
   const scored: [number, BnaHint][] = [];
   for (const [left, abbr, l2, name] of BNA_AREAS) {
+    if (!bnaLabelIsNeocortex(left)) continue;
     const a = abbr.toLowerCase();
     const g = l2.toLowerCase();
     const n = name.toLowerCase();

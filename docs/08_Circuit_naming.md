@@ -4,7 +4,7 @@
 | ---- | ------- |
 | Document | How CoBRAC names UCs (Uniform Circuits) and Collections: why naming rules were needed, SABRA anchors, the nine facets, the UC Descriptor and the Circuit ID, laterality, how the Canon uses the descriptor, error codes aligned with WBAI's Error code List (Master), and the points to settle with WBAI |
 | Readers | Users, WBAI members who review and merge BRAs, anyone who matches CoBRAC output against other data |
-| Versions | The naming rules came with app 0.7.0. The `side` facet, the Circuit ID character set and separators, and the Master error codes are from 0.17.0 |
+| Versions | The naming rules came with app 0.7.0. The `side` facet, the Circuit ID character set and separators, and the Master error codes are from 0.17.0. The SABRA boundary that uses BNA for the neocortex only is from 0.21.0 (§4.3) |
 | Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) (harness v1.1, where the naming rules were introduced) / [06_Research_mode_and_Canon.md](./06_Research_mode_and_Canon.md) (Canon user guide) / [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) (harness v2) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [08_Circuit_naming_ja.md](./08_Circuit_naming_ja.md) |
 
 ---
@@ -13,7 +13,7 @@
 
 CoBRAC ties every circuit of an HCD to **one SABRA unit (the anchor)**. Populations finer than a SABRA unit (a subregion, a layer, a cell type, a molecular marker, a projection target, one side, and so on) are added after the anchor as **facets**. The anchor and the facets in a fixed order form the **UC Descriptor**, the circuit's unique machine key. The **Circuit ID** is a human-readable alias that is derived mechanically from the descriptor.
 
-For example, the DRD1-positive population of the nucleus accumbens shell has the descriptor `BNA:223-224/part:HOMBA:10341/mol:DRD1+` and the Circuit ID `NAC(shell.DRD1+)` in every project. When two names are the same, the populations are the same, so circuits can be matched across projects; the Canon uses the descriptor as its key.
+For example, the DRD1-positive population of the nucleus accumbens shell has the descriptor `HOMBA:10341/mol:DRD1+` and the Circuit ID `NACs(DRD1+)` in every project. When two names are the same, the populations are the same, so circuits can be matched across projects; the Canon uses the descriptor as its key.
 
 Version 0.17.0 changed three things:
 
@@ -31,7 +31,7 @@ Version 0.17.0 changed three things:
 | ---- | ------- |
 | UC | Uniform Circuit: the smallest mesoscopic neural population that encodes homogeneous information. A node of the HCD |
 | Collection | A circuit the HCD splits into finer UCs (Uniform = FALSE). It has Sub-Circuits and is never the end of a connection |
-| SABRA | The organisation's mixed atlas: BNA (Brainnetome) for the 246 labels of the neocortex (210) and subcortical nuclei (36), DHBA for everything else. SABRA has no IDs of its own |
+| SABRA | The organisation's mixed atlas: BNA (Brainnetome) for the neocortex, DHBA for everything else (subcortical nuclei, the hippocampal formation and other allocortex, brainstem, cerebellum, ...; boundary of 2026-10-04, §4.3). SABRA has no IDs of its own |
 | HOMBA / DHBA / BNA | HOMBA is the human brain ontology. A unit on the DHBA side is a HOMBA term that has a DHBA name. A unit on the BNA side is a BNA label (odd = left, even = right) |
 | RCS | ROSETTA Candidate Search, an MCP server that returns HOMBA and BNA candidates for a name. The agent uses it to find the anchor |
 | Anchor | The SABRA unit a UC is tied to (`HOMBA:<id>`, `BNA:<left>-<right>`, `BNAG:<L2 abbreviation>`, or several joined by `&`) |
@@ -74,12 +74,12 @@ CoBRAC's rules follow these principles.
 | Form | Meaning | Example |
 | ---- | ------- | ------- |
 | `HOMBA:<id>` | A unit on the DHBA side of SABRA; only HOMBA terms that have a DHBA name | `HOMBA:12261` (VTA) |
-| `BNA:<left>-<right>` | One BNA area, always the left-right pair (odd, odd+1) | `BNA:223-224` (NAC) |
-| `BNAG:<L2 abbreviation>` | A whole BNA L2 group (a gyrus, for example), when the RCS distribution is broad and no single area stands out | `BNAG:Hipp` |
+| `BNA:<left>-<right>` | One neocortical BNA area, always the left-right pair (odd, odd+1) | `BNA:57-58` (A4ul) |
+| `BNAG:<L2 abbreviation>` | A whole neocortical BNA L2 group (a gyrus, for example), when the RCS distribution is broad and no single area stands out | `BNAG:MFG` |
 | `A&B` | A circuit that spans several SABRA units | `HOMBA:…&HOMBA:…` |
 
 - There is no `SABRA:` or `DHBA:` prefix, because SABRA has no IDs of its own.
-- A subdivision inside BNA territory (the neocortex and subcortical nuclei) is written as `part:HOMBA:…` under the BNA anchor (the nucleus accumbens shell is `BNA:223-224/part:HOMBA:10341`). The reverse, a BNA area as `part` under a DHBA anchor, is not used.
+- A subdivision inside BNA territory (the neocortex) is written as `part:HOMBA:…` under the BNA anchor. The reverse, a BNA area as `part` under a DHBA anchor, is not used.
 - A region with no DHBA-named term on its path, such as the spinal cord, is not a SABRA unit. Its anchor is the nearest DHBA ancestor that RCS returns, with the finer region in `part`. Such regions can be written freely as projection targets or input sources (`out` / `in`).
 
 ### 4.2 Finding the anchor with RCS
@@ -90,11 +90,30 @@ The agent splits the description of a circuit into the words that name a region 
 | ---------- | ------ | ------ |
 | Exact match on the DHBA side (`relation '='`, `dhba_exact: true`) | That `HOMBA:` term | The non-region words |
 | DHBA side, query finer (`dhba_exact: false` or `relation <`) | The ancestor with a DHBA name that RCS returns (`sabra.dhba_homba_id`) | `part:<matched HOMBA term>` and the non-region words |
-| BNA side (`atlas: BNA`) | The area pair from `search_bna_candidates`; `BNAG:<L2>` when no single area clearly dominates | `part:<HOMBA term>` when the HOMBA term is finer than the BNA area |
+| BNA side (`atlas: BNA`, neocortex) | The area pair from the `search_bna_candidates` results with `sabra.atlas: BNA`; `BNAG:<L2>` when no single area clearly dominates | `part:<HOMBA term>` when the HOMBA term is finer than the BNA area |
 | Query broader (`relation >`) | `A&B`, or the common SABRA ancestor | — |
 | No candidates | Do not guess; ask the user | — |
 
 A single BNA area is chosen when the top candidate has `p_raw` of at least 0.5 and `k_papers` of at least 2 (`prompts/phases/HCD.md`).
+
+### 4.3 The BNA/DHBA boundary (v0.21.0)
+
+On 2026-10-04 the SABRA specification changed: BNA is now used **for the neocortex only**. Until then the 36 subcortical BNA labels (amygdala `Amyg`, hippocampus `Hipp`, basal ganglia `BG`, thalamus `Tha`) and the allocortex (hippocampal formation, entorhinal cortex, ...) were BNA too. These regions are now named with DHBA terms.
+
+| Region | SABRA before | SABRA now |
+| ------ | ------------ | --------- |
+| Neocortex (BNA cortical labels 1–210 except the two areas below: 206 labels) | BNA | BNA |
+| Amygdala (BNA `mAmyg`, `lAmyg`) | BNA | DHBA (`AMY` and its nuclei such as `CEN`, `BLN`, `La`) |
+| Hippocampus (BNA `rHipp`, `cHipp`) | BNA | DHBA (`HiF` and its parts such as `CA1`, `DG`, `S`) |
+| Basal ganglia (BNA `vCa`, `dCa`, `GP`, `NAC`, `vmPu`, `dlPu`) | BNA | DHBA (`Ca`, `GP`, `NAC`, `NACs`, `Pu`, ...) |
+| Thalamus (the 8 BNA subregions) | BNA | DHBA (`DTH` and its nuclei such as `MD`, `VPL`, `Pul`, `LG`) |
+| Entorhinal cortex (BNA `A28/34`) and temporal agranular insular cortex (BNA `TI`) | BNA | DHBA (`EC`, `TI`; outside the neocortex in HOMBA) |
+| Olfactory, piriform and other allocortex | BNA (no label) | DHBA |
+
+- The boundary is defined in RCS `rcs/sabra.py`. RCS `get_homba_term` and `search_homba_candidates` return `sabra.atlas` under the new boundary, and `search_bna_candidates` marks non-neocortical areas `sabra.atlas: DHBA`, `sabra_unit: false`.
+- In new projects, non-neocortical BNA areas (labels 211–246, `BNA:115-116`, `BNA:117-118`) and `BNAG:Amyg`, `BNAG:Hipp`, `BNAG:BG`, `BNAG:Tha` may not be used as anchors or as `in` / `out` or other values. The worker's check sends them back with the DHBA term that contains the area.
+- **Existing projects do not change.** Projects created before 0.21.0 keep their BNA anchors: they load, pass the checks and export as before, and follow-ups do not ask for a rewrite (they have no `sabraBoundary`, so the checks use the earlier boundary). A copied project keeps the original's setting.
+- **Canon**: stored Canon circuits are not rewritten either. A project that follows a Canon may use the Canon's descriptors as they are (such as `BNA:223-224` from the earlier boundary).
 
 ---
 
@@ -110,7 +129,7 @@ Facets are written `axis:value[,value…]` and joined with `/` in the order belo
 | 4 | `nt` | Transmitter (`Glu` `GABA` `Gly` `ACh` `DA` `NE` `5HT` `His` `pep`) | `nt:DA` |
 | 5 | `mol` | Molecular marker with polarity (`+` `-` `~hi` `~lo`) | `mol:DRD1+` |
 | 6 | `in` | Population defined by its input | `in:HOMBA:12261` |
-| 7 | `out` | Population defined by its projection target | `out:BNA:223-224` |
+| 7 | `out` | Population defined by its projection target | `out:HOMBA:10339` |
 | 8 | `resp` | Response property or functional tuning | `resp:rpe` |
 | 9 | `side` | Side (one value, `left` or `right`; omitted means both sides or not distinguished) | `side:left` |
 
@@ -127,7 +146,7 @@ Facets are written `axis:value[,value…]` and joined with `/` in the order belo
 
 ```
 UC Descriptor = <anchor>{&<anchor>}{/<axis>:<value>[,<value>]}
-example: BNA:223-224/part:HOMBA:10341/mol:DRD1+
+example: HOMBA:10341/mol:DRD1+, BNA:57-58/lay:L5/side:left
 ```
 
 - The descriptor is written in `descriptor` of `uc.json`. It appears in the last column (UC Descriptor) of `Circuits.csv` and of the Circuits sheet of the xlsx, and in the node details of the HCD graph.
@@ -146,10 +165,10 @@ characters = A-Z a-z 0-9 . _ ~ - (interim spec of 2026-08-06) and / + (agreed on
 
 **Head (the anchor abbreviation)**
 
-- The anchor's official SABRA abbreviation, exactly, case included: the BNA area abbreviation on the BNA side (`NAC`, `A4ul`, `rHipp`, `A9/46d`), the DHBA acronym on the DHBA side (the arcuate nucleus is DHBA `Arc`, not HOMBA `ArH`).
+- The anchor's official SABRA abbreviation, exactly, case included: the neocortical BNA area abbreviation on the BNA side (`A4ul`, `A44d`, `A9/46d`), the DHBA acronym on the DHBA side (the arcuate nucleus is DHBA `Arc`, not HOMBA `ArH`).
 - The only conversion is a space to `_` (one case in BNA: `TE1.0 and TE1.2` → `TE1.0_and_TE1.2`). `/` and `+` joined the allowed characters on 2026-08-19, so `A9/46d`, `A1/2/3ll` and `V5/MT+` are used as they are.
-- A circuit that spans several SABRA units (`BNAG:`, `A&B`) provisionally uses the common BNA L2 abbreviation (`Hipp`), or the first anchor's abbreviation when there is none.
-- Custom or colloquial abbreviations (`NAc`, `LC`) and abbreviations of subdivisions that are not SABRA units (`NACs`, `CA1`) never form the head; they go into the parentheses as the `part` item.
+- A circuit that spans several SABRA units (`BNAG:`, `A&B`) provisionally uses the common BNA L2 abbreviation (`MFG`), or the first anchor's abbreviation when there is none.
+- Custom or colloquial abbreviations (`NAc`, `LC`) and abbreviations of subdivisions that are not SABRA units (such as `CH10` of the flocculus) never form the head; they go into the parentheses as the `part` item.
 
 **Items in the parentheses**
 
@@ -170,8 +189,8 @@ characters = A-Z a-z 0-9 . _ ~ - (interim spec of 2026-08-06) and / + (agreed on
 | `{ }` `[ ]` `< >` `;` `\|` space | Not used | `{}` triggers brace expansion; `[]` must be encoded in URLs and looks like a `[U.X]` reference; `<>` clashes with HTML; `;` separates Subnodes; `\|` breaks Markdown tables |
 
 - Circuit IDs are unique **case-sensitively**, because 45 pairs of official BNA and DHBA abbreviations differ only in case (`CB` and `cb`, for example). Descriptors are compared in lower case, as in 6.1.
-- The `U.` prefix is removed by dropping the leading `U.` only, so `U.NAC(shell.DRD1+)` and `[U.NAC(shell.DRD1+)]` do not clash with the separators. IDs in Interfaces and Subnodes are split only at separators outside parentheses.
-- Some care is still needed: quote the ID when passing it to a shell (`'NAC(shell.DRD1+)'`), write `)` as `%29` in the URL of a Markdown link, and escape `(` `)` `.` `+` `/` when putting an ID in a regular expression.
+- The `U.` prefix is removed by dropping the leading `U.` only, so `U.NACs(DRD1+)` and `[U.A4ul(L5.pt.left)]` do not clash with the separators. IDs in Interfaces and Subnodes are split only at separators outside parentheses.
+- Some care is still needed: quote the ID when passing it to a shell (`'NACs(DRD1+)'`), write `)` as `%29` in the URL of a Markdown link, and escape `(` `)` `.` `+` `/` when putting an ID in a regular expression.
 
 Recalculating the formulas of the templates (Template-v2-2 and v2-3) in LibreOffice found nothing that breaks on IDs with `( )`: the IDs are handled as strings by EXACT, VLOOKUP, SEARCH and SPLIT, and nowhere are the parentheses read as a function. The earlier comma-separated IDs (`Amyg(BL,out:CEN)`), on the other hand, were split in two in the Graph Generator's CSV. Switching to `.` in 0.17.0 removed that problem.
 
@@ -180,23 +199,23 @@ Recalculating the formulas of the templates (Template-v2-2 and v2-3) in LibreOff
 | Circuit | UC Descriptor | Circuit ID | Note |
 | ------- | ------------- | ---------- | ---- |
 | Ventral tegmental area (whole) | `HOMBA:12261` | `VTA` | No facets (a DHBA-side unit itself) |
-| Nucleus accumbens (whole, both sides) | `BNA:223-224` | `NAC` | No facets (BNA side, left-right pair) |
+| Nucleus accumbens (whole, both sides) | `HOMBA:10339` | `NAC` | No facets (DHBA side; `BNA:223-224` before 0.21.0) |
 | Left area 4, upper limb region | `BNA:57-58/side:left` | `A4ul(left)` | The side is `side`; last item in the ID |
 | Noradrenergic cells of the locus coeruleus | `HOMBA:12499/nt:NE` | `NC(NE)` | One axis (transmitter) |
-| Nucleus accumbens shell | `BNA:223-224/part:HOMBA:10341` | `NAC(shell)` | The shell (`NACs`) is not a SABRA unit, so it goes into the parentheses |
+| Nucleus accumbens shell | `HOMBA:10341` | `NACs` | The shell has a DHBA name, so it is a SABRA unit itself |
 | AgRP neurons of the arcuate nucleus | `HOMBA:10492/mol:AGRP+` | `Arc(AGRP+)` | The head is the DHBA acronym `Arc` |
-| DRD1-positive cells of the NAc shell | `BNA:223-224/part:HOMBA:10341/mol:DRD1+` | `NAC(shell.DRD1+)` | Two axes |
+| DRD1-positive cells of the NAc shell | `HOMBA:10341/mol:DRD1+` | `NACs(DRD1+)` | One axis (molecular marker) |
 | Purkinje cells of the flocculus | `HOMBA:12852/part:HOMBA:AA30423/cell:purkinje` | `FNCb(floc.purkinje)` | The flocculus has no DHBA name, so the anchor is its DHBA-named ancestor, the flocculonodular lobe |
-| VTA dopamine cells that project to the NAc and encode reward prediction error | `HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe` | `VTA(DA.out-NAC.rpe)` | A population defined by its target, plus a response property |
+| VTA dopamine cells that project to the NAc and encode reward prediction error | `HOMBA:12261/nt:DA/out:HOMBA:10339/resp:rpe` | `VTA(DA.out-NAC.rpe)` | A population defined by its target, plus a response property |
 | Corticospinal cells of layer 5, left area 4 upper limb region | `BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left` | `A4ul(L5.pt.out-Sp.left)` | The spinal cord is not a SABRA unit, so its HOMBA acronym `Sp` |
-| Hippocampal CA1 pyramidal cells (rostral and caudal) | `BNAG:Hipp/part:HOMBA:10297/cell:pyr` | `Hipp(CA1.pyr)` | Spans several units, so the BNA L2 abbreviation |
+| Hippocampal CA1 pyramidal cells | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 is a SABRA unit with a DHBA name (before 0.21.0: `BNAG:Hipp/part:HOMBA:10297/cell:pyr`, `Hipp(CA1.pyr)`) |
 | Layer III cells of left dorsal area 9/46 | `BNA:15-16/lay:L3/side:left` | `A9/46d(L3.left)` | The official abbreviation `A9/46d` as it is |
 
 ### 6.4 What the worker checks
 
 At the end of the HCD step the worker checks the names in `uc.json` in this order (`checkUcNaming`, `packages/shared/src/ucNaming.ts`). Problems go back to the agent in a fix turn.
 
-1. **Descriptor syntax and meaning:** the form of the anchors, BNA numbers (1–246; a pair is odd and odd+1), facet order and repetition, `mol` polarity, the `side` value (one of `left` / `right`). A descriptor in an older form is asked to be rewritten in the current form.
+1. **Descriptor syntax and meaning:** the form of the anchors, BNA numbers (1–246; a pair is odd and odd+1), facet order and repetition, `mol` polarity, the `side` value (one of `left` / `right`). A descriptor in an older form is asked to be rewritten in the current form. In projects created from 0.21.0, no anchor or value may be a non-neocortical BNA area or group (§4.3; descriptors in the pinned Canon are exempt).
 2. **Duplicate descriptors:** no two UCs or Collections share a normalized descriptor.
 3. **Items in the parentheses:** as many items as facet values; with `side`, the last item is its value; without `side`, no `left` / `right` item.
 4. **Head abbreviation:** it equals the anchor's official abbreviation, case included (BNA from the built-in table, HOMBA / DHBA from RCS `get_homba_term`). An anchor on a HOMBA term in BNA territory, or on a term without a DHBA name, is sent back with the correct anchor. Anchors that RCS could not be asked about skip only this comparison.
@@ -312,7 +331,7 @@ Up to 0.16, CoBRAC's check messages and its checker (`scripts/bra-appendix-d.mjs
 | How to write layers | Inside the parentheses, as `(L3)` | Whether to align with the organisation's `.L3` in the `BNA.A8m.L3` style (under discussion) |
 | `BNA.` / `DHBA.` prefixes | Not used | Whether to follow the interim spec's prefixes |
 | Naming circuits finer than SABRA (ISS-001) | The anchor + facets rules | Whether the organisation adopts them, and what to change |
-| Head of circuits spanning several units | Provisionally the common BNA L2 abbreviation (`Hipp`) | Whether this is acceptable |
+| Head of circuits spanning several units | Provisionally the common BNA L2 abbreviation (`MFG`) | Whether this is acceptable |
 | `BNA` as Source of ID | Written as a CoBRAC extension (the Review Tool may report 108) | Whether `BNA` can join the enumeration (U9) |
 | Where the UC Descriptor and facets go | The last column of the CoBRAC xlsx; Template-v2-2 has no place for them | Whether the template can gain descriptor and facet columns (U21) |
 | Checks without a Master code | 12 local `cobrac:` codes | Whether some should join the Master or the Review Tool's automatic checks |

@@ -417,14 +417,14 @@ export function parseOutputSemantics(text) {
 const BNA_SUBCORTICAL_GROUPS = ["Amyg", "Hipp", "BG", "Tha"];
 
 /**
- * Whole neocortical areas or gyri (BNA 1–210 or a cortical BNA L2 group, no layer / cell facet) or, without a
+ * Whole neocortical areas or gyri (BNA 1–210 except A28/34 and TI, or a cortical BNA L2 group, no layer / cell facet) or, without a
  * descriptor, cortex-like names.
  */
 function neocorticalWholeArea(c) {
   if (c.descriptor) {
     if (/\/(lay|cell):/.test(c.descriptor)) return false;
     const area = /^BNA:(\d{1,3})/.exec(c.descriptor);
-    if (area) return Number(area[1]) <= 210;
+    if (area) return Number(area[1]) <= 210 && ![115, 116, 117, 118].includes(Number(area[1]));
     const group = /^BNAG:([A-Za-z]+)/.exec(c.descriptor);
     return !!group && !BNA_SUBCORTICAL_GROUPS.includes(group[1]);
   }

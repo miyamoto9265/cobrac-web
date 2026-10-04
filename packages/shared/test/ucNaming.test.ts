@@ -15,6 +15,11 @@ import {
   parseCsvObjects,
   parseCircuitId,
   parseUcDescriptor,
+  BNA_DHBA_COUNTERPARTS,
+  bnaLabelIsNeocortex,
+  canonDescriptorKeys,
+  emptyCanonSnapshot,
+  type CanonSnapshot,
   type HombaSabraInfo,
   type SabraLookup,
 } from "../src/index.js";
@@ -346,5 +351,81 @@ describe("a project named by the convention", () => {
     const msg = checkHcd(hcdFiles(ucs, CONNS), { sabra: SABRA }).errors.join("\n");
     expect(msg).toMatch(/uc\.json: \/ucs\/3\/descriptor must not be empty/);
     expect(msg).toMatch(/`Arc\(AGRP\+\)` has no UC Descriptor/);
+  });
+});
+
+describe("SABRA boundary of 2026-10-04 (BNA for the neocortex only)", () => {
+  /** The convention's examples under the new boundary: subcortical and hippocampal UCs anchored on DHBA. */
+  const NEW_SABRA: SabraLookup = new Map<string, HombaSabraInfo | null>([
+    ...SABRA,
+    ["HOMBA:10339", dhba("NAC", "HOMBA:10339", "nucleus accumbens")],
+    ["HOMBA:10341", dhba("NACs", "HOMBA:10341", "shell of nucleus accumbens")],
+    ["HOMBA:10297", dhba("CA1", "HOMBA:10297", "CA1 region of Hipp")],
+  ]);
+  const NEW_EXAMPLES: [string, string][] = [
+    ["VTA", "HOMBA:12261"],
+    ["NAC", "HOMBA:10339"],
+    ["A4ul(left)", "BNA:57-58/side:left"],
+    ["NACs(DRD1+)", "HOMBA:10341/mol:DRD1+"],
+    ["CA1(pyr.place)", "HOMBA:10297/cell:pyr/resp:place"],
+    ["VTA(DA.out-NAC.rpe)", "HOMBA:12261/nt:DA/out:HOMBA:10339/resp:rpe"],
+    ["A4ul(L5.pt.out-Sp.left)", "BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left"],
+    ["MFG", "BNAG:MFG"],
+  ];
+  const neo = (ucs: [string, string][], exempt?: Set<string>) =>
+    checkUcNaming(ucs.map(([id, descriptor]) => ({ id, descriptor })), NEW_SABRA, { boundary: "neocortex", boundaryExempt: exempt });
+
+  it("classifies BNA labels: 206 neocortical labels; subcortical 211–246, A28/34 and TI are not SABRA units", () => {
+    const neocortical = BNA_AREAS.filter((a) => bnaLabelIsNeocortex(a[0]));
+    expect(neocortical).toHaveLength(103);
+    expect(BNA_AREAS.filter((a) => !bnaLabelIsNeocortex(a[0])).map((a) => a[1])).toEqual([
+      "A28/34", "TI", "mAmyg", "lAmyg", "rHipp", "cHipp", "vCa", "GP", "NAC", "vmPu", "dCa", "dlPu",
+      "mPFtha", "mPMtha", "Stha", "rTtha", "PPtha", "Otha", "cTtha", "lPFtha",
+    ]);
+    expect([bnaLabelIsNeocortex(57), bnaLabelIsNeocortex(58), bnaLabelIsNeocortex(116), bnaLabelIsNeocortex(224)]).toEqual([true, true, false, false]);
+    expect(BNA_DHBA_COUNTERPARTS.get(223)).toEqual(["HOMBA:10339", "NAC"]);
+    expect(BNA_DHBA_COUNTERPARTS.get(245)).toEqual(["HOMBA:10391", "DTH"]);
+  });
+
+  it("accepts the new-boundary examples", () => {
+    expect(neo(NEW_EXAMPLES)).toEqual([]);
+  });
+
+  it("rejects BNA anchors and region values that are not neocortex", () => {
+    const errs = neo([
+      ["NAC", "BNA:223-224"],
+      ["rHipp(CA1.pyr)", "BNA:215-216/part:HOMBA:10297/cell:pyr"],
+      ["Hipp(CA1.pyr)", "BNAG:Hipp/part:HOMBA:10297/cell:pyr"],
+      ["A28/34", "BNA:115-116"],
+      ["VTA(DA.out-NAC.rpe)", "HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe"],
+      ["Tha(left)", "BNAG:Tha/side:left"],
+    ]).join("\n");
+    expect(errs).toContain("`BNA:223-224` (NAC) is not neocortex, so it is not a SABRA unit");
+    expect(errs).toContain("it lies in HOMBA:10339 NAC");
+    expect(errs).toContain("`BNA:215-216` (rHipp) is not neocortex");
+    expect(errs).toContain("`BNAG:Hipp` (BNA group Hipp) is not neocortex");
+    expect(errs).toContain("`BNA:115-116` (A28/34) is not neocortex");
+    expect(errs).toContain("it lies in HOMBA:10317 EC");
+    expect(errs).toContain("`out:BNA:223-224` (NAC) is not neocortex");
+    expect(errs).toContain("`BNAG:Tha` (BNA group Tha) is not neocortex");
+  });
+
+  it("keeps older projects valid: without the boundary option, subcortical BNA anchors pass as before", () => {
+    const legacy: [string, string][] = [
+      ["NAC", "BNA:223-224"],
+      ["NAC(shell.DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+"],
+      ["rHipp(CA1.pyr.place)", "BNA:215-216/part:HOMBA:10297/cell:pyr/resp:place"],
+      ["Hipp(CA1.pyr)", "BNAG:Hipp/part:HOMBA:10297/cell:pyr"],
+    ];
+    expect(checkUcNaming(legacy.map(([id, descriptor]) => ({ id, descriptor })), SABRA)).toEqual([]);
+  });
+
+  it("exempts the pinned Canon's descriptors", () => {
+    const snapshot = emptyCanonSnapshot("u7m2q9xa-c1", "t0");
+    snapshot.circuits.push({ descriptor: "BNA:223-224", key: "bna:223-224", circuitId: "NAC", subCircuits: [] } as unknown as CanonSnapshot["circuits"][number]);
+    const keys = canonDescriptorKeys(snapshot);
+    expect([...keys]).toEqual(["bna:223-224"]);
+    expect(neo([["NAC", "BNA:223-224"]], keys)).toEqual([]);
+    expect(neo([["GP", "BNA:221-222"]], keys).join("\n")).toContain("`BNA:221-222` (GP) is not neocortex");
   });
 });

@@ -807,6 +807,7 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     verifyReferences: referenceVerifier ? (refs) => referenceVerifier.verify(refs) : undefined,
     quoteChecker: quoteVerifier ? { threshold: quoteVerifier.threshold, verify: (reqs) => quoteVerifier.verify(reqs) } : undefined,
     canon: canonRun ? { ...canonRun, onNotes: logCanonNotes } : undefined,
+    sabraBoundary: project.sabraBoundary,
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);

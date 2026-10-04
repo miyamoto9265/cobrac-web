@@ -9,7 +9,7 @@ const S = {
   ja: {
     overview: {
       title: "回路の名前：プロジェクトごとの自由な名前から、SABRA に基づく記述子へ",
-      desc: "0.7.0 より前は、プロジェクトごとにエージェントが自由な名前を付けていた。同じ側坐核 shell の DRD1 陽性集団でも、プロジェクト A は NAc_shell_D1、プロジェクト B は NACs-DRD1 と書くことがあり、名前から同じ集団かどうかを判定できず、アトラスとの対応もなかった。0.7.0 以降は、どのプロジェクトも RCS で SABRA の単位（アンカー）を引き、細かい性質をファセットとして足して UC Descriptor BNA:223-224/part:HOMBA:10341/mol:DRD1+ を作る。Circuit ID NAC(shell.DRD1+) はその人が読む別名で、記述子が同じなら同じ UC として扱える。",
+      desc: "0.7.0 より前は、プロジェクトごとにエージェントが自由な名前を付けていた。同じ側坐核 shell の DRD1 陽性集団でも、プロジェクト A は NAc_shell_D1、プロジェクト B は NACs-DRD1 と書くことがあり、名前から同じ集団かどうかを判定できず、アトラスとの対応もなかった。0.7.0 以降は、どのプロジェクトも RCS で SABRA の単位（アンカー）を引き、細かい性質をファセットとして足して UC Descriptor HOMBA:10341/mol:DRD1+ を作る。Circuit ID NACs(DRD1+) はその人が読む別名で、記述子が同じなら同じ UC として扱える。",
       beforeHead: "0.7.0 より前：プロジェクトごとの自由な名前",
       afterHead: "0.7.0 以降：SABRA のアンカー + ファセット",
       projA: "プロジェクト A",
@@ -19,8 +19,8 @@ const S = {
       example: "（名前は説明のための例）",
       bad: { title: "同じ集団かどうかを名前から判定できない", lines: ["アトラスとの対応もない"] },
       rcs: ["RCS で SABRA の", "単位を引く"],
-      descriptor: { title: "UC Descriptor（機械のキー）", lines: ["`BNA:223-224/part:HOMBA:10341/mol:DRD1+`"] },
-      circuit: { title: "Circuit ID（人が読む別名）", lines: ["`NAC(shell.DRD1+)`"] },
+      descriptor: { title: "UC Descriptor（機械のキー）", lines: ["`HOMBA:10341/mol:DRD1+`"] },
+      circuit: { title: "Circuit ID（人が読む別名）", lines: ["`NACs(DRD1+)`"] },
       same: "記述子が同じなら、どのプロジェクトでも同じ UC",
     },
     build: {
@@ -93,7 +93,7 @@ const S = {
   en: {
     overview: {
       title: "Circuit names: from free names per project to descriptors based on SABRA",
-      desc: "Before 0.7.0 the agent gave circuits free names in each project. The same DRD1-positive population of the nucleus accumbens shell might be NAc_shell_D1 in project A and NACs-DRD1 in project B, so the names could not tell whether two projects meant the same population, and they had no link to an atlas. Since 0.7.0 every project looks up the SABRA unit (the anchor) with RCS and adds the finer properties as facets, giving the UC Descriptor BNA:223-224/part:HOMBA:10341/mol:DRD1+. The Circuit ID NAC(shell.DRD1+) is its human-readable alias; the same descriptor means the same UC.",
+      desc: "Before 0.7.0 the agent gave circuits free names in each project. The same DRD1-positive population of the nucleus accumbens shell might be NAc_shell_D1 in project A and NACs-DRD1 in project B, so the names could not tell whether two projects meant the same population, and they had no link to an atlas. Since 0.7.0 every project looks up the SABRA unit (the anchor) with RCS and adds the finer properties as facets, giving the UC Descriptor HOMBA:10341/mol:DRD1+. The Circuit ID NACs(DRD1+) is its human-readable alias; the same descriptor means the same UC.",
       beforeHead: "Before 0.7.0: free names per project",
       afterHead: "Since 0.7.0: SABRA anchor + facets",
       projA: "Project A",
@@ -103,8 +103,8 @@ const S = {
       example: "(names are illustrative)",
       bad: { title: "Names cannot tell if it is the same population", lines: ["and they have no link to an atlas"] },
       rcs: ["look up the SABRA", "unit with RCS"],
-      descriptor: { title: "UC Descriptor (machine key)", lines: ["`BNA:223-224/part:HOMBA:10341/mol:DRD1+`"] },
-      circuit: { title: "Circuit ID (human-readable alias)", lines: ["`NAC(shell.DRD1+)`"] },
+      descriptor: { title: "UC Descriptor (machine key)", lines: ["`HOMBA:10341/mol:DRD1+`"] },
+      circuit: { title: "Circuit ID (human-readable alias)", lines: ["`NACs(DRD1+)`"] },
       same: "The same descriptor is the same UC in every project",
     },
     build: {

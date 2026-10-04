@@ -460,6 +460,16 @@ describe("research mode", () => {
   });
 });
 
+describe("SABRA boundary", () => {
+  it("is set to neocortex on new projects (older projects have none and keep their BNA anchors)", async () => {
+    await json(call(A, "GET", "/users/me"));
+    fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
+    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "nucleus accumbens", tlf: "reward learning" }));
+    expect(p.sabraBoundary).toBe("neocortex");
+    expect((fake.items("projects").find((x) => x.projectId === p.projectId) as unknown as ProjectRecord).sabraBoundary).toBe("neocortex");
+  });
+});
+
 describe("explanatory articles", () => {
   const P = "u7m2q9xa-5";
   async function seed(extra: Partial<ProjectRecord> = {}) {

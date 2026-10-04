@@ -37,6 +37,7 @@ import {
   sabraOfficialName,
   splitTopLevel,
   ucFacetValues,
+  type SabraBoundary,
   type SabraLookup,
   type UcAnchor,
   type UcDescriptor,
@@ -498,6 +499,10 @@ export interface CheckHcdOptions {
   sabra?: SabraLookup;
   /** Overrides of the provisional BRA value rules (`DEFAULT_BRA_RULES`) */
   bra?: Partial<BraRules>;
+  /** BNA/DHBA boundary to enforce (`neocortex` for projects created from 2026-10-04; absent for older projects) */
+  sabraBoundary?: SabraBoundary;
+  /** Normalized UC Descriptors exempt from the boundary (the pinned Canon's circuits) */
+  boundaryExempt?: ReadonlySet<string>;
 }
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
@@ -591,7 +596,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
   }
   errors.push(...collectionProblems(collections, ucs));
   if (ucItems && ucs.length) {
-    errors.push(...checkUcNaming([...ucs, ...collections.filter((c) => c.descriptor)], opts.sabra));
+    errors.push(...checkUcNaming([...ucs, ...collections.filter((c) => c.descriptor)], opts.sabra, { boundary: opts.sabraBoundary, boundaryExempt: opts.boundaryExempt }));
     errors.push(...decomposedUcProblems(ucs));
     if (!ucs.some((u) => u.roi === "roi")) errors.push("uc.json: no ROI-internal UC (every UC has a noROI `roi`).");
   }
