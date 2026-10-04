@@ -62,6 +62,9 @@ export const zh: Record<MessageKey, string> = {
   "login.infoConfirmed": "已确认。请登录。",
   "login.infoReset": "请输入邮件中的验证码和新密码。",
   "login.infoPwUpdated": "密码已更新。请登录。",
+  "login.firstLogin": "首次登录",
+  "login.infoNewPassword": "这是管理员创建的账户的首次登录。请设置一个新密码以替换临时密码。",
+  "login.submitNewPassword": "设置密码并登录",
 
   "settings.title": "设置",
   "settings.apiKey": "OpenAI API 密钥",
