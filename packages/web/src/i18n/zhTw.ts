@@ -840,7 +840,7 @@ export const zhTw: Record<MessageKey, string> = {
   "theme.dark": "深色",
   "ver.tab": "版本",
   "ver.title": "BRA 資料版本",
-  "ver.help": "每次生成或追蹤完成後，結果都會儲存為無法變更的版本。可以開啟、下載並比較先前的版本。",
+  "ver.help": "每次生成或追蹤完成後，結果都會儲存為無法變更的版本。可以開啟並比較先前的版本。",
   "ver.none": "尚無版本。第一次執行完成後會產生 v1。",
   "ver.noneClone": "尚無版本。第一次追蹤完成後會產生 v1，其父版本為 {parent}。",
   "ver.current": "目前",
