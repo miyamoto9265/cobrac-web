@@ -23,6 +23,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { ContainerImageBuild } from "@cdklabs/deploy-time-build";
 import type { Construct } from "constructs";
+import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -48,6 +49,14 @@ const apiSrc = resolve(repoRoot, "packages/api/src");
 const webDist = resolve(repoRoot, "packages/web/dist");
 /** Root package.json version is the single source of truth (see AGENTS.md). */
 const appVersion: string = (JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8")) as { version: string }).version;
+/** Commit being deployed (recorded in every BRA data version the worker freezes); empty outside a git checkout. */
+const gitSha: string = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD", { cwd: repoRoot, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+})();
 
 export class CobracAgentsStack extends Stack {
   constructor(scope: Construct, id: string, props: CobracAgentsStackProps) {
@@ -74,6 +83,16 @@ export class CobracAgentsStack extends Stack {
         { id: "ExpireStagingUploads", prefix: "staging/", expiration: Duration.days(1) },
       ],
     });
+    // BRA data versions are written once by the worker (revisions/{n}/ of each project) and never deleted
+    artifacts.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: "DenyDeleteBraVersions",
+        effect: iam.Effect.DENY,
+        principals: [new iam.AnyPrincipal()],
+        actions: ["s3:DeleteObject", "s3:DeleteObjectVersion"],
+        resources: [artifacts.arnForObjects("users/*/*/revisions/*")],
+      }),
+    );
 
     const tableDefaults: Partial<dynamodb.TablePropsV2> = {
       billing: dynamodb.Billing.onDemand(),
@@ -229,6 +248,8 @@ export class CobracAgentsStack extends Stack {
         TABLE_JOBS: jobs.tableName,
         TABLE_MESSAGES: messages.tableName,
         ARTIFACTS_BUCKET: artifacts.bucketName,
+        APP_VERSION: appVersion,
+        GIT_SHA: gitSha,
         CODEX_MODEL: props.codexModel,
         CODEX_REASONING_EFFORT: props.codexReasoningEffort,
         RCS_MCP_URL: props.rcsMcpUrl,

@@ -4,7 +4,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import type { ArtifactInfo, RunJobMessage } from "@cobrac/shared";
-import { DEFAULT_KEY_ENCRYPTION_CONTEXT, contentDisposition } from "@cobrac/shared";
+import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 
@@ -43,7 +43,8 @@ export async function listArtifacts(userId: string, projectId: string): Promise<
     for (const o of r.Contents ?? []) {
       if (!o.Key) continue;
       const rel = o.Key.slice(prefix.length);
-      if (rel.startsWith("thread/")) continue;
+      // thread: the agent's session; revisions: frozen versions, listed by GET /projects/{id}/versions
+      if (rel.startsWith("thread/") || rel.startsWith(REVISIONS_PREFIX)) continue;
       out.push({
         key: rel,
         name: rel.split("/").pop() ?? rel,
@@ -55,6 +56,22 @@ export async function listArtifacts(userId: string, projectId: string): Promise<
     token = r.IsTruncated ? r.NextContinuationToken : undefined;
   } while (token);
   return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** Numbers that have a folder under `revisions/` (a version exists only once its manifest.json is there). */
+export async function listVersionNumbers(userId: string, projectId: string): Promise<number[]> {
+  const prefix = projectPrefix(userId, projectId) + REVISIONS_PREFIX;
+  const out: number[] = [];
+  let token: string | undefined;
+  do {
+    const r = await s3.send(new ListObjectsV2Command({ Bucket: env.artifactsBucket, Prefix: prefix, Delimiter: "/", ContinuationToken: token }));
+    for (const cp of r.CommonPrefixes ?? []) {
+      const n = Number(cp.Prefix?.slice(prefix.length).replace(/\/$/, ""));
+      if (Number.isInteger(n) && n >= 1) out.push(n);
+    }
+    token = r.IsTruncated ? r.NextContinuationToken : undefined;
+  } while (token);
+  return out.sort((a, b) => a - b);
 }
 
 function categorize(rel: string): ArtifactInfo["category"] {

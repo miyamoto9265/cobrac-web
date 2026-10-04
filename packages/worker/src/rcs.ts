@@ -70,6 +70,18 @@ export class RcsClient {
     return body.result ?? {};
   }
 
+  /** SABRA BNA/DHBA boundary version (`get_sabra_definition` → `boundary_version`); null when RCS does not say. */
+  async sabraBoundaryVersion(): Promise<string | null> {
+    try {
+      const r = await this.callTool("get_sabra_definition", {});
+      const data = (r.structuredContent ?? parseText(r)) as { boundary_version?: unknown } | undefined;
+      return !r.isError && typeof data?.boundary_version === "string" ? data.boundary_version : null;
+    } catch (e) {
+      console.warn(`[rcs] get_sabra_definition failed: ${e instanceof Error ? e.message : String(e)}`);
+      return null;
+    }
+  }
+
   /**
    * SABRA facts for HOMBA IDs via `get_homba_term`. IDs RCS does not know map to null; IDs that could not be
    * asked (network, server error) are left out so the harness skips only their abbreviation check.

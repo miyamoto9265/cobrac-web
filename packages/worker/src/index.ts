@@ -31,6 +31,8 @@ import { join } from "node:path";
 import type {
   ArticleJobState,
   ArticleMeta,
+  BraVersionRef,
+  BraVersionSummary,
   CrossCode,
   JobRecord,
   PipelineStage,
@@ -72,6 +74,7 @@ import {
   articleKey,
   articleMetaKey,
   braDownloadFileName,
+  braVersionId,
   estimateCostUsd,
   fixTurnEffort,
   formatTokens,
@@ -83,6 +86,8 @@ import {
   nowIso,
   projectDisplayName,
   replyLanguageInstruction,
+  summarizeManifest,
+  versionManifestKey,
   researchEffort,
   uiLanguageName,
   withReferenceList,
@@ -96,7 +101,9 @@ import {
   getProject,
   getDefaultApiKey,
   getUser,
+  ensureProjectRevision,
   incrementProjectRevision,
+  listProjectJobs,
   putMessage,
   refreshProjectUsage,
   updateAutoProjectName,
@@ -112,7 +119,8 @@ import { planRunKey } from "./runKey.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
-import { downloadDir, getJsonObject, projectPrefix, putObject, uploadDir } from "./s3sync.js";
+import { downloadDir, getJsonObject, getObjectBuffer, projectPrefix, putObject, putObjectIfAbsent, uploadDir } from "./s3sync.js";
+import { freezeVersion, promptsSha256, schemasSha256, type FreezeInput, type VersionStore } from "./versions.js";
 import {
   PHASES,
   adjustmentPrompt,
@@ -222,6 +230,7 @@ async function main() {
     await fail(LEGACY_WORKSPACE_MESSAGE, { i18n: "sys.legacyWorkspace" });
     return;
   }
+  if (mode === "followup") await freezeBaseline(project);
   await prepareCanon(project);
   if (!rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
@@ -436,13 +445,15 @@ async function main() {
     }
     await persistState();
 
-    await updateJob(projectId, jobId, { status: "COMPLETED", endedAt: nowIso() });
+    const version = csvComplete(paths) ? await freezeJobVersion(project, job) : null;
+    await updateJob(projectId, jobId, { status: "COMPLETED", endedAt: nowIso(), ...(version ? { braVersion: version } : {}) });
     await incrementProjectRevision(userId, projectId);
     await updateProject(userId, projectId, {
       status: "COMPLETED",
       activeJobId: null,
       activeStage: null,
       hasArtifacts: true,
+      ...(version ? { latestVersion: version } : {}),
       completedAt: nowIso(),
       pendingQuestion: null,
     });
@@ -1109,6 +1120,106 @@ async function prepareCanon(project: ProjectRecord) {
   } catch (e) {
     console.warn("[canon] not loaded", e);
     await log(`The Canon of this project could not be loaded (${e instanceof Error ? e.message : String(e)}); this run does not use it.`);
+  }
+}
+
+// --- BRA data versions ----------------------------------------------------------
+
+const versionStore: VersionStore = { get: getObjectBuffer, put: putObject, putIfAbsent: putObjectIfAbsent };
+const versionRef = (pid: string, version: number): BraVersionRef => ({ versionId: braVersionId(pid, version), projectId: pid, version });
+
+/** The version before `n`: the previous one, or for a clone's first version the public project version it copied. */
+function parentOf(project: ProjectRecord, n: number): BraVersionRef | null {
+  if (n > 1) return versionRef(projectId, n - 1);
+  const src = project.clonedFrom;
+  return src && src.revision >= 1 ? versionRef(src.projectId, src.revision) : null;
+}
+
+async function writeVersion(input: Omit<FreezeInput, "prefix" | "projectId" | "workspaceDir">): Promise<BraVersionSummary | null> {
+  const r = await freezeVersion({ ...input, prefix, projectId, workspaceDir: paths.root }, versionStore);
+  if (r.status === "conflict") {
+    console.warn(`[version] v${input.version} already exists for job ${r.manifest.job?.jobId ?? "(none)"}; not replaced`);
+    await log(`Version ${input.version} already exists from another run, so this result was not saved as a version.`, { i18n: "sys.versionConflict", version: input.version });
+    return null;
+  }
+  return summarizeManifest(r.manifest);
+}
+
+/** Freezes this job's result as version revision + 1 (the job is COMPLETED right after). A failure only costs the snapshot. */
+async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise<BraVersionSummary | null> {
+  try {
+    const fresh = await getProject(userId, projectId);
+    const n = (fresh?.revision ?? project.revision ?? 0) + 1;
+    const summary = await writeVersion({
+      version: n,
+      parent: parentOf(fresh ?? project, n),
+      origin: "job",
+      createdAt: nowIso(),
+      contributor: project.contributor,
+      job: { jobId, type: job.type, instruction: job.instruction },
+      generator: {
+        appVersion: env.appVersion,
+        gitSha: env.gitSha,
+        promptsSha256: await promptsSha256(env.promptsDir),
+        schemasSha256: schemasSha256(),
+        model: resolvedModel,
+        reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
+        researchMode: research,
+        canon: canonRun ? { canonId: canonRun.info.canonId, revision: canonRun.info.revision } : null,
+        sabraBoundary: rcs ? await rcs.sabraBoundaryVersion() : null,
+      },
+    });
+    if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });
+    return summary;
+  } catch (e) {
+    console.error("[version] freeze failed", e);
+    await log(`The result could not be saved as a version: ${e instanceof Error ? e.message : String(e)}`, { i18n: "sys.versionFailed" });
+    return null;
+  }
+}
+
+/**
+ * A follow-up on a project whose current data has no version yet (finished before versioning) first freezes that data
+ * as version `revision`, so the follow-up's result has a parent to compare with. The project is COMPLETED when a
+ * follow-up is queued, so the restored workspace and `output/` belong to the same run.
+ */
+async function freezeBaseline(project: ProjectRecord) {
+  if (!project.hasArtifacts || !csvComplete(paths)) return;
+  const n = project.revision || 1;
+  try {
+    if (await versionStore.get(prefix + versionManifestKey(n))) return;
+    const last =
+      (await listProjectJobs(userId, projectId))
+        .filter((j) => j.jobId !== jobId && j.status === "COMPLETED" && (j.type === "initial" || j.type === "followup"))
+        .sort((a, b) => ((a.endedAt ?? a.createdAt) < (b.endedAt ?? b.createdAt) ? -1 : 1))
+        .at(-1) ?? null;
+    const summary = await writeVersion({
+      version: n,
+      parent: parentOf(project, n),
+      origin: "baseline",
+      createdAt: project.completedAt ?? nowIso(),
+      contributor: project.contributor,
+      job: last ? { jobId: last.jobId, type: last.type, instruction: last.instruction } : null,
+      generator: {
+        appVersion: null,
+        gitSha: null,
+        promptsSha256: null,
+        schemasSha256: null,
+        model: last?.model ?? null,
+        reasoningEffort: last?.reasoningEffort ?? null,
+        researchMode: last?.researchMode ?? null,
+        canon: null,
+        sabraBoundary: null,
+      },
+    });
+    if (!summary) return;
+    if (!project.revision) await ensureProjectRevision(userId, projectId, n);
+    if (last && !last.braVersion) await updateJob(projectId, last.jobId, { braVersion: summary });
+    await updateProject(userId, projectId, { latestVersion: summary });
+    await log(`Saved the current BRA data as version ${n} before applying the follow-up.`, { i18n: "sys.versionBaseline", version: n });
+  } catch (e) {
+    console.error("[version] baseline failed", e);
+    await log(`The current BRA data could not be saved as a version before the follow-up: ${e instanceof Error ? e.message : String(e)}`, { i18n: "sys.versionFailed" });
   }
 }
 

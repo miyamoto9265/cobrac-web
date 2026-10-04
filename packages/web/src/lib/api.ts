@@ -1,4 +1,7 @@
 import type {
+  BraVersionDetailResponse,
+  BraVersionDiffResponse,
+  ListBraVersionsResponse,
   CanonEditorSummary,
   CanonAiState,
   CanonPrEventRecord,
@@ -121,6 +124,12 @@ export const api = {
   templateXlsxUrl: (id: string) => request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/artifacts/template-xlsx`),
   artifactText: (id: string, key: string) =>
     request<string>("GET", `/projects/${encodeURIComponent(id)}/artifacts/text?key=${encodeURIComponent(key)}`, undefined, true),
+  versions: (id: string) => request<ListBraVersionsResponse>("GET", `/projects/${encodeURIComponent(id)}/versions`),
+  version: (id: string, n: number) => request<BraVersionDetailResponse>("GET", `/projects/${encodeURIComponent(id)}/versions/${n}`),
+  versionDiff: (id: string, n: number, base?: number) =>
+    request<BraVersionDiffResponse>("GET", `/projects/${encodeURIComponent(id)}/versions/${n}/diff${base === undefined ? "" : `?base=${base}`}`),
+  versionDownloadUrl: (id: string, n: number, path: string) =>
+    request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/versions/${n}/download?path=${encodeURIComponent(path)}`),
   articles: (id: string) => request<ListArticlesResponse>("GET", `/projects/${encodeURIComponent(id)}/articles`),
   createArticle: (id: string, locale: UiLocale, model: string | null = null) =>
     request<{ ok: true; jobId: string; articleJob: ArticleJobState }>("POST", `/projects/${encodeURIComponent(id)}/articles`, { locale, model }),

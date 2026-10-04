@@ -5,6 +5,12 @@ import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   AdminUpdateUserRequest,
   AnswerRequest,
+  BraVersionDetailResponse,
+  BraVersionDiffResponse,
+  BraVersionListItem,
+  BraVersionManifest,
+  CsvFileName,
+  ListBraVersionsResponse,
   DefaultApiKeyRecord,
   ArticleJobState,
   ArticleMeta,
@@ -150,6 +156,13 @@ import {
   templateDownloadFileName,
   templateInputFromFiles,
   templateXlsxKey,
+  bradbZipFileName,
+  bradbZipKey,
+  csvPath,
+  diffBraCsvs,
+  summarizeManifest,
+  versionFileKey,
+  versionManifestKey,
 } from "@cobrac/shared";
 import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
@@ -165,6 +178,7 @@ import {
   getObjectText,
   headStaging,
   listArtifacts,
+  listVersionNumbers,
   moveStagingToProject,
   presignDownload,
   presignUpload,
@@ -201,6 +215,7 @@ import {
 } from "./lib/db.js";
 import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
+import { liveVersionFiles, liveVersionItem, versionItem, versionedDownloadName } from "./lib/versions.js";
 import { actorName, aiState, isActiveJob, prTrail, reviewJobsOf } from "./lib/canonReview.js";
 import { defaultKeyStatus, deleteDefaultKey, getDefaultKey, modelPolicy, orgUsage, putDefaultKey } from "./lib/orgKey.js";
 import {
@@ -925,6 +940,101 @@ app.get("/projects/:id/artifacts/text", async (c) => {
   const text = await getObjectText(u.userId, p.projectId, key);
   if (text === null) throw notFound();
   return c.text(text);
+});
+
+// --- BRA data versions ----------------------------------------------------------
+// Frozen by the worker under revisions/{n}/ (see shared braVersion.ts); read-only here.
+
+async function getVersionManifest(p: ProjectRecord, n: number): Promise<BraVersionManifest | null> {
+  const text = await getObjectText(p.userId, p.projectId, versionManifestKey(n));
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as BraVersionManifest;
+  } catch {
+    return null;
+  }
+}
+
+/** Every version of the project, newest first: summaries on the jobs, manifests in S3 without one, and the live data. */
+async function listVersions(p: ProjectRecord): Promise<BraVersionListItem[]> {
+  const jobs = await listJobsForProject(p.projectId, p.userId);
+  const byVersion = new Map<number, BraVersionListItem>();
+  for (const j of jobs) if (j.braVersion) byVersion.set(j.braVersion.version, versionItem(j.braVersion, j));
+  for (const n of await listVersionNumbers(p.userId, p.projectId)) {
+    if (byVersion.has(n)) continue;
+    const m = await getVersionManifest(p, n);
+    if (m) byVersion.set(n, versionItem(summarizeManifest(m), jobs.find((j) => j.jobId === m.job?.jobId) ?? null, m));
+  }
+  const current = p.revision ?? 0;
+  if (current >= 1 && p.hasArtifacts && !byVersion.has(current)) byVersion.set(current, liveVersionItem(p, jobs));
+  return [...byVersion.values()].sort((a, b) => b.version - a.version);
+}
+
+async function loadVersion(p: ProjectRecord, raw: string): Promise<{ item: BraVersionListItem; manifest: BraVersionManifest | null; items: BraVersionListItem[] }> {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) throw notFound();
+  const items = await listVersions(p);
+  const item = items.find((i) => i.version === n);
+  if (!item) throw notFound();
+  const manifest = item.frozen ? await getVersionManifest(p, n) : null;
+  if (item.frozen && !manifest) throw notFound();
+  return { item, manifest, items };
+}
+
+async function versionCsvs(p: ProjectRecord, item: BraVersionListItem): Promise<Record<CsvFileName, string | null>> {
+  const out = {} as Record<CsvFileName, string | null>;
+  for (const f of CSV_FILE_NAMES) {
+    const path = csvPath(p.projectId, f);
+    out[f] = await getObjectText(p.userId, p.projectId, item.frozen ? versionFileKey(item.version, path) : path);
+  }
+  return out;
+}
+
+app.get("/projects/:id/versions", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const items = await listVersions(p);
+  const src = p.clonedFrom;
+  const res: ListBraVersionsResponse = { items, current: p.revision ?? 0, clonedFrom: src && src.revision >= 1 ? `${src.projectId}@v${src.revision}` : null };
+  return c.json(res);
+});
+
+app.get("/projects/:id/versions/:n", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const { item, manifest } = await loadVersion(p, c.req.param("n"));
+  const files = manifest ? manifest.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId));
+  const res: BraVersionDetailResponse = { item, manifest, files };
+  return c.json(res);
+});
+
+/** `?path=` a file of the version (as listed by the detail), or `bradb.zip` for the BRA-DB registration package. */
+app.get("/projects/:id/versions/:n/download", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const { item, manifest } = await loadVersion(p, c.req.param("n"));
+  const path = c.req.query("path") ?? "";
+  if (path === "bradb.zip") {
+    if (!manifest?.bradb) throw notFound();
+    const name = bradbZipFileName(p.projectId, item.version);
+    return c.json({ url: await presignDownload(u.userId, p.projectId, bradbZipKey(item.version), { ascii: name, utf8: name }), expiresIn: 900 });
+  }
+  const listed = manifest ? manifest.files.some((f) => f.path === path) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId)).some((f) => f.path === path);
+  if (!listed) throw notFound();
+  const key = manifest ? versionFileKey(item.version, path) : path;
+  return c.json({ url: await presignDownload(u.userId, p.projectId, key, versionedDownloadName(p, path, item.version)), expiresIn: 900 });
+});
+
+/** Row-level changes of the five CSVs against `?base=` (default: the version before). */
+app.get("/projects/:id/versions/:n/diff", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const { item, items } = await loadVersion(p, c.req.param("n"));
+  const rawBase = c.req.query("base");
+  const base = rawBase ? items.find((i) => i.version === Number(rawBase)) : items.find((i) => i.version === item.version - 1);
+  if (rawBase && !base) throw bad("base is not a version of this project");
+  const res: BraVersionDiffResponse = { head: item.version, base: base?.version ?? null, diff: base ? diffBraCsvs(await versionCsvs(p, base), await versionCsvs(p, item)) : null };
+  return c.json(res);
 });
 
 // --- explanatory articles -----------------------------------------------------

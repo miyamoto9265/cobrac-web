@@ -1,4 +1,5 @@
 import type { ClonedFrom, Visibility } from "./publish.js";
+import type { BraVersionSummary } from "./braVersion.js";
 // ---------------------------------------------------------------------------
 // Domain types shared by API, worker and web
 // ---------------------------------------------------------------------------
@@ -135,8 +136,10 @@ export interface ProjectRecord {
   name?: string;
   /** "provisional" / "auto" may be replaced from meta.json by the agent; "user" (typed or edited by the user) never is */
   nameSource?: ProjectNameSource;
-  /** Number of COMPLETED jobs (artifact revisions) */
+  /** Number of COMPLETED jobs (artifact revisions); also the number of the current BRA data version */
   revision?: number;
+  /** Latest frozen version (`revisions/{n}/`); absent on projects that have none yet */
+  latestVersion?: BraVersionSummary | null;
   /** Project ID before the migration to `<userKey>-<seq>` */
   legacyId?: string;
   roi: string;
@@ -257,6 +260,8 @@ export interface JobRecord {
   usage?: TokenUsage;
   /** Estimated OpenAI cost (USD) for this job; null if the model has no price entry */
   costUsd?: number | null;
+  /** BRA data version this job froze when it completed (a follow-up's first run may also freeze the baseline on the job before it) */
+  braVersion?: BraVersionSummary;
 }
 
 export type MessageRole = "user" | "agent" | "system";
