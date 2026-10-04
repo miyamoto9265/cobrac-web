@@ -838,7 +838,7 @@ export const en = {
   "theme.dark": "Dark",
   "ver.tab": "Versions",
   "ver.title": "BRA data versions",
-  "ver.help": "Each completed generation or follow-up is kept as an unchangeable version. Open, download and compare earlier versions.",
+  "ver.help": "Each completed generation or follow-up is kept as an unchangeable version. Open and compare earlier versions.",
   "ver.none": "No versions yet. The first completed run creates v1.",
   "ver.noneClone": "No versions yet. The first completed follow-up creates v1, with {parent} as its parent.",
   "ver.current": "Current",

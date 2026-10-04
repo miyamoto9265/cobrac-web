@@ -840,7 +840,7 @@ export const de: Record<MessageKey, string> = {
   "theme.dark": "Dunkel",
   "ver.tab": "Versionen",
   "ver.title": "Versionen der BRA-Daten",
-  "ver.help": "Jede abgeschlossene Generierung oder Nachbearbeitung wird als unveränderliche Version aufbewahrt. Frühere Versionen lassen sich öffnen, herunterladen und vergleichen.",
+  "ver.help": "Jede abgeschlossene Generierung oder Nachbearbeitung wird als unveränderliche Version aufbewahrt. Frühere Versionen lassen sich öffnen und vergleichen.",
   "ver.none": "Noch keine Versionen. Der erste abgeschlossene Lauf erzeugt v1.",
   "ver.noneClone": "Noch keine Versionen. Die erste abgeschlossene Nachbearbeitung erzeugt v1 mit {parent} als Elternversion.",
   "ver.current": "Aktuell",

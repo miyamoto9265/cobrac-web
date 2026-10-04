@@ -840,7 +840,7 @@ export const pt: Record<MessageKey, string> = {
   "theme.dark": "Escuro",
   "ver.tab": "Versões",
   "ver.title": "Versões dos dados BRA",
-  "ver.help": "Cada geração ou acompanhamento concluído é guardado como uma versão que não pode ser alterada. É possível abrir, baixar e comparar versões anteriores.",
+  "ver.help": "Cada geração ou acompanhamento concluído é guardado como uma versão que não pode ser alterada. É possível abrir e comparar versões anteriores.",
   "ver.none": "Ainda não há versões. A primeira execução concluída cria a v1.",
   "ver.noneClone": "Ainda não há versões. O primeiro acompanhamento concluído cria a v1, com {parent} como versão pai.",
   "ver.current": "Atual",
