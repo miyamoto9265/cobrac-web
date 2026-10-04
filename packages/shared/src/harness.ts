@@ -77,9 +77,11 @@ export const REPORT_SECTIONS = { HCD: "## HCD", FRG: "## FRG" } as const;
  * Harness rule set of a project, stored on the project when it is created (`ProjectRecord.harnessRules`); absent = 0,
  * the projects created before these rules, which are checked as before. From 1: every element of the ROI has a
  * ROI-internal UC of its own (`roiElements`), the ROI's side is declared and a side the user did not give means both
- * sides (`roiSide`), and a quote that supports several connections is warned about.
+ * sides (`roiSide`), and a quote that supports several connections is warned about. From 2: the UCs of a GN are
+ * connected among themselves by ROI-internal connections, and a GN may hold 3-4 UCs that form a motif when its
+ * `motifNote` says why (below 2 a GN holds at most 2 UCs and `motifNote` is not read).
  */
-export const HARNESS_RULES = 1;
+export const HARNESS_RULES = 2;
 
 export const ROI_SIDES = ["both", "left", "right"] as const;
 export type RoiSide = (typeof ROI_SIDES)[number];
@@ -1041,8 +1043,14 @@ function multiUnitSenderProblems(senders: UcRow[]): string[] {
 
 // --- FRG -----------------------------------------------------------------------------------------------------------
 
-export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel> {
+export interface CheckFrgOptions {
+  /** The project's harness rule set (`HARNESS_RULES` for new projects); below 2 the GN rules of 0.27.0 and earlier apply */
+  harnessRules?: number;
+}
+
+export function checkFrg(files: FrgInputs, hcd: HcdModel, opts: CheckFrgOptions = {}): CheckResult<FrgModel> {
   const errors: string[] = [];
+  const gnRules2 = (opts.harnessRules ?? 0) >= 2;
   checkMarkdown(PROJECT_FILES.report, files.report, errors, REPORT_SECTIONS.FRG);
 
   const nodeItems = items(readJson(FRG_FILES.frg, files.frg, errors), "nodes");
@@ -1056,7 +1064,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
       reqRealization: s(n.requirementRealization),
       capability: s(n.capability),
       mechanism: s(n.mechanism),
-      motifNote: s(n.motifNote),
+      motifNote: gnRules2 ? s(n.motifNote) : "",
     }))
     .filter((g) => g.id);
 
@@ -1095,18 +1103,23 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
         (ucParents.get(id) ?? ucParents.set(id, []).get(id)!).push(g.id);
       }
       const n = ucKids.length;
-      if (n > MAX_MOTIF_UCS) errors.push(`\`${g.id}\` has ${n} UC subnodes (max ${MAX_MOTIF_UCS}): decompose it further.`);
-      else if (n > 2 && !g.motifNote)
-        errors.push(
-          `\`${g.id}\` has ${n} UC subnodes: a GN holds 2 UCs unless its UCs form a motif that pairs cannot express (a loop, a feedforward triangle). Split it into GNs of 2 UCs, or write in its motifNote why the motif is one computation, with citations.`,
-        );
-      if (n <= 2 && g.motifNote) errors.push(`frg.json: \`${g.id}\` has ${n} UC subnode(s); motifNote is only for a GN with 3-${MAX_MOTIF_UCS} UCs, so leave it empty.`);
-      if (gnKids.length === 0 && n === 1) errors.push(`\`${g.id}\` is realized by a single UC (${ucKids[0]}); a GN needs 2 UCs or should be merged/decomposed.`);
-      const roiKids = ucKids.map(stripUc).filter((id) => roiUcs.has(id));
-      if (roiKids.length >= 2 && !isConnectedSet(roiKids, roiConnections))
-        errors.push(
-          `\`${g.id}\`: its UCs (${roiKids.map((x) => `U.${x}`).join(", ")}) are not connected by ROI-internal connections among themselves. A GN is realized by its UCs and the connections between them: attach UCs that connect (a UC on the way between them belongs in the GN too), or add the missing connection to connections.json if the literature reports it.`,
-        );
+      if (!gnRules2) {
+        if (n > 2) errors.push(`\`${g.id}\` has ${n} UC subnodes (max 2): decompose it further.`);
+        if (gnKids.length === 0 && n === 1) errors.push(`\`${g.id}\` is realized by a single UC (${ucKids[0]}); a GN needs 2 UCs or should be merged/decomposed.`);
+      } else {
+        if (n > MAX_MOTIF_UCS) errors.push(`\`${g.id}\` has ${n} UC subnodes (max ${MAX_MOTIF_UCS}): decompose it further.`);
+        else if (n > 2 && !g.motifNote)
+          errors.push(
+            `\`${g.id}\` has ${n} UC subnodes: a GN holds 2 UCs unless its UCs form a motif that pairs cannot express (a loop, a feedforward triangle). Split it into GNs of 2 UCs, or write in its motifNote why the motif is one computation, with citations.`,
+          );
+        if (n <= 2 && g.motifNote) errors.push(`frg.json: \`${g.id}\` has ${n} UC subnode(s); motifNote is only for a GN with 3-${MAX_MOTIF_UCS} UCs, so leave it empty.`);
+        if (gnKids.length === 0 && n === 1) errors.push(`\`${g.id}\` is realized by a single UC (${ucKids[0]}); a GN needs 2 UCs or should be merged/decomposed.`);
+        const roiKids = ucKids.map(stripUc).filter((id) => roiUcs.has(id));
+        if (roiKids.length >= 2 && !isConnectedSet(roiKids, roiConnections))
+          errors.push(
+            `\`${g.id}\`: its UCs (${roiKids.map((x) => `U.${x}`).join(", ")}) are not connected by ROI-internal connections among themselves. A GN is realized by its UCs and the connections between them: attach UCs that connect (a UC on the way between them belongs in the GN too), or add the missing connection to connections.json if the literature reports it.`,
+          );
+      }
       const empty = (
         [
           ["interface", g.interfaceText],

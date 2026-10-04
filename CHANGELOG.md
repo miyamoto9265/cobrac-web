@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The FRG is now built by meeting in the middle. Before the FRG step the worker reads the HCD's ROI-internal connections and lists bottom-up candidates: the pathways from the ROI inputs to its outputs (loops as one block), the separate parts of the circuit, the loops and feedforward triangles of 3–4 UCs, and every connected pair, each with the sign of its connections. The agent first decomposes the TLF without looking at them, then reads what each candidate computes, matches the two and shows the result as a table in the report's FRG section (matched, function without a circuit, circuit without a function, mismatch, and what was done about each). The candidates are recomputed whenever the HCD changes and are kept in the project folder as `frg_candidates.json`. This applies to every project, also to follow-ups of earlier ones
+- The HCD graph has a "Motifs" selector when the circuit has loops or feedforward triangles of 3–4 UCs: picking one highlights its UCs and connections and names the GNs built on exactly those UCs, with links to the FRG. A circuit's details list the motifs it belongs to. Projects show it once their graphs are built again (by a run or a follow-up)
+- New projects follow two more FRG rules (projects created earlier keep the earlier rules, also in their follow-ups; copies keep the original's rules):
+  - A GN's UCs must be connected to each other by connections inside the ROI. An FRG whose GN groups unconnected UCs goes back to the agent, which either regroups them or adds a connection the literature reports. For these projects the HCD ↔ FRG consistency record no longer has X4 (UCs of a GN not connected), which the FRG check now enforces
+  - A GN may hold 3 or 4 UCs when they form a circuit that pairs cannot express (a loop, a feedforward triangle, or a convergence the literature describes as one computation); the agent writes why in the GN's motif note, which the FRG sheet shows in the GN's comments. Without the note a GN still holds at most 2 UCs, and 5 or more is never accepted
+
+### Changed
+- The HCD ↔ FRG consistency record counts the GNs of 3–4 UCs and how many of them are a loop or feedforward triangle of the candidates
+- When the agent goes back from the FRG to the HCD to split or add UCs, the FRG instructions remind it to list new ROI-internal UCs under their ROI element and to keep the ROI's side (projects with the ROI rules of 0.25.0)
+
 ## [0.27.0] - 2026-10-04
 
 ### Added

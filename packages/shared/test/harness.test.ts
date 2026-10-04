@@ -316,30 +316,50 @@ describe("checkFrg", () => {
     expect(msg).toMatch(/report\.md: add the `## FRG` section/);
   });
 
-  it("lets a GN hold 3-4 connected UCs only with a motifNote", () => {
+  const RULES2 = { harnessRules: 2 };
+
+  it("harness rules 2: lets a GN hold 3-4 connected UCs only with a motifNote", () => {
     const motif = { nodes: [node("R.VOR-Adaptation", ["R.Circuit"], "([U.FTN]) = R.VOR-Adaptation([U.VN])"), node("R.Circuit", ["U.GC(granule)", "U.PC(purkinje)", "U.IO"], "([U.FTN]) = R.Circuit([U.VN])")] };
-    const without = checkFrg({ ...FRG, frg: j(motif) }, hcd).errors.join("\n");
+    const without = checkFrg({ ...FRG, frg: j(motif) }, hcd, RULES2).errors.join("\n");
     expect(without).toMatch(/`R\.Circuit` has 3 UC subnodes: a GN holds 2 UCs unless/);
     (motif.nodes[1] as Record<string, unknown>).motifNote = "Parallel and climbing fibres converge on Purkinje cells as one learning rule [Ito, 1982].";
-    expect(checkFrg({ ...FRG, frg: j(motif) }, hcd).errors).toEqual([]);
+    expect(checkFrg({ ...FRG, frg: j(motif) }, hcd, RULES2).errors).toEqual([]);
 
     const five = structuredClone(motif);
     five.nodes[1].subnodes = ["U.GC(granule)", "U.PC(purkinje)", "U.IO", "U.VN", "U.FTN"];
-    expect(checkFrg({ ...FRG, frg: j(five) }, hcd).errors.join("\n")).toMatch(/`R\.Circuit` has 5 UC subnodes \(max 4\)/);
+    expect(checkFrg({ ...FRG, frg: j(five) }, hcd, RULES2).errors.join("\n")).toMatch(/`R\.Circuit` has 5 UC subnodes \(max 4\)/);
 
     const pair = structuredClone(FRG_JSON);
     (pair.nodes[1] as Record<string, unknown>).motifNote = "not needed";
-    expect(checkFrg({ ...FRG, frg: j(pair) }, hcd).errors.join("\n")).toMatch(/`R\.Context` has 2 UC subnode\(s\); motifNote is only for/);
+    expect(checkFrg({ ...FRG, frg: j(pair) }, hcd, RULES2).errors.join("\n")).toMatch(/`R\.Context` has 2 UC subnode\(s\); motifNote is only for/);
   });
 
-  it("requires the UCs of a GN to be connected among themselves", () => {
+  it("harness rules 2: requires the UCs of a GN to be connected among themselves", () => {
     const apart = structuredClone(FRG_JSON);
     // granule cells and the inferior olive both project to Purkinje cells, but not to each other
     apart.nodes[2].subnodes = ["U.IO", "U.GC(granule)"];
     apart.nodes[1].subnodes = ["U.PC(purkinje)", "U.GC(granule)"];
-    const msg = checkFrg({ ...FRG, frg: j(apart) }, hcd).errors.join("\n");
+    const msg = checkFrg({ ...FRG, frg: j(apart) }, hcd, RULES2).errors.join("\n");
     expect(msg).toMatch(/`R\.Learning`: its UCs \(U\.IO, U\.GC\(granule\)\) are not connected/);
     expect(msg).not.toMatch(/`R\.Context`: its UCs/);
+  });
+
+  it("below harness rules 2 keeps the earlier GN rules: at most 2 UCs, motifNote not read, unconnected pairs accepted", () => {
+    const motif = {
+      nodes: [
+        node("R.VOR-Adaptation", ["R.Circuit"], "([U.FTN]) = R.VOR-Adaptation([U.VN])"),
+        { ...node("R.Circuit", ["U.GC(granule)", "U.PC(purkinje)", "U.IO"], "([U.FTN]) = R.Circuit([U.VN])"), motifNote: "one learning rule" },
+      ],
+    };
+    for (const opts of [undefined, { harnessRules: 1 }]) {
+      const r = checkFrg({ ...FRG, frg: j(motif) }, hcd, opts);
+      expect(r.errors.join("\n")).toMatch(/`R\.Circuit` has 3 UC subnodes \(max 2\)/);
+      expect(r.model!.gns.find((g) => g.id === "R.Circuit")?.motifNote).toBe("");
+    }
+    const apart = structuredClone(FRG_JSON);
+    apart.nodes[2].subnodes = ["U.IO", "U.GC(granule)"];
+    apart.nodes[1].subnodes = ["U.PC(purkinje)", "U.GC(granule)"];
+    expect(checkFrg({ ...FRG, frg: j(apart) }, hcd, { harnessRules: 1 }).errors).toEqual([]);
   });
 
   it("requires [U.] / [R.] references in the function details to name existing nodes", () => {
@@ -363,7 +383,7 @@ describe("buildCsvs", () => {
         { ...node("R.Circuit", ["U.GC(granule)", "U.PC(purkinje)", "U.IO"], "([U.FTN]) = R.Circuit([U.VN])"), motifNote: "one learning rule" },
       ],
     };
-    const m = checkFrg({ ...FRG, frg: j(motif) }, hcd).model!;
+    const m = checkFrg({ ...FRG, frg: j(motif) }, hcd, { harnessRules: 2 }).model!;
     const { files } = buildCsvs(hcd, m, opts);
     expect(parseCsvObjects(files!["FRG.csv"]).find((r) => r["Node ID"] === "R.Circuit")?.Comments).toBe("R.Circuit comment; Motif of 3 UCs: one learning rule");
   });

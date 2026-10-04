@@ -7,7 +7,7 @@ import { parseInterface, type FrgModel, type GnRow, type HcdModel } from "./harn
 import { frgCandidatesFromHcd } from "./motifs.js";
 import { parseUcDescriptor } from "./ucNaming.js";
 
-export const CROSS_CODES = ["X1", "X2", "X3", "X5", "X6", "X8", "X9"] as const;
+export const CROSS_CODES = ["X1", "X2", "X3", "X4", "X5", "X6", "X8", "X9"] as const;
 export type CrossCode = (typeof CROSS_CODES)[number];
 
 /** Which side a finding points at: FRG->HCD = the FRG asks for something the HCD lacks, HCD->FRG the reverse */
@@ -24,6 +24,7 @@ export const CROSS_RULES: Record<CrossCode, CrossRule> = {
   X1: { severity: "error", direction: "both", description: "A GN interface leaves out a flow that the HCD connections of its UCs have (inputs from / outputs to circuits outside the GN)" },
   X2: { severity: "error", direction: "both", description: "The ROI inputs / outputs derived from the HCD connections differ from the noROI(input) / noROI(output) tags of uc.json (a tagged UC with no path to or from the ROI, or an untagged UC that connects to it)" },
   X3: { severity: "error", direction: "FRG->HCD", description: "A GN interface claims an input or output that no HCD connection of its UCs provides" },
+  X4: { severity: "warning", direction: "HCD->FRG", description: "The two UCs of a GN are not connected through ROI-internal connections (harness rules below 2; from 2 the FRG check requires the UCs of a GN to be connected among themselves)" },
   X5: { severity: "warning", direction: "HCD->FRG", description: "A ROI-internal UC is not mentioned in the function text of any GN it is attached to" },
   X6: { severity: "warning", direction: "both", description: "A GN's Requirement realization does not mention every UC of its interface" },
   X8: { severity: "warning", direction: "FRG->HCD", description: "The FRG is collapsed (TLF directly on UCs, a single GN, or fewer than 3 ROI-internal UCs): the UCs may be too coarse" },
@@ -94,7 +95,12 @@ export interface CrossCheck {
 const ucRefs = (text: string) => new Set([...text.matchAll(/\[U\.([^[\]\s]+)\]/g)].map((m) => m[1]));
 const fmt = (ids: Iterable<string>) => [...ids].map((x) => `[U.${x}]`).join(", ");
 
-export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
+export interface CheckCrossOptions {
+  /** The project's harness rule set; from 2 the FRG check enforces what X4 records, so X4 is not computed */
+  harnessRules?: number;
+}
+
+export function checkCross(hcd: HcdModel, frg: FrgModel, opts: CheckCrossOptions = {}): CrossCheck {
   const findings: CrossFinding[] = [];
   const add = (code: CrossCode, node: string, message: string) => findings.push({ code, node, message });
 
@@ -191,8 +197,31 @@ export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
     if (idleOut.length) add("X2", root.id, `${fmt(idleOut)} ${idleOut.length > 1 ? "are" : "is"} tagged noROI(output) but the ROI does not connect to ${idleOut.length > 1 ? "them" : "it"}`);
   }
 
-  // motifs: which GNs of 3-4 UCs are a loop / feedforward triangle the worker listed (the 2-UC GNs are connected
-  // pairs by the FRG check, so they always are one); record only
+  if ((opts.harnessRules ?? 0) < 2) {
+    const undirected = new Map<string, Set<string>>();
+    for (const [s, r] of edges.values()) {
+      if (!roiUcs.has(s) || !roiUcs.has(r)) continue;
+      (undirected.get(s) ?? undirected.set(s, new Set()).get(s)!).add(r);
+      (undirected.get(r) ?? undirected.set(r, new Set()).get(r)!).add(s);
+    }
+    const connected = (a: string, b: string) => {
+      const seen = new Set([a]);
+      const queue = [a];
+      while (queue.length) {
+        const x = queue.shift()!;
+        if (x === b) return true;
+        for (const y of undirected.get(x) ?? []) if (!seen.has(y)) seen.add(y), queue.push(y);
+      }
+      return false;
+    };
+    for (const g of frg.gns) {
+      const kids = ucKids(g).filter((u) => roiUcs.has(u));
+      if (kids.length === 2 && !connected(kids[0], kids[1])) add("X4", g.id, `the UCs of \`${g.id}\` ([U.${kids[0]}], [U.${kids[1]}]) are not connected through ROI-internal connections`);
+    }
+  }
+
+  // motifs: which GNs of 3-4 UCs are a loop / feedforward triangle the worker listed (only harness rules 2 allow
+  // them; from 2 the FRG check also makes every 2-UC GN a connected pair); record only
   const motifSets = new Set(
     frgCandidatesFromHcd(hcd)
       .motifs.filter((m) => m.ucs.length > 2)

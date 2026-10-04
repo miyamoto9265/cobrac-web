@@ -85,12 +85,13 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
       "R.TLF: [U.EXT] is tagged noROI(output) but the ROI does not connect to it",
     ]);
     expect(by("X5")).toEqual(["C: [U.C] is not mentioned in the function text of `R.Right`", "D: [U.D] is not mentioned in the function text of `R.Right`"]);
+    expect(by("X4")).toEqual([]);
     expect(by("X6")).toEqual([]);
     expect(by("X8")).toEqual([]);
     expect(r.summary).toMatchObject({ X1: 1, X2: 3, X3: 1, X5: 2 });
   });
 
-  it("warns about interface UCs missing from the realization text and a single GN under the TLF", () => {
+  it("warns about GN pairs without an ROI-internal path and interface UCs missing from the realization text", () => {
     const hcd = hcdOf([uc("IN", "input"), uc("A"), uc("B"), uc("C"), uc("OUT", "output")], [conn("IN", "A"), conn("IN", "B"), conn("A", "OUT"), conn("B", "OUT"), conn("IN", "C"), conn("C", "OUT")]);
     const frg: FrgModel = {
       gns: [
@@ -99,6 +100,9 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
       ],
     };
     const r = checkCross(hcd, frg);
+    expect(r.findings.filter((f) => f.code === "X4").map((f) => f.node)).toEqual(["R.Pair"]);
+    // from harness rules 2 the FRG check enforces the connection, so X4 is not recorded
+    expect(checkCross(hcd, frg, { harnessRules: 2 }).summary.X4).toBe(0);
     expect(r.findings.filter((f) => f.code === "X6").map((f) => f.message)).toEqual(["requirementRealization of `R.Pair` does not mention [U.IN], [U.OUT] of its interface"]);
     expect(r.findings.filter((f) => f.code === "X8").map((f) => f.message)).toEqual(["the FRG has a single GN under the TLF"]);
   });
