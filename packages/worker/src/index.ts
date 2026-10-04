@@ -89,7 +89,7 @@ import {
 } from "@cobrac/shared";
 import { articlePrompt, prepareArticleFigures, readReferences, runArticle } from "./article.js";
 import { runCanonReview } from "./canonReview.js";
-import { createCodex, isRequestTooLarge, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
+import { createCodex, InFlightTurn, isRequestTooLarge, openThread, resolveModelSettings, runTurn, type ModelSettings, type TurnSink } from "./codex.js";
 import {
   getJob,
   getCanonMeta,
@@ -285,8 +285,9 @@ async function main() {
     try {
       const text = turnInput(p, replyLanguage);
       const input = p.images?.length ? [{ type: "text" as const, text }, ...p.images.map((path) => ({ type: "local_image" as const, path }))] : text;
-      turn = await runTurn(thread, input, sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal);
+      turn = await runTurn(thread, input, sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal, { inFlight });
     } catch (e) {
+      await countCutOffTurn(cancelled ? "cancelled" : o.budget?.aborted ? "time budget" : "crashed");
       if (cancelled) {
         await persistState();
         console.log("[worker] cancelled; state persisted");
@@ -478,6 +479,7 @@ function startHeartbeat(abort: AbortController, o: { persist?: boolean } = {}): 
       }
       await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
       if (Date.now() - startedAt > env.workflowTimeoutMs) {
+        await countCutOffTurn("run-time limit");
         await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
         process.exit(1);
       }
@@ -556,8 +558,9 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
         turn: async (p) => {
           let turn;
           try {
-            turn = await runTurn(thread, p.hidden ? `${p.shown}\n\n---\n\n${p.hidden}` : p.shown, sink, abort.signal);
+            turn = await runTurn(thread, p.hidden ? `${p.shown}\n\n---\n\n${p.hidden}` : p.shown, sink, abort.signal, { inFlight });
           } catch (e) {
+            await countCutOffTurn(cancelled ? "cancelled" : "crashed");
             if (cancelled) return false;
             throw e;
           }
@@ -1108,6 +1111,7 @@ async function onSigterm() {
   stopping = true;
   console.log("[worker] SIGTERM: saving state before the task stops");
   try {
+    await countCutOffTurn("SIGTERM");
     const outcome = await handleStop({
       jobStatus: async () => (await getJob(projectId, jobId))?.status ?? null,
       workspaceReady: () => workspaceReady,
@@ -1192,6 +1196,24 @@ async function accumulateUsage(u: { input: number; cachedInput: number; output: 
     `Tokens: in ${formatTokens(usage.inputTokens)} (cached ${formatTokens(usage.cachedInputTokens)}) / out ${formatTokens(usage.outputTokens)} · est. ${formatUsd(costUsd)}`,
     { meta: { i18n: "sys.usage", kind: "usage", usage, costUsd, model: resolvedModel } },
   );
+}
+
+/** The turn running now, if any; a turn that never returns is counted from the session file by `countCutOffTurn`. */
+const inFlight = new InFlightTurn();
+
+/**
+ * Adds the usage of a turn that was cut off to this job: the job that ran it pays for it, and the next run on the
+ * thread starts from the session total that already includes it, so nothing is counted twice.
+ */
+async function countCutOffTurn(why: string): Promise<void> {
+  try {
+    const u = inFlight.take();
+    if (!u || !(u.input || u.cachedInput || u.output || u.reasoningOutput)) return;
+    console.log(`[worker] counted the usage of a turn cut off (${why}): ${JSON.stringify(u)}`);
+    await accumulateUsage(u);
+  } catch (e) {
+    console.error("[worker] counting the cut-off turn failed", e);
+  }
 }
 
 async function fail(message: string, meta?: Record<string, unknown>) {

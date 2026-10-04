@@ -184,6 +184,55 @@ describe("runTurn", () => {
     expect(messages).toContainEqual({ type: "error", content: "Error: unexpected status 401 Unauthorized" });
   });
 
+  it("leaves the usage of a turn that codex exec dropped without a reason for the caller, measured from the session total", async () => {
+    const thread = {
+      id: "thread-1",
+      runStreamed: vi.fn(async () => ({
+        events: (async function* () {
+          yield { type: "turn.started" } as ThreadEvent;
+          throw new Error("Codex Exec exited with code 1");
+        })(),
+      })),
+    } as unknown as Thread;
+    const totals = [
+      { input: 100, cachedInput: 50, output: 10, reasoningOutput: 2 },
+      { input: 400, cachedInput: 250, output: 40, reasoningOutput: 12 },
+    ];
+    const inFlight = new codex.InFlightTurn();
+    await expect(codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {}, threadTotal: () => totals.shift() ?? null, inFlight })).rejects.toThrow(/exited/);
+    expect(inFlight.take()).toEqual({ input: 300, cachedInput: 200, output: 30, reasoningOutput: 10 });
+    expect(inFlight.take()).toBeNull();
+  });
+
+  it("leaves the usage of a cancelled turn on a new thread (the whole session total) for the caller", async () => {
+    const abort = new AbortController();
+    const thread = {
+      id: null as string | null,
+      runStreamed: vi.fn(async (_input: string, o: { signal?: AbortSignal }) => ({
+        events: (async function* () {
+          thread.id = "thread-new";
+          yield { type: "thread.started", thread_id: "thread-new" } as ThreadEvent;
+          await new Promise((_, reject) => o.signal?.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }))));
+        })(),
+      })),
+    };
+    const threadTotal = vi.fn((id: string) => (id === "thread-new" ? { input: 70, cachedInput: 0, output: 7, reasoningOutput: 1 } : null));
+    const inFlight = new codex.InFlightTurn();
+    const p = codex.runTurn(thread as unknown as Thread, "go", sink().s, abort.signal, { sleep: async () => {}, threadTotal, inFlight });
+    setTimeout(() => abort.abort(), 10);
+    await expect(p).rejects.toMatchObject({ name: "AbortError" });
+    expect(inFlight.take()).toEqual({ input: 70, cachedInput: 0, output: 7, reasoningOutput: 1 });
+  });
+
+  it("clears the in-flight turn when the turn returns, failed or not (its usage is in the result)", async () => {
+    for (const run of [done(), [{ type: "turn.failed", error: { message: "boom" } } as ThreadEvent]]) {
+      const { thread } = scriptedThread([run]);
+      const inFlight = new codex.InFlightTurn();
+      await codex.runTurn(thread, "go", sink().s, undefined, { sleep: async () => {}, threadTotal: () => null, inFlight });
+      expect(inFlight.take()).toBeNull();
+    }
+  });
+
   it("stops waiting when the job is cancelled during the pause", async () => {
     const { thread } = scriptedThread([[{ type: "turn.failed", error: { message: TPM } }], done()]);
     const abort = new AbortController();

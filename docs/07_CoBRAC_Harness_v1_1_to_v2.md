@@ -317,7 +317,7 @@ The instructions present in the context of every request, per step. In research 
 | Finishing job of the back-edge trial (`ufwwj0jg-5`) | 7 min | $0.04 |
 
 - The research step took 15.2M input tokens (14.4M cached); the whole project 43M, which is why it hit the TPM limit ([4.12](#412-robustness-of-long-jobs)).
-- The cost of an adjustment turn (one turn plus its fix rounds) has not been measured in production yet. The main part of the back-edge trial (37 minutes of rewriting) has no known cost, because the usage of turns that fail midway is not recorded ([section 7](#7-open-questions-and-known-gaps)).
+- The cost of an adjustment turn (one turn plus its fix rounds) has not been measured in production yet. The main part of the back-edge trial (37 minutes of rewriting) has no known cost, because the usage of turns that failed midway was not recorded then ([section 7](#7-open-questions-and-known-gaps)).
 - The create screen shows the estimated extra time and cost of research mode for the selected model (+10–60 minutes, about $0.05–0.19 with gpt-6-luna). Check the real values in each chat's usage line and the OpenAI dashboard.
 
 ---
@@ -330,7 +330,7 @@ The instructions present in the context of every request, per step. In research 
 | Round-trip loop (design stage ③) | One adjustment turn per run, no loop | A proposal of up to 2 rounds and 45 minutes exists; decide after measuring how often the adjustment fires, X counts per round, and minutes and cost per round |
 | Function sketch (design stage ④) | Not started; the FRG still comes after the HCD | Decompose the TLF first to steer the research; moves HCD step 6 (UC function items) later, a large prompt change |
 | Spot interruptions lose in-turn work | Fixed: during a turn the workspace and thread are saved to S3 every 5 minutes, and at once on SIGTERM (120 s stop timeout); the worker then marks its heartbeat stale and the janitor (every 5 minutes) resumes the job | The trial (before the fix) lost 15 minutes of work, and detecting the interruption took 27 minutes. Check the next real interruption in the worker log (`SIGTERM handled`) |
-| Cost of failed turns | A turn that ends in `turn.failed` is measured from the thread's running total in the session file. Turns cut off by the time budget or a cancel, and turns where `codex exec` dies without a reason, are not recorded | Whether to count cut-off turns from the session file before the next run |
+| Cost of failed turns | Fixed: besides turns that end in `turn.failed`, turns cut off by a time limit (the research step's 60 minutes, the 6-hour limit), a cancel or a SIGTERM, and turns where `codex exec` dies without a reason, are measured from the thread's running total in the session file and added to the cost of the job that ran them | Cut-off turns of jobs from before the fix cannot be restored |
 | Clones and research mode | Fixed: a clone keeps the original's research-mode setting | Before the fix, the trial's finishing job (on a clone) ran without the research-mode notes |
 | Upstream requests | `@` in Circuit IDs (no Master code; `cobrac:circuit-id-chars`, U11), `BNA` as Source of ID (108, U9), no place for the UC Descriptor in Template-v2-2 (U21) | Waiting for answers; until then the Review Tool may flag these |
 | Formula values in Template-v2-2 | The template's formulas are recalculated when Excel opens the file (`fullCalcOnLoad`) | Readers that do not recalculate (scripts, Review Tool import) see `!! Error !!` in Capability and similar cells |
