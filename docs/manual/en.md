@@ -61,7 +61,7 @@ After "Run" you are on the project page. You can also open it from "History" and
 
 - **Header**: name (press it to rename), status, ROI and TLF, model, usage and reference materials. On a phone, open them with "Details".
 - **Progress**: how far the run is: research → HCD ⇄ FRG → CSV → xlsx.
-- **Tabs**: HCD, FRG, Tables, Report, Decision log and Article. Tabs of outputs that do not exist yet are greyed out.
+- **Tabs**: HCD, FRG, Tables, Report, Decision log, Article and Versions. Tabs of outputs that do not exist yet are greyed out.
 - **Agent panel**: the log of the run, questions and the input box. The "Agent" button at the right end of the tabs opens and closes it.
 
 ### Status
@@ -116,6 +116,16 @@ When the data is complete, the header has two download buttons:
 
 - **BRA xlsx**: CoBRAC's format.
 - **BRA xlsx (Template-v2-2)**: the official template's format.
+
+### Versions
+
+Each time a run or a follow-up finishes, its result is kept as a version (v1, v2, …) that never changes. The "Versions" tab lists them with their date, model and how many rows changed. Pick one to:
+
+- download its BRA xlsx, Template-v2-2 workbook or **BRA-DB package** (the five CSVs and a manifest with the version ID, its parent and a hash of the content, for registering in BRA-DB);
+- open its tables;
+- see which rows were added, removed or changed compared with another version.
+
+Projects finished before versions were kept show their current data as "Not saved yet"; the next follow-up saves it as a version before changing anything.
 
 ## Explanatory articles
 
