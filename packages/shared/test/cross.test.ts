@@ -57,7 +57,7 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
     };
     const r = checkCross(REWARD_HCD, frg);
     expect(r.findings.map((f) => f.code)).toEqual(["X8", "X8"]);
-    expect(r.stats).toEqual({ roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2 });
+    expect(r.stats).toEqual({ roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2, largeGns: 0, largeGnsOnMotif: 0 });
   });
 
   it("reports interfaces that disagree with the connections, unserved UCs and untagged ROI inputs", () => {
@@ -85,13 +85,12 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
       "R.TLF: [U.EXT] is tagged noROI(output) but the ROI does not connect to it",
     ]);
     expect(by("X5")).toEqual(["C: [U.C] is not mentioned in the function text of `R.Right`", "D: [U.D] is not mentioned in the function text of `R.Right`"]);
-    expect(by("X4")).toEqual([]);
     expect(by("X6")).toEqual([]);
     expect(by("X8")).toEqual([]);
     expect(r.summary).toMatchObject({ X1: 1, X2: 3, X3: 1, X5: 2 });
   });
 
-  it("warns about GN pairs without an ROI-internal path and interface UCs missing from the realization text", () => {
+  it("warns about interface UCs missing from the realization text and a single GN under the TLF", () => {
     const hcd = hcdOf([uc("IN", "input"), uc("A"), uc("B"), uc("C"), uc("OUT", "output")], [conn("IN", "A"), conn("IN", "B"), conn("A", "OUT"), conn("B", "OUT"), conn("IN", "C"), conn("C", "OUT")]);
     const frg: FrgModel = {
       gns: [
@@ -100,9 +99,20 @@ describe("checkCross (HCD ↔ FRG consistency)", () => {
       ],
     };
     const r = checkCross(hcd, frg);
-    expect(r.findings.filter((f) => f.code === "X4").map((f) => f.node)).toEqual(["R.Pair"]);
     expect(r.findings.filter((f) => f.code === "X6").map((f) => f.message)).toEqual(["requirementRealization of `R.Pair` does not mention [U.IN], [U.OUT] of its interface"]);
     expect(r.findings.filter((f) => f.code === "X8").map((f) => f.message)).toEqual(["the FRG has a single GN under the TLF"]);
+  });
+
+  it("counts the GNs of 3-4 UCs that are a loop or feedforward motif of the candidates", () => {
+    const hcd = hcdOf([uc("A"), uc("B"), uc("C"), uc("D")], [conn("A", "B"), conn("B", "C"), conn("C", "A"), conn("C", "D"), conn("B", "D")]);
+    const frg: FrgModel = {
+      gns: [
+        gn("R.TLF", ["R.Loop", "R.Chain"], "", ""),
+        gn("R.Loop", ["U.A", "U.B", "U.C"], "", ""),
+        gn("R.Chain", ["U.A", "U.B", "U.D"], "", ""),
+      ],
+    };
+    expect(checkCross(hcd, frg).stats).toMatchObject({ largeGns: 2, largeGnsOnMotif: 1 });
   });
 
   it("flags a TLF decomposed directly into UCs and skips interfaces it cannot parse", () => {

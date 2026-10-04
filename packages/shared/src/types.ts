@@ -359,6 +359,20 @@ export interface HcdCollection {
   members: string[];
 }
 
+/**
+ * A motif of 3-4 ROI-internal UCs that pairs cannot express (motifs.ts), for highlighting on the HCD graph. Its edges
+ * are every connection among `ucs`.
+ */
+export interface HcdMotif {
+  /** `M1`, `M2`, … as in the candidates the FRG phase was given */
+  id: string;
+  kind: "loop" | "feedforward";
+  /** Cycle order for a loop, source → middle → sink for a feedforward triangle */
+  ucs: string[];
+  /** FRG GNs whose UC subnodes are exactly these UCs */
+  gns: string[];
+}
+
 export interface HcdGraph {
   kind: "hcd";
   projectId: string;
@@ -367,6 +381,8 @@ export interface HcdGraph {
   edges: HcdEdge[];
   /** Absent in graphs built before Collections existed */
   collections?: HcdCollection[];
+  /** Absent in graphs built before motifs were computed */
+  motifs?: HcdMotif[];
   references: { referenceId: string; doi: string }[];
 }
 

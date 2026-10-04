@@ -24,6 +24,7 @@ import {
 } from "./bra.js";
 import { parseCsv, toCsv } from "./csv.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
+import { isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
 import { normalizeProjectName } from "./projectId.js";
 import { RESEARCH_FILES, RESEARCH_SCHEMA } from "./research.js";
 import {
@@ -55,6 +56,8 @@ export const PROJECT_FILES = {
   referenceCheck: "reference_check.json",
   quoteCheck: "quote_check.json",
   crossCheck: "cross_check.json",
+  /** Bottom-up candidates for the FRG (motifs.ts), rewritten from the HCD at every check */
+  frgCandidates: "frg_candidates.json",
   phaseBaseline: "phase_baseline.json",
 } as const;
 
@@ -182,6 +185,8 @@ export interface GnRow {
   reqRealization: string;
   capability: string;
   mechanism: string;
+  /** Why a GN holds 3-4 UCs (a motif that pairs of UCs cannot express); empty otherwise */
+  motifNote: string;
 }
 
 export interface FrgModel {
@@ -366,6 +371,10 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         requirementRealization: str("Requirement realization by interface"),
         capability: str("Capability"),
         mechanism: str("Mechanism"),
+      }, {
+        motifNote: str(
+          "Only for a GN with 3-4 UC subnodes: why the motif cannot be split into GNs of 2 UCs (a loop, a feedforward triangle, a convergence the literature describes as one computation), with [Author, Year] citations. Omit or leave empty otherwise",
+        ),
       }),
     },
   }),
@@ -865,6 +874,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
       reqRealization: s(n.requirementRealization),
       capability: s(n.capability),
       mechanism: s(n.mechanism),
+      motifNote: s(n.motifNote),
     }))
     .filter((g) => g.id);
 
@@ -882,6 +892,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
     const collectionIds = new Set((hcd.collections ?? []).map((c) => c.id));
     const ucParents = new Map<string, string[]>();
     const childSet = new Set<string>();
+    const roiConnections = hcd.connections.map((c) => ({ source: c.sender, target: c.receiver })).filter((c) => roiUcs.has(c.source) && roiUcs.has(c.target));
     for (const g of gns) {
       const ucKids = g.subnodes.filter((x) => x.startsWith("U."));
       const gnKids = g.subnodes.filter((x) => !x.startsWith("U."));
@@ -901,8 +912,19 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel): CheckResult<FrgModel>
         else if (!roiUcs.has(id)) errors.push(`\`${g.id}\`: \`${x}\` is outside the ROI; only ROI-internal UCs may be attached.`);
         (ucParents.get(id) ?? ucParents.set(id, []).get(id)!).push(g.id);
       }
-      if (ucKids.length > 2) errors.push(`\`${g.id}\` has ${ucKids.length} UC subnodes (max 2): decompose it further.`);
-      if (gnKids.length === 0 && ucKids.length === 1) errors.push(`\`${g.id}\` is realized by a single UC (${ucKids[0]}); a GN needs 2 UCs or should be merged/decomposed.`);
+      const n = ucKids.length;
+      if (n > MAX_MOTIF_UCS) errors.push(`\`${g.id}\` has ${n} UC subnodes (max ${MAX_MOTIF_UCS}): decompose it further.`);
+      else if (n > 2 && !g.motifNote)
+        errors.push(
+          `\`${g.id}\` has ${n} UC subnodes: a GN holds 2 UCs unless its UCs form a motif that pairs cannot express (a loop, a feedforward triangle). Split it into GNs of 2 UCs, or write in its motifNote why the motif is one computation, with citations.`,
+        );
+      if (n <= 2 && g.motifNote) errors.push(`frg.json: \`${g.id}\` has ${n} UC subnode(s); motifNote is only for a GN with 3-${MAX_MOTIF_UCS} UCs, so leave it empty.`);
+      if (gnKids.length === 0 && n === 1) errors.push(`\`${g.id}\` is realized by a single UC (${ucKids[0]}); a GN needs 2 UCs or should be merged/decomposed.`);
+      const roiKids = ucKids.map(stripUc).filter((id) => roiUcs.has(id));
+      if (roiKids.length >= 2 && !isConnectedSet(roiKids, roiConnections))
+        errors.push(
+          `\`${g.id}\`: its UCs (${roiKids.map((x) => `U.${x}`).join(", ")}) are not connected by ROI-internal connections among themselves. A GN is realized by its UCs and the connections between them: attach UCs that connect (a UC on the way between them belongs in the GN too), or add the missing connection to connections.json if the literature reports it.`,
+        );
       const empty = (
         [
           ["interface", g.interfaceText],
@@ -1018,6 +1040,9 @@ export interface BuildCsvOptions {
   /** Project name, prepended to the Description (skipped when it is not English) */
   name?: string;
 }
+
+/** GN Comments of FRG.csv: the comment, then why the GN holds a motif of 3-4 UCs (like uniformityNote on Circuits). */
+const gnComment = (g: GnRow) => [g.comment, g.motifNote ? `Motif of ${g.subnodes.filter((x) => x.startsWith("U.")).length} UCs: ${g.motifNote}` : ""].filter(Boolean).join("; ");
 
 /**
  * BRA version written to Project.csv (the CoBRAC data format, not the harness version). v1-1 (0.10): References gains
@@ -1183,7 +1208,7 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
         "Output Semantics",
         "Comments",
       ],
-      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, gnOs.get(g.id) ?? "", g.comment]),
+      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, gnOs.get(g.id) ?? "", gnComment(g)]),
       ...hcd.ucs.map((u) => [
         `U.${u.id}`,
         "",

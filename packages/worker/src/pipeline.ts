@@ -28,6 +28,7 @@ import {
   checkHcd,
   checkResearch,
   countRevisions,
+  frgCandidatesFromHcd,
   frgCitedIds,
   hombaAnchorIds,
   isFrgProblem,
@@ -183,6 +184,7 @@ async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
 export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<PhaseCheck> {
   const hcd = await checkHcdWithRcs(paths, deps);
   ctx.hcd = hcd.model;
+  if (hcd.model) await writeFrgCandidates(hcd.model, paths);
   if (phase === "HCD") {
     if (hcd.model?.meta && hcd.errors.length === 0) await deps.onMetaAccepted?.(hcd.model.meta);
     const errors = await hcdProblems(hcd, paths, deps, ctx);
@@ -267,6 +269,15 @@ async function changedSinceChecked(phase: "HCD" | "FRG", paths: ProjectPaths, ct
   const fresh = problems.filter((p) => !known.has(p));
   if (!fresh.length) await saveBaseline(phase, base ? base.problems.filter((p) => problems.includes(p)) : problems, paths, ctx);
   return fresh.map((p) => `${phase} (changed after the ${phase} phase was checked): ${p}`);
+}
+
+/** The bottom-up candidates the FRG phase matches against its top-down decomposition, kept current with the HCD. */
+async function writeFrgCandidates(hcd: HcdModel, paths: ProjectPaths): Promise<void> {
+  try {
+    await writeFile(paths.frgCandidates, JSON.stringify(frgCandidatesFromHcd(hcd), null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[motifs] ${paths.frgCandidates} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
 }
 
 async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths: ProjectPaths, ctx: PhaseContext): Promise<void> {
@@ -418,7 +429,7 @@ export function adjustmentPrompt(ctx: PhaseContext, decisionLog: string | null):
       `The HCD and the FRG do not fit together yet (${findings.length} finding(s) of the worker's HCD <-> FRG consistency check):\n` +
       findings.map((f) => `- ${f.code} ${f.message}`).join("\n") +
       `\n\nWhat the checks mean:\n${codes.map((c) => `- ${c}: ${CROSS_RULES[c].description}`).join("\n")}\n\n` +
-      `Adjust the two once. For each finding decide from the evidence which side must change (FRG phase step 3): split or add HCD UCs ` +
+      `Adjust the two once. For each finding decide from the evidence which side must change (FRG phase step 5): split or add HCD UCs ` +
       `when the literature supports a finer or missing population or connection, or change the FRG decomposition and interfaces when the HCD is right. ` +
       `Keep all files consistent (Circuit IDs, connections, interfaces, Output Semantics, function items, FRG subnodes and interfaces, the report). ` +
       `Record each change, or each mismatch you keep with its reason, under \`${REVISIONS_HEADING}\` in ${PROJECT_FILES.decisionLog} (see AGENTS.md), ` +

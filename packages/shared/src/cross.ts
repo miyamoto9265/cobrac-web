@@ -4,9 +4,10 @@
  * in `{P}/cross_check.json` without sending it back to the agent yet (record-only).
  */
 import { parseInterface, type FrgModel, type GnRow, type HcdModel } from "./harness.js";
+import { frgCandidatesFromHcd } from "./motifs.js";
 import { parseUcDescriptor } from "./ucNaming.js";
 
-export const CROSS_CODES = ["X1", "X2", "X3", "X4", "X5", "X6", "X8", "X9"] as const;
+export const CROSS_CODES = ["X1", "X2", "X3", "X5", "X6", "X8", "X9"] as const;
 export type CrossCode = (typeof CROSS_CODES)[number];
 
 /** Which side a finding points at: FRG->HCD = the FRG asks for something the HCD lacks, HCD->FRG the reverse */
@@ -23,7 +24,6 @@ export const CROSS_RULES: Record<CrossCode, CrossRule> = {
   X1: { severity: "error", direction: "both", description: "A GN interface leaves out a flow that the HCD connections of its UCs have (inputs from / outputs to circuits outside the GN)" },
   X2: { severity: "error", direction: "both", description: "The ROI inputs / outputs derived from the HCD connections differ from the noROI(input) / noROI(output) tags of uc.json (a tagged UC with no path to or from the ROI, or an untagged UC that connects to it)" },
   X3: { severity: "error", direction: "FRG->HCD", description: "A GN interface claims an input or output that no HCD connection of its UCs provides" },
-  X4: { severity: "warning", direction: "HCD->FRG", description: "The two UCs of a GN are not connected through ROI-internal connections" },
   X5: { severity: "warning", direction: "HCD->FRG", description: "A ROI-internal UC is not mentioned in the function text of any GN it is attached to" },
   X6: { severity: "warning", direction: "both", description: "A GN's Requirement realization does not mention every UC of its interface" },
   X8: { severity: "warning", direction: "FRG->HCD", description: "The FRG is collapsed (TLF directly on UCs, a single GN, or fewer than 3 ROI-internal UCs): the UCs may be too coarse" },
@@ -80,6 +80,9 @@ export interface CrossStats {
   interfacesParsed: number;
   /** Levels of GNs below and including the TLF (1 = the TLF only) */
   depth: number;
+  /** GNs with 3-4 UC subnodes, and how many of them are a loop / feedforward motif of the bottom-up candidates */
+  largeGns: number;
+  largeGnsOnMotif: number;
 }
 
 export interface CrossCheck {
@@ -188,26 +191,15 @@ export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
     if (idleOut.length) add("X2", root.id, `${fmt(idleOut)} ${idleOut.length > 1 ? "are" : "is"} tagged noROI(output) but the ROI does not connect to ${idleOut.length > 1 ? "them" : "it"}`);
   }
 
-  const undirected = new Map<string, Set<string>>();
-  for (const [s, r] of edges.values()) {
-    if (!roiUcs.has(s) || !roiUcs.has(r)) continue;
-    (undirected.get(s) ?? undirected.set(s, new Set()).get(s)!).add(r);
-    (undirected.get(r) ?? undirected.set(r, new Set()).get(r)!).add(s);
-  }
-  const connected = (a: string, b: string) => {
-    const seen = new Set([a]);
-    const queue = [a];
-    while (queue.length) {
-      const x = queue.shift()!;
-      if (x === b) return true;
-      for (const y of undirected.get(x) ?? []) if (!seen.has(y)) seen.add(y), queue.push(y);
-    }
-    return false;
-  };
-  for (const g of frg.gns) {
-    const kids = ucKids(g).filter((u) => roiUcs.has(u));
-    if (kids.length === 2 && !connected(kids[0], kids[1])) add("X4", g.id, `the UCs of \`${g.id}\` ([U.${kids[0]}], [U.${kids[1]}]) are not connected through ROI-internal connections`);
-  }
+  // motifs: which GNs of 3-4 UCs are a loop / feedforward triangle the worker listed (the 2-UC GNs are connected
+  // pairs by the FRG check, so they always are one); record only
+  const motifSets = new Set(
+    frgCandidatesFromHcd(hcd)
+      .motifs.filter((m) => m.ucs.length > 2)
+      .map((m) => [...m.ucs].sort().join("\u0000")),
+  );
+  const largeGns = frg.gns.filter((g) => ucKids(g).length > 2);
+  const motifGns = largeGns.filter((g) => motifSets.has([...new Set(ucKids(g))].sort().join("\u0000"))).length;
 
   const parents = new Map<string, GnRow[]>();
   for (const g of frg.gns) for (const u of ucKids(g)) (parents.get(u) ?? parents.set(u, []).get(u)!).push(g);
@@ -242,5 +234,5 @@ export function checkCross(hcd: HcdModel, frg: FrgModel): CrossCheck {
   }
 
   const summary = Object.fromEntries(CROSS_CODES.map((c) => [c, findings.filter((f) => f.code === c).length])) as Record<CrossCode, number>;
-  return { findings, summary, stats: { roiUcs: roiUcs.size, gns: frg.gns.length, interfacesParsed, depth } };
+  return { findings, summary, stats: { roiUcs: roiUcs.size, gns: frg.gns.length, interfacesParsed, depth, largeGns: largeGns.length, largeGnsOnMotif: motifGns } };
 }
