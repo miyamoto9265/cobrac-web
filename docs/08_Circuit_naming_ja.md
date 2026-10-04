@@ -4,7 +4,7 @@
 | ---- | ---- |
 | 文書 | CoBRAC が UC（Uniform Circuit）と Collection に付ける名前の規則の解説。名前の規則が必要になった理由、SABRA のアンカー、9 本のファセット、UC Descriptor と Circuit ID、左右の扱い、Canon での使い方、WBAI の Error code List (Master) に合わせたエラーコード、WBAI に確認したい点 |
 | 対象読者 | 利用者、BRA を審査・統合する WBAI のメンバー、CoBRAC の出力を他のデータと突き合わせる人 |
-| 対象バージョン | 命名規則の導入はアプリ 0.7.0。左右のファセット `side`、Circuit ID の文字集合と区切り、Master に合わせたエラーコードは 0.17.0 から。BNA を新皮質だけに使う SABRA の境界は 0.21.0 から（§4.3） |
+| 対象バージョン | 命名規則の導入はアプリ 0.7.0。左右のファセット `side`、Circuit ID の文字集合と区切り、Master に合わせたエラーコードは 0.17.0 から。BNA を新皮質だけに使う SABRA の境界は 0.24.0 から（§4.3） |
 | 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md)（命名規則が入った v1.1 の解説）/ [06_Research_mode_and_Canon_ja.md](./06_Research_mode_and_Canon_ja.md)（Canon の利用ガイド）/ [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md)（v2 の解説）/ [01_設計仕様.md](./01_設計仕様.md) / English: [08_Circuit_naming.md](./08_Circuit_naming.md) |
 
 ---
@@ -96,7 +96,7 @@ CoBRAC の規則は、次の考え方で組み立てています。
 
 BNA の領域を 1 つに決める目安は、上位の候補の `p_raw` が 0.5 以上で、`k_papers` が 2 以上であることです（`prompts/phases/HCD.md`）。
 
-### 4.3 BNA と DHBA の境界（v0.21.0）
+### 4.3 BNA と DHBA の境界（v0.24.0）
 
 2026-10-04 に SABRA の仕様が変わり、BNA を使うのは**新皮質だけ**になりました。それまでは、BNA の皮質下の 36 ラベル（扁桃体 `Amyg`、海馬 `Hipp`、大脳基底核 `BG`、視床 `Tha`）と、不等皮質（海馬体・嗅内皮質など）も BNA で表していました。現在は、これらの領域を DHBA の項で表します。
 
@@ -112,7 +112,9 @@ BNA の領域を 1 つに決める目安は、上位の候補の `p_raw` が 0.5
 
 - 境界の正本は RCS の `rcs/sabra.py` です。RCS の `get_homba_term` と `search_homba_candidates` は新しい境界で `sabra.atlas` を返し、`search_bna_candidates` は新皮質でない領域に `sabra.atlas: DHBA`、`sabra_unit: false` を付けます。
 - 新しく作るプロジェクトでは、新皮質でない BNA の領域（ラベル 211–246、`BNA:115-116`、`BNA:117-118`）と、`BNAG:Amyg`・`BNAG:Hipp`・`BNAG:BG`・`BNAG:Tha` を、アンカーにも `in` / `out` などの値にも使えません。ワーカーの検査が、その領域を含む DHBA の項を示して直させます。
-- **既存のプロジェクトは変えません。** 0.21.0 より前に作ったプロジェクトは、BNA のアンカーのまま読み込み・検査・出力でき、フォローアップでも書き直しを求めません（プロジェクトの `sabraBoundary` が無いため、検査は以前の境界のまま）。複製したプロジェクトは元の設定を引き継ぎます。
+- 海馬全体は `HOMBA:12170`（`HiF`）で表します。文献が特定の領域（CA1、CA3、DG、海馬台など）を挙げていれば、`HiF` ではなくその DHBA の項を使います。
+- BNA の群 `BNAG:PhG`（海馬傍回）は、新皮質の A35/36r・A35/36c・TL・TH と、DHBA になった A28/34・TI を含むので、新しいプロジェクトでは回全体のアンカーにできません。検査は亜領域（`BNA:109-110`、`BNA:111-112`、`BNA:113-114`、`BNA:119-120`）か DHBA の `EC`・`TI` を使うよう求めます。
+- **既存のプロジェクトは変えません。** 0.24.0 より前に作ったプロジェクトは、BNA のアンカーのまま読み込み・検査・出力でき、フォローアップでも書き直しを求めません（プロジェクトの `sabraBoundary` が無いため、検査は以前の境界のまま）。複製したプロジェクトは元の設定を引き継ぎます。
 - **Canon**: 保存済みの Canon の回路も書き換えません。Canon に従うプロジェクトは、Canon にある Descriptor（以前の境界で作られた `BNA:223-224` など）をそのまま使えます。
 
 ---
@@ -199,7 +201,7 @@ Circuit ID = <アンカーの略称> [ "(" <項目> { "." <項目> } ")" ]
 | 回路 | UC Descriptor | Circuit ID | 見どころ |
 | ---- | ------------- | ---------- | -------- |
 | 腹側被蓋野（全体） | `HOMBA:12261` | `VTA` | ファセットなし（DHBA 側の単位そのもの） |
-| 側坐核（全体、両側） | `HOMBA:10339` | `NAC` | ファセットなし（DHBA 側。0.21.0 より前は `BNA:223-224`） |
+| 側坐核（全体、両側） | `HOMBA:10339` | `NAC` | ファセットなし（DHBA 側。0.24.0 より前は `BNA:223-224`） |
 | 左の一次運動野上肢域 | `BNA:57-58/side:left` | `A4ul(left)` | 左右は `side`。ID では最後の項目 |
 | 青斑核のノルアドレナリン細胞 | `HOMBA:12499/nt:NE` | `NC(NE)` | 伝達物質の 1 軸 |
 | 側坐核 shell | `HOMBA:10341` | `NACs` | shell は DHBA 名を持つので、それ自体が SABRA の単位 |
@@ -208,14 +210,14 @@ Circuit ID = <アンカーの略称> [ "(" <項目> { "." <項目> } ")" ]
 | 片葉の Purkinje 細胞 | `HOMBA:12852/part:HOMBA:AA30423/cell:purkinje` | `FNCb(floc.purkinje)` | 片葉は DHBA 名を持たないので、アンカーは DHBA 名を持つ祖先の片葉小節葉 |
 | 側坐核へ投射し報酬予測誤差を表す VTA のドーパミン細胞 | `HOMBA:12261/nt:DA/out:HOMBA:10339/resp:rpe` | `VTA(DA.out-NAC.rpe)` | 投射先で定義される集団と反応性 |
 | 左の一次運動野上肢域 L5 の皮質脊髄路細胞 | `BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left` | `A4ul(L5.pt.out-Sp.left)` | 脊髄は SABRA の単位でないので HOMBA の略称 `Sp` |
-| 海馬 CA1 の錐体細胞 | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 は DHBA 名を持つ SABRA の単位（0.21.0 より前は `BNAG:Hipp/part:HOMBA:10297/cell:pyr`、`Hipp(CA1.pyr)`） |
+| 海馬 CA1 の錐体細胞 | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 は DHBA 名を持つ SABRA の単位（0.24.0 より前は `BNAG:Hipp/part:HOMBA:10297/cell:pyr`、`Hipp(CA1.pyr)`） |
 | 左の背側 9/46 野 III 層の細胞 | `BNA:15-16/lay:L3/side:left` | `A9/46d(L3.left)` | 正式略称 `A9/46d` をそのまま使う |
 
 ### 6.4 ワーカーの検査
 
 HCD の段の終わりに、ワーカーは `uc.json` の名前を次の順に検査します（`checkUcNaming`、`packages/shared/src/ucNaming.ts`）。問題があれば修正ターンでエージェントに戻します。
 
-1. **Descriptor の構文と意味。** アンカーの形、BNA の番号（1〜246、ペアは奇数と奇数+1）、ファセットの順と重複、`mol` の極性、`side` の値（`left` / `right` の 1 つ）を確かめます。旧い形で書かれていれば、現在の形での書き直しを求めます。0.21.0 以降に作ったプロジェクトでは、新皮質でない BNA の領域と群をアンカーや値に使っていないことも確かめます（§4.3。Canon にある Descriptor は除く）。
+1. **Descriptor の構文と意味。** アンカーの形、BNA の番号（1〜246、ペアは奇数と奇数+1）、ファセットの順と重複、`mol` の極性、`side` の値（`left` / `right` の 1 つ）を確かめます。旧い形で書かれていれば、現在の形での書き直しを求めます。0.24.0 以降に作ったプロジェクトでは、新皮質でない BNA の領域と群をアンカーや値に使っていないことも確かめます（§4.3。Canon にある Descriptor は除く）。
 2. **Descriptor の重複。** 正規化した Descriptor が、UC と Collection の中で重ならないことを確かめます。
 3. **括弧の中の項目。** 項目の数がファセットの値の数と一致すること、`side` があるときは最後の項目がその値であること、`side` が無いのに `left` / `right` を書いていないことを確かめます。
 4. **前半の略称。** アンカーの正式略称（BNA は組み込みの表、HOMBA / DHBA は RCS の `get_homba_term`）と、大文字小文字も含めて一致することを確かめます。BNA の担当範囲の HOMBA の項や、DHBA 名を持たない項をアンカーにしていれば、正しいアンカーを示して直させます。RCS に問い合わせられなかったアンカーは、この照合だけを省きます。

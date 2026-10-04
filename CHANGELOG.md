@@ -5,6 +5,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- New projects follow the SABRA boundary of 2026-10-04: BNA names the neocortex only, and everything else is a DHBA term. The agent anchors the amygdala, hippocampus (CA1, dentate gyrus, subiculum), entorhinal cortex, olfactory cortex, striatum, nucleus accumbens, pallidum and thalamus on DHBA (for example `HOMBA:10339` / `NAC`, `HOMBA:10341/mol:DRD1+` / `NACs(DRD1+)`, `HOMBA:10297/cell:pyr` / `CA1(pyr)`), and the HCD check sends back any BNA area or group that is not neocortex (BNA labels 211–246, A28/34, TI; `BNAG:Amyg`, `Hipp`, `BG`, `Tha`), as an anchor or as an input / projection value, naming the DHBA term that contains it. The whole parahippocampal gyrus `BNAG:PhG` is sent back too, because it mixes neocortical areas with A28/34 and TI; the message lists its subregions. The whole hippocampus is `HiF`, and a field the source names (CA1, CA3, DG, subiculum) is anchored on its own DHBA term RCS reports the new boundary in its SABRA annotations
+- Projects created before this version are unchanged: their BNA anchors for subcortical and hippocampal circuits still load, pass the checks and export as before, follow-ups do not ask to rename them, and copies keep the original's rule. A project that follows a Canon may reuse the Canon's existing names
+- The ROI suggestions on the create screen list neocortical Brainnetome areas only
+- The circuit-naming article (section 4.3), the design notes and the HCD instructions describe the new boundary; their examples use the DHBA names
+
 ## [0.23.0] - 2026-10-04
 
 ### Added

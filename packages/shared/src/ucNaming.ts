@@ -93,6 +93,12 @@ export type SabraBoundary = "neocortex";
 export const BNA_NON_NEOCORTICAL_L2: readonly string[] = ["Amyg", "Hipp", "BG", "Tha"];
 
 /**
+ * Neocortical BNA L2 groups that also hold non-neocortical areas, with their neocortical subregions (left labels):
+ * not a SABRA unit as a whole under the neocortex boundary. PhG has A28/34 (EC) and TI, which are DHBA.
+ */
+export const BNA_MIXED_L2: ReadonlyMap<string, readonly number[]> = new Map([["PhG", [109, 111, 113, 119]]]);
+
+/**
  * DHBA term (HOMBA ID, DHBA acronym) that contains each non-neocortical BNA area, by left label; the same table as
  * `BNA_DHBA_COUNTERPARTS` in rosetta-candidate-search `rcs/sabra.py`. A container, not an equivalent.
  */
@@ -127,6 +133,13 @@ export function neocortexBoundaryProblems(d: UcDescriptor): string[] {
     );
   const check = (a: UcAnchor, id: string) => {
     if (a.kind === "bnag" && BNA_NON_NEOCORTICAL_L2.includes(a.l2)) bad(id, `BNA group ${a.l2}`, BNA_GROUP_DHBA[a.l2]);
+    const mixed = a.kind === "bnag" ? BNA_MIXED_L2.get(a.l2) : undefined;
+    if (mixed) {
+      const areas = mixed.map((l) => `BNA:${l}-${l + 1} (${bnaArea(l)?.abbr})`).join(", ");
+      out.push(
+        `\`${id}\` (BNA group ${(a as { l2: string }).l2}) mixes neocortical areas with non-neocortical ones that SABRA names with DHBA since 2026-10-04, so the whole gyrus is not a SABRA unit; use its subregions (${areas}) or the DHBA terms HOMBA:10317 EC and HOMBA:10330 TI`,
+      );
+    }
     if (a.kind === "bna" && !bnaLabelIsNeocortex(a.left)) {
       const [hid, acr] = BNA_DHBA_COUNTERPARTS.get(a.left)!;
       bad(id, bnaArea(a.left)?.abbr ?? "BNA area", `${hid} ${acr}`);
