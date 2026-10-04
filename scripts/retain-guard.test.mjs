@@ -83,3 +83,24 @@ test("CLI: writes a job summary table", () => {
   assert.match(md, /Deploy stopped/);
   assert.match(md, /\| `AWS::S3::Bucket` \| `Artifacts Artifacts82DD59A1` \| orphan \|/);
 });
+
+test("guards the BRA-DB instance and its data volume in the BraDb stack", () => {
+  const text = [
+    "Stack BraDb (aws://123456789012/ap-northeast-1)",
+    "Resources",
+    "[+] AWS::EC2::Instance Db Db5D02A0A9",
+    "[~] AWS::EC2::Instance Db Db5D02A0A9 replace",
+    "[-] AWS::EC2::Volume DataVolume DataVolume1234 orphan",
+    "[~] AWS::EC2::VolumeAttachment DataVolumeAttachment DataVolumeAttachment1 replace",
+    "[~] AWS::Lambda::Function ImportFn ImportFn1234",
+    "Stack CobracAgents",
+  ].join("\n");
+  assert.deepEqual(findRetainRisks(text), {
+    recognised: true,
+    risks: [
+      { type: "AWS::EC2::Instance", resource: "Db Db5D02A0A9", change: "replace" },
+      { type: "AWS::EC2::Volume", resource: "DataVolume DataVolume1234", change: "orphan" },
+      { type: "AWS::EC2::VolumeAttachment", resource: "DataVolumeAttachment DataVolumeAttachment1", change: "replace" },
+    ],
+  });
+});

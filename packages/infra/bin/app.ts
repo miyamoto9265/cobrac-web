@@ -3,6 +3,8 @@ import { config as loadEnv } from "dotenv";
 import { App } from "aws-cdk-lib";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { BRADB_IMPORT_FUNCTION_NAME } from "@cobrac/shared";
+import { BraDbStack } from "../lib/bradb-stack.js";
 import { CobracAgentsStack } from "../lib/cobrac-stack.js";
 
 // Also load the repo-root .env (packages/infra/../../.env)
@@ -10,11 +12,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: resolve(here, "../../../.env") });
 
 const app = new App();
+const env = {
+  account: process.env.CDK_DEFAULT_ACCOUNT,
+  region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1",
+};
+// BRA-DB (EC2 + PostgreSQL/AGE) in its own stack; COBRAC_BRADB=false leaves it out
+const braDb = (process.env.COBRAC_BRADB ?? "true") !== "false";
+if (braDb) new BraDbStack(app, "BraDb", { env, description: "BRA-DB (PostgreSQL 17 + Apache AGE) for CoBRAC Agents" });
 new CobracAgentsStack(app, "CobracAgents", {
-  env: {
-    account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION ?? "ap-northeast-1",
-  },
+  braDbImportFunction: braDb ? BRADB_IMPORT_FUNCTION_NAME : "",
+  env,
   adminEmails: process.env.COBRAC_ADMIN_EMAILS ?? "",
   selfSignUp: (process.env.COBRAC_SELF_SIGNUP ?? "true") === "true",
   maxConcurrentJobs: Number(process.env.COBRAC_MAX_CONCURRENT_JOBS ?? "2"),

@@ -7,6 +7,8 @@ const get = (name: string, fallback?: string): string => {
 export const env = {
   region: process.env.AWS_REGION ?? "ap-northeast-1",
   appVersion: process.env.APP_VERSION ?? "0.0.0",
+  /** BRA-DB registration Lambda (BraDb stack); empty = this deployment has no BRA-DB */
+  bradbImportFunction: process.env.BRADB_IMPORT_FUNCTION ?? "",
   tables: {
     users: get("TABLE_USERS", ""),
     projects: get("TABLE_PROJECTS", ""),

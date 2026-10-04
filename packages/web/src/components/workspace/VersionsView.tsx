@@ -1,12 +1,13 @@
 import { ChevronDown, ChevronRight, History, Loader2, Table2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { BraChangeSummary, BraTableDiff, BraVersionDetailResponse, BraVersionDiffResponse, BraVersionListItem, ListBraVersionsResponse, ProjectRecord } from "@cobrac/shared";
+import type { BraChangeSummary, BraTableDiff, BraVersionDetailResponse, BraVersionDiffResponse, BraVersionListItem, ListBraVersionsResponse, ProjectBradbResponse, ProjectRecord } from "@cobrac/shared";
 import { BRA_TABLES, parseBraVersionId, versionFileKey } from "@cobrac/shared";
 import { useI18n, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes, fmtDate } from "../../lib/format";
 import type { TableSource } from "../../lib/table";
+import { BradbPanel } from "./BradbPanel";
 import { TablesView } from "./TablesView";
 
 const ORIGIN_LABEL: Record<BraVersionListItem["origin"], MessageKey> = { job: "ver.origin.job", baseline: "ver.origin.baseline", live: "ver.origin.live" };
@@ -42,6 +43,19 @@ export function VersionsView({ projectId, project }: { projectId: string; projec
   const [params, setParams] = useSearchParams();
   const [list, setList] = useState<ListBraVersionsResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [bradb, setBradb] = useState<ProjectBradbResponse | null>(null);
+  const [bradbTick, setBradbTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .bradb(projectId)
+      .then((r) => live && setBradb(r))
+      .catch(() => live && setBradb(null));
+    return () => {
+      live = false;
+    };
+  }, [projectId, bradbTick]);
 
   useEffect(() => {
     let live = true;
@@ -116,12 +130,39 @@ export function VersionsView({ projectId, project }: { projectId: string; projec
           </ol>
         )}
       </aside>
-      <div className="min-w-0 flex-1 lg:overflow-y-auto">{selected && <VersionDetail key={`${selected.version}|${selected.frozen}`} projectId={projectId} project={project} item={selected} items={list.items} onSelect={select} />}</div>
+      <div className="min-w-0 flex-1 lg:overflow-y-auto">{selected && (
+          <VersionDetail
+            key={`${selected.version}|${selected.frozen}`}
+            projectId={projectId}
+            project={project}
+            item={selected}
+            items={list.items}
+            onSelect={select}
+            bradb={bradb}
+            onBradbChanged={() => setBradbTick((n) => n + 1)}
+          />
+        )}</div>
     </div>
   );
 }
 
-function VersionDetail({ projectId, project, item, items, onSelect }: { projectId: string; project: ProjectRecord; item: BraVersionListItem; items: BraVersionListItem[]; onSelect: (n: number) => void }) {
+function VersionDetail({
+  projectId,
+  project,
+  item,
+  items,
+  onSelect,
+  bradb,
+  onBradbChanged,
+}: {
+  projectId: string;
+  project: ProjectRecord;
+  item: BraVersionListItem;
+  items: BraVersionListItem[];
+  onSelect: (n: number) => void;
+  bradb: ProjectBradbResponse | null;
+  onBradbChanged: () => void;
+}) {
   const { t, locale } = useI18n();
   const [detail, setDetail] = useState<BraVersionDetailResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -201,6 +242,8 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
           </div>
         ))}
       </dl>
+
+      <BradbPanel projectId={projectId} item={item} status={bradb} onChanged={onBradbChanged} />
 
       <div>
         <button type="button" disabled={tableSources.length === 0} onClick={() => setShowTables((v) => !v)} aria-expanded={showTables} className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`} data-testid="version-tables">
