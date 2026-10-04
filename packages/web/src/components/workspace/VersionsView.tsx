@@ -1,8 +1,8 @@
-import { ChevronDown, ChevronRight, Download, FileSpreadsheet, History, Loader2, Table2 } from "lucide-react";
+import { ChevronDown, ChevronRight, History, Loader2, Table2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { BraChangeSummary, BraTableDiff, BraVersionDetailResponse, BraVersionDiffResponse, BraVersionListItem, ListBraVersionsResponse, ProjectRecord } from "@cobrac/shared";
-import { BRA_TABLES, TEMPLATE_XLSX_SUFFIX, parseBraVersionId, versionFileKey } from "@cobrac/shared";
+import { BRA_TABLES, parseBraVersionId, versionFileKey } from "@cobrac/shared";
 import { useI18n, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes, fmtDate } from "../../lib/format";
@@ -36,7 +36,7 @@ function ChangeChips({ summary }: { summary: BraChangeSummary | null }) {
   );
 }
 
-/** Versions of the project's BRA data: list, details, downloads, tables and the row-level changes. `?v=` selects one. */
+/** Versions of the project's BRA data: list, details, tables and the row-level changes. `?v=` selects one. */
 export function VersionsView({ projectId, project }: { projectId: string; project: ProjectRecord }) {
   const { t, locale } = useI18n();
   const [params, setParams] = useSearchParams();
@@ -140,19 +140,8 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
     };
   }, [projectId, n]);
 
-  const download = async (path: string) => {
-    try {
-      const { url } = await api.versionDownloadUrl(projectId, n, path);
-      window.location.href = url;
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  };
-
   const P = project.projectId;
   const files = detail?.files ?? [];
-  const xlsx = files.find((f) => f.path === `output/${P}.bra.xlsx`);
-  const template = files.find((f) => f.path.endsWith(TEMPLATE_XLSX_SUFFIX));
   const tableSources: TableSource[] = files
     .filter((f) => /_(HCD|FRG)\/[^/]+\.json$/.test(f.path) || /_CSV\/[^/]+\.csv$/.test(f.path))
     .map((f) => ({
@@ -213,22 +202,11 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
         ))}
       </dl>
 
-      <section>
-        <h4 className="mb-1.5 text-xs font-semibold text-slate-700">{t("ver.downloads")}</h4>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" disabled={!xlsx} onClick={() => xlsx && void download(xlsx.path)} className={`${btn} bg-emerald-700 text-white hover:bg-emerald-800`} data-testid="version-xlsx">
-            <Download size={14} /> BRA xlsx
-          </button>
-          {template && (
-            <button type="button" onClick={() => void download(template.path)} className={`${btn} border border-emerald-600 text-emerald-700 hover:bg-emerald-50`}>
-              <FileSpreadsheet size={14} /> Template-v2-2
-            </button>
-          )}
-          <button type="button" disabled={tableSources.length === 0} onClick={() => setShowTables((v) => !v)} aria-expanded={showTables} className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`}>
-            <Table2 size={14} /> {t(showTables ? "ver.hideTables" : "ver.showTables")}
-          </button>
-        </div>
-      </section>
+      <div>
+        <button type="button" disabled={tableSources.length === 0} onClick={() => setShowTables((v) => !v)} aria-expanded={showTables} className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`} data-testid="version-tables">
+          <Table2 size={14} /> {t(showTables ? "ver.hideTables" : "ver.showTables")}
+        </button>
+      </div>
 
       {showTables && tableSources.length > 0 && (
         <div className="h-[28rem] overflow-hidden rounded-md border border-slate-200 bg-white">
@@ -248,9 +226,6 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
               <li key={f.path} className="flex items-center gap-2 px-2.5 py-1.5">
                 <span className="min-w-0 flex-1 break-all font-mono text-[11px] text-slate-700">{f.path}</span>
                 <span className="shrink-0 text-[11px] text-slate-400">{fmtBytes(f.size)}</span>
-                <button type="button" onClick={() => void download(f.path)} className="shrink-0 rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800 coarse:min-h-11" aria-label={`${t("ver.download")} ${f.path}`}>
-                  <Download size={13} />
-                </button>
               </li>
             ))}
           </ul>
