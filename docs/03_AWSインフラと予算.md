@@ -29,6 +29,7 @@ Internet
   │
   ├─ CloudFront ── S3 (SPA + config.json)     OAC, no public bucket
   ├─ Cognito User Pool                         email login
+  │    └─ custom message ── Lambda authMessage   account e-mails
   │
   ├─ HTTP API  ── JWT ── Lambda http
   └─ WebSocket ── JWT ── Lambda ws
@@ -56,7 +57,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 
 | Resource | Spec | When it runs |
 | -------- | ---- | ------------ |
-| Lambda × 8 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 5 minutes |
+| Lambda × 9 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand; authMessage 256 MB, 5 s). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 5 minutes / Cognito custom message trigger |
 | ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
 | Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
 | CodeBuild | Image build at deploy | During `cdk deploy` |
@@ -82,7 +83,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | CloudFront | Price Class 200 (North America, Europe, Asia), SPA 403/404 → index.html |
 | HTTP API | CORS enabled. Anonymous only on `/health` |
 | WebSocket API | stage `prod`. Connection limit 2 hours |
-| Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin` |
+| Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin`. Account e-mails (sign-up code, resend, password reset, e-mail change, admin invite) are written by the custom message trigger `authMessage` (Japanese or English by the UI language, both otherwise); they are still sent from Cognito's default address `no-reply@verificationemail.com` (no SES identity yet) |
 | KMS CMK | Rotation enabled, RETAIN |
 
 ### 3.4 Logs
@@ -227,6 +228,7 @@ The source of truth is the GitHub repository's Actions **Variables** (and the **
 | `COBRAC_CODEX_MODEL` | empty | Model when unspecified |
 | `COBRAC_CODEX_REASONING_EFFORT` | high | Effort when unspecified |
 | `COBRAC_RCS_MCP_URL` | production `rcs-mcp` endpoint | RCS MCP server for SABRA lookups; empty disables RCS. Optional, not in Actions Variables |
+| `COBRAC_SITE_URL` | `https://cobrac.site` | Site URL written in the account e-mails. Optional, not in Actions Variables |
 | `COBRAC_RCS_MCP_SECRET_NAME` | `rcs/mcp-bearer-token` | Secret with the accepted RCS tokens (owned by rosetta-candidate-search). The worker task role gets `GetSecretValue` on it |
 
 Raising concurrency grows Fargate linearly. Pinning a larger model grows only the OpenAI side.
