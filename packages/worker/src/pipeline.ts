@@ -205,9 +205,9 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   if (!hcd.model) return { errors: ["The HCD files cannot be used:", ...hcd.errors], fatal: true };
   const hcdErrors = await changedSinceChecked("HCD", paths, ctx, () => hcdProblems(hcd, paths, deps, ctx));
 
-  const frg = checkFrg(loadFrgFiles(paths), hcd.model);
+  const frg = checkFrg(loadFrgFiles(paths), hcd.model, { harnessRules: deps.harnessRules });
   ctx.frg = frg.model;
-  if (frg.model) await writeCrossCheck(phase, hcd.model, frg.model, paths, ctx);
+  if (frg.model) await writeCrossCheck(phase, hcd.model, frg.model, paths, deps, ctx);
   if (phase === "FRG") {
     const errors = await frgProblems(frg, paths, deps, ctx);
     if (ctx.adjustment && !countRevisions(readText(paths.decisionLog)).section)
@@ -291,12 +291,12 @@ async function writeFrgCandidates(hcd: HcdModel, paths: ProjectPaths): Promise<v
   }
 }
 
-async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths: ProjectPaths, ctx: PhaseContext): Promise<void> {
+async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<void> {
   const report: CrossReport = {
     checkedAt: new Date().toISOString(),
     phase,
     mode: "record-only",
-    ...checkCross(hcd, frg),
+    ...checkCross(hcd, frg, { harnessRules: deps.harnessRules }),
     rules: CROSS_RULES,
     revisions: countRevisions(readText(paths.decisionLog)),
     ...(ctx.adjustment ? { adjustment: ctx.adjustment } : {}),

@@ -27,13 +27,12 @@ The FRG meets in the middle: a top-down decomposition of the TLF (steps 1-2) and
    Write the result as a table in the `## FRG` section of `report.md`: sub-function (GN ID) | candidate (IDs and UCs) | outcome | action.
 
 5. **Grounding in UCs -> `frg.json` `subnodes`.** Build the graph from the matching: the GNs that hold UCs come from the matched candidates; group them upward along the top-down decomposition and the pathways to the TLF. Attach ROI-internal UCs only (external UCs are treated as attached through the internal UCs they project to). UCs may attach to intermediate GNs, not only the lowest level. Constraints (hard, checked by the validator):
-   - the UCs of a GN are **connected among themselves** by ROI-internal connections (direction ignored); a UC on the way between two of them belongs in the GN too;
-   - a GN holds **at most 2** UCs, or **3-4** when they form a motif that pairs cannot express (a loop, a feedforward triangle, or a convergence the literature describes as one computation); then `motifNote` says why the motif cannot be split into GNs of 2 UCs, with citations. Do not use it to avoid decomposing;
-   - a GN whose children are only UCs has **at least 2** UCs (a GN with a single UC would just be that UC); a UC has **at most 2** GN parents;
+   - a GN whose children are only UCs has **exactly 2** UCs (a GN with a single UC would just be that UC);
+   - a GN has **at most 2** UC children (a motif of 3-4 UCs becomes a GN over GNs of 2 UCs); a UC has **at most 2** GN parents;
    - every ROI-internal UC appears in the FRG; every GN has children; one root (the TLF); no cycles.
    If the constraints cannot be met, or a GN needs a flow or a distinction the HCD does not have, choose the side the evidence supports:
    - **decompose the TLF more finely** (the FRG was too coarse), or
-   - **go back to the HCD and split or add UCs** (the HCD was too coarse): split a UC into finer UCs of the same SABRA unit when the literature separates their inputs, outputs or Output Semantics (HCD step 3, with the coarser unit as a Collection), or add a UC or connection the GN requires and the literature supports (HCD steps 2-5: references, quotes, interfaces, Output Semantics and function items of the new UCs). The worker validates changed HCD files again and recomputes the candidates. Do not invent UCs or connections to satisfy the constraints; without evidence, change the FRG instead.
+   - **go back to the HCD and split or add UCs** (the HCD was too coarse): split a UC into finer UCs of the same SABRA unit when the literature separates their inputs, outputs or Output Semantics (HCD step 3, with the coarser unit as a Collection), or add a UC or connection the GN requires and the literature supports (HCD steps 2-5: references, quotes, interfaces, Output Semantics and function items of the new UCs; when the HCD spec has ROI rules, list each new ROI-internal UC under its element in `meta.json` `roiElements` and keep the ROI's side). The worker validates changed HCD files again and recomputes the candidates. Do not invent UCs or connections to satisfy the constraints; without evidence, change the FRG instead.
    Record every such change and its reason in `decision_log.md` under `## HCD-FRG revisions` (see AGENTS.md). Also check that the UC combinations realize each GN and are consistent with the HCD connections.
 
 6. **Interfaces -> `frg.json` `interface`.** For a GN whose children are all UCs, the interface is the union of its UCs' interfaces with internal edges removed; external UCs may appear. Example: `U.A: [U.E] = U.A([U.F], [U.G])` and `U.B: [U.H] = U.B([U.F], [U.I])` give `R.GN: ([U.E], [U.H]) = R.GN([U.F], [U.G], [U.I])`. Compose upward recursively; the TLF should become `(all noROI(output)) = R.TLF(all noROI(input))`.
@@ -49,17 +48,13 @@ The FRG meets in the middle: a top-down decomposition of the TLF (steps 1-2) and
 
 ## File format
 
-`frg.json` holds one entry per TLF/GN (no UC entries; UCs appear only in `subnodes`). Every key is required except `motifNote`, which only a GN with 3-4 UCs has (the worker adds it to the GN Comments of the FRG sheet); schema: `schemas/frg.schema.json`.
+`frg.json` holds one entry per TLF/GN (no UC entries; UCs appear only in `subnodes`). Every key is required except `motifNote`, which this project uses only if a GN rules section follows; schema: `schemas/frg.schema.json`.
 
 ```json
 { "nodes": [ {
   "id": "R.Node", "subnodes": ["R.Child", "U.UC"], "comment": "description of the node",
   "interface": "([U.X]) = R.Node([U.Y], [U.Z])",
   "requirement": "...", "requirementRealization": "...", "capability": "...", "mechanism": "..."
-}, {
-  "id": "R.Loop-Node", "subnodes": ["U.A", "U.B", "U.C"], "comment": "...", "interface": "...",
-  "requirement": "...", "requirementRealization": "...", "capability": "...", "mechanism": "...",
-  "motifNote": "U.A -> U.B -> U.C -> U.A is one recurrent loop: the persistent activity needs all three [Author, Year]"
 } ] }
 ```
 

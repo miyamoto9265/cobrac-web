@@ -978,6 +978,7 @@ async function rawPhaseSpec(phase: Phase): Promise<string> {
       .replaceAll("{P}", projectId)
       .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
     if (phase === "HCD" && harnessRules >= 1) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "HCD_roi_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
+    if (phase === "FRG" && harnessRules >= 2) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "FRG_gn_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
     if (phase === "HCD" && canonRun) spec += canonSpecNote(canonRun.info);
     if (phase === "HCD" && !rcs) {
       spec +=
