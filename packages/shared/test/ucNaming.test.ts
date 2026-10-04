@@ -410,12 +410,25 @@ describe("SABRA boundary of 2026-10-04 (BNA for the neocortex only)", () => {
     expect(errs).toContain("`BNAG:Tha` (BNA group Tha) is not neocortex");
   });
 
+  it("rejects the whole parahippocampal gyrus, whose BNA group mixes neocortical and DHBA areas, and points to its subregions", () => {
+    const errs = neo([
+      ["PhG", "BNAG:PhG"],
+      ["PhG(left)", "BNAG:PhG/side:left"],
+    ]).join("\n");
+    expect(errs).toContain("`BNAG:PhG` (BNA group PhG) mixes neocortical areas with non-neocortical ones");
+    expect(errs).toContain("BNA:109-110 (A35/36r), BNA:111-112 (A35/36c), BNA:113-114 (TL), BNA:119-120 (TH)");
+    expect(errs).toContain("HOMBA:10317 EC and HOMBA:10330 TI");
+    expect(errs.split("\n")).toHaveLength(2);
+    expect(neo([["TL", "BNA:113-114"], ["A35/36r(left)", "BNA:109-110/side:left"]])).toEqual([]);
+  });
+
   it("keeps older projects valid: without the boundary option, subcortical BNA anchors pass as before", () => {
     const legacy: [string, string][] = [
       ["NAC", "BNA:223-224"],
       ["NAC(shell.DRD1+)", "BNA:223-224/part:HOMBA:10341/mol:DRD1+"],
       ["rHipp(CA1.pyr.place)", "BNA:215-216/part:HOMBA:10297/cell:pyr/resp:place"],
       ["Hipp(CA1.pyr)", "BNAG:Hipp/part:HOMBA:10297/cell:pyr"],
+      ["PhG", "BNAG:PhG"],
     ];
     expect(checkUcNaming(legacy.map(([id, descriptor]) => ({ id, descriptor })), SABRA)).toEqual([]);
   });

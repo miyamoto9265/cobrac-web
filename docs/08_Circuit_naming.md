@@ -4,7 +4,7 @@
 | ---- | ------- |
 | Document | How CoBRAC names UCs (Uniform Circuits) and Collections: why naming rules were needed, SABRA anchors, the nine facets, the UC Descriptor and the Circuit ID, laterality, how the Canon uses the descriptor, error codes aligned with WBAI's Error code List (Master), and the points to settle with WBAI |
 | Readers | Users, WBAI members who review and merge BRAs, anyone who matches CoBRAC output against other data |
-| Versions | The naming rules came with app 0.7.0. The `side` facet, the Circuit ID character set and separators, and the Master error codes are from 0.17.0. The SABRA boundary that uses BNA for the neocortex only is from 0.21.0 (§4.3) |
+| Versions | The naming rules came with app 0.7.0. The `side` facet, the Circuit ID character set and separators, and the Master error codes are from 0.17.0. The SABRA boundary that uses BNA for the neocortex only is from 0.24.0 (§4.3) |
 | Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) (harness v1.1, where the naming rules were introduced) / [06_Research_mode_and_Canon.md](./06_Research_mode_and_Canon.md) (Canon user guide) / [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) (harness v2) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [08_Circuit_naming_ja.md](./08_Circuit_naming_ja.md) |
 
 ---
@@ -96,7 +96,7 @@ The agent splits the description of a circuit into the words that name a region 
 
 A single BNA area is chosen when the top candidate has `p_raw` of at least 0.5 and `k_papers` of at least 2 (`prompts/phases/HCD.md`).
 
-### 4.3 The BNA/DHBA boundary (v0.21.0)
+### 4.3 The BNA/DHBA boundary (v0.24.0)
 
 On 2026-10-04 the SABRA specification changed: BNA is now used **for the neocortex only**. Until then the 36 subcortical BNA labels (amygdala `Amyg`, hippocampus `Hipp`, basal ganglia `BG`, thalamus `Tha`) and the allocortex (hippocampal formation, entorhinal cortex, ...) were BNA too. These regions are now named with DHBA terms.
 
@@ -112,7 +112,9 @@ On 2026-10-04 the SABRA specification changed: BNA is now used **for the neocort
 
 - The boundary is defined in RCS `rcs/sabra.py`. RCS `get_homba_term` and `search_homba_candidates` return `sabra.atlas` under the new boundary, and `search_bna_candidates` marks non-neocortical areas `sabra.atlas: DHBA`, `sabra_unit: false`.
 - In new projects, non-neocortical BNA areas (labels 211–246, `BNA:115-116`, `BNA:117-118`) and `BNAG:Amyg`, `BNAG:Hipp`, `BNAG:BG`, `BNAG:Tha` may not be used as anchors or as `in` / `out` or other values. The worker's check sends them back with the DHBA term that contains the area.
-- **Existing projects do not change.** Projects created before 0.21.0 keep their BNA anchors: they load, pass the checks and export as before, and follow-ups do not ask for a rewrite (they have no `sabraBoundary`, so the checks use the earlier boundary). A copied project keeps the original's setting.
+- The whole hippocampus is `HOMBA:12170` (`HiF`). When the source names a specific field (CA1, CA3, DG, subiculum, ...), that finer DHBA term is used instead of `HiF`.
+- The BNA group `BNAG:PhG` (parahippocampal gyrus) holds the neocortical A35/36r, A35/36c, TL and TH together with A28/34 and TI, which are now DHBA, so new projects cannot anchor on the whole gyrus. The check asks for its subregions (`BNA:109-110`, `BNA:111-112`, `BNA:113-114`, `BNA:119-120`) or the DHBA terms `EC` and `TI`.
+- **Existing projects do not change.** Projects created before 0.24.0 keep their BNA anchors: they load, pass the checks and export as before, and follow-ups do not ask for a rewrite (they have no `sabraBoundary`, so the checks use the earlier boundary). A copied project keeps the original's setting.
 - **Canon**: stored Canon circuits are not rewritten either. A project that follows a Canon may use the Canon's descriptors as they are (such as `BNA:223-224` from the earlier boundary).
 
 ---
@@ -199,7 +201,7 @@ Recalculating the formulas of the templates (Template-v2-2 and v2-3) in LibreOff
 | Circuit | UC Descriptor | Circuit ID | Note |
 | ------- | ------------- | ---------- | ---- |
 | Ventral tegmental area (whole) | `HOMBA:12261` | `VTA` | No facets (a DHBA-side unit itself) |
-| Nucleus accumbens (whole, both sides) | `HOMBA:10339` | `NAC` | No facets (DHBA side; `BNA:223-224` before 0.21.0) |
+| Nucleus accumbens (whole, both sides) | `HOMBA:10339` | `NAC` | No facets (DHBA side; `BNA:223-224` before 0.24.0) |
 | Left area 4, upper limb region | `BNA:57-58/side:left` | `A4ul(left)` | The side is `side`; last item in the ID |
 | Noradrenergic cells of the locus coeruleus | `HOMBA:12499/nt:NE` | `NC(NE)` | One axis (transmitter) |
 | Nucleus accumbens shell | `HOMBA:10341` | `NACs` | The shell has a DHBA name, so it is a SABRA unit itself |
@@ -208,14 +210,14 @@ Recalculating the formulas of the templates (Template-v2-2 and v2-3) in LibreOff
 | Purkinje cells of the flocculus | `HOMBA:12852/part:HOMBA:AA30423/cell:purkinje` | `FNCb(floc.purkinje)` | The flocculus has no DHBA name, so the anchor is its DHBA-named ancestor, the flocculonodular lobe |
 | VTA dopamine cells that project to the NAc and encode reward prediction error | `HOMBA:12261/nt:DA/out:HOMBA:10339/resp:rpe` | `VTA(DA.out-NAC.rpe)` | A population defined by its target, plus a response property |
 | Corticospinal cells of layer 5, left area 4 upper limb region | `BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left` | `A4ul(L5.pt.out-Sp.left)` | The spinal cord is not a SABRA unit, so its HOMBA acronym `Sp` |
-| Hippocampal CA1 pyramidal cells | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 is a SABRA unit with a DHBA name (before 0.21.0: `BNAG:Hipp/part:HOMBA:10297/cell:pyr`, `Hipp(CA1.pyr)`) |
+| Hippocampal CA1 pyramidal cells | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 is a SABRA unit with a DHBA name (before 0.24.0: `BNAG:Hipp/part:HOMBA:10297/cell:pyr`, `Hipp(CA1.pyr)`) |
 | Layer III cells of left dorsal area 9/46 | `BNA:15-16/lay:L3/side:left` | `A9/46d(L3.left)` | The official abbreviation `A9/46d` as it is |
 
 ### 6.4 What the worker checks
 
 At the end of the HCD step the worker checks the names in `uc.json` in this order (`checkUcNaming`, `packages/shared/src/ucNaming.ts`). Problems go back to the agent in a fix turn.
 
-1. **Descriptor syntax and meaning:** the form of the anchors, BNA numbers (1–246; a pair is odd and odd+1), facet order and repetition, `mol` polarity, the `side` value (one of `left` / `right`). A descriptor in an older form is asked to be rewritten in the current form. In projects created from 0.21.0, no anchor or value may be a non-neocortical BNA area or group (§4.3; descriptors in the pinned Canon are exempt).
+1. **Descriptor syntax and meaning:** the form of the anchors, BNA numbers (1–246; a pair is odd and odd+1), facet order and repetition, `mol` polarity, the `side` value (one of `left` / `right`). A descriptor in an older form is asked to be rewritten in the current form. In projects created from 0.24.0, no anchor or value may be a non-neocortical BNA area or group (§4.3; descriptors in the pinned Canon are exempt).
 2. **Duplicate descriptors:** no two UCs or Collections share a normalized descriptor.
 3. **Items in the parentheses:** as many items as facet values; with `side`, the last item is its value; without `side`, no `left` / `right` item.
 4. **Head abbreviation:** it equals the anchor's official abbreviation, case included (BNA from the built-in table, HOMBA / DHBA from RCS `get_homba_term`). An anchor on a HOMBA term in BNA territory, or on a term without a DHBA name, is sent back with the correct anchor. Anchors that RCS could not be asked about skip only this comparison.
