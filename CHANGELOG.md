@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-10-04
+
+### Added
+- BRA-DB on AWS: a BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6) of its own, reachable only from inside its network. It runs on a small EC2 instance in a private subnet, keeps its data on a separate encrypted volume with daily snapshots, and keeps its passwords in Secrets Manager; nothing on the internet can connect to it. It adds about $30 a month
+- Registering a saved version in BRA-DB from the Versions tab ("Register v<n> in BRA-DB"). Registration does what BRA-DB's import script v3.10 does (the five sheets into BRA-DB's tables and graph, in one transaction with an integrity check), from the version's internal package. BRA-DB records the version ID (`<project ID>@v<n>`), parent, content hash, app version and who registered it for every attempt, so each project in BRA-DB can be traced back to the exact saved version. The box shows which version BRA-DB holds and this version's registrations
+
+### Changed
+- Registering a newer version keeps BRA-DB's history: the project keeps its BRA-DB key, each registration adds an import log entry, node history continues (a changed node gets the next version number), and the registration role cannot delete history. Registering the same content again changes nothing; fewer circuits or connections than BRA-DB holds needs the owner's confirmation; a project with review comments in BRA-DB is no longer replaced
+
 ## [0.26.0] - 2026-10-04
 
 ### Added
