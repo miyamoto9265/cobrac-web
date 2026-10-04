@@ -589,6 +589,7 @@ app.post("/projects", async (c) => {
     model,
     reasoningEffort,
     researchMode,
+    sabraBoundary: "neocortex",
     status: "QUEUED",
     currentStep: null,
     stepStates: { HCD: "pending", FRG: "pending", CSV: "pending", XLSX: "pending" },
@@ -2056,6 +2057,8 @@ app.post("/public/projects/:id/clone", async (c) => {
     reasoningEffort: u.defaultReasoningEffort ?? null,
     // the copied workspace was built with (or without) the research step, so follow-ups keep the original's setting
     ...(src.researchMode !== undefined ? { researchMode: src.researchMode } : {}),
+    // the copy keeps the original's UCs, so it keeps the original's SABRA boundary too
+    ...(src.sabraBoundary ? { sabraBoundary: src.sabraBoundary } : {}),
     status: "COMPLETED",
     currentStep: "CSV",
     // copied steps are done or pending, never running (the original may be mid-run or failed); the BRA xlsx carries

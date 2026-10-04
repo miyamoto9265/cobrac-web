@@ -4,7 +4,7 @@
 | ---- | ---- |
 | 文書 | CoBRAC が UC（Uniform Circuit）と Collection に付ける名前の規則の解説。名前の規則が必要になった理由、SABRA のアンカー、9 本のファセット、UC Descriptor と Circuit ID、左右の扱い、Canon での使い方、WBAI の Error code List (Master) に合わせたエラーコード、WBAI に確認したい点 |
 | 対象読者 | 利用者、BRA を審査・統合する WBAI のメンバー、CoBRAC の出力を他のデータと突き合わせる人 |
-| 対象バージョン | 命名規則の導入はアプリ 0.7.0。左右のファセット `side`、Circuit ID の文字集合と区切り、Master に合わせたエラーコードは 0.17.0 から |
+| 対象バージョン | 命名規則の導入はアプリ 0.7.0。左右のファセット `side`、Circuit ID の文字集合と区切り、Master に合わせたエラーコードは 0.17.0 から。BNA を新皮質だけに使う SABRA の境界は 0.21.0 から（§4.3） |
 | 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md)（命名規則が入った v1.1 の解説）/ [06_Research_mode_and_Canon_ja.md](./06_Research_mode_and_Canon_ja.md)（Canon の利用ガイド）/ [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md)（v2 の解説）/ [01_設計仕様.md](./01_設計仕様.md) / English: [08_Circuit_naming.md](./08_Circuit_naming.md) |
 
 ---
@@ -13,7 +13,7 @@
 
 CoBRAC は、HCD のすべての回路を **SABRA の単位（アンカー）1 つ**に結びつけて名付けます。SABRA の単位より細かい集団（部位の細分、層、細胞種、分子マーカー、投射先、左右など）は、アンカーの後ろに **ファセット**として足します。アンカーとファセットを決まった順に並べたものが **UC Descriptor** で、これが回路の機械向けの一意なキーです。**Circuit ID** は、その Descriptor から機械的に作る人が読むための別名です。
 
-例えば、側坐核 shell の DRD1 陽性の集団は、どのプロジェクトでも Descriptor が `BNA:223-224/part:HOMBA:10341/mol:DRD1+`、Circuit ID が `NAC(shell.DRD1+)` になります。名前が同じなら同じ集団だと分かるので、プロジェクトをまたいで回路を照合でき、Canon もこの Descriptor をキーにしています。
+例えば、側坐核 shell の DRD1 陽性の集団は、どのプロジェクトでも Descriptor が `HOMBA:10341/mol:DRD1+`、Circuit ID が `NACs(DRD1+)` になります。名前が同じなら同じ集団だと分かるので、プロジェクトをまたいで回路を照合でき、Canon もこの Descriptor をキーにしています。
 
 0.17.0 では次の 3 点を変えました。
 
@@ -31,7 +31,7 @@ CoBRAC は、HCD のすべての回路を **SABRA の単位（アンカー）1 �
 | ---- | ---- |
 | UC | Uniform Circuit。均質な情報を符号化する最小のメゾスコピックな神経集団。HCD のノードになる |
 | Collection | その HCD が細かい UC に分けた回路（Uniform = FALSE）。Sub-Circuits に分解され、接続の端にはならない |
-| SABRA | 組織の混合アトラス。新皮質 210 と皮質下核 36 の計 246 ラベルは BNA（Brainnetome）、それ以外は DHBA。SABRA 自体は独自の ID を持たない |
+| SABRA | 組織の混合アトラス。新皮質は BNA（Brainnetome）、それ以外（皮質下核、海馬体などの不等皮質、脳幹、小脳など）は DHBA（2026-10-04 の境界。§4.3）。SABRA 自体は独自の ID を持たない |
 | HOMBA / DHBA / BNA | HOMBA はヒトの脳のオントロジー。DHBA 側の単位は、DHBA 名を持つ HOMBA の項。BNA 側の単位は BNA のラベル（左が奇数、右が偶数） |
 | RCS | ROSETTA Candidate Search。名前から HOMBA と BNA の候補を返す MCP サーバー。エージェントはこれでアンカーを引く |
 | アンカー | UC が結びつく SABRA の単位（`HOMBA:<id>`、`BNA:<左>-<右>`、`BNAG:<L2 略称>`、それらを `&` でつないだもの） |
@@ -74,12 +74,12 @@ CoBRAC の規則は、次の考え方で組み立てています。
 | 形 | 意味 | 例 |
 | -- | ---- | -- |
 | `HOMBA:<id>` | SABRA の DHBA 側の単位。DHBA 名を持つ HOMBA の項に限る | `HOMBA:12261`（VTA） |
-| `BNA:<左>-<右>` | BNA の 1 領域。常に左右のペア（奇数, 奇数+1） | `BNA:223-224`（NAC） |
-| `BNAG:<L2 略称>` | BNA の L2 の群（回など）全体。RCS の分布が広く、1 つの領域に決まらないとき | `BNAG:Hipp` |
+| `BNA:<左>-<右>` | BNA の新皮質の 1 領域。常に左右のペア（奇数, 奇数+1） | `BNA:57-58`（A4ul） |
+| `BNAG:<L2 略称>` | BNA の新皮質の L2 の群（回など）全体。RCS の分布が広く、1 つの領域に決まらないとき | `BNAG:MFG` |
 | `A&B` | 複数の SABRA 単位にまたがる回路 | `HOMBA:…&HOMBA:…` |
 
 - `SABRA:` や `DHBA:` という接頭辞は作りません。SABRA は独自の ID を持たないためです。
-- BNA の担当範囲（新皮質と皮質下核）の中の細分は、BNA のアンカーの下に `part:HOMBA:…` として書きます（例：側坐核 shell は `BNA:223-224/part:HOMBA:10341`）。逆向き、つまり DHBA のアンカーの下に BNA を `part` として置くことはしません。
+- BNA の担当範囲（新皮質）の中の細分は、BNA のアンカーの下に `part:HOMBA:…` として書きます。逆向き、つまり DHBA のアンカーの下に BNA を `part` として置くことはしません。
 - 脊髄のように経路上に DHBA 名を持つ項が無い領域は、SABRA の単位になりません。アンカーには RCS が返す最も近い DHBA の祖先を使い、細かい部位は `part` に書きます。投射先や入力元（`out` / `in`）の値としては、そのまま書けます。
 
 ### 4.2 RCS でアンカーを決める
@@ -90,11 +90,30 @@ CoBRAC の規則は、次の考え方で組み立てています。
 | ---------- | -------- | ---------- |
 | DHBA 側で完全一致（`relation '='`、`dhba_exact: true`） | その `HOMBA:` の項 | 領域以外の語 |
 | DHBA 側で、クエリの方が細かい（`dhba_exact: false` か `relation <`） | RCS が返す DHBA 名を持つ祖先（`sabra.dhba_homba_id`） | `part:<一致した HOMBA の項>` と、領域以外の語 |
-| BNA 側（`atlas: BNA`） | `search_bna_candidates` の領域のペア。1 つの領域がはっきり優勢でなければ `BNAG:<L2>` | HOMBA の項が BNA の領域より細かければ `part:<HOMBA の項>` |
+| BNA 側（`atlas: BNA`、新皮質） | `search_bna_candidates` の候補のうち `sabra.atlas: BNA` の領域のペア。1 つの領域がはっきり優勢でなければ `BNAG:<L2>` | HOMBA の項が BNA の領域より細かければ `part:<HOMBA の項>` |
 | クエリの方が広い（`relation >`） | `A&B`、または共通の SABRA の祖先 | — |
 | 候補が無い | 推測しない。ユーザーに質問する | — |
 
 BNA の領域を 1 つに決める目安は、上位の候補の `p_raw` が 0.5 以上で、`k_papers` が 2 以上であることです（`prompts/phases/HCD.md`）。
+
+### 4.3 BNA と DHBA の境界（v0.21.0）
+
+2026-10-04 に SABRA の仕様が変わり、BNA を使うのは**新皮質だけ**になりました。それまでは、BNA の皮質下の 36 ラベル（扁桃体 `Amyg`、海馬 `Hipp`、大脳基底核 `BG`、視床 `Tha`）と、不等皮質（海馬体・嗅内皮質など）も BNA で表していました。現在は、これらの領域を DHBA の項で表します。
+
+| 領域 | 以前の SABRA | 現在の SABRA |
+| ---- | ------------ | ------------ |
+| 新皮質（BNA の皮質ラベル 1–210 のうち、下の 2 領域を除く 206 ラベル） | BNA | BNA |
+| 扁桃体（BNA の `mAmyg`・`lAmyg`） | BNA | DHBA（`AMY` と、その中の `CEN`・`BLN`・`La` などの核） |
+| 海馬（BNA の `rHipp`・`cHipp`） | BNA | DHBA（`HiF` と、その中の `CA1`・`DG`・`S` など） |
+| 大脳基底核（BNA の `vCa`・`dCa`・`GP`・`NAC`・`vmPu`・`dlPu`） | BNA | DHBA（`Ca`・`GP`・`NAC`・`NACs`・`Pu` など） |
+| 視床（BNA の 8 亜領域） | BNA | DHBA（`DTH` と、その中の `MD`・`VPL`・`Pul`・`LG` などの核） |
+| 嗅内皮質（BNA の `A28/34`）と側頭無顆粒島皮質（BNA の `TI`） | BNA | DHBA（`EC`・`TI`。HOMBA では新皮質の外にある） |
+| 嗅皮質・梨状皮質などの不等皮質 | BNA（ラベルは無い） | DHBA |
+
+- 境界の正本は RCS の `rcs/sabra.py` です。RCS の `get_homba_term` と `search_homba_candidates` は新しい境界で `sabra.atlas` を返し、`search_bna_candidates` は新皮質でない領域に `sabra.atlas: DHBA`、`sabra_unit: false` を付けます。
+- 新しく作るプロジェクトでは、新皮質でない BNA の領域（ラベル 211–246、`BNA:115-116`、`BNA:117-118`）と、`BNAG:Amyg`・`BNAG:Hipp`・`BNAG:BG`・`BNAG:Tha` を、アンカーにも `in` / `out` などの値にも使えません。ワーカーの検査が、その領域を含む DHBA の項を示して直させます。
+- **既存のプロジェクトは変えません。** 0.21.0 より前に作ったプロジェクトは、BNA のアンカーのまま読み込み・検査・出力でき、フォローアップでも書き直しを求めません（プロジェクトの `sabraBoundary` が無いため、検査は以前の境界のまま）。複製したプロジェクトは元の設定を引き継ぎます。
+- **Canon**: 保存済みの Canon の回路も書き換えません。Canon に従うプロジェクトは、Canon にある Descriptor（以前の境界で作られた `BNA:223-224` など）をそのまま使えます。
 
 ---
 
@@ -110,7 +129,7 @@ BNA の領域を 1 つに決める目安は、上位の候補の `p_raw` が 0.5
 | 4 | `nt` | 伝達物質（`Glu` `GABA` `Gly` `ACh` `DA` `NE` `5HT` `His` `pep`） | `nt:DA` |
 | 5 | `mol` | 分子マーカーと極性（`+` `-` `~hi` `~lo`） | `mol:DRD1+` |
 | 6 | `in` | 入力元で定義される集団 | `in:HOMBA:12261` |
-| 7 | `out` | 投射先で定義される集団 | `out:BNA:223-224` |
+| 7 | `out` | 投射先で定義される集団 | `out:HOMBA:10339` |
 | 8 | `resp` | 反応性・機能的なチューニング | `resp:rpe` |
 | 9 | `side` | 左右（`left` / `right` の 1 値。付けなければ両側、または区別しない） | `side:left` |
 
@@ -127,7 +146,7 @@ BNA の領域を 1 つに決める目安は、上位の候補の `p_raw` が 0.5
 
 ```
 UC Descriptor = <アンカー>{&<アンカー>}{/<軸>:<値>[,<値>]}
-例: BNA:223-224/part:HOMBA:10341/mol:DRD1+
+例: HOMBA:10341/mol:DRD1+、BNA:57-58/lay:L5/side:left
 ```
 
 - Descriptor は `uc.json` の `descriptor` に書き、`Circuits.csv` と xlsx の Circuits シートの最後の列（UC Descriptor）と、HCD グラフのノードの詳細に出ます。
@@ -146,15 +165,15 @@ Circuit ID = <アンカーの略称> [ "(" <項目> { "." <項目> } ")" ]
 
 **前半（アンカーの略称）**
 
-- アンカーの SABRA の正式略称を、大文字小文字も含めてそのまま使います。BNA 側は BNA の領域の略称（`NAC`、`A4ul`、`rHipp`、`A9/46d`）、DHBA 側は DHBA の略称（弓状核は HOMBA の `ArH` ではなく DHBA の `Arc`）です。
+- アンカーの SABRA の正式略称を、大文字小文字も含めてそのまま使います。BNA 側は BNA の新皮質の領域の略称（`A4ul`、`A44d`、`A9/46d`）、DHBA 側は DHBA の略称（弓状核は HOMBA の `ArH` ではなく DHBA の `Arc`）です。
 - 変換は、空白を `_` にすることだけです（BNA の `TE1.0 and TE1.2` → `TE1.0_and_TE1.2` の 1 件）。`/` と `+` は 2026-08-19 の合意で許容文字に入ったので、`A9/46d`、`A1/2/3ll`、`V5/MT+` はそのまま使います。
-- 複数の SABRA 単位にまたがる回路（`BNAG:`、`A&B`）は、暫定的に、共通する BNA の L2 の略称を使います（例 `Hipp`）。共通のものが無ければ、最初のアンカーの略称を使います。
-- 独自の略称や慣用的な略称（`NAc`、`LC`）や、SABRA の単位でない細分の略称（`NACs`、`CA1`）は前半に置きません。これらは括弧の中の `part` の項目にします。
+- 複数の SABRA 単位にまたがる回路（`BNAG:`、`A&B`）は、暫定的に、共通する BNA の L2 の略称を使います（例 `MFG`）。共通のものが無ければ、最初のアンカーの略称を使います。
+- 独自の略称や慣用的な略称（`NAc`、`LC`）や、SABRA の単位でない細分の略称（片葉の `CH10` など）は前半に置きません。これらは括弧の中の `part` の項目にします。
 
 **括弧の中（項目）**
 
 - Descriptor のファセットの値 1 つにつき 1 項目を、ファセットの順に `.` で区切って並べます。ファセットが無ければ括弧も書きません（`VTA`、`NAC`）。
-- `part` は細分の部位を表す短い英単語（`shell`、`floc`）か、広く通用する略称（`CA1`）にします。`lay`・`cell`・`nt`・`mol`・`resp` は Descriptor の語をそのまま書きます（`L5`、`pyr`、`DA`、`DRD1+`、`rpe`）。
+- `part` は細分の部位を表す短い英単語（`floc`、`rostral`）か、広く通用する略称にします。`lay`・`cell`・`nt`・`mol`・`resp` は Descriptor の語をそのまま書きます（`L5`、`pyr`、`DA`、`DRD1+`、`rpe`）。
 - `out` / `in` は `out-<相手の略称>` / `in-<相手の略称>` にします（`out-NAC`、`in-VTA`）。相手が SABRA の単位でなければ HOMBA の略称を使います（脊髄は `out-Sp`）。
 - 項目の中の `.` は区切りと紛れるので `_` にします。語の中の `-` はかまいません（遺伝子 `HLA-A` など）。語の末尾の `+` / `-` は極性です。
 
@@ -170,8 +189,8 @@ Circuit ID = <アンカーの略称> [ "(" <項目> { "." <項目> } ")" ]
 | `{ }` `[ ]` `< >` `;` `\|` 空白 | 使わない | `{}` はブレース展開、`[]` は URL のエンコードの対象で `[U.X]` 参照と紛らわしい、`<>` は HTML と衝突、`;` は Subnodes の区切り、`\|` は Markdown の表を壊す |
 
 - Circuit ID の一意性は、**大文字小文字を区別して**判定します。BNA と DHBA の正式略称には、大文字小文字だけが違う組が 45 組あるためです（例 `CB` と `cb`）。Descriptor の比較は、6.1 のとおり小文字にしてから行います。
-- `U.` の接頭辞は先頭の `U.` を外すだけなので、`U.NAC(shell.DRD1+)` や `[U.NAC(shell.DRD1+)]` と書いても区切りと衝突しません。Interface や Subnodes の ID の分割は、括弧の外の区切りだけで判定します。
-- 注意点もあります。シェルに渡すときは引用符で囲みます（`'NAC(shell.DRD1+)'`）。Markdown のリンクの URL に `)` を入れるときは `%29` にします。正規表現に埋め込むときは `(` `)` `.` `+` `/` をエスケープします。
+- `U.` の接頭辞は先頭の `U.` を外すだけなので、`U.NACs(DRD1+)` や `[U.A4ul(L5.pt.left)]` と書いても区切りと衝突しません。Interface や Subnodes の ID の分割は、括弧の外の区切りだけで判定します。
+- 注意点もあります。シェルに渡すときは引用符で囲みます（`'NACs(DRD1+)'`）。Markdown のリンクの URL に `)` を入れるときは `%29` にします。正規表現に埋め込むときは `(` `)` `.` `+` `/` をエスケープします。
 
 テンプレート（Template-v2-2 と v2-3）の数式を LibreOffice で再計算して確かめたところ、`( )` を含む ID で壊れる箇所はありませんでした。ID は EXACT・VLOOKUP・SEARCH・SPLIT で文字列として扱われ、括弧を関数として解釈する箇所はありません。一方、以前の `,` 区切りの ID（`Amyg(BL,out:CEN)`）は Graph Generator の CSV で 2 つに分かれました。0.17.0 で `.` にそろえたので、この問題は解消しています。
 
@@ -180,23 +199,23 @@ Circuit ID = <アンカーの略称> [ "(" <項目> { "." <項目> } ")" ]
 | 回路 | UC Descriptor | Circuit ID | 見どころ |
 | ---- | ------------- | ---------- | -------- |
 | 腹側被蓋野（全体） | `HOMBA:12261` | `VTA` | ファセットなし（DHBA 側の単位そのもの） |
-| 側坐核（全体、両側） | `BNA:223-224` | `NAC` | ファセットなし（BNA 側、左右のペア） |
+| 側坐核（全体、両側） | `HOMBA:10339` | `NAC` | ファセットなし（DHBA 側。0.21.0 より前は `BNA:223-224`） |
 | 左の一次運動野上肢域 | `BNA:57-58/side:left` | `A4ul(left)` | 左右は `side`。ID では最後の項目 |
 | 青斑核のノルアドレナリン細胞 | `HOMBA:12499/nt:NE` | `NC(NE)` | 伝達物質の 1 軸 |
-| 側坐核 shell | `BNA:223-224/part:HOMBA:10341` | `NAC(shell)` | shell（`NACs`）は SABRA の単位でないので括弧の中 |
+| 側坐核 shell | `HOMBA:10341` | `NACs` | shell は DHBA 名を持つので、それ自体が SABRA の単位 |
 | 弓状核の AgRP ニューロン | `HOMBA:10492/mol:AGRP+` | `Arc(AGRP+)` | 前半は DHBA の略称 `Arc` |
-| 側坐核 shell の DRD1 陽性細胞 | `BNA:223-224/part:HOMBA:10341/mol:DRD1+` | `NAC(shell.DRD1+)` | 2 軸 |
+| 側坐核 shell の DRD1 陽性細胞 | `HOMBA:10341/mol:DRD1+` | `NACs(DRD1+)` | 分子マーカーの 1 軸 |
 | 片葉の Purkinje 細胞 | `HOMBA:12852/part:HOMBA:AA30423/cell:purkinje` | `FNCb(floc.purkinje)` | 片葉は DHBA 名を持たないので、アンカーは DHBA 名を持つ祖先の片葉小節葉 |
-| 側坐核へ投射し報酬予測誤差を表す VTA のドーパミン細胞 | `HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe` | `VTA(DA.out-NAC.rpe)` | 投射先で定義される集団と反応性 |
+| 側坐核へ投射し報酬予測誤差を表す VTA のドーパミン細胞 | `HOMBA:12261/nt:DA/out:HOMBA:10339/resp:rpe` | `VTA(DA.out-NAC.rpe)` | 投射先で定義される集団と反応性 |
 | 左の一次運動野上肢域 L5 の皮質脊髄路細胞 | `BNA:57-58/lay:L5/cell:pt/out:HOMBA:AA30565/side:left` | `A4ul(L5.pt.out-Sp.left)` | 脊髄は SABRA の単位でないので HOMBA の略称 `Sp` |
-| 海馬 CA1 の錐体細胞（吻側と尾側の両方） | `BNAG:Hipp/part:HOMBA:10297/cell:pyr` | `Hipp(CA1.pyr)` | 複数の単位にまたがるので BNA の L2 略称 |
+| 海馬 CA1 の錐体細胞 | `HOMBA:10297/cell:pyr` | `CA1(pyr)` | CA1 は DHBA 名を持つ SABRA の単位（0.21.0 より前は `BNAG:Hipp/part:HOMBA:10297/cell:pyr`、`Hipp(CA1.pyr)`） |
 | 左の背側 9/46 野 III 層の細胞 | `BNA:15-16/lay:L3/side:left` | `A9/46d(L3.left)` | 正式略称 `A9/46d` をそのまま使う |
 
 ### 6.4 ワーカーの検査
 
 HCD の段の終わりに、ワーカーは `uc.json` の名前を次の順に検査します（`checkUcNaming`、`packages/shared/src/ucNaming.ts`）。問題があれば修正ターンでエージェントに戻します。
 
-1. **Descriptor の構文と意味。** アンカーの形、BNA の番号（1〜246、ペアは奇数と奇数+1）、ファセットの順と重複、`mol` の極性、`side` の値（`left` / `right` の 1 つ）を確かめます。旧い形で書かれていれば、現在の形での書き直しを求めます。
+1. **Descriptor の構文と意味。** アンカーの形、BNA の番号（1〜246、ペアは奇数と奇数+1）、ファセットの順と重複、`mol` の極性、`side` の値（`left` / `right` の 1 つ）を確かめます。旧い形で書かれていれば、現在の形での書き直しを求めます。0.21.0 以降に作ったプロジェクトでは、新皮質でない BNA の領域と群をアンカーや値に使っていないことも確かめます（§4.3。Canon にある Descriptor は除く）。
 2. **Descriptor の重複。** 正規化した Descriptor が、UC と Collection の中で重ならないことを確かめます。
 3. **括弧の中の項目。** 項目の数がファセットの値の数と一致すること、`side` があるときは最後の項目がその値であること、`side` が無いのに `left` / `right` を書いていないことを確かめます。
 4. **前半の略称。** アンカーの正式略称（BNA は組み込みの表、HOMBA / DHBA は RCS の `get_homba_term`）と、大文字小文字も含めて一致することを確かめます。BNA の担当範囲の HOMBA の項や、DHBA 名を持たない項をアンカーにしていれば、正しいアンカーを示して直させます。RCS に問い合わせられなかったアンカーは、この照合だけを省きます。
@@ -312,7 +331,7 @@ Descriptor に関わる主な照合は次のとおりです（コードは CoBRA
 | 層の書き方 | `(L3)` のように括弧の中に書く | 組織の `BNA.A8m.L3` 型の `.L3` とどちらにそろえるか（議論中） |
 | `BNA.` / `DHBA.` の接頭辞 | 付けていない | 仮仕様の接頭辞に合わせるか |
 | SABRA より細かい回路の命名（ISS-001） | アンカー + ファセットの規則で書いている | 組織の規則として採るか、どこを変えるか |
-| 複数の単位にまたがる回路の略称 | 暫定で共通の BNA の L2 略称（`Hipp`） | この扱いでよいか |
+| 複数の単位にまたがる回路の略称 | 暫定で共通の BNA の L2 略称（`MFG`） | この扱いでよいか |
 | Source of ID の `BNA` | CoBRAC の拡張として書いている（Review Tool は 108 を出しうる） | 列挙値に `BNA` を足してもらえるか（U9） |
 | UC Descriptor とファセットの置き場所 | CoBRAC 形式の xlsx の最後の列に書く。Template-v2-2 には置き場所が無い | テンプレートに Descriptor やファセットの列を足せるか（U21） |
 | Master にコードの無い検査 | `cobrac:` のローカルコード 12 個 | Master に加えるもの、Review Tool の自動判定に入れるものがあるか |

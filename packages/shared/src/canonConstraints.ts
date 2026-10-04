@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import { canonFromProject, currentCanonSnapshot, diffCanon, type CanonConflict, type CanonSnapshot, type ProjectCanonFiles } from "./canonMerge.js";
-import { modernCircuitId as cid } from "./ucNaming.js";
+import { modernCircuitId as cid, normalizeUcDescriptor } from "./ucNaming.js";
 
 /** Folder next to the project folder (`<workDir>/canon/`); not synced back to the project. */
 export const CANON_AGENT_DIR = "canon";
@@ -75,6 +75,11 @@ export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, proje
   };
   if (relevant.length) out["relevant.json"] = JSON.stringify({ circuitIds: relevant }, null, 2) + "\n";
   return out;
+}
+
+/** Normalized UC Descriptors of the Canon's circuits: a member project may reuse them even where a newer naming rule would not allow them. */
+export function canonDescriptorKeys(stored: CanonSnapshot): Set<string> {
+  return new Set(currentCanonSnapshot(stored).circuits.map((c) => c.descriptor).filter(Boolean).map(normalizeUcDescriptor));
 }
 
 /** Note appended to the HCD phase spec when the project follows a Canon. */

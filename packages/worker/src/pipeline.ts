@@ -6,11 +6,12 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraLookup } from "@cobrac/shared";
+import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
 import {
   ADJUSTMENT_CODES,
   CROSS_RULES,
   canonCheckedQuotes,
+  canonDescriptorKeys,
   canonCheckedReferences,
   canonGenerationProblems,
   DEFAULT_BRA_RULES,
@@ -153,6 +154,8 @@ export interface CheckDeps {
     /** Smaller differences from the Canon; shown to the user, not sent back as errors */
     onNotes?: (notes: string[]) => Promise<void>;
   };
+  /** BNA/DHBA boundary the HCD check enforces (the project's `sabraBoundary`; absent for projects created before it) */
+  sabraBoundary?: SabraBoundary;
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -170,10 +173,13 @@ export async function writeSchemas(workDir: string): Promise<void> {
 
 async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
   const files = loadHcdFiles(paths);
-  const first = checkHcd(files);
+  const boundary: CheckHcdOptions = deps.sabraBoundary
+    ? { sabraBoundary: deps.sabraBoundary, boundaryExempt: deps.canon ? canonDescriptorKeys(deps.canon.snapshot) : undefined }
+    : {};
+  const first = checkHcd(files, boundary);
   const ids = first.model ? hombaAnchorIds([...first.model.ucs, ...first.model.collections].map((u) => u.descriptor).filter(Boolean)) : [];
   if (!deps.lookupSabra || !ids.length) return first;
-  return checkHcd(files, { sabra: await deps.lookupSabra(ids) });
+  return checkHcd(files, { ...boundary, sabra: await deps.lookupSabra(ids) });
 }
 
 /**

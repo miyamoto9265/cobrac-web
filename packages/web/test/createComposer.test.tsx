@@ -73,7 +73,10 @@ describe("BNA hints for the ROI", () => {
   it("matches area abbreviations, gyri and area names; ignores non-Latin input", () => {
     expect(bnaHints("A44").map((h) => h.abbr)).toEqual(["A44d", "A44op", "A44v"]);
     expect(bnaHints("IFG").every((h) => h.l2 === "IFG")).toBe(true);
-    expect(bnaHints("hippocampus").map((h) => h.abbr)).toEqual(["rHipp", "cHipp"]);
+    expect(bnaHints("hippocampus")).toEqual([]);
+    expect(bnaHints("putamen")).toEqual([]);
+    expect(bnaHints("A28")).toEqual([]);
+    expect(bnaHints("insula").length).toBeGreaterThan(0);
     expect(bnaHints("海馬")).toEqual([]);
     expect(bnaHints("a")).toEqual([]);
     expect(bnaHintText(bnaHints("A44d")[0])).toBe("dorsal area 44 (A44d, BNA:29-30)");

@@ -210,6 +210,18 @@ describe("cloning", () => {
     }
   });
 
+  it("keeps the original's SABRA boundary (none for a project created before it)", async () => {
+    for (const [i, sabraBoundary] of (["neocortex", undefined] as const).entries()) {
+      const id = `u7m2q9xa-${i + 20}`;
+      fake.put("projects", project(A.sub, id, sabraBoundary === undefined ? {} : { sabraBoundary }));
+      put(A.sub, id, "workspace/report.md", "# Report");
+      await json(call(A, "PUT", `/projects/${id}/visibility`, { visibility: "public" }));
+      const { projectId } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${id}/clone`));
+      const clone = await json<ProjectRecord>(call(B, "GET", `/projects/${projectId}`));
+      expect(clone.sabraBoundary).toBe(sabraBoundary);
+    }
+  });
+
   it("gives a Tier 1 cloner's copy a model the tier allows", async () => {
     fake.put("catalog", { kind: "config", id: "default-api-key", encryptedApiKey: "default", last4: "abcd", availableModels: [], updatedAt: now, updatedBy: "sub-admin" });
     const bob = fake.items("users").find((u) => u.userId === B.sub)!;

@@ -1,8 +1,8 @@
 /**
  * UC naming convention: UC Descriptor (machine-readable unique key) and Circuit ID (its human-readable alias).
  *
- *   UC Descriptor = <anchor>{&<anchor>}{/<axis>:<value>[,<value>]}   e.g. BNA:223-224/part:HOMBA:10341/mol:DRD1+/side:left
- *   Circuit ID    = <anchor abbreviation>[(<item>{.<item>})]          e.g. NAC(shell.DRD1.left)
+ *   UC Descriptor = <anchor>{&<anchor>}{/<axis>:<value>[,<value>]}   e.g. BNA:57-58/lay:L5/cell:pt/side:left
+ *   Circuit ID    = <anchor abbreviation>[(<item>{.<item>})]          e.g. A4ul(L5.pt.left)
  *
  * The anchor is always one SABRA unit (a BNA left-right pair or L2 group, or a HOMBA term that has a DHBA name).
  * Everything finer than SABRA goes into the facets; a UC that is a whole SABRA unit has none and is the common case
@@ -14,6 +14,10 @@
  * to the pair plus `side` (`canonicalUcDescriptor`). Circuit IDs use only `A-Za-z0-9._~-/+` (WBAI interim spec of
  * 2026-08-06 with `/` and `+` added on 2026-08-19) plus the parentheses; older IDs (`A4ul@L(L5,out:Sp)`,
  * `NAC(shell,DRD1+)`) are read as they are and compared in their current form (`modernCircuitId`).
+ *
+ * SABRA boundary of 2026-10-04: BNA is used for the neocortex only. BNA's subcortical areas (labels 211–246) and the
+ * cortical areas A28/34 and TI are not SABRA units; their regions are DHBA terms. Projects created before keep the
+ * BNA anchors they have, so the check runs only with `boundary: "neocortex"` (`checkUcNaming`).
  */
 import { BNA_AREAS } from "./bnaLabels.js";
 
@@ -82,6 +86,70 @@ export function bnaArea(label: number): { left: number; abbr: string; l2: string
 
 export const isBnaL2 = (s: string) => BNA_L2.has(s);
 
+/** Which BNA/DHBA boundary the naming check enforces: `neocortex` (2026-10-04) or, when absent, the earlier one. */
+export type SabraBoundary = "neocortex";
+
+/** BNA L2 groups of the subcortical labels 211–246 (not SABRA units under the neocortex boundary). */
+export const BNA_NON_NEOCORTICAL_L2: readonly string[] = ["Amyg", "Hipp", "BG", "Tha"];
+
+/**
+ * DHBA term (HOMBA ID, DHBA acronym) that contains each non-neocortical BNA area, by left label; the same table as
+ * `BNA_DHBA_COUNTERPARTS` in rosetta-candidate-search `rcs/sabra.py`. A container, not an equivalent.
+ */
+export const BNA_DHBA_COUNTERPARTS: ReadonlyMap<number, readonly [string, string]> = new Map<number, readonly [string, string]>([
+  [115, ["HOMBA:10317", "EC"]],
+  [117, ["HOMBA:10330", "TI"]],
+  [211, ["HOMBA:10361", "AMY"]],
+  [213, ["HOMBA:10361", "AMY"]],
+  [215, ["HOMBA:12170", "HiF"]],
+  [217, ["HOMBA:12170", "HiF"]],
+  [219, ["HOMBA:10334", "Ca"]],
+  [221, ["HOMBA:10342", "GP"]],
+  [223, ["HOMBA:10339", "NAC"]],
+  [225, ["HOMBA:10338", "Pu"]],
+  [227, ["HOMBA:10334", "Ca"]],
+  [229, ["HOMBA:10338", "Pu"]],
+  ...[231, 233, 235, 237, 239, 241, 243, 245].map((l) => [l, ["HOMBA:10391", "DTH"]] as [number, readonly [string, string]]),
+]);
+
+/** Whether a BNA label (either side) is neocortex, i.e. a SABRA unit under the neocortex boundary. */
+export function bnaLabelIsNeocortex(label: number): boolean {
+  const left = label % 2 === 1 ? label : label - 1;
+  return left >= 1 && left <= 209 && !BNA_DHBA_COUNTERPARTS.has(left);
+}
+
+/** Problems of a parsed descriptor under the neocortex boundary: BNA anchors or region values that are not neocortex. */
+export function neocortexBoundaryProblems(d: UcDescriptor): string[] {
+  const out: string[] = [];
+  const bad = (id: string, what: string, inside: string) =>
+    out.push(
+      `\`${id}\` (${what}) is not neocortex, so it is not a SABRA unit (since 2026-10-04 SABRA uses BNA for the neocortex only); name the region with search_homba_candidates and use its DHBA term (it lies in ${inside})`,
+    );
+  const check = (a: UcAnchor, id: string) => {
+    if (a.kind === "bnag" && BNA_NON_NEOCORTICAL_L2.includes(a.l2)) bad(id, `BNA group ${a.l2}`, BNA_GROUP_DHBA[a.l2]);
+    if (a.kind === "bna" && !bnaLabelIsNeocortex(a.left)) {
+      const [hid, acr] = BNA_DHBA_COUNTERPARTS.get(a.left)!;
+      bad(id, bnaArea(a.left)?.abbr ?? "BNA area", `${hid} ${acr}`);
+    }
+  };
+  for (const a of d.anchors) check(a, a.kind === "bna" ? `BNA:${a.left}-${a.left + 1}` : a.kind === "bnag" ? `BNAG:${a.l2}` : a.id);
+  for (const f of d.facets) {
+    for (const v of f.values) {
+      if (!/^BNAG?:/.test(v)) continue;
+      const a = parseAnchor(v);
+      if (typeof a !== "string") check(a, `${f.axis}:${v}`);
+    }
+  }
+  return out;
+}
+
+const BNA_GROUP_DHBA: Record<string, string> = {
+  Amyg: "HOMBA:10361 AMY",
+  Hipp: "HOMBA:12170 HiF",
+  BG: "HOMBA:10334 Ca, HOMBA:10338 Pu, HOMBA:10339 NAC or HOMBA:10342 GP",
+  Tha: "HOMBA:10391 DTH",
+};
+
 /** Split on separators that are outside `()` and `[]`. */
 export function splitTopLevel(s: string, separators: string): string[] {
   const out: string[] = [];
@@ -108,7 +176,7 @@ function parseAnchor(s: string): UcAnchor | string {
   const [a, b] = s.slice(4).split("-").map(Number);
   if (!(a >= 1 && a <= 246)) return `\`${s}\`: BNA label IDs are 1-246`;
   if (b === undefined || Number.isNaN(b)) return { kind: "bna", left: a, right: null };
-  if (a % 2 !== 1 || b !== a + 1) return `\`${s}\`: a BNA pair is (odd, odd+1), e.g. BNA:223-224`;
+  if (a % 2 !== 1 || b !== a + 1) return `\`${s}\`: a BNA pair is (odd, odd+1), e.g. BNA:57-58`;
   return { kind: "bna", left: a, right: b };
 }
 
@@ -300,8 +368,15 @@ export interface NamedUc {
   descriptor: string;
 }
 
-/** Circuit ID / UC Descriptor checks for one uc.json (syntax, head = anchor abbreviation, items, uniqueness). */
-export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
+export interface UcNamingOptions {
+  /** Enforce this BNA/DHBA boundary (absent: the boundary before 2026-10-04, for older projects) */
+  boundary?: SabraBoundary;
+  /** Normalized descriptors exempt from the boundary check (e.g. circuits of the pinned Canon) */
+  boundaryExempt?: ReadonlySet<string>;
+}
+
+/** Circuit ID / UC Descriptor checks for one uc.json (syntax, head = anchor abbreviation, items, uniqueness, boundary). */
+export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup, opts: UcNamingOptions = {}): string[] {
   const errors: string[] = [];
   const byNorm = new Map<string, string>();
   for (const u of ucs) {
@@ -311,7 +386,7 @@ export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
         `uc.json: Circuit ID \`${u.id}\` uses the old syntax; write \`${modernCircuitId(u.id)}\` (also in connections, Sub-Circuits, Output Semantics and [U.…] references). Items are separated by \`.\`, \`in-\` / \`out-\` name the partner, the side is the last item \`left\` / \`right\`, and a Circuit ID uses only A-Z a-z 0-9 . _ ~ - / + and the parentheses.`,
       );
     } else if (!CIRCUIT_ID_RE.test(u.id)) {
-      errors.push(`uc.json: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[(item.item)] with only A-Z a-z 0-9 . _ ~ - / + and the parentheses (e.g. \`NAC(shell.DRD1+)\`, \`A4ul(left)\`).`);
+      errors.push(`uc.json: Circuit ID \`${u.id}\` does not match <SABRA abbreviation>[(item.item)] with only A-Z a-z 0-9 . _ ~ - / + and the parentheses (e.g. \`NACs(DRD1+)\`, \`A4ul(left)\`).`);
     }
     if (!u.descriptor) {
       errors.push(`uc.json: \`${u.id}\` has no UC Descriptor.`);
@@ -330,9 +405,12 @@ export function checkUcNaming(ucs: NamedUc[], sabra?: SabraLookup): string[] {
     const dup = byNorm.get(norm);
     if (dup) errors.push(`uc.json: \`${dup}\` and \`${u.id}\` have the same UC Descriptor \`${u.descriptor}\` (one UC per descriptor; merge them or add a facet).`);
     else byNorm.set(norm, u.id);
+    const d = parsed.descriptor;
+    if (opts.boundary === "neocortex" && !opts.boundaryExempt?.has(norm)) {
+      for (const e of neocortexBoundaryProblems(d)) errors.push(`uc.json: UC Descriptor of \`${u.id}\`: ${e}.`);
+    }
     if (got.old) continue;
 
-    const d = parsed.descriptor;
     const values = d.facets.reduce((n, f) => n + f.values.length, 0) + (d.side ? 1 : 0);
     if (values === 0 && got.items.length) {
       errors.push(`uc.json: \`${u.id}\` has no facets in its UC Descriptor, so its Circuit ID is the anchor abbreviation alone (drop the parenthesized items, or add the facets if the UC really is finer than the SABRA unit).`);

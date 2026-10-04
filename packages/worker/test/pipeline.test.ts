@@ -574,6 +574,17 @@ describe("turn input", () => {
   });
 });
 
+describe("SABRA boundary in the phase pipeline", () => {
+  it("enforces the neocortex boundary only on projects that have it (the fixture anchors NAC on BNA, as older projects do)", async () => {
+    const p = freshWorkspace();
+    await mockAgent(p).turn({ shown: "Run phase HCD" });
+    const legacy = await checkPhase("HCD", p, depsOf(), { hcd: null, frg: null });
+    expect(legacy.errors.filter((e) => e.includes("is not neocortex"))).toEqual([]);
+    const current = await checkPhase("HCD", p, { ...depsOf(), sabraBoundary: "neocortex" }, { hcd: null, frg: null });
+    expect(current.errors).toContainEqual(expect.stringContaining("uc.json: UC Descriptor of `NAC`: `BNA:223-224` (NAC) is not neocortex"));
+  });
+});
+
 describe("Canon constraints in the phase pipeline", () => {
   const hcdFiles = () => ({ uc: fixture("HCD/uc.json"), connections: fixture("HCD/connections.json"), references: fixture("HCD/references.json") });
   /** A Canon built from the fixture itself, then with NAC turned into a Collection of a finer UC. */
@@ -599,6 +610,13 @@ describe("Canon constraints in the phase pipeline", () => {
     expect(looked).toEqual([]);
     const report = JSON.parse(readFileSync(p.referenceCheck, "utf8"));
     expect(report.references[0].notes[0]).toContain("checked in Canon u7m2q9xa-c1 rev 1");
+  });
+
+  it("lets a member project keep the Canon's BNA anchors under the neocortex boundary", async () => {
+    const p = freshWorkspace();
+    await mockAgent(p).turn({ shown: "Run phase HCD" });
+    const r = await checkPhase("HCD", p, { ...depsOf(), canon: canonWithCollectionNac(), sabraBoundary: "neocortex" }, { hcd: null, frg: null });
+    expect(r.errors.filter((e) => e.includes("is not neocortex"))).toEqual([]);
   });
 
   it("sends the conflicts back for a Canon stored with the former advisory mode too", async () => {

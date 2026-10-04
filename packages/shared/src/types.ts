@@ -150,6 +150,8 @@ export interface ProjectRecord {
   reasoningEffort?: ReasoningEffort | null;
   /** Research mode: literature survey before the HCD (new projects default on; absent on older projects = off) */
   researchMode?: boolean;
+  /** BNA/DHBA boundary the HCD validator enforces: `neocortex` on projects created from v0.21.0; absent on older ones (their BNA anchors stay valid) */
+  sabraBoundary?: "neocortex";
   status: ProjectStatus;
   /** Step that is currently running or the last one completed */
   currentStep: WorkflowStep | null;
