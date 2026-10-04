@@ -1186,6 +1186,7 @@ async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise
         canon: canonRun ? { canonId: canonRun.info.canonId, revision: canonRun.info.revision } : null,
         sabraBoundary: project.sabraBoundary ?? "legacy",
         rcsBoundaryVersion: rcs ? await rcs.sabraBoundaryVersion() : null,
+        harnessRules: project.harnessRules ?? 0,
       },
     });
     if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });
@@ -1230,6 +1231,7 @@ async function freezeBaseline(project: ProjectRecord) {
         canon: null,
         sabraBoundary: project.sabraBoundary ?? "legacy",
         rcsBoundaryVersion: null,
+        harnessRules: project.harnessRules ?? 0,
       },
     });
     if (!summary) return;

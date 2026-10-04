@@ -869,6 +869,7 @@ export const ja: Record<MessageKey, string> = {
   "ver.research": "調査モード",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA の境界",
+  "ver.harnessRules": "ハーネスの規則",
   "ver.format": "CSV の形式",
   "ver.unknown": "不明",
   "ver.showTables": "表を見る",

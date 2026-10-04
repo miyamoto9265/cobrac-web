@@ -867,6 +867,7 @@ export const en = {
   "ver.research": "Research mode",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA boundary",
+  "ver.harnessRules": "Harness rules",
   "ver.format": "CSV format",
   "ver.unknown": "unknown",
   "ver.showTables": "View tables",

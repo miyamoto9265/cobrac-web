@@ -218,6 +218,7 @@ function VersionDetail({
     ["ver.research", g?.researchMode === undefined || g?.researchMode === null ? unknown : t(g.researchMode ? "sys.researchOn" : "sys.researchOff")],
     ["ver.canon", g?.canon ? <span className="font-mono">{g.canon.canonId} · rev {g.canon.revision}</span> : "—"],
     ["ver.sabra", g?.sabraBoundary ? <span className="font-mono">{g.sabraBoundary}{g.rcsBoundaryVersion ? ` · RCS ${g.rcsBoundaryVersion}` : ""}</span> : unknown],
+    ["ver.harnessRules", typeof g?.harnessRules === "number" ? <span className="font-mono">{g.harnessRules}</span> : unknown],
     ["ver.format", g?.braFormat ? <span className="font-mono">{g.braFormat}</span> : unknown],
   ];
 
