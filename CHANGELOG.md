@@ -5,6 +5,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- New projects follow three more HCD rules (projects created earlier are checked as before, also in their follow-ups; copies keep the original's rules):
+  - Every element of the ROI gets at least one ROI-internal UC of its own. The agent lists the ROI's elements and their UCs in `meta.json` (`roiElements`), and the check sends back an element that shares its only UC with another (for example one UC for both the VWFA and the posterior fusiform gyrus), a ROI-internal UC that belongs to no element, and an ROI that names more regions than it lists
+  - An ROI without a side covers both hemispheres. The agent records the side in `meta.json` (`roiSide`, `roiSideSource`) and, when the user gave none, writes in the decision log that it treated the ROI as bilateral; the check sends back an assumed one-sided ROI and, for a bilateral ROI, a one-sided UC without its other-side counterpart (the same rule as the `side` facet of circuit names)
+  - A quote that supports several connections between different circuits is shown as a warning in the chat (in all 10 languages) and recorded in `quote_check.json`; it is not sent back to the agent
+
 ## [0.24.1] - 2026-10-04
 
 ### Fixed

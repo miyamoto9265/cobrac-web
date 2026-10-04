@@ -80,7 +80,7 @@ export const ENFORCEMENT = {
   277: { kind: "validator", level: "full", how: "271 と同じ（少なくとも一方を要求）" },
   278: { kind: "validator", level: "full", how: "figure は `Fig. 3B` の形に正規化し、形でないものを返す" },
   273: { kind: "validator", level: "partial", how: "引用文を文献の全文か抄録と照合（quote_check.json）。全文が無い論文は抄録だけ" },
-  274: { kind: "none", level: "none", how: "引用文から接続を保証できるかは判定していない" },
+  274: { kind: "prompt", level: "partial", how: "新しいプロジェクト（harnessRules 1）では、同じ引用文（図も同じか無し）を別の接続に使うと警告する（差し戻さない。quote_check.json の reused）。プロンプトは接続ごとに文か図を求める。引用文から接続を保証できるかそのものは判定していない" },
   279: { kind: "none", level: "none", how: "図の中身は判定しない（図番号の形だけ検査）" },
   402: { kind: "schema", level: "full", how: "GN は ^R\\.\\S+$。U. 行はワーカーが U.+Circuit ID を生成" },
   403: { kind: "prompt", level: "partial", how: "GN の kebab-case は指示のみ（空白なしだけを schema で検査）。U. 行は Circuit ID の形式に従う（cobrac:circuit-id-chars）" },

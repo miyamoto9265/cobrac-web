@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   BRA_VERSION,
+  HARNESS_RULES,
   HARNESS_SCHEMAS,
   OUT_OF_ROI_CAPABILITY,
   buildCsvs,
@@ -11,6 +12,7 @@ import {
   parseCsvObjects,
   parseInterface,
   parseTurnOutput,
+  roiParts,
   validateJsonSchema,
   type HcdInputs,
 } from "../src/index.js";
@@ -602,5 +604,108 @@ describe("meta.json", () => {
     const { name: _name, ...noName } = META;
     expect(checkHcd({ ...HCD, meta: j(noName) }).errors.join("\n")).toMatch(/meta\.json: \/name is required/);
     expect(checkHcd({ ...HCD, meta: j({ ...META, name: "a\nb" }) }).errors.join("\n")).toMatch(/meta\.json: "name" is invalid/);
+  });
+});
+
+describe("harness rules 1: ROI elements, ROI side, reused quotes", () => {
+  const RULES = { harnessRules: HARNESS_RULES };
+  // snapshots taken when the tests are collected: an earlier test changes the shared fixtures while it runs
+  const UC0 = structuredClone(UC);
+  const CONN0 = structuredClone(CONN);
+  const ROI_META = {
+    ...META,
+    roiElements: [{ name: "cerebellar flocculus", ucs: ["GC(granule)", "PC(purkinje)", "IO"] }],
+    roiSide: "both",
+    roiSideSource: "assumed",
+  };
+  const LOG = "# Decision log\n\n- ROI side: not given by the user; treated as bilateral (both hemispheres).\n";
+  const NEW: HcdInputs = { ...HCD, uc: j(UC0), connections: j(CONN0), meta: j(ROI_META), decisionLog: LOG };
+  const errorsOf = (files: Partial<HcdInputs>, meta: Record<string, unknown> = {}) =>
+    checkHcd({ ...NEW, ...files, meta: j({ ...ROI_META, ...meta }) }, RULES).errors;
+
+  it("leaves projects created before the rules as they were (no new keys needed, no warnings)", () => {
+    const c = structuredClone(CONN0);
+    c.connections[1].pointersOnLiterature = c.connections[0].pointersOnLiterature;
+    c.connections[1].pointersOnFigure = c.connections[0].pointersOnFigure;
+    const r = checkHcd({ ...HCD, uc: j(UC0), connections: j(c) });
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([]);
+  });
+
+  it("accepts an HCD whose ROI elements and side are declared, and keeps them in the model", () => {
+    const r = checkHcd(NEW, RULES);
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([]);
+    expect(r.model?.meta).toMatchObject({ roiSide: "both", roiSideSource: "assumed", roiElements: [{ name: "cerebellar flocculus" }] });
+    expect(validateJsonSchema(HARNESS_SCHEMAS["meta.json"], ROI_META)).toEqual([]);
+  });
+
+  it("asks for the ROI elements and the side", () => {
+    const msg = checkHcd({ ...NEW, meta: j(META) }, RULES).errors.join("\n");
+    expect(msg).toMatch(/meta\.json: add `roiElements`/);
+    expect(msg).toMatch(/meta\.json: add `roiSide` \(both, left or right\) and `roiSideSource`/);
+  });
+
+  it("gives every element of the ROI a UC of its own", () => {
+    const msg = errorsOf(
+      {},
+      {
+        roi: "cerebellar flocculus and inferior olive",
+        roiElements: [
+          { name: "cerebellar flocculus", ucs: ["GC(granule)", "PC(purkinje)"] },
+          { name: "inferior olive", ucs: ["GC(granule)"] },
+        ],
+      },
+    ).join("\n");
+    expect(msg).toMatch(/roiElements "inferior olive" has no ROI-internal UC of its own \(`GC\(granule\)` also stand for "cerebellar flocculus"\)/);
+    expect(msg).not.toMatch(/roiElements "cerebellar flocculus" has no ROI-internal UC of its own/);
+    expect(msg).toMatch(/uc\.json: ROI-internal `IO` is in no roiElements entry/);
+  });
+
+  it("counts the regions the ROI names", () => {
+    expect(roiParts("visual word form area and posterior fusiform gyrus")).toEqual(["visual word form area", "posterior fusiform gyrus"]);
+    expect(roiParts("left and right inferior frontal gyrus")).toEqual(["right inferior frontal gyrus"]);
+    expect(roiParts("basal ganglia (striatum, GPe and STN); thalamus")).toEqual(["basal ganglia (striatum, GPe,STN)", "thalamus"]);
+    expect(roiParts("nucleus accumbens")).toEqual(["nucleus accumbens"]);
+    const msg = errorsOf({}, { roi: "visual word form area and posterior fusiform gyrus" }).join("\n");
+    expect(msg).toMatch(/meta\.json: roi names 2 regions \("visual word form area", "posterior fusiform gyrus"\) but roiElements lists 1/);
+  });
+
+  it("reads Collections in an element and rejects unknown and external circuits", () => {
+    const ucs = structuredClone(UC0) as { ucs: unknown[]; collections?: unknown[] };
+    ucs.collections = [{ circuitId: "Floc-cortex", descriptor: "", names: "flocculus cortex", sourceOfId: "collection", subCircuits: ["GC(granule)", "PC(purkinje)"], comments: "granule and Purkinje layers [Ito, 1982]" }];
+    const ok = errorsOf({ uc: j(ucs) }, { roiElements: [{ name: "cerebellar flocculus", ucs: ["Floc-cortex", "IO"] }] });
+    expect(ok).toEqual([]);
+    const msg = errorsOf({}, { roiElements: [{ name: "cerebellar flocculus", ucs: ["GC(granule)", "PC(purkinje)", "IO", "VN", "XX"] }] }).join("\n");
+    expect(msg).toMatch(/roiElements "cerebellar flocculus": `VN` is an external UC \(noROI\)/);
+    expect(msg).toMatch(/roiElements "cerebellar flocculus": `XX` is not a Circuit ID in uc\.json/);
+  });
+
+  it("treats an ROI without a given side as both sides, written in the decision log", () => {
+    expect(errorsOf({}, { roiSide: "left" }).join("\n")).toMatch(/meta\.json: roiSide is left, but the user gave no side \(roiSideSource assumed\)/);
+    expect(errorsOf({ decisionLog: "# Decision log\n" }).join("\n")).toMatch(/decision_log\.md: record that the user gave no side for the ROI/);
+    expect(errorsOf({ decisionLog: "# Decision log\n" }, { roiSide: "left", roiSideSource: "user" })).toEqual([]);
+  });
+
+  it("asks for both sides of a one-sided ROI-internal UC under roiSide both, and keeps the other side out of a one-sided ROI", () => {
+    const left = (x: string) => x.replace(/\bIO\b/g, "IO(left)").replace("HOMBA:12500", "HOMBA:12500/side:left");
+    const files = { uc: left(j(UC0)), connections: left(j(CONN0)) };
+    const elements = [{ name: "cerebellar flocculus", ucs: ["GC(granule)", "PC(purkinje)", "IO(left)"] }];
+    expect(errorsOf(files, { roiElements: elements })).toContainEqual(expect.stringContaining("uc.json: ROI-internal `IO(left)` is left only, but the ROI covers both sides (roiSide both)"));
+    expect(errorsOf(files, { roiElements: elements, roiSide: "left", roiSideSource: "user" })).toEqual([]);
+    expect(errorsOf(files, { roiElements: elements, roiSide: "right", roiSideSource: "user" })).toContainEqual(expect.stringContaining("`IO(left)` is on the left side, outside the ROI (roiSide right)"));
+  });
+
+  it("warns (without an error) when one quote supports several connections", () => {
+    const c = structuredClone(CONN0);
+    c.connections[2].pointersOnLiterature = c.connections[0].pointersOnLiterature;
+    c.connections[2].pointersOnFigure = "Fig. 1B";
+    const r = checkHcd({ ...NEW, connections: j(c) }, RULES);
+    expect(r.errors).toEqual([]);
+    expect(r.warnings).toEqual([
+      expect.stringMatching(/^connections\.json: one pointersOnLiterature \(with Fig\. 1B\) of \[Ito, 1982\] supports 2 connections \(`VN` -> `GC\(granule\)`, `GC\(granule\)` -> `PC\(purkinje\)`\)/),
+    ]);
+    c.connections[2].pointersOnFigure = "Fig. 2";
+    expect(checkHcd({ ...NEW, connections: j(c) }, RULES).warnings).toEqual([]);
   });
 });

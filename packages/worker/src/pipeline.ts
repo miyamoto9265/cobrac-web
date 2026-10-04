@@ -124,6 +124,8 @@ export interface QuoteReport {
   quotes: QuoteCheck[];
   /** Quotes sent back to the agent */
   problems: string[];
+  /** One quote supporting several connections (harness rules 1); shown to the user, not sent back */
+  reused?: string[];
 }
 
 /** Contents of `{P}/reference_check.json`, rewritten by every HCD / FRG check. */
@@ -156,6 +158,8 @@ export interface CheckDeps {
   };
   /** BNA/DHBA boundary the HCD check enforces (the project's `sabraBoundary`; absent for projects created before it) */
   sabraBoundary?: SabraBoundary;
+  /** The project's harness rule set (`harnessRules`; absent for projects created before it) */
+  harnessRules?: number;
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -173,9 +177,10 @@ export async function writeSchemas(workDir: string): Promise<void> {
 
 async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
   const files = loadHcdFiles(paths);
-  const boundary: CheckHcdOptions = deps.sabraBoundary
-    ? { sabraBoundary: deps.sabraBoundary, boundaryExempt: deps.canon ? canonDescriptorKeys(deps.canon.snapshot) : undefined }
-    : {};
+  const boundary: CheckHcdOptions = {
+    ...(deps.sabraBoundary ? { sabraBoundary: deps.sabraBoundary, boundaryExempt: deps.canon ? canonDescriptorKeys(deps.canon.snapshot) : undefined } : {}),
+    ...(deps.harnessRules ? { harnessRules: deps.harnessRules } : {}),
+  };
   const first = checkHcd(files, boundary);
   const ids = first.model ? hombaAnchorIds([...first.model.ucs, ...first.model.collections].map((u) => u.descriptor).filter(Boolean)) : [];
   if (!deps.lookupSabra || !ids.length) return first;
@@ -222,7 +227,7 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
 
 async function hcdProblems(hcd: CheckResult<HcdModel>, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
   const refErrors = await checkReferences("HCD", paths, deps, ctx);
-  const quoteErrors = await checkQuotes(paths, deps, ctx);
+  const quoteErrors = await checkQuotes(paths, deps, ctx, hcd.warnings ?? []);
   const canonErrors = hcd.model ? await checkCanon(paths, deps) : [];
   return [...new Set([...hcd.errors, ...refErrors, ...quoteErrors, ...canonErrors])];
 }
@@ -349,9 +354,10 @@ async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: 
 
 /**
  * Pointers on literature against the text of the cited paper (HCD phase only: connections are HCD data). Quotes
- * that already fail the format rules (too short, a locator) are left to those messages. Writes quote_check.json.
+ * that already fail the format rules (too short, a locator) are left to those messages. Writes quote_check.json, with
+ * the HCD check's warnings about quotes reused for several connections.
  */
-async function checkQuotes(paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<string[]> {
+async function checkQuotes(paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext, reused: string[]): Promise<string[]> {
   const hcd = ctx.hcd;
   if (!hcd) return [];
   const refs = new Map(hcd.refs.map((r) => [r.id, r]));
@@ -382,6 +388,7 @@ async function checkQuotes(paths: ProjectPaths, deps: CheckDeps, ctx: PhaseConte
     summary: checks.length ? summarizeQuoteChecks(checks) : null,
     quotes: checks,
     problems,
+    ...(reused.length ? { reused } : {}),
   };
   ctx.quotes = report;
   try {

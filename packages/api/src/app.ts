@@ -59,6 +59,7 @@ import type {
 import {
   ARROW_HEADS,
   ATTACHMENT_LIMITS,
+  HARNESS_RULES,
   UPLOAD_ID_REGEX,
   attachmentDisplayName,
   attachmentFileKey,
@@ -590,6 +591,7 @@ app.post("/projects", async (c) => {
     reasoningEffort,
     researchMode,
     sabraBoundary: "neocortex",
+    harnessRules: HARNESS_RULES,
     status: "QUEUED",
     currentStep: null,
     stepStates: { HCD: "pending", FRG: "pending", CSV: "pending", XLSX: "pending" },
@@ -2059,6 +2061,7 @@ app.post("/public/projects/:id/clone", async (c) => {
     ...(src.researchMode !== undefined ? { researchMode: src.researchMode } : {}),
     // the copy keeps the original's UCs, so it keeps the original's SABRA boundary too
     ...(src.sabraBoundary ? { sabraBoundary: src.sabraBoundary } : {}),
+    ...(src.harnessRules ? { harnessRules: src.harnessRules } : {}),
     status: "COMPLETED",
     currentStep: "CSV",
     // copied steps are done or pending, never running (the original may be mid-run or failed); the BRA xlsx carries

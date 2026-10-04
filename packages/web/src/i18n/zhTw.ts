@@ -297,6 +297,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.csvMissing": "在允許的繼續次數內代理未產生 CSV。請使用後續指示或重試。",
   "sys.validationFailed": "{step} 檢查發現 {count} 個問題，已請代理修正。",
   "sys.validationWarn": "{step} 仍有 {count} 個未解決的檢查問題；繼續執行。",
+  "sys.quoteReuse": "Pointers on literature 中有 {count} 條引文支撐多個連接；每個連接應指向陳述其自身投射的句子或圖（僅警告）。",
   "sys.phaseIncomplete": "在允許的修正次數內未能完成 {step} 步驟。請使用後續指示或重試。",
   "sys.legacyWorkspace": "此專案使用 v0.8 之前的檔案格式，無法繼續執行。xlsx 與圖仍可使用；如需繼續，請建立新專案。",
   "sys.csvBuilt": "已根據 HCD/FRG 資料檔產生 CSV。",

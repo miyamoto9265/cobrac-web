@@ -585,6 +585,43 @@ describe("SABRA boundary in the phase pipeline", () => {
   });
 });
 
+describe("harness rules in the phase pipeline", () => {
+  const ruleFiles = (p: ProjectPaths) => {
+    const meta = { ...JSON.parse(fixture("meta.json")), roiElements: [{ name: "mesolimbic dopamine system", ucs: ["VTA", "NAC"] }], roiSide: "both", roiSideSource: "assumed" };
+    writeFileSync(p.meta, JSON.stringify(meta, null, 2));
+    writeFileSync(p.decisionLog, `${fixture("decision_log.md")}\n- ROI side: not given by the user; treated as bilateral (both hemispheres).\n`);
+  };
+
+  it("applies the ROI rules only to projects that have them (the fixture has no ROI elements, as older projects)", async () => {
+    const p = freshWorkspace();
+    await mockAgent(p).turn({ shown: "Run phase HCD" });
+    const legacy = await checkPhase("HCD", p, depsOf(), { hcd: null, frg: null });
+    expect(legacy.errors.filter((e) => /roiElements|roiSide/.test(e))).toEqual([]);
+    const current = await checkPhase("HCD", p, { ...depsOf(), harnessRules: 1 }, { hcd: null, frg: null });
+    expect(current.errors).toContainEqual(expect.stringContaining("meta.json: add `roiElements`"));
+    ruleFiles(p);
+    const declared = await checkPhase("HCD", p, { ...depsOf(), harnessRules: 1 }, { hcd: null, frg: null });
+    expect(declared.errors.filter((e) => /roiElements|roiSide|ROI side|both sides/.test(e))).toEqual([]);
+  });
+
+  it("records a quote reused for several connections in quote_check.json without sending it back", async () => {
+    const p = freshWorkspace();
+    await mockAgent(p).turn({ shown: "Run phase HCD" });
+    ruleFiles(p);
+    const conns = JSON.parse(fixture("HCD/connections.json"));
+    conns.connections[3].pointersOnLiterature = conns.connections[2].pointersOnLiterature;
+    writeFileSync(join(p.hcd, "connections.json"), JSON.stringify(conns, null, 2));
+    const before = await checkPhase("HCD", p, depsOf(), { hcd: null, frg: null });
+    expect(JSON.parse(readFileSync(p.quoteCheck, "utf8")).reused).toBeUndefined();
+    const ctx: PhaseContext = { hcd: null, frg: null };
+    const r = await checkPhase("HCD", p, { ...depsOf(), harnessRules: 1 }, ctx);
+    expect(r.errors.filter((e) => !before.errors.includes(e))).toEqual([]);
+    const reused = JSON.parse(readFileSync(p.quoteCheck, "utf8")).reused;
+    expect(reused).toEqual([expect.stringContaining("supports 2 connections (`NAC` -> `VTA`, `NAC` -> `Arc`)")]);
+    expect(ctx.quotes?.reused).toEqual(reused);
+  });
+});
+
 describe("Canon constraints in the phase pipeline", () => {
   const hcdFiles = () => ({ uc: fixture("HCD/uc.json"), connections: fixture("HCD/connections.json"), references: fixture("HCD/references.json") });
   /** A Canon built from the fixture itself, then with NAC turned into a Collection of a finer UC. */

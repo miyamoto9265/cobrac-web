@@ -297,6 +297,7 @@ export const fr: Record<MessageKey, string> = {
   "sys.csvMissing": "L’agent n’a pas produit les CSV après le nombre autorisé de relances. Utilisez un suivi ou une nouvelle tentative.",
   "sys.validationFailed": "La vérification a trouvé {count} problème(s) dans {step} ; l’agent a été chargé de les corriger.",
   "sys.validationWarn": "{step} comporte encore {count} point(s) de contrôle non résolu(s) ; poursuite.",
+  "sys.quoteReuse": "{count} citation(s) de Pointers on literature étayent plus d’une connexion ; chaque connexion devrait renvoyer à la phrase ou à la figure qui décrit sa propre projection (avertissement seulement).",
   "sys.phaseIncomplete": "L’étape {step} n’a pas pu être terminée après le nombre autorisé de corrections. Utilisez un suivi ou une nouvelle tentative.",
   "sys.legacyWorkspace": "Ce projet utilise le format de fichiers antérieur à v0.8 et ne peut plus être poursuivi. Le xlsx et les graphes restent disponibles ; créez un nouveau projet pour continuer.",
   "sys.csvBuilt": "CSV générés à partir des fichiers de données HCD/FRG.",

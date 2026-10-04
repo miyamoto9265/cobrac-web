@@ -297,6 +297,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.csvMissing": "エージェントが所定回数の続行指示後も CSV を生成しませんでした。フォローアップ指示またはリトライで続きを実行してください。",
   "sys.validationFailed": "{step} の検査で {count} 件の問題が見つかったため、エージェントに修正を依頼しました。",
   "sys.validationWarn": "{step} に未解決の検査項目が {count} 件残っていますが、先に進みます。",
+  "sys.quoteReuse": "Pointers on literature の引用文 {count} 件が、複数の接続の根拠になっています。接続ごとに、その投射を述べる文か図を示すのが望ましいです（警告のみ）。",
   "sys.phaseIncomplete": "所定回数の修正後も {step} ステップを完了できませんでした。フォローアップ指示またはリトライで続きを実行してください。",
   "sys.legacyWorkspace": "このプロジェクトは v0.8 より前のファイル形式で作られているため、続きを実行できません。xlsx とグラフは引き続き利用できます。作業を続けるには新しいプロジェクトを作成してください。",
   "sys.csvBuilt": "HCD/FRG のデータファイルから CSV を生成しました。",
