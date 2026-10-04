@@ -35,6 +35,7 @@ export const zhTw: Record<MessageKey, string> = {
   "nav.projects": "專案",
   "nav.settings": "設定",
   "nav.docs": "文件",
+  "nav.manual": "使用手冊",
   "nav.releases": "發行說明",
   "nav.admin": "管理",
   "nav.signOut": "登出",
@@ -382,6 +383,8 @@ export const zhTw: Record<MessageKey, string> = {
   "docs.count": "{n} 篇",
   "docs.back": "文件列表",
   "docs.loadFailed": "無法載入文件：{error}",
+  "manual.title": "使用手冊",
+  "manual.fallback": "使用手冊尚無{lang}版本，目前顯示英文版。",
 
   "graph.search": "搜尋節點…",
   "graph.undo": "復原 (Ctrl+Z)",

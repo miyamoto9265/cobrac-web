@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- A "User manual" entry in the sidebar for everyone: a short guide to the whole app (what it does, getting started with an account and an API key, creating a project, the project page and the Agent panel, reading the outputs, explanatory articles, Canon basics, publishing and cloning, settings, and troubleshooting), with figures in a wide and a phone layout, a table of contents and links to each heading. It is in Japanese and English for now; other UI languages show the English manual with a note
+
+### Changed
+- The "Guide" links next to the "?" tooltips are shown to everyone again and open the matching section of the user manual
+- Opening "Docs" without admin rights now leads to the user manual
+
+## [0.23.0] - 2026-10-04
+
 ## [0.22.0] - 2026-10-04
 
 ### Added

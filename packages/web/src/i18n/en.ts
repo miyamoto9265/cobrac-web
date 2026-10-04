@@ -33,6 +33,7 @@ export const en = {
   "nav.projects": "Projects",
   "nav.settings": "Settings",
   "nav.docs": "Docs",
+  "nav.manual": "User manual",
   "nav.releases": "Release notes",
   "nav.admin": "Admin",
   "nav.signOut": "Sign out",
@@ -380,6 +381,8 @@ export const en = {
   "docs.count": "{n} documents",
   "docs.back": "All documents",
   "docs.loadFailed": "Could not load the documents: {error}",
+  "manual.title": "User manual",
+  "manual.fallback": "The manual is not available in {lang} yet, so it is shown in English.",
 
   "graph.search": "Search nodes…",
   "graph.undo": "Undo (Ctrl+Z)",

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 218" width="880" height="218" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Canon basics: push, review, approve, rev</title>
+<desc id="d">On a completed member project, “Push to Canon” creates a pull request (PR). The owner or a co-editor reviews its changes, checks, AI review and history and decides. Approving creates a new rev of the Canon; member projects move to that rev and use it from their next run. When changes are requested, fix the project and push again.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="880" height="218" fill="#ffffff"/>
+<rect x="30" y="52" width="176" height="80" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="118" y="78.775" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>Member project</tspan></text>
+<text x="118" y="98.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>when completed,</tspan></text>
+<text x="118" y="116.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>“Push to Canon”</tspan></text>
+<path d="M209 92 L247 92" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="250" y="52" width="176" height="80" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="338" y="78.775" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>Pull request</tspan></text>
+<text x="338" y="98.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>changes · checks</tspan></text>
+<text x="338" y="116.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>AI review · history</tspan></text>
+<path d="M429 92 L467 92" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="470" y="52" width="176" height="80" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="558" y="78.775" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>Review</tspan></text>
+<text x="558" y="98.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>the owner or a</tspan></text>
+<text x="558" y="116.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>co-editor decides</tspan></text>
+<path d="M649 92 L687 92" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="690" y="52" width="176" height="80" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="778" y="78.775" font-size="14" font-weight="700" fill="#065f46" text-anchor="middle"><tspan>New rev</tspan></text>
+<text x="778" y="98.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>one approval</tspan></text>
+<text x="778" y="116.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>updates the Canon</tspan></text>
+<path d="M778 134 L778 178 L118 178 L118 136" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<text x="448" y="198" font-size="12.5" font-weight="400" fill="#065f46" text-anchor="middle"><tspan>Member projects move to the new rev and use it from their next run</tspan></text>
+<path d="M558 50 L558 34 L118 34 L118 49" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-f59e0b)"/>
+<text x="236" y="28" font-size="12" font-weight="400" fill="#92400e" text-anchor="start"><tspan>Request changes → fix and push again</tspan></text>
+<text x="558" y="158" font-size="11.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>Reject → the PR is closed</tspan></text>
+</svg>

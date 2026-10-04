@@ -35,6 +35,7 @@ export const pt: Record<MessageKey, string> = {
   "nav.projects": "Projetos",
   "nav.settings": "Configurações",
   "nav.docs": "Docs",
+  "nav.manual": "Manual do usuário",
   "nav.releases": "Notas da versão",
   "nav.admin": "Admin",
   "nav.signOut": "Sair",
@@ -382,6 +383,8 @@ export const pt: Record<MessageKey, string> = {
   "docs.count": "{n} documentos",
   "docs.back": "Todos os documentos",
   "docs.loadFailed": "Não foi possível carregar os documentos: {error}",
+  "manual.title": "Manual do usuário",
+  "manual.fallback": "O manual ainda não está disponível em {lang}; ele é exibido em inglês.",
 
   "graph.search": "Buscar nós…",
   "graph.undo": "Desfazer (Ctrl+Z)",

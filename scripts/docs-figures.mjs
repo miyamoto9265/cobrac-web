@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Renders the SVG figures used by docs/*.md into docs/figures/.
+// Renders the SVG figures used by docs/*.md into docs/figures/, and those of the user manual (docs/manual/*.md) into
+// docs/manual/figures/.
 //   node scripts/docs-figures.mjs          write the files
 //   node scripts/docs-figures.mjs --check  exit 1 if a committed file differs from the generated output
 // Figures are plain SVG (no scripts, no external fonts or CDN), so GitHub and the site's Docs page show the same image.
@@ -13,11 +14,13 @@ import { HARNESS_V1_1_FIGURES } from "./docs-figures-harness-v1-1.mjs";
 import { HARNESS_V2_FIGURES } from "./docs-figures-harness-v2.mjs";
 import { CIRCUIT_NAMING_FIGURES } from "./docs-figures-circuit-naming.mjs";
 import { SPEED_COST_FIGURES } from "./docs-figures-speed-cost.mjs";
+import { MANUAL_FIGURES } from "./docs-figures-manual.mjs";
 
 export { textWidth };
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const FIGURES_DIR = join(repoRoot, "docs", "figures");
+export const MANUAL_FIGURES_DIR = join(repoRoot, "docs", "manual", "figures");
 
 // ---------------------------------------------------------------------------
 // Strings. The Japanese and English figures share one layout; keep facts identical to the article.
@@ -798,10 +801,9 @@ const FIGURES = {
   "harness-artifact-output": [output, outputNarrow],
 };
 
-/** { "harness-overview.ja.svg": "<svg…", "harness-overview.ja.narrow.svg": …, … } */
-export function renderAll() {
+function render(figures) {
   const out = {};
-  for (const [name, [wide, narrow]] of Object.entries(FIGURES)) {
+  for (const [name, [wide, narrow]] of Object.entries(figures)) {
     for (const lang of ["ja", "en"]) {
       out[`${name}.${lang}.svg`] = wide(lang);
       out[`${name}.${lang}.narrow.svg`] = narrow(lang);
@@ -810,13 +812,16 @@ export function renderAll() {
   return out;
 }
 
-function main() {
-  const check = process.argv.includes("--check");
-  const files = renderAll();
-  mkdirSync(FIGURES_DIR, { recursive: true });
+/** { "harness-overview.ja.svg": "<svg…", "harness-overview.ja.narrow.svg": …, … } */
+export const renderAll = () => render(FIGURES);
+export const renderManual = () => render(MANUAL_FIGURES);
+
+/** Writes (or with `check`, compares) one figure directory; returns the out-of-date file names. */
+function sync(dir, files, check) {
+  mkdirSync(dir, { recursive: true });
   const stale = [];
   for (const [name, content] of Object.entries(files)) {
-    const path = join(FIGURES_DIR, name);
+    const path = join(dir, name);
     let current = null;
     try {
       current = readFileSync(path, "utf8");
@@ -827,12 +832,25 @@ function main() {
     if (check) stale.push(name);
     else writeFileSync(path, content);
   }
-  const orphans = readdirSync(FIGURES_DIR).filter((f) => f.endsWith(".svg") && !(f in files));
-  if (check && (stale.length || orphans.length)) {
-    console.error(`docs/figures is out of date (${[...stale, ...orphans].join(", ")}). Run: npm run docs:figures`);
-    process.exit(1);
+  const orphans = readdirSync(dir).filter((f) => f.endsWith(".svg") && !(f in files));
+  return [...stale, ...orphans];
+}
+
+function main() {
+  const check = process.argv.includes("--check");
+  const targets = [
+    ["docs/figures", FIGURES_DIR, renderAll()],
+    ["docs/manual/figures", MANUAL_FIGURES_DIR, renderManual()],
+  ];
+  let failed = false;
+  for (const [label, dir, files] of targets) {
+    const stale = sync(dir, files, check);
+    if (check && stale.length) {
+      console.error(`${label} is out of date (${stale.join(", ")}). Run: npm run docs:figures`);
+      failed = true;
+    } else console.log(check ? `${label} is up to date (${Object.keys(files).length} files)` : `wrote ${Object.keys(files).length} files to ${label}`);
   }
-  console.log(check ? `docs/figures is up to date (${Object.keys(files).length} files)` : `wrote ${Object.keys(files).length} files to docs/figures`);
+  if (failed) process.exit(1);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

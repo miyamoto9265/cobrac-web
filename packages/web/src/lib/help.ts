@@ -1,22 +1,25 @@
-/** The user guide for research mode and Canons: `docs/06_Research_mode_and_Canon.md` and its `_ja` twin. */
-export const HELP_DOC = "06_Research_mode_and_Canon";
+/** Languages the user manual (`docs/manual/<lang>.md`) is written in; other UI languages show the English one. */
+export const MANUAL_LANGS = ["ja", "en"] as const;
+export type ManualLang = (typeof MANUAL_LANGS)[number];
 
-/** Heading anchors of each section in both languages (a test checks that they exist in the documents). */
-export const HELP_ANCHORS = {
-  research: { en: "research-mode", ja: "調査モード" },
-  canon: { en: "canons", ja: "canon" },
-  create: { en: "using-a-canon-for-a-new-project", ja: "新しいプロジェクトで-canon-を使う" },
-  rules: { en: "how-a-canon-constrains-generation", ja: "canon-による生成時の制約" },
-  follow: { en: "revisions-and-updates", ja: "rev-と更新" },
-  push: { en: "push-and-pull-requests", ja: "push-と-pr" },
-  public: { en: "public-library-and-cloning", ja: "公開ライブラリと複製" },
-} as const;
+export function manualLang(locale: string): ManualLang {
+  return (MANUAL_LANGS as readonly string[]).includes(locale) ? (locale as ManualLang) : "en";
+}
 
-export type HelpSection = keyof typeof HELP_ANCHORS;
+/** Heading anchors of the manual sections the "?" guide links open (a test checks that they exist in every language). */
+export const HELP_ANCHORS: Record<string, Record<ManualLang, string>> = {
+  research: { ja: "調査モードとモデル", en: "research-mode-and-models" },
+  canon: { ja: "canon", en: "canons" },
+  create: { ja: "canon-を使う", en: "using-a-canon" },
+  rules: { ja: "canon-に従って作る", en: "how-a-canon-guides-generation" },
+  follow: { ja: "rev-に追従する", en: "keeping-up-with-revs" },
+  push: { ja: "push-と審査", en: "push-and-review" },
+  public: { ja: "公開と複製", en: "publishing-and-cloning" },
+} satisfies Record<string, Record<ManualLang, string>>;
 
-/** `/docs/<slug>#<anchor>` in Japanese for the Japanese UI, otherwise in English. */
+export type HelpSection = "research" | "canon" | "create" | "rules" | "follow" | "push" | "public";
+
+/** `/manual#<anchor>`: the manual opens in the UI language, or in English when it is not written in that language yet. */
 export function helpDocPath(locale: string, section: HelpSection): string {
-  const lang = locale === "ja" ? "ja" : "en";
-  const slug = lang === "ja" ? `${HELP_DOC}_ja` : HELP_DOC;
-  return `/docs/${encodeURIComponent(slug)}#${encodeURIComponent(HELP_ANCHORS[section][lang])}`;
+  return `/manual#${encodeURIComponent(HELP_ANCHORS[section][manualLang(locale)])}`;
 }

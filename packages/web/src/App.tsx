@@ -16,6 +16,7 @@ import { ExplorePage } from "./pages/ExplorePage";
 import { PublicCanonPage } from "./pages/PublicCanonPage";
 import { PublicProjectPage } from "./pages/PublicProjectPage";
 import { CanonPullPage } from "./pages/CanonPullPage";
+import { ManualPage } from "./pages/ManualPage";
 import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -53,10 +54,11 @@ export default function App() {
         <Route path="/canons/:canonId/pulls/:no" element={<CanonPullPage />} />
         <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/manual" element={<ManualPage />} />
         <Route path="/releases" element={<ReleaseNotesPage />} />
         <Route path="/docs/CHANGELOG" element={<Navigate to="/releases" replace />} />
-        <Route path="/docs" element={<AdminOnly><DocsPage /></AdminOnly>} />
-        <Route path="/docs/:slug" element={<AdminOnly><DocsPage /></AdminOnly>} />
+        <Route path="/docs" element={<AdminOnly fallback="/manual"><DocsPage /></AdminOnly>} />
+        <Route path="/docs/:slug" element={<AdminOnly fallback="/manual"><DocsPage /></AdminOnly>} />
         <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>

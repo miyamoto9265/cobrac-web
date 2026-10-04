@@ -1,4 +1,4 @@
-import { BookOpen, FolderKanban, Globe, Layers, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
+import { BookMarked, BookOpen, FolderKanban, Globe, Layers, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
@@ -105,6 +105,9 @@ export function Layout() {
           </NavLink>
           <NavLink to="/settings" className={navCls}>
             <Settings size={16} /> {t("nav.settings")}
+          </NavLink>
+          <NavLink to="/manual" className={navCls}>
+            <BookMarked size={16} /> {t("nav.manual")}
           </NavLink>
           <NavLink to="/releases" className={navCls}>
             <ScrollText size={16} /> {t("nav.releases")}

@@ -35,6 +35,7 @@ export const ru: Record<MessageKey, string> = {
   "nav.projects": "Проекты",
   "nav.settings": "Настройки",
   "nav.docs": "Документы",
+  "nav.manual": "Руководство пользователя",
   "nav.releases": "Заметки о выпуске",
   "nav.admin": "Админ",
   "nav.signOut": "Выйти",
@@ -382,6 +383,8 @@ export const ru: Record<MessageKey, string> = {
   "docs.count": "Документов: {n}",
   "docs.back": "Все документы",
   "docs.loadFailed": "Не удалось загрузить документы: {error}",
+  "manual.title": "Руководство пользователя",
+  "manual.fallback": "Руководства на языке «{lang}» пока нет, поэтому оно показано на английском.",
 
   "graph.search": "Поиск узлов…",
   "graph.undo": "Отменить (Ctrl+Z)",

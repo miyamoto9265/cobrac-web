@@ -35,6 +35,7 @@ export const ja: Record<MessageKey, string> = {
   "nav.projects": "プロジェクト一覧",
   "nav.settings": "設定",
   "nav.docs": "ドキュメント",
+  "nav.manual": "利用マニュアル",
   "nav.releases": "リリースノート",
   "nav.admin": "管理",
   "nav.signOut": "ログアウト",
@@ -382,6 +383,8 @@ export const ja: Record<MessageKey, string> = {
   "docs.count": "{n} 件",
   "docs.back": "ドキュメント一覧",
   "docs.loadFailed": "ドキュメントを読み込めませんでした: {error}",
+  "manual.title": "利用マニュアル",
+  "manual.fallback": "{lang}の利用マニュアルはまだありません。英語版を表示しています。",
 
   "graph.search": "ノード検索…",
   "graph.undo": "元に戻す (Ctrl+Z)",
