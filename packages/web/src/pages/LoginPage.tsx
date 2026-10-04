@@ -3,7 +3,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { useAuth } from "../lib/auth";
 
-type Mode = "signin" | "signup" | "confirm" | "reset" | "resetConfirm";
+type Mode = "signin" | "signup" | "confirm" | "reset" | "resetConfirm" | "newPassword";
 
 export function LoginPage() {
   const t = useT();
@@ -27,6 +27,11 @@ export function LoginPage() {
       if (msg === "CONFIRM_SIGN_UP") {
         setMode("confirm");
         setInfo("login.infoCode");
+      } else if (msg === "NEW_PASSWORD_REQUIRED") {
+        // the typed password was the temporary one from the invitation
+        setMode("newPassword");
+        setPassword("");
+        setInfo("login.infoNewPassword");
       } else setErr(msg);
     } finally {
       setBusy(false);
@@ -48,6 +53,7 @@ export function LoginPage() {
             {mode === "confirm" && t("login.confirm")}
             {mode === "reset" && t("login.reset")}
             {mode === "resetConfirm" && t("login.resetConfirm")}
+            {mode === "newPassword" && t("login.firstLogin")}
           </div>
           <div className="mt-3 flex items-center justify-center gap-2">
             <LanguageSelect variant="light" />
@@ -91,15 +97,26 @@ export function LoginPage() {
                   setMode("signin");
                   setInfo("login.infoPwUpdated");
                 });
+              case "newPassword":
+                return void run(() => auth.doConfirmNewPassword(password));
             }
           }}
         >
-          <input type="email" required placeholder={t("login.email")} value={email} onChange={(e) => setEmail(e.target.value)} className={input} autoComplete="email" />
-          {(mode === "signin" || mode === "signup" || mode === "resetConfirm") && (
+          <input
+            type="email"
+            required
+            placeholder={t("login.email")}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className={input}
+            autoComplete="email"
+            readOnly={mode === "newPassword"}
+          />
+          {(mode === "signin" || mode === "signup" || mode === "resetConfirm" || mode === "newPassword") && (
             <input
               type="password"
               required
-              placeholder={mode === "resetConfirm" ? t("login.newPassword") : t("login.password")}
+              placeholder={mode === "resetConfirm" || mode === "newPassword" ? t("login.newPassword") : t("login.password")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={input}
@@ -115,6 +132,7 @@ export function LoginPage() {
             {mode === "confirm" && t("login.submitConfirm")}
             {mode === "reset" && t("login.submitReset")}
             {mode === "resetConfirm" && t("login.submitResetConfirm")}
+            {mode === "newPassword" && t("login.submitNewPassword")}
           </button>
         </form>
 

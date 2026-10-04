@@ -62,6 +62,9 @@ export const ko: Record<MessageKey, string> = {
   "login.infoConfirmed": "확인되었습니다. 로그인해 주세요.",
   "login.infoReset": "이메일의 코드와 새 비밀번호를 입력하세요.",
   "login.infoPwUpdated": "비밀번호가 업데이트되었습니다. 로그인해 주세요.",
+  "login.firstLogin": "첫 로그인",
+  "login.infoNewPassword": "관리자가 만든 계정의 첫 로그인입니다. 임시 비밀번호를 대신할 새 비밀번호를 설정해 주세요.",
+  "login.submitNewPassword": "비밀번호 설정 후 로그인",
 
   "settings.title": "설정",
   "settings.apiKey": "OpenAI API 키",

@@ -62,6 +62,9 @@ export const fr: Record<MessageKey, string> = {
   "login.infoConfirmed": "Confirmé. Veuillez vous connecter.",
   "login.infoReset": "Saisissez le code reçu par e-mail et un nouveau mot de passe.",
   "login.infoPwUpdated": "Mot de passe mis à jour. Veuillez vous connecter.",
+  "login.firstLogin": "Première connexion",
+  "login.infoNewPassword": "Il s’agit de la première connexion à un compte créé par un administrateur. Définissez un nouveau mot de passe pour remplacer le mot de passe temporaire.",
+  "login.submitNewPassword": "Définir le mot de passe et se connecter",
 
   "settings.title": "Paramètres",
   "settings.apiKey": "Clé API OpenAI",

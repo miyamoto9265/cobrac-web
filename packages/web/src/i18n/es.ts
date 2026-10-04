@@ -62,6 +62,9 @@ export const es: Record<MessageKey, string> = {
   "login.infoConfirmed": "Confirmado. Inicia sesión.",
   "login.infoReset": "Ingresa el código de tu correo y una nueva contraseña.",
   "login.infoPwUpdated": "Contraseña actualizada. Inicia sesión.",
+  "login.firstLogin": "Primer inicio de sesión",
+  "login.infoNewPassword": "Es el primer inicio de sesión en una cuenta creada por un administrador. Establece una nueva contraseña que sustituya a la temporal.",
+  "login.submitNewPassword": "Establecer contraseña e iniciar sesión",
 
   "settings.title": "Configuración",
   "settings.apiKey": "Clave de API de OpenAI",

@@ -1,6 +1,7 @@
 import { Amplify } from "aws-amplify";
 import {
   confirmResetPassword,
+  confirmSignIn,
   confirmSignUp,
   fetchAuthSession,
   getCurrentUser,
@@ -23,6 +24,8 @@ interface AuthState {
   me: MeResponse | null;
   refreshMe: () => Promise<void>;
   doSignIn: (email: string, password: string) => Promise<void>;
+  /** first sign-in of an admin-created user: replaces the temporary password and signs in */
+  doConfirmNewPassword: (newPassword: string) => Promise<void>;
   doSignUp: (email: string, password: string) => Promise<"confirm" | "done">;
   doConfirmSignUp: (email: string, code: string) => Promise<void>;
   doResendCode: (email: string) => Promise<void>;
@@ -92,6 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       doSignIn: async (e, p) => {
         const r = await signIn({ username: e, password: p });
         if (r.nextStep.signInStep === "CONFIRM_SIGN_UP") throw new Error("CONFIRM_SIGN_UP");
+        if (r.nextStep.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") throw new Error("NEW_PASSWORD_REQUIRED");
+        if (!r.isSignedIn) throw new Error(`Additional sign-in step required: ${r.nextStep.signInStep}`);
+        await check();
+      },
+      doConfirmNewPassword: async (np) => {
+        const r = await confirmSignIn({ challengeResponse: np });
         if (!r.isSignedIn) throw new Error(`Additional sign-in step required: ${r.nextStep.signInStep}`);
         await check();
       },

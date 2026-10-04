@@ -60,6 +60,9 @@ export const en = {
   "login.infoConfirmed": "Confirmed. Please sign in.",
   "login.infoReset": "Enter the code from your email and a new password.",
   "login.infoPwUpdated": "Password updated. Please sign in.",
+  "login.firstLogin": "First sign-in",
+  "login.infoNewPassword": "This is the first sign-in to an account an administrator created. Set a new password to replace the temporary one.",
+  "login.submitNewPassword": "Set password and sign in",
 
   "settings.title": "Settings",
   "settings.apiKey": "OpenAI API key",

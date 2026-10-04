@@ -62,6 +62,9 @@ export const ja: Record<MessageKey, string> = {
   "login.infoConfirmed": "確認が完了しました。ログインしてください。",
   "login.infoReset": "メールに送信されたコードと新しいパスワードを入力してください。",
   "login.infoPwUpdated": "パスワードを更新しました。ログインしてください。",
+  "login.firstLogin": "初回ログイン",
+  "login.infoNewPassword": "管理者が作成したアカウントへの初回ログインです。仮パスワードに代わる新しいパスワードを設定してください。",
+  "login.submitNewPassword": "パスワードを設定してログイン",
 
   "settings.title": "設定",
   "settings.apiKey": "OpenAI API キー",

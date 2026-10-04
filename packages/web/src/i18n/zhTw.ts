@@ -62,6 +62,9 @@ export const zhTw: Record<MessageKey, string> = {
   "login.infoConfirmed": "已確認。請登入。",
   "login.infoReset": "請輸入電子郵件中的驗證碼與新密碼。",
   "login.infoPwUpdated": "密碼已更新。請登入。",
+  "login.firstLogin": "首次登入",
+  "login.infoNewPassword": "這是管理員建立的帳戶的首次登入。請設定新密碼以取代臨時密碼。",
+  "login.submitNewPassword": "設定密碼並登入",
 
   "settings.title": "設定",
   "settings.apiKey": "OpenAI API 金鑰",

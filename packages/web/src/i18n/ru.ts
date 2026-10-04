@@ -62,6 +62,9 @@ export const ru: Record<MessageKey, string> = {
   "login.infoConfirmed": "Подтверждено. Войдите в систему.",
   "login.infoReset": "Введите код из письма и новый пароль.",
   "login.infoPwUpdated": "Пароль обновлён. Войдите в систему.",
+  "login.firstLogin": "Первый вход",
+  "login.infoNewPassword": "Это первый вход в учётную запись, созданную администратором. Задайте новый пароль вместо временного.",
+  "login.submitNewPassword": "Задать пароль и войти",
 
   "settings.title": "Настройки",
   "settings.apiKey": "Ключ OpenAI API",
