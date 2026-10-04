@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-04
+
 ### Added
 - A review screen for Canon pull requests. The Changes tab draws the Canon and the Canon after approval side by side (added, changed, no longer in the project and conflicting circuits and connections in their own colours; click one to open it) and lists the changes by kind with filters; a row opens the Canon's and the incoming value field by field, its findings and its comments. Phones show one graph at a time and the list in one column
 - System checks on every pull request, grouped as IDs, duplicates and conflicts, connections, evidence and provenance, each with the code of WBAI's BRA Error code List (Master) or a local `cobrac:` code: UC Descriptor syntax, Circuit ID characters and form, circuits that may duplicate an entry under another descriptor, existing entries on the same anchor, undefined connection ends, connections that run the other way than the Canon's for the same paper, opposite excitatory / inhibitory signs, missing or unknown Reference IDs, connections without quote or figure, unverified quotes and references, a Canon or source that moved on since the push, a source that left or was deleted, affected projects and what the project no longer uses. They do not block approval; the conflict rules still do
