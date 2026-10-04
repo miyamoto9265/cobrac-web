@@ -32,3 +32,4 @@ export * from "./canonReview.js";
 export * from "./canonAiReview.js";
 export * from "./docs.js";
 export * from "./braVersion.js";
+export * from "./bradb.js";
