@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 export const BELOW_SM = "(max-width: 639px)";
 export const BELOW_MD = "(max-width: 767px)";
 export const BELOW_LG = "(max-width: 1023px)";
+export const BELOW_XL = "(max-width: 1279px)";
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
