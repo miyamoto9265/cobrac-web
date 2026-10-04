@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-04
+
+### Fixed
+- Users an admin created in Cognito can now sign in. On the first sign-in with the temporary password from the invitation, the login screen asks for a new password (in all 10 UI languages) and signs in once it is set, instead of stopping with "Additional sign-in step required: CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED"
+
 ## [0.20.0] - 2026-10-04
 
 ### Added
