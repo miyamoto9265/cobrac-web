@@ -123,7 +123,8 @@ export class BraDbStack extends Stack {
       managedPolicies: [iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSDataLifecycleManagerServiceRole")],
     });
     new dlm.CfnLifecyclePolicy(this, "DailySnapshots", {
-      description: "BRA-DB data volume: daily snapshot, 7 kept",
+      // DLM accepts letters, digits, spaces, hyphens and underscores only
+      description: "BRA-DB data volume daily snapshots - 7 kept",
       state: "ENABLED",
       executionRoleArn: snapshotRole.roleArn,
       policyDetails: {
