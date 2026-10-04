@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.28.1] - 2026-10-04
+
+### Fixed
+- BRA-DB could not reach the internet from its private network, so it never finished setting itself up: the NAT instance's setup ran out of memory on the smallest instance size. The NAT instance is now a t4g.micro with its own setup script, and is replaced when that setup changes. BRA-DB's monthly cost becomes about $34
+
 ## [0.28.0] - 2026-10-04
 
 ### Added
