@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-10-04
+
 ### Added
 - The FRG is now built by meeting in the middle. Before the FRG step the worker reads the HCD's ROI-internal connections and lists bottom-up candidates: the pathways from the ROI inputs to its outputs (loops as one block), the separate parts of the circuit, the loops and feedforward triangles of 3–4 UCs, and every connected pair, each with the sign of its connections. The agent first decomposes the TLF without looking at them, then reads what each candidate computes, matches the two and shows the result as a table in the report's FRG section (matched, function without a circuit, circuit without a function, mismatch, and what was done about each). The candidates are recomputed whenever the HCD changes and are kept in the project folder as `frg_candidates.json`. This applies to every project, also to follow-ups of earlier ones
 - The HCD graph has a "Motifs" selector when the circuit has loops or feedforward triangles of 3–4 UCs: picking one highlights its UCs and connections and names the GNs built on exactly those UCs, with links to the FRG. A circuit's details list the motifs it belongs to. Projects show it once their graphs are built again (by a run or a follow-up)
