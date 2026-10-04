@@ -145,6 +145,37 @@ export async function incrementProjectRevision(userId: string, projectId: string
   );
 }
 
+/** Raises `revision` to `n` when it is lower or missing (a baseline of a project made before revisions were counted). */
+export async function ensureProjectRevision(userId: string, projectId: string, n: number): Promise<void> {
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.projects,
+        Key: { userId, projectId },
+        UpdateExpression: "SET revision = :n",
+        ConditionExpression: "attribute_not_exists(revision) OR revision < :n",
+        ExpressionAttributeValues: { ":n": n },
+      }),
+    );
+  } catch (e) {
+    if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e;
+  }
+}
+
+/** Jobs of the project (owner's only: legacy Project IDs were unique per user). */
+export async function listProjectJobs(userId: string, projectId: string): Promise<JobRecord[]> {
+  const out: JobRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(
+      new QueryCommand({ TableName: env.tables.jobs, KeyConditionExpression: "projectId = :p", ExpressionAttributeValues: { ":p": projectId }, ExclusiveStartKey: start }),
+    );
+    out.push(...((r.Items ?? []) as JobRecord[]).filter((j) => j.userId === userId));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
+}
+
 let seq = 0;
 
 export async function putMessage(

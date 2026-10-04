@@ -1,4 +1,4 @@
-import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, History, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
@@ -18,6 +18,7 @@ import { ArticleView } from "../components/workspace/ArticleView";
 import { ChatDock, ChatToggleButton, useChatDock } from "../components/workspace/ChatDock";
 import { ProjectMaterials } from "../components/workspace/ProjectMaterials";
 import { TablesView } from "../components/workspace/TablesView";
+import { VersionsView } from "../components/workspace/VersionsView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { isActive } from "../lib/format";
@@ -28,7 +29,7 @@ import { publicProjectPath } from "./ExplorePage";
 import { FrgGraphPage } from "./FrgGraphPage";
 import { HcdGraphPage } from "./HcdGraphPage";
 
-export const WORKSPACE_VIEWS = ["hcd", "frg", "tables", "report", "log", "article"] as const;
+export const WORKSPACE_VIEWS = ["hcd", "frg", "tables", "report", "log", "article", "versions"] as const;
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number];
 
 export const workspacePath = (projectId: string, view?: WorkspaceView) => `/projects/${encodeURIComponent(projectId)}${view ? `/${view}` : ""}`;
@@ -40,6 +41,7 @@ const VIEW_TABS: { view: WorkspaceView; label: MessageKey; Icon: LucideIcon }[] 
   { view: "report", label: "chat.report", Icon: FileText },
   { view: "log", label: "chat.decisionLog", Icon: NotebookPen },
   { view: "article", label: "ws.article", Icon: BookOpen },
+  { view: "versions", label: "ver.tab", Icon: History },
 ];
 
 /** `/chat/:projectId` (before the workspace layout) → the project workspace. */
@@ -166,8 +168,9 @@ function Workspace({ projectId }: { projectId: string }) {
     };
   }, [artifacts]);
   const braReady = !!available.xlsx && project?.stepStates?.XLSX === "done";
+  const hasVersions = !!project && ((project.hasArtifacts && (project.revision ?? 0) >= 1) || !!project.latestVersion || !!project.clonedFrom);
   const has = (v: WorkspaceView) =>
-    v === "tables" ? available.tables.length > 0 : v === "article" ? braReady || available.articles.length > 0 : !!available[v];
+    v === "tables" ? available.tables.length > 0 : v === "article" ? braReady || available.articles.length > 0 : v === "versions" ? hasVersions : !!available[v];
 
   const view = WORKSPACE_VIEWS.find((v) => v === rawView) ?? null;
   const defaultView = artifacts === null ? null : (WORKSPACE_VIEWS.find(has) ?? null);
@@ -233,6 +236,8 @@ function Workspace({ projectId }: { projectId: string }) {
             onOpenChat={chat.open ? undefined : () => chat.setOpen(true)}
           />
         );
+      case "versions":
+        return <VersionsView projectId={projectId} project={project} />;
     }
   })();
 
@@ -318,6 +323,12 @@ function Workspace({ projectId }: { projectId: string }) {
                     {project.clonedFrom.projectId} · revision {project.clonedFrom.revision}
                   </span>
                 </span>
+              )}
+              {(project.revision ?? 0) >= 1 && (
+                <Link to={workspacePath(projectId, "versions")} className="font-mono hover:text-slate-800 coarse:py-1.5" data-testid="current-version" title={t("ver.title")}>
+                  <b className="font-sans text-slate-700">{t("ver.versionLabel")}:</b> v{project.revision}
+                  {project.latestVersion && project.latestVersion.version === project.revision ? ` · ${project.latestVersion.contentSha256.slice(0, 8)}` : ""}
+                </Link>
               )}
               <span className="font-mono">
                 <b className="font-sans text-slate-700">{t("chat.model")}:</b> {shownModel ?? t("unspecified")} / {project.reasoningEffort ?? t("unspecified")}

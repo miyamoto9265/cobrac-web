@@ -49,6 +49,9 @@ export const env = {
   crossrefMailto: process.env.CROSSREF_MAILTO || undefined,
   /** NCBI E-utilities key (10 instead of 3 requests/s); optional, PubMed works without it */
   ncbiApiKey: process.env.NCBI_API_KEY || undefined,
+  /** Release of the app (root package.json) and its git commit, recorded in every BRA data version */
+  appVersion: process.env.APP_VERSION || null,
+  gitSha: process.env.GIT_SHA || null,
   workDir: process.env.WORK_DIR ?? "/work",
   promptsDir: process.env.PROMPTS_DIR ?? "/app/prompts",
   codexHome: process.env.CODEX_HOME_DIR ?? "/work/codex-home",

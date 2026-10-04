@@ -119,6 +119,28 @@ export async function putObject(key: string, body: Buffer | string, contentTypeO
   );
 }
 
+export async function getObjectBuffer(key: string): Promise<Buffer | null> {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return Buffer.from(await r.Body!.transformToByteArray());
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+/** Conditional write (`If-None-Match: *`): false when the key already exists, so a written object is never replaced. */
+export async function putObjectIfAbsent(key: string, body: Buffer | string, contentTypeOverride?: string): Promise<boolean> {
+  try {
+    await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: key, Body: body, ContentType: contentTypeOverride ?? contentType(key), IfNoneMatch: "*" }));
+    return true;
+  } catch (e) {
+    const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (err.name === "PreconditionFailed" || err.$metadata?.httpStatusCode === 412) return false;
+    throw e;
+  }
+}
+
 export async function fileSize(p: string): Promise<number> {
   try {
     return (await stat(p)).size;
