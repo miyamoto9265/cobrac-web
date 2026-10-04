@@ -160,14 +160,12 @@ describe("a project finished before versioning", () => {
     ]);
   });
 
-  it("offers the current files and downloads them under a versioned name", async () => {
+  it("lists the current files and offers no download of a version", async () => {
     const d = await json<BraVersionDetailResponse>(call(A, `/projects/${P}/versions/3`));
     expect(d.manifest).toBeNull();
     expect(d.files.map((f) => f.path).sort()).toEqual([`output/${P}.bra.xlsx`, "graph/hcd.json", `workspace/${P}_CSV/Circuits.csv`].sort());
-    await json(call(A, `/projects/${P}/versions/3/download?path=output/${P}.bra.xlsx`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, P, `output/${P}.bra.xlsx`, { ascii: `${P}-v3.bra.xlsx`, utf8: `VOR_${P}-v3.bra.xlsx` });
-    expect((await call(A, `/projects/${P}/versions/3/download?path=bradb.zip`)).status).toBe(404);
-    expect((await call(A, `/projects/${P}/versions/3/download?path=graph/hcd.layout.json`)).status).toBe(404);
+    expect((await call(A, `/projects/${P}/versions/3/download?path=output/${P}.bra.xlsx`)).status).toBe(404);
+    expect(presign).not.toHaveBeenCalled();
     expect((await json<BraVersionDiffResponse>(call(A, `/projects/${P}/versions/3/diff`))).diff).toBeNull();
   });
 
@@ -202,15 +200,16 @@ describe("frozen versions", () => {
     expect(r.items[0]).toMatchObject({ appVersion: "0.24.0", contentSha256: "hash4", hasBradbPackage: true, instruction: "Split the granule cells" });
   });
 
-  it("returns the manifest and downloads the frozen copy, but not the internal BRA-DB package", async () => {
+  it("returns the manifest, and the frozen files can be read as text but not downloaded", async () => {
     const d = await json<BraVersionDetailResponse>(call(A, `/projects/${P}/versions/3`));
     expect(d.manifest?.origin).toBe("baseline");
     expect(d.files).toEqual([{ path: `workspace/${P}_CSV/Circuits.csv`, size: expect.any(Number), sha256: "x" }]);
-    await json(call(A, `/projects/${P}/versions/3/download?path=workspace/${P}_CSV/Circuits.csv`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, P, `revisions/3/files/workspace/${P}_CSV/Circuits.csv`, { ascii: `${P}-v3_Circuits.csv`, utf8: `${P}-v3_Circuits.csv` });
-    expect((await call(A, `/projects/${P}/versions/4/download?path=bradb.zip`)).status).toBe(404);
-    // the live file is not part of a frozen version
-    expect((await call(A, `/projects/${P}/versions/4/download?path=output/${P}.bra.xlsx`)).status).toBe(404);
+    const key = `revisions/3/files/workspace/${P}_CSV/Circuits.csv`;
+    expect(await (await call(A, `/projects/${P}/artifacts/text?key=${key}`)).text()).toContain("granule cells");
+    expect((await call(A, `/projects/${P}/versions/3/download?path=workspace/${P}_CSV/Circuits.csv`)).status).toBe(404);
+    expect((await call(A, `/projects/${P}/artifacts/download?key=${key}`)).status).toBe(404);
+    expect((await call(A, `/projects/${P}/artifacts/download?key=revisions/4/bradb/${P}_circuits.csv`)).status).toBe(404);
+    expect(presign).not.toHaveBeenCalled();
   });
 
   it("compares the CSVs of two versions row by row", async () => {

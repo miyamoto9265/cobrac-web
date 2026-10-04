@@ -9,7 +9,6 @@ const api = vi.hoisted(() => ({
   versions: vi.fn(),
   version: vi.fn(),
   versionDiff: vi.fn(),
-  versionDownloadUrl: vi.fn(),
   artifactText: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
@@ -86,7 +85,6 @@ beforeEach(() => {
     },
   };
   api.versionDiff.mockResolvedValue(diff);
-  api.versionDownloadUrl.mockResolvedValue({ url: "https://signed.example/x" });
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -110,11 +108,15 @@ describe("VersionsView", () => {
     expect(changes.textContent).toContain("Purkinje cells (PC)");
   });
 
-  it("downloads the version's xlsx and offers no BRA-DB package", async () => {
+  it("offers no downloads, only the version's tables", async () => {
     await render(<VersionsView projectId={P} project={project} />);
+    expect($("version-xlsx")).toBeNull();
     expect($("version-bradb")).toBeNull();
-    await act(async () => $("version-xlsx")!.click());
-    expect(api.versionDownloadUrl).toHaveBeenLastCalledWith(P, 4, `output/${P}.bra.xlsx`);
+    expect($("version-detail")!.querySelector('[aria-label^="ダウンロード"]')).toBeNull();
+    api.artifactText.mockResolvedValue("Circuit ID,Names\nPC,Purkinje cells\n");
+    await act(async () => $("version-tables")!.click());
+    await flush();
+    expect(api.artifactText).toHaveBeenCalledWith(P, `revisions/4/files/workspace/${P}_CSV/Circuits.csv`);
   });
 
   it("switches to an older version and has nothing to compare it with when it is the first", async () => {

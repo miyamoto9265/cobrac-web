@@ -1,5 +1,5 @@
 import type { ArtifactInfo, BraVersionListItem, BraVersionManifest, BraVersionSummary, JobRecord, ProjectRecord } from "@cobrac/shared";
-import { braDownloadFileName, braVersionId, projectDisplayName, templateDownloadFileName, templateXlsxKey } from "@cobrac/shared";
+import { braVersionId, templateXlsxKey } from "@cobrac/shared";
 
 const INSTRUCTION_PREVIEW = 300;
 const preview = (s: string | null | undefined) => (s ? (s.length > INSTRUCTION_PREVIEW ? `${s.slice(0, INSTRUCTION_PREVIEW)}…` : s) : null);
@@ -61,17 +61,4 @@ export function liveVersionFiles(projectId: string, artifacts: ArtifactInfo[]): 
   const keep = (k: string) =>
     (k.startsWith("workspace/") && !/\.(jsonl|xlsx)$/i.test(k)) || k === `output/${projectId}.bra.xlsx` || k === templateXlsxKey(projectId) || /^graph\/(hcd|frg)\.json$/.test(k);
   return artifacts.filter((a) => keep(a.key)).map((a) => ({ path: a.key, size: a.size, sha256: null }));
-}
-
-/** Download name of a version's file: `{name}_{P}-v3.bra.xlsx`, `{P}-v3_Circuits.csv`. */
-export function versionedDownloadName(p: ProjectRecord, path: string, n: number): { ascii: string; utf8: string } {
-  const P = p.projectId;
-  const tag = (s: string) => (s.includes(`${P}.`) ? s.replace(`${P}.`, `${P}-v${n}.`) : `${P}-v${n}_${s}`);
-  const base =
-    path === `output/${P}.bra.xlsx`
-      ? braDownloadFileName(projectDisplayName(p), P)
-      : path === templateXlsxKey(P)
-        ? templateDownloadFileName(projectDisplayName(p), P)
-        : { ascii: path.split("/").pop()!, utf8: path.split("/").pop()! };
-  return { ascii: tag(base.ascii), utf8: tag(base.utf8) };
 }

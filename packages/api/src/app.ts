@@ -156,6 +156,7 @@ import {
   templateDownloadFileName,
   templateInputFromFiles,
   templateXlsxKey,
+  REVISIONS_PREFIX,
   csvPath,
   diffBraCsvs,
   summarizeManifest,
@@ -213,7 +214,7 @@ import {
 } from "./lib/db.js";
 import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
-import { liveVersionFiles, liveVersionItem, versionItem, versionedDownloadName } from "./lib/versions.js";
+import { liveVersionFiles, liveVersionItem, versionItem } from "./lib/versions.js";
 import { actorName, aiState, isActiveJob, prTrail, reviewJobsOf } from "./lib/canonReview.js";
 import { defaultKeyStatus, deleteDefaultKey, getDefaultKey, modelPolicy, orgUsage, putDefaultKey } from "./lib/orgKey.js";
 import {
@@ -878,6 +879,8 @@ app.get("/projects/:id/artifacts/download", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
+  // frozen versions are shown and compared, not downloaded
+  if (key.startsWith(REVISIONS_PREFIX)) throw notFound();
   const articleLocale = articleLocaleOfKey(key);
   const attachment = p.attachments?.find((a) => a.kind === "file" && a.key === key);
   const fileName =
@@ -1004,18 +1007,6 @@ app.get("/projects/:id/versions/:n", async (c) => {
   const files = manifest ? manifest.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId));
   const res: BraVersionDetailResponse = { item, manifest, files };
   return c.json(res);
-});
-
-/** `?path=` a file of the version, as listed by the detail. */
-app.get("/projects/:id/versions/:n/download", async (c) => {
-  const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const { item, manifest } = await loadVersion(p, c.req.param("n"));
-  const path = c.req.query("path") ?? "";
-  const listed = manifest ? manifest.files.some((f) => f.path === path) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId)).some((f) => f.path === path);
-  if (!listed) throw notFound();
-  const key = manifest ? versionFileKey(item.version, path) : path;
-  return c.json({ url: await presignDownload(u.userId, p.projectId, key, versionedDownloadName(p, path, item.version)), expiresIn: 900 });
 });
 
 /** Row-level changes of the five CSVs against `?base=` (default: the version before). */
