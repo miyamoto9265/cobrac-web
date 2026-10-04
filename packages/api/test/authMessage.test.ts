@@ -41,8 +41,9 @@ describe("renderAuthEmail", () => {
         expect(body).toContain("{####}");
         expect(body).toContain("https://cobrac.site");
         expect(body).toContain("WBAI");
-        expect(body).toContain("全脳アーキテクチャ・イニシアティブ");
-        expect(body).toContain("Whole Brain Architecture Initiative");
+        expect(body).toContain("WBAI（全脳アーキテクチャ・イニシアティブ）が運営しています。");
+        expect(body).toContain("It is operated by WBAI (the Whole Brain Architecture Initiative).");
+        expect(body).not.toMatch(/共同研究|joint research/);
         expect(body).toMatch(/有効期限/);
         expect(body).toMatch(/[Vv]alid for/);
         expect(body).toContain("心当たりがない場合");
