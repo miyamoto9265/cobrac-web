@@ -119,7 +119,7 @@ function freeze(n: number, origin: BraVersionManifest["origin"], csv: string, jo
     createdAt: now,
     contributor: "Alice",
     job: jobId ? { jobId, type: "followup", instruction: null } : null,
-    generator: { appVersion: origin === "job" ? "0.24.0" : null, gitSha: null, promptsSha256: null, schemasSha256: null, model: "gpt-6", reasoningEffort: "high", researchMode: true, canon: null, sabraBoundary: null, braFormat: "CoBRAC-v1-1" },
+    generator: { appVersion: origin === "job" ? "0.24.0" : null, gitSha: null, promptsSha256: null, schemasSha256: null, model: "gpt-6", reasoningEffort: "high", researchMode: true, canon: null, sabraBoundary: "legacy", rcsBoundaryVersion: null, braFormat: "CoBRAC-v1-1" },
     contentSha256: `hash${n}`,
     files: [{ path, sha256: "x", size: csv.length }],
     changes: null,

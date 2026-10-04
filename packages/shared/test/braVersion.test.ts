@@ -128,7 +128,7 @@ describe("BRA-DB package", () => {
       reasoningEffort: "high",
       researchMode: true,
       canon: null,
-      sabraBoundary: "2026-10-04",
+      sabraBoundary: "neocortex", rcsBoundaryVersion: "2026-10-04",
       braFormat: "CoBRAC-v1-1",
     },
     contentSha256: "c",
@@ -151,7 +151,7 @@ describe("BRA-DB package", () => {
       importType: "cobrac",
       import: { replace: true, allowShrink: true },
     });
-    expect(m.provenance).toMatchObject({ appVersion: "0.24.0", gitSha: "abc1234", model: "gpt-6", sabraBoundary: "2026-10-04", origin: "job", jobId: "job_1" });
+    expect(m.provenance).toMatchObject({ appVersion: "0.24.0", gitSha: "abc1234", model: "gpt-6", sabraBoundary: "neocortex", rcsBoundaryVersion: "2026-10-04", origin: "job", jobId: "job_1" });
   });
 
   it("creates the project on a first version and on a clone (parent in another project)", () => {

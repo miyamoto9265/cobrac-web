@@ -187,7 +187,7 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
     ["ver.model", item.model ? <span className="font-mono">{item.model}{item.reasoningEffort ? ` / ${item.reasoningEffort}` : ""}</span> : unknown],
     ["ver.research", g?.researchMode === undefined || g?.researchMode === null ? unknown : t(g.researchMode ? "sys.researchOn" : "sys.researchOff")],
     ["ver.canon", g?.canon ? <span className="font-mono">{g.canon.canonId} · rev {g.canon.revision}</span> : "—"],
-    ["ver.sabra", g?.sabraBoundary ? <span className="font-mono">{g.sabraBoundary}</span> : unknown],
+    ["ver.sabra", g?.sabraBoundary ? <span className="font-mono">{g.sabraBoundary}{g.rcsBoundaryVersion ? ` · RCS ${g.rcsBoundaryVersion}` : ""}</span> : unknown],
     ["ver.format", g?.braFormat ? <span className="font-mono">{g.braFormat}</span> : unknown],
   ];
 

@@ -59,7 +59,7 @@ const input = (over: Partial<FreezeInput> = {}): FreezeInput => ({
   createdAt: "2026-10-04T00:00:00.000Z",
   contributor: "Alice",
   job: { jobId: "job_a", type: "initial", instruction: null },
-  generator: { appVersion: "0.24.0", gitSha: "abc1234", promptsSha256: "p", schemasSha256: "s", model: "gpt-6", reasoningEffort: "high", researchMode: true, canon: null, sabraBoundary: "2026-10-04" },
+  generator: { appVersion: "0.24.0", gitSha: "abc1234", promptsSha256: "p", schemasSha256: "s", model: "gpt-6", reasoningEffort: "high", researchMode: true, canon: null, sabraBoundary: "neocortex", rcsBoundaryVersion: "2026-10-04" },
   workspaceDir: workspace(),
   ...over,
 });
