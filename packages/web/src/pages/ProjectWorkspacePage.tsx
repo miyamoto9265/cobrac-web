@@ -182,7 +182,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const tabsRef = useRef<HTMLElement>(null);
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [view, project !== null]);
+  }, [view, project !== null, artifacts !== null]);
 
   if (rawView && !view) return <Navigate to={workspacePath(projectId)} replace />;
   if (err && !project) return <div className="p-6 text-sm text-rose-600">{err}</div>;
