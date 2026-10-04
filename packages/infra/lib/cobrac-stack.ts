@@ -171,11 +171,11 @@ export class CobracAgentsStack extends Stack {
       // the AuthMessageFn trigger writes the real mails; these only apply if it is detached
       userVerification: {
         emailSubject: "[CoBRAC Agents] 確認コード / Verification code",
-        emailBody: `CoBRAC Agents (${props.siteUrl}) の確認コード / Verification code: {####}<br>心当たりがない場合は破棄してください。 / If you did not request this, ignore this message.`,
+        emailBody: `CoBRAC Agents (${props.siteUrl}) の確認コード / Verification code: {####}<br>運営: WBAI（全脳アーキテクチャ・イニシアティブ） / Operated by WBAI (the Whole Brain Architecture Initiative)<br>心当たりがない場合は破棄してください。 / If you did not request this, ignore this message.`,
       },
       userInvitation: {
         emailSubject: "[CoBRAC Agents] アカウントが作成されました / Your account has been created",
-        emailBody: `CoBRAC Agents (${props.siteUrl})<br>ログイン ID / Login ID: {username}<br>仮パスワード / Temporary password: {####}`,
+        emailBody: `CoBRAC Agents (${props.siteUrl})<br>運営: WBAI（全脳アーキテクチャ・イニシアティブ） / Operated by WBAI (the Whole Brain Architecture Initiative)<br>ログイン ID / Login ID: {username}<br>仮パスワード / Temporary password: {####}`,
       },
       removalPolicy: RemovalPolicy.RETAIN,
     });

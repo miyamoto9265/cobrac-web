@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The account e-mails now say who they are from. The sign-up code, a resent code, the password reset code, the code for a new e-mail address and an admin's invitation each have a subject starting with "[CoBRAC Agents]" and naming the purpose, and the body says what CoBRAC Agents is and that WBAI (the Whole Brain Architecture Initiative) operates it, why the mail was sent, the code and how long it is valid (24 hours; 1 hour for a password reset; 7 days for a temporary password), to ignore it if you did not ask, and the link to https://cobrac.site. They are in the language of the screen when it is Japanese or English, and in both otherwise. The sender address is still Cognito's default `no-reply@verificationemail.com`
+
 ## [0.20.1] - 2026-10-04
 
 ### Fixed

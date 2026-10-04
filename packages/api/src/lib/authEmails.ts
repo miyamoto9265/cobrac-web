@@ -48,7 +48,7 @@ interface LangCopy {
 
 const JA: LangCopy = {
   about: "CoBRAC Agents は、脳参照アーキテクチャ（BRA: Brain Reference Architecture）のデータ作成を AI エージェントで支援する Web アプリです。",
-  operator: "WBAI（全脳アーキテクチャ・イニシアティブ）との共同研究チームが運営しています。",
+  operator: "WBAI（全脳アーキテクチャ・イニシアティブ）が運営しています。",
   noReply: "このメールは送信専用のアドレスから自動で送っています。返信には対応していません。",
   open: "CoBRAC Agents を開く",
   kinds: {
@@ -103,7 +103,7 @@ const JA: LangCopy = {
 
 const EN: LangCopy = {
   about: "CoBRAC Agents is a web application in which AI agents help build Brain Reference Architecture (BRA) data.",
-  operator: "It is operated by a joint research team with WBAI (the Whole Brain Architecture Initiative).",
+  operator: "It is operated by WBAI (the Whole Brain Architecture Initiative).",
   noReply: "This message was sent automatically from a send-only address. Replies are not read.",
   open: "Open CoBRAC Agents",
   kinds: {
