@@ -71,7 +71,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | DynamoDB WsConnections | On-Demand, TTL, DESTROY |
 | DynamoDB Canons | On-Demand, GSI `owner-index`. PITR off. RETAIN (added with the Canon MVP; a new table, existing tables are unchanged). Canon revision snapshots and pull-request payloads are JSON under `canons/` in the artifacts bucket. The worker task role can read it (the pinned revision) |
 | DynamoDB Catalog | On-Demand. Public listing and clone counters. PITR off. RETAIN (new table) |
-| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
+| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, the bucket policy denies deleting BRA data versions (`users/*/*/revisions/*`, design spec 6.20) to every principal, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
 | S3 Web | Private, OAC, DESTROY + auto-empty |
 | SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
 
