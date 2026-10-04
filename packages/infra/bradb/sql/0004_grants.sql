@@ -8,9 +8,10 @@ DO $$
 DECLARE
   r record;
 BEGIN
+  -- tables and views; a serial column's sequence follows its table
   FOR r IN SELECT n.nspname, c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-           WHERE n.nspname IN ('public', 'cobrac') AND c.relkind IN ('r', 'S', 'v') LOOP
-    EXECUTE format('ALTER %s %I.%I OWNER TO bra', CASE r.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' ELSE 'TABLE' END, r.nspname, r.relname);
+           WHERE n.nspname IN ('public', 'cobrac') AND c.relkind IN ('r', 'v') ORDER BY c.relkind, c.relname LOOP
+    EXECUTE format('ALTER %s %I.%I OWNER TO bra', CASE r.relkind WHEN 'v' THEN 'VIEW' ELSE 'TABLE' END, r.nspname, r.relname);
   END LOOP;
 END $$;
 ALTER SCHEMA cobrac OWNER TO bra;
