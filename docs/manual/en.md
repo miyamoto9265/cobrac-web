@@ -57,7 +57,7 @@ The project gets a name automatically; you can change it on the project page. Th
 
 After "Run" you are on the project page. You can also open it from "History" and "Projects" in the sidebar.
 
-![The project page](./figures/manual-workspace.en.svg "Header and progress on top, outputs in tabs in the middle, the Agent panel on the right")
+![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 
 - **Header**: name (press it to rename), status, ROI and TLF, model, usage and reference materials. On a phone, open them with "Details".
 - **Progress**: how far the run is: research → HCD ⇄ FRG → CSV → xlsx.
