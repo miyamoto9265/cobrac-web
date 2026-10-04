@@ -5,6 +5,19 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-10-04
+
+### Added
+- Versions of the BRA data. Each time a run, follow-up or retry finishes, its result is kept as a version (v1, v2, …; the number is the project's revision, so earlier references such as a clone's "revision n" or a Canon's project revision now name a version) that is never changed or deleted: a copy of the data, checks, notes, both xlsx files and the graphs, with a record of how it was made (app version and commit, prompts and schemas, model, reasoning effort, research mode, Canon revision, SABRA boundary), a hash of the five CSVs, its parent version and how many rows changed
+- A "Versions" tab on the project page: the list of versions with date, model, follow-up instruction and change counts; for each version its details, its tables, and the rows added, removed or changed compared with any other version. The header shows the current version
+- A BRA-DB registration package for each version: the five CSVs under the file names the BRA-DB import script reads and a manifest with the version ID (`<project ID>@v<n>`), the parent version, the content hash, the provenance and how to import it (replace, allow shrinking). It is kept with the version for registering in BRA-DB and is not offered for download
+
+### Changed
+- Projects finished before versions existed keep working: their current data is shown as the current version ("Not saved yet"), and the next follow-up saves it as that version before it changes anything
+
+### Fixed
+- On a phone, the open tab of the project page stays in view after the outputs load (the last tab could be left cut off at the edge)
+
 ## [0.25.0] - 2026-10-04
 
 ### Added
