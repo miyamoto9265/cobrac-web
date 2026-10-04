@@ -152,7 +152,7 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
                   {(f.items.length > 0 || f.checks.length > 0 || f.references.length > 0) && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {f.items.map((id) => (
-                        <button key={id} type="button" onClick={() => onSelect(id)} className="max-w-full truncate rounded border border-slate-300 bg-white px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
+                        <button key={id} type="button" onClick={() => onSelect(id)} className="max-w-full rounded border text-left [overflow-wrap:anywhere] border-slate-300 bg-white px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
                           {labelOf(id)}
                         </button>
                       ))}
@@ -207,7 +207,7 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
                       <div className="whitespace-pre-wrap break-words">{c.text}</div>
                     </div>
                     {canRun && (
-                      <button type="button" onClick={() => onUseComment(c.item, c.text)} className="shrink-0 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50 coarse:min-h-10" data-testid="ai-use-comment">
+                      <button type="button" onClick={() => onUseComment(c.item, c.text)} className="shrink-0 rounded border border-slate-300 px-2 py-0.5 text-[11px] text-slate-700 hover:bg-slate-50 coarse:min-h-11 coarse:min-w-11" data-testid="ai-use-comment">
                         {t("rv.ai.use")}
                       </button>
                     )}

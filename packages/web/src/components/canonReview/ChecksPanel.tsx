@@ -46,7 +46,7 @@ export function CheckRow({ check, labelOf, onSelect, current, compact = false }:
         {links.length > 0 && (
           <div className="mt-0.5 flex flex-wrap gap-1">
             {links.map((id) => (
-              <button key={id} type="button" onClick={() => onSelect(id)} className="max-w-full truncate rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
+              <button key={id} type="button" onClick={() => onSelect(id)} className="max-w-full rounded border text-left [overflow-wrap:anywhere] border-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
                 {labelOf(id)}
               </button>
             ))}

@@ -10,7 +10,7 @@ import { fmtDate } from "../lib/format";
 export const canonPath = (canonId: string) => `/canons/${encodeURIComponent(canonId)}`;
 export const canonPullPath = (canonId: string, no: number) => `${canonPath(canonId)}/pulls/${no}`;
 
-export const inputCls = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400";
+export const inputCls = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
 export const primaryBtn =
   "flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
 
@@ -59,7 +59,7 @@ function CreateCanonForm({ onCreated }: { onCreated: (c: CanonRecord) => void })
       </label>
       <div>
         <PolicyLabel />
-        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={2} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} aria-label={t("canon.policy")} />
+        <textarea value={policy} onChange={(e) => setPolicy(e.target.value)} rows={3} placeholder={t("canon.policyHint")} className={inputCls} maxLength={2000} aria-label={t("canon.policy")} />
       </div>
       <label className="block">
         <span className="mb-1 block text-xs text-slate-500">{t("canon.description")}</span>

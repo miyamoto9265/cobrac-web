@@ -92,7 +92,7 @@ export function CanonChip({ value, onChange, sources, defaultCanonId, disabled }
             <Layers size={14} className="shrink-0" aria-hidden />
             <span className={on ? "truncate" : "hidden sm:inline"}>{on ? label : "Canon"}</span>
             {!on && <span className="sr-only sm:hidden">Canon</span>}
-            {status && <span className="shrink-0 font-mono text-[11px] text-violet-500">{status}</span>}
+            {status && <span className="hidden shrink-0 font-mono text-[11px] text-violet-500 sm:inline">{status}</span>}
             <ChevronDown size={13} className="shrink-0 opacity-60" aria-hidden />
           </>
         ),
