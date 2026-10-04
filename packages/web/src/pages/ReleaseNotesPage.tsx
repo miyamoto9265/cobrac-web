@@ -5,13 +5,23 @@ import changelog from "../../../../CHANGELOG.md?raw";
 
 const noDoc = () => null;
 
+/** For readers of the app: no [Unreleased] section and no maintainer instructions, and `## v0.22.0 · 2026-10-04` headings. */
+export function releaseNotesText(md: string): string {
+  return md
+    .replace(/^## \[Unreleased\][\s\S]*?(?=^## \[)/m, "")
+    .replace(/^Accumulate changes under .*\n?/m, "")
+    .replace(/^## \[(\d+\.\d+\.\d+)\](?: - (\S+))?\s*$/gm, (_, v: string, d?: string) => `## v${v}${d ? ` · ${d}` : ""}`);
+}
+
+const TEXT = releaseNotesText(changelog);
+
 /** The release notes (CHANGELOG.md, bundled at build time), for every signed-in user. */
 export function ReleaseNotesPage() {
   const t = useT();
   return (
     <DocReader
       docKey="CHANGELOG"
-      text={changelog}
+      text={TEXT}
       docHref={noDoc}
       navTitle={t("releases.title")}
       navFooter={

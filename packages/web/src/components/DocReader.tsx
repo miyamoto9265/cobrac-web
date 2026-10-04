@@ -125,7 +125,7 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
       {back && <div className="flex shrink-0 items-center border-b border-slate-200 bg-white px-2 lg:hidden">{backLink("px-2 py-2.5 coarse:min-h-11")}</div>}
       <nav className="hidden w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3 lg:block" aria-label={t("docs.toc")}>
         {backLink("mb-3 px-3 py-1.5 hover:bg-slate-100")}
-        {navTitle && <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{navTitle}</div>}
+        {navTitle && <div className="mb-2 px-3 text-xs font-semibold leading-snug text-slate-500">{navTitle}</div>}
         {toc.length > 0 && tocList()}
         {navFooter}
       </nav>
