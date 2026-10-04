@@ -2,6 +2,7 @@ import { BookOpen, CircleHelp } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import { useI18n, useT } from "../i18n";
+import { useAuth } from "../lib/auth";
 import { helpDocPath, type HelpSection } from "../lib/help";
 
 const GAP = 6;
@@ -116,10 +117,12 @@ export function HelpTip({ text, label, className = "" }: { text: string; label?:
   );
 }
 
-/** Link to a section of the user guide ("Research mode and Canon") in the UI language. */
+/** Link to a section of the user guide ("Research mode and Canon") in the UI language; the guide is admin documentation. */
 export function HelpLink({ section, className = "" }: { section: HelpSection; className?: string }) {
   const t = useT();
   const { locale } = useI18n();
+  const { me } = useAuth();
+  if (me?.role !== "admin") return null;
   return (
     <Link
       to={helpDocPath(locale, section)}

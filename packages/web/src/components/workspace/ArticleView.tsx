@@ -381,7 +381,7 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
               <Loader2 size={14} className="animate-spin" /> {t("loading")}
             </div>
           ) : (
-            <DocMarkdown text={text} headings={headings} resolveDoc={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? shownFigures ?? undefined : undefined} />
+            <DocMarkdown text={text} headings={headings} docHref={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? shownFigures ?? undefined : undefined} />
           )}
         </article>
       </div>

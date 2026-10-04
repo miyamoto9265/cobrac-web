@@ -5,6 +5,16 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- A "Release notes" entry in the sidebar for everyone, with a table of contents of the versions. The version label at the bottom of the sidebar opens it too
+
+### Changed
+- "Docs" opens on a list of the documents with their number, title and a short description, instead of opening the first document with its table of contents. A document opens with its table of contents and a link back to the list; a document in two languages is listed once and keeps its language switch
+- "Docs" is for admins only: the sidebar entry is shown to admins, the page sends anyone else to the start screen, and the documents and their figures are no longer part of the web app. The API serves them to admins only
+- The guide links next to the "?" tooltips (research mode, Canons, push, the public library) are shown to admins only, since they open admin documentation
+
+### Removed
+- The release notes are no longer listed under "Docs"
 ## [0.21.0] - 2026-10-04
 
 ### Changed

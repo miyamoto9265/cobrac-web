@@ -316,7 +316,14 @@ export class CobracAgentsStack extends Stack {
         commandHooks: {
           beforeBundling: () => [],
           beforeInstall: () => [],
-          afterBundling: (_input: string, outputDir: string) => [`cp "${braTemplate}" "${outputDir}/Template-v2-2.bra.xlsx"`],
+          // admin-only documentation, served by GET /admin/docs instead of the public web bundle
+          afterBundling: (_input: string, outputDir: string) => [
+            `cp "${braTemplate}" "${outputDir}/Template-v2-2.bra.xlsx"`,
+            `mkdir -p "${outputDir}/admin-docs/docs/figures"`,
+            `cp "${repoRoot}"/docs/*.md "${outputDir}/admin-docs/docs/"`,
+            `cp "${repoRoot}"/docs/figures/*.svg "${outputDir}/admin-docs/docs/figures/"`,
+            `cp "${repoRoot}/README.md" "${repoRoot}/AGENTS.md" "${outputDir}/admin-docs/"`,
+          ],
         },
       },
     });

@@ -6,14 +6,6 @@ import remarkGfm from "remark-gfm";
 import { useT } from "../i18n";
 import type { DocHeading } from "../lib/docs";
 
-// SVG figures referenced from docs/*.md as ./figures/<name>.svg, emitted as build assets (no runtime CDN).
-// <name>.narrow.svg, when present, is a one-column layout shown on phones instead.
-const FIGURES: Record<string, string> = Object.fromEntries(
-  Object.entries(import.meta.glob("../../../../docs/figures/*.svg", { query: "?url", import: "default", eager: true }) as Record<string, string>).map(
-    ([path, url]) => [path.split("/").pop()!, url],
-  ),
-);
-
 type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[]; position?: { start: { line: number } } };
 
 const nodeText = (n: HastNode | undefined): string => (n ? (n.value ?? "") + (n.children ?? []).map(nodeText).join("") : "");
@@ -24,14 +16,14 @@ export type DocFigures = Record<string, { url: string; narrow?: string }>;
 interface Props {
   text: string;
   headings: DocHeading[];
-  /** Resolves a relative `Foo.md` link to a Docs page slug, or null if it is not a bundled document. */
-  resolveDoc: (file: string) => string | null;
+  /** Resolves a relative `Foo.md` link to an in-app path, or null if it is not a document of the app. */
+  docHref: (file: string) => string | null;
   onAnchor: (id: string) => void;
-  /** Resolves `./figures/<file>` instead of the bundled documentation figures */
+  /** Resolves `./figures/<file>`; other images keep their src */
   figures?: DocFigures;
 }
 
-export function DocMarkdown({ text, headings, resolveDoc, onAnchor, figures }: Props) {
+export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Props) {
   const t = useT();
   const components = useMemo<Components>(() => {
     const idByLine = new Map(headings.map((h) => [h.line, h.id]));
@@ -73,8 +65,8 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor, figures }: P
       img: ({ src = "", alt = "", title }) => {
         const file = src.match(/^(?:\.\/)?figures\/([^/?#]+)$/)?.[1];
         if (figures && !(file && figures[file])) return null;
-        const url = figures ? figures[file!].url : (file && FIGURES[file]) || src;
-        const narrow = figures ? figures[file!].narrow : file ? FIGURES[file.replace(/\.svg$/, ".narrow.svg")] : undefined;
+        const url = figures ? figures[file!].url : src;
+        const narrow = figures ? figures[file!].narrow : undefined;
         return (
           <figure className={`docs-figure${narrow ? " has-narrow" : ""}`}>
             <div className="docs-figure-scroll">
@@ -106,8 +98,8 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor, figures }: P
           );
         }
         const md = href.match(/^(?:\.\/)?([^/:?#]+)\.md(#.*)?$/);
-        const slug = md ? resolveDoc(decodeURIComponent(md[1])) : null;
-        if (slug) return <Link to={`/docs/${encodeURIComponent(slug)}${md?.[2] ?? ""}`}>{children}</Link>;
+        const to = md ? docHref(decodeURIComponent(md[1])) : null;
+        if (to) return <Link to={`${to}${md?.[2] ?? ""}`}>{children}</Link>;
         return /^https?:/.test(href) ? (
           <a href={href} target="_blank" rel="noreferrer">
             {children}
@@ -127,7 +119,7 @@ export function DocMarkdown({ text, headings, resolveDoc, onAnchor, figures }: P
         return <th style={style}>{version ? <span className={`version-pill version-${version}`}>{children}</span> : children}</th>;
       },
     };
-  }, [headings, resolveDoc, onAnchor, t, figures]);
+  }, [headings, docHref, onAnchor, t, figures]);
 
   return (
     <div className="markdown docs">

@@ -45,6 +45,8 @@ import type {
   ModelsResponse,
   DefaultKeyStatus,
   OrgUsageResponse,
+  DocListResponse,
+  DocContentResponse,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -189,6 +191,8 @@ export const api = {
   adminSetDefaultKey: (apiKey: string) => request<DefaultKeyStatus>("PUT", "/admin/default-api-key", { apiKey }),
   adminDeleteDefaultKey: () => request<DefaultKeyStatus>("DELETE", "/admin/default-api-key"),
   adminOrgUsage: () => request<OrgUsageResponse>("GET", "/admin/org-usage"),
+  adminDocs: () => request<DocListResponse>("GET", "/admin/docs"),
+  adminDoc: (slug: string) => request<DocContentResponse>("GET", `/admin/docs/${encodeURIComponent(slug)}`),
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),
   adminCancel: (userId: string, id: string) => request<{ ok: true }>("POST", `/admin/projects/${userId}/${encodeURIComponent(id)}/cancel`),
 };

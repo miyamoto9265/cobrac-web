@@ -4,11 +4,14 @@ import { resolve } from "node:path";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HelpLink, HelpTip } from "../src/components/HelpTip";
 import { I18nProvider } from "../src/i18n";
 import { extractHeadings } from "../src/lib/docs";
 import { HELP_ANCHORS, HELP_DOC, helpDocPath } from "../src/lib/help";
+
+const auth = vi.hoisted(() => ({ me: { role: "admin" } as { role: string } | null }));
+vi.mock("../src/lib/auth", () => ({ useAuth: () => auth }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -92,6 +95,13 @@ describe("HelpTip", () => {
 });
 
 describe("help links", () => {
+  it("are shown to admins only, since the guide is admin documentation", async () => {
+    auth.me = { role: "user" };
+    await render(<HelpLink section="rules" />);
+    expect(document.querySelector("a")).toBeNull();
+    auth.me = { role: "admin" };
+  });
+
   it("point to the guide in the UI language", async () => {
     await render(<HelpLink section="rules" />);
     expect(document.querySelector("a")!.getAttribute("href")).toBe(`/docs/${HELP_DOC}_ja#${encodeURIComponent("canon-による生成時の制約")}`);

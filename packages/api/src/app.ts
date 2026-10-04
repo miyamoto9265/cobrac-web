@@ -28,6 +28,7 @@ import type {
   CreateUploadRequest,
   CreateUploadResponse,
   DeleteProjectResponse,
+  DocListResponse,
   FollowupRequest,
   JobRecord,
   KeySource,
@@ -172,6 +173,7 @@ import {
   stopEcsTask,
 } from "./lib/aws.js";
 import { loadBraTemplate } from "./lib/braTemplate.js";
+import { listDocs, readDoc } from "./lib/docs.js";
 import {
   assignUserKey,
   findProjectByLegacyId,
@@ -2165,6 +2167,19 @@ app.get("/admin/projects", async (c) => {
   requireAdmin(c.get("user"));
   const items = (await listAllProjects()).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   return c.json({ items: await correctProjects(items) });
+});
+
+app.get("/admin/docs", async (c) => {
+  requireAdmin(c.get("user"));
+  const res: DocListResponse = { items: await listDocs() };
+  return c.json(res);
+});
+
+app.get("/admin/docs/:slug", async (c) => {
+  requireAdmin(c.get("user"));
+  const doc = await readDoc(c.req.param("slug"));
+  if (!doc) throw notFound();
+  return c.json(doc);
 });
 
 app.post("/admin/projects/:userId/:id/cancel", async (c) => {

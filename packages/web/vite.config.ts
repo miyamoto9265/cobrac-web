@@ -26,7 +26,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    // docs/*.md, README.md, CHANGELOG.md live at the repo root and are imported by the Docs page
+    // CHANGELOG.md lives at the repo root and is imported by the release notes page
     fs: { allow: [repoRoot] },
   },
   build: {

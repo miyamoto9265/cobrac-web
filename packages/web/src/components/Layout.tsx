@@ -1,4 +1,4 @@
-import { BookOpen, FolderKanban, Globe, Layers, LogOut, Menu, MessageSquarePlus, Settings, Shield, X } from "lucide-react";
+import { BookOpen, FolderKanban, Globe, Layers, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
@@ -106,13 +106,18 @@ export function Layout() {
           <NavLink to="/settings" className={navCls}>
             <Settings size={16} /> {t("nav.settings")}
           </NavLink>
-          <NavLink to="/docs" className={navCls}>
-            <BookOpen size={16} /> {t("nav.docs")}
+          <NavLink to="/releases" className={navCls}>
+            <ScrollText size={16} /> {t("nav.releases")}
           </NavLink>
           {me?.role === "admin" && (
-            <NavLink to="/admin" className={navCls}>
-              <Shield size={16} /> {t("nav.admin")}
-            </NavLink>
+            <>
+              <NavLink to="/docs" className={navCls}>
+                <BookOpen size={16} /> {t("nav.docs")}
+              </NavLink>
+              <NavLink to="/admin" className={navCls}>
+                <Shield size={16} /> {t("nav.admin")}
+              </NavLink>
+            </>
           )}
           <button onClick={() => void doSignOut()} className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/60 coarse:py-3">
             <LogOut size={16} /> {t("nav.signOut")}
@@ -122,7 +127,7 @@ export function Layout() {
             <ThemeToggle onDark />
           </div>
           <div className="truncate px-3 pt-1 text-xs text-slate-500">{me?.email}</div>
-          <Link to="/docs/CHANGELOG" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
+          <Link to="/releases" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
             {APP_VERSION_LABEL}
           </Link>
         </div>

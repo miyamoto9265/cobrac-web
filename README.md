@@ -2,7 +2,7 @@
 
 Web application that runs the BRA (Brain Reference Architecture) data-creation workflow
 (HCD → FRG → CSV → xlsx) with the Codex SDK on the server. Design, security, and infrastructure
-docs live in `docs/` (also available from the site “Documentation” page). Change history is
+docs live in `docs/` (admins can read them on the site “Documentation” page). Change history is
 `CHANGELOG.md`. Working rules, including versioning, are in `AGENTS.md`.
 
 ## Versioning and release
