@@ -110,10 +110,9 @@ describe("VersionsView", () => {
     expect(changes.textContent).toContain("Purkinje cells (PC)");
   });
 
-  it("downloads the version's xlsx and its BRA-DB package", async () => {
+  it("downloads the version's xlsx and offers no BRA-DB package", async () => {
     await render(<VersionsView projectId={P} project={project} />);
-    await act(async () => $("version-bradb")!.click());
-    expect(api.versionDownloadUrl).toHaveBeenLastCalledWith(P, 4, "bradb.zip");
+    expect($("version-bradb")).toBeNull();
     await act(async () => $("version-xlsx")!.click());
     expect(api.versionDownloadUrl).toHaveBeenLastCalledWith(P, 4, `output/${P}.bra.xlsx`);
   });
@@ -131,6 +130,6 @@ describe("VersionsView", () => {
     api.versions.mockResolvedValue({ items: [item(2, { origin: "live", frozen: false, contentSha256: null, hasBradbPackage: false, changes: null })], current: 2, clonedFrom: null });
     await render(<VersionsView projectId={P} project={{ ...project, revision: 2 }} />);
     expect($("version-detail")?.textContent).toContain("v2 として保存します");
-    expect($("version-bradb")?.hasAttribute("disabled")).toBe(true);
+    expect($("version-bradb")).toBeNull();
   });
 });

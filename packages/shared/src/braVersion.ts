@@ -10,7 +10,6 @@
 // `projectRevision`, article `sourceRevision`) keep pointing at the same number.
 // ---------------------------------------------------------------------------
 
-import { strToU8, zipSync, type Zippable } from "fflate";
 import { parseCsv } from "./csv.js";
 import { CSV_FILE_NAMES, type CsvFileName } from "./harness.js";
 import type { JobType, ReasoningEffort } from "./types.js";
@@ -39,7 +38,6 @@ export const versionManifestKey = (n: number) => `${versionPrefix(n)}manifest.js
 /** `path` is where the file lives in the project prefix (`workspace/…`, `output/…`, `graph/…`). */
 export const versionFileKey = (n: number, path: string) => `${versionPrefix(n)}files/${path}`;
 export const bradbPackagePrefix = (n: number) => `${versionPrefix(n)}bradb/`;
-export const bradbZipKey = (n: number) => `${versionPrefix(n)}bradb.zip`;
 
 /** Version number of a key under `revisions/` (null for any other key). */
 export function versionOfKey(rel: string): number | null {
@@ -59,7 +57,6 @@ export const BRADB_CSV_SUFFIX: Record<CsvFileName, string> = {
   "FRG.csv": "frg",
 };
 export const bradbCsvName = (projectId: string, csv: CsvFileName) => `${projectId}_${BRADB_CSV_SUFFIX[csv]}.csv`;
-export const bradbZipFileName = (projectId: string, n: number) => `${projectId}-v${n}-bradb.zip`;
 
 /**
  * Text whose SHA-256 is the content hash of a version: one line `<CSV name>\t<sha256 of its bytes>` per CSV in
@@ -133,7 +130,7 @@ export interface BraVersionManifest {
   files: BraVersionFile[];
   /** Against the parent's CSVs (null when the parent has no snapshot to compare with) */
   changes: BraChangeSummary | null;
-  bradb: { prefix: string; zip: string; files: string[] } | null;
+  bradb: { prefix: string; files: string[] } | null;
 }
 
 /** DynamoDB copy of a manifest (on the job that produced it, and the latest on the project). */
@@ -165,7 +162,7 @@ export function summarizeManifest(m: BraVersionManifest): BraVersionSummary {
   };
 }
 
-/** BRA-DB registration package manifest (`revisions/{n}/bradb/manifest.json`, also inside `bradb.zip`). */
+/** BRA-DB registration package manifest (`revisions/{n}/bradb/manifest.json`); the package is internal (read by the BRA-DB importer). */
 export interface BradbPackageManifest {
   schema: typeof BRADB_PACKAGE_SCHEMA;
   target: typeof BRADB_TARGET;
@@ -211,14 +208,6 @@ export function buildBradbManifest(m: BraVersionManifest, files: BradbPackageMan
     import: { replace: m.parent !== null && m.parent.projectId === m.projectId, allowShrink: shrinks },
   };
 }
-
-/** `bradb.zip`: the package files at the top level, with a fixed timestamp so the same package gives the same bytes. */
-export function zipBradbPackage(files: Record<string, Uint8Array | string>): Uint8Array {
-  const z: Zippable = {};
-  for (const [name, body] of Object.entries(files)) z[name] = [typeof body === "string" ? strToU8(body) : body, { mtime: ZIP_MTIME }];
-  return zipSync(z, { level: 6 });
-}
-const ZIP_MTIME = new Date("2026-01-01T00:00:00Z");
 
 /** `BRA version` cell of Project.csv (row 2, column 5). */
 export function braFormatOf(projectCsv: string | null): string | null {

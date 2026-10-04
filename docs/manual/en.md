@@ -121,7 +121,7 @@ When the data is complete, the header has two download buttons:
 
 Each time a run or a follow-up finishes, its result is kept as a version (v1, v2, …) that never changes. The "Versions" tab lists them with their date, model and how many rows changed. Pick one to:
 
-- download its BRA xlsx, Template-v2-2 workbook or **BRA-DB package** (the five CSVs and a manifest with the version ID, its parent and a hash of the content, for registering in BRA-DB);
+- download its BRA xlsx or Template-v2-2 workbook;
 - open its tables;
 - see which rows were added, removed or changed compared with another version.
 

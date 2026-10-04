@@ -108,7 +108,6 @@ function job(jobId: string, type: JobRecord["type"], extra: Partial<JobRecord> =
 function freeze(n: number, origin: BraVersionManifest["origin"], csv: string, jobId: string | null): BraVersionManifest {
   const path = `workspace/${P}_CSV/Circuits.csv`;
   put(`revisions/${n}/files/${path}`, csv);
-  put(`revisions/${n}/bradb.zip`, "zip");
   const m: BraVersionManifest = {
     schema: "cobrac.bra-version/1",
     versionId: `${P}@v${n}`,
@@ -123,7 +122,7 @@ function freeze(n: number, origin: BraVersionManifest["origin"], csv: string, jo
     contentSha256: `hash${n}`,
     files: [{ path, sha256: "x", size: csv.length }],
     changes: null,
-    bradb: { prefix: `revisions/${n}/bradb/`, zip: `revisions/${n}/bradb.zip`, files: [] },
+    bradb: { prefix: `revisions/${n}/bradb/`, files: [] },
   };
   put(`revisions/${n}/manifest.json`, JSON.stringify(m));
   return m;
@@ -161,7 +160,7 @@ describe("a project finished before versioning", () => {
     ]);
   });
 
-  it("offers the current files and downloads them under a versioned name, without a BRA-DB package", async () => {
+  it("offers the current files and downloads them under a versioned name", async () => {
     const d = await json<BraVersionDetailResponse>(call(A, `/projects/${P}/versions/3`));
     expect(d.manifest).toBeNull();
     expect(d.files.map((f) => f.path).sort()).toEqual([`output/${P}.bra.xlsx`, "graph/hcd.json", `workspace/${P}_CSV/Circuits.csv`].sort());
@@ -203,14 +202,13 @@ describe("frozen versions", () => {
     expect(r.items[0]).toMatchObject({ appVersion: "0.24.0", contentSha256: "hash4", hasBradbPackage: true, instruction: "Split the granule cells" });
   });
 
-  it("returns the manifest and downloads the frozen copy and the BRA-DB package", async () => {
+  it("returns the manifest and downloads the frozen copy, but not the internal BRA-DB package", async () => {
     const d = await json<BraVersionDetailResponse>(call(A, `/projects/${P}/versions/3`));
     expect(d.manifest?.origin).toBe("baseline");
     expect(d.files).toEqual([{ path: `workspace/${P}_CSV/Circuits.csv`, size: expect.any(Number), sha256: "x" }]);
     await json(call(A, `/projects/${P}/versions/3/download?path=workspace/${P}_CSV/Circuits.csv`));
     expect(presign).toHaveBeenLastCalledWith(A.sub, P, `revisions/3/files/workspace/${P}_CSV/Circuits.csv`, { ascii: `${P}-v3_Circuits.csv`, utf8: `${P}-v3_Circuits.csv` });
-    await json(call(A, `/projects/${P}/versions/4/download?path=bradb.zip`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, P, "revisions/4/bradb.zip", { ascii: `${P}-v4-bradb.zip`, utf8: `${P}-v4-bradb.zip` });
+    expect((await call(A, `/projects/${P}/versions/4/download?path=bradb.zip`)).status).toBe(404);
     // the live file is not part of a frozen version
     expect((await call(A, `/projects/${P}/versions/4/download?path=output/${P}.bra.xlsx`)).status).toBe(404);
   });

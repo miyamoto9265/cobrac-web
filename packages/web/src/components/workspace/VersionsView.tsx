@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Download, FileArchive, FileSpreadsheet, History, Loader2, Table2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, FileSpreadsheet, History, Loader2, Table2 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { BraChangeSummary, BraTableDiff, BraVersionDetailResponse, BraVersionDiffResponse, BraVersionListItem, ListBraVersionsResponse, ProjectRecord } from "@cobrac/shared";
@@ -224,21 +224,10 @@ function VersionDetail({ projectId, project, item, items, onSelect }: { projectI
               <FileSpreadsheet size={14} /> Template-v2-2
             </button>
           )}
-          <button
-            type="button"
-            disabled={!item.hasBradbPackage}
-            onClick={() => void download("bradb.zip")}
-            title={item.hasBradbPackage ? t("ver.bradbTip") : t("ver.bradbNone")}
-            className={`${btn} border border-indigo-500 text-indigo-700 hover:bg-indigo-50`}
-            data-testid="version-bradb"
-          >
-            <FileArchive size={14} /> {t("ver.bradb")}
-          </button>
           <button type="button" disabled={tableSources.length === 0} onClick={() => setShowTables((v) => !v)} aria-expanded={showTables} className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`}>
             <Table2 size={14} /> {t(showTables ? "ver.hideTables" : "ver.showTables")}
           </button>
         </div>
-        {!item.hasBradbPackage && <p className="mt-1 text-[11px] text-slate-500">{t("ver.bradbNone")}</p>}
       </section>
 
       {showTables && tableSources.length > 0 && (
