@@ -13,6 +13,18 @@ import { notifyProjectsChanged, removeOptimistically } from "../lib/projectList"
 
 const STATUSES: ProjectStatus[] = ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING", "COMPLETED", "FAILED", "CANCELLED"];
 
+/** Exact token count, abbreviated (1.84M) on phones so the per-model table fits without scrolling. */
+function Tokens({ n }: { n: number }) {
+  return (
+    <>
+      <span className="sm:hidden" title={n.toLocaleString()}>
+        {formatTokens(n)}
+      </span>
+      <span className="hidden sm:inline">{n.toLocaleString()}</span>
+    </>
+  );
+}
+
 function UsageSummaryPanel({ s }: { s: UsageSummary }) {
   const t = useT();
   const total = s.totals.inputTokens + s.totals.outputTokens;
@@ -34,21 +46,25 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
         <table className="w-full whitespace-nowrap text-xs">
           <thead className="bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-3 py-1.5">{t("projects.model")}</th>
-              <th className="px-3 py-1.5 text-right">{t("projects.jobs")}</th>
-              <th className="px-3 py-1.5 text-right">{t("projects.input")}</th>
-              <th className="px-3 py-1.5 text-right">{t("projects.output")}</th>
-              <th className="px-3 py-1.5 text-right">{t("projects.estCost")}</th>
+              <th className="px-2 py-1.5 sm:px-3">{t("projects.model")}</th>
+              <th className="px-2 py-1.5 text-right sm:px-3">{t("projects.jobs")}</th>
+              <th className="px-2 py-1.5 text-right sm:px-3">{t("projects.input")}</th>
+              <th className="px-2 py-1.5 text-right sm:px-3">{t("projects.output")}</th>
+              <th className="px-2 py-1.5 text-right sm:px-3">{t("projects.estCost")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 font-mono">
             {s.byModel.map((m) => (
               <tr key={m.model}>
-                <td className="whitespace-nowrap px-3 py-1">{m.model}</td>
-                <td className="px-3 py-1 text-right">{m.jobs}</td>
-                <td className="px-3 py-1 text-right">{m.usage.inputTokens.toLocaleString()}</td>
-                <td className="px-3 py-1 text-right">{m.usage.outputTokens.toLocaleString()}</td>
-                <td className="px-3 py-1 text-right">{m.costUsd === null ? <span className="text-slate-400" title={t("projects.noPrice")}>$—</span> : formatUsd(m.costUsd)}</td>
+                <td className="whitespace-nowrap px-2 py-1 sm:px-3">{m.model}</td>
+                <td className="px-2 py-1 text-right sm:px-3">{m.jobs}</td>
+                <td className="px-2 py-1 text-right sm:px-3">
+                  <Tokens n={m.usage.inputTokens} />
+                </td>
+                <td className="px-2 py-1 text-right sm:px-3">
+                  <Tokens n={m.usage.outputTokens} />
+                </td>
+                <td className="px-2 py-1 text-right sm:px-3">{m.costUsd === null ? <span className="text-slate-400" title={t("projects.noPrice")}>$—</span> : formatUsd(m.costUsd)}</td>
               </tr>
             ))}
           </tbody>
@@ -133,7 +149,7 @@ export function ProjectsPage() {
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("projects.search")} className="w-full rounded-lg border border-slate-300 py-2 pl-8 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 sm:w-72" />
           </div>
-          <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus | "")} className="max-w-[45%] rounded-lg border border-slate-300 px-3 py-2 text-sm sm:max-w-none coarse:py-2.5">
+          <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus | "")} className="max-w-[45%] rounded-lg border border-slate-300 bg-white py-2 pl-3 pr-8 text-sm sm:max-w-none coarse:py-2.5">
             <option value="">{t("projects.allStatus")}</option>
             {STATUSES.map((s) => (
               <option key={s} value={s}>

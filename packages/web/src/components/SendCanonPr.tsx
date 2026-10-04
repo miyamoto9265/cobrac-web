@@ -53,17 +53,19 @@ export function SendCanonPr({ canon }: { canon: CanonRecord }) {
         <div className="text-xs text-slate-400">{t("c2c.empty")}</div>
       ) : (
         <>
+          <label htmlFor="c2c-target" className="mb-1 block text-xs text-slate-500">
+            {t("c2c.target")}
+          </label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <input
+              id="c2c-target"
               list="c2c-own"
               value={target}
               onChange={(e) => {
                 setTarget(e.target.value);
                 setDiff(null);
               }}
-              placeholder={t("c2c.target")}
               className={`${inputCls} font-mono sm:flex-1`}
-              aria-label={t("c2c.target")}
             />
             <datalist id="c2c-own">
               {own.map((c) => (

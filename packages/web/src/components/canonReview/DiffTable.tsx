@@ -163,8 +163,8 @@ export function DiffTable({ diff, entries, checks, comments, selected, onSelect,
                     >
                       {isOpen ? <ChevronDown size={14} className="shrink-0 text-slate-400" /> : <ChevronRight size={14} className="shrink-0 text-slate-400" />}
                       <span className={`rounded px-1.5 py-0.5 text-[10px] ${BADGE[i.change]}`}>{t(`pr.change.${i.change}` as MessageKey)}</span>
-                      <span className="min-w-0 flex-1 basis-40 break-all font-mono">{i.label}</span>
-                      {i.fields && i.fields.length > 0 && <span className="max-w-full break-all font-mono text-[10px] text-blue-700">{i.fields.map((f) => f.field).join(", ")}</span>}
+                      <span className="min-w-0 flex-1 basis-40 font-mono [overflow-wrap:anywhere]">{i.label}</span>
+                      {i.fields && i.fields.length > 0 && <span className="max-w-full font-mono text-[10px] text-blue-700 [overflow-wrap:anywhere]">{i.fields.map((f) => f.field).join(", ")}</span>}
                       {errs > 0 && <span className="rounded bg-rose-100 px-1.5 py-0.5 text-[10px] text-rose-700">{t("pr.errors", { n: errs })}</span>}
                       {warns > 0 && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800">{t("pr.warnings", { n: warns })}</span>}
                       {notes.length > 0 && (

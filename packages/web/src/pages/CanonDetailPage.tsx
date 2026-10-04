@@ -125,7 +125,7 @@ function MembersCard({ detail, projects, onChanged }: { detail: CanonDetailRespo
           <div className="text-xs text-slate-400">{t("canon.noCandidates")}</div>
         ) : (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${inputCls} min-w-0 sm:flex-1`} aria-label={t("canon.addProject")}>
+            <select value={pick} onChange={(e) => setPick(e.target.value)} className={`${inputCls} min-w-0 bg-white pr-8 sm:flex-1`} aria-label={t("canon.addProject")}>
               <option value="">{t("canon.selectProject")}</option>
               {candidates.map((p) => (
                 <option key={p.projectId} value={p.projectId}>
@@ -191,7 +191,7 @@ function EditorsCard({ detail, onChanged, onLeft }: { detail: CanonDetailRespons
           <li key={e.userId} className="flex items-center gap-2 py-1.5 text-sm" data-editor={e.userId}>
             <div className="min-w-0 flex-1">
               <div className="break-words">{e.name || "—"}</div>
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[11px] text-slate-400 [overflow-wrap:anywhere]">
                 {e.email ? `${e.email} · ` : ""}
                 {t("ed.added", { date: fmtDate(e.addedAt, locale) })}
               </div>
@@ -402,7 +402,7 @@ export function CanonDetailPage() {
   const c = detail?.canon;
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <Link to="/canons" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:py-2">
+      <Link to="/canons" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
         <ArrowLeft size={12} /> {t("canon.back")}
       </Link>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
@@ -433,7 +433,7 @@ export function CanonDetailPage() {
             )}
             {detail.role === "owner" && c.visibility === "public" && (
               <>
-                <Link to={publicCanonPath(c.canonId)} className="text-xs text-emerald-700 hover:underline coarse:py-2">
+                <Link to={publicCanonPath(c.canonId)} className="inline-flex items-center text-xs text-emerald-700 hover:underline coarse:min-h-11">
                   {t("vis.publicPage")}
                 </Link>
                 <label className="flex items-center gap-1.5 text-xs text-slate-600 coarse:min-h-11">

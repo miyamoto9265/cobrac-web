@@ -177,7 +177,7 @@ export function CanonPullPage() {
         </button>
       </div>
       {blocking.length > 0 && (
-        <button type="button" onClick={() => setTab("checks")} className="text-left text-xs text-amber-700 hover:underline">
+        <button type="button" onClick={() => setTab("checks")} className="text-left text-xs text-amber-700 hover:underline coarse:-my-1 coarse:py-2">
           {t("pr.blocking", { n: blocking.length })}
         </button>
       )}
@@ -187,7 +187,7 @@ export function CanonPullPage() {
 
   return (
     <div ref={scroller} className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <Link to={canonPath(canonId)} className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:py-2">
+      <Link to={canonPath(canonId)} className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
         <ArrowLeft size={12} /> {t("pr.backToCanon")}
       </Link>
       {msg && <div className={`mb-3 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
@@ -208,11 +208,11 @@ export function CanonPullPage() {
             </span>
             {open && pr.reviewState === "changes_requested" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800">{t("rv.changesRequested")}</span>}
           </h1>
-          <div className="mb-3 mt-1 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
-            <span>{t("pr.meta", { base: pr.baseRevision, rev: pr.sourceRevision, date: fmtDate(pr.createdAt, locale) })}</span>
-            {data.headRevision > pr.baseRevision && open && <span>· {t("rv.headNow", { n: data.headRevision })}</span>}
-            {pr.mergedRevision ? <span>· {t("pr.merged", { n: pr.mergedRevision })}</span> : null}
-            <HelpLink section="push" />
+          <div className="mb-3 mt-1 text-xs text-slate-500">
+            {t("pr.meta", { base: pr.baseRevision, rev: pr.sourceRevision, date: fmtDate(pr.createdAt, locale) })}
+            {data.headRevision > pr.baseRevision && open && <> · {t("rv.headNow", { n: data.headRevision })}</>}
+            {pr.mergedRevision ? <> · {t("pr.merged", { n: pr.mergedRevision })}</> : null}{" "}
+            <HelpLink section="push" className="align-middle" />
           </div>
           <DecisionBanner data={data} />
           {diff && <DiffSummary diff={diff} />}

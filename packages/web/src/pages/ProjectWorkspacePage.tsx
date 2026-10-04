@@ -250,7 +250,7 @@ function Workspace({ projectId }: { projectId: string }) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <ProjectTitle project={project} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
             <StatusBadge status={project.status} />
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto sm:justify-end">
               <button type="button" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails} className={`${btn} border-slate-300 text-slate-600 hover:bg-slate-50 lg:hidden`}>
                 {t("ws.details")} {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>

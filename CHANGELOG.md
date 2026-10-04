@@ -5,6 +5,16 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- Admin page on phones and tablets: below 1280px every user and every project is a card with all its controls (role, default-key tier, usage, enable / disable, force stop) instead of a table that had to be scrolled sideways to reach them. On wide screens the user table puts the display name under the e-mail address and wraps long addresses, so the tier, usage, state and buttons are no longer cut off at the right edge
+- Canon pull request review on phones: item names in the change list wrap at spaces instead of in the middle of a word ("[Frie / derici, 2011]"); the item links under the checks, the AI review and the history show their whole name instead of cutting it off; the "N conflicts still need a decision" link in the bottom bar, the AI review's "Use" buttons and the comment field get a full-size tap area; the line with the revisions and the "Guide" link no longer starts a new line with "·"
+- Canon page: a long co-editor e-mail address wraps instead of disappearing under the "Co-editor" badge; the label of the "Send a pull request to another Canon" field sits above it, so the example ID is no longer cut off; the back link and the public page link are easier to tap
+- The "Default Canon for new projects" select in the settings, the status filter of the project list and the project picker of a Canon are white like the other fields and no longer run their text under the arrow; on touch screens these fields are as tall as the buttons
+- The per-model cost table of the project list abbreviates token counts on phones (1.84M) so the cost column is no longer cut off
+- Create screen: the Canon chip leaves out the revision on phones, so the Canon name is readable
+- Project page: on phones the download, visibility and Canon buttons line up from the left instead of leaving gaps
+- The Canon creation form shows the whole example of the granularity policy
+
 ## [0.28.2] - 2026-10-05
 
 ### Fixed

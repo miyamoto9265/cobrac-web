@@ -31,7 +31,7 @@ export function CommentBox({ placeholder, initial = "", onSend }: { placeholder:
           onChange={(e) => setText(e.target.value)}
           placeholder={placeholder}
           rows={text.includes("\n") || text.length > 80 ? 3 : 1}
-          className="min-w-0 flex-1 resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400"
+          className="min-w-0 flex-1 resize-y rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
           data-testid="comment-input"
         />
         <button

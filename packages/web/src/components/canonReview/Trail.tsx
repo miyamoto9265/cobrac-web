@@ -46,7 +46,7 @@ export function Trail({ events, onSelect, onComment, draft }: Props) {
                 <span className="text-[10px] text-slate-400">{fmtDate(e.at, locale)}</span>
               </div>
               {e.item && (
-                <button type="button" onClick={() => onSelect(e.item!)} className="mt-0.5 max-w-full truncate rounded border border-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
+                <button type="button" onClick={() => onSelect(e.item!)} className="mt-0.5 max-w-full rounded border text-left [overflow-wrap:anywhere] border-slate-200 px-1.5 py-0.5 font-mono text-[10px] text-blue-700 hover:bg-blue-50 coarse:min-h-9">
                   {e.itemLabel ?? e.item}
                 </button>
               )}
