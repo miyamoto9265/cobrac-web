@@ -1,7 +1,8 @@
 import { isRoiCircuitId } from "./bra.js";
 import { col, parseCsvObjects } from "./csv.js";
+import { classifyEdgeSign } from "./edgeSign.js";
+import { findFrgCandidates } from "./motifs.js";
 import type {
-  EdgeSign,
   FrgEdge,
   FrgGraph,
   FrgNode,
@@ -9,6 +10,7 @@ import type {
   HcdCollection,
   HcdEdge,
   HcdGraph,
+  HcdMotif,
   HcdNode,
   RoiClass,
 } from "./types.js";
@@ -20,6 +22,8 @@ export interface GraphSources {
   referencesCsv?: string;
 }
 
+export { classifyEdgeSign } from "./edgeSign.js";
+
 const stripTicks = (s: string) => s.replace(/`/g, "").trim();
 const stripPrefix = (s: string) => stripTicks(s).replace(/^(U\.|R\.)/, "");
 const splitList = (s: string) =>
@@ -27,39 +31,6 @@ const splitList = (s: string) =>
     .split(/[;；]/)
     .map((x) => x.trim())
     .filter(Boolean);
-
-const INHIB_RE = /\binhibit|\bGABA|glycin|抑制/i;
-const EXCIT_RE = /\bexcitat|glutamat|\bAMPA\b|\bNMDA\b|興奮/i;
-const MOD_RE = /modulat|dopamin|serotonin|noradren|norepineph|acetylcholin|cholinerg|histamin|neuropeptide|調節/i;
-
-/**
- * Classify the physiological sign of a connection. The Connection comment wins (it describes this
- * projection specifically); otherwise fall back to the sender circuit's Modulation Type / Transmitter.
- * Mixed senders (e.g. "Excitatory / Inhibitory") stay unknown unless the comment disambiguates.
- */
-export function classifyEdgeSign(edge: Pick<HcdEdge, "comments">, sender?: Pick<HcdNode, "transmitter" | "modulationType"> | null): EdgeSign {
-  const c = edge.comments ?? "";
-  const inh = INHIB_RE.test(c);
-  const exc = EXCIT_RE.test(c);
-  if (inh && !exc) return "inhibitory";
-  if (exc && !inh) return "excitatory";
-  if (inh && exc) {
-    // Both words present: prefer the one that describes the projection itself ("(GABAergic; inhibitory)" pattern)
-    const m = c.match(/\(([^)]*)\)/g)?.join(" ") ?? "";
-    if (INHIB_RE.test(m) && !EXCIT_RE.test(m)) return "inhibitory";
-    if (EXCIT_RE.test(m) && !INHIB_RE.test(m)) return "excitatory";
-  }
-  if (!inh && !exc && MOD_RE.test(c)) return "modulatory";
-  if (sender) {
-    const s = `${sender.modulationType ?? ""} ${sender.transmitter ?? ""}`;
-    const si = INHIB_RE.test(s);
-    const se = EXCIT_RE.test(s);
-    if (si && !se) return "inhibitory";
-    if (se && !si) return "excitatory";
-    if (!si && !se && MOD_RE.test(s)) return "modulatory";
-  }
-  return "unknown";
-}
 
 /**
  * Build both HCD and FRG graph JSON from the three project CSVs.
@@ -259,7 +230,29 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   };
   const collections: HcdCollection[] = collectionRows.map((c) => ({ ...c, members: [...new Set(membersOf(c.id, new Set()))] }));
 
-  const hcd: HcdGraph = { kind: "hcd", projectId, generatedAt, nodes: hcdNodes, edges: hcdEdges, ...(collections.length ? { collections } : {}), references };
+  const ucSetKey = (ids: string[]) => [...new Set(ids)].sort().join("\u0000");
+  const gnsByUcSet = new Map<string, string[]>();
+  for (const gn of frgGnRows) {
+    const ucs = gn.subnodes.filter((x) => x.startsWith("U.")).map(stripPrefix);
+    if (ucs.length > 2) (gnsByUcSet.get(ucSetKey(ucs)) ?? gnsByUcSet.set(ucSetKey(ucs), []).get(ucSetKey(ucs))!).push(gn.nodeId);
+  }
+  const motifs: HcdMotif[] = findFrgCandidates({
+    circuits: hcdNodes.map((n) => ({ id: n.id, roi: n.roiClass === "roi", transmitter: n.transmitter, modulationType: n.modulationType })),
+    connections: hcdEdges.map((e) => ({ source: e.source, target: e.target, comment: e.comments })),
+  })
+    .motifs.filter((m): m is typeof m & { kind: HcdMotif["kind"] } => m.kind === "loop" || m.kind === "feedforward")
+    .map((m) => ({ id: m.id, kind: m.kind, ucs: m.ucs, gns: gnsByUcSet.get(ucSetKey(m.ucs)) ?? [] }));
+
+  const hcd: HcdGraph = {
+    kind: "hcd",
+    projectId,
+    generatedAt,
+    nodes: hcdNodes,
+    edges: hcdEdges,
+    ...(collections.length ? { collections } : {}),
+    ...(motifs.length ? { motifs } : {}),
+    references,
+  };
 
   // ---- FRG graph ------------------------------------------------------------
   const frgNodesById = new Map<string, FrgNode>();

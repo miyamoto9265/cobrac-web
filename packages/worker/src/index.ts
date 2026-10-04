@@ -60,6 +60,7 @@ import {
   canonSpecNote,
   type CanonRunInfo,
   type CanonSnapshot,
+  type FrgCandidates,
   LIT_MCP_SERVER,
   ADJUSTMENT_CODES,
   CROSS_CODES,
@@ -77,6 +78,7 @@ import {
   braVersionId,
   estimateCostUsd,
   fixTurnEffort,
+  formatFrgCandidates,
   formatTokens,
   formatUsd,
   harnessPromptNotice,
@@ -409,7 +411,10 @@ async function main() {
             details: ctx.adjustment.findings.map((f) => `${f.code} ${f.message}`).join("\n"),
           });
           await setStage("ADJUST");
-          return freshThread ? { ...p, hidden: `${header(project)}\n\nReference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` } : p;
+          const candidates = await frgCandidatesSection();
+          const specs = freshThread ? `${header(project)}\n\nReference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` : "";
+          const hidden = [specs, candidates].filter(Boolean).join("\n\n---\n\n");
+          return hidden ? { ...p, hidden } : p;
         },
       },
       startIdx,
@@ -949,10 +954,22 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
 // --- prompts -----------------------------------------------------------------
 
 const specCache = new Map<Phase, string>();
-/** The phase spec, followed by the research-mode notes when the project researches. */
+/** The phase spec, followed by the research-mode notes when the project researches, and for the FRG the bottom-up candidates. */
 async function phaseSpec(phase: Phase): Promise<string> {
   const spec = await rawPhaseSpec(phase);
-  return research ? `${spec}\n\n${await researchModeNotes()}` : spec;
+  const withNotes = research ? `${spec}\n\n${await researchModeNotes()}` : spec;
+  const candidates = phase === "FRG" ? await frgCandidatesSection() : "";
+  return candidates ? `${withNotes}\n\n---\n\n${candidates}` : withNotes;
+}
+
+/** The bottom-up candidates of the FRG phase as the last check wrote them from the HCD; empty before the HCD was checked. */
+async function frgCandidatesSection(): Promise<string> {
+  try {
+    const c = JSON.parse(await readFile(paths.frgCandidates, "utf8")) as FrgCandidates;
+    return formatFrgCandidates(c, `${projectId}/${PROJECT_FILES.frgCandidates}`);
+  } catch {
+    return "";
+  }
 }
 
 async function rawPhaseSpec(phase: Phase): Promise<string> {

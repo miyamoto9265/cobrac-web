@@ -286,9 +286,14 @@ describe("phase pipeline with a mock agent", () => {
     expect(Object.keys(baseline).sort()).toEqual(["FRG", "HCD"]);
     expect(baseline.HCD.problems).toEqual([]);
     const cross = JSON.parse(readFileSync(p.crossCheck, "utf8"));
-    expect(cross).toMatchObject({ phase: "CSV", mode: "record-only", stats: { roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2 } });
+    expect(cross).toMatchObject({ phase: "CSV", mode: "record-only", stats: { roiUcs: 2, gns: 2, interfacesParsed: 2, depth: 2, largeGns: 0, largeGnsOnMotif: 0 } });
     // the fixture is consistent except for its size: two ROI-internal UCs under a single GN
     expect(cross.findings.map((f: { code: string }) => f.code)).toEqual(["X8", "X8"]);
+    // the bottom-up candidates follow the HCD: the fixture's two ROI-internal UCs form one connected pair
+    const candidates = JSON.parse(readFileSync(p.frgCandidates, "utf8"));
+    expect(candidates.roiUcs).toHaveLength(2);
+    expect(candidates.motifs.map((m: { kind: string; ucs: string[] }) => m.ucs.length)).toEqual([2]);
+    expect(candidates.pathways.length).toBeGreaterThan(0);
     rmSync(p.root, { recursive: true, force: true });
   });
 

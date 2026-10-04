@@ -1,7 +1,7 @@
 import { ArrowLeft, GitFork, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import type { EdgeSign, FrgGraph, HcdCollection, HcdEdge, HcdGraph, HcdNode, RoiClass } from "@cobrac/shared";
+import type { EdgeSign, FrgGraph, HcdCollection, HcdEdge, HcdGraph, HcdMotif, HcdNode, RoiClass } from "@cobrac/shared";
 import { classifyEdgeSign } from "@cobrac/shared";
 import { Badge, DetailPanel, Field, Section, actionBtn, primaryActionBtn } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GGroup, type GNode, type LegendItem } from "../components/GraphCanvas";
@@ -37,6 +37,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   const [showCollections, setShowCollections] = useState(true);
   const selected = params.get("node");
   const group = params.get("gn");
+  const motifId = params.get("motif");
   const layout = useGraphLayout(projectId, "hcd");
   const projectName = useProjectName(projectId);
 
@@ -88,11 +89,14 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
     return c;
   }, [signs]);
 
+  const motifs = useMemo(() => graph?.motifs ?? [], [graph]);
+  const motif = motifId ? motifs.find((m) => m.id === motifId) ?? null : null;
   const node = selected ? byId.get(selected) ?? null : null;
   const collection = !node && selected ? collectionById.get(selected) ?? null : null;
   const groupIds = useMemo(
-    () => (collection ? collection.members : group ? circuitsUnderGroup(frg, group).filter((id) => byId.has(id)) : []),
-    [collection, group, frg, byId],
+    () =>
+      collection ? collection.members : motif ? motif.ucs.filter((id) => byId.has(id)) : group ? circuitsUnderGroup(frg, group).filter((id) => byId.has(id)) : [],
+    [collection, motif, group, frg, byId],
   );
   const groupSet = useMemo(() => (groupIds.length ? new Set(groupIds) : null), [groupIds]);
   const edge = graph?.edges.find((e) => e.id === selectedEdge) ?? null;
@@ -121,6 +125,22 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
       },
       { replace: true },
     );
+  /** One highlight at a time: a motif replaces the FRG group highlight. */
+  const selectMotif = useCallback(
+    (id: string | null) =>
+      setParams(
+        (p) => {
+          const next = new URLSearchParams(p);
+          if (id) {
+            next.set("motif", id);
+            next.delete("gn");
+          } else next.delete("motif");
+          return next;
+        },
+        { replace: true },
+      ),
+    [setParams],
+  );
 
   const legend = useMemo<LegendItem[]>(
     () =>
@@ -146,7 +166,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   })();
 
   const detail = node ? (
-    <NodeDetail node={node} graph={graph} frg={frg} projectId={projectId} signs={signs} onSelect={select} />
+    <NodeDetail node={node} graph={graph} frg={frg} projectId={projectId} signs={signs} onSelect={select} onSelectMotif={selectMotif} />
   ) : collection ? (
     <CollectionDetail collection={collection} graph={graph} onSelect={select} />
   ) : edge ? (
@@ -193,6 +213,22 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
           {graph.nodes.length} UC · {graph.edges.length} Connection
           {collections.length > 0 && ` · ${collections.length} Collection`}
         </span>
+        {motifs.length > 0 && (
+          <select
+            value={motif?.id ?? ""}
+            onChange={(e) => selectMotif(e.target.value || null)}
+            aria-label={t("graph.motifs")}
+            title={t("graph.motifsHint")}
+            className="w-28 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11"
+          >
+            <option value="">{t("graph.motifsPick", { n: motifs.length })}</option>
+            {motifs.map((m) => (
+              <option key={m.id} value={m.id}>
+                {motifLabel(m, t)}
+              </option>
+            ))}
+          </select>
+        )}
         <Link to={frgLink} className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           <GitFork size={13} /> {t("graph.toFrg")}
         </Link>
@@ -221,7 +257,32 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
           ]}
           detail={detail}
           banner={
-            group ? (
+            motif ? (
+              <div className="flex max-w-full items-center gap-2 rounded-md border border-violet-300 bg-violet-50/95 px-2.5 py-1 text-[11px] text-violet-900 shadow-sm">
+                <span className="min-w-0 break-words">
+                  {t("graph.motifHighlight", { label: motifLabel(motif, t) })}
+                  {" · "}
+                  {motif.gns.length ? (
+                    <>
+                      {t("graph.motifGns")}{" "}
+                      {motif.gns.map((g, i) => (
+                        <span key={g}>
+                          {i > 0 && ", "}
+                          <Link to={`/projects/${encodeURIComponent(projectId)}/frg?node=${encodeURIComponent(g)}`} className="font-mono underline">
+                            {g}
+                          </Link>
+                        </span>
+                      ))}
+                    </>
+                  ) : (
+                    t("graph.motifNoGn")
+                  )}
+                </span>
+                <button type="button" onClick={() => selectMotif(null)} aria-label={t("close")} title={t("close")} className="rounded p-0.5 hover:bg-violet-100 coarse:p-2">
+                  <X size={12} />
+                </button>
+              </div>
+            ) : group ? (
               <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50/95 px-2.5 py-1 text-[11px] text-amber-900 shadow-sm">
                 <span className="min-w-0 truncate">{t("graph.groupHighlight", { id: group, n: groupIds.length })}</span>
                 <button type="button" onClick={clearGroup} aria-label={t("close")} title={t("close")} className="rounded p-0.5 hover:bg-amber-100 coarse:p-2">
@@ -234,6 +295,12 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
       </div>
     </div>
   );
+}
+
+/** `M1 · Loop · A → B → C → A`, `M2 · Feedforward · A → B → C + A → C` (source, middle, sink, then the shortcut). */
+function motifLabel(m: HcdMotif, t: ReturnType<typeof useT>): string {
+  const path = m.kind === "loop" ? [...m.ucs, m.ucs[0]].join(" → ") : `${m.ucs.join(" → ")} + ${m.ucs[0]} → ${m.ucs[m.ucs.length - 1]}`;
+  return `${m.id} · ${t(`graph.motifKind.${m.kind}` as MessageKey)} · ${path}`;
 }
 
 function ConnectionRow({ edge, other, dir, sign, names, onSelect }: { edge: HcdEdge; other: string; dir: "in" | "out"; sign: EdgeSign; names?: string; onSelect: (id: string) => void }) {
@@ -263,7 +330,23 @@ function ConnectionRow({ edge, other, dir, sign, names, onSelect }: { edge: HcdE
   );
 }
 
-function NodeDetail({ node, graph, frg, projectId, signs, onSelect }: { node: HcdNode; graph: HcdGraph; frg: FrgGraph | null; projectId: string; signs: Map<string, EdgeSign>; onSelect: (id: string | null) => void }) {
+function NodeDetail({
+  node,
+  graph,
+  frg,
+  projectId,
+  signs,
+  onSelect,
+  onSelectMotif,
+}: {
+  node: HcdNode;
+  graph: HcdGraph;
+  frg: FrgGraph | null;
+  projectId: string;
+  signs: Map<string, EdgeSign>;
+  onSelect: (id: string | null) => void;
+  onSelectMotif: (id: string) => void;
+}) {
   const t = useT();
   const names = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n.names])), [graph]);
   const incoming = graph.edges.filter((e) => e.target === node.id);
@@ -273,6 +356,7 @@ function NodeDetail({ node, graph, frg, projectId, signs, onSelect }: { node: Hc
   const frgBase = `/projects/${encodeURIComponent(projectId)}/frg`;
   const style = ROI_STYLE[node.roiClass];
   const inCollections = (graph.collections ?? []).filter((c) => c.subCircuits.includes(node.id));
+  const inMotifs = (graph.motifs ?? []).filter((m) => m.ucs.includes(node.id));
   return (
     <DetailPanel
       title={node.id}
@@ -322,6 +406,18 @@ function NodeDetail({ node, graph, frg, projectId, signs, onSelect }: { node: Hc
             {inCollections.map((c) => (
               <button key={c.id} onClick={() => onSelect(c.id)} className={`${actionBtn} font-mono`} title={c.names}>
                 {c.id}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {inMotifs.length > 0 && (
+        <>
+          <Section title={t("graph.inMotifs")} />
+          <div className="mb-3 flex flex-col gap-1">
+            {inMotifs.map((m) => (
+              <button key={m.id} onClick={() => onSelectMotif(m.id)} className={`${actionBtn} justify-start truncate text-left font-mono`} title={t("graph.motifsHint")}>
+                {motifLabel(m, t)}
               </button>
             ))}
           </div>
