@@ -14,6 +14,7 @@ import { strToU8, zipSync, type Zippable } from "fflate";
 import { parseCsv } from "./csv.js";
 import { CSV_FILE_NAMES, type CsvFileName } from "./harness.js";
 import type { JobType, ReasoningEffort } from "./types.js";
+import type { SabraBoundary } from "./ucNaming.js";
 
 export const BRA_VERSION_MANIFEST_SCHEMA = "cobrac.bra-version/1";
 export const BRADB_PACKAGE_SCHEMA = "cobrac.bradb-package/1";
@@ -92,8 +93,10 @@ export interface BraVersionGenerator {
   reasoningEffort: ReasoningEffort | null;
   researchMode: boolean | null;
   canon: { canonId: string; revision: number } | null;
-  /** SABRA BNA/DHBA boundary version reported by RCS (`get_sabra_definition`) */
-  sabraBoundary: string | null;
+  /** BNA/DHBA boundary the HCD check enforced: `neocortex` (2026-10-04: BNA for the neocortex only) or `legacy` (the earlier one) */
+  sabraBoundary: SabraBoundary | "legacy" | null;
+  /** Boundary version RCS reported (`get_sabra_definition` → `boundary_version`) */
+  rcsBoundaryVersion: string | null;
   /** `BRA version` of Project.csv (the CoBRAC CSV format) */
   braFormat: string | null;
 }

@@ -1166,7 +1166,8 @@ async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise
         reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
         researchMode: research,
         canon: canonRun ? { canonId: canonRun.info.canonId, revision: canonRun.info.revision } : null,
-        sabraBoundary: rcs ? await rcs.sabraBoundaryVersion() : null,
+        sabraBoundary: project.sabraBoundary ?? "legacy",
+        rcsBoundaryVersion: rcs ? await rcs.sabraBoundaryVersion() : null,
       },
     });
     if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });
@@ -1209,7 +1210,8 @@ async function freezeBaseline(project: ProjectRecord) {
         reasoningEffort: last?.reasoningEffort ?? null,
         researchMode: last?.researchMode ?? null,
         canon: null,
-        sabraBoundary: null,
+        sabraBoundary: project.sabraBoundary ?? "legacy",
+        rcsBoundaryVersion: null,
       },
     });
     if (!summary) return;
