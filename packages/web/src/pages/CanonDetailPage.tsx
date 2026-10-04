@@ -457,8 +457,8 @@ export function CanonDetailPage() {
             )}
           </div>
           {c.policy && <p className="mb-4 max-w-3xl whitespace-pre-line text-sm text-slate-700">{c.policy}</p>}
-          <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
-            <div className="grid content-start gap-5">
+          <div className="grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
               {detail.role === "owner" ? <MembersCard detail={detail} projects={projects} onChanged={reload} /> : <MembersList detail={detail} />}
               <PullsCard canonId={c.canonId} pulls={pulls} />
               <ContentsCard snapshot={snapshot} revisions={revisions} />
@@ -467,7 +467,7 @@ export function CanonDetailPage() {
                 {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
               </div>
             </div>
-            <div className="grid content-start gap-5">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
               <EditorsCard detail={detail} onChanged={reload} onLeft={() => navigate("/canons")} />
               {detail.role === "owner" && <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />}
             </div>
