@@ -38,7 +38,7 @@ export interface FreezeInput {
   createdAt: string;
   contributor: string;
   job: BraVersionManifest["job"];
-  generator: Omit<BraVersionGenerator, "braFormat">;
+  generator: Omit<BraVersionGenerator, "braFormat" | "harnessRules"> & { harnessRules: number };
   /** Workspace on disk (`/work/{projectId}`), the same files as `workspace/` in S3 */
   workspaceDir: string;
 }

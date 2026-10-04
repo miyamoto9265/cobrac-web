@@ -94,6 +94,8 @@ export interface BraVersionGenerator {
   sabraBoundary: SabraBoundary | "legacy" | null;
   /** Boundary version RCS reported (`get_sabra_definition` → `boundary_version`) */
   rcsBoundaryVersion: string | null;
+  /** Harness rule set the checks followed (`ProjectRecord.harnessRules`, 0 when the project has none); absent on versions saved before 0.28.2 */
+  harnessRules?: number;
   /** `BRA version` of Project.csv (the CoBRAC CSV format) */
   braFormat: string | null;
 }

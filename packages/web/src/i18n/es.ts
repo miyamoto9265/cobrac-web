@@ -869,6 +869,7 @@ export const es: Record<MessageKey, string> = {
   "ver.research": "Modo investigación",
   "ver.canon": "Canon",
   "ver.sabra": "Frontera SABRA",
+  "ver.harnessRules": "Reglas del harness",
   "ver.format": "Formato CSV",
   "ver.unknown": "desconocido",
   "ver.showTables": "Ver tablas",

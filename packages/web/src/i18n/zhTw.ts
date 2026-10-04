@@ -869,6 +869,7 @@ export const zhTw: Record<MessageKey, string> = {
   "ver.research": "調研模式",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA 邊界",
+  "ver.harnessRules": "Harness 規則",
   "ver.format": "CSV 格式",
   "ver.unknown": "不明",
   "ver.showTables": "檢視表格",

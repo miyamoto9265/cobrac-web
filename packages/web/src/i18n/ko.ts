@@ -869,6 +869,7 @@ export const ko: Record<MessageKey, string> = {
   "ver.research": "조사 모드",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA 경계",
+  "ver.harnessRules": "하네스 규칙",
   "ver.format": "CSV 형식",
   "ver.unknown": "알 수 없음",
   "ver.showTables": "표 보기",

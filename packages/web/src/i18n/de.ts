@@ -869,6 +869,7 @@ export const de: Record<MessageKey, string> = {
   "ver.research": "Recherchemodus",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA-Grenze",
+  "ver.harnessRules": "Harness-Regeln",
   "ver.format": "CSV-Format",
   "ver.unknown": "unbekannt",
   "ver.showTables": "Tabellen anzeigen",

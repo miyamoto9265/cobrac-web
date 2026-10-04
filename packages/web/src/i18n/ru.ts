@@ -869,6 +869,7 @@ export const ru: Record<MessageKey, string> = {
   "ver.research": "Режим исследования",
   "ver.canon": "Canon",
   "ver.sabra": "Граница SABRA",
+  "ver.harnessRules": "Правила harness",
   "ver.format": "Формат CSV",
   "ver.unknown": "неизвестно",
   "ver.showTables": "Показать таблицы",

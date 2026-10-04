@@ -869,6 +869,7 @@ export const zh: Record<MessageKey, string> = {
   "ver.research": "调研模式",
   "ver.canon": "Canon",
   "ver.sabra": "SABRA 边界",
+  "ver.harnessRules": "Harness 规则",
   "ver.format": "CSV 格式",
   "ver.unknown": "未知",
   "ver.showTables": "查看表格",
