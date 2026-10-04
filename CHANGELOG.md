@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.24.1] - 2026-10-04
+
 ### Fixed
 - The usage and cost of a turn that was cut off are now recorded: a turn stopped by a cancel, the research step's 60-minute budget, the 6-hour run-time limit or a worker stop (SIGTERM), and a turn where `codex exec` exited without reporting a failure, are counted from the conversation's session record and added to the job that ran them. Before, such turns were missing from the job's and the project's cost. The next job on the same conversation does not count them again
 
