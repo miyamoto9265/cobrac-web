@@ -80,10 +80,17 @@ export function CanonsPage() {
   const { locale } = useI18n();
   const navigate = useNavigate();
   const [items, setItems] = useState<CanonRecord[] | null>(null);
+  const [shared, setShared] = useState<(CanonRecord & { ownerName: string })[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listCanons().then((r) => setItems(r.items)).catch((e) => setErr(String(e)));
+    api
+      .listCanons()
+      .then((r) => {
+        setItems(r.items);
+        setShared(r.shared ?? []);
+      })
+      .catch((e) => setErr(String(e)));
   }, []);
 
   return (
@@ -120,6 +127,29 @@ export function CanonsPage() {
               </Link>
             </li>
           ))}
+          {shared.length > 0 && (
+            <li className="mt-3" data-testid="canon-shared">
+              <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+                {t("ed.sharedTitle")} <HelpTip text={t("ed.sharedHelp")} />
+              </h2>
+              <ul className="grid gap-2">
+                {shared.map((c) => (
+                  <li key={c.canonId}>
+                    <Link to={canonPath(c.canonId)} className="block rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/30 coarse:p-4">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="min-w-0 break-words font-medium text-blue-700">{c.name}</span>
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700">{t("ed.roleEditor")}</span>
+                        <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
+                          <span>{t("ed.ownerIs", { name: c.ownerName })}</span>
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          )}
         </ul>
         <CreateCanonForm onCreated={(c) => navigate(canonPath(c.canonId))} />
       </div>

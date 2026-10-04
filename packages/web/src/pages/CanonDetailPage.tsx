@@ -1,4 +1,4 @@
-import { ArrowLeft, Layers, Plus, Save, Trash2, X } from "lucide-react";
+import { ArrowLeft, Layers, LogOut, Plus, Save, Trash2, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
@@ -9,6 +9,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { PolicyLabel, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
@@ -153,6 +154,127 @@ function MembersCard({ detail, projects, onChanged }: { detail: CanonDetailRespo
   );
 }
 
+/** Co-editors review pull requests. The owner adds them by the e-mail address they signed up with. */
+function EditorsCard({ detail, onChanged, onLeft }: { detail: CanonDetailResponse; onChanged: () => void; onLeft: () => void }) {
+  const t = useT();
+  const { locale } = useI18n();
+  const canonId = detail.canon.canonId;
+  const owner = detail.role === "owner";
+  const { me } = useAuth();
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = async (fn: () => Promise<unknown>, ok: string, after = onChanged) => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await fn();
+      setMsg({ ok: true, text: ok });
+      after();
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5" data-testid="canon-editors">
+      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+        {t("ed.title")} <span className="font-normal text-slate-400">({detail.editors.length})</span> <HelpTip text={t("ed.help")} />
+      </h2>
+      <ul className="divide-y divide-slate-100">
+        <li className="flex items-center gap-2 py-1.5 text-sm">
+          <span className="min-w-0 flex-1 break-words">{detail.ownerName || "—"}</span>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">{t("ed.roleOwner")}</span>
+        </li>
+        {detail.editors.map((e) => (
+          <li key={e.userId} className="flex items-center gap-2 py-1.5 text-sm" data-editor={e.userId}>
+            <div className="min-w-0 flex-1">
+              <div className="break-words">{e.name || "—"}</div>
+              <div className="text-[11px] text-slate-400">
+                {e.email ? `${e.email} · ` : ""}
+                {t("ed.added", { date: fmtDate(e.addedAt, locale) })}
+              </div>
+            </div>
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700">{t("ed.roleEditor")}</span>
+            {owner && (
+              <button
+                type="button"
+                disabled={busy}
+                aria-label={`${t("ed.remove")}: ${e.name}`}
+                title={t("ed.remove")}
+                onClick={() => window.confirm(t("ed.removeConfirm", { name: e.name })) && void run(() => api.removeCanonEditor(canonId, e.userId), t("ed.removed"))}
+                className="flex h-8 w-8 items-center justify-center rounded text-slate-500 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 coarse:h-11 coarse:w-11"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+      {owner ? (
+        <form
+          className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row"
+          onSubmit={(ev) => {
+            ev.preventDefault();
+            void run(async () => {
+              await api.addCanonEditor(canonId, email.trim());
+              setEmail("");
+            }, t("ed.addedMsg"));
+          }}
+        >
+          <input
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            placeholder={t("ed.emailPh")}
+            aria-label={t("ed.email")}
+            className={`${inputCls} min-w-0 sm:flex-1`}
+            data-testid="editor-email"
+          />
+          <button type="submit" disabled={busy || !email.trim()} className={primaryBtn} data-testid="editor-add">
+            <UserPlus size={14} /> {t("ed.add")}
+          </button>
+        </form>
+      ) : (
+        detail.role === "editor" && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => window.confirm(t("ed.leaveConfirm")) && void run(() => api.removeCanonEditor(canonId, me?.userId ?? ""), t("ed.left"), onLeft)}
+            className="mt-3 flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs text-slate-600 hover:bg-slate-50 coarse:min-h-11"
+          >
+            <LogOut size={12} /> {t("ed.leave")}
+          </button>
+        )
+      )}
+      {msg && <div className={`mt-2 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
+    </section>
+  );
+}
+
+/** Member projects as a co-editor sees them (they belong to the owner, so no links or changes). */
+function MembersList({ detail }: { detail: CanonDetailResponse }) {
+  const t = useT();
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <h2 className="mb-2 text-sm font-semibold">
+        {t("canon.members")} <span className="font-normal text-slate-400">({detail.members.length})</span>
+      </h2>
+      <ul className="divide-y divide-slate-100" data-testid="canon-members">
+        {detail.members.length === 0 && <li className="py-3 text-sm text-slate-400">{t("canon.noMembers")}</li>}
+        {detail.members.map((m) => (
+          <li key={m.projectId} className="py-2">
+            <div className="break-words text-sm font-medium">{m.name}</div>
+            <div className="font-mono text-[11px] text-slate-400">{m.projectId}</div>
+            <div className="break-words text-xs text-slate-500">{[m.roi, m.tlf].filter((s) => s?.trim()).join(" · ")}</div>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PullsCard({ canonId, pulls }: { canonId: string; pulls: CanonPullRequestRecord[] }) {
   const t = useT();
   const { locale } = useI18n();
@@ -232,6 +354,7 @@ function ContentsCard({ snapshot, revisions }: { snapshot: CanonSnapshot | null;
         {revisions.map((r) => (
           <li key={r.revision}>
             <span className="font-mono">{t("canon.revision", { n: r.revision })}</span> · #{r.prNo} {r.source} · {fmtDate(r.createdAt, locale)}
+            {r.approvedByName && <span className="text-emerald-700"> · {t("ed.approvedBy", { name: r.approvedByName })}</span>}
           </li>
         ))}
       </ul>
@@ -293,6 +416,12 @@ export function CanonDetailPage() {
             <span className="font-mono text-xs text-slate-400">{c.canonId}</span>
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">{t("canon.revision", { n: c.headRevision })}</span>
             <HelpLink section="canon" />
+            {detail.role !== "owner" && (
+              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
+                {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
+              </span>
+            )}
+            {detail.role === "owner" && (
             <VisibilityToggle
               visibility={c.visibility}
               confirmText={t("vis.confirmCanon")}
@@ -301,7 +430,8 @@ export function CanonDetailPage() {
                 reload();
               }}
             />
-            {c.visibility === "public" && (
+            )}
+            {detail.role === "owner" && c.visibility === "public" && (
               <>
                 <Link to={publicCanonPath(c.canonId)} className="text-xs text-emerald-700 hover:underline coarse:py-2">
                   {t("vis.publicPage")}
@@ -316,6 +446,7 @@ export function CanonDetailPage() {
                 </label>
               </>
             )}
+            {detail.role === "owner" && (
             <button
               type="button"
               onClick={() => void remove()}
@@ -323,19 +454,23 @@ export function CanonDetailPage() {
             >
               <Trash2 size={12} /> {t("canon.delete")}
             </button>
+            )}
           </div>
           {c.policy && <p className="mb-4 max-w-3xl whitespace-pre-line text-sm text-slate-700">{c.policy}</p>}
           <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
             <div className="grid content-start gap-5">
-              <MembersCard detail={detail} projects={projects} onChanged={reload} />
+              {detail.role === "owner" ? <MembersCard detail={detail} projects={projects} onChanged={reload} /> : <MembersList detail={detail} />}
               <PullsCard canonId={c.canonId} pulls={pulls} />
               <ContentsCard snapshot={snapshot} revisions={revisions} />
-              <SendCanonPr canon={c} />
+              {detail.role === "owner" && <SendCanonPr canon={c} />}
               <div className="text-[11px] text-slate-400">
                 {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
               </div>
             </div>
-            <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />
+            <div className="grid content-start gap-5">
+              <EditorsCard detail={detail} onChanged={reload} onLeft={() => navigate("/canons")} />
+              {detail.role === "owner" && <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />}
+            </div>
           </div>
         </>
       )}

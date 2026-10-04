@@ -29,6 +29,8 @@ export interface CanonRecord {
   publishedAt?: string | null;
   /** Last approved revision; 0 = empty Canon */
   headRevision: number;
+  /** Approvals a pull request needs before it is merged. Not settable yet: absent = 1 (`requiredApprovals`) */
+  requiredApprovals?: number;
   memberCount: number;
   createdAt: string;
   updatedAt: string;
@@ -80,9 +82,52 @@ export interface CanonPullRequestRecord {
   reason?: string | null;
   /** Revision created by approving it */
   mergedRevision?: number | null;
+  /** Display name of `decidedBy` when the decision was made */
+  decidedByName?: string | null;
+  /** Approvals given so far (one is enough for now; see `requiredApprovals`) */
+  approvals?: CanonApproval[];
+  /** Who asked for changes, and when */
+  reviewedBy?: string | null;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
   /** The reviewer asked for changes; the PR stays open until it is re-pushed (superseded), approved or rejected */
   reviewState?: "changes_requested" | null;
   reviewNote?: string | null;
+}
+
+export interface CanonApproval {
+  userId: string;
+  name: string;
+  at: string;
+}
+
+export const CANON_DEFAULT_REQUIRED_APPROVALS = 1;
+/** Approvals a pull request of this Canon needs. Fixed at 1 until a setting exists. */
+export const requiredApprovals = (_c: Pick<CanonRecord, "requiredApprovals">) => CANON_DEFAULT_REQUIRED_APPROVALS;
+
+/** How the caller relates to a Canon: its owner, a co-editor (reviews pull requests), or an admin reading it. */
+export type CanonRole = "owner" | "editor" | "admin";
+
+/** `EDITOR#<userId>` item: a co-editor the owner added. */
+export interface CanonEditorRecord {
+  canonId: string;
+  sk: string;
+  userId: string;
+  /** Display name when added (refreshed when the list is read) */
+  name: string;
+  email: string;
+  addedBy: string;
+  addedAt: string;
+}
+export const CANON_EDITOR_PREFIX = "EDITOR#";
+export const canonEditorSk = (userId: string) => `${CANON_EDITOR_PREFIX}${userId}`;
+
+export interface CanonEditorSummary {
+  userId: string;
+  name: string;
+  /** Shown to the owner only (who typed it when adding) */
+  email?: string;
+  addedAt: string;
 }
 
 export const CANON_PR_EVENT_PREFIX = "PEV#";
@@ -151,6 +196,10 @@ export interface CanonRevisionRecord {
   createdAt: string;
   circuitCount: number;
   connectionCount: number;
+  /** Who approved the pull request that made this revision (absent for seeds and older revisions) */
+  approvedBy?: string;
+  approvedByName?: string;
+  approvedAt?: string;
 }
 export const canonMemberSk = (projectId: string) => `${CANON_MEMBER_PREFIX}${projectId}`;
 
@@ -203,10 +252,16 @@ export interface CanonMemberSummary {
 export interface CanonDetailResponse {
   canon: CanonRecord;
   members: CanonMemberSummary[];
+  role: CanonRole;
+  editors: CanonEditorSummary[];
+  /** Owner's display name (shown to co-editors) */
+  ownerName: string;
 }
 
 export interface ListCanonsResponse {
   items: CanonRecord[];
+  /** Canons of other users where the caller is a co-editor */
+  shared: (CanonRecord & { ownerName: string })[];
 }
 
 export interface CanonRevisionSummary {
@@ -216,6 +271,8 @@ export interface CanonRevisionSummary {
   source?: string;
   circuitCount?: number;
   connectionCount?: number;
+  approvedByName?: string;
+  approvedAt?: string;
 }
 
 /** Canon of a new project: none, an existing Canon of the owner, or a new Canon seeded from existing projects. */

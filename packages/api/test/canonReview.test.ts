@@ -248,3 +248,69 @@ describe("AI review", () => {
     expect(usage.byModel.some((m) => m.jobs >= 1)).toBe(true);
   });
 });
+
+describe("co-editors", () => {
+  const addBob = () => json(call(A, "POST", `${C()}/editors`, { email: "BOB@example.com " }));
+
+  it("the owner adds a registered user by e-mail; others cannot manage co-editors", async () => {
+    expect((await call(A, "POST", `${C()}/editors`, { email: "nobody@example.com" })).status).toBe(404);
+    expect((await call(A, "POST", `${C()}/editors`, { email: A.email })).status).toBe(400);
+    expect((await call(A, "POST", `${C()}/editors`, { email: "not-an-email" })).status).toBe(400);
+    expect(await addBob()).toMatchObject({ userId: B.sub, name: "Bob", email: B.email });
+    expect((await call(A, "POST", `${C()}/editors`, { email: B.email })).status).toBe(409);
+    expect((await call(B, "POST", `${C()}/editors`, { email: A.email })).status).toBe(404);
+
+    const mine = await json<{ items: CanonRecord[]; shared: (CanonRecord & { ownerName: string })[] }>(call(B, "GET", "/canons"));
+    expect(mine.shared.map((x) => [x.canonId, x.ownerName])).toEqual([[canon.canonId, "Alice"]]);
+    const asBob = await json<{ role: string; editors: { email?: string }[]; ownerName: string }>(call(B, "GET", C()));
+    expect(asBob).toMatchObject({ role: "editor", ownerName: "Alice" });
+    expect(asBob.editors[0].email).toBeUndefined();
+    const asOwner = await json<{ role: string; editors: { email?: string }[] }>(call(A, "GET", C()));
+    expect(asOwner.editors[0].email).toBe(B.email);
+    // owner-only operations stay owner-only
+    expect((await call(B, "PUT", C(), { name: "x" })).status).toBe(404);
+    expect((await call(B, "POST", `${C()}/members`, { projectId: "u7m2q9xa-1" })).status).toBe(404);
+    expect((await call(B, "DELETE", C())).status).toBe(404);
+  });
+
+  it("a co-editor reviews: requests changes, approves, and is recorded as the approver of the revision", async () => {
+    await addBob();
+    const d = await detail(B);
+    expect(d).toMatchObject({ canReview: true, canComment: true, viewerRole: "editor" });
+    await json(call(B, "POST", `${C()}/pulls/2/request-changes`, { note: "Check the direction" }));
+    expect((await detail(A)).pr).toMatchObject({ reviewState: "changes_requested", reviewedBy: B.sub, reviewedByName: "Bob" });
+    expect(await json(call(B, "POST", `${C()}/pulls/2/approve`, {}))).toEqual({ revision: 2 });
+    const pr = (await detail(A)).pr;
+    expect(pr).toMatchObject({ state: "approved", decidedBy: B.sub, decidedByName: "Bob" });
+    expect(pr.approvals!.map((a) => a.name)).toEqual(["Bob"]);
+    const revs = await json<{ items: { revision: number; approvedByName?: string }[] }>(call(A, "GET", `${C()}/revisions`));
+    expect(revs.items.map((r) => [r.revision, r.approvedByName])).toEqual([
+      [2, "Bob"],
+      [1, "Alice"],
+    ]);
+    const trail = (await detail(A)).events.map((e) => [e.type, e.actorName]);
+    expect(trail).toEqual([
+      ["pushed", "Alice"],
+      ["changes_requested", "Bob"],
+      ["approved", "Bob"],
+    ]);
+  });
+
+  it("a co-editor's AI review is visible to the owner; leaving removes access; admins cannot review", async () => {
+    await addBob();
+    fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, encryptedApiKey: "encB" });
+    const r = await json<{ ai: { jobId: string } }>(call(B, "POST", `${C()}/pulls/2/ai-review`, { locale: "en" }));
+    expect(fake.items("jobs").find((j) => j.jobId === r.ai.jobId)).toMatchObject({ userId: B.sub, projectId: canon.canonId });
+    expect((await detail(A)).ai).toMatchObject({ jobId: r.ai.jobId, status: "QUEUED" });
+    expect((await call(A, "POST", `${C()}/pulls/2/ai-review`, { locale: "en" })).status).toBe(409);
+
+    await json(call(B, "DELETE", `${C()}/editors/${B.sub}`));
+    expect((await call(B, "GET", C())).status).toBe(404);
+    expect((await json<{ shared: unknown[] }>(call(B, "GET", "/canons"))).shared).toEqual([]);
+
+    const admin = { sub: "sub-admin", email: "admin@example.com" };
+    fake.put("users", { userId: admin.sub, email: admin.email, displayName: "Admin", contributorName: "x", role: "admin", disabled: false, apiKeyRegistered: true, createdAt: now, updatedAt: now });
+    expect((await call(admin, "GET", C())).status).toBe(200);
+    expect((await call(admin, "POST", `${C()}/pulls/2/approve`, {})).status).toBe(404);
+  });
+});
