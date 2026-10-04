@@ -9,11 +9,14 @@ import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { fmtDate, isActive } from "../lib/format";
+import { BELOW_XL, useMediaQuery } from "../lib/useMediaQuery";
 
 export function AdminPage() {
   const t = useT();
   const { locale } = useI18n();
   const { me } = useAuth();
+  /** The user and project tables need the width beside the sidebar from xl; narrower screens get one card per row. */
+  const cards = useMediaQuery(BELOW_XL);
   const [users, setUsers] = useState<UserPublic[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [defaultKey, setDefaultKey] = useState<DefaultKeyStatus | null>(null);
@@ -42,6 +45,68 @@ export function AdminPage() {
 
   const emailOf = (uid: string) => users.find((u) => u.userId === uid)?.email ?? uid;
   const usageOf = (uid: string) => orgUsage.find((r) => r.userId === uid);
+  const roleSelect = (u: UserPublic) => (
+    <select
+      value={u.role}
+      disabled={u.userId === me.userId}
+      onChange={(e) => act(api.adminUpdateUser(u.userId, { role: e.target.value as "user" | "admin" }))}
+      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs coarse:min-h-11"
+    >
+      <option value="user">user</option>
+      <option value="admin">admin</option>
+    </select>
+  );
+  const keyText = (u: UserPublic) => (u.apiKeyRegistered ? t("admin.keyYes", { last4: u.apiKeyLast4 ?? "" }) : t("admin.keyNo"));
+  const tierSelect = (u: UserPublic) => (
+    <>
+      <select
+        value={u.orgAccess?.tier ?? 0}
+        aria-label={t("admin.orgTierOf", { email: u.email })}
+        data-testid={`org-tier-${u.userId}`}
+        onChange={(e) => act(api.adminUpdateUser(u.userId, { orgTier: Number(e.target.value) as OrgTier | 0 }))}
+        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs coarse:min-h-11"
+      >
+        <option value={0}>{t("admin.tierNone")}</option>
+        <option value={1}>Tier 1</option>
+        <option value={2}>Tier 2</option>
+      </select>
+      {u.orgAccess && u.apiKeyRegistered && <span className="ml-2 text-slate-400">{t("admin.ownKeyFirst")}</span>}
+    </>
+  );
+  const usageCell = (u: UserPublic) => {
+    const r = usageOf(u.userId);
+    if (!r) return <span className="text-slate-400">—</span>;
+    return (
+      <span title={t("admin.orgUsageJobs", { n: r.jobs })}>
+        <span className="font-semibold text-emerald-700">{formatUsd(r.costUsd)}</span>{" "}
+        <span className="text-slate-500">{t("admin.orgUsageMonth", { cost: formatUsd(r.monthCostUsd) })}</span>
+      </span>
+    );
+  };
+  const stateText = (u: UserPublic) => (u.disabled ? <span className="text-rose-600">{t("admin.disabled")}</span> : <span className="text-emerald-600">{t("admin.enabled")}</span>);
+  const toggleButton = (u: UserPublic) =>
+    u.userId !== me.userId && (
+      <button onClick={() => act(api.adminUpdateUser(u.userId, { disabled: !u.disabled }))} className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
+        {u.disabled ? t("admin.enable") : t("admin.disable")}
+      </button>
+    );
+  const projectName = (p: ProjectRecord) => (
+    <>
+      <span className={`break-words ${p.deletedAt ? "line-through" : ""}`}>{projectDisplayName(p)}</span>
+      {p.deletedAt && (
+        <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600" title={t("del.deletedAt", { date: fmtDate(p.deletedAt, locale) })}>
+          {t("del.deleted")}
+        </span>
+      )}
+      <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+    </>
+  );
+  const modelsOf = (p: ProjectRecord) => (p.usedModels?.length ? p.usedModels : [p.model ?? "—"]).join(", ");
+  const forceStop = (p: ProjectRecord) => (
+    <button onClick={() => void api.adminCancel(p.userId, p.projectId).then(load)} className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 coarse:min-h-11">
+      {t("admin.forceStop")}
+    </button>
+  );
   const keyAction = (fn: () => Promise<DefaultKeyStatus>) => {
     setKeyBusy(true);
     setErr(null);
@@ -100,133 +165,134 @@ export function AdminPage() {
       </section>
 
       <h2 className="mb-2 text-sm font-semibold">{t("admin.users", { n: users.length })}</h2>
-      <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full whitespace-nowrap text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-2">{t("admin.email")}</th>
-              <th className="px-4 py-2">{t("admin.displayName")}</th>
-              <th className="px-4 py-2">{t("admin.role")}</th>
-              <th className="px-4 py-2">{t("admin.apiKey")}</th>
-              <th className="px-4 py-2">
-                <span className="inline-flex items-center gap-1">
+      {cards && (
+        <ul className="mb-6 grid gap-2" data-testid="admin-user-cards">
+          {users.map((u) => (
+            <li key={u.userId} className="rounded-xl border border-slate-200 bg-white p-3">
+              <div className="text-sm font-medium [overflow-wrap:anywhere]">{u.email}</div>
+              <div className="text-xs text-slate-500">
+                {u.displayName} · {fmtDate(u.createdAt, locale)}
+              </div>
+              <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 text-xs">
+                <dt className="text-slate-500">{t("admin.role")}</dt>
+                <dd>{roleSelect(u)}</dd>
+                <dt className="text-slate-500">{t("admin.apiKey")}</dt>
+                <dd>{keyText(u)}</dd>
+                <dt className="flex items-center gap-1 text-slate-500">
                   {t("admin.orgTier")} <HelpTip text={t("admin.orgTierHelp")} />
-                </span>
-              </th>
-              <th className="px-4 py-2">{t("admin.orgUsage")}</th>
-              <th className="px-4 py-2">{t("admin.state")}</th>
-              <th className="px-4 py-2">{t("admin.registeredAt")}</th>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {users.map((u) => (
-              <tr key={u.userId}>
-                <td className="px-4 py-2">{u.email}</td>
-                <td className="px-4 py-2">{u.displayName}</td>
-                <td className="px-4 py-2">
-                  <select
-                    value={u.role}
-                    disabled={u.userId === me.userId}
-                    onChange={(e) => act(api.adminUpdateUser(u.userId, { role: e.target.value as "user" | "admin" }))}
-                    className="rounded border border-slate-300 px-2 py-1 text-xs coarse:min-h-11"
-                  >
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </td>
-                <td className="px-4 py-2 text-xs">{u.apiKeyRegistered ? t("admin.keyYes", { last4: u.apiKeyLast4 ?? "" }) : t("admin.keyNo")}</td>
-                <td className="px-4 py-2 text-xs">
-                  <select
-                    value={u.orgAccess?.tier ?? 0}
-                    aria-label={t("admin.orgTierOf", { email: u.email })}
-                    data-testid={`org-tier-${u.userId}`}
-                    onChange={(e) => act(api.adminUpdateUser(u.userId, { orgTier: Number(e.target.value) as OrgTier | 0 }))}
-                    className="rounded border border-slate-300 px-2 py-1 text-xs coarse:min-h-11"
-                  >
-                    <option value={0}>{t("admin.tierNone")}</option>
-                    <option value={1}>Tier 1</option>
-                    <option value={2}>Tier 2</option>
-                  </select>
-                  {u.orgAccess && u.apiKeyRegistered && <span className="ml-2 text-slate-400">{t("admin.ownKeyFirst")}</span>}
-                </td>
-                <td className="px-4 py-2 text-xs">
-                  {(() => {
-                    const r = usageOf(u.userId);
-                    if (!r) return <span className="text-slate-400">—</span>;
-                    return (
-                      <span title={t("admin.orgUsageJobs", { n: r.jobs })}>
-                        <span className="font-semibold text-emerald-700">{formatUsd(r.costUsd)}</span>{" "}
-                        <span className="text-slate-500">{t("admin.orgUsageMonth", { cost: formatUsd(r.monthCostUsd) })}</span>
-                      </span>
-                    );
-                  })()}
-                </td>
-                <td className="px-4 py-2 text-xs">{u.disabled ? <span className="text-rose-600">{t("admin.disabled")}</span> : <span className="text-emerald-600">{t("admin.enabled")}</span>}</td>
-                <td className="px-4 py-2 text-xs text-slate-500">{fmtDate(u.createdAt, locale)}</td>
-                <td className="px-4 py-2 text-right">
-                  {u.userId !== me.userId && (
-                    <button onClick={() => act(api.adminUpdateUser(u.userId, { disabled: !u.disabled }))} className="rounded border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
-                      {u.disabled ? t("admin.enable") : t("admin.disable")}
-                    </button>
-                  )}
-                </td>
+                </dt>
+                <dd className="flex flex-wrap items-center gap-x-2 gap-y-1">{tierSelect(u)}</dd>
+                <dt className="text-slate-500">{t("admin.orgUsage")}</dt>
+                <dd>{usageCell(u)}</dd>
+                <dt className="text-slate-500">{t("admin.state")}</dt>
+                <dd className="flex flex-wrap items-center gap-2">
+                  {stateText(u)}
+                  {toggleButton(u)}
+                </dd>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!cards && (
+        <div className="mb-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-2">
+                  {t("admin.email")} / {t("admin.displayName")}
+                </th>
+                <th className="px-3 py-2">{t("admin.role")}</th>
+                <th className="px-3 py-2">{t("admin.apiKey")}</th>
+                <th className="px-3 py-2">
+                  <span className="inline-flex items-center gap-1">
+                    {t("admin.orgTier")} <HelpTip text={t("admin.orgTierHelp")} />
+                  </span>
+                </th>
+                <th className="px-3 py-2">{t("admin.orgUsage")}</th>
+                <th className="px-3 py-2">{t("admin.state")}</th>
+                <th className="px-3 py-2">{t("admin.registeredAt")}</th>
+                <th className="px-3 py-2"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map((u) => (
+                <tr key={u.userId}>
+                  <td className="min-w-[12rem] px-3 py-2">
+                    <div className="[overflow-wrap:anywhere]">{u.email}</div>
+                    <div className="text-xs text-slate-500">{u.displayName}</div>
+                  </td>
+                  <td className="px-3 py-2">{roleSelect(u)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-xs">{keyText(u)}</td>
+                  <td className="px-3 py-2 text-xs">{tierSelect(u)}</td>
+                  <td className="px-3 py-2 text-xs">{usageCell(u)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-xs">{stateText(u)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(u.createdAt, locale)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{toggleButton(u)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <h2 className="mb-2 text-sm font-semibold">
         {t("admin.allProjects", { n: projects.length })}
         {projects.some((p) => p.deletedAt) && <span className="ml-2 font-normal text-slate-500">{t("del.adminNote", { n: projects.filter((p) => p.deletedAt).length })}</span>}
       </h2>
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full whitespace-nowrap text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-4 py-2">Project ID</th>
-              <th className="px-4 py-2">{t("admin.owner")}</th>
-              <th className="px-4 py-2">{t("projects.status")}</th>
-              <th className="px-4 py-2">{t("projects.model")}</th>
-              <th className="px-4 py-2">{t("projects.tokensCost")}</th>
-              <th className="px-4 py-2">{t("projects.updated")}</th>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {projects.map((p) => (
-              <tr key={`${p.userId}/${p.projectId}`} className={p.deletedAt ? "bg-slate-50 text-slate-400" : undefined}>
-                <td className="px-4 py-2 text-xs">
-                  <span className={p.deletedAt ? "line-through" : undefined}>{projectDisplayName(p)}</span>
-                  {p.deletedAt && (
-                    <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600" title={t("del.deletedAt", { date: fmtDate(p.deletedAt, locale) })}>
-                      {t("del.deleted")}
-                    </span>
-                  )}
-                  <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
-                </td>
-                <td className="px-4 py-2 text-xs">{emailOf(p.userId)}</td>
-                <td className="px-4 py-2">
-                  <StatusBadge status={p.status} />
-                </td>
-                <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px] text-slate-600">{(p.usedModels?.length ? p.usedModels : [p.model ?? "—"]).join(", ")}</td>
-                <td className="px-4 py-2">
-                  <UsageBadge usage={p.usage} costUsd={p.costUsd} model={p.usedModels?.join(", ") || p.model} />
-                </td>
-                <td className="px-4 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
-                <td className="px-4 py-2 text-right">
-                  {isActive(p.status) && (
-                    <button onClick={() => void api.adminCancel(p.userId, p.projectId).then(load)} className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50 coarse:min-h-11">
-                      {t("admin.forceStop")}
-                    </button>
-                  )}
-                </td>
+      {cards && (
+        <ul className="grid gap-2" data-testid="admin-project-cards">
+          {projects.map((p) => (
+            <li key={`${p.userId}/${p.projectId}`} className={`rounded-xl border border-slate-200 p-3 text-xs ${p.deletedAt ? "bg-slate-50 text-slate-400" : "bg-white"}`}>
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">{projectName(p)}</div>
+                <StatusBadge status={p.status} compact />
+              </div>
+              <div className="mt-1 [overflow-wrap:anywhere]">{emailOf(p.userId)}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-mono text-[11px] text-slate-600">{modelsOf(p)}</span>
+                <UsageBadge usage={p.usage} costUsd={p.costUsd} model={p.usedModels?.join(", ") || p.model} />
+                <span className="text-slate-500">{fmtDate(p.updatedAt, locale)}</span>
+              </div>
+              {isActive(p.status) && <div className="mt-2">{forceStop(p)}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!cards && (
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+              <tr>
+                <th className="px-3 py-2">Project ID</th>
+                <th className="px-3 py-2">{t("admin.owner")}</th>
+                <th className="px-3 py-2">{t("projects.status")}</th>
+                <th className="px-3 py-2">{t("projects.model")}</th>
+                <th className="px-3 py-2">{t("projects.tokensCost")}</th>
+                <th className="px-3 py-2">{t("projects.updated")}</th>
+                <th className="px-3 py-2"></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {projects.map((p) => (
+                <tr key={`${p.userId}/${p.projectId}`} className={p.deletedAt ? "bg-slate-50 text-slate-400" : undefined}>
+                  <td className="min-w-[12rem] px-3 py-2 text-xs">{projectName(p)}</td>
+                  <td className="min-w-[10rem] px-3 py-2 text-xs [overflow-wrap:anywhere]">{emailOf(p.userId)}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <StatusBadge status={p.status} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 font-mono text-[11px] text-slate-600">{modelsOf(p)}</td>
+                  <td className="px-3 py-2">
+                    <UsageBadge usage={p.usage} costUsd={p.costUsd} model={p.usedModels?.join(", ") || p.model} />
+                  </td>
+                  <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-right">{isActive(p.status) && forceStop(p)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
