@@ -42,7 +42,7 @@ packages/
   shared/   types, harness (JSON Schemas, validators, CSV generation), graph JSON generation (buildGraphs), utilities (vitest)
   worker/   Fargate worker + Dockerfile (Node 22 + @openai/codex-sdk + Python 3)
             src/index.ts (job control) pipeline.ts (phase loop) codex.ts (SDK) s3sync.ts steps.ts finalize.ts
-  api/      Lambda: src/app.ts (Hono) and src/handlers/{http,dispatcher,ws,broadcaster,janitor}.ts
+  api/      Lambda: src/app.ts (Hono) and src/handlers/{http,dispatcher,ws,broadcaster,janitor,authMessage}.ts
   web/      React SPA (Vite + Tailwind + React Flow)
   infra/    AWS CDK stack `CobracAgents` (Lambdas bundled with NodejsFunction/esbuild)
 ```

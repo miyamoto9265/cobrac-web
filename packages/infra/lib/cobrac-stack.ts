@@ -38,6 +38,8 @@ export interface CobracAgentsStackProps extends StackProps {
   rcsMcpUrl: string;
   /** Secrets Manager secret (same account) holding the accepted RCS bearer tokens, owned by rosetta-candidate-search */
   rcsMcpSecretName: string;
+  /** site URL written in the account e-mails */
+  siteUrl: string;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -166,6 +168,15 @@ export class CobracAgentsStack extends Stack {
       standardAttributes: { email: { required: true, mutable: true } },
       passwordPolicy: { minLength: 10, requireLowercase: true, requireDigits: true, requireUppercase: false, requireSymbols: false },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      // the AuthMessageFn trigger writes the real mails; these only apply if it is detached
+      userVerification: {
+        emailSubject: "[CoBRAC Agents] 確認コード / Verification code",
+        emailBody: `CoBRAC Agents (${props.siteUrl}) の確認コード / Verification code: {####}<br>心当たりがない場合は破棄してください。 / If you did not request this, ignore this message.`,
+      },
+      userInvitation: {
+        emailSubject: "[CoBRAC Agents] アカウントが作成されました / Your account has been created",
+        emailBody: `CoBRAC Agents (${props.siteUrl})<br>ログイン ID / Login ID: {username}<br>仮パスワード / Temporary password: {####}`,
+      },
       removalPolicy: RemovalPolicy.RETAIN,
     });
     const userPoolClient = userPool.addClient("WebClient", {
@@ -316,6 +327,13 @@ export class CobracAgentsStack extends Stack {
     const wsDefaultFn = fn("WsDefaultFn", "handlers/ws.ts", "defaultRoute");
     const broadcasterFn = fn("BroadcasterFn", "handlers/broadcaster.ts", "handler", { timeout: Duration.seconds(60) });
     const janitorFn = fn("JanitorFn", "handlers/janitor.ts", "handler", { timeout: Duration.minutes(2) });
+    // account e-mails (sign-up / resend / password reset / e-mail change / invite); no table or key access
+    const authMessageFn = fn("AuthMessageFn", "handlers/authMessage.ts", "handler", {
+      memorySize: 256,
+      timeout: Duration.seconds(5),
+      environment: { SITE_URL: props.siteUrl },
+    });
+    userPool.addTrigger(cognito.UserPoolOperation.CUSTOM_MESSAGE, authMessageFn);
 
     // permissions ------------------------------------------------------------
     for (const t of [users, projects, jobs, messages, wsConnections]) {

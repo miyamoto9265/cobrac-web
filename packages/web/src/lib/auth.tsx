@@ -14,6 +14,7 @@ import {
 } from "aws-amplify/auth";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { MeResponse } from "@cobrac/shared";
+import { useI18n } from "../i18n";
 import { api } from "./api";
 import type { RuntimeConfig } from "./config";
 
@@ -57,6 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
   const [me, setMe] = useState<MeResponse | null>(null);
+  const { locale } = useI18n();
+  // read by the Cognito custom message trigger to pick the language of the account e-mails
+  const clientMetadata = useMemo(() => ({ lang: locale }), [locale]);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -105,17 +109,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await check();
       },
       doSignUp: async (e, p) => {
-        const r = await signUp({ username: e, password: p, options: { userAttributes: { email: e } } });
+        const r = await signUp({ username: e, password: p, options: { userAttributes: { email: e }, clientMetadata } });
         return r.nextStep.signUpStep === "CONFIRM_SIGN_UP" ? "confirm" : "done";
       },
       doConfirmSignUp: async (e, code) => {
         await confirmSignUp({ username: e, confirmationCode: code });
       },
       doResendCode: async (e) => {
-        await resendSignUpCode({ username: e });
+        await resendSignUpCode({ username: e, options: { clientMetadata } });
       },
       doResetPassword: async (e) => {
-        await resetPassword({ username: e });
+        await resetPassword({ username: e, options: { clientMetadata } });
       },
       doConfirmResetPassword: async (e, code, np) => {
         await confirmResetPassword({ username: e, confirmationCode: code, newPassword: np });
@@ -128,7 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await check();
       },
     }),
-    [ready, signedIn, email, me, refreshMe, check],
+    [ready, signedIn, email, me, refreshMe, check, clientMetadata],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

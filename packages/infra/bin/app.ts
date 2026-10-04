@@ -24,4 +24,6 @@ new CobracAgentsStack(app, "CobracAgents", {
   // rosetta-candidate-search rcs-mcp (docs/aws_operations_guide.md 4-1b); set COBRAC_RCS_MCP_URL="" to disable
   rcsMcpUrl: process.env.COBRAC_RCS_MCP_URL ?? "https://hg2se72l61.execute-api.ap-northeast-1.amazonaws.com/mcp",
   rcsMcpSecretName: process.env.COBRAC_RCS_MCP_SECRET_NAME || "rcs/mcp-bearer-token",
+  // cobrac.site is the CloudFront alias (DNS in the personal account)
+  siteUrl: process.env.COBRAC_SITE_URL || "https://cobrac.site",
 });
