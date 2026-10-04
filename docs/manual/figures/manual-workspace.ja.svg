@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 370" width="880" height="370" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">プロジェクト画面の構成</title>
+<desc id="d">上のヘッダーに名前・状態・ROI と TLF・モデル・利用量、停止とリトライ、BRA xlsx のダウンロード、公開、Canon への push、削除が並び、その下に進み具合が出ます。成果物はタブ（HCD、FRG、表データ、レポート、判断ログ、解説記事）で切り替えます。右のエージェント欄に作業のログ、質問、入力欄があります。スマホではエージェント欄はボタンで開きます。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="880" height="370" fill="#ffffff"/>
+<rect x="20" y="20" width="96" height="330" rx="6" fill="#1e293b" stroke="#1e293b" stroke-width="1.3"/>
+<text x="32" y="46" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>新規</tspan></text>
+<text x="32" y="68" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>履歴</tspan></text>
+
+<text x="32" y="262" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>一覧</tspan></text>
+<text x="32" y="284" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>Canon</tspan></text>
+<text x="32" y="306" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>公開</tspan></text>
+<text x="32" y="328" font-size="11.5" font-weight="400" fill="#e2e8f0" text-anchor="start"><tspan>設定</tspan></text>
+<rect x="124" y="20" width="518" height="62" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.3"/>
+<text x="136" y="44" font-size="12.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>ヘッダー：名前・状態・ROI / TLF・モデル・利用量</tspan></text>
+<text x="136" y="66" font-size="11.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>停止 / リトライ · BRA xlsx · 公開 · push · 削除</tspan></text>
+<rect x="124" y="90" width="518" height="30" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="136" y="109" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>進み具合：調査 → HCD ⇄ FRG → CSV → xlsx</tspan></text>
+<rect x="124" y="128" width="83" height="26" rx="6" fill="#ffffff" stroke="#3b82f6" stroke-width="1.3"/><text x="165.5" y="145.5" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>HCD</tspan></text>
+<rect x="211" y="128" width="83" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="252.5" y="145.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>FRG</tspan></text>
+<rect x="298" y="128" width="83" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="339.5" y="145.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>表データ</tspan></text>
+<rect x="385" y="128" width="83" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="426.5" y="145.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>レポート</tspan></text>
+<rect x="472" y="128" width="83" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="513.5" y="145.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>判断ログ</tspan></text>
+<rect x="559" y="128" width="83" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="600.5" y="145.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>解説記事</tspan></text>
+<rect x="124" y="162" width="518" height="188" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="383" y="242.775" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>成果物</tspan></text>
+<text x="383" y="262.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>グラフ・表・文書を表示</tspan></text>
+<text x="383" y="280.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>グラフはノードを選ぶと詳細</tspan></text>
+<rect x="650" y="20" width="210" height="330" rx="6" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.3"/>
+<text x="755" y="44" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>エージェント</tspan></text>
+<text x="664" y="78" font-size="12" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>作業のログ</tspan></text>
+<text x="664" y="102" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>（思考・実行は折りたたみ）</tspan></text>
+
+<text x="664" y="150" font-size="12" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>質問（黄色の枠）</tspan></text>
+<text x="664" y="174" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>選択肢のボタン</tspan></text>
+
+<text x="664" y="222" font-size="12" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>入力欄</tspan></text>
+<text x="664" y="246" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>回答 / 追加の指示</tspan></text>
+</svg>

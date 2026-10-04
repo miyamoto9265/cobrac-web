@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 408" width="430" height="408" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">Four steps to get started</title>
+<desc id="d">1. Create an account with your e-mail address and a password. 2. Enter the confirmation code from the e-mail. 3. Register your own OpenAI API key in Settings, or have an admin approve you for the default API key. 4. Create a new project with an ROI and a TLF and run it.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="408" fill="#ffffff"/>
+<rect x="30" y="20" width="380" height="74" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="220" y="43.775000000000006" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>Create account</tspan></text>
+<text x="220" y="63.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>e-mail address and</tspan></text>
+<text x="220" y="81.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>password (10+ chars)</tspan></text>
+<circle cx="34" cy="24" r="11" fill="#3b82f6"/><text x="34" y="28.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>1</tspan></text>
+<path d="M220 96 L220 116" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="30" y="118" width="380" height="74" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="220" y="141.775" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>Confirm</tspan></text>
+<text x="220" y="161.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>enter the code</tspan></text>
+<text x="220" y="179.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>from the e-mail</tspan></text>
+<circle cx="34" cy="122" r="11" fill="#3b82f6"/><text x="34" y="126.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>2</tspan></text>
+<path d="M220 194 L220 214" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="30" y="216" width="380" height="74" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="220" y="230.7125" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>API key</tspan></text>
+<text x="220" y="250.0625" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>register your own</tspan></text>
+<text x="220" y="268.1875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>or get approved for</tspan></text>
+<text x="220" y="286.3125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>the default API key</tspan></text>
+<circle cx="34" cy="220" r="11" fill="#3b82f6"/><text x="34" y="224.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>3</tspan></text>
+<path d="M220 292 L220 312" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="30" y="314" width="380" height="74" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="220" y="337.775" font-size="14" font-weight="700" fill="#065f46" text-anchor="middle"><tspan>New project</tspan></text>
+<text x="220" y="357.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>enter ROI and TLF</tspan></text>
+<text x="220" y="375.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>and run</tspan></text>
+<circle cx="34" cy="318" r="11" fill="#3b82f6"/><text x="34" y="322.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>4</tspan></text>
+</svg>

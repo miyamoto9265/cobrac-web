@@ -4,14 +4,11 @@ import { resolve } from "node:path";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { HelpLink, HelpTip } from "../src/components/HelpTip";
 import { I18nProvider } from "../src/i18n";
 import { extractHeadings } from "../src/lib/docs";
-import { HELP_ANCHORS, HELP_DOC, helpDocPath } from "../src/lib/help";
-
-const auth = vi.hoisted(() => ({ me: { role: "admin" } as { role: string } | null }));
-vi.mock("../src/lib/auth", () => ({ useAuth: () => auth }));
+import { HELP_ANCHORS, MANUAL_LANGS, helpDocPath } from "../src/lib/help";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -95,22 +92,16 @@ describe("HelpTip", () => {
 });
 
 describe("help links", () => {
-  it("are shown to admins only, since the guide is admin documentation", async () => {
-    auth.me = { role: "user" };
+  it("open the manual section in the UI language, or in English when the manual is not written in it", async () => {
     await render(<HelpLink section="rules" />);
-    expect(document.querySelector("a")).toBeNull();
-    auth.me = { role: "admin" };
+    expect(document.querySelector("a")!.getAttribute("href")).toBe(`/manual#${encodeURIComponent("canon-に従って作る")}`);
+    expect(helpDocPath("de", "push")).toBe("/manual#push-and-review");
+    expect(helpDocPath("en", "public")).toBe("/manual#publishing-and-cloning");
   });
 
-  it("point to the guide in the UI language", async () => {
-    await render(<HelpLink section="rules" />);
-    expect(document.querySelector("a")!.getAttribute("href")).toBe(`/docs/${HELP_DOC}_ja#${encodeURIComponent("canon-による生成時の制約")}`);
-    expect(helpDocPath("de", "push")).toBe(`/docs/${HELP_DOC}#push-and-pull-requests`);
-  });
-
-  it("use anchors that exist in both documents", () => {
-    for (const lang of ["en", "ja"] as const) {
-      const file = resolve(__dirname, `../../../docs/${HELP_DOC}${lang === "ja" ? "_ja" : ""}.md`);
+  it("use anchors that exist in every language of the manual", () => {
+    for (const lang of MANUAL_LANGS) {
+      const file = resolve(__dirname, `../../../docs/manual/${lang}.md`);
       const ids = extractHeadings(readFileSync(file, "utf8")).map((h) => h.id);
       for (const [section, anchors] of Object.entries(HELP_ANCHORS)) expect(ids, `${lang} ${section}`).toContain(anchors[lang]);
     }

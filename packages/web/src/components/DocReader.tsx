@@ -56,9 +56,9 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
   const onAnchor = useCallback(
     (id: string) => {
       scrollToId(id);
-      navigate({ hash: `#${encodeURIComponent(id)}` }, { replace: true });
+      navigate({ search: location.search, hash: `#${encodeURIComponent(id)}` }, { replace: true });
     },
-    [navigate, scrollToId],
+    [navigate, scrollToId, location.search],
   );
 
   useEffect(() => {

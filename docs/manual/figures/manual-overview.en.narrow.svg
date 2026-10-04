@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 574" width="430" height="574" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">How CoBRAC Agents works: from ROI and TLF to BRA data</title>
+<desc id="d">Enter an ROI (region of interest) and a TLF (top-level function) and run: the agent does the research (in research mode), the HCD and FRG with round trips between them, the CSV files and the BRA xlsx. Each output appears on the project page when its step is done. Answer questions in the Agent panel; after completion, send follow-up instructions to change the result.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="574" fill="#ffffff"/>
+<rect x="20" y="20" width="390" height="64" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="215" y="38.775000000000006" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>Input</tspan></text>
+<text x="215" y="58.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>ROI · TLF</tspan></text>
+<text x="215" y="76.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>materials (optional)</tspan></text>
+<path d="M215 86 L215 106" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="108" width="390" height="64" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="215" y="126.775" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>Research</tspan></text>
+<text x="215" y="146.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>in research mode:</tspan></text>
+<text x="215" y="164.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>gathers literature</tspan></text>
+<path d="M215 174 L215 194" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="196" width="390" height="64" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="215" y="214.775" font-size="14" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan>HCD ⇄ FRG</tspan></text>
+<text x="215" y="234.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>circuits and the</tspan></text>
+<text x="215" y="252.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>function breakdown</tspan></text>
+<path d="M215 262 L215 282" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="284" width="390" height="64" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="215" y="311.8375" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>CSV</tspan></text>
+<text x="215" y="331.1875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>five tables</tspan></text>
+<path d="M215 350 L215 370" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<rect x="20" y="372" width="390" height="64" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="215" y="390.775" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>BRA xlsx</tspan></text>
+<text x="215" y="410.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>CoBRAC format</tspan></text>
+<text x="215" y="428.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Template-v2-2</tspan></text>
+<text x="215" y="462" font-size="12" font-weight="400" fill="#475569" text-anchor="middle"><tspan>Each output appears on the project page when its step is done</tspan></text>
+<rect x="20" y="478" width="390" height="76" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="215" y="502.775" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>Agent panel</tspan></text>
+<text x="215" y="522.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Answer questions</tspan></text>
+<text x="215" y="540.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Send follow-up instructions</tspan></text>
+</svg>

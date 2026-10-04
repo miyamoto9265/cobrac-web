@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 378" width="430" height="378" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">プロジェクト画面の構成</title>
+<desc id="d">上のヘッダーに名前・状態・ROI と TLF・モデル・利用量、停止とリトライ、BRA xlsx のダウンロード、公開、Canon への push、削除が並び、その下に進み具合が出ます。成果物はタブ（HCD、FRG、表データ、レポート、判断ログ、解説記事）で切り替えます。右のエージェント欄に作業のログ、質問、入力欄があります。スマホではエージェント欄はボタンで開きます。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="378" fill="#ffffff"/>
+<rect x="20" y="20" width="390" height="58" rx="6" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.3"/>
+<text x="30" y="42" font-size="11.5" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>ヘッダー：名前・状態・ROI / TLF・モデル・利用量</tspan></text>
+<text x="30" y="62" font-size="11" font-weight="400" fill="#475569" text-anchor="start"><tspan>停止 / リトライ · BRA xlsx · 公開 · push · 削除</tspan></text>
+<rect x="20" y="86" width="390" height="30" rx="6" fill="#ecfdf5" stroke="#10b981" stroke-width="1.3"/>
+<text x="30" y="105" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>進み具合：調査 → HCD ⇄ FRG → CSV → xlsx</tspan></text>
+<rect x="20" y="124" width="127.33333333333333" height="26" rx="6" fill="#ffffff" stroke="#3b82f6" stroke-width="1.3"/><text x="83.66666666666666" y="141.5" font-size="11.5" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>HCD</tspan></text>
+<rect x="151.33333333333331" y="124" width="127.33333333333333" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="214.99999999999997" y="141.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>FRG</tspan></text>
+<rect x="282.66666666666663" y="124" width="127.33333333333333" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="346.3333333333333" y="141.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>表データ</tspan></text>
+<rect x="20" y="154" width="127.33333333333333" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="83.66666666666666" y="171.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>レポート</tspan></text>
+<rect x="151.33333333333331" y="154" width="127.33333333333333" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="214.99999999999997" y="171.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>判断ログ</tspan></text>
+<rect x="282.66666666666663" y="154" width="127.33333333333333" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.3"/><text x="346.3333333333333" y="171.5" font-size="11.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>解説記事</tspan></text>
+<rect x="20" y="188" width="390" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="215" y="217.5" font-size="14" font-weight="700" fill="#0f172a" text-anchor="middle"><tspan>成果物</tspan></text>
+<text x="215" y="236.29999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>グラフ・表・文書を表示</tspan></text>
+<text x="215" y="253.7" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>グラフはノードを選ぶと詳細</tspan></text>
+<rect x="20" y="284" width="390" height="74" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="215" y="308.5" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>エージェント</tspan></text>
+<text x="215" y="327.3" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>タブの右の「エージェント」で開く</tspan></text>
+<text x="215" y="344.7" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>ログ・質問・入力欄</tspan></text>
+</svg>

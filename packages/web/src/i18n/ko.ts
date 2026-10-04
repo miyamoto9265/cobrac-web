@@ -35,6 +35,7 @@ export const ko: Record<MessageKey, string> = {
   "nav.projects": "프로젝트",
   "nav.settings": "설정",
   "nav.docs": "문서",
+  "nav.manual": "사용 설명서",
   "nav.releases": "릴리스 노트",
   "nav.admin": "관리",
   "nav.signOut": "로그아웃",
@@ -382,6 +383,8 @@ export const ko: Record<MessageKey, string> = {
   "docs.count": "{n}건",
   "docs.back": "문서 목록",
   "docs.loadFailed": "문서를 불러오지 못했습니다: {error}",
+  "manual.title": "사용 설명서",
+  "manual.fallback": "{lang} 사용 설명서는 아직 없어 영어판을 표시합니다.",
 
   "graph.search": "노드 검색…",
   "graph.undo": "실행 취소 (Ctrl+Z)",
