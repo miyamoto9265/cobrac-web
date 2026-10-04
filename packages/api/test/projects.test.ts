@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeleteProjectResponse, JobRecord, MessageRecord, ProjectRecord, UpdateProjectResponse, UsageSummary } from "@cobrac/shared";
-import { PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
+import { HARNESS_RULES, PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 
@@ -467,6 +467,16 @@ describe("SABRA boundary", () => {
     const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "nucleus accumbens", tlf: "reward learning" }));
     expect(p.sabraBoundary).toBe("neocortex");
     expect((fake.items("projects").find((x) => x.projectId === p.projectId) as unknown as ProjectRecord).sabraBoundary).toBe("neocortex");
+  });
+});
+
+describe("harness rules", () => {
+  it("are set to the current rule set on new projects (older projects have none and are checked as before)", async () => {
+    await json(call(A, "GET", "/users/me"));
+    fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
+    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "visual word form area", tlf: "reading" }));
+    expect(p.harnessRules).toBe(HARNESS_RULES);
+    expect((fake.items("projects").find((x) => x.projectId === p.projectId) as unknown as ProjectRecord).harnessRules).toBe(HARNESS_RULES);
   });
 });
 

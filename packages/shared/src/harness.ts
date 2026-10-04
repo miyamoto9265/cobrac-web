@@ -70,12 +70,37 @@ export const schemaFileName = (file: string) => file.replace(/\.json$/, ".schema
 /** `report.md` sections required after each phase. */
 export const REPORT_SECTIONS = { HCD: "## HCD", FRG: "## FRG" } as const;
 
+/**
+ * Harness rule set of a project, stored on the project when it is created (`ProjectRecord.harnessRules`); absent = 0,
+ * the projects created before these rules, which are checked as before. From 1: every element of the ROI has a
+ * ROI-internal UC of its own (`roiElements`), the ROI's side is declared and a side the user did not give means both
+ * sides (`roiSide`), and a quote that supports several connections is warned about.
+ */
+export const HARNESS_RULES = 1;
+
+export const ROI_SIDES = ["both", "left", "right"] as const;
+export type RoiSide = (typeof ROI_SIDES)[number];
+/** `user`: the user's ROI or instructions name the side; `assumed`: they do not, so the ROI covers both sides. */
+export const ROI_SIDE_SOURCES = ["user", "assumed"] as const;
+export type RoiSideSource = (typeof ROI_SIDE_SOURCES)[number];
+
+/** One element (region) of the ROI and the Circuit IDs of the ROI-internal UCs or Collections that represent it. */
+export interface RoiElement {
+  name: string;
+  ucs: string[];
+}
+
 export interface ProjectMeta {
   roi: string;
   tlf: string;
   description: string;
   /** Project name proposed by the agent ("<TLF> in <ROI>") */
   name?: string;
+  /** Harness rules 1: the ROI's elements */
+  roiElements?: RoiElement[];
+  /** Harness rules 1: the ROI's side and where it comes from */
+  roiSide?: RoiSide;
+  roiSideSource?: RoiSideSource;
 }
 
 export type UcRoi = "roi" | "input" | "output" | "both";
@@ -193,6 +218,8 @@ export interface CheckResult<T> {
   model: T | null;
   /** Problems the agent should fix */
   errors: string[];
+  /** Findings shown to the user but not sent back to the agent */
+  warnings?: string[];
   /** True when the output cannot be used at all (missing core file) */
   fatal: boolean;
 }
@@ -254,13 +281,33 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
     $schema: SCHEMA_URI,
     $id: schemaFileName(PROJECT_FILES.meta),
     title: "Project metadata",
-    ...record({
-      $schema: str(),
-      roi: nonEmpty("ROI in English"),
-      tlf: nonEmpty("TLF in English"),
-      description: nonEmpty("One English sentence describing the project"),
-      name: nonEmpty("Display name `<TLF> in <ROI>` (English, sentence case, about 60 characters, max 200)"),
-    }),
+    ...record(
+      {
+        $schema: str(),
+        roi: nonEmpty("ROI in English"),
+        tlf: nonEmpty("TLF in English"),
+        description: nonEmpty("One English sentence describing the project"),
+        name: nonEmpty("Display name `<TLF> in <ROI>` (English, sentence case, about 60 characters, max 200)"),
+      },
+      {
+        roiElements: {
+          type: "array",
+          minItems: 1,
+          description: "Required when the HCD spec has the ROI rules: one entry per element (region) the ROI consists of, in the order of `roi`",
+          items: record({
+            name: nonEmpty("The element's name in English, as in `roi` (e.g. `visual word form area`)"),
+            ucs: {
+              type: "array",
+              minItems: 1,
+              items: { type: "string", pattern: "^\\S+$" },
+              description: "Circuit IDs from uc.json of the ROI-internal UCs (or Collections of them) that represent this element; at least one UC represents this element only",
+            },
+          }),
+        },
+        roiSide: { enum: ROI_SIDES, description: "Required when the HCD spec has the ROI rules: the hemisphere(s) the ROI covers; both when the user gave no side" },
+        roiSideSource: { enum: ROI_SIDE_SOURCES, description: "Required with roiSide: user when the user's ROI or instructions name the side, assumed when they do not (then roiSide is both)" },
+      },
+    ),
     required: ["roi", "tlf", "description", "name"],
   },
   [HCD_FILES.references]: fileSchema(HCD_FILES.references, "Literature cited by the HCD / FRG", {
@@ -483,6 +530,10 @@ function parseMeta(text: string | null | undefined, errors: string[]): ProjectMe
     if ("error" in n) errors.push(`meta.json: "name" is invalid (${n.error}).`);
     else meta.name = n.name;
   }
+  const elements = items(j, "roiElements");
+  if (elements) meta.roiElements = elements.map((e) => ({ name: s(e.name), ucs: [...new Set(strings(e.ucs).map(stripUc))] })).filter((e) => e.name);
+  if ((ROI_SIDES as readonly string[]).includes(s(j.roiSide))) meta.roiSide = s(j.roiSide) as RoiSide;
+  if ((ROI_SIDE_SOURCES as readonly string[]).includes(s(j.roiSideSource))) meta.roiSideSource = s(j.roiSideSource) as RoiSideSource;
   return meta;
 }
 
@@ -503,6 +554,8 @@ export interface CheckHcdOptions {
   sabraBoundary?: SabraBoundary;
   /** Normalized UC Descriptors exempt from the boundary (the pinned Canon's circuits) */
   boundaryExempt?: ReadonlySet<string>;
+  /** The project's harness rule set (`HARNESS_RULES` for new projects; absent for older ones, which skip the ROI rules and quote warnings) */
+  harnessRules?: number;
 }
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
@@ -724,7 +777,131 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     }
   }
 
-  return { model: fatal ? null : { meta, refs, ucs, collections, bif, connections }, errors: [...new Set(errors)], fatal };
+  const warnings: string[] = [];
+  if ((opts.harnessRules ?? 0) >= 1 && !fatal) {
+    if (meta) errors.push(...roiProblems(meta, ucs, collections, files.decisionLog ?? ""));
+    warnings.push(...reusedQuoteWarnings(connections));
+  }
+
+  return { model: fatal ? null : { meta, refs, ucs, collections, bif, connections }, errors: [...new Set(errors)], warnings, fatal };
+}
+
+const SIDE_WORD_RE = /^(?:the\s+)?(?:left|right|bilateral|both(?:\s+sides|\s+hemispheres)?)$/i;
+
+/**
+ * The regions an ROI text names: split at commas, semicolons, `and`, `&` and `+` outside parentheses; a bare side
+ * word (`left and right IFG`) is not a region. `visual word form area and posterior fusiform gyrus` → 2.
+ */
+export function roiParts(roi: string): string[] {
+  return splitTopLevel(roi.replace(/\s+(?:and|&|\+|plus)\s+/gi, ","), ",;")
+    .map((x) => x.trim())
+    .filter((x) => x && !SIDE_WORD_RE.test(x));
+}
+
+/** What decision_log.md says when the ROI's side was not given. */
+const BILATERAL_NOTE_RE = /\b(?:bilateral|both\s+(?:hemispheres|sides))\b/i;
+
+/**
+ * Harness rules 1 on the ROI: every element of the ROI has a ROI-internal UC that represents only it (so one UC does
+ * not stand for, e.g., the VWFA and the posterior fusiform gyrus together), every ROI-internal UC belongs to an
+ * element, and the ROI's side is declared: a side the user did not give means both sides, written in the decision log.
+ */
+function roiProblems(meta: ProjectMeta, ucs: UcRow[], collections: CollectionRow[], decisionLog: string): string[] {
+  const errors: string[] = [];
+  const M = PROJECT_FILES.meta;
+  const internal = new Set(ucs.filter((u) => u.roi === "roi").map((u) => u.id));
+  const ucIds = new Set(ucs.map((u) => u.id));
+  const collectionIds = new Set(collections.map((c) => c.id));
+  const elements = meta.roiElements ?? [];
+  if (!elements.length) {
+    errors.push(`${M}: add \`roiElements\`: one entry per element (region) of the ROI, each with the ROI-internal UC(s) that represent it (see the ROI rules of the HCD spec).`);
+  } else {
+    const parts = roiParts(meta.roi);
+    if (parts.length > elements.length) {
+      errors.push(`${M}: roi names ${parts.length} regions (${parts.map((p) => `"${p}"`).join(", ")}) but roiElements lists ${elements.length}; give each region of the ROI its own element, with a UC of its own.`);
+    }
+    const leavesOf = new Map<string, Set<string>>();
+    for (const e of elements) {
+      const where = `${M}: roiElements "${e.name}"`;
+      if (leavesOf.has(e.name)) errors.push(`${where} is listed more than once.`);
+      const leaves = new Set<string>();
+      for (const id of e.ucs) {
+        if (collectionIds.has(id)) for (const l of collectionLeaves(collections, id)) if (internal.has(l)) leaves.add(l);
+        if (collectionIds.has(id)) continue;
+        if (!ucIds.has(id)) errors.push(`${where}: \`${id}\` is not a Circuit ID in uc.json.`);
+        else if (!internal.has(id)) errors.push(`${where}: \`${id}\` is an external UC (noROI); list the ROI-internal UCs of this element.`);
+        else leaves.add(id);
+      }
+      if (!leaves.size) errors.push(`${where} has no ROI-internal UC; list the UC(s) that represent this element of the ROI.`);
+      leavesOf.set(e.name, leaves);
+    }
+    for (const [name, leaves] of leavesOf) {
+      if (!leaves.size) continue;
+      const sharing = [...leavesOf].filter(([n, other]) => n !== name && [...leaves].some((l) => other.has(l))).map(([n]) => n);
+      const others = new Set([...leavesOf].filter(([n]) => n !== name).flatMap(([, other]) => [...other]));
+      if ([...leaves].every((l) => others.has(l))) {
+        errors.push(
+          `${M}: roiElements "${name}" has no ROI-internal UC of its own (${[...leaves].map((l) => `\`${l}\``).join(", ")} also stand for ${sharing.map((n) => `"${n}"`).join(", ")}); every element of the ROI needs at least one UC that represents only that element: split the shared UC by the UC naming rules (one UC per element; a Collection may group them).`,
+        );
+      }
+    }
+    const covered = new Set([...leavesOf.values()].flatMap((l) => [...l]));
+    for (const id of internal) if (!covered.has(id)) errors.push(`uc.json: ROI-internal \`${id}\` is in no roiElements entry of ${M}; add it to the element of the ROI it belongs to.`);
+  }
+
+  if (!meta.roiSide || !meta.roiSideSource) {
+    errors.push(`${M}: add \`roiSide\` (both, left or right) and \`roiSideSource\` (user when the user's ROI or instructions name the side, else assumed); an ROI whose side the user did not give covers both sides.`);
+    return errors;
+  }
+  if (meta.roiSideSource === "assumed") {
+    if (meta.roiSide !== "both") {
+      errors.push(`${M}: roiSide is ${meta.roiSide}, but the user gave no side (roiSideSource assumed); an ROI whose side is not given covers both sides: set roiSide to both and model the UCs of both sides.`);
+    }
+    if (!BILATERAL_NOTE_RE.test(decisionLog)) {
+      errors.push(`${PROJECT_FILES.decisionLog}: record that the user gave no side for the ROI and that it is treated as both sides (e.g. "ROI side: not given by the user; treated as bilateral (both hemispheres)").`);
+    }
+  }
+  const sided = new Map<string, Set<string>>();
+  const sideOf = (u: UcRow) => /^(.*)\/side:(left|right)$/.exec(normalizeUcDescriptor(u.descriptor));
+  for (const u of ucs) {
+    const m = u.roi === "roi" ? sideOf(u) : null;
+    if (m) (sided.get(m[1]) ?? sided.set(m[1], new Set()).get(m[1])!).add(m[2]);
+  }
+  for (const u of ucs) {
+    const m = u.roi === "roi" ? sideOf(u) : null;
+    if (!m) continue;
+    const other = m[2] === "left" ? "right" : "left";
+    if (meta.roiSide === "both" && !sided.get(m[1])!.has(other)) {
+      errors.push(`uc.json: ROI-internal \`${u.id}\` is ${m[2]} only, but the ROI covers both sides (roiSide both); drop its side facet (one UC for both sides) or add its ${other} counterpart.`);
+    } else if (meta.roiSide !== "both" && m[2] !== meta.roiSide) {
+      errors.push(`uc.json: ROI-internal \`${u.id}\` is on the ${m[2]} side, outside the ROI (roiSide ${meta.roiSide}); make it an external UC (noROI) or remove it.`);
+    }
+  }
+  return errors;
+}
+
+/**
+ * Harness rules 1, warning only: one quote (with the same figure, or none) that supports connections between different
+ * circuits. Each connection should point to the sentence or figure of its paper that states that projection.
+ */
+export function reusedQuoteWarnings(connections: ConnRow[]): string[] {
+  const groups = new Map<string, { quote: string; figure: string; pairs: string[]; refs: Set<string> }>();
+  for (const c of connections) {
+    const quote = c.pointersOnLiterature.replace(/\s+/g, " ").trim();
+    if (!quote) continue;
+    const figure = c.pointersOnFigure ? (normalizeFigurePointer(c.pointersOnFigure) ?? c.pointersOnFigure.trim()) : "";
+    const key = `${quote.toLowerCase()}\u0000${figure.toLowerCase()}`;
+    const g = groups.get(key) ?? groups.set(key, { quote, figure, pairs: [], refs: new Set() }).get(key)!;
+    const pair = `\`${c.sender}\` -> \`${c.receiver}\``;
+    if (!g.pairs.includes(pair)) g.pairs.push(pair);
+    for (const r of c.referenceIds) g.refs.add(r);
+  }
+  return [...groups.values()]
+    .filter((g) => g.pairs.length > 1)
+    .map(
+      (g) =>
+        `connections.json: one pointersOnLiterature${g.figure ? ` (with ${g.figure})` : ""} of ${[...g.refs].join("; ")} supports ${g.pairs.length} connections (${g.pairs.join(", ")}); give each connection the sentence or figure that states its own projection ("${g.quote.length > 80 ? `${g.quote.slice(0, 80)}…` : g.quote}").`,
+    );
 }
 
 /** UC IDs under a Collection, expanding nested Collections (cycle-safe); [] for an unknown ID. */

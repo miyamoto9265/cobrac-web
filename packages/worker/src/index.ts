@@ -164,6 +164,8 @@ let materials: PreparedMaterials | null = null;
 let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
+/** The project's harness rule set (0: created before the ROI rules) */
+let harnessRules = 0;
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
 const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ http: literatureHttp }) : null;
 const quoteVerifier = env.quoteCheck ? new QuoteVerifier({ http: literatureHttp, threshold: env.quoteMatchThreshold }) : null;
@@ -230,6 +232,7 @@ async function main() {
 
   // --- codex ----------------------------------------------------------------
   research = isResearchMode(project);
+  harnessRules = project.harnessRules ?? 0;
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
   const codex = createCodex(apiKey, rcsConn, { lit: true });
   jobUsage = job.usage ?? EMPTY_USAGE;
@@ -381,6 +384,7 @@ async function main() {
         onAccepted: async (phase) => {
           if (phase !== "CSV" && ctx.references) await logReferenceSummary(ctx.references);
           if (phase === "HCD" && ctx.quotes) await logQuoteSummary(ctx.quotes);
+          if (phase === "HCD" && ctx.quotes?.reused) await logQuoteReuse(ctx.quotes.reused);
           if (phase !== "HCD" && ctx.cross) await logCrossSummary(ctx.cross);
           accepted.add(phase);
           if (phase === "FRG") stageOverride = null;
@@ -811,6 +815,7 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     quoteChecker: quoteVerifier ? { threshold: quoteVerifier.threshold, verify: (reqs) => quoteVerifier.verify(reqs) } : undefined,
     canon: canonRun ? { ...canonRun, onNotes: logCanonNotes } : undefined,
     sabraBoundary: project.sabraBoundary,
+    harnessRules: project.harnessRules,
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
@@ -864,6 +869,19 @@ async function logQuoteSummary(r: QuoteReport) {
     .filter((c) => !c.status.startsWith("verified"))
     .map((c) => `${c.sender} -> ${c.receiver} ${c.referenceIds.join("; ")}: ${QUOTE_STATUS_LABEL[c.status]}${c.score !== null ? ` (best match ${Math.round(c.score * 100)}%)` : ""}${c.notes.length ? ` — ${c.notes.join("; ")}` : ""}`);
   await log(line, open.length ? { details: open.join("\n") } : undefined);
+}
+
+let lastQuoteReuse = "";
+/** Quotes that support several connections: a warning for the user, not sent back to the agent. */
+async function logQuoteReuse(reused: string[]) {
+  const text = reused.join("\n");
+  if (text === lastQuoteReuse) return;
+  lastQuoteReuse = text;
+  await log(`${reused.length} quote(s) in Pointers on literature support more than one connection; each connection should point to the sentence or figure that states its own projection (warning only; details in ${PROJECT_FILES.quoteCheck}).`, {
+    i18n: "sys.quoteReuse",
+    count: reused.length,
+    details: text,
+  });
 }
 
 let lastCrossSummary = "";
@@ -931,6 +949,7 @@ async function rawPhaseSpec(phase: Phase): Promise<string> {
     let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8"))
       .replaceAll("{P}", projectId)
       .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
+    if (phase === "HCD" && harnessRules >= 1) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "HCD_roi_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
     if (phase === "HCD" && canonRun) spec += canonSpecNote(canonRun.info);
     if (phase === "HCD" && !rcs) {
       spec +=

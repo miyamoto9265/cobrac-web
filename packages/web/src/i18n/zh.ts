@@ -297,6 +297,7 @@ export const zh: Record<MessageKey, string> = {
   "sys.csvMissing": "在允许的继续次数内智能体未生成 CSV。请使用跟进或重试。",
   "sys.validationFailed": "{step} 检查发现 {count} 个问题，已请智能体修复。",
   "sys.validationWarn": "{step} 仍有 {count} 个未解决的检查问题；继续执行。",
+  "sys.quoteReuse": "Pointers on literature 中有 {count} 条引文支撑多个连接；每个连接应指向陈述其自身投射的句子或图（仅警告）。",
   "sys.phaseIncomplete": "在允许的修复次数内未能完成 {step} 步骤。请使用跟进或重试。",
   "sys.legacyWorkspace": "此项目使用 v0.8 之前的文件格式，无法继续执行。xlsx 和图仍可使用；如需继续，请新建项目。",
   "sys.csvBuilt": "已根据 HCD/FRG 数据文件生成 CSV。",

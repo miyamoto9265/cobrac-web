@@ -297,6 +297,7 @@ export const de: Record<MessageKey, string> = {
   "sys.csvMissing": "Der Agent hat nach den erlaubten Fortsetzungsversuchen keine CSVs erzeugt. Follow-up oder Retry verwenden.",
   "sys.validationFailed": "Die Prüfung fand {count} Problem(e) in {step}; der Agent wurde um Korrektur gebeten.",
   "sys.validationWarn": "{step} hat noch {count} ungelöste Prüfpunkt(e); es wird fortgefahren.",
+  "sys.quoteReuse": "{count} Zitat(e) in Pointers on literature stützen mehr als eine Verbindung; jede Verbindung sollte auf den Satz oder die Abbildung verweisen, die ihre eigene Projektion belegt (nur Warnung).",
   "sys.phaseIncomplete": "Der Schritt {step} konnte nach den erlaubten Korrekturversuchen nicht abgeschlossen werden. Follow-up oder Retry verwenden.",
   "sys.legacyWorkspace": "Dieses Projekt verwendet das Dateiformat vor v0.8 und kann nicht fortgesetzt werden. xlsx und Graphen bleiben verfügbar; starte ein neues Projekt, um weiterzuarbeiten.",
   "sys.csvBuilt": "CSVs aus den HCD/FRG-Datendateien erzeugt.",
