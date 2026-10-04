@@ -43,6 +43,9 @@ export interface CobracAgentsStackProps extends StackProps {
   rcsMcpSecretName: string;
   /** site URL written in the account e-mails */
   siteUrl: string;
+  /** sender of the account e-mails through SES (its domain must be a verified SES identity in this region); empty keeps Cognito's default sender */
+  emailFrom: string;
+  emailFromName: string;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -190,6 +193,14 @@ export class CobracAgentsStack extends Stack {
       standardAttributes: { email: { required: true, mutable: true } },
       passwordPolicy: { minLength: 10, requireLowercase: true, requireDigits: true, requireUppercase: false, requireSymbols: false },
       accountRecovery: cognito.AccountRecovery.EMAIL_ONLY,
+      email: props.emailFrom
+        ? cognito.UserPoolEmail.withSES({
+            fromEmail: props.emailFrom,
+            fromName: props.emailFromName,
+            sesRegion: this.region,
+            sesVerifiedDomain: props.emailFrom.split("@")[1],
+          })
+        : undefined,
       // the AuthMessageFn trigger writes the real mails; these only apply if it is detached
       userVerification: {
         emailSubject: "[CoBRAC Agents] 確認コード / Verification code",

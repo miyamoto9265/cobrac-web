@@ -33,4 +33,7 @@ new CobracAgentsStack(app, "CobracAgents", {
   rcsMcpSecretName: process.env.COBRAC_RCS_MCP_SECRET_NAME || "rcs/mcp-bearer-token",
   // cobrac.site is the CloudFront alias (DNS in the personal account)
   siteUrl: process.env.COBRAC_SITE_URL || "https://cobrac.site",
+  // SES domain identity cobrac.site (ap-northeast-1, DKIM in the personal account's Route 53); set COBRAC_EMAIL_FROM="" to fall back to Cognito's sender
+  emailFrom: process.env.COBRAC_EMAIL_FROM ?? "no-reply@cobrac.site",
+  emailFromName: process.env.COBRAC_EMAIL_FROM_NAME || "CoBRAC Agents",
 });

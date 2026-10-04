@@ -83,7 +83,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | CloudFront | Price Class 200 (North America, Europe, Asia), SPA 403/404 → index.html |
 | HTTP API | CORS enabled. Anonymous only on `/health` |
 | WebSocket API | stage `prod`. Connection limit 2 hours |
-| Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin`. Account e-mails (sign-up code, resend, password reset, e-mail change, admin invite) are written by the custom message trigger `authMessage` (Japanese or English by the UI language, both otherwise); they are still sent from Cognito's default address `no-reply@verificationemail.com` (no SES identity yet) |
+| Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin`. Account e-mails (sign-up code, resend, password reset, e-mail change, admin invite) are written by the custom message trigger `authMessage` (Japanese or English by the UI language, both otherwise); they are sent through SES from `CoBRAC Agents <no-reply@cobrac.site>` (SES domain identity `cobrac.site` in ap-northeast-1, Easy DKIM; the DKIM CNAMEs and `_dmarc` TXT are in the personal account's Route 53 zone). Cognito sends through its service-linked role `AWSServiceRoleForAmazonCognitoIdpEmailService` |
 | KMS CMK | Rotation enabled, RETAIN |
 
 ### 3.4 Logs
@@ -270,6 +270,8 @@ The source of truth is the GitHub repository's Actions **Variables** (and the **
 | `COBRAC_CODEX_REASONING_EFFORT` | high | Effort when unspecified |
 | `COBRAC_RCS_MCP_URL` | production `rcs-mcp` endpoint | RCS MCP server for SABRA lookups; empty disables RCS. Optional, not in Actions Variables |
 | `COBRAC_SITE_URL` | `https://cobrac.site` | Site URL written in the account e-mails. Optional, not in Actions Variables |
+| `COBRAC_EMAIL_FROM` | `no-reply@cobrac.site` | Sender of the account e-mails through SES; its domain must be a verified SES identity in the stack's region. Empty falls back to Cognito's default sender. Optional, not in Actions Variables |
+| `COBRAC_EMAIL_FROM_NAME` | `CoBRAC Agents` | Display name of that sender |
 | `COBRAC_RCS_MCP_SECRET_NAME` | `rcs/mcp-bearer-token` | Secret with the accepted RCS tokens (owned by rosetta-candidate-search). The worker task role gets `GetSecretValue` on it |
 
 Raising concurrency grows Fargate linearly. Pinning a larger model grows only the OpenAI side.
