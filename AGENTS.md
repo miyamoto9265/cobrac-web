@@ -18,7 +18,7 @@ packages/worker     Fargate ワーカー（Codex SDK）
 packages/api        Lambda（Hono）+ dispatcher / ws / broadcaster / janitor
 packages/web        React SPA（Vite）
 packages/infra      AWS CDK
-docs/               設計仕様・個人情報とセキュリティ・AWS インフラと予算・ハーネス解説（サイトの /docs から閲覧可）
+docs/               設計仕様・個人情報とセキュリティ・AWS インフラと予算・ハーネス解説（サイトの /docs から管理者だけが閲覧可）
 archive/v0/         旧デスクトップ版の指示書・仕様書・成果物サンプル・ユーザーガイド（参照専用。アプリでは使わない）
 ```
 
@@ -47,7 +47,7 @@ archive/v0/         旧デスクトップ版の指示書・仕様書・成果物
  - CI の RETAIN ガードは、これらの置換（replace / may be replaced）・削除（destroy / orphan / 除去）を検知するとデプロイ前にジョブを止める。Cloud Agent は Actions ログの diff を要約してユーザーに示し、再実行するかどうかはユーザーが判断する。指示を受けたときだけ `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` で再実行する（通常の「Re-run」では入力が付かず再び止まる）。
 - ワークフローの骨格（HCD → FRG → CSV → xlsx の順、ワーカーがフェーズを進めて検証する方式、ターン終了時の JSON 出力 `{status, message, question}`）は相談なしに変えない。フェーズ仕様（`prompts/phases/*.md`）の文言調整は可。エージェントが書くデータファイル（`uc.json` などの JSON）のキーを変えるときは、`packages/shared/src/harness.ts` の JSON Schema（`HARNESS_SCHEMAS`）・検証・CSV 変換とフェーズ仕様の例を同時に直す。
 - 機密（API キー、`.env`）はコミットしない。`.env.example` のみ追跡する。
-- ドキュメント（`docs/*.md`）は挙動を変えたら同じコミットで更新する。サイトの「ドキュメント」ページは `docs/*.md`・`README.md`・`CHANGELOG.md` をビルド時に取り込むため、追加・改名すればそのまま反映される。
+- ドキュメント（`docs/*.md`）は挙動を変えたら同じコミットで更新する。サイトの「ドキュメント」ページ（管理者だけ）は `docs/*.md`・`README.md`・`AGENTS.md` を API から読み（CDK のバンドルで API の Lambda に同梱する。Web のバンドルには入れない）、「リリースノート」ページ（全員）は `CHANGELOG.md` をビルド時に取り込むため、追加・改名すればそのまま反映される。
 - 文書の図は `docs/figures/*.svg`（日英それぞれ、PC 用と `*.narrow.svg` のスマホ用）。`scripts/docs-figures.mjs`（描画の共通部品は `docs-figures-lib.mjs`、記事ごとの図は `docs-figures-harness-v1-1.mjs` のように別ファイル）が生成するので手で編集せず、スクリプトを直して `npm run docs:figures` で書き出す。`npm test` が生成結果とコミット済みファイルの一致を検査する。Markdown からは `![代替テキスト](./figures/<名前>.ja.svg "図のキャプション")` で参照する。
 
 ## デプロイ先

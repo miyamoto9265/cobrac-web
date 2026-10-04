@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminOnly } from "./components/AdminOnly";
 import { CanonicalProjectId } from "./components/CanonicalProjectId";
 import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
@@ -15,6 +16,7 @@ import { ExplorePage } from "./pages/ExplorePage";
 import { PublicCanonPage } from "./pages/PublicCanonPage";
 import { PublicProjectPage } from "./pages/PublicProjectPage";
 import { CanonPullPage } from "./pages/CanonPullPage";
+import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
@@ -51,9 +53,11 @@ export default function App() {
         <Route path="/canons/:canonId/pulls/:no" element={<CanonPullPage />} />
         <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/docs" element={<DocsPage />} />
-        <Route path="/docs/:slug" element={<DocsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/releases" element={<ReleaseNotesPage />} />
+        <Route path="/docs/CHANGELOG" element={<Navigate to="/releases" replace />} />
+        <Route path="/docs" element={<AdminOnly><DocsPage /></AdminOnly>} />
+        <Route path="/docs/:slug" element={<AdminOnly><DocsPage /></AdminOnly>} />
+        <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>
     </Routes>

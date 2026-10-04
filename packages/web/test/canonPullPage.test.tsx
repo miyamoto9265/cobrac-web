@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   withdrawPull: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
+vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice", role: "user" } }) }));
 
 const { I18nProvider } = await import("../src/i18n");
 const { CanonPullPage } = await import("../src/pages/CanonPullPage");
