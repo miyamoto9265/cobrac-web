@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-10-05
+
 ### Changed
 - The account e-mails now come from "CoBRAC Agents" <no-reply@cobrac.site> instead of no-reply@verificationemail.com. They are sent through Amazon SES and signed (DKIM) for cobrac.site, so mail clients show the site's own domain as the sender
 
