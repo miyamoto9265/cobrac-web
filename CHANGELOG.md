@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.28.3] - 2026-10-05
+
 ### Fixed
 - Admin page on phones and tablets: below 1280px every user and every project is a card with all its controls (role, default-key tier, usage, enable / disable, force stop) instead of a table that had to be scrolled sideways to reach them. On wide screens the user table puts the display name under the e-mail address and wraps long addresses, so the tier, usage, state and buttons are no longer cut off at the right edge
 - Canon pull request review on phones: item names in the change list wrap at spaces instead of in the middle of a word ("[Frie / derici, 2011]"); the item links under the checks, the AI review and the history show their whole name instead of cutting it off; the "N conflicts still need a decision" link in the bottom bar, the AI review's "Use" buttons and the comment field get a full-size tap area; the line with the revisions and the "Guide" link no longer starts a new line with "·"
