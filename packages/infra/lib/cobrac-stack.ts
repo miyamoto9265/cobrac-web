@@ -4,6 +4,8 @@ import * as apigwv2 from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpJwtAuthorizer, WebSocketLambdaAuthorizer } from "aws-cdk-lib/aws-apigatewayv2-authorizers";
 import { HttpLambdaIntegration, WebSocketLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import * as cloudfront from "aws-cdk-lib/aws-cloudfront";
+import * as cloudwatch from "aws-cdk-lib/aws-cloudwatch";
+import * as cwActions from "aws-cdk-lib/aws-cloudwatch-actions";
 import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
@@ -20,6 +22,7 @@ import * as logs from "aws-cdk-lib/aws-logs";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
 import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
+import * as sns from "aws-cdk-lib/aws-sns";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { ContainerImageBuild } from "@cdklabs/deploy-time-build";
 import type { Construct } from "constructs";
@@ -46,6 +49,8 @@ export interface CobracAgentsStackProps extends StackProps {
   /** sender of the account e-mails through SES (its domain must be a verified SES identity in this region); empty keeps Cognito's default sender */
   emailFrom: string;
   emailFromName: string;
+  /** SSM String parameter (same account and region) holding the e-mail address subscribed to the SES reputation alarms; resolved at deploy time; empty creates the alarms without a subscriber */
+  alarmEmailParameter: string;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -530,6 +535,42 @@ export class CobracAgentsStack extends Stack {
     // Outputs
     // -----------------------------------------------------------------------
     new cdk.CfnOutput(this, "WebUrl", { value: `https://${distribution.distributionDomainName}` });
+    // ----- SES reputation alarms (account-level metrics; SES may review the account from 5% bounces / 0.1% complaints and pause sending from 10% / 0.5%) -----
+    // Unencrypted: CloudWatch cannot publish to a topic under the AWS-managed SNS key, and the alarms carry no personal data
+    const sesAlarmTopic = new sns.Topic(this, "SesAlarmTopic", { displayName: "CoBRAC Agents SES alarms" });
+    if (props.alarmEmailParameter) {
+      new sns.Subscription(this, "SesAlarmEmail", {
+        topic: sesAlarmTopic,
+        protocol: sns.SubscriptionProtocol.EMAIL,
+        endpoint: new cdk.CfnDynamicReference(cdk.CfnDynamicReferenceService.SSM, props.alarmEmailParameter).toString(),
+      });
+    }
+    const sesAlarmAction = new cwActions.SnsAction(sesAlarmTopic);
+    const sesReputationAlarm = (id: string, metricName: string, threshold: number, description: string) => {
+      const alarm = new cloudwatch.Alarm(this, id, {
+        metric: new cloudwatch.Metric({ namespace: "AWS/SES", metricName, statistic: "Maximum", period: Duration.hours(1) }),
+        threshold,
+        evaluationPeriods: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        alarmDescription: description,
+      });
+      alarm.addAlarmAction(sesAlarmAction);
+      alarm.addOkAction(sesAlarmAction);
+    };
+    sesReputationAlarm(
+      "SesBounceRateAlarm",
+      "Reputation.BounceRate",
+      0.05,
+      "SES bounce rate is 5% or more (SES may review the account from 5% and pause sending from 10%). Check the suppression list and recent sign-ups.",
+    );
+    sesReputationAlarm(
+      "SesComplaintRateAlarm",
+      "Reputation.ComplaintRate",
+      0.001,
+      "SES complaint rate is 0.1% or more (SES may review the account from 0.1% and pause sending from 0.5%).",
+    );
+
     new cdk.CfnOutput(this, "ApiUrl", { value: httpApi.apiEndpoint });
     new cdk.CfnOutput(this, "WsUrl", { value: wsStage.url });
     new cdk.CfnOutput(this, "UserPoolId", { value: userPool.userPoolId });

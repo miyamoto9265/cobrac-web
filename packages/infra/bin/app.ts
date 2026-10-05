@@ -36,4 +36,6 @@ new CobracAgentsStack(app, "CobracAgents", {
   // SES domain identity cobrac.site (ap-northeast-1, DKIM in the personal account's Route 53); set COBRAC_EMAIL_FROM="" to fall back to Cognito's sender
   emailFrom: process.env.COBRAC_EMAIL_FROM ?? "no-reply@cobrac.site",
   emailFromName: process.env.COBRAC_EMAIL_FROM_NAME || "CoBRAC Agents",
+  // the address itself lives only in SSM (not in this public repository); it must exist before the deploy. Set COBRAC_ALARM_EMAIL_PARAMETER="" for no subscriber
+  alarmEmailParameter: process.env.COBRAC_ALARM_EMAIL_PARAMETER ?? "/cobrac-web/alarm-email",
 });

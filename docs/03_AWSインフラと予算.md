@@ -84,6 +84,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | HTTP API | CORS enabled. Anonymous only on `/health` |
 | WebSocket API | stage `prod`. Connection limit 2 hours |
 | Cognito | Email, SRP, ID/Access 2h, Refresh 30d, group `admin`. Account e-mails (sign-up code, resend, password reset, e-mail change, admin invite) are written by the custom message trigger `authMessage` (Japanese or English by the UI language, both otherwise); they are sent through SES from `CoBRAC Agents <no-reply@cobrac.site>` (SES domain identity `cobrac.site` in ap-northeast-1, Easy DKIM; the DKIM CNAMEs and `_dmarc` TXT are in the personal account's Route 53 zone). Cognito sends through its service-linked role `AWSServiceRoleForAmazonCognitoIdpEmailService` |
+| SES alarms | CloudWatch alarms on the account-level `AWS/SES` metrics `Reputation.BounceRate` ≥ 5% and `Reputation.ComplaintRate` ≥ 0.1% (maximum over 1 hour; no data counts as OK). Alarm and OK go to the SNS topic `SesAlarmTopic`, which has one e-mail subscriber: the address in the SSM String parameter `/cobrac-web/alarm-email`, resolved by CloudFormation at deploy time so that the address is in neither the repository nor the template. The subscriber must confirm the SNS mail once after the first deploy |
 | KMS CMK | Rotation enabled, RETAIN |
 
 ### 3.4 Logs
@@ -251,6 +252,7 @@ Recommended:
 2. Review Cost Explorer by service. First suspect for a spike is **Fargate**, then **CloudWatch Logs** and **CodeBuild**.
 3. Worker logs: stack output `WorkerLogGroup` (current example: `CobracAgents-WorkerLogsC1193B08-pBa5gactuB1r`).
 4. Job token usage and estimated cost are Jobs.usage / Jobs.costUsd; project totals are Projects.usage / Projects.costUsd (for reconciling OpenAI invoices). Separate from AWS charges.
+5. SES reputation: the stack's alarms mail the address in `/cobrac-web/alarm-email` when the bounce rate reaches 5% or the complaint rate 0.1% (SES may review the account from these rates and pause sending from 10% / 0.5%). Bounced and complaining addresses are already kept off by the account-level suppression list; the alarm is for finding the cause (for example, sign-ups with mistyped addresses). CloudFormation does not notice a new value in an unchanged parameter, so to change the address put it in a new parameter, point `COBRAC_ALARM_EMAIL_PARAMETER` (or the default in `packages/infra/bin/app.ts`) at it and deploy; the subscription is replaced and the new address gets a confirmation mail.
 
 The app runs without these. Without Budgets, Spot fallback or a log spike is easy to miss.
 
@@ -272,6 +274,7 @@ The source of truth is the GitHub repository's Actions **Variables** (and the **
 | `COBRAC_SITE_URL` | `https://cobrac.site` | Site URL written in the account e-mails. Optional, not in Actions Variables |
 | `COBRAC_EMAIL_FROM` | `no-reply@cobrac.site` | Sender of the account e-mails through SES; its domain must be a verified SES identity in the stack's region. Empty falls back to Cognito's default sender. Optional, not in Actions Variables |
 | `COBRAC_EMAIL_FROM_NAME` | `CoBRAC Agents` | Display name of that sender |
+| `COBRAC_ALARM_EMAIL_PARAMETER` | `/cobrac-web/alarm-email` | SSM String parameter (same account and region) holding the address subscribed to the SES reputation alarms; it must exist before the deploy. Empty keeps the alarms and topic without a subscriber. Optional, not in Actions Variables |
 | `COBRAC_RCS_MCP_SECRET_NAME` | `rcs/mcp-bearer-token` | Secret with the accepted RCS tokens (owned by rosetta-candidate-search). The worker task role gets `GetSecretValue` on it |
 
 Raising concurrency grows Fargate linearly. Pinning a larger model grows only the OpenAI side.
