@@ -233,7 +233,6 @@ export const ja: Record<MessageKey, string> = {
   "ws.question": "エージェントが質問しています。",
   "ws.answer": "回答する",
   "table.source": "ファイル",
-  "table.sheet": "表",
   "table.filter": "行を絞り込み…",
   "table.rows": "{shown} / {total} 行",
   "table.empty": "行がありません",
@@ -241,7 +240,7 @@ export const ja: Record<MessageKey, string> = {
   "table.sortTip": "クリックで並べ替え（昇順 → 降順 → 解除）",
   "table.wrap": "折り返し表示",
   "table.parseFail": "表として読み込めませんでした: {err}",
-  "table.none": "表形式のファイルはまだありません。HCD・FRG のステップが JSON を書き出すと表示されます。",
+  "table.none": "表はまだありません。CSV のステップが BRA の CSV（5 つ）を書き出すと表示されます。",
   "question.ph": "回答を入力…",
   "question.submit": "回答",
 

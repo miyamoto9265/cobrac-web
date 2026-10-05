@@ -72,6 +72,7 @@ beforeEach(() => {
     manifest: null,
     files: [
       { path: `output/${P}.bra.xlsx`, size: 2048, sha256: "x" },
+      { path: `workspace/${P}_HCD/uc.json`, size: 300, sha256: "z" },
       { path: `workspace/${P}_CSV/Circuits.csv`, size: 100, sha256: "y" },
     ],
   }));
@@ -119,6 +120,8 @@ describe("VersionsView", () => {
     api.artifactText.mockResolvedValue("Circuit ID,Names\nPC,Purkinje cells\n");
     await act(async () => $("version-tables")!.click());
     await flush();
+    expect($("table-source")!.textContent).toBe("Circuits.csv");
+    expect(api.artifactText).toHaveBeenCalledTimes(1);
     expect(api.artifactText).toHaveBeenCalledWith(P, `revisions/4/files/workspace/${P}_CSV/Circuits.csv`);
   });
 

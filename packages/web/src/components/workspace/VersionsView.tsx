@@ -78,7 +78,6 @@ export function VersionsView({ projectId, project }: { projectId: string; projec
     const next = new URLSearchParams(params);
     next.set("v", String(n));
     next.delete("file");
-    next.delete("sheet");
     setParams(next, { replace: true });
   };
 
@@ -184,11 +183,10 @@ function VersionDetail({
   const P = project.projectId;
   const files = detail?.files ?? [];
   const tableSources: TableSource[] = files
-    .filter((f) => /_(HCD|FRG)\/[^/]+\.json$/.test(f.path) || /_CSV\/[^/]+\.csv$/.test(f.path))
+    .filter((f) => /_CSV\/[^/]+\.csv$/.test(f.path))
     .map((f) => ({
       key: item.frozen ? versionFileKey(n, f.path) : f.path,
       name: f.path.split("/").pop()!,
-      group: f.path.includes("_HCD/") ? "hcd" : f.path.includes("_FRG/") ? "frg" : "csv",
       lastModified: item.createdAt,
     }));
   const parent = item.parentVersionId ? parseBraVersionId(item.parentVersionId) : null;
