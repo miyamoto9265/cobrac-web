@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.28.2] - 2026-10-05
+
 ### Fixed
 - Each saved version of the BRA data now records the harness rule set its checks followed (0 for a project created before the rules existed), next to the SABRA boundary: in the version's record and in its BRA-DB registration package, and as "Harness rules" in the Versions tab (in all 10 languages). Versions saved earlier are not changed and show it as unknown
 
