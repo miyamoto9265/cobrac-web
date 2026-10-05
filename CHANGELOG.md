@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-05
+
 ### Changed
 - New projects get a short random ID that is unique across all users, `p` followed by 7 lower-case letters and digits (for example `p7m2q9xa`), instead of `<user key>-<number>`. The ID no longer shows who created the project or how many projects that user has; the owner is kept with the project. New Canons get IDs of the same kind starting with `c` (for example `c4h8w2rk`)
 - Projects and Canons created before keep their IDs (`u7m2q9xa-12`, `u7m2q9xa-c1`): their URLs, downloads, version IDs, Canon membership, pull requests, publishing and cloning work as before
