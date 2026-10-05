@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeleteProjectResponse, JobRecord, MessageRecord, ProjectRecord, UpdateProjectResponse, UsageSummary } from "@cobrac/shared";
-import { HARNESS_RULES, PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
+import { HARNESS_RULES, PROJECT_ID_REGEX, RANDOM_PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 
@@ -37,6 +37,7 @@ vi.mock("../src/lib/aws.js", () => ({
 
 const { fake } = await import("./fakeDdb.js");
 const { app } = await import("../src/app.js");
+const { reserveNewId } = await import("../src/lib/catalog.js");
 const { handler: broadcast } = await import("../src/handlers/broadcaster.js");
 
 const A = { sub: "sub-alice", email: "alice@example.com" };
@@ -129,7 +130,7 @@ beforeEach(() => {
 });
 
 describe("project IDs", () => {
-  it("issues a userKey on first sign-in and numbers projects per user", async () => {
+  it("issues a userKey on first sign-in and gives every new project a random, globally unique ID", async () => {
     const me = await json<{ userKey: string }>(call(A, "GET", "/users/me"));
     expect(me.userKey).toMatch(USER_KEY_REGEX);
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
@@ -142,23 +143,67 @@ describe("project IDs", () => {
     const b1 = await json<ProjectRecord>(call(B, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
     const a3 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "小脳", tlf: "VOR", name: "VOR in 小脳" }));
 
-    expect(a1.projectId).toBe(`${me.userKey}-1`);
-    expect(a2.projectId).toBe(`${me.userKey}-2`);
-    expect(b1.projectId).toMatch(PROJECT_ID_REGEX);
-    expect(b1.projectId.endsWith("-1")).toBe(true);
-    expect(b1.projectId).not.toBe(a1.projectId);
-    expect(a1).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", revision: 0 });
+    const ids = [a1, a2, b1, a3].map((p) => p.projectId);
+    for (const id of ids) {
+      expect(id).toMatch(RANDOM_PROJECT_ID_REGEX);
+      expect(id).toMatch(PROJECT_ID_REGEX);
+      // neither the owner nor a sequence number is in the ID
+      expect(id).not.toContain(me.userKey);
+    }
+    expect(new Set(ids).size).toBe(4);
+    expect(a1).toMatchObject({ userId: A.sub, name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", revision: 0 });
+    expect(b1.userId).toBe(B.sub);
     expect(a2).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", contributor: "alice" });
     expect(a3).toMatchObject({ name: "VOR in 小脳", nameSource: "provisional" });
-    expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBe(3);
+    // each ID is reserved once in the Catalog table; the per-user counter is no longer used
+    const reservations = fake.items("catalog").filter((r) => r.kind === "id");
+    expect(reservations.map((r) => [r.id, r.type, r.ownerUserId]).sort()).toEqual(
+      [
+        [a1.projectId, "project", A.sub],
+        [a2.projectId, "project", A.sub],
+        [a3.projectId, "project", A.sub],
+        [b1.projectId, "project", B.sub],
+      ].sort(),
+    );
+    expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBeUndefined();
     expect(fake.items("messages").every((m) => m.userId)).toBe(true);
   });
 
-  it("gives legacy users a key lazily", async () => {
+  it("draws the ID again when the reservation finds it taken", async () => {
+    fake.put("catalog", { kind: "id", id: "p0000000", type: "project", ownerUserId: B.sub, createdAt: now });
+    const drawn = ["p0000000", "p0000000", "p7m2q9xa"];
+    const id = await reserveNewId("project", A.sub, () => drawn.shift()!);
+    expect(id).toBe("p7m2q9xa");
+    expect(drawn).toEqual([]);
+    expect(fake.items("catalog").find((r) => r.id === "p0000000")!.ownerUserId).toBe(B.sub);
+    await expect(reserveNewId("project", A.sub, () => "p0000000")).rejects.toThrow(/unique project ID/);
+  });
+
+  it("gives a new project of a user without a key a random ID", async () => {
     fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, createdAt: now, updatedAt: now });
     const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
-    expect(p.projectId).toMatch(PROJECT_ID_REGEX);
-    expect(p.projectId.endsWith("-1")).toBe(true);
+    expect(p.projectId).toMatch(RANDOM_PROJECT_ID_REGEX);
+  });
+
+  it("keeps `<userKey>-<seq>` projects working next to random ones and lists them by creation time", async () => {
+    fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", projectSeq: 2, createdAt: now, updatedAt: now });
+    const old = (id: string, createdAt: string, updatedAt: string) => ({ ...legacyProject(A.sub, 1), projectId: id, name: id, nameSource: "user", createdAt, updatedAt });
+    fake.put("projects", old("u7m2q9xa-1", "2026-09-01T00:00:00.000Z", "2026-09-30T00:00:00.000Z"));
+    fake.put("projects", old("u7m2q9xa-2", "2026-09-02T00:00:00.000Z", "2026-09-02T00:00:00.000Z"));
+    fake.put("projects", old("pzzzzzzz", "2026-09-03T00:00:00.000Z", "2026-09-03T00:00:00.000Z"));
+    fake.put("projects", old("p0000001", "2026-09-04T00:00:00.000Z", "2026-09-04T00:00:00.000Z"));
+    const list = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", "/projects"));
+    expect(list.items.map((p) => p.projectId)).toEqual(["p0000001", "pzzzzzzz", "u7m2q9xa-2", "u7m2q9xa-1"]);
+    expect(list.nextCursor).toBeNull();
+    const page1 = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", "/projects?limit=3"));
+    expect(page1.items.map((p) => p.projectId)).toEqual(["p0000001", "pzzzzzzz", "u7m2q9xa-2"]);
+    const page2 = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", `/projects?limit=3&cursor=${page1.nextCursor}`));
+    expect(page2.items.map((p) => p.projectId)).toEqual(["u7m2q9xa-1"]);
+    expect(page2.nextCursor).toBeNull();
+    for (const id of ["u7m2q9xa-1", "pzzzzzzz"]) expect((await json<ProjectRecord>(call(A, "GET", `/projects/${id}`))).projectId).toBe(id);
+    const created = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
+    expect(created.projectId).toMatch(RANDOM_PROJECT_ID_REGEX);
+    expect(fake.items("users")[0].projectSeq).toBe(2);
   });
 
   it("renames with normalisation, marks the name as the user's and warns about duplicates", async () => {

@@ -770,7 +770,7 @@ export const en = {
   "c2c.title": "Send a pull request to another Canon",
   "c2c.note": "Sends this Canon's latest revision to another of your Canons, or to someone else's public Canon (its Canon ID is on its public page). The receiving owner reviews it.",
   "c2c.empty": "This Canon is still empty.",
-  "c2c.target": "Canon ID of the receiving Canon (e.g. u3k8d0hn-c1)",
+  "c2c.target": "Canon ID of the receiving Canon (e.g. c3k8d0hn)",
   "c2c.preview": "Preview",
   "c2c.send": "Send pull request",
   "c2c.sent": "Sent pull requests",

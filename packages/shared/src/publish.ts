@@ -14,7 +14,7 @@ export interface ClonedFrom {
   projectId: string;
   /** `revision` of the original when it was cloned */
   revision: number;
-  /** Pseudonymous namespace of the original (never the owner's userId or e-mail) */
+  /** Pseudonymous key of the original's owner (the userKey; never the owner's userId or e-mail) */
   ownerUserKey: string;
   name: string;
   clonedAt: string;
@@ -43,6 +43,19 @@ export interface CloneCounter {
   kind: "clones";
   id: string;
   count: number;
+}
+
+/**
+ * Catalog rows with kind `id` reserve each random Project / Canon ID (a conditional Put; a taken ID is drawn again).
+ * They are never deleted, so an ID is never reused. `<userKey>-<seq>` IDs issued before have no reservation row.
+ */
+export const ID_RESERVATION_KIND = "id";
+export interface IdReservation {
+  kind: typeof ID_RESERVATION_KIND;
+  id: string;
+  type: "project" | "canon";
+  ownerUserId: string;
+  createdAt: string;
 }
 
 export interface PublicProjectSummary {
@@ -88,7 +101,7 @@ export interface CloneProjectResponse {
   copied: number;
 }
 
-/** Only projects with a `<userKey>-<seq>` ID can be published (the ID is rewritten safely when cloned). */
+/** Only projects with a random or `<userKey>-<seq>` ID can be published (the ID is rewritten safely when cloned). */
 export function isPublishableProjectId(id: string): boolean {
   return PROJECT_ID_REGEX.test(id);
 }

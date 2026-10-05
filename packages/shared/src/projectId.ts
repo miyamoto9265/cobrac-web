@@ -1,13 +1,43 @@
 // ---------------------------------------------------------------------------
-// Project ID (`<userKey>-<seq>`, globally unique and immutable) and project name (editable, may repeat)
+// Project ID (globally unique and immutable) and project name (editable, may repeat).
+// New IDs are random (`p` + 7 Crockford base32, e.g. `p7m2q9xa`); IDs issued earlier as `<userKey>-<seq>`
+// stay valid as they are. Neither form says who owns the project: that is the `userId` attribute.
 // ---------------------------------------------------------------------------
 
 /** Crockford base32 in lower case (no i, l, o, u) */
 export const USER_KEY_ALPHABET = "0123456789abcdefghjkmnpqrstvwxyz";
 export const USER_KEY_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}$/;
-export const PROJECT_ID_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}-[1-9][0-9]*$/;
+/** Random Project IDs (the form issued now) */
+export const RANDOM_PROJECT_ID_REGEX = /^p[0-9a-hjkmnp-tv-z]{7}$/;
+/** `<userKey>-<seq>` Project IDs issued from v0.7.0 until random IDs (still valid, never issued again) */
+export const USER_SEQ_PROJECT_ID_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}-[1-9][0-9]*$/;
+/** Every current Project ID: the random form or the `<userKey>-<seq>` form */
+export const PROJECT_ID_REGEX = /^(?:p[0-9a-hjkmnp-tv-z]{7}|u[0-9a-hjkmnp-tv-z]{7}-[1-9][0-9]*)$/;
 /** User-chosen slugs used as Project IDs up to v0.6.x (unique per user only) */
 export const LEGACY_PROJECT_ID_REGEX = /^[A-Za-z][A-Za-z0-9_-]{2,63}$/;
+/** Length of the random part of new Project and Canon IDs (32^7 ≈ 3.4×10^10 values) */
+export const RANDOM_ID_LENGTH = 7;
+/** How many fresh IDs to try when the reservation finds the drawn ID taken */
+export const RANDOM_ID_ATTEMPTS = 5;
+
+/** A uniform number in [0, 1) from the platform CSPRNG (Node 20+ and browsers). */
+function cryptoRandom(): number {
+  const buf = new Uint32Array(1);
+  (globalThis as unknown as { crypto: { getRandomValues(a: Uint32Array): Uint32Array } }).crypto.getRandomValues(buf);
+  return buf[0] / 2 ** 32;
+}
+
+/** `prefix` + `RANDOM_ID_LENGTH` lower-case Crockford base32 characters. */
+export function randomCrockfordId(prefix: string, random: () => number = cryptoRandom): string {
+  let s = prefix;
+  for (let i = 0; i < RANDOM_ID_LENGTH; i++) s += USER_KEY_ALPHABET[Math.floor(random() * USER_KEY_ALPHABET.length) % USER_KEY_ALPHABET.length];
+  return s;
+}
+
+/** A new random Project ID (`p7m2q9xa`). Uniqueness is checked when it is reserved. */
+export function generateProjectId(random?: () => number): string {
+  return randomCrockfordId("p", random);
+}
 
 export const PROJECT_NAME_MAX = 200;
 const FILE_NAME_MAX = 80;
@@ -16,19 +46,19 @@ const FILE_NAME_MAX = 80;
 export type ProjectNameSource = "provisional" | "auto" | "user";
 
 export function generateUserKey(random: () => number = Math.random): string {
-  let s = "u";
-  for (let i = 0; i < 7; i++) s += USER_KEY_ALPHABET[Math.floor(random() * USER_KEY_ALPHABET.length) % USER_KEY_ALPHABET.length];
-  return s;
+  return randomCrockfordId("u", random);
 }
 
+/** The `<userKey>-<seq>` form (no longer issued for new projects; used by the v0.7.0 migration script). */
 export function formatProjectId(userKey: string, seq: number): string {
   if (!USER_KEY_REGEX.test(userKey)) throw new Error(`invalid userKey: ${userKey}`);
   if (!Number.isInteger(seq) || seq < 1) throw new Error(`invalid project seq: ${seq}`);
   return `${userKey}-${seq}`;
 }
 
+/** The parts of a `<userKey>-<seq>` ID; null for random IDs (they carry no user) and anything else. */
 export function parseProjectId(id: string): { userKey: string; seq: number } | null {
-  if (!PROJECT_ID_REGEX.test(id)) return null;
+  if (!USER_SEQ_PROJECT_ID_REGEX.test(id)) return null;
   const i = id.lastIndexOf("-");
   return { userKey: id.slice(0, i), seq: Number(id.slice(i + 1)) };
 }

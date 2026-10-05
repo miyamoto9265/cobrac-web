@@ -21,11 +21,11 @@ export interface UserRecord {
   contributorName: string;
   role: UserRole;
   disabled: boolean;
-  /** Pseudonymous key issued once (`u` + 7 base32 chars); namespace of the user's Project IDs */
+  /** Pseudonymous key issued once (`u` + 7 base32 chars); shown as the owner of public items, prefix of the earlier `<userKey>-<seq>` IDs */
   userKey?: string;
-  /** Atomic counter for the `<userKey>-<seq>` Project IDs (last issued seq) */
+  /** Last seq of the `<userKey>-<seq>` Project IDs issued before random IDs (no longer advanced) */
   projectSeq?: number;
-  /** Atomic counter for the `<userKey>-c<seq>` Canon IDs (last issued seq) */
+  /** Last seq of the `<userKey>-c<seq>` Canon IDs issued before random IDs (no longer advanced) */
   canonSeq?: number;
   /** Canon new projects join unless the create screen says otherwise (absent / null: none) */
   defaultCanonId?: string | null;
@@ -130,7 +130,10 @@ export type PipelineStage = "RESEARCH" | WorkflowStep | "ADJUST";
 
 export interface ProjectRecord {
   userId: string;
-  /** `<userKey>-<seq>`: globally unique, never changed or reused (not-yet-migrated projects keep their legacy slug) */
+  /**
+   * Globally unique, never changed or reused: random `p` + 7 base32 (issued now) or `<userKey>-<seq>` (issued earlier, from v0.7.0);
+   * not-yet-migrated projects keep their legacy slug. The owner is `userId`, not anything in the ID.
+   */
   projectId: string;
   /** Display name; any language, may repeat. Absent on projects created before v0.7 (use projectId) */
   name?: string;

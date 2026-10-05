@@ -20,21 +20,6 @@ import { ddb, updateItem } from "./db.js";
 
 const isConditionFailure = (e: unknown) => (e as { name?: string }).name === "ConditionalCheckFailedException";
 
-/** Atomic per-user counter for Canon IDs. Numbers lost to failed creations are never reused. */
-export async function nextCanonSeq(userId: string): Promise<number> {
-  const r = await ddb.send(
-    new UpdateCommand({
-      TableName: env.tables.users,
-      Key: { userId },
-      UpdateExpression: "ADD canonSeq :one",
-      ConditionExpression: "attribute_exists(userId)",
-      ExpressionAttributeValues: { ":one": 1 },
-      ReturnValues: "UPDATED_NEW",
-    }),
-  );
-  return Number(r.Attributes?.canonSeq);
-}
-
 export async function putCanon(c: CanonRecord) {
   await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: c, ConditionExpression: "attribute_not_exists(canonId)" }));
 }

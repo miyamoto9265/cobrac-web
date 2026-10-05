@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CANON_ID_REGEX, PROJECT_ID_REGEX, formatCanonId, isCanonId, normalizeCanonName, normalizeCanonText } from "../src/index.js";
+import { CANON_ID_REGEX, PROJECT_ID_REGEX, RANDOM_CANON_ID_REGEX, formatCanonId, generateCanonId, isCanonId, normalizeCanonName, normalizeCanonText } from "../src/index.js";
 
 describe("canon id", () => {
   it("formats <userKey>-c<seq>", () => {
@@ -13,7 +13,16 @@ describe("canon id", () => {
     expect(() => formatCanonId("u7m2q9xa", 1.5)).toThrow();
   });
 
+  it("generates random `c` + 7 base32 Canon IDs and still accepts `<userKey>-c<seq>`", () => {
+    for (let i = 0; i < 200; i++) expect(generateCanonId()).toMatch(RANDOM_CANON_ID_REGEX);
+    expect(generateCanonId(() => 0)).toBe("c0000000");
+    for (const id of ["c4h8w2rk", "u7m2q9xa-c1", "u7m2q9xa-c12"]) expect(isCanonId(id)).toBe(true);
+    for (const bad of ["c4h8w2r", "c4h8w2rkk", "C4h8w2rk", "c4h8w2ri", "p4h8w2rk", "c4h8w2rk-1"]) expect(isCanonId(bad)).toBe(false);
+  });
+
   it("never matches a Project ID and vice versa", () => {
+    expect(isCanonId("p7m2q9xa")).toBe(false);
+    expect(PROJECT_ID_REGEX.test("c4h8w2rk")).toBe(false);
     expect(isCanonId("u7m2q9xa-c1")).toBe(true);
     expect(isCanonId("u7m2q9xa-1")).toBe(false);
     expect(isCanonId("u7m2q9xa-c01")).toBe(false);

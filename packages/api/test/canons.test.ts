@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonDetailResponse, CanonRecord, ListCanonsResponse, ProjectRecord } from "@cobrac/shared";
-import { CANON_ID_REGEX } from "@cobrac/shared";
+import { CANON_ID_REGEX, RANDOM_CANON_ID_REGEX } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
@@ -85,21 +85,34 @@ beforeEach(() => {
 });
 
 describe("canons", () => {
-  it("creates Canons with per-user IDs, private and empty, and lists only the caller's", async () => {
+  it("creates Canons with random IDs, private and empty, and lists only the caller's", async () => {
     const c1 = await json<CanonRecord>(call(A, "POST", "/canons", { name: "  言語野  （層水準）", policy: "新皮質は野 × 投射クラス\n皮質下は核全体" }));
     const c2 = await json<CanonRecord>(call(A, "POST", "/canons", { name: "DMN", constraintMode: "advisory" }));
     const b1 = await json<CanonRecord>(call(B, "POST", "/canons", { name: "Bob's" }));
-    expect(c1.canonId).toBe("u7m2q9xa-c1");
-    expect(c2.canonId).toBe("u7m2q9xa-c2");
-    expect(b1.canonId).toBe("u3k8d0hn-c1");
-    expect(c1.canonId).toMatch(CANON_ID_REGEX);
+    for (const c of [c1, c2, b1]) {
+      expect(c.canonId).toMatch(RANDOM_CANON_ID_REGEX);
+      expect(c.canonId).toMatch(CANON_ID_REGEX);
+    }
+    expect(new Set([c1, c2, b1].map((c) => c.canonId)).size).toBe(3);
+    expect(c1.ownerUserId).toBe(A.sub);
+    expect(b1.ownerUserId).toBe(B.sub);
+    expect(fake.items("catalog").filter((r) => r.kind === "id" && r.type === "canon").map((r) => r.id).sort()).toEqual([c1, c2, b1].map((c) => c.canonId).sort());
     expect(c1).toMatchObject({ name: "言語野 （層水準）", policy: "新皮質は野 × 投射クラス\n皮質下は核全体", visibility: "private", headRevision: 0, memberCount: 0 });
     // the constraint strength is gone: a mode in the request is ignored and not stored
     expect(c1).not.toHaveProperty("constraintMode");
     expect(c2).not.toHaveProperty("constraintMode");
 
     const list = await json<ListCanonsResponse>(call(A, "GET", "/canons"));
-    expect(list.items.map((c) => c.canonId).sort()).toEqual(["u7m2q9xa-c1", "u7m2q9xa-c2"]);
+    expect(list.items.map((c) => c.canonId).sort()).toEqual([c1.canonId, c2.canonId].sort());
+  });
+
+  it("keeps a `<userKey>-c<seq>` Canon issued before working next to random ones", async () => {
+    fake.put("canons", { canonId: "u7m2q9xa-c1", sk: "META", ownerUserId: A.sub, name: "Old", description: "", policy: "", visibility: "private", headRevision: 0, memberCount: 0, createdAt: now, updatedAt: now });
+    const c = await json<CanonRecord>(call(A, "POST", "/canons", { name: "New" }));
+    expect(c.canonId).toMatch(RANDOM_CANON_ID_REGEX);
+    expect((await json<CanonDetailResponse>(call(A, "GET", "/canons/u7m2q9xa-c1"))).canon.name).toBe("Old");
+    expect((await json<ListCanonsResponse>(call(A, "GET", "/canons"))).items.map((x) => x.canonId).sort()).toEqual([c.canonId, "u7m2q9xa-c1"].sort());
+    expect((await call(A, "POST", "/canons/u7m2q9xa-c1/members", { projectId: "u7m2q9xa-1" })).status).toBe(201);
   });
 
   it("validates the name and ignores a constraint mode", async () => {

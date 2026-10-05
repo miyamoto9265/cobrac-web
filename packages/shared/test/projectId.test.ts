@@ -4,7 +4,9 @@ import {
   buildProjectCsv,
   contentDisposition,
   formatProjectId,
+  generateProjectId,
   generateUserKey,
+  isProjectIdLike,
   isLegacyProjectId,
   isValidProjectId,
   normalizeProjectName,
@@ -13,7 +15,10 @@ import {
   legacyProposedProjectName,
   projectDisplayName,
   proposeProjectName,
+  PROJECT_ID_REGEX,
+  RANDOM_PROJECT_ID_REGEX,
   USER_KEY_REGEX,
+  USER_SEQ_PROJECT_ID_REGEX,
 } from "../src/index.js";
 
 describe("user key and project id", () => {
@@ -28,6 +33,36 @@ describe("user key and project id", () => {
     expect(parseProjectId("u7m2q9xa-12")).toEqual({ userKey: "u7m2q9xa", seq: 12 });
     expect(() => formatProjectId("u7m2q9xa", 0)).toThrow();
     expect(() => formatProjectId("U7M2Q9XA", 1)).toThrow();
+  });
+
+  it("generates random 8-char Project IDs from the CSPRNG", () => {
+    const ids = new Set<string>();
+    for (let i = 0; i < 500; i++) {
+      const id = generateProjectId();
+      expect(id).toMatch(RANDOM_PROJECT_ID_REGEX);
+      ids.add(id);
+    }
+    expect(ids.size).toBe(500);
+    expect(generateProjectId(() => 0)).toBe("p0000000");
+    expect(generateProjectId(() => 0.9999)).toBe("pzzzzzzz");
+  });
+
+  it("accepts both the random form and the `<userKey>-<seq>` form", () => {
+    for (const id of ["p7m2q9xa", "p0000000", "pzzzzzzz", "u7m2q9xa-1", "u7m2q9xa-12"]) {
+      expect(isValidProjectId(id)).toBe(true);
+      expect(PROJECT_ID_REGEX.test(id)).toBe(true);
+      expect(isProjectIdLike(id)).toBe(true);
+      expect(isLegacyProjectId(id)).toBe(false);
+    }
+    expect(RANDOM_PROJECT_ID_REGEX.test("u7m2q9xa-1")).toBe(false);
+    expect(USER_SEQ_PROJECT_ID_REGEX.test("p7m2q9xa")).toBe(false);
+    for (const bad of ["p7m2q9x", "p7m2q9xab", "P7m2q9xa", "p7m2q9xi", "p7m2q9xl", "p7m2q9xo", "p7m2q9xu", "c7m2q9xa", "p7m2q9xa-1", "p7m2q9xa@v1"]) {
+      expect(isValidProjectId(bad)).toBe(false);
+    }
+    // a random ID carries no user: only `<userKey>-<seq>` IDs parse
+    expect(parseProjectId("p7m2q9xa")).toBeNull();
+    // a version ID is `<projectId>@v<n>` for both forms
+    for (const id of ["p7m2q9xa", "u7m2q9xa-12"]) expect(/^(.+)@v([1-9]\d{0,5})$/.exec(`${id}@v3`)?.[1]).toBe(id);
   });
 
   it("validates ids and tells legacy slugs apart", () => {
