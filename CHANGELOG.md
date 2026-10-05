@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.30.2] - 2026-10-05
+
 ### Fixed
 - Deploys no longer fail when Docker Hub rate-limits the build of the worker image ("429 Too Many Requests"): the Node base image is pulled from Amazon ECR Public's mirror of the same official image instead
 
