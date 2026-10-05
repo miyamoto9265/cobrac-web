@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.30.1] - 2026-10-05
+
 ### Removed
 - The Tables tab no longer shows the HCD and FRG data files (`uc.json`, `connections.json`, `references.json`, `frg.json`); it shows only the five BRA CSV files, without the "HCD (JSON)" / "FRG (JSON)" / "BRA (CSV)" group labels. The same applies to "View tables" on the Versions tab. The tab now appears once the CSV step has written the CSVs. The JSON files are still used by the agent and still open as the HCD and FRG graphs
 
