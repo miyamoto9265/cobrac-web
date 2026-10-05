@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.30.3] - 2026-10-05
+
 ### Added
 - The operator is e-mailed when the SES bounce rate of the account e-mails reaches 5% or the complaint rate 0.1%, and again when it is back to normal, so a rising rate is noticed before SES pauses sending
 
