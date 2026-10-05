@@ -3,18 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useT } from "../../i18n";
 import { api } from "../../lib/api";
-import { filterRows, nextSort, sheetsFromText, sortRows, type Sheet, type SortState, type TableGroup, type TableSource } from "../../lib/table";
-
-const GROUP_LABEL: Record<TableGroup, string> = { hcd: "HCD (JSON)", frg: "FRG (JSON)", csv: "BRA (CSV)" };
+import { filterRows, nextSort, sheetFromCsv, sortRows, type Sheet, type SortState, type TableSource } from "../../lib/table";
 
 const textCache = new Map<string, string>();
 
-/** Raw tabular artifacts (harness JSON and BRA CSVs) as sortable, filterable tables. File and sheet are kept in the URL. */
+/** The BRA CSVs as sortable, filterable tables. The file is kept in the URL. */
 export function TablesView({ projectId, sources }: { projectId: string; sources: TableSource[] }) {
   const t = useT();
   const [params, setParams] = useSearchParams();
   const source = sources.find((s) => s.key === params.get("file")) ?? sources[0] ?? null;
-  const [sheets, setSheets] = useState<Sheet[] | null>(null);
+  const [sheet, setSheet] = useState<Sheet | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,16 +21,16 @@ export function TablesView({ projectId, sources }: { projectId: string; sources:
     const cacheKey = `${projectId}\u0000${source.key}\u0000${source.lastModified}`;
     const parse = (text: string) => {
       try {
-        setSheets(sheetsFromText(source.name, text));
+        setSheet(sheetFromCsv(text, source.name.replace(/\.csv$/i, "")));
         setErr(null);
       } catch (e) {
-        setSheets(null);
+        setSheet(null);
         setErr(t("table.parseFail", { err: e instanceof Error ? e.message : String(e) }));
       }
     };
     const cached = textCache.get(cacheKey);
     if (cached !== undefined) return parse(cached);
-    setSheets(null);
+    setSheet(null);
     setErr(null);
     api
       .artifactText(projectId, source.key)
@@ -46,16 +44,13 @@ export function TablesView({ projectId, sources }: { projectId: string; sources:
     };
   }, [projectId, source?.key, source?.lastModified, source?.name, t]);
 
-  const setParam = (patch: Record<string, string | null>) => {
+  const selectFile = (key: string) => {
     const next = new URLSearchParams(params);
-    for (const [k, v] of Object.entries(patch)) v === null ? next.delete(k) : next.set(k, v);
+    next.set("file", key);
     setParams(next, { replace: true });
   };
 
   if (!source) return <Placeholder text={t("table.none")} />;
-
-  const sheet = sheets?.find((s) => s.name === params.get("sheet")) ?? sheets?.[0] ?? null;
-  const groups = (["hcd", "frg", "csv"] as TableGroup[]).map((g) => [g, sources.filter((s) => s.group === g)] as const).filter(([, l]) => l.length > 0);
 
   const download = async () => {
     const { url } = await api.downloadUrl(projectId, source.key);
@@ -64,45 +59,34 @@ export function TablesView({ projectId, sources }: { projectId: string; sources:
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div data-testid="table-source" className="flex shrink-0 gap-x-4 gap-y-2 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 sm:flex-wrap sm:px-4" aria-label={t("table.source")}>
-        {groups.map(([g, list]) => (
-          <div key={g} className="flex shrink-0 items-center gap-1">
-            <span className="mr-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-400">{GROUP_LABEL[g]}</span>
-            {list.map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setParam({ file: s.key, sheet: null })}
-                aria-pressed={s.key === source.key}
-                className={`whitespace-nowrap rounded-md border px-2 py-1 font-mono text-xs coarse:min-h-11 ${
-                  s.key === source.key ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                {s.name}
-              </button>
-            ))}
-          </div>
+      <div data-testid="table-source" className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 sm:flex-wrap sm:px-4" aria-label={t("table.source")}>
+        {sources.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => selectFile(s.key)}
+            aria-pressed={s.key === source.key}
+            className={`shrink-0 whitespace-nowrap rounded-md border px-2 py-1 font-mono text-xs coarse:min-h-11 ${
+              s.key === source.key ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {s.name}
+          </button>
         ))}
       </div>
       {err ? (
         <div className="p-4 text-sm text-rose-600">{err}</div>
-      ) : !sheets || !sheet ? (
+      ) : !sheet ? (
         <div className="flex items-center gap-2 p-4 text-sm text-slate-500">
           <Loader2 size={14} className="animate-spin" /> {t("loading")}
         </div>
       ) : (
-        <SheetTable
-          key={`${source.key}\u0000${sheet.name}`}
-          sheet={sheet}
-          sheets={sheets}
-          onSheet={(name) => setParam({ sheet: name })}
-          onDownload={() => void download()}
-        />
+        <SheetTable key={source.key} sheet={sheet} onDownload={() => void download()} />
       )}
     </div>
   );
 }
 
-function SheetTable({ sheet, sheets, onSheet, onDownload }: { sheet: Sheet; sheets: Sheet[]; onSheet: (name: string) => void; onDownload: () => void }) {
+function SheetTable({ sheet, onDownload }: { sheet: Sheet; onDownload: () => void }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
@@ -122,20 +106,6 @@ function SheetTable({ sheet, sheets, onSheet, onDownload }: { sheet: Sheet; shee
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
-        {sheets.length > 1 && (
-          <div className="flex items-center gap-1" role="group" aria-label={t("table.sheet")}>
-            {sheets.map((s) => (
-              <button
-                key={s.name}
-                onClick={() => onSheet(s.name)}
-                aria-pressed={s.name === sheet.name}
-                className={`rounded-full px-2.5 py-0.5 text-xs coarse:min-h-11 ${s.name === sheet.name ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-              >
-                {s.name} <span className="opacity-60">{s.rows.length}</span>
-              </button>
-            ))}
-          </div>
-        )}
         <label className="relative flex min-w-[10rem] flex-1 items-center sm:max-w-xs">
           <Search size={14} className="pointer-events-none absolute left-2 text-slate-400" />
           <input

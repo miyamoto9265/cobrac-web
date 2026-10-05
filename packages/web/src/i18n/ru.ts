@@ -233,7 +233,6 @@ export const ru: Record<MessageKey, string> = {
   "ws.question": "Агент задаёт вам вопрос.",
   "ws.answer": "Ответить",
   "table.source": "Файл",
-  "table.sheet": "Таблица",
   "table.filter": "Фильтр строк…",
   "table.rows": "{shown} / {total} строк",
   "table.empty": "Нет строк",
@@ -241,7 +240,7 @@ export const ru: Record<MessageKey, string> = {
   "table.sortTip": "Нажмите для сортировки (по возрастанию → по убыванию → выкл.)",
   "table.wrap": "Переносить текст",
   "table.parseFail": "Не удалось прочитать файл как таблицу: {err}",
-  "table.none": "Табличных файлов пока нет. Они появятся, когда шаги HCD и FRG запишут свой JSON.",
+  "table.none": "Таблиц пока нет. Пять CSV-файлов BRA появятся здесь, когда шаг CSV их запишет.",
   "question.ph": "Введите ответ…",
   "question.submit": "Ответить",
 

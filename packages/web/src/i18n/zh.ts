@@ -233,7 +233,6 @@ export const zh: Record<MessageKey, string> = {
   "ws.question": "智能体正在向你提问。",
   "ws.answer": "回答",
   "table.source": "文件",
-  "table.sheet": "表",
   "table.filter": "筛选行…",
   "table.rows": "{shown} / {total} 行",
   "table.empty": "没有行",
@@ -241,7 +240,7 @@ export const zh: Record<MessageKey, string> = {
   "table.sortTip": "点击排序（升序 → 降序 → 取消）",
   "table.wrap": "自动换行",
   "table.parseFail": "无法作为表格读取：{err}",
-  "table.none": "尚无表格文件。HCD、FRG 步骤写出 JSON 后显示。",
+  "table.none": "尚无表格。CSV 步骤写出 5 个 BRA CSV 后显示。",
   "question.ph": "输入你的回答…",
   "question.submit": "回答",
 

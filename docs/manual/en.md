@@ -106,7 +106,7 @@ A tree from the TLF through GNs to UCs. Collapse and expand child nodes. Select 
 
 ### Tables, report and decision log
 
-- **Tables**: the HCD and FRG data files and the five CSV files as tables. Press a header to sort and use the box above to filter rows. The raw files can be downloaded.
+- **Tables**: the five CSV files as tables. Press a header to sort and use the box above to filter rows. The raw files can be downloaded.
 - **Report**: the agent's report of the work.
 - **Decision log**: what the agent decided, where and why.
 

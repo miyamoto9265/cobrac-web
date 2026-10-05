@@ -233,7 +233,6 @@ export const de: Record<MessageKey, string> = {
   "ws.question": "Der Agent hat eine Rückfrage.",
   "ws.answer": "Antworten",
   "table.source": "Datei",
-  "table.sheet": "Tabelle",
   "table.filter": "Zeilen filtern…",
   "table.rows": "{shown} / {total} Zeilen",
   "table.empty": "Keine Zeilen",
@@ -241,7 +240,7 @@ export const de: Record<MessageKey, string> = {
   "table.sortTip": "Klicken zum Sortieren (aufsteigend → absteigend → aus)",
   "table.wrap": "Umbrechen",
   "table.parseFail": "Datei konnte nicht als Tabelle gelesen werden: {err}",
-  "table.none": "Noch keine Tabellendateien. Sie erscheinen, sobald die HCD- und FRG-Schritte ihr JSON schreiben.",
+  "table.none": "Noch keine Tabellen. Die fünf BRA-CSV-Dateien erscheinen hier, sobald der CSV-Schritt sie schreibt.",
   "question.ph": "Antwort eingeben…",
   "question.submit": "Antworten",
 

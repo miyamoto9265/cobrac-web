@@ -233,7 +233,6 @@ export const zhTw: Record<MessageKey, string> = {
   "ws.question": "代理正在向你提問。",
   "ws.answer": "回答",
   "table.source": "檔案",
-  "table.sheet": "表",
   "table.filter": "篩選列…",
   "table.rows": "{shown} / {total} 列",
   "table.empty": "沒有資料列",
@@ -241,7 +240,7 @@ export const zhTw: Record<MessageKey, string> = {
   "table.sortTip": "點擊排序（升冪 → 降冪 → 取消）",
   "table.wrap": "自動換行",
   "table.parseFail": "無法以表格讀取：{err}",
-  "table.none": "尚無表格檔案。HCD、FRG 步驟寫出 JSON 後顯示。",
+  "table.none": "尚無表格。CSV 步驟寫出 5 個 BRA CSV 後顯示。",
   "question.ph": "輸入你的回答…",
   "question.submit": "回答",
 

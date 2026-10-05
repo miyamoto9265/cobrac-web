@@ -233,7 +233,6 @@ export const fr: Record<MessageKey, string> = {
   "ws.question": "L’agent vous pose une question.",
   "ws.answer": "Répondre",
   "table.source": "Fichier",
-  "table.sheet": "Table",
   "table.filter": "Filtrer les lignes…",
   "table.rows": "{shown} / {total} lignes",
   "table.empty": "Aucune ligne",
@@ -241,7 +240,7 @@ export const fr: Record<MessageKey, string> = {
   "table.sortTip": "Cliquez pour trier (croissant → décroissant → aucun)",
   "table.wrap": "Retour à la ligne",
   "table.parseFail": "Impossible de lire ce fichier comme tableau : {err}",
-  "table.none": "Aucun fichier tabulaire pour l’instant. Ils apparaissent quand les étapes HCD et FRG écrivent leur JSON.",
+  "table.none": "Aucune table pour l’instant. Les cinq fichiers CSV BRA apparaissent ici quand l’étape CSV les écrit.",
   "question.ph": "Saisissez votre réponse…",
   "question.submit": "Répondre",
 

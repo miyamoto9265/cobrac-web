@@ -233,7 +233,6 @@ export const es: Record<MessageKey, string> = {
   "ws.question": "El agente te hace una pregunta.",
   "ws.answer": "Responder",
   "table.source": "Archivo",
-  "table.sheet": "Tabla",
   "table.filter": "Filtrar filas…",
   "table.rows": "{shown} / {total} filas",
   "table.empty": "No hay filas",
@@ -241,7 +240,7 @@ export const es: Record<MessageKey, string> = {
   "table.sortTip": "Haz clic para ordenar (ascendente → descendente → sin orden)",
   "table.wrap": "Ajustar texto",
   "table.parseFail": "No se pudo leer el archivo como tabla: {err}",
-  "table.none": "Todavía no hay archivos tabulares. Aparecen cuando los pasos HCD y FRG escriben su JSON.",
+  "table.none": "Todavía no hay tablas. Los cinco archivos CSV de BRA aparecen aquí cuando el paso CSV los escribe.",
   "question.ph": "Escribe tu respuesta…",
   "question.submit": "Responder",
 

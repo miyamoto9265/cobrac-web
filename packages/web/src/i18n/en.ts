@@ -231,7 +231,6 @@ export const en = {
   "ws.question": "The agent is asking you a question.",
   "ws.answer": "Answer",
   "table.source": "File",
-  "table.sheet": "Table",
   "table.filter": "Filter rows…",
   "table.rows": "{shown} / {total} rows",
   "table.empty": "No rows",
@@ -239,7 +238,7 @@ export const en = {
   "table.sortTip": "Click to sort (ascending → descending → off)",
   "table.wrap": "Wrap text",
   "table.parseFail": "Could not read this file as a table: {err}",
-  "table.none": "No tabular files yet. They appear as the HCD and FRG steps write their JSON.",
+  "table.none": "No tables yet. The five BRA CSV files appear here once the CSV step writes them.",
   "question.ph": "Type your answer…",
   "question.submit": "Answer",
 

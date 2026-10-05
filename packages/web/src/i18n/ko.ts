@@ -233,7 +233,6 @@ export const ko: Record<MessageKey, string> = {
   "ws.question": "에이전트가 질문하고 있습니다.",
   "ws.answer": "답변하기",
   "table.source": "파일",
-  "table.sheet": "표",
   "table.filter": "행 필터…",
   "table.rows": "{shown} / {total}행",
   "table.empty": "행이 없습니다",
@@ -241,7 +240,7 @@ export const ko: Record<MessageKey, string> = {
   "table.sortTip": "클릭하여 정렬(오름차순 → 내림차순 → 해제)",
   "table.wrap": "줄바꿈",
   "table.parseFail": "표로 읽을 수 없습니다: {err}",
-  "table.none": "아직 표 형식 파일이 없습니다. HCD·FRG 단계가 JSON을 쓰면 표시됩니다.",
+  "table.none": "아직 표가 없습니다. CSV 단계가 BRA CSV 5개를 쓰면 표시됩니다.",
   "question.ph": "답을 입력하세요…",
   "question.submit": "답변",
 

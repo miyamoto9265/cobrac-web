@@ -1,15 +1,11 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { ArtifactInfo } from "@cobrac/shared";
-import { cellText, filterRows, nextSort, sheetFromCsv, sheetsFromJson, sheetsFromText, sortRows, tabularSources } from "../src/lib/table";
-
-const FIX = new URL("../../worker/test/fixtures/reward/", import.meta.url);
-const fixture = (p: string) => readFileSync(new URL(p, FIX), "utf8");
+import { filterRows, nextSort, sheetFromCsv, sortRows, tabularSources } from "../src/lib/table";
 
 const art = (key: string, category: ArtifactInfo["category"]): ArtifactInfo => ({ key, name: key.split("/").pop()!, size: 1, lastModified: "", category });
 
 describe("tabularSources", () => {
-  it("keeps harness JSON and BRA CSVs, grouped HCD → FRG → CSV in workflow order", () => {
+  it("keeps only the BRA CSVs, in workflow order, and leaves out the harness JSON", () => {
     const P = "uk3m9x2q-1";
     const items = [
       art(`output/${P}.bra.xlsx`, "output"),
@@ -25,57 +21,7 @@ describe("tabularSources", () => {
       art(`workspace/${P}_HCD/connections.json`, "hcd"),
       art(`workspace/${P}_HCD/notes.md`, "hcd"),
     ];
-    expect(tabularSources(items).map((s) => `${s.group}:${s.name}`)).toEqual([
-      "hcd:uc.json",
-      "hcd:connections.json",
-      "hcd:references.json",
-      "frg:frg.json",
-      "csv:Project.csv",
-      "csv:Circuits.csv",
-      "csv:References.csv",
-    ]);
-  });
-});
-
-describe("sheetsFromJson", () => {
-  it("turns uc.json into one row per UC", () => {
-    const [s] = sheetsFromJson(fixture("HCD/uc.json"));
-    expect(s.name).toBe("ucs");
-    expect(s.columns.slice(0, 4)).toEqual(["circuitId", "descriptor", "names", "roi"]);
-    expect(s.rows.length).toBeGreaterThan(1);
-    const src = s.columns.indexOf("sourceOfId");
-    expect(s.rows[0][src]).toBe("BNA");
-  });
-
-  it("splits connections.json into its bif and connections arrays", () => {
-    const sheets = sheetsFromJson(fixture("HCD/connections.json"));
-    expect(sheets.map((s) => [s.name, s.rows.length])).toEqual([
-      ["bif", 4],
-      ["connections", 4],
-    ]);
-    const bif = sheets[0];
-    expect(bif.rows[1][bif.columns.indexOf("referenceIds")]).toBe("[Schultz, 1997]; [Haber, 2010]");
-  });
-
-  it("unions columns across records and leaves missing cells empty", () => {
-    const [s] = sheetsFromJson(JSON.stringify({ $schema: "x", items: [{ a: 1 }, { b: { c: true } }] }));
-    expect(s.columns).toEqual(["a", "b"]);
-    expect(s.rows).toEqual([
-      ["1", ""],
-      ["", '{"c":true}'],
-    ]);
-  });
-
-  it("puts scalar top-level fields into a key/value sheet", () => {
-    const sheets = sheetsFromJson(fixture("meta.json"), "meta");
-    expect(sheets).toHaveLength(1);
-    expect(sheets[0].name).toBe("meta");
-    expect(sheets[0].columns).toEqual(["key", "value"]);
-    expect(sheets[0].rows[0]).toEqual(["roi", "Mesolimbic dopamine system"]);
-  });
-
-  it("throws on invalid JSON", () => {
-    expect(() => sheetsFromJson("{")).toThrow();
+    expect(tabularSources(items).map((s) => s.name)).toEqual(["Project.csv", "Circuits.csv", "References.csv"]);
   });
 });
 
@@ -91,11 +37,6 @@ describe("sheetFromCsv", () => {
 
   it("names blank header cells by position", () => {
     expect(sheetFromCsv("a,,c\n1,2,3,4\n", "x").columns).toEqual(["a", "#2", "c", "#4"]);
-  });
-
-  it("is chosen by file extension", () => {
-    expect(sheetsFromText("Circuits.csv", "Circuit ID\nVTA\n")[0]).toEqual({ name: "Circuits", columns: ["Circuit ID"], rows: [["VTA"]] });
-    expect(sheetsFromText("frg.json", fixture("FRG/frg.json"))[0].name).toBe("nodes");
   });
 });
 
@@ -126,14 +67,5 @@ describe("filterRows / sortRows", () => {
     expect(nextSort({ col: 1, dir: "asc" }, 1)).toEqual({ col: 1, dir: "desc" });
     expect(nextSort({ col: 1, dir: "desc" }, 1)).toBeNull();
     expect(nextSort({ col: 1, dir: "desc" }, 2)).toEqual({ col: 2, dir: "asc" });
-  });
-});
-
-describe("cellText", () => {
-  it("renders scalars, arrays and objects", () => {
-    expect(cellText(null)).toBe("");
-    expect(cellText(3)).toBe("3");
-    expect(cellText(false)).toBe("false");
-    expect(cellText(["a", 1, { x: 1 }])).toBe('a; 1; {"x":1}');
   });
 });
