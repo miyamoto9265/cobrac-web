@@ -772,7 +772,7 @@ export const ko: Record<MessageKey, string> = {
   "c2c.title": "다른 Canon에 PR 보내기",
   "c2c.note": "이 Canon의 최신 버전을 다른 Canon에 PR로 제안합니다. 내 Canon 또는 다른 사용자의 공개 Canon(Canon ID는 공개 페이지에 있음)에 보낼 수 있으며, 받는 쪽 소유자가 같은 충돌 규칙으로 검토합니다.",
   "c2c.empty": "이 Canon은 아직 비어 있습니다.",
-  "c2c.target": "받는 Canon ID(예: u3k8d0hn-c1)",
+  "c2c.target": "받는 Canon ID(예: c3k8d0hn)",
   "c2c.preview": "차이 보기",
   "c2c.send": "PR 보내기",
   "c2c.sent": "보낸 PR",

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArtifactInfo, CanonRecord, CloneProjectResponse, ProjectRecord, PublicCanonDetail, PublicProjectDetail, PublicProjectSummary } from "@cobrac/shared";
+import { RANDOM_PROJECT_ID_REGEX } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
@@ -159,7 +160,7 @@ describe("cloning", () => {
     const beforeItem = structuredClone(fake.items("projects").find((x) => x.projectId === P));
 
     const r = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${P}/clone`));
-    expect(r.projectId).toBe("u3k8d0hn-1");
+    expect(r.projectId).toMatch(RANDOM_PROJECT_ID_REGEX);
     const N = r.projectId;
 
     expect(snapshotOf(A.sub, P)).toEqual(beforeObjects);
@@ -188,6 +189,23 @@ describe("cloning", () => {
     const owner = await json<ProjectRecord & { cloneCount: number }>(call(A, "GET", `/projects/${P}`));
     expect(owner.cloneCount).toBe(1);
     expect((await json<PublicProjectDetail>(call(B, "GET", `/public/projects/${P}`))).cloneCount).toBe(1);
+  });
+
+  it("publishes and clones a project with a random ID, showing the owner's userKey (not in the ID)", async () => {
+    const R = "p7m2q9xa";
+    fake.put("projects", project(A.sub, R));
+    put(A.sub, R, `workspace/${R}_HCD/uc.json`, `{"project":"${R}","ucs":[]}`);
+    put(A.sub, R, "graph/hcd.json", `{"projectId":"${R}"}`);
+    await json(call(A, "PUT", `/projects/${R}/visibility`, { visibility: "public" }));
+    const list = await json<{ items: PublicProjectSummary[] }>(call(B, "GET", "/public/projects"));
+    expect(list.items).toEqual([expect.objectContaining({ projectId: R, ownerUserKey: "u7m2q9xa" })]);
+    const { projectId: N } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${R}/clone`));
+    expect(N).toMatch(RANDOM_PROJECT_ID_REGEX);
+    expect(N).not.toBe(R);
+    expect(text(B.sub, N, `workspace/${N}_HCD/uc.json`)).toBe(`{"project":"${N}","ucs":[]}`);
+    expect(text(B.sub, N, "graph/hcd.json")).toBe(`{"projectId":"${N}"}`);
+    const clone = await json<ProjectRecord>(call(B, "GET", `/projects/${N}`));
+    expect(clone.clonedFrom).toMatchObject({ projectId: R, ownerUserKey: "u7m2q9xa" });
   });
 
   it("never copies running step states from an original that is mid-run or failed", async () => {

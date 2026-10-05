@@ -772,7 +772,7 @@ export const fr: Record<MessageKey, string> = {
   "c2c.title": "Envoyer une pull request à un autre Canon",
   "c2c.note": "Propose la dernière révision de ce Canon à un autre Canon : l'un des vôtres, ou le Canon public de quelqu'un d'autre (son Canon ID figure sur sa page publique). Le propriétaire destinataire l'examine avec les mêmes règles de conflit.",
   "c2c.empty": "Ce Canon est encore vide.",
-  "c2c.target": "Canon ID du destinataire (ex. u3k8d0hn-c1)",
+  "c2c.target": "Canon ID du destinataire (ex. c3k8d0hn)",
   "c2c.preview": "Aperçu",
   "c2c.send": "Envoyer la pull request",
   "c2c.sent": "Pull requests envoyées",

@@ -105,7 +105,7 @@ export class CobracAgentsStack extends Stack {
     const users = new dynamodb.TableV2(this, "Users", {
       ...tableDefaults,
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
-      // Project ID namespace (`<userKey>-<seq>`): uniqueness check on issue, ID → owner lookup
+      // userKey (pseudonymous owner key; prefix of the earlier `<userKey>-<seq>` IDs): uniqueness check on issue, key → user lookup
       globalSecondaryIndexes: [
         {
           indexName: "userKey-index",
@@ -152,7 +152,8 @@ export class CobracAgentsStack extends Stack {
         },
       ],
     });
-    // Public listing (kind = project | canon, while public) and clone counters (kind = clones); new table
+    // Public listing (kind = project | canon, while public), clone counters (kind = clones), configuration (kind = config)
+    // and the reservations that keep random Project / Canon IDs globally unique (kind = id)
     const catalog = new dynamodb.TableV2(this, "Catalog", {
       ...tableDefaults,
       partitionKey: { name: "kind", type: dynamodb.AttributeType.STRING },

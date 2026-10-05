@@ -1,12 +1,18 @@
 // ---------------------------------------------------------------------------
 // Canon: a set of projects whose circuit definitions must agree (same UC Descriptor → same
 // Uniform/Collection status and decomposition; Sender = Uniform across projects).
-// Canon ID `<userKey>-c<seq>`: issued once per owner, never changed or reused.
+// Canon ID: globally unique, never changed or reused. New IDs are random (`c` + 7 Crockford base32, e.g.
+// `c4h8w2rk`); IDs issued earlier as `<userKey>-c<seq>` stay valid as they are.
 // ---------------------------------------------------------------------------
 
-import { USER_KEY_REGEX, normalizeProjectName } from "./projectId.js";
+import { USER_KEY_REGEX, normalizeProjectName, randomCrockfordId } from "./projectId.js";
 
-export const CANON_ID_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*$/;
+/** Random Canon IDs (the form issued now) */
+export const RANDOM_CANON_ID_REGEX = /^c[0-9a-hjkmnp-tv-z]{7}$/;
+/** `<userKey>-c<seq>` Canon IDs issued earlier (still valid, never issued again) */
+export const USER_SEQ_CANON_ID_REGEX = /^u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*$/;
+/** Every Canon ID: the random form or the `<userKey>-c<seq>` form */
+export const CANON_ID_REGEX = /^(?:c[0-9a-hjkmnp-tv-z]{7}|u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*)$/;
 export const CANON_DESCRIPTION_MAX = 2000;
 export const CANON_POLICY_MAX = 2000;
 
@@ -203,6 +209,12 @@ export interface CanonRevisionRecord {
 }
 export const canonMemberSk = (projectId: string) => `${CANON_MEMBER_PREFIX}${projectId}`;
 
+/** A new random Canon ID (`c4h8w2rk`). Uniqueness is checked when it is reserved. */
+export function generateCanonId(random?: () => number): string {
+  return randomCrockfordId("c", random);
+}
+
+/** The `<userKey>-c<seq>` form (no longer issued). */
 export function formatCanonId(userKey: string, seq: number): string {
   if (!USER_KEY_REGEX.test(userKey)) throw new Error(`invalid userKey: ${userKey}`);
   if (!Number.isInteger(seq) || seq < 1) throw new Error(`invalid canon seq: ${seq}`);

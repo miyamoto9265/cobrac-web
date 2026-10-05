@@ -46,7 +46,6 @@ export async function ensureUser(auth: AuthContext): Promise<UserRecord> {
     role: isAdmin ? "admin" : "user",
     disabled: false,
     userKey: await newUniqueUserKey(),
-    projectSeq: 0,
     apiKeyRegistered: false,
     createdAt: now,
     updatedAt: now,

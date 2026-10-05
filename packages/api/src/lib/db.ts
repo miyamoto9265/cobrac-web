@@ -110,21 +110,6 @@ export async function assignUserKey(userId: string): Promise<string> {
   }
 }
 
-/** Atomic per-user counter for Project IDs. Numbers lost to failed creations are never reused. */
-export async function nextProjectSeq(userId: string): Promise<number> {
-  const r = await ddb.send(
-    new UpdateCommand({
-      TableName: env.tables.users,
-      Key: { userId },
-      UpdateExpression: "ADD projectSeq :one",
-      ConditionExpression: "attribute_exists(userId)",
-      ExpressionAttributeValues: { ":one": 1 },
-      ReturnValues: "UPDATED_NEW",
-    }),
-  );
-  return Number(r.Attributes?.projectSeq);
-}
-
 /** The user registered with this e-mail address (case-insensitive); a Scan, as there is no e-mail index (few users). */
 export async function findUserByEmail(email: string): Promise<UserRecord | null> {
   const want = email.trim().toLowerCase();
@@ -161,18 +146,19 @@ export async function putProject(p: ProjectRecord, ifNotExists = false) {
 export function updateProject(userId: string, projectId: string, values: Partial<ProjectRecord>) {
   return updateItem(env.tables.projects, { userId, projectId }, values);
 }
+/** Newest first by creation time (the sort key is a random ID, so key order means nothing); ties by Project ID. */
+export function compareProjectsByCreation(a: Pick<ProjectRecord, "createdAt" | "projectId">, b: Pick<ProjectRecord, "createdAt" | "projectId">): number {
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+  return a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0;
+}
+
+/** One page of the user's projects in creation order; the cursor is the offset into that order. */
 export async function listProjects(userId: string, limit = 50, cursor?: string) {
-  const r = await ddb.send(
-    new QueryCommand({
-      TableName: env.tables.projects,
-      KeyConditionExpression: "userId = :u",
-      ExpressionAttributeValues: { ":u": userId },
-      Limit: limit,
-      ExclusiveStartKey: decodeCursor(cursor),
-    }),
-  );
-  const items = ((r.Items as ProjectRecord[]) ?? []).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  return { items, nextCursor: encodeCursor(r.LastEvaluatedKey) };
+  const all = (await listUserProjects(userId)).sort(compareProjectsByCreation);
+  const offset = Math.max(0, Number.parseInt(cursor ?? "0", 10) || 0);
+  const size = Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50);
+  const items = all.slice(offset, offset + size);
+  return { items, nextCursor: offset + size < all.length ? String(offset + size) : null };
 }
 /** Every project of one user (paginated Query). */
 export async function listUserProjects(userId: string): Promise<ProjectRecord[]> {

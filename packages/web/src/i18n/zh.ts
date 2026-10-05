@@ -772,7 +772,7 @@ export const zh: Record<MessageKey, string> = {
   "c2c.title": "向其他 Canon 发送 PR",
   "c2c.note": "将此 Canon 的最新版本作为拉取请求提交给另一个 Canon：你自己的，或他人的公开 Canon（其 Canon ID 在公开页面上）。接收方所有者按相同的冲突规则审阅。",
   "c2c.empty": "此 Canon 仍为空。",
-  "c2c.target": "接收方 Canon ID（例 u3k8d0hn-c1）",
+  "c2c.target": "接收方 Canon ID（例 c3k8d0hn）",
   "c2c.preview": "查看差异",
   "c2c.send": "发送拉取请求",
   "c2c.sent": "已发送的拉取请求",

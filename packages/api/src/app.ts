@@ -138,14 +138,13 @@ import {
   emptyCanonSnapshot,
   mergeCanon,
   FRG_FILES,
-  formatCanonId,
-  formatProjectId,
   isArticleStale,
   isCanonDeleted,
   isCloneTextFile,
   isPublicReadableKey,
   isPublishableProjectId,
   parseProjectId,
+  USER_SEQ_CANON_ID_REGEX,
   rewriteProjectId,
   isCanonId,
   isProjectIdLike,
@@ -172,7 +171,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
-import { getCatalogItem, getCloneCount, incrementCloneCount, listCatalog, putCatalogItem, deleteCatalogItem } from "./lib/catalog.js";
+import { getCatalogItem, getCloneCount, incrementCloneCount, listCatalog, putCatalogItem, deleteCatalogItem, reserveNewId } from "./lib/catalog.js";
 import {
   deleteObject,
   encryptApiKey,
@@ -196,7 +195,6 @@ import {
 import { loadBraTemplate } from "./lib/braTemplate.js";
 import { listDocs, readDoc } from "./lib/docs.js";
 import {
-  assignUserKey,
   findProjectByLegacyId,
   getJob,
   getProject,
@@ -211,7 +209,6 @@ import {
   listUserProjects,
   listUsers,
   markProjectDeleted,
-  nextProjectSeq,
   putJob,
   putMessage,
   putProject,
@@ -247,7 +244,6 @@ import {
   listCanonRevisions,
   listOwnCanons,
   markCanonDeleted,
-  nextCanonSeq,
   putCanon,
   removeCanonMember,
   updateCanon,
@@ -394,7 +390,7 @@ app.get("/users/me/models", async (c) => {
 /** Token / cost summary across the caller's projects (per model and per project). */
 app.get("/users/me/usage", async (c) => {
   const u = c.get("user");
-  const { items } = await listProjects(u.userId, 200);
+  const items = await listUserProjects(u.userId);
   const summary: UsageSummary = { totals: EMPTY_USAGE, costUsd: null, unpricedProjects: 0, byModel: [], byProject: [], pricingAsOf: PRICING_AS_OF };
   const byModel = new Map<string, { usage: TokenUsage; cost: number; unpriced: boolean; jobs: number }>();
   let cost = 0;
@@ -587,8 +583,7 @@ app.post("/projects", async (c) => {
   const urls = attachmentUrls(body.urls);
   const staged = await stagedAttachments(u.userId, body.attachments);
 
-  const userKey = u.userKey ?? (await assignUserKey(u.userId));
-  const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
+  const projectId = await reserveNewId("project", u.userId);
   const attachments: ProjectAttachment[] = [];
   for (const [i, f] of staged.entries()) {
     const key = attachmentFileKey(i, f.safeName);
@@ -1307,10 +1302,9 @@ app.get("/canons", async (c) => {
 app.post("/canons", async (c) => {
   const u = c.get("user");
   const fields = canonFields((await c.req.json()) as CreateCanonRequest, false);
-  const userKey = u.userKey ?? (await assignUserKey(u.userId));
   const now = nowIso();
   const canon: CanonRecord = {
-    canonId: formatCanonId(userKey, await nextCanonSeq(u.userId)),
+    canonId: await reserveNewId("canon", u.userId),
     sk: CANON_META_SK,
     ownerUserId: u.userId,
     name: fields.name!,
@@ -1606,8 +1600,7 @@ async function applyProjectCanon(u: UserRecord, project: ProjectRecord, r: { exi
   }
   const plan = r.plan!;
   const fields = canonFields(plan, false);
-  const userKey = u.userKey ?? (await assignUserKey(u.userId));
-  const canonId = formatCanonId(userKey, await nextCanonSeq(u.userId));
+  const canonId = await reserveNewId("canon", u.userId);
   const composed = await composeSeedPlan(u, plan, canonId);
   const now = nowIso();
   const head = composed.snapshot.revision;
@@ -2039,30 +2032,34 @@ app.get("/canons/:id/revisions/:rev", async (c) => {
 // read them and clone public projects. Nothing here writes to another user's project or Canon.
 // ---------------------------------------------------------------------------
 
-const ownerKeyOf = (id: string) => parseProjectId(id)?.userKey ?? id.replace(/-c\d+$/, "");
+/** The owner's pseudonymous userKey: the prefix of a `<userKey>-…` ID, otherwise from the owner's Users record. */
+async function ownerKeyOf(id: string, ownerUserId: string): Promise<string> {
+  const fromId = parseProjectId(id)?.userKey ?? (USER_SEQ_CANON_ID_REGEX.test(id) ? id.replace(/-c\d+$/, "") : null);
+  return fromId ?? (await getUser(ownerUserId))?.userKey ?? "";
+}
 
-function publicProjectSummary(p: ProjectRecord, cloneCount: number): PublicProjectSummary {
+async function publicProjectSummary(p: ProjectRecord, cloneCount: number): Promise<PublicProjectSummary> {
   return {
     projectId: p.projectId,
     name: projectDisplayName(p),
     roi: p.roi,
     tlf: p.tlf,
     contributor: p.contributor,
-    ownerUserKey: ownerKeyOf(p.projectId),
+    ownerUserKey: await ownerKeyOf(p.projectId, p.userId),
     publishedAt: p.publishedAt ?? p.updatedAt,
     updatedAt: p.updatedAt,
     cloneCount,
   };
 }
 
-function publicCanonSummary(canon: CanonRecord): PublicCanonSummary {
+async function publicCanonSummary(canon: CanonRecord): Promise<PublicCanonSummary> {
   return {
     canonId: canon.canonId,
     name: canon.name,
     policy: canon.policy,
     headRevision: canon.headRevision,
     memberCount: canon.memberCount,
-    ownerUserKey: ownerKeyOf(canon.canonId),
+    ownerUserKey: await ownerKeyOf(canon.canonId, canon.ownerUserId),
     publishedAt: canon.publishedAt ?? canon.updatedAt,
     updatedAt: canon.updatedAt,
     acceptPullRequests: canon.acceptPullRequests !== false,
@@ -2132,7 +2129,7 @@ app.get("/public/projects", async (c) => {
   for (const row of await listCatalog("project")) {
     const p = await getProject(row.ownerUserId, row.id);
     if (!isPublicProject(p)) continue;
-    const s = publicProjectSummary(p, 0);
+    const s = await publicProjectSummary(p, 0);
     if (q && ![s.name, s.projectId, s.roi, s.tlf, s.contributor].some((x) => (x ?? "").toLowerCase().includes(q))) continue;
     out.push(s);
   }
@@ -2145,7 +2142,7 @@ app.get("/public/projects/:id", async (c) => {
   const p = await loadPublicProject(c.req.param("id"));
   const files = (await listArtifacts(p.userId, p.projectId)).map((a) => a.key).filter((k) => isPublicReadableKey(k, p.projectId));
   const res: PublicProjectDetail = {
-    ...publicProjectSummary(p, await getCloneCount(p.projectId)),
+    ...(await publicProjectSummary(p, await getCloneCount(p.projectId))),
     revision: p.revision ?? 0,
     completedAt: p.completedAt,
     clonedFrom: p.clonedFrom ?? null,
@@ -2175,8 +2172,7 @@ app.post("/public/projects/:id/clone", async (c) => {
   const u = c.get("user");
   const src = await loadPublicProject(c.req.param("id"));
   const { policy } = await modelPolicy(u);
-  const userKey = u.userKey ?? (await assignUserKey(u.userId));
-  const projectId = formatProjectId(userKey, await nextProjectSeq(u.userId));
+  const projectId = await reserveNewId("project", u.userId);
   let copied = 0;
   for (const a of await listArtifacts(src.userId, src.projectId)) {
     const target = cloneTargetKey(a.key, src.projectId, projectId);
@@ -2223,7 +2219,7 @@ app.post("/public/projects/:id/clone", async (c) => {
     createdAt: now,
     updatedAt: now,
     completedAt: now,
-    clonedFrom: { projectId: src.projectId, revision: src.revision ?? 0, ownerUserKey: ownerKeyOf(src.projectId), name: projectDisplayName(src), clonedAt: now },
+    clonedFrom: { projectId: src.projectId, revision: src.revision ?? 0, ownerUserKey: await ownerKeyOf(src.projectId, src.userId), name: projectDisplayName(src), clonedAt: now },
   };
   await putProject(project, true);
   await incrementCloneCount(src.projectId);
@@ -2236,7 +2232,7 @@ app.get("/public/canons", async (c) => {
   for (const row of await listCatalog("canon")) {
     const canon = await getCanon(row.id);
     if (!canon || isCanonDeleted(canon) || canon.visibility !== "public") continue;
-    out.push(publicCanonSummary(canon));
+    out.push(await publicCanonSummary(canon));
   }
   out.sort((a, b) => (a.publishedAt < b.publishedAt ? 1 : -1));
   return c.json({ items: out });
@@ -2249,7 +2245,7 @@ app.get("/public/canons/:id", async (c) => {
     const p = await getProject(canon.ownerUserId, m.projectId);
     if (isPublicProject(p) && p.canonId === canon.canonId) publicMembers.push({ projectId: p.projectId, name: projectDisplayName(p), roi: p.roi, tlf: p.tlf });
   }
-  const res: PublicCanonDetail = { ...publicCanonSummary(canon), description: canon.description, publicMembers };
+  const res: PublicCanonDetail = { ...(await publicCanonSummary(canon)), description: canon.description, publicMembers };
   return c.json(res);
 });
 

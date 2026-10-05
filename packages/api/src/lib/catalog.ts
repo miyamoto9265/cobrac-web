@@ -1,5 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
-import type { CatalogItem, CatalogKind, CloneCounter } from "@cobrac/shared";
+import type { CatalogItem, CatalogKind, CloneCounter, IdReservation } from "@cobrac/shared";
+import { generateCanonId, generateProjectId, ID_RESERVATION_KIND, nowIso, RANDOM_ID_ATTEMPTS } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
 
@@ -34,6 +35,25 @@ export async function listCatalog(kind: Exclude<CatalogKind, "clones">): Promise
     start = r.LastEvaluatedKey as Record<string, unknown> | undefined;
   } while (start);
   return out;
+}
+
+/**
+ * Draws a random ID and reserves it with a conditional Put (`attribute_not_exists(id)`); a taken ID is drawn again.
+ * The reservation is what makes the ID globally unique: the Projects table is keyed by user, so its own conditional
+ * Put cannot see other users' projects.
+ */
+export async function reserveNewId(type: IdReservation["type"], ownerUserId: string, generate: () => string = type === "project" ? generateProjectId : generateCanonId): Promise<string> {
+  for (let i = 0; i < RANDOM_ID_ATTEMPTS; i++) {
+    const id = generate();
+    const row: IdReservation = { kind: ID_RESERVATION_KIND, id, type, ownerUserId, createdAt: nowIso() };
+    try {
+      await ddb.send(new PutCommand({ TableName: env.tables.catalog, Item: row, ConditionExpression: "attribute_not_exists(id)" }));
+      return id;
+    } catch (e) {
+      if ((e as { name?: string }).name !== "ConditionalCheckFailedException") throw e;
+    }
+  }
+  throw new Error(`could not reserve a unique ${type} ID`);
 }
 
 export async function getCloneCount(projectId: string): Promise<number> {

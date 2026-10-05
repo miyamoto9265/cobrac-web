@@ -772,7 +772,7 @@ export const ja: Record<MessageKey, string> = {
   "c2c.title": "別の Canon に PR を送る",
   "c2c.note": "この Canon の最新の rev を、自分の別の Canon か、ほかのユーザーの公開 Canon に PR として送ります（Canon ID は公開ページにあります）。受け取った側の所有者が確認します。",
   "c2c.empty": "この Canon はまだ空です。",
-  "c2c.target": "送り先の Canon ID（例 u3k8d0hn-c1）",
+  "c2c.target": "送り先の Canon ID（例 c3k8d0hn）",
   "c2c.preview": "差分を見る",
   "c2c.send": "PR を送る",
   "c2c.sent": "送った PR",
