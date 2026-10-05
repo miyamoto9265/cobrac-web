@@ -1,5 +1,7 @@
 # CoBRAC Agents worker image (build context = repository root "cobrac-web/")
-FROM node:22-bookworm-slim AS build
+# Base images come from the ECR Public mirror of the Docker official images: CodeBuild pulls anonymously from shared
+# IPs, and Docker Hub rate-limits those pulls (429), which fails the deploy.
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim AS build
 WORKDIR /repo
 COPY package.json package-lock.json* ./
 COPY packages/shared/package.json packages/shared/
@@ -19,7 +21,7 @@ RUN npm run build -w @cobrac/shared && npm run build -w @cobrac/worker \
  && cp -r packages/shared/dist node_modules/@cobrac/shared/dist \
  && cp packages/shared/package.json node_modules/@cobrac/shared/package.json
 
-FROM node:22-bookworm-slim
+FROM public.ecr.aws/docker/library/node:22-bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 python3-pip git ca-certificates curl ripgrep poppler-utils \

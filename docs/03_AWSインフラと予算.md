@@ -60,7 +60,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | Lambda × 9 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand; authMessage 256 MB, 5 s). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 5 minutes / Cognito custom message trigger |
 | ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
 | Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
-| CodeBuild | Image build at deploy | During `cdk deploy` |
+| CodeBuild | Image build at deploy. The base image `node:22-bookworm-slim` is pulled from the ECR Public mirror (`public.ecr.aws/docker/library/`), not Docker Hub, whose rate limit on anonymous pulls from CodeBuild's shared IPs failed deploys | During `cdk deploy` |
 | ECR | One worker image (~0.5 GB compressed) | Always |
 
 ### 3.2 Data
