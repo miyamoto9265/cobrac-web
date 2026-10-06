@@ -22,20 +22,23 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Fixed
 - Editing a plan's rows in one tab while confirming it in another could leave a running plan whose rows had changed after confirmation. Saving or importing rows, changing the settings or the policy, confirming, asking for or cancelling a draft, ordering and deciding proposals now wait briefly for the plan to be free and check its state again; while another change or the runner still holds it the request is refused with a message to try again shortly, and nothing changes
 - Wave headings on the plan page show the wave's own number instead of its position in the list
+- Release notes: the changes of 0.34.0 (the hypothesis-mode screens, graph marks, badge, graph data and manual) were listed under 0.33.0 and 0.34.0 was empty; each version now lists its own changes
 
 ## [0.34.0] - 2026-10-06
 
-## [0.33.0] - 2026-10-06
-
 ### Added
-- Hypothesis mode can be switched on through the API: creating a project with "Allow hypotheses" stores the claims allowed on the whole HCD (scope S1), the share limit (10, 20, 30 or 50%; 20% when not given) and an optional one-line note, and a follow-up can add a scope of its own (the whole HCD, or chosen circuits and GNs), also to a project that used literature-supported evidence only. The job and its scope are saved together; a follow-up's text alone never allows hypotheses. The agent's follow-up prompt names the scope it added
-- A project whose result has no hypotheses goes back to literature-supported evidence only after the job completes
-- Saved versions record the evidence mode, the scopes, the share limit and how many connections and UCs are hypotheses; copies of a public project keep its evidence mode, scopes and limit
 - Screens for hypothesis mode. On the create screen, the "v" menu has "Evidence": "Literature-supported only" (the default) or "Allow hypotheses" with the claims, the share limit and an optional note. A completed project's Agent panel has the switch "Allow hypotheses with this instruction" (off by default and after every send) with the claims, the target (the whole HCD, or the circuits and GNs selected in the HCD or FRG graph) and the limit
 - The HCD graph marks hypotheses without changing how signs are drawn: a hypothesis connection is dotted with an "H" in the middle, a connection whose direction alone is a hypothesis ends in a hollow arrowhead, and a hypothesis UC has a dotted border and an "H". The legend explains them, and "Hide hypotheses" in the toolbar shows the evidence-only graph. In the FRG graph, GNs that depend on hypotheses carry an "H" that names them (for example H2, H5). The detail panel shows each hypothesis's basis, claims, rationale and premise papers
 - Projects in hypothesis mode carry a "Hypothesis mode" badge with their number of hypotheses in the header and the project list. The versions tab shows the evidence mode, the scopes and, for connections and UCs, the hypotheses against all elements and the limit; its BRA-DB section disables registering a version with hypotheses and says why. Canon pull requests show how many hypotheses were kept out of the shared layer
 - The graph data of hypothesis-mode projects marks the hypotheses of UCs and connections (IDs, basis, rationale, premises) and the GNs that depend on them
 - The user manual (Japanese and English) has a section on hypothesis mode
+
+## [0.33.0] - 2026-10-06
+
+### Added
+- Hypothesis mode can be switched on through the API (the screens follow in the next stage): creating a project with "Allow hypotheses" stores the claims allowed on the whole HCD (scope S1), the share limit (10, 20, 30 or 50%; 20% when not given) and an optional one-line note, and a follow-up can add a scope of its own (the whole HCD, or chosen circuits and GNs), also to a project that used literature-supported evidence only. The job and its scope are saved together; a follow-up's text alone never allows hypotheses. The agent's follow-up prompt names the scope it added
+- A project whose result has no hypotheses goes back to literature-supported evidence only after the job completes
+- Saved versions record the evidence mode, the scopes, the share limit and how many connections and UCs are hypotheses; copies of a public project keep its evidence mode, scopes and limit
 
 ### Changed
 - A version that contains hypotheses cannot be registered in BRA-DB for now ("仮説を含む版は、いまは BRA-DB に登録できません"); versions without hypotheses, and versions saved before, register as before
