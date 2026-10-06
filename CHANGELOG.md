@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.31.0] - 2026-10-06
+
 ### Added
 - BRA Planner (stage 1, sidebar "BRA Planner"): put many projects (ROI × TLF) in a plan and let the system build them. A plan's rows come from a capability list (CSV, TSV or text; columns found by name in English or Japanese, or ROI, TLF, rationale in that order) or are typed in; rows that cannot be read are listed with their row number and the reason. In a draft the rows can be edited, reordered and grouped into waves by hand, and the model, reasoning effort and research mode chosen. Nothing is queued before the plan is confirmed
 - A confirmed plan runs its rows wave by wave within the concurrency limits: the next wave starts once no row of the current one waits to start or runs. Rows are started only when a slot is free, so no job waits in the queue. A failing row is retried automatically up to 2 times and then needs attention (retry or skip it) while the other rows go on. A plan can be paused (running rows continue, nothing new starts), resumed, and cancelled (running jobs are stopped); resuming never rebuilds finished rows. A plan whose owner can no longer run jobs pauses itself and says why
