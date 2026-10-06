@@ -907,9 +907,10 @@ export const es: Record<MessageKey, string> = {
   "bradb.warnings": "{n} aviso(s)",
   "bradb.skipped": "circuitos que se dejan como los definieron otros proyectos: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Reúna en un plan los proyectos BRA (ROI × TLF) que quiere crear; el sistema los construye por olas dentro del límite de ejecuciones simultáneas. También puede pedir un borrador a partir de un objetivo y de listas de capacidades. No se crea ningún proyecto hasta que confirme el plan.",
   "plan.new": "Nuevo plan",
   "plan.name": "Nombre",
@@ -1100,8 +1101,8 @@ export const es: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "Propuestas recibidas",
   "plan.evt.proposal_accepted": "Propuesta aceptada",
   "plan.evt.proposal_rejected": "Propuesta rechazada",
-  "sys.planStarted": "Iniciado por BRA Planner (plan «{name}»).",
-  "sys.planCancelled": "Trabajo cancelado porque se canceló su plan de BRA Planner.",
+  "sys.planStarted": "Iniciado por CoBRAC Orchestrator (plan «{name}»).",
+  "sys.planCancelled": "Trabajo cancelado porque se canceló su plan de CoBRAC Orchestrator.",
   "admin.concurrency": "Trabajos simultáneos",
   "admin.concurrencyHelp": "Cuántos trabajos se ejecutan a la vez, en total y por usuario ({min}–{max}). Un cambio se aplica en menos de un minuto, sin despliegue. Un campo vacío usa el valor del despliegue.",
   "admin.concurrencyGlobal": "En total",
@@ -1155,7 +1156,7 @@ export const es: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "Decidido por una persona",
   "plan.evt.row_ai_review": "Revisión IA iniciada",
   "pr.plan": "Plan {id}",
-  "pr.planHelp": "Enviada por este plan de BRA Planner",
+  "pr.planHelp": "Enviada por este plan de CoBRAC Orchestrator",
   "pr.bulkApprove": "Aprobar seleccionadas",
   "pr.bulkApproveCount": "Aprobar seleccionadas ({n})",
   "pr.bulkApproveQ": "¿Aprobar {n} pull requests una tras otra? Cada una se comprueba con el Canon tal como esté en ese momento y el proceso se detiene en la primera que tenga un conflicto.",

@@ -13,7 +13,7 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 - **CSV and BRA xlsx**: the data for submission, built from the HCD and the FRG. The xlsx comes in two formats: CoBRAC's own and the official Template-v2-2.
 - When the agent needs a decision it asks you a question, and continues once you answer. After completion you can change the result with follow-up instructions.
 - One run takes from tens of minutes to a few hours and costs OpenAI usage ([costs](#where-do-i-see-the-cost)).
-- To build many projects, put them in a plan with the [BRA Planner](#bra-planner); it runs them in turn for you.
+- To build many projects, put them in a plan with the [CoBRAC Orchestrator](#cobrac-orchestrator); it runs them in turn for you.
 
 ## Getting started
 
@@ -208,13 +208,13 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - **Newer revision**: "Update to latest" makes the next run follow the new definitions.
 - **Changes affect this project**: definitions this project uses have changed. "Align with Canon" also sends a follow-up instruction to update the project.
 
-## BRA Planner
+## CoBRAC Orchestrator
 
-**BRA Planner** builds many BRA projects (ROI × TLF) from one **plan**. Once you confirm the plan, the rows run automatically in **waves**, within the concurrency limits. A draft of the plan can be written for you from a goal and capability lists. No project is created before you confirm; the only job that can run before that is the one of "Create draft", and its cost is recorded.
+**CoBRAC Orchestrator** (formerly BRA Planner) builds many BRA projects (ROI × TLF) from one **plan**. Once you confirm the plan, the rows run automatically in **waves**, within the concurrency limits. A draft of the plan can be written for you from a goal and capability lists. No project is created before you confirm; the only job that can run before that is the one of "Create draft", and its cost is recorded.
 
 ### Create a plan
 
-1. Under "BRA Planner" in the sidebar, enter a name and a goal (for example "Build the BRA of the language system").
+1. Under "CoBRAC Orchestrator" in the sidebar, enter a name and a goal (for example "Build the BRA of the language system").
 2. Add capability list files (CSV, TSV, text, xlsx or PDF; up to 10) or paste rows. One row is one project. CSV, TSV and text files are read into rows as soon as the plan is created. With a header row the columns are read by name: ROI (region), TLF (function, capability), rationale (note), wave and priority. Without one, a single column is the TLF, otherwise the columns are ROI, TLF, rationale.
 3. "Create plan" creates the plan from these rows. "Create draft" creates it and asks for a draft at the same time (it needs a goal, a file or pasted rows). xlsx and PDF files are read by the job of "Create draft" (also when you press it after creating the plan).
 4. Rows that could not be read (neither ROI nor TLF, the same ROI × TLF as another row, …) are shown with the file name, the row number and the reason. Fix them and add them with "Import CSV".

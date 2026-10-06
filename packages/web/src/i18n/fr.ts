@@ -907,9 +907,10 @@ export const fr: Record<MessageKey, string> = {
   "bradb.warnings": "{n} avertissement(s)",
   "bradb.skipped": "circuits laissés tels que définis par d’autres projets : {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Regroupez dans un plan les projets BRA (ROI × TLF) à créer ; le système les construit par vagues, dans la limite d’exécutions simultanées. Un brouillon peut aussi être rédigé pour vous à partir d’un objectif et de listes de capacités. Aucun projet n’est créé avant que vous ne confirmiez le plan.",
   "plan.new": "Nouveau plan",
   "plan.name": "Nom",
@@ -1100,8 +1101,8 @@ export const fr: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "Propositions reçues",
   "plan.evt.proposal_accepted": "Proposition acceptée",
   "plan.evt.proposal_rejected": "Proposition refusée",
-  "sys.planStarted": "Démarré par le BRA Planner (plan « {name} »).",
-  "sys.planCancelled": "Tâche annulée parce que son plan BRA Planner a été annulé.",
+  "sys.planStarted": "Démarré par le CoBRAC Orchestrator (plan « {name} »).",
+  "sys.planCancelled": "Tâche annulée parce que son plan CoBRAC Orchestrator a été annulé.",
   "admin.concurrency": "Tâches simultanées",
   "admin.concurrencyHelp": "Nombre de tâches exécutées en même temps, au total et par utilisateur ({min}–{max}). Une modification s’applique en moins d’une minute, sans déploiement. Un champ vide utilise la valeur du déploiement.",
   "admin.concurrencyGlobal": "Au total",
@@ -1155,7 +1156,7 @@ export const fr: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "Décidé par une personne",
   "plan.evt.row_ai_review": "Revue IA lancée",
   "pr.plan": "Plan {id}",
-  "pr.planHelp": "Poussée par ce plan de BRA Planner",
+  "pr.planHelp": "Poussée par ce plan de CoBRAC Orchestrator",
   "pr.bulkApprove": "Approuver la sélection",
   "pr.bulkApproveCount": "Approuver la sélection ({n})",
   "pr.bulkApproveQ": "Approuver {n} pull requests l’une après l’autre ? Chacune est vérifiée par rapport au Canon tel qu’il est alors, et l’opération s’arrête à la première qui présente un conflit.",

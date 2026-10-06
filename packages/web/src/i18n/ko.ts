@@ -907,9 +907,10 @@ export const ko: Record<MessageKey, string> = {
   "bradb.warnings": "경고 {n}건",
   "bradb.skipped": "다른 프로젝트의 정의대로 둔 회로: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "만들고 싶은 BRA 프로젝트(ROI × TLF)를 계획으로 묶으면, 동시 실행 상한 안에서 웨이브별로 자동으로 만듭니다. 목표와 능력 목록으로 초안을 만들 수도 있습니다. 계획을 확정하기 전에는 프로젝트가 만들어지지 않습니다.",
   "plan.new": "새 계획",
   "plan.name": "이름",
@@ -1100,8 +1101,8 @@ export const ko: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "제안 수신",
   "plan.evt.proposal_accepted": "제안 승인",
   "plan.evt.proposal_rejected": "제안 거절",
-  "sys.planStarted": "BRA Planner의 계획 ‘{name}’에서 시작했습니다.",
-  "sys.planCancelled": "BRA Planner 계획이 중지되어 작업을 중지했습니다.",
+  "sys.planStarted": "CoBRAC Orchestrator의 계획 ‘{name}’에서 시작했습니다.",
+  "sys.planCancelled": "CoBRAC Orchestrator 계획이 중지되어 작업을 중지했습니다.",
   "admin.concurrency": "동시 실행 작업 수",
   "admin.concurrencyHelp": "동시에 실행하는 작업 수의 상한입니다(전체와 사용자별, {min}–{max}). 변경은 배포 없이 1분 안에 적용됩니다. 비워 두면 배포 시의 값을 씁니다.",
   "admin.concurrencyGlobal": "전체",
@@ -1155,7 +1156,7 @@ export const ko: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "사람이 판단",
   "plan.evt.row_ai_review": "AI 리뷰 시작",
   "pr.plan": "계획 {id}",
-  "pr.planHelp": "이 BRA Planner 계획이 push했습니다",
+  "pr.planHelp": "이 CoBRAC Orchestrator 계획이 push했습니다",
   "pr.bulkApprove": "일괄 승인",
   "pr.bulkApproveCount": "일괄 승인 ({n})",
   "pr.bulkApproveQ": "PR {n}건을 차례로 승인할까요? 하나씩 그 시점의 Canon과 대조하고, 충돌이 생긴 PR에서 멈춥니다.",

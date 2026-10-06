@@ -313,7 +313,7 @@ function Workspace({ projectId }: { projectId: string }) {
               {project.canonId && <CanonBadge projectId={project.projectId} canonId={project.canonId} busy={active} onFollowup={() => void load()} />}
               {project.planId && (
                 <Link to={planPath(project.planId)} className="text-blue-700 hover:underline coarse:py-1.5" data-testid="project-plan">
-                  {t("nav.planner")} · <span className="font-mono">{project.planId}</span>
+                  {t("plan.shortName")} · <span className="font-mono">{project.planId}</span>
                 </Link>
               )}
               {project.visibility === "public" && (

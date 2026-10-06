@@ -907,9 +907,10 @@ export const pt: Record<MessageKey, string> = {
   "bradb.warnings": "{n} aviso(s)",
   "bradb.skipped": "circuitos mantidos como outros projetos os definiram: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Reúna num plano os projetos BRA (ROI × TLF) que deseja criar; o sistema os constrói em ondas, dentro do limite de execuções simultâneas. Também é possível pedir um rascunho a partir de um objetivo e de listas de capacidades. Nenhum projeto é criado até você confirmar o plano.",
   "plan.new": "Novo plano",
   "plan.name": "Nome",
@@ -1100,8 +1101,8 @@ export const pt: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "Propostas recebidas",
   "plan.evt.proposal_accepted": "Proposta aceita",
   "plan.evt.proposal_rejected": "Proposta rejeitada",
-  "sys.planStarted": "Iniciado pelo BRA Planner (plano “{name}”).",
-  "sys.planCancelled": "Trabalho cancelado porque o plano do BRA Planner foi cancelado.",
+  "sys.planStarted": "Iniciado pelo CoBRAC Orchestrator (plano “{name}”).",
+  "sys.planCancelled": "Trabalho cancelado porque o plano do CoBRAC Orchestrator foi cancelado.",
   "admin.concurrency": "Trabalhos simultâneos",
   "admin.concurrencyHelp": "Quantos trabalhos são executados ao mesmo tempo, no total e por usuário ({min}–{max}). Uma alteração vale em menos de um minuto, sem implantação. Um campo vazio usa o valor da implantação.",
   "admin.concurrencyGlobal": "No total",
@@ -1155,7 +1156,7 @@ export const pt: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "Decidido por uma pessoa",
   "plan.evt.row_ai_review": "Revisão por IA iniciada",
   "pr.plan": "Plano {id}",
-  "pr.planHelp": "Enviado por este plano do BRA Planner",
+  "pr.planHelp": "Enviado por este plano do CoBRAC Orchestrator",
   "pr.bulkApprove": "Aprovar selecionados",
   "pr.bulkApproveCount": "Aprovar selecionados ({n})",
   "pr.bulkApproveQ": "Aprovar {n} pull requests um após o outro? Cada um é verificado com o Canon como estiver no momento, e o processo para no primeiro que tiver conflito.",
