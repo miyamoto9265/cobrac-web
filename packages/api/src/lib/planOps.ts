@@ -540,10 +540,11 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
       if (!r.existing || r.state !== "pending") continue;
       let values: Partial<PlanRowRecord> = { state: "done", projectId: r.existing.projectId, completedAt: at };
       const inCanon = owned?.get(r.existing.projectId)?.canonId ?? null;
-      // in a plan with a Canon an existing project counts once it is in that Canon: one in no Canon is pushed by the
-      // runner (its row runs until then), one in another Canon needs a human
+      // in a plan with a Canon an existing project counts once it is in that Canon: one in another Canon needs a human;
+      // one in no Canon waits for its wave like any other row (seeds first), and the runner then pushes it (joining
+      // the Canon pinned to its head) without building anything
       if (canonId && inCanon !== canonId) {
-        values = inCanon ? { state: "decision", decisionReason: "other_canon", projectId: r.existing.projectId } : { state: "running", projectId: r.existing.projectId, startedAt: at };
+        values = inCanon ? { state: "decision", decisionReason: "other_canon", projectId: r.existing.projectId } : { state: "pending", projectId: r.existing.projectId };
       }
       if (!(await updateRow(plan.planId, r.rowId, values, { state: "pending" }))) continue;
       Object.assign(r, values);

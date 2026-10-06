@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { CanonDetailResponse, CanonPullDetailResponse, CanonPullRequestRecord, CanonRecord, PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
 import { PLAN_MAX_WAITING_PRS, countRows, estimatePlan } from "@cobrac/shared";
 
@@ -22,6 +22,7 @@ const api = vi.hoisted(() => ({
   canonOutgoing: vi.fn(),
   approveManyPulls: vi.fn(),
   canonPull: vi.fn(),
+  confirmPlan: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice", role: "user" } }) }));
@@ -30,7 +31,7 @@ const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
 const { CanonDetailPage } = await import("../src/pages/CanonDetailPage");
 const { CanonPullPage } = await import("../src/pages/CanonPullPage");
-const { bulkApprovable, seedGateRows, ROW_STATE_COLOR } = await import("../src/lib/plan");
+const { bulkApprovable, seedGateRows, seedsHolding, ROW_STATE_COLOR } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const now = "2026-10-06T00:00:00.000Z";
@@ -107,11 +108,26 @@ const q = <T extends Element = HTMLElement>(sel: string, within: ParentNode = do
 const qa = <T extends Element = HTMLElement>(sel: string, within: ParentNode = document) => [...within.querySelectorAll<T>(sel)];
 const button = (text: string, within: ParentNode = document) => qa<HTMLButtonElement>("button", within).find((b) => b.textContent?.trim() === text);
 const click = (el: Element | null | undefined) => act(async () => (el as HTMLElement).click());
+async function type(el: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")!.set!.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+function deferred<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
   api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [], pricingAsOf: "" });
-  for (const fn of [api.setPlanCanon, api.resolvePlanRow, api.planRowAction, api.updatePlan]) fn.mockResolvedValue({ ok: true });
+  for (const fn of [api.setPlanCanon, api.resolvePlanRow, api.planRowAction, api.updatePlan, api.confirmPlan]) fn.mockResolvedValue({ ok: true });
   vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 afterEach(async () => {
@@ -161,6 +177,65 @@ describe("the plan's Canon in a draft", () => {
     // no Canon of their own: the existing choice is not offered
     expect(q<HTMLInputElement>('[data-testid="canon-existing"]', section)!.disabled).toBe(true);
     expect(section.textContent).toContain("You have no Canon yet.");
+  });
+});
+
+describe("confirming a draft with a new Canon name being typed", () => {
+  const draft = () => detail("DRAFT", [row("r1", "speech production", "pending", 1)], { canonNew: { name: "Language canon" } });
+  beforeEach(() => api.listCanons.mockResolvedValue({ items: [], shared: [] }));
+
+  it("stores the typed name first, waits for it and names it in the dialog", async () => {
+    api.getPlan.mockResolvedValue(draft());
+    await render("/plans/n4h8w2rk");
+    await type(q<HTMLInputElement>('[data-testid="canon-new-name"]')!, "Speech canon");
+    const put = deferred<{ ok: true }>();
+    api.setPlanCanon.mockReturnValue(put.promise);
+    await click(button("Confirm and start"));
+    expect(api.setPlanCanon).toHaveBeenCalledWith("n4h8w2rk", { mode: "new", name: "Speech canon" });
+    // nothing is asked or confirmed before the name is stored
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(api.confirmPlan).not.toHaveBeenCalled();
+    await act(async () => put.resolve({ ok: true }));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Canon “Speech canon” is created"));
+    expect(api.confirmPlan).toHaveBeenCalledTimes(1);
+    expect(api.setPlanCanon).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for the save the blur started instead of saving twice", async () => {
+    api.getPlan.mockResolvedValue(draft());
+    await render("/plans/n4h8w2rk");
+    const input = q<HTMLInputElement>('[data-testid="canon-new-name"]')!;
+    await type(input, "Speech canon");
+    const put = deferred<{ ok: true }>();
+    api.setPlanCanon.mockReturnValue(put.promise);
+    await act(async () => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(api.setPlanCanon).toHaveBeenCalledTimes(1);
+    await click(button("Confirm and start"));
+    expect(window.confirm).not.toHaveBeenCalled();
+    await act(async () => put.resolve({ ok: true }));
+    expect(api.setPlanCanon).toHaveBeenCalledTimes(1);
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Canon “Speech canon” is created"));
+    expect(api.confirmPlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not confirm when the name cannot be stored", async () => {
+    api.getPlan.mockResolvedValue(draft());
+    await render("/plans/n4h8w2rk");
+    await type(q<HTMLInputElement>('[data-testid="canon-new-name"]')!, "Speech canon");
+    api.setPlanCanon.mockRejectedValue(new Error("この名前の Canon はすでにあります"));
+    await click(button("Confirm and start"));
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(api.confirmPlan).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("この名前の Canon はすでにあります");
+  });
+
+  it("names the stored Canon when nothing is being edited", async () => {
+    api.getPlan.mockResolvedValue(draft());
+    await render("/plans/n4h8w2rk");
+    await click(button("Confirm and start"));
+    expect(api.setPlanCanon).not.toHaveBeenCalled();
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Canon “Language canon” is created"));
+    expect(api.confirmPlan).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -224,6 +299,60 @@ describe("a running plan with a Canon", () => {
     expect(gate.textContent).toContain("Waiting for the seed pull request to be approved.");
     expect(q('a', gate)!.getAttribute("href")).toBe(`/canons/${CANON}/pulls/3`);
     expect(q('[data-testid="plan-back-pressure"]')).toBeNull();
+  });
+
+  it("shows the AI review as waiting, running or done (a link to the pull request), and nothing otherwise", async () => {
+    const rows = [
+      row("r1", "speech production", "done", 1, { seed: true, prNo: 1 }),
+      row("r2", "phonological processing", "review", 2, { prNo: 5, aiReview: null, aiReviewJobId: "j0000005" }),
+      row("r3", "repetition", "review", 2, { prNo: 6, aiReview: null }),
+      row("r4", "reading", "decision", 2, { prNo: 7, aiReview: "wanted", decisionReason: "conflicts" }),
+      row("r5", "naming", "decision", 2, { prNo: 8, aiReview: null, aiReviewJobId: "j0000008", decisionReason: "conflicts" }),
+      row("r6", "writing", "done", 2, { prNo: 9, aiReview: null, aiReviewJobId: "j0000009" }),
+    ];
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
+    await render("/plans/n4h8w2rk");
+    const chips = qa('[data-testid="row-ai-review"]', q('[data-testid="plan-rows"]')!);
+    expect(chips.map((e) => e.textContent)).toEqual(["AI reviewed", "AI reviewed"]);
+    expect(chips.map((e) => e.getAttribute("href"))).toEqual([`/canons/${CANON}/pulls/5`, `/canons/${CANON}/pulls/8`]);
+  });
+
+  it("shows the pull request of a row that waits for its update to match the Canon", async () => {
+    const rows = [row("r1", "speech production", "done", 1, { seed: true, prNo: 1 }), row("r2", "repetition", "pending", 2, { prNo: 4, conform: true, projectId: "p0000002", project: project("Repetition") }), row("r3", "reading", "pending", 2)];
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
+    await render("/plans/n4h8w2rk");
+    const list = q('[data-testid="plan-rows"]')!;
+    expect(qa<HTMLAnchorElement>('[data-testid="row-pr"]', list).map((a) => a.getAttribute("href"))).toEqual([1, 4].map((n) => `/canons/${CANON}/pulls/${n}`));
+    expect(qa('[data-testid="row-conform-waiting"]', list).map((e) => e.textContent)).toEqual(["Waiting to update to match the Canon"]);
+    expect(qa('[data-testid="row-ai-review"]', list)).toHaveLength(0);
+  });
+
+  it("says when a seed needs a human decision, with a link to its row", async () => {
+    const rows = [row("r1", "speech production", "decision", 1, { seed: true, prNo: 3, decisionReason: "conflicts", projectId: "p0000001", project: project("Speech") }), row("r2", "repetition", "pending", 2)];
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows, { ...confirmed, activeWave: 1 }, canon));
+    const scroll = vi.fn();
+    const before = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scroll;
+    onTestFinished(() => {
+      Element.prototype.scrollIntoView = before;
+    });
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-seed-gate"]')).toBeNull();
+    const gate = q('[data-testid="plan-seed-decision"]')!;
+    expect(gate.textContent).toContain("A seed row needs your decision.");
+    const link = q<HTMLAnchorElement>('[data-testid="seed-decision-link"]', gate)!;
+    expect(link.getAttribute("href")).toBe("#plan-decision-r1");
+    expect(link.textContent).toBe("speech production in left IFG");
+    expect(document.getElementById("plan-decision-r1")!.getAttribute("data-testid")).toBe("plan-decision");
+    await click(link);
+    expect(scroll).toHaveBeenCalled();
+  });
+
+  it("explains the seed gate when the waiting seeds share the seed's wave", async () => {
+    const rows = [row("r1", "speech production", "review", 1, { seed: true, prNo: 3 }), row("r2", "comprehension", "pending", 1, { seed: true }), row("r3", "repetition", "done", 1)];
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows, { ...confirmed, activeWave: 1 }, canon));
+    await render("/plans/n4h8w2rk");
+    expect(q('a', q('[data-testid="plan-seed-gate"]')!)!.getAttribute("href")).toBe(`/canons/${CANON}/pulls/3`);
   });
 
   it("explains the back-pressure when too many pull requests wait", async () => {
@@ -373,6 +502,16 @@ describe("helpers", () => {
     ];
     expect(seedGateRows(rows, 2)).toEqual([rows[0]]);
     expect(seedGateRows(rows, null)).toEqual([]);
+  });
+
+  it("the seed gate also holds on seeds in 「人の判断」, and is explained only while it holds a row", () => {
+    const seed = { seed: true, state: "decision" as const, wave: 1 };
+    expect(seedGateRows([seed], 1)).toEqual([seed]);
+    // nothing waits: no explanation
+    expect(seedsHolding([seed, { seed: false, state: "pending" as const, wave: 1 }], 1)).toEqual([]);
+    // a later wave waits, or another seed (even of the same wave)
+    expect(seedsHolding([seed, { seed: false, state: "pending" as const, wave: 2 }], 1)).toEqual([seed]);
+    expect(seedsHolding([seed, { seed: true, state: "pending" as const, wave: 1 }], 1)).toEqual([seed]);
   });
 
   it("every row state has a colour", () => {

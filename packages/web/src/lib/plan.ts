@@ -31,12 +31,22 @@ export const ROW_STATE_COLOR: Record<PlanRowState, string> = {
 export const ROW_STATE_ORDER: PlanRowState[] = ["pending", "running", "question", "review", "decision", "attention", "done", "skipped", "cancelled"];
 
 /**
- * Seed rows whose pull request waits for approval while they hold the next wave (the runner's seed gate): seeds of the
- * active wave or an earlier one in 「承認待ち」.
+ * Seed rows that hold the plan (the runner's seed gate): seeds of the active wave or an earlier one whose pull request
+ * waits for approval (「承認待ち」) or that need a human decision (「人の判断」). Both hold every later wave, and every other
+ * seed (one seed at a time).
  */
 export function seedGateRows<T extends Pick<PlanRowView, "seed" | "state" | "wave">>(rows: T[], activeWave: number | null | undefined): T[] {
   if (!activeWave) return [];
-  return rows.filter((r) => r.seed && r.state === "review" && r.wave <= activeWave);
+  return rows.filter((r) => r.seed && (r.state === "review" || r.state === "decision") && r.wave <= activeWave);
+}
+
+/**
+ * The gating seeds that actually hold a row: a pending row of a later wave, or any pending seed (seeds are built one at a
+ * time, even when they share a wave).
+ */
+export function seedsHolding<T extends Pick<PlanRowView, "seed" | "state" | "wave">>(rows: T[], activeWave: number | null | undefined): T[] {
+  const waiting = rows.filter((r) => r.state === "pending");
+  return seedGateRows(rows, activeWave).filter((s) => waiting.some((r) => r.wave > s.wave || r.seed));
 }
 
 /** Back-pressure: no new wave starts while this many pull requests of the plan wait for approval. */

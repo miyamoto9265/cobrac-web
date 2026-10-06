@@ -1552,7 +1552,12 @@ app.post("/canons/:id/pulls/approve-many", async (c) => {
   const res: ApproveManyResponse = { approved: [], stopped: null };
   for (const prNo of [...new Set(list)]) {
     const fresh = await getCanon(canon.canonId);
-    if (!fresh || isCanonDeleted(fresh)) throw notFound();
+    if (!fresh || isCanonDeleted(fresh)) {
+      // deleted meanwhile: nothing was approved yet → 404; otherwise the PRs approved so far are reported
+      if (!res.approved.length) throw notFound();
+      res.stopped = { prNo, reason: "not_found" };
+      break;
+    }
     const pr = await getPullRequest(canon.canonId, prNo);
     if (!pr) {
       res.stopped = { prNo, reason: "not_found" };
@@ -1562,7 +1567,15 @@ app.post("/canons/:id/pulls/approve-many", async (c) => {
       res.stopped = { prNo, reason: "closed" };
       break;
     }
-    const r = await approvePullRequest(u, fresh, pr, { choices: {} });
+    let r: Awaited<ReturnType<typeof approvePullRequest>>;
+    try {
+      r = await approvePullRequest(u, fresh, pr, { choices: {} });
+    } catch (e) {
+      // the earlier approvals already made revisions: report them and stop here instead of failing the whole request
+      console.error(`[canon ${canon.canonId}] approve-many stopped at #${prNo}`, e instanceof Error ? e.message : e);
+      res.stopped = { prNo, reason: "race" };
+      break;
+    }
     if (!r.ok) {
       res.stopped = { prNo, reason: r.reason, ...(r.blocking ? { blocking: r.blocking } : {}) };
       break;

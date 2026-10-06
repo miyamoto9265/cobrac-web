@@ -8,7 +8,7 @@ import { ModelSelect } from "../components/ModelSelect";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedGateRows, seedIndexes, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
+import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedIndexes, seedsHolding, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
 import { canonPath, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { PlanStatusBadge } from "./PlansPage";
 
@@ -45,6 +45,8 @@ const jobError = (j: PlanJobState, t: TFn) => (j.errorCode ? t(`plan.jobError.${
 const rowLabel = (r: { roi: string; tlf: string }) => [r.tlf, r.roi].filter((s) => s.trim()).join(" in ");
 /** Short name of a row for the lists of other rows (overlaps, dependencies). */
 const rowName = (r: { roi: string; tlf: string }) => r.tlf.trim() || r.roi.trim() || "—";
+/** Element ID of a row's entry in 「人の判断」. */
+const decisionAnchor = (rowId: string) => `plan-decision-${rowId}`;
 
 function RowStateChip({ state }: { state: PlanRowState }) {
   const t = useT();
@@ -424,8 +426,13 @@ function Attention({ rows, act }: { rows: PlanRowView[]; act: (rowId: string, ac
   );
 }
 
+/** The Canon named in the confirmation: none, or its name and whether it is created at confirmation. */
+type ConfirmCanon = { isNew: boolean; name: string } | null;
+/** Stores the Canon choice that is still being edited; `false` when it could not be saved. */
+type CanonFlush = () => Promise<ConfirmCanon | false>;
+
 /** The plan's Canon: chosen in a draft (none, one of the owner's Canons, or a new one created at confirmation), read-only afterwards. */
-function CanonSection({ d, onSaved, onError }: { d: PlanDetailResponse; onSaved: () => Promise<unknown>; onError: (e: unknown) => void }) {
+function CanonSection({ d, onSaved, onError, flushRef }: { d: PlanDetailResponse; onSaved: () => Promise<unknown>; onError: (e: unknown) => void; flushRef: React.MutableRefObject<CanonFlush | null> }) {
   const t = useT();
   const { plan } = d;
   const editable = plan.status === "DRAFT";
@@ -433,6 +440,8 @@ function CanonSection({ d, onSaved, onError }: { d: PlanDetailResponse; onSaved:
   // the choice while it is being saved (the stored one is shown otherwise)
   const [pending, setPending] = useState<PlanCanonChoice | null>(null);
   const [name, setName] = useState<string | null>(null);
+  // the save in flight (confirming waits for it) and whether it was stored
+  const inflight = useRef<{ choice: PlanCanonChoice; done: Promise<boolean> } | null>(null);
   useEffect(() => {
     if (!editable) return;
     let live = true;
@@ -447,14 +456,41 @@ function CanonSection({ d, onSaved, onError }: { d: PlanDetailResponse; onSaved:
   }, [editable]);
   const stored: PlanCanonChoice = plan.canonNew ? { mode: "new", name: plan.canonNew.name } : plan.canonId ? { mode: "existing", canonId: plan.canonId } : { mode: "none" };
   const choice = pending ?? stored;
-  const save = (c: PlanCanonChoice) => {
+  const save = (c: PlanCanonChoice): Promise<boolean> => {
     setPending(c);
-    api
+    const done: Promise<boolean> = api
       .setPlanCanon(plan.planId, c)
       .then(() => onSaved())
-      .catch(onError)
-      .finally(() => setPending(null));
+      .then(
+        () => true,
+        (e) => {
+          onError(e);
+          return false;
+        },
+      )
+      .finally(() => {
+        if (inflight.current?.done === done) inflight.current = null;
+        setPending(null);
+      });
+    inflight.current = { choice: c, done };
+    return done;
   };
+  const canonName = (c: PlanCanonChoice): ConfirmCanon =>
+    c.mode === "none" ? null : c.mode === "new" ? { isNew: true, name: c.name } : { isNew: false, name: own?.find((x) => x.canonId === c.canonId)?.name ?? (d.canon?.canonId === c.canonId ? d.canon.name : c.canonId) };
+  // confirming first stores a new Canon name that is typed but not saved yet (or waits for the save in flight)
+  flushRef.current = editable
+    ? async () => {
+        const typed = choice.mode === "new" ? (name ?? "").trim() : "";
+        const f = inflight.current;
+        if (f && !(typed && f.choice.mode === "new" && typed !== f.choice.name)) return (await f.done) ? canonName(f.choice) : false;
+        if (f) await f.done;
+        if (choice.mode === "new" && typed && typed !== choice.name) {
+          const c: PlanCanonChoice = { mode: "new", name: typed };
+          return (await save(c)) ? canonName(c) : false;
+        }
+        return canonName(choice);
+      }
+    : null;
 
   if (!editable) {
     const c = d.canon;
@@ -566,18 +602,37 @@ function PrLink({ canonId, prNo }: { canonId: string; prNo: number }) {
   );
 }
 
-/** What a row of a Canon plan adds: its pull request, the AI review of it, and the conform follow-ups it got. */
+/**
+ * What a row of a Canon plan adds: its pull request (also while it waits for its update to match the Canon), the AI review
+ * of it (待ち / 実行中, then 「AI レビュー済み」 linking to the pull request, where the review is shown), and the conform
+ * follow-ups it got.
+ */
 function RowCanonFacts({ row, canonId }: { row: PlanRowView; canonId: string | null }) {
   const t = useT();
-  const pr = canonId && row.prNo && (row.state === "review" || row.state === "decision" || row.state === "done") ? row.prNo : null;
+  const conformWaits = row.state === "pending" && !!row.conform;
+  const pr = canonId && row.prNo && (row.state === "review" || row.state === "decision" || row.state === "done" || conformWaits) ? row.prNo : null;
+  const prOpen = row.state === "review" || row.state === "decision";
+  const chip = "rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700";
+  // 待ち / 実行中 while the row waits for approval (the runner clears 実行中 when the review job ends); afterwards a link to
+  // the pull request, where the review is shown
+  const aiState = row.state === "review" && row.aiReview ? row.aiReview : !row.aiReview && row.aiReviewJobId && prOpen && pr ? "done" : null;
   return (
     <>
       {pr && <PrLink canonId={canonId!} prNo={pr} />}
-      {row.state === "review" && row.aiReview && (
-        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700" data-testid="row-ai-review">
-          {t(`plan.aiReview.${row.aiReview}` as MessageKey)}
+      {conformWaits && (
+        <span className="text-slate-500" data-testid="row-conform-waiting">
+          {t("plan.conformWaiting")}
         </span>
       )}
+      {aiState === "done" ? (
+        <Link to={canonPullPath(canonId!, pr!)} className={`${chip} inline-flex items-center hover:underline coarse:min-h-11`} data-testid="row-ai-review">
+          {t("plan.aiReview.done")}
+        </Link>
+      ) : aiState ? (
+        <span className={chip} data-testid="row-ai-review">
+          {t(`plan.aiReview.${aiState}` as MessageKey)}
+        </span>
+      ) : null}
       {(row.conformAttempts ?? 0) > 0 && (
         <span className="text-slate-500" data-testid="row-conform">
           {t("plan.conformAttempts", { n: row.conformAttempts ?? 0, max: MAX_CONFORM_FOLLOWUPS })}
@@ -601,7 +656,7 @@ function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: 
           // only an existing, completed project can be pushed (the API answers 409 otherwise)
           const canPush = !!r.project && !r.project.deleted && r.project.status === "COMPLETED";
           return (
-            <li key={r.rowId} className="flex min-w-0 flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3 lg:flex-row lg:items-center" data-testid="plan-decision">
+            <li key={r.rowId} id={decisionAnchor(r.rowId)} className="flex min-w-0 scroll-mt-4 flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3 lg:flex-row lg:items-center" data-testid="plan-decision">
               <div className="min-w-0 flex-1 text-sm">
                 <div className="break-words font-medium">{rowLabel(r)}</div>
                 <div className="text-xs text-amber-800">{t(`plan.decision.${r.decisionReason ?? "conflicts"}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</div>
@@ -640,23 +695,53 @@ function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: 
   );
 }
 
-/** Why a running Canon plan does not start its next wave: a seed pull request waits for approval, or too many do (back-pressure). */
+/** Link that scrolls to a row's entry in 「人の判断」 on this page. */
+function DecisionLink({ row }: { row: PlanRowView }) {
+  const id = decisionAnchor(row.rowId);
+  return (
+    <a
+      href={`#${id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        document.getElementById(id)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }}
+      className="inline-flex min-w-0 max-w-full items-center gap-1 break-words text-amber-900 underline coarse:min-h-11"
+      data-testid="seed-decision-link"
+    >
+      {rowLabel(row) || row.rowId}
+    </a>
+  );
+}
+
+/**
+ * Why a running Canon plan does not start rows: a seed pull request waits for approval or a seed needs a human decision
+ * (both hold every later wave and every other seed), or too many pull requests wait (back-pressure, later waves only).
+ */
 function CanonGates({ d }: { d: PlanDetailResponse }) {
   const t = useT();
   const { plan, rows } = d;
   const canonId = plan.canonId ?? d.canon?.canonId ?? null;
   if (!canonId || (plan.status !== "RUNNING" && plan.status !== "PAUSED")) return null;
-  // both only hold rows of later waves; nothing to explain once none is waiting
-  if (!rows.some((r) => r.state === "pending" && r.wave > (plan.activeWave ?? 0))) return null;
-  const seeds = seedGateRows(rows, plan.activeWave);
-  const held = backPressure(rows);
+  const seeds = seedsHolding(rows, plan.activeWave);
+  const inReview = seeds.filter((r) => r.state === "review");
+  const toDecide = seeds.filter((r) => r.state === "decision");
+  // back-pressure only holds rows of later waves; nothing to explain once none is waiting
+  const held = backPressure(rows) && rows.some((r) => r.state === "pending" && r.wave > (plan.activeWave ?? 0));
   if (!seeds.length && !held) return null;
   return (
     <div className="mb-3 grid gap-2">
-      {seeds.length > 0 && (
+      {inReview.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-700" role="status" data-testid="plan-seed-gate">
           <span className="min-w-0 break-words">{t("plan.seedGate")}</span>
-          {seeds.map((r) => (r.prNo ? <PrLink key={r.rowId} canonId={canonId} prNo={r.prNo} /> : null))}
+          {inReview.map((r) => (r.prNo ? <PrLink key={r.rowId} canonId={canonId} prNo={r.prNo} /> : null))}
+        </div>
+      )}
+      {toDecide.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status" data-testid="plan-seed-decision">
+          <span className="min-w-0 break-words">{t("plan.seedGateDecision")}</span>
+          {toDecide.map((r) => (
+            <DecisionLink key={r.rowId} row={r} />
+          ))}
         </div>
       )}
       {held && (
@@ -1116,6 +1201,7 @@ export function PlanDetailPage() {
   const [rejected, setRejected] = useState<PlanRowRejected[]>(() => ((location.state as { rejected?: PlanRowRejected[] } | null)?.rejected ?? []));
   const [renaming, setRenaming] = useState<string | null>(null);
   const saveRef = useRef<{ save: () => Promise<void>; rows: DraftRow[] } | null>(null);
+  const canonFlushRef = useRef<CanonFlush | null>(null);
 
   const onError = useCallback((e: unknown) => setErr(e instanceof Error ? e.message : String(e)), []);
   const load = useCallback(
@@ -1160,7 +1246,16 @@ export function PlanDetailPage() {
   };
   const rowAct = (rowId: string, action: "retry" | "skip") => act(() => api.planRowAction(planId, rowId, action));
   const resolveRow = (rowId: string, action: "done" | "push") => act(() => api.resolvePlanRow(planId, rowId, action));
-  const confirm = () => {
+  const confirm = async () => {
+    // a new Canon name typed but not saved yet is stored first, so the dialog names the Canon that is created
+    let canon: ConfirmCanon = plan.canonNew ? { isNew: true, name: plan.canonNew.name } : d.canon && !d.canon.missing ? { isNew: false, name: d.canon.name } : null;
+    const flush = canonFlushRef.current;
+    if (flush) {
+      setBusy(true);
+      const stored = await flush().finally(() => setBusy(false));
+      if (stored === false) return;
+      canon = stored;
+    }
     const unsaved = saveRef.current;
     // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「種」 headings)
     const facts = unsaved ? seedFactsOf(unsaved.rows) : [];
@@ -1170,7 +1265,7 @@ export function PlanDetailPage() {
     const text = [
       t("plan.confirmQ", { n: e.rows, waves: e.waves, c: e.concurrency, time: fmtDuration(e.minutes, t), cost: `${formatUsd(e.costUsd.min)}–${formatUsd(e.costUsd.max)}` }),
       ...(existing ? [t("plan.confirmExisting", { n: existing })] : []),
-      ...(plan.canonNew ? [t("plan.confirmCanonNew", { name: plan.canonNew.name })] : d.canon && !d.canon.missing ? [t("plan.confirmCanon", { name: d.canon.name })] : []),
+      ...(canon ? [t(canon.isNew ? "plan.confirmCanonNew" : "plan.confirmCanon", { name: canon.name })] : []),
     ].join("\n\n");
     if (!window.confirm(text)) return;
     act(async () => {
@@ -1259,7 +1354,7 @@ export function PlanDetailPage() {
 
         <div className="mb-4 flex flex-wrap gap-2" data-testid="plan-actions">
           {plan.status === "DRAFT" && (
-            <button type="button" disabled={busy || !rows.length} onClick={confirm} className={primaryBtn}>
+            <button type="button" disabled={busy || !rows.length} onClick={() => void confirm()} className={primaryBtn}>
               <Play size={14} aria-hidden /> {t("plan.confirm")}
             </button>
           )}
@@ -1297,7 +1392,7 @@ export function PlanDetailPage() {
         {(plan.status === "RUNNING" || plan.status === "PAUSED") && <Proposals d={d} busy={busy} decide={decide} />}
         <Settings d={d} onChanged={() => void load()} onError={onError} />
         <Policy plan={plan} onSaved={load} onError={onError} />
-        <CanonSection d={d} onSaved={load} onError={onError} />
+        <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
         {plan.status === "DRAFT" ? <DraftEditor d={d} onSaved={() => void load()} onError={onError} onRejected={setRejected} saveRef={saveRef} /> : <RowsByWave d={d} act={rowAct} />}
         <History events={d.events} rows={rows} t={t} />
         <DecidedProposals d={d} />

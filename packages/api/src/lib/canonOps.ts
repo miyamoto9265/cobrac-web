@@ -231,7 +231,7 @@ export async function prReviewMaterial(canon: CanonRecord, pr: CanonPullRequestR
   return { diff, incoming, base, provenance, checks: canonReviewChecks(base, incoming, diff, provenance), entries: reviewEntries(base, incoming, diff), graph: reviewGraph(base, incoming, diff) };
 }
 
-export type AiReviewResult = { ok: true; job: JobRecord; ai: CanonAiState | null } | { ok: false; reason: "closed" | "active" | "material"; message: string };
+export type AiReviewResult = { ok: true; job: JobRecord; ai: CanonAiState | null } | { ok: false; reason: "closed" | "active" | "material"; message: string; /** reason active: the review job already queued or running */ jobId?: string };
 
 /**
  * Queues the AI review of an open PR on the worker (one at a time per PR), as `u` with `u`'s key; the model is checked
@@ -240,7 +240,8 @@ export type AiReviewResult = { ok: true; job: JobRecord; ai: CanonAiState | null
 export async function requestAiReview(u: UserRecord, canon: CanonRecord, pr: CanonPullRequestRecord, policy: ModelPolicy & { source: KeySource }, opts: { model: string; locale: UiLocale }): Promise<AiReviewResult> {
   if (pr.state !== "open") return { ok: false, reason: "closed", message: "閉じた取り込み依頼には AI レビューを実行できません" };
   const jobs = reviewJobsOf(await listJobsForCanon(canon.canonId), pr.prNo);
-  if (jobs.some(isActiveJob)) return { ok: false, reason: "active", message: "この PR の AI レビューは実行中です" };
+  const active = jobs.find(isActiveJob);
+  if (active) return { ok: false, reason: "active", message: "この PR の AI レビューは実行中です", jobId: active.jobId };
   const m = await prReviewMaterial(canon, pr);
   if (!m.diff || !m.incoming || !m.base || !m.checks) return { ok: false, reason: "material", message: "この PR の差分を読めません" };
   const jobId = newId("job_");
