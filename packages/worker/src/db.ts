@@ -50,7 +50,7 @@ export async function getJob(projectId: string, jobId: string): Promise<JobRecor
 
 type Updatable<T> = Partial<Omit<T, "userId" | "projectId" | "jobId">>;
 
-async function update(table: string, key: Record<string, string>, values: Record<string, unknown>) {
+async function update(table: string, key: Record<string, string>, values: Record<string, unknown>, ifStatus?: string) {
   const entries = Object.entries({ ...values, updatedAt: nowIso() }).filter(([, v]) => v !== undefined);
   if (entries.length === 0) return;
   const names: Record<string, string> = {};
@@ -66,8 +66,9 @@ async function update(table: string, key: Record<string, string>, values: Record
       TableName: table,
       Key: key,
       UpdateExpression: `SET ${sets.join(", ")}`,
-      ExpressionAttributeNames: names,
-      ExpressionAttributeValues: vals,
+      ...(ifStatus === undefined ? {} : { ConditionExpression: "#ifStatus = :ifStatus" }),
+      ExpressionAttributeNames: { ...names, ...(ifStatus === undefined ? {} : { "#ifStatus": "status" }) },
+      ExpressionAttributeValues: { ...vals, ...(ifStatus === undefined ? {} : { ":ifStatus": ifStatus }) },
     }),
   );
 }
@@ -78,6 +79,17 @@ export function updateProject(userId: string, projectId: string, values: Updatab
 
 export function updateJob(projectId: string, jobId: string, values: Updatable<JobRecord>) {
   return update(env.tables.jobs, { projectId, jobId }, values as Record<string, unknown>);
+}
+
+/** Updates a job only while it has status `status`; false when it has another one (e.g. cancelled meanwhile). */
+export async function updateJobIfStatus(projectId: string, jobId: string, status: JobRecord["status"], values: Updatable<JobRecord>): Promise<boolean> {
+  try {
+    await update(env.tables.jobs, { projectId, jobId }, values as Record<string, unknown>, status);
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
 }
 
 /**

@@ -209,13 +209,22 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 ## BRA Planner
 
-**BRA Planner** builds many BRA projects (ROI × TLF) from one **plan**. Once you confirm the plan, the rows run automatically in **waves**, within the concurrency limits. Nothing runs, and nothing is charged, before you confirm.
+**BRA Planner** builds many BRA projects (ROI × TLF) from one **plan**. Once you confirm the plan, the rows run automatically in **waves**, within the concurrency limits. A draft of the plan can be written for you from a goal and capability lists. No project is created before you confirm; the only job that can run before that is the one of "Create draft", and its cost is recorded.
 
 ### Create a plan
 
 1. Under "BRA Planner" in the sidebar, enter a name and a goal (for example "Build the BRA of the language system").
-2. Choose a capability list (CSV, TSV or text) or paste rows, then press "Create plan". One row is one project. With a header row the columns are read by name: ROI (region), TLF (function, capability), rationale (note), wave and priority. Without one, a single column is the TLF, otherwise the columns are ROI, TLF, rationale.
-3. Rows that could not be read (neither ROI nor TLF, the same ROI × TLF as another row, …) are shown with their row number and the reason. Fix them and add them with "Import CSV".
+2. Add capability list files (CSV, TSV, text, xlsx or PDF; up to 10) or paste rows. One row is one project. CSV, TSV and text files are read into rows as soon as the plan is created. With a header row the columns are read by name: ROI (region), TLF (function, capability), rationale (note), wave and priority. Without one, a single column is the TLF, otherwise the columns are ROI, TLF, rationale.
+3. "Create plan" creates the plan from these rows. "Create draft" creates it and asks for a draft at the same time (it needs a goal, a file or pasted rows). xlsx and PDF files are read by the job of "Create draft" (also when you press it after creating the plan).
+4. Rows that could not be read (neither ROI nor TLF, the same ROI × TLF as another row, …) are shown with the file name, the row number and the reason. Fix them and add them with "Import CSV".
+
+### Create a draft
+
+- "Create draft" runs a planning job that reads the goal, the capability lists and the current rows, and writes rows (ROI × TLF with a rationale), anchors, dependencies and a granularity policy. Every item of a capability list becomes a row; a broad goal such as "a full set of BRAs for language" gets about 8–15 rows. The rows already in the plan stay, with their ROI and TLF unchanged.
+- Meanwhile the plan is "Drafting" and its rows cannot be edited. A banner shows the state of the job (waiting for a free job slot / about to start / running) and how long it has taken. The job starts once a slot under the concurrency limits is free and usually finishes within a few minutes (a job may run for at most 7 minutes; a draft that reads xlsx or PDF lists, or covers more than 20 rows, may run for up to 25 minutes). "Cancel draft" stops it.
+- When it is done the plan is a draft again and you can change every row. Items the draft could not read (rows of an xlsx or PDF, part of the goal, …) are listed with the file, the place and the reason; add rows by hand where needed. Parts of the draft that referred to rows, anchors or projects that do not exist are not used, and their number is shown. A draft that failed shows why.
+- The **granularity policy** says how finely the rows of this plan define circuits (for example "neocortex = area × projection class, subcortex = nucleus"). The draft writes it and you can edit it until you confirm; after that it changes only through an accepted proposal.
+- **Cost**: the drafting job is billed like any other job: it takes one slot under the concurrency limits, runs on your API key (or the default API key) and its cost is recorded. It is one short run, so it costs little next to the rows' projects. A job you cancel or that runs out of time is still billed for what it used until then. You can press "Create draft" again at any time, but each press runs a new job.
 
 ### Arrange rows and waves
 
@@ -223,12 +232,36 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - The next wave starts once no row of the current wave is waiting to start or running. Rows waiting for an answer or needing attention do not hold it up.
 - "Settings" sets the model, reasoning effort and research mode. Every row is built with these settings and the harness rules in force when the plan is confirmed.
 
+### Seeds and anchors
+
+- Drafted rows carry **anchors**: the IDs of the units of SABRA, the combined atlas of BNA and DHBA, that the row's ROI and its main input and output regions belong to (a BNA area is written like `BNA:57-58`, a DHBA region by its HOMBA ID like `HOMBA:12261`). The drafting job looks them up in RCS. A row shows its first 4 anchors and how many more it has.
+- "hub n" is the number of other rows sharing an anchor with the row. "Overlaps" lists the rows sharing 2 or more anchors with it: they would build the same circuits, so they are never in the same wave. "Depends on" lists the rows it is built from (its function combines theirs, e.g. repetition from phonological processing and speech production); it goes into a later wave than them. Regions that rows share are not dependencies: the anchors keep such rows apart.
+- **Seeds** are the rows sharing anchors with the most other rows (at most 3). They are built before the other rows, one at a time, each in a wave of its own, so the circuits many rows use are worked out once and the later rows can build on them. Their wave headings say "Seed".
+- The other rows each go into the earliest wave that comes after the rows they depend on, still has room within the concurrency and holds no row they overlap with.
+- "Order automatically" sets the waves and seeds again from the anchors and dependencies (no job is run, nothing is charged). A new draft is already in this order.
+- Saving after adding, removing or moving rows, or changing a wave, switches the plan to a manual order: your waves are used as they are (and are not re-ordered after each wave). Saving only a changed rationale, ROI, TLF or "Rebuild" keeps the order as it is. Rows added with "Import CSV" to a draft in automatic order are ordered automatically together with the others. A plan in automatic order is ordered once more at confirmation, with the concurrency in force then.
+
+### Existing projects
+
+- When you already have a finished project with the same ROI × TLF, the row is marked "Existing" with a link to that project, and it is listed in the last wave. On confirmation the row is marked done without being built (and it is left out of the estimate). If you delete that project before confirming, the row is built.
+- To build it anyway, tick "Rebuild" for the row in the editor and save. In a plan in automatic order the rows are then ordered again with it. The choice stays on the row: a new draft does not mark it "Existing" again. Untick it and save to undo it.
+- When a project with the same ROI × TLF exists but is not finished, the row shows a warning with a link. If you confirm as is, the row is built separately.
+
 ### Confirm and run
 
-- "Confirm and start" shows the estimate (time and cost) before starting. The estimate counts about 48 minutes per run and rework for 20% of the rows, and $0.18–0.39 per row. Time spent waiting for answers is not included.
+- "Confirm and start" shows the estimate (time and cost) before starting. The estimate counts about 48 minutes per run, the seed rows one at a time and the other waves one after another, rework for 20% of the rows, and $0.18–0.39 per row. Rows done by an existing project are not counted, nor is time spent waiting for answers.
 - How many rows run at once is the lower of the overall limit and the per-user limit set by an admin. The OpenAI rate limit (tokens per minute) can also make rows wait.
 - A row that fails is retried automatically up to 2 times. If it still fails it "needs attention", and you can "Retry" or "Skip" it. The other rows go on.
-- The projects a plan creates open in the usual project page; its header links back to the plan. Costs are recorded per project, and the plan page shows the total.
+- The projects a plan creates open in the usual project page; its header links back to the plan. Costs are recorded per project, and the plan page shows the total, including the drafting and re-planning jobs, with the cost of those planning jobs on its own line.
+
+### Re-planning after each wave and proposals
+
+- In a plan with an automatic order, the rows that have not started are ordered again after each wave. The anchors of the finished rows are first replaced by the anchors of the circuits their projects actually built, so overlaps that turned out differently than predicted count for the next waves. Rows that have started or finished, and rows waiting for an answer or needing attention, do not move.
+- Then a planning job (the re-plan) may propose changes based on the finished rows: "Add a row" (a circuit the finished rows share that no row covers yet), "Remove a row" (a row that has not started and that a finished row already covers) or "Change the granularity policy", each with the reason. Often it proposes nothing.
+- A proposal changes nothing until you "Accept" it. Accepting adds the row (it is placed in a wave automatically; when you have a finished project with the same ROI × TLF it is marked done without being built), skips the row, or replaces the policy; "Reject" leaves the plan as it is. A proposal to remove a row that has started in the meantime, or to add a row whose ROI × TLF is already in the plan, can no longer be accepted and becomes "Outdated". Decided proposals are listed under the history.
+- The re-planning job also takes a slot under the concurrency limits and its cost is recorded. It waits for a free slot and does not run while the plan is paused. If it fails, the plan goes on.
+- Re-ordering happens after every wave, but a plan runs the re-planning job about 10 times at most: once after the first wave, then each time a tenth of the plan's rows have finished (after every wave for plans of up to 10 rows). At a concurrency of 1 every wave is a single row, and a job after every wave would add one job's cost and wait per row.
+- A plan in manual order is neither re-ordered nor re-planned.
 
 ### Question inbox
 
@@ -239,7 +272,7 @@ When an agent asks a question, only that row stops and the question appears in t
 - **Pause**: no new row starts; running rows continue. If your API key can no longer be used, the plan pauses itself and shows why.
 - **Resume**: continues from where it stopped. Finished rows are not rebuilt.
 - **Cancel**: stops the running jobs and starts nothing new. A cancelled plan can be resumed too (stopped rows continue from their work so far).
-- Draft, completed and cancelled plans can be deleted. Their projects stay.
+- Draft, completed and cancelled plans can be deleted (a plan that is drafting: cancel the draft first). Their projects stay.
 
 ## Publishing and cloning
 
