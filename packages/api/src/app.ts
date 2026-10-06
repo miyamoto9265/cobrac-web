@@ -64,6 +64,7 @@ import type {
   UserRecord,
   ConcurrencySettingRecord,
   CreatePlanRequest,
+  DraftPlanRequest,
   ListPlansResponse,
   UpdateConcurrencyRequest,
   UpdatePlanRequest,
@@ -176,7 +177,26 @@ import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
 import { bad, notFound } from "./lib/http.js";
 import { concurrencyStatus, currentLimits, getConcurrencySetting, putConcurrencySetting } from "./lib/concurrency.js";
 import { listOwnPlans } from "./lib/plans.js";
-import { cancelPlan, confirmPlan, createPlan, deletePlan, importRows, loadOwnPlan, pausePlan, planDetail, replaceRows, resumePlan, retryRow, skipRow, updatePlanFields } from "./lib/planOps.js";
+import {
+  acceptProposal,
+  cancelDraft,
+  cancelPlan,
+  confirmPlan,
+  createPlan,
+  deletePlan,
+  importRows,
+  loadOwnPlan,
+  orderPlan,
+  pausePlan,
+  planDetail,
+  rejectProposal,
+  replaceRows,
+  requestDraft,
+  resumePlan,
+  retryRow,
+  skipRow,
+  updatePlanFields,
+} from "./lib/planOps.js";
 import {
   createProject,
   deploymentDefaultModel,
@@ -391,11 +411,12 @@ app.get("/users/me/usage", async (c) => {
       ...(isProjectDeleted(p) ? { deleted: true } : {}),
     });
   }
-  // AI reviews of pull requests run as jobs of the reviewer's Canons
+  // AI reviews of pull requests run as jobs of the reviewer's Canons; BRA Planner drafts and re-plans as jobs of the plan
   const reviewCanons = new Set([...(await listOwnCanons(u.userId)).map((x) => x.canonId), ...(u.editorCanons ?? [])]);
-  for (const canonId of reviewCanons) {
-    for (const j of await listJobsForProject(canonId, u.userId)) {
-      if (j.type !== "canon-review" || !j.usage) continue;
+  const projectless = [...[...reviewCanons].map((id) => [id, "canon-review"] as const), ...(await listOwnPlans(u.userId)).map((p) => [p.planId, "plan"] as const)];
+  for (const [id, type] of projectless) {
+    for (const j of await listJobsForProject(id, u.userId)) {
+      if (j.type !== type || !j.usage) continue;
       const m = j.model ?? "(unknown)";
       const e = byModel.get(m) ?? { usage: EMPTY_USAGE, cost: 0, unpriced: false, jobs: 0 };
       e.usage = addUsage(e.usage, j.usage);
@@ -2167,6 +2188,35 @@ app.post("/plans/:id/confirm", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { locale?: unknown };
   return c.json(await confirmPlan(u, plan, readLocale(body.locale)));
 });
+
+/** Asks the `plan` job for a draft (queued by the runner when a slot is free). */
+app.post("/plans/:id/draft", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as DraftPlanRequest;
+  return c.json(await requestDraft(u, plan, readLocale(body.locale)), 202);
+});
+
+app.post("/plans/:id/draft/cancel", async (c) => {
+  const u = c.get("user");
+  return c.json(await cancelDraft(u, await loadOwnPlan(u, c.req.param("id"))));
+});
+
+/** 「自動で並べる」: waves and seed rows from the rows' anchors and dependencies (no job). */
+app.post("/plans/:id/order", async (c) => {
+  const u = c.get("user");
+  return c.json(await orderPlan(u, await loadOwnPlan(u, c.req.param("id"))));
+});
+
+for (const [action, run] of [
+  ["accept", acceptProposal],
+  ["reject", rejectProposal],
+] as const) {
+  app.post(`/plans/:id/proposals/:proposalId/${action}`, async (c) => {
+    const u = c.get("user");
+    return c.json(await run(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("proposalId")));
+  });
+}
 
 for (const [action, run] of [
   ["pause", pausePlan],

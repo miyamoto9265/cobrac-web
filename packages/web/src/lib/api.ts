@@ -55,8 +55,10 @@ import type {
   ConcurrencyStatus,
   CreatePlanRequest,
   CreatePlanResponse,
+  DraftPlanRequest,
   ListPlansResponse,
   PlanDetailResponse,
+  PlanProposalRecord,
   PlanRecord,
   PlanRowInput,
   PlanRowRecord,
@@ -208,6 +210,7 @@ export const api = {
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 
   listPlans: () => request<ListPlansResponse>("GET", "/plans"),
+  // `locale`: the reply language of a draft asked for at creation (the API reads it next to `draft`)
   createPlan: (b: CreatePlanRequest) => request<CreatePlanResponse>("POST", "/plans", b),
   getPlan: (id: string) => request<PlanDetailResponse>("GET", `/plans/${encodeURIComponent(id)}`),
   updatePlan: (id: string, b: UpdatePlanRequest) => request<PlanRecord>("PUT", `/plans/${encodeURIComponent(id)}`, b),
@@ -217,6 +220,11 @@ export const api = {
   confirmPlan: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/confirm`, { locale }),
   planAction: (id: string, action: "pause" | "resume" | "cancel") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/${action}`),
   planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
+  requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
+  cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),
+  orderPlan: (id: string) => request<{ plan: PlanRecord; rows: PlanRowRecord[] }>("POST", `/plans/${encodeURIComponent(id)}/order`),
+  proposalAction: (id: string, proposalId: string, action: "accept" | "reject") =>
+    request<{ ok: true; proposal: PlanProposalRecord }>("POST", `/plans/${encodeURIComponent(id)}/proposals/${encodeURIComponent(proposalId)}/${action}`),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
   adminConcurrency: () => request<ConcurrencyStatus>("GET", "/admin/concurrency"),

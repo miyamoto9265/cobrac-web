@@ -1,13 +1,16 @@
-import { FileUp, ListChecks, Plus } from "lucide-react";
+import { FileText, FileUp, ListChecks, Plus, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanSummary } from "@cobrac/shared";
+import { ATTACHMENT_LIMITS, PLAN_JOB_SHORT_ROWS, planAttachmentTypeOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT, type MessageKey } from "../i18n";
-import { api } from "../lib/api";
-import { fmtDate } from "../lib/format";
-import { PLAN_STATUS_COLOR, planPath } from "../lib/plan";
+import { api, uploadFile } from "../lib/api";
+import { fmtBytes, fmtDate } from "../lib/format";
+import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, planPath } from "../lib/plan";
 import { inputCls, primaryBtn } from "./CanonsPage";
+
+const MB = 1024 * 1024;
 
 export function PlanStatusBadge({ status }: { status: PlanSummary["status"] }) {
   const t = useT();
@@ -16,35 +19,69 @@ export function PlanStatusBadge({ status }: { status: PlanSummary["status"] }) {
 
 function CreatePlanForm() {
   const t = useT();
+  const { locale } = useI18n();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [goal, setGoal] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileMsg, setFileMsg] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState<{ i: number; n: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const submit = async () => {
+  /** Capability lists of the accepted types, within the attachment limits; the others are named in a message. */
+  const addFiles = (list: FileList) => {
+    const problems: string[] = [];
+    const next = [...files];
+    let total = next.reduce((n, f) => n + f.size, 0);
+    for (const f of Array.from(list)) {
+      if (next.some((x) => x.name === f.name && x.size === f.size)) continue;
+      if (!planAttachmentTypeOf(f.name)) problems.push(t("attach.typeErr", { name: f.name }));
+      else if (f.size <= 0) problems.push(t("attach.emptyErr", { name: f.name }));
+      else if (f.size > ATTACHMENT_LIMITS.maxFileBytes) problems.push(t("attach.sizeErr", { name: f.name, size: ATTACHMENT_LIMITS.maxFileBytes / MB }));
+      else if (next.length >= ATTACHMENT_LIMITS.maxFiles) problems.push(t("attach.countErr", { n: ATTACHMENT_LIMITS.maxFiles }));
+      else if (total + f.size > ATTACHMENT_LIMITS.maxTotalBytes) problems.push(t("attach.totalErr", { size: ATTACHMENT_LIMITS.maxTotalBytes / MB }));
+      else {
+        next.push(f);
+        total += f.size;
+      }
+    }
+    setFiles(next);
+    setFileMsg(problems.length ? [...new Set(problems)].join("\n") : null);
+  };
+
+  // the files go to S3 only now (straight from the browser), so nothing is uploaded for a form that is never sent
+  const submit = async (draft: boolean) => {
     setBusy(true);
     setErr(null);
     try {
-      const csv = file ? await file.text() : pasted;
-      const r = await api.createPlan({ name, goal, ...(csv.trim() ? { csv } : {}) });
+      const attachments: { uploadId: string; name: string }[] = [];
+      for (const [i, f] of files.entries()) {
+        setUploading({ i: i + 1, n: files.length });
+        const target = await api.createUpload(f.name, f.size);
+        await uploadFile(target, f);
+        attachments.push({ uploadId: target.uploadId, name: f.name });
+      }
+      setUploading(null);
+      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}) });
       navigate(planPath(r.plan.planId), { state: { rejected: r.rejected } });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
+      setUploading(null);
       setBusy(false);
     }
   };
+  const canDraft = !!name.trim() && (!!goal.trim() || files.length > 0 || !!pasted.trim());
 
   return (
     <form
-      className="grid content-start gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
+      className="grid min-w-0 content-start gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
-        void submit();
+        void submit(false);
       }}
     >
       <h2 className="text-sm font-semibold">{t("plan.new")}</h2>
@@ -56,26 +93,71 @@ function CreatePlanForm() {
         <span className="mb-1 block text-xs text-slate-500">{t("plan.goal")}</span>
         <textarea value={goal} onChange={(e) => setGoal(e.target.value)} rows={2} placeholder={t("plan.goalHint")} className={inputCls} maxLength={4000} />
       </label>
+      <div className="min-w-0">
+        <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
+          {t("plan.files")} <HelpTip text={t("plan.filesHelp", { n: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB })} />
+        </span>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          accept={PLAN_FILE_ACCEPT}
+          className="hidden"
+          data-testid="plan-files"
+          onChange={(e) => {
+            if (e.target.files?.length) addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" disabled={busy || files.length >= ATTACHMENT_LIMITS.maxFiles} onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
+            <FileUp size={14} aria-hidden /> {t("plan.addFiles")}
+          </button>
+        </div>
+        {files.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-1.5" data-testid="plan-file-list" aria-label={t("plan.files")}>
+            {files.map((f, i) => (
+              <li key={`${f.name}-${f.size}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 py-0.5 pl-2 pr-0.5 text-xs text-slate-700" title={`${f.name} · ${fmtBytes(f.size)}`}>
+                <FileText size={13} className="shrink-0 text-slate-500" aria-hidden />
+                <span className="min-w-0 truncate">{f.name}</span>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                  aria-label={`${t("attach.remove")}: ${f.name}`}
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-200 hover:text-slate-700 coarse:min-h-11 coarse:min-w-11"
+                >
+                  <X size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {/* file names are often one long token: break them anywhere rather than scroll sideways at 390 px */}
+        {fileMsg && <div className="mt-2 whitespace-pre-line rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 [overflow-wrap:anywhere]">{fileMsg}</div>}
+      </div>
       <div>
         <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
           {t("plan.csv")} <HelpTip text={t("plan.csvHelp")} />
         </span>
-        <input ref={fileRef} type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" className="hidden" data-testid="plan-csv-file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
-            <FileUp size={14} aria-hidden /> {t("plan.chooseFile")}
-          </button>
-          {file && <span className="min-w-0 break-all text-xs text-slate-600">{file.name}</span>}
-        </div>
-        {!file && <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} mt-2 font-mono text-xs`} />}
+        <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} font-mono text-xs`} />
       </div>
-      {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+      {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 [overflow-wrap:anywhere]">{err}</div>}
       <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>
-      <div>
+      <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
           <Plus size={14} /> {t("plan.create")}
         </button>
+        <button type="button" disabled={busy || !canDraft} onClick={() => void submit(true)} className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
+          <Sparkles size={14} aria-hidden /> {t("plan.createDraft")}
+        </button>
+        {uploading && (
+          <span className="text-xs text-slate-500" role="status">
+            {t("plan.uploading", uploading)}
+          </span>
+        )}
       </div>
+      <p className="text-xs text-slate-500">{t("plan.createDraftNote", { n: PLAN_JOB_SHORT_ROWS })}</p>
     </form>
   );
 }

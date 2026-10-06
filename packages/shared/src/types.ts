@@ -225,8 +225,9 @@ export const canDeleteProject = (p: Pick<ProjectRecord, "status" | "deletedAt">)
 /**
  * `article`: writes an explanatory article from the finished outputs; leaves the BRA data and the project thread alone.
  * `canon-review`: AI assistance for a Canon pull request; `projectId` holds the Canon ID and no project is touched.
+ * `plan`: a BRA Planner draft or re-plan (`planJobKind`); `projectId` holds the plan ID and no project is touched.
  */
-export type JobType = "initial" | "followup" | "article" | "canon-review";
+export type JobType = "initial" | "followup" | "article" | "canon-review" | "plan";
 
 export type JobStatus =
   | "QUEUED"
@@ -280,8 +281,10 @@ export interface JobRecord {
   costUsd?: number | null;
   /** BRA data version this job froze when it completed (a follow-up's first run may also freeze the baseline on the job before it) */
   braVersion?: BraVersionSummary;
-  /** BRA Planner plan whose row started this job (absent on jobs started otherwise) */
+  /** BRA Planner plan whose row started this job (absent on jobs started otherwise); for a `plan` job, the plan itself */
   planId?: string | null;
+  /** draft / replan (type === plan) */
+  planJobKind?: "draft" | "replan";
 }
 
 export type MessageRole = "user" | "agent" | "system";
@@ -320,7 +323,10 @@ export interface MessageRecord {
 // Job queue message (SQS)
 // ---------------------------------------------------------------------------
 
-export type RunMode = "initial" | "resume" | "followup" | "retry" | "article" | "canon-review";
+export type RunMode = "initial" | "resume" | "followup" | "retry" | "article" | "canon-review" | "plan";
+
+/** Run modes whose job belongs to no project (`projectId` is a Canon or plan ID): no chat messages, no project status. */
+export const isProjectlessMode = (mode: RunMode | JobType): boolean => mode === "canon-review" || mode === "plan";
 
 export interface RunJobMessage {
   version: 1;
