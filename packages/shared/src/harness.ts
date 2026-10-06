@@ -23,6 +23,21 @@ import {
   type OutputSemanticsItem,
 } from "./bra.js";
 import { parseCsv, toCsv } from "./csv.js";
+import {
+  HYPOTHESES_FILE,
+  gnDependencyNote,
+  gnHypothesisDependencies,
+  hasHypothesisKey,
+  hypothesisKeySchema,
+  hypothesisProblems,
+  hypothesisRecords,
+  isHypothesisMode,
+  parseHypothesis,
+  strictHypothesisProblems,
+  withHypothesisLine,
+  type EvidenceOptions,
+  type Hypothesis,
+} from "./hypothesis.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
 import { isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
 import { normalizeProjectName } from "./projectId.js";
@@ -60,6 +75,8 @@ export const PROJECT_FILES = {
   /** Bottom-up candidates for the FRG (motifs.ts), rewritten from the HCD at every check */
   frgCandidates: "frg_candidates.json",
   phaseBaseline: "phase_baseline.json",
+  /** Hypothesis mode only: the hypotheses with their IDs, the share and the GNs that depend on them (hypothesis.ts) */
+  hypotheses: HYPOTHESES_FILE,
 } as const;
 
 /** Data files in `<ProjectID>/<ProjectID>_HCD/` and `_FRG/`; each has a JSON Schema in `HARNESS_SCHEMAS`. */
@@ -138,6 +155,8 @@ export interface UcRow {
   implementation: string;
   /** Why a UC that spans several SABRA units is uniform in this HCD (empty for most UCs) */
   uniformityNote: string;
+  /** Hypothesis mode: the UC (or a property of it) is a hypothesis; never set in other projects */
+  hypothesis?: Hypothesis;
 }
 
 /**
@@ -179,6 +198,8 @@ export interface ConnRow {
   senderInLiterature: string;
   receiverRelation: string;
   receiverInLiterature: string;
+  /** Hypothesis mode: the connection (or its direction / sign) is a hypothesis; never set in other projects */
+  hypothesis?: Hypothesis;
 }
 
 export interface RefRow {
@@ -358,6 +379,7 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         uniformityNote: str(
           "Optional. Only for a UC that spans several SABRA units (a BNAG gyrus or several anchors) and sends connections: why this HCD treats it as one uniform population instead of splitting it into the units and making it a Collection",
         ),
+        hypothesis: hypothesisKeySchema("UC"),
       }),
     },
     collections: {
@@ -406,6 +428,8 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
           `Sentence(s) of that paper stating this projection, quoted verbatim (at least ${DEFAULT_BRA_RULES.minQuoteWords} words); not a page or section. This or pointersOnFigure is required`,
         ),
         pointersOnFigure: str("Figure of that paper showing the projection, like `Fig. 3B`; empty when none"),
+      }, {
+        hypothesis: hypothesisKeySchema("connection"),
       }),
     },
   }),
@@ -567,6 +591,11 @@ export interface CheckHcdOptions {
   boundaryExempt?: ReadonlySet<string>;
   /** The project's harness rule set (`HARNESS_RULES` for new projects; absent for older ones, which skip the ROI rules and quote warnings) */
   harnessRules?: number;
+  /**
+   * The project's evidence mode with its hypothesis scopes and share limit. Absent or `strict`: a `hypothesis` key is
+   * rejected and nothing else changes; `hypothesis`: hypotheses inside the scopes are read and checked.
+   */
+  evidence?: EvidenceOptions;
 }
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
@@ -577,6 +606,12 @@ const firstValue = (v: unknown) => (Array.isArray(v) ? strings(v)[0] ?? "" : s(v
 export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckResult<HcdModel> {
   const errors: string[] = [];
   const rules: BraRules = { ...DEFAULT_BRA_RULES, ...opts.bra };
+  const hypothesisMode = isHypothesisMode(opts.evidence);
+  /** The hypothesis of an item: read only in hypothesis mode, so other projects' models and CSVs never carry one */
+  const hypothesisOf = (item: Record<string, unknown>) => {
+    const h = hypothesisMode ? parseHypothesis(item.hypothesis) : null;
+    return h ? { hypothesis: h } : {};
+  };
   const meta = parseMeta(files.meta, errors);
   checkMarkdown(PROJECT_FILES.decisionLog, files.decisionLog, errors);
   checkMarkdown(PROJECT_FILES.report, files.report, errors, REPORT_SECTIONS.HCD);
@@ -621,6 +656,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       mechanism: s(u.mechanism),
       implementation: s(u.implementation),
       uniformityNote: s(u.uniformityNote),
+      ...hypothesisOf(u),
     }))
     .filter((u) => u.id);
   const seen = new Set<string>();
@@ -688,6 +724,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       senderInLiterature: s(c.senderInLiterature),
       receiverRelation: s(c.receiverRelation),
       receiverInLiterature: s(c.receiverInLiterature),
+      ...hypothesisOf(c),
     }))
     .filter((c) => c.sender || c.receiver);
 
@@ -787,6 +824,9 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       }
     }
   }
+
+  if (!hypothesisMode) errors.push(...strictHypothesisProblems({ ucs: ucItems, connections: connItems }));
+  else if (!fatal) errors.push(...hypothesisProblems({ ucs, connections, collections, refs, report: files.report }, opts.evidence!));
 
   const warnings: string[] = [];
   if ((opts.harnessRules ?? 0) >= 1 && !fatal) {
@@ -1236,8 +1276,12 @@ export interface BuildCsvOptions {
   name?: string;
 }
 
-/** GN Comments of FRG.csv: the comment, then why the GN holds a motif of 3-4 UCs (like uniformityNote on Circuits). */
-const gnComment = (g: GnRow) => [g.comment, g.motifNote ? `Motif of ${g.subnodes.filter((x) => x.startsWith("U.")).length} UCs: ${g.motifNote}` : ""].filter(Boolean).join("; ");
+/**
+ * GN Comments of FRG.csv: the comment, then why the GN holds a motif of 3-4 UCs (like uniformityNote on Circuits), then
+ * (hypothesis mode) the hypotheses the GN depends on.
+ */
+const gnComment = (g: GnRow, hypotheses: string[] = []) =>
+  [g.comment, g.motifNote ? `Motif of ${g.subnodes.filter((x) => x.startsWith("U.")).length} UCs: ${g.motifNote}` : "", gnDependencyNote(hypotheses)].filter(Boolean).join("; ");
 
 /**
  * BRA version written to Project.csv (the CoBRAC data format, not the harness version). v1-1 (0.10): References gains
@@ -1272,10 +1316,10 @@ export function buildProjectCsv(o: BuildCsvOptions, meta: ProjectMeta | null, da
   return toCsv(rows) + "\n";
 }
 
-/** Circuits.csv Comments carry the noROI tag the BRA format (and the graph builder) read. */
+/** Circuits.csv Comments carry the noROI tag the BRA format (and the graph builder) read; a hypothesis UC starts with its hypothesis line. */
 const circuitComments = (u: UcRow) => {
   const base = [u.comments, u.uniformityNote ? `Uniform in this project: ${u.uniformityNote}` : ""].filter(Boolean).join("; ");
-  return u.roi === "roi" || /noroi/i.test(u.comments) ? base : [base, ROI_TAG[u.roi]].filter(Boolean).join("; ");
+  return withHypothesisLine(u.roi === "roi" || /noroi/i.test(u.comments) ? base : [base, ROI_TAG[u.roi]].filter(Boolean).join("; "), u.hypothesis);
 };
 
 /** Relation and notation of one end; files written before 0.10 keep the old `=` + Circuit ID. */
@@ -1345,6 +1389,8 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
     ...roiUcSet,
   ];
   const gnOs = gnOutputSemantics(hcd, frg);
+  const records = hypothesisRecords(hcd);
+  const gnHypotheses = new Map(records.length ? gnHypothesisDependencies(hcd, frg, records).map((d) => [d.id, d.hypotheses]) : []);
 
   const tables: Record<Exclude<CsvFileName, "Project.csv">, string[][]> = {
     "References.csv": [
@@ -1378,7 +1424,7 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
         (c.referenceIds.length ? c.referenceIds : [""]).map((ref) => [
           c.sender,
           c.receiver,
-          c.comment,
+          withHypothesisLine(c.comment, c.hypothesis),
           ref,
           c.taxon,
           c.method,
@@ -1403,7 +1449,7 @@ export function buildCsvs(hcd: HcdModel, frg: FrgModel, o: BuildCsvOptions): { f
         "Output Semantics",
         "Comments",
       ],
-      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, gnOs.get(g.id) ?? "", gnComment(g)]),
+      ...frg.gns.map((g) => [g.id, g.subnodes.join(";"), "", "", g.capability, g.mechanism, "", g.reqRealization, g.requirement, gnOs.get(g.id) ?? "", gnComment(g, gnHypotheses.get(g.id))]),
       ...hcd.ucs.map((u) => [
         `U.${u.id}`,
         "",

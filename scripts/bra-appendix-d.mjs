@@ -80,8 +80,22 @@ export const ENFORCEMENT = {
   277: { kind: "validator", level: "full", how: "271 と同じ（少なくとも一方を要求）" },
   278: { kind: "validator", level: "full", how: "figure は `Fig. 3B` の形に正規化し、形でないものを返す" },
   273: { kind: "validator", level: "partial", how: "引用文を文献の全文か抄録と照合（quote_check.json）。全文が無い論文は抄録だけ" },
-  274: { kind: "prompt", level: "partial", how: "新しいプロジェクト（harnessRules 1）では、同じ引用文（図も同じか無し）を別の接続に使うと警告する（差し戻さない。quote_check.json の reused）。プロンプトは接続ごとに文か図を求める。引用文から接続を保証できるかそのものは判定していない" },
+  274: {
+    kind: "prompt",
+    level: "partial",
+    how:
+      "新しいプロジェクト（harnessRules 1）では、同じ引用文（図も同じか無し）を別の接続に使うと警告する（差し戻さない。quote_check.json の reused）。プロンプトは接続ごとに文か図を求める。" +
+      "仮説モードでは 274 を前提について判定する: 仮説の接続の引用文は前提（その論文は premises[0] = Reference ID）を述べ、レコードには Comments の「Hypothesis (」（存在の仮説なら Measurement method Hypothetical も）で印を付け、rationale が前提から仮説を支える理由を書く（cobrac:hypothesis-marked）。" +
+      "引用文から接続（仮説では前提）を保証できるかそのものは、どちらのモードでも機械判定していない",
+  },
   279: { kind: "none", level: "none", how: "図の中身は判定しない（図番号の形だけ検査）" },
+  "cobrac:hypothesis-marked": {
+    kind: "generator",
+    level: "partial",
+    how:
+      "仮説モードでは、検証器が measurementMethod Hypothetical を存在（existence）の仮説にちょうど一致させ（存在の仮説なのに別の値、Hypothetical なのに存在の仮説が無い、のどちらも差し戻す）、ワーカーが Comments の 1 行目に「Hypothesis (<claims>; <basis>): <rationale>」を書く。" +
+      "仮説を許さない（既定の厳格モードの）プロジェクトでは hypothesis キーを差し戻す。ただし厳格モードでは Hypothetical は schema と HCD.md の列挙値のままで差し戻さないため、印の無い Hypothetical の行が出うる",
+  },
   402: { kind: "schema", level: "full", how: "GN は ^R\\.\\S+$。U. 行はワーカーが U.+Circuit ID を生成" },
   403: { kind: "prompt", level: "partial", how: "GN の kebab-case は指示のみ（空白なしだけを schema で検査）。U. 行は Circuit ID の形式に従う（cobrac:circuit-id-chars）" },
   "cobrac:u-node-circuit": { kind: "generator", level: "full", how: "U. 行のノード ID はワーカーが U.+Circuit ID で生成" },
@@ -132,6 +146,7 @@ export const CODES = [
   [273, "Pointers on literature（手動）", "引用文が文献中に無い", 273],
   [274, "Pointers on literature（手動）", "引用文から接続の存在を保証できない", 274],
   [279, "Pointers on figure（手動）", "図から接続の存在を保証できない", 279],
+  ["cobrac:hypothesis-marked", "Comments", "Measurement method が Hypothetical なのに Comments の 1 行目が「Hypothesis (」で始まらない（Master にコードなし）", null],
   [402, "Node ID", "接頭辞が R. / C. / A. / U. でない", 415],
   [403, "Node ID", "GN の接頭辞の後が kebab-case でない", 415],
   ["cobrac:u-node-circuit", "Node ID", "U. ノードの ID が U.+定義済みの Circuit ID でない（Master にコードなし）", 415],
@@ -399,6 +414,9 @@ const splitList = (x) => x.split(";").map((s) => s.trim()).filter(Boolean);
 const EMPTY_POINTER_RE = /^(n\/?a|none|-|—)$/i;
 const words = (x) => x.split(/\s+/).filter((w) => /[A-Za-z]/.test(w)).length;
 const dupes = (xs) => [...new Set(xs.filter((x, i) => x && xs.indexOf(x) !== i))];
+/** CoBRAC hypothesis mode writes `Hypothesis (<claims>; <basis>): <rationale>` as the first line of the Comments of a hypothesis connection or UC. */
+const HYPOTHESIS_MARK = "Hypothesis (";
+const isHypothesis = (x) => x.comments.startsWith(HYPOTHESIS_MARK);
 
 export function parseOutputSemantics(text) {
   const items = [];
@@ -518,8 +536,15 @@ function results(m, opts) {
   verdict(278, notFigure, notFigure.length ? "図番号（Fig. 3B の形）になっていない" : "");
   const quotes = m.connections.filter((c) => c.pointersOnLiterature && !LOCATOR_RE.test(c.pointersOnLiterature) && words(c.pointersOnLiterature) >= minWords);
   put(273, "manual", [], `照合対象の引用文 ${quotes.length} / ${m.connections.length} 件（文献の全文との照合は手動）`);
-  put(274, "manual", [], `判定対象 ${quotes.length} 件`);
+  const hypothesisQuotes = quotes.filter(isHypothesis).length;
+  put(274, "manual", [], `判定対象 ${quotes.length} 件${hypothesisQuotes ? `（うち仮説 ${hypothesisQuotes} 件は引用文が前提を述べているかを判定）` : ""}`);
   put(279, "manual", [], `図番号のあるレコード ${m.connections.filter((c) => c.pointersOnFigure && FIGURE_RE.test(c.pointersOnFigure)).length} 件`);
+  const unmarked = m.connections.filter((c) => c.method === "Hypothetical" && !isHypothesis(c));
+  verdict(
+    "cobrac:hypothesis-marked",
+    unmarked.map((c) => at("Connections", c, `${c.sender} -> ${c.receiver} Comments="${c.comments.split(/\r?\n/)[0].slice(0, 60)}"`)),
+    unmarked.length ? "Hypothetical は存在の仮説の印。仮説の行は Comments の 1 行目が Hypothesis (<claims>; <basis>): <rationale>" : "",
+  );
 
   // FRG
   const nodeIds = m.frg.map((f) => f.nodeId);
@@ -569,6 +594,8 @@ function extras(m, opts) {
   const list = (items, values) => items.filter((v) => v && !values.includes(v));
   const uniq = (xs) => [...new Set(xs)];
   const ucs = m.circuits.filter((c) => !isRoiRow(c.id));
+  /** UC rows as the hypothesis share counts them (Collections not counted) */
+  const ucRows = ucs.filter((c) => c.uniform !== false);
   const words_ = m.connections.map((c) => words(c.pointersOnLiterature));
   const median = (xs) => (xs.length ? [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)] : 0);
   const pairs = new Map();
@@ -589,6 +616,10 @@ function extras(m, opts) {
     { item: "Source of ID の内訳", info: Object.entries(ucs.reduce((a, c) => { const k = SOURCE_OF_ID_KEYWORDS.includes(c.sourceOfId) || SOURCE_OF_ID_EXTENSIONS.includes(c.sourceOfId) ? c.sourceOfId : (c.sourceOfId.match(/\[[^\]]+\]/g)?.length ?? 0) > 1 ? "複数文献" : REF_ID_RE.test(c.sourceOfId) ? "文献 1 件" : c.sourceOfId ? "その他" : "(空)"; a[k] = (a[k] ?? 0) + 1; return a; }, {})).map(([k, v]) => `${k}: ${v}`).join(", ") },
     { item: "Pointers on literature の語数（中央値・最小・最大）", info: m.connections.length ? `${median(words_)} / ${Math.min(...words_)} / ${Math.max(...words_)}（${minWords} 語以上: ${words_.filter((w) => w >= minWords).length} / ${m.connections.length}）` : "—" },
     { item: "Connections（行 / sender→receiver の組 / 引用文献）", info: `${m.connections.length} / ${pairs.size} / ${refsCited.size}` },
+    {
+      item: "仮説（Comments の 1 行目が Hypothesis ( の行）",
+      info: `Connections ${m.connections.filter(isHypothesis).length} / ${m.connections.length}、Circuits ${ucRows.filter(isHypothesis).length} / ${ucRows.length} UC（Measurement method Hypothetical ${m.connections.filter((c) => c.method === "Hypothetical").length}）`,
+    },
     { item: "References（件数 / DOI あり）", info: `${m.refs.length} / ${m.refs.filter((r) => !NO_DOI_RE.test(r.doi)).length}` },
     { item: "BRA version", info: m.braVersion || "（なし）" },
     {

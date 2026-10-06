@@ -5,6 +5,16 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The checks, exports and agent instructions for projects that allow hypotheses ("Allow hypotheses"). Such a project may include connections and UCs, or their direction, sign, population, transmitter, modulation or role, that no paper states directly, but only inside the scopes the user chose, and each is marked as a hypothesis with the kind of reasoning behind it, a rationale and at least one premise paper with a DOI or PMID, which is verified and quoted like any reference. Everything else (references, quotes, naming, interfaces, the FRG) is checked as before, and nothing proposes further investigations
+  - The CSV and xlsx files mark each hypothesis without new columns: its Comments start with `Hypothesis (<claims>; <basis>): <rationale>`, an assumed connection has Measurement method `Hypothetical`, an assumed population Source of ID `makeshift`, and a GN of the FRG that relies on hypotheses ends its Comments with `Depends on hypotheses: H2, H5`
+  - The hypotheses are numbered (H1, H2, …) and listed in `hypotheses.json` with their share, and the report gets a "Hypotheses" section with every one of them. At most 20% of the connections and 20% of the UCs may be hypotheses (or 10, 30 or 50%, as set for the project); when no path from the ROI's inputs to its outputs is free of hypothetical connections, the report's limitations state that fact
+  - Hypothesis mode cannot be switched on yet. Projects that use literature-supported evidence only (all projects today) are checked and exported exactly as before; the only difference is the message under "Changed"
+- The BRA error-code checker (a repository script) reports a connection marked `Hypothetical` whose Comments do not start with the hypothesis line (local code `cobrac:hypothesis-marked`), and counts the quotes of hypotheses, which state the premise, separately under code 274
+
+### Changed
+- An agent that writes a hypothesis into a project that does not allow hypotheses is now told that the project uses literature-supported evidence only, and to support the element with a paper or leave it out; when the user asked for hypotheses, the agent says that the instruction must be sent again with "Allow hypotheses" switched on (before: a schema error)
+
 ## [0.31.0] - 2026-10-06
 
 ### Added

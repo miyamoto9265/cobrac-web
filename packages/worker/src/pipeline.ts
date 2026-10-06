@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
+import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, EvidenceSettings, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
 import {
   ADJUSTMENT_CODES,
   CROSS_RULES,
@@ -18,11 +18,13 @@ import {
   FRG_FILES,
   HARNESS_SCHEMAS,
   HCD_FILES,
+  HYPOTHESES_SCHEMA,
   PROJECT_FILES,
   REVISIONS_HEADING,
   SCHEMA_DIR,
   buildCsvs,
   buildGraphs,
+  buildHypothesesFile,
   checkCitations,
   checkCross,
   checkFrg,
@@ -31,14 +33,19 @@ import {
   countRevisions,
   frgCandidatesFromHcd,
   frgCitedIds,
+  frgGnUcsFromJson,
   hombaAnchorIds,
+  hypothesisProblems,
+  isHypothesisMode,
   isFrgProblem,
   pointerProblems,
   quoteCheckMessage,
   refCheckMessage,
+  researchCandidateStatuses,
   schemaFileName,
   summarizeQuoteChecks,
   summarizeRefChecks,
+  validateJsonSchema,
 } from "@cobrac/shared";
 import { existsSync, readFileSync } from "node:fs";
 import { loadFrgFiles, loadHcdFiles, type ProjectPaths } from "./steps.js";
@@ -161,6 +168,11 @@ export interface CheckDeps {
   sabraBoundary?: SabraBoundary;
   /** The project's harness rule set (`harnessRules`; absent for projects created before it) */
   harnessRules?: number;
+  /**
+   * The project's evidence mode, hypothesis scopes and share limit (`evidenceSettingsOf`). Absent or strict: the checks
+   * reject hypotheses and nothing else changes; hypothesis: hypotheses are checked and recorded in hypotheses.json.
+   */
+  evidence?: EvidenceSettings & { researchMode?: boolean };
   /** Called with meta.json once the HCD passes every check */
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
@@ -181,6 +193,7 @@ async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
   const boundary: CheckHcdOptions = {
     ...(deps.sabraBoundary ? { sabraBoundary: deps.sabraBoundary, boundaryExempt: deps.canon ? canonDescriptorKeys(deps.canon.snapshot) : undefined } : {}),
     ...(deps.harnessRules ? { harnessRules: deps.harnessRules } : {}),
+    ...(isHypothesisMode(deps.evidence) ? { evidence: hypothesisCheckOptions(paths, deps.evidence!) } : {}),
   };
   const first = checkHcd(files, boundary);
   const ids = first.model ? hombaAnchorIds([...first.model.ucs, ...first.model.collections].map((u) => u.descriptor).filter(Boolean)) : [];
@@ -197,16 +210,21 @@ export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckD
   ctx.hcd = hcd.model;
   if (hcd.model) await writeFrgCandidates(hcd.model, paths);
   if (phase === "HCD") {
+    if (hcd.model) await writeHypotheses(hcd.model, null, paths, deps);
     if (hcd.model?.meta && hcd.errors.length === 0) await deps.onMetaAccepted?.(hcd.model.meta);
     const errors = await hcdProblems(hcd, paths, deps, ctx);
     await saveBaseline("HCD", errors, paths, ctx);
     return { errors, fatal: hcd.fatal };
   }
   if (!hcd.model) return { errors: ["The HCD files cannot be used:", ...hcd.errors], fatal: true };
-  const hcdErrors = await changedSinceChecked("HCD", paths, ctx, () => hcdProblems(hcd, paths, deps, ctx));
+  const hcdErrors = [
+    ...(await changedSinceChecked("HCD", paths, ctx, () => hcdProblems(hcd, paths, deps, ctx))),
+    ...hypothesisRecheck(hcd.model, paths, deps, ctx),
+  ];
 
   const frg = checkFrg(loadFrgFiles(paths), hcd.model, { harnessRules: deps.harnessRules });
   ctx.frg = frg.model;
+  await writeHypotheses(hcd.model, frg.model, paths, deps);
   if (frg.model) await writeCrossCheck(phase, hcd.model, frg.model, paths, deps, ctx);
   if (phase === "FRG") {
     const errors = await frgProblems(frg, paths, deps, ctx);
@@ -296,7 +314,7 @@ async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths
     checkedAt: new Date().toISOString(),
     phase,
     mode: "record-only",
-    ...checkCross(hcd, frg, { harnessRules: deps.harnessRules }),
+    ...checkCross(hcd, frg, { harnessRules: deps.harnessRules, ...(isHypothesisMode(deps.evidence) ? { evidence: deps.evidence } : {}) }),
     rules: CROSS_RULES,
     revisions: countRevisions(readText(paths.decisionLog)),
     ...(ctx.adjustment ? { adjustment: ctx.adjustment } : {}),
@@ -306,6 +324,52 @@ async function writeCrossCheck(phase: Phase, hcd: HcdModel, frg: FrgModel, paths
     await writeFile(paths.crossCheck, JSON.stringify(report, null, 2) + "\n", "utf8");
   } catch (e) {
     console.warn(`[cross] ${paths.crossCheck} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
+/**
+ * Options of the hypothesis checks: the project's settings, the research candidates (research mode) and the UCs under
+ * each GN of frg.json (for scopes that target GNs; read leniently, since the FRG may not be checked yet).
+ */
+function hypothesisCheckOptions(paths: ProjectPaths, evidence: NonNullable<CheckDeps["evidence"]>): NonNullable<CheckHcdOptions["evidence"]> {
+  return {
+    ...evidence,
+    researchMode: !!evidence.researchMode,
+    researchCandidates: evidence.researchMode ? researchCandidateStatuses(readText(paths.research)) : null,
+    gnUcs: frgGnUcsFromJson(loadFrgFiles(paths).frg),
+  };
+}
+
+/**
+ * Hypothesis mode: the hypothesis checks depend on more than the HCD data files (GN targets on frg.json, research
+ * candidates on research.json, the report's hypotheses section), so the FRG and CSV checks run them again even when
+ * the HCD files did not change. Problems already left when the HCD was accepted are not sent again; a changed HCD
+ * gets its full check (with these) from `changedSinceChecked`.
+ */
+function hypothesisRecheck(hcd: HcdModel, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): string[] {
+  if (!isHypothesisMode(deps.evidence)) return [];
+  const base = loadBaselines(paths, ctx).HCD;
+  if (base && base.hash !== phaseDataHash("HCD", paths)) return [];
+  const known = new Set(base?.problems ?? []);
+  return hypothesisProblems({ ...hcd, report: readText(paths.report) }, hypothesisCheckOptions(paths, deps.evidence!))
+    .filter((p) => !known.has(p))
+    .map((p) => `HCD (hypotheses checked again against the current files): ${p}`);
+}
+
+/**
+ * hypotheses.json (hypothesis mode only): the hypotheses with their IDs, the share against the limit, whether the ROI
+ * inputs reach the outputs without hypothesis connections and, once the FRG is checked, the GNs that depend on
+ * hypotheses. Rewritten by every check; other projects never get the file.
+ */
+async function writeHypotheses(hcd: HcdModel, frg: FrgModel | null, paths: ProjectPaths, deps: CheckDeps): Promise<void> {
+  if (!isHypothesisMode(deps.evidence)) return;
+  const file = buildHypothesesFile(hcd, frg, deps.evidence!, new Date().toISOString());
+  const problems = validateJsonSchema(HYPOTHESES_SCHEMA, file);
+  if (problems.length) console.warn(`[hypotheses] ${PROJECT_FILES.hypotheses} does not match its schema: ${problems.slice(0, 5).join("; ")}`);
+  try {
+    await writeFile(paths.hypotheses, JSON.stringify(file, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[hypotheses] ${paths.hypotheses} could not be written: ${e instanceof Error ? e.message : String(e)}`);
   }
 }
 

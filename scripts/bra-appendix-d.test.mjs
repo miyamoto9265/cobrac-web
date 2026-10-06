@@ -83,12 +83,35 @@ function zip(entries) {
 const status = (r) => Object.fromEntries(r.codes.map((c) => [c.code, c.status]));
 
 test("every code has an enforcement entry; local codes are marked cobrac:", () => {
-  assert.equal(CODES.length, 42);
+  assert.equal(CODES.length, 43);
   assert.equal(new Set(CODES.map(([code]) => code)).size, CODES.length);
   for (const [code] of CODES) {
     assert.ok(ENFORCEMENT[code], `missing enforcement for ${code}`);
     assert.ok(Number.isInteger(code) || /^cobrac:[a-z-]+$/.test(code), `code ${code}`);
   }
+  // no enforcement entry without a code, and only the kind / level vocabulary documented above ENFORCEMENT
+  const codes = new Set(CODES.map(([code]) => String(code)));
+  for (const [key, e] of Object.entries(ENFORCEMENT)) {
+    assert.ok(codes.has(key), `enforcement for unknown code ${key}`);
+    assert.ok(["schema", "validator", "generator", "prompt", "none"].includes(e.kind), `kind of ${key}: ${e.kind}`);
+    assert.ok(["full", "partial", "form", "none", "violates"].includes(e.level), `level of ${key}: ${e.level}`);
+    assert.ok(e.how.trim(), `how of ${key}`);
+  }
+});
+
+test("cobrac:hypothesis-marked is a new local code placed right after 279", () => {
+  const i = CODES.findIndex(([code]) => code === "cobrac:hypothesis-marked");
+  assert.equal(CODES[i - 1][0], 279);
+  assert.equal(CODES[i][1], "Comments");
+  assert.equal(CODES[i][3], null);
+  assert.equal(ENFORCEMENT["cobrac:hypothesis-marked"].kind, "generator");
+  assert.match(ENFORCEMENT["cobrac:hypothesis-marked"].how, /Hypothesis \(<claims>; <basis>\): <rationale>/);
+  // 274 keeps the reused-quote warning and adds the premise rule of hypothesis mode
+  assert.match(ENFORCEMENT[274].how, /harnessRules 1/);
+  assert.match(ENFORCEMENT[274].how, /quote_check\.json の reused/);
+  assert.match(ENFORCEMENT[274].how, /premises\[0\] = Reference ID/);
+  assert.match(ENFORCEMENT[274].how, /機械判定していない/);
+  assert.ok(!Object.values(APPENDIX_D_TO_CODES).flat().includes("cobrac:hypothesis-marked"));
 });
 
 test("Appendix D numbers that differ from the Master map to the Master or local codes", () => {
@@ -113,6 +136,57 @@ test("a conforming CoBRAC-v1-1 folder has no violation", () => {
   const bad = r.codes.filter((c) => !["ok", "manual"].includes(c.status));
   assert.deepEqual(bad.map((c) => `${c.code} ${c.status} ${c.examples.join(" / ")}`), []);
   assert.equal(r.codes.find((c) => c.code === 273).note.startsWith("照合対象の引用文 1 / 1"), true);
+  assert.equal(r.codes.find((c) => c.code === "cobrac:hypothesis-marked").status, "ok");
+  assert.equal(r.codes.find((c) => c.code === 274).note, "判定対象 1 件");
+  assert.equal(extra(r, "仮説"), "Connections 0 / 1、Circuits 0 / 2 UC（Measurement method Hypothetical 0）");
+});
+
+/** The conforming folder with hypothesis-mode rows: an existence hypothesis, a sign hypothesis and a transmitter hypothesis of a UC. */
+function hypothesisFolder({ existenceComment = `${EXISTENCE_LINE}\nDW-MRI in humans is undirected.` } = {}) {
+  const dir = conformingFolder();
+  const conn = loadBra(dir).sheets.Connections;
+  conn.push(["A44d", "TE1.0", existenceComment, "[Catani et al., 2005]", "Human", "Hypothetical", QUOTE, "", "<", "Broca's territory", "<", "Wernicke's territory"]);
+  conn[1][2] = "Hypothesis (sign; indirect): Glutamatergic projection neurons of the sender [Catani et al., 2005].";
+  writeFileSync(join(dir, "Connections.csv"), csv(conn));
+  const cir = loadBra(dir).sheets.Circuits;
+  cir[2][5] = "Hypothesis (transmitter; analogy): Layer 3 of the neighbouring areas is glutamatergic [Catani et al., 2005].";
+  writeFileSync(join(dir, "Circuits.csv"), csv(cir));
+  return dir;
+}
+const EXISTENCE_LINE = "Hypothesis (existence; homology): The arcuate fasciculus links both territories in humans [Catani et al., 2005]; no tracing study of the reverse projection was found.";
+const extra = (r, prefix) => r.extras.find((e) => e.item.startsWith(prefix))?.info;
+
+test("hypothesis rows marked with Hypothesis ( pass cobrac:hypothesis-marked and are counted", () => {
+  const r = checkBra(loadBra(hypothesisFolder()));
+  const bad = r.codes.filter((c) => !["ok", "manual"].includes(c.status));
+  assert.deepEqual(bad.map((c) => `${c.code} ${c.status} ${c.examples.join(" / ")}`), []);
+  assert.equal(r.codes.find((c) => c.code === "cobrac:hypothesis-marked").status, "ok");
+  assert.equal(r.codes.find((c) => c.code === 274).note, "判定対象 2 件（うち仮説 2 件は引用文が前提を述べているかを判定）");
+  assert.equal(extra(r, "仮説"), "Connections 2 / 2、Circuits 1 / 2 UC（Measurement method Hypothetical 1）");
+  // the comment line survives the CSV round trip (multi-line quoted field)
+  assert.equal(loadBra(hypothesisFolder()).sheets.Connections[2][2], `${EXISTENCE_LINE}\nDW-MRI in humans is undirected.`);
+  // a Hypothesis line on its own is enough
+  assert.equal(status(checkBra(loadBra(hypothesisFolder({ existenceComment: EXISTENCE_LINE }))))["cobrac:hypothesis-marked"], "ok");
+});
+
+test("a Hypothetical row without the Hypothesis ( first line violates cobrac:hypothesis-marked", () => {
+  for (const existenceComment of ["", "DW-MRI in humans is undirected.", `DW-MRI in humans is undirected.\n${EXISTENCE_LINE}`, "hypothesis (existence; homology): lower case"]) {
+    const r = checkBra(loadBra(hypothesisFolder({ existenceComment })));
+    const code = r.codes.find((c) => c.code === "cobrac:hypothesis-marked");
+    assert.equal(code.status, "violation", JSON.stringify(existenceComment));
+    assert.equal(code.count, 1);
+    assert.equal(code.examples[0], `Connections 3 行: A44d -> TE1.0 Comments="${existenceComment.split("\n")[0]}"`);
+    assert.match(code.note, /Hypothetical は存在の仮説の印/);
+    // the other codes are unaffected; only the unmarked row drops out of the hypothesis count
+    assert.deepEqual(r.codes.filter((c) => !["ok", "manual"].includes(c.status)).map((c) => c.code), ["cobrac:hypothesis-marked"]);
+    assert.equal(extra(r, "仮説"), "Connections 1 / 2、Circuits 1 / 2 UC（Measurement method Hypothetical 1）");
+  }
+  // a direction / sign hypothesis keeps the paper's method: no Hypothetical, nothing to mark
+  const dir = conformingFolder();
+  const conn = loadBra(dir).sheets.Connections;
+  conn[1][5] = "Hypothetical";
+  writeFileSync(join(dir, "Connections.csv"), csv(conn));
+  assert.equal(status(checkBra(loadBra(dir)))["cobrac:hypothesis-marked"], "violation");
 });
 
 test("a v0-style folder violates Source of ID, Reference ID, Pointers, Literature type and Capability", () => {
@@ -207,7 +281,10 @@ test("a whole cortical BNA gyrus as sender is a 203 suspect; template-style Refe
 });
 
 test("reads the same result from an xlsx", () => {
-  const dir = conformingFolder();
+  for (const dir of [conformingFolder(), hypothesisFolder()]) sameFromXlsx(dir);
+});
+
+function sameFromXlsx(dir) {
   const sheetXml = (rows) =>
     `<worksheet><sheetData>${rows
       .map((r, i) => `<row r="${i + 1}">${r.map((v, j) => `<c r="${String.fromCharCode(65 + j)}${i + 1}" t="inlineStr"><is><t>${v.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</t></is></c>`).join("")}</row>`)
@@ -223,7 +300,8 @@ test("reads the same result from an xlsx", () => {
   writeFileSync(file, zip(entries));
   assert.deepEqual(readXlsx(zip(entries)).Circuits, fromCsv.Circuits);
   assert.deepEqual(status(checkBra(loadBra(file))), status(checkBra(loadBra(dir))));
-});
+  assert.deepEqual(checkBra(loadBra(file)).extras, checkBra(loadBra(dir)).extras);
+}
 
 test("parsers", () => {
   assert.deepEqual(parseCsv('a,"b ""x"", c"\r\n1,2\n'), [["a", 'b "x", c'], ["1", "2"]]);
@@ -234,5 +312,7 @@ test("parsers", () => {
 test("CLI prints the report and exits 0", () => {
   const r = spawnSync(process.execPath, [join(here, "bra-appendix-d.mjs"), conformingFolder()], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /集計（42 コード）: 違反 0/);
+  assert.match(r.stdout, /集計（43 コード）: 違反 0/);
+  assert.match(r.stdout, /\| cobrac:hypothesis-marked \|  \| Comments \| .* \| OK \|/);
+  assert.match(r.stdout, /\| 仮説（Comments の 1 行目が Hypothesis \( の行） \| Connections 0 \/ 1、/);
 });
