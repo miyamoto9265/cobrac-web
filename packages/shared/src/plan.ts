@@ -64,17 +64,31 @@ export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_
 /**
  * pending: waits for its turn (with `projectId`: a retry of that project). starting: the runner claimed it and is
  * creating its project. running: its project has a job queued or running. question: its agent asked a question
- * (only this row waits). done: its project completed. attention: needs a human (「要対応」). skipped: left out by the
- * owner. cancelled: stopped when the plan was cancelled.
+ * (only this row waits). done: its project completed (in a plan with a Canon: its pull request was approved into the
+ * Canon, or a human resolved it). attention: needs a human (「要対応」). skipped: left out by the owner. cancelled: stopped
+ * when the plan was cancelled. Plans with a Canon (stage 3) add review: its pull request is open and waits for a human
+ * (「承認待ち」), and decision: a human must decide what happens to it (「人の判断」), e.g. conflicts the automatic
+ * conform follow-ups did not fix.
  */
-export type PlanRowState = "pending" | "starting" | "running" | "question" | "done" | "attention" | "skipped" | "cancelled";
-export const PLAN_ROW_STATES: readonly PlanRowState[] = ["pending", "starting", "running", "question", "done", "attention", "skipped", "cancelled"];
+export type PlanRowState = "pending" | "starting" | "running" | "question" | "done" | "attention" | "skipped" | "cancelled" | "review" | "decision";
+export const PLAN_ROW_STATES: readonly PlanRowState[] = ["pending", "starting", "running", "question", "done", "attention", "skipped", "cancelled", "review", "decision"];
 /** Rows whose project has a job queued or running: they hold the current wave. */
 export const IN_FLIGHT_ROW_STATES: readonly PlanRowState[] = ["starting", "running"];
 /** Rows with a project the runner keeps in step with. */
 export const TRACKED_ROW_STATES: readonly PlanRowState[] = ["starting", "running", "question"];
 
 export type PlanAttentionReason = "failed" | "question_timeout" | "cancelled_outside" | "project_deleted" | "start_failed";
+
+/**
+ * Why a row of a plan with a Canon needs a human decision (「人の判断」): conflicts: its pull request has error
+ * conflicts that are not caused by the Canon moving on; conform_limit: still error conflicts after
+ * `MAX_CONFORM_FOLLOWUPS` conform follow-ups; pr_rejected / pr_withdrawn: its pull request was closed without approval;
+ * other_canon: its (existing) project belongs to another Canon; push_failed: the push could not be made.
+ */
+export type PlanDecisionReason = "conflicts" | "conform_limit" | "pr_rejected" | "pr_withdrawn" | "other_canon" | "push_failed";
+
+/** The Canon of a plan, chosen in a draft: none, one of the owner's Canons, or a new one created at confirmation. */
+export type PlanCanonChoice = { mode: "none" } | { mode: "existing"; canonId: string } | { mode: "new"; name: string };
 
 /** Settings every row's project is created with; fixed when the plan is confirmed. */
 export interface PlanSettings {
@@ -176,6 +190,10 @@ export interface PlanRecord {
   replan?: PlanJobState | null;
   /** The last wave after which the rows were re-ordered (each wave is re-planned once) */
   lastReplanWave?: number | null;
+  /** Stage 3: the plan's Canon (one of the owner's; set when chosen, or when a new one is created at confirmation) */
+  canonId?: string | null;
+  /** Stage 3: a Canon to create at confirmation (with the plan's policy) */
+  canonNew?: { name: string } | null;
   /** Harness rule set of every row's project, fixed at confirmation (`HARNESS_RULES` then) */
   harnessRules?: number | null;
   rowCount: number;
@@ -227,7 +245,7 @@ export interface PlanRowRecord {
   anchors?: string[];
   /** predicted: from the draft (RCS); used: the anchors of the descriptors in the finished project's uc.json */
   anchorsSource?: "predicted" | "used";
-  /** Rows this one builds on (its ROI receives input from theirs, or its TLF is a sub-function of theirs) */
+  /** Rows this one is built from (its function combines theirs); a row with dependencies is never a seed */
   dependsOn?: string[];
   /** In the seed wave (種の波): built one at a time before the body waves */
   seed?: boolean;
@@ -237,6 +255,18 @@ export interface PlanRowRecord {
   duplicateOf?: string | null;
   /** The owner chose 「作り直す」: the row is built even when a finished project has its ROI × TLF (never matched again) */
   rebuild?: boolean;
+  /** Stage 3 (plans with a Canon): the row's open (or last) pull request into the plan's Canon */
+  prNo?: number | null;
+  /** Canon revision the row's project was pinned to when it started (or re-pinned for a conform follow-up) */
+  canonRevision?: number | null;
+  /** Conform follow-ups sent (「Canon rev N に合わせて更新」), at most `MAX_CONFORM_FOLLOWUPS` */
+  conformAttempts?: number;
+  /** A pending row waiting for a slot to send its conform follow-up (its project is re-pinned to the head then) */
+  conform?: boolean;
+  /** Body rows: the AI review of the row's pull request: wanted (waits for a free slot) or queued (its job ID) */
+  aiReview?: "wanted" | "queued" | null;
+  aiReviewJobId?: string | null;
+  decisionReason?: PlanDecisionReason | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -292,7 +322,13 @@ export type PlanEventType =
   | "replan_failed"
   | "proposals_received"
   | "proposal_accepted"
-  | "proposal_rejected";
+  | "proposal_rejected"
+  | "canon_created"
+  | "row_pushed"
+  | "row_conform"
+  | "row_decision"
+  | "row_resolved"
+  | "row_ai_review";
 
 export interface PlanEventRecord {
   planId: string;
@@ -338,6 +374,8 @@ export interface UpdatePlanRequest {
   goal?: string;
   /** Draft only */
   policy?: string;
+  /** Draft only: the plan's Canon (stage 3) */
+  canon?: PlanCanonChoice;
   settings?: Partial<Pick<PlanSettings, "model" | "reasoningEffort" | "researchMode">>;
 }
 
@@ -401,6 +439,8 @@ export interface PlanDetailResponse {
   proposals: PlanProposalRecord[];
   /** Cost of the plan's own jobs (drafts and re-plans) */
   planJobsCostUsd: number | null;
+  /** Stage 3: the plan's Canon (null: none; `missing` when it was deleted) */
+  canon?: { canonId: string; name: string; headRevision: number; missing?: boolean } | null;
 }
 
 export interface PlanSummary extends PlanRecord {
@@ -640,15 +680,75 @@ export const planFinished = (rows: Pick<PlanRowRecord, "state">[]) => rows.lengt
  * active wave or an earlier one is waiting to start or running. Rows waiting for an answer or needing attention do not
  * hold it up: only those rows wait. Never goes back.
  */
-export function nextActiveWave(rows: Pick<PlanRowRecord, "wave" | "state">[], active: number | null | undefined): number | null {
+export function nextActiveWave(rows: Pick<PlanRowRecord, "wave" | "state" | "seed">[], active: number | null | undefined, opts: NextWaveOptions = {}): number | null {
   const pendingWaves = rows.filter((r) => r.state === "pending").map((r) => r.wave);
   if (!pendingWaves.length) return active ?? null;
   const first = Math.min(...pendingWaves);
   if (active === null || active === undefined) return first;
-  const busy = rows.some((r) => r.wave <= active && (r.state === "pending" || IN_FLIGHT_ROW_STATES.includes(r.state)));
-  if (busy) return active;
+  const busy = rows.some(
+    (r) => r.wave <= active && (r.state === "pending" || IN_FLIGHT_ROW_STATES.includes(r.state) || (opts.seedGate && r.seed && !SEED_GATE_PASSED.includes(r.state))),
+  );
+  if (busy || opts.holdNewWave) return active;
   const later = pendingWaves.filter((w) => w > active);
   return later.length ? Math.min(...later) : active;
+}
+
+/** Options of `nextActiveWave` for plans with a Canon (stage 3). */
+export interface NextWaveOptions {
+  /** A seed row holds every later wave until its pull request is approved (or a human resolved or skipped it) */
+  seedGate?: boolean;
+  /** Back-pressure: no new wave starts (rows of the active wave still do) */
+  holdNewWave?: boolean;
+}
+
+/** Seed row states that let the next wave start. */
+const SEED_GATE_PASSED: readonly PlanRowState[] = ["done", "skipped", "cancelled"];
+
+// --- stage 3: the plan's Canon (pure decisions) ------------------------------------------------------------------------
+
+/** No new wave starts while this many of the plan's pull requests wait for approval (「承認待ち」 rows). */
+export const PLAN_MAX_WAITING_PRS = 20;
+/** Conform follow-ups a row gets for error conflicts caused by the Canon moving on, before it needs a human. */
+export const MAX_CONFORM_FOLLOWUPS = 2;
+
+/** Pull requests of the plan that wait for approval. */
+export const waitingPrs = (rows: Pick<PlanRowRecord, "state">[]) => rows.filter((r) => r.state === "review").length;
+
+/** The fixed first line of a conform follow-up (the instruction the project's agent gets). */
+export const conformTitle = (revision: number) => `Canon rev ${revision} に合わせて更新`;
+
+/**
+ * What happens to a row whose finished project was just pushed: error conflicts caused by the Canon moving on since the
+ * row's pin (`headMoved`) get a conform follow-up (at most `MAX_CONFORM_FOLLOWUPS`), other error conflicts need a human;
+ * everything else (warnings and infos included: needs-review items always go to a human) waits for approval.
+ */
+export function pushOutcome(summary: { errors: number }, headMoved: boolean, conformAttempts: number): { to: "review" } | { to: "conform" } | { to: "decision"; reason: PlanDecisionReason } {
+  if (summary.errors <= 0) return { to: "review" };
+  if (!headMoved) return { to: "decision", reason: "conflicts" };
+  if (conformAttempts < MAX_CONFORM_FOLLOWUPS) return { to: "conform" };
+  return { to: "decision", reason: "conform_limit" };
+}
+
+/**
+ * What a 「承認待ち」 row becomes given its pull request now: approved → done; rejected / withdrawn → a human decides;
+ * superseded → follow the pull request that replaced it (`#<n>` in its reason); open → unchanged (null).
+ */
+export function prOutcome(pr: { state: string; reason?: string | null } | null): { to: "done" } | { to: "decision"; reason: PlanDecisionReason } | { to: "follow"; prNo: number } | null {
+  if (!pr) return { to: "decision", reason: "push_failed" };
+  switch (pr.state) {
+    case "approved":
+      return { to: "done" };
+    case "rejected":
+      return { to: "decision", reason: "pr_rejected" };
+    case "withdrawn":
+      return { to: "decision", reason: "pr_withdrawn" };
+    case "superseded": {
+      const n = Number(/^#(\d+)$/.exec(pr.reason ?? "")?.[1]);
+      return Number.isInteger(n) && n > 0 ? { to: "follow", prNo: n } : { to: "decision", reason: "pr_withdrawn" };
+    }
+    default:
+      return null;
+  }
 }
 
 /** Pending rows of the active wave (and earlier ones, e.g. retries), in start order, at most `slots`. */
