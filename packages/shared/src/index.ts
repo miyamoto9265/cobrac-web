@@ -35,3 +35,5 @@ export * from "./braVersion.js";
 export * from "./bradb.js";
 export * from "./motifs.js";
 export * from "./plan.js";
+export * from "./planOrder.js";
+export * from "./planJob.js";
