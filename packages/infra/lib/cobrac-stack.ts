@@ -422,12 +422,16 @@ export class CobracAgentsStack extends Stack {
     planRunnerFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["id"] } } }),
     );
-    // plan jobs (drafting and re-planning): the runner lists the owner's Canons for the job input, writes the job's
-    // input.json and reads its result.json under plans/, and reads finished rows' uc.json for the anchors they used
-    planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["dynamodb:Query"], resources: [`${canons.tableArn}/index/owner-index`] }));
+    // plan jobs (drafting and re-planning): the runner writes the job's input.json and reads its result.json under
+    // plans/. Plans with a Canon (stage 3): it adds rows' projects to the Canon, pushes finished ones as pull requests
+    // (reading the project's workspace files and the Canon's revisions, writing the PR payloads under canons/) and
+    // queues AI reviews; it lists the owner's Canons and reads finished rows' uc.json (in the workspace) as well
+    canons.grantReadWriteData(planRunnerFn);
     artifacts.grantRead(planRunnerFn, "plans/*");
     artifacts.grantPut(planRunnerFn, "plans/*");
-    artifacts.grantRead(planRunnerFn, "users/*_HCD/uc.json");
+    artifacts.grantRead(planRunnerFn, "canons/*");
+    artifacts.grantPut(planRunnerFn, "canons/*");
+    artifacts.grantRead(planRunnerFn, "users/*/workspace/*");
     // the dispatcher reads the concurrency limits set on the admin page (Catalog kind "config")
     dispatcherFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } } }),
