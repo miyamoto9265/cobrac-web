@@ -52,7 +52,7 @@ const rowsOf = (planId: string) => fake.items("plans").filter((x) => x.planId ==
 const rowOf = (planId: string, tlf: string) => rowsOf(planId).find((r) => r.tlf === tlf)!;
 const planOf = (planId: string) => fake.items("plans").find((x) => x.planId === planId && x.sk === "META") as unknown as PlanRecord;
 const proposalsOf = (planId: string) => fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("PROP#")) as unknown as PlanProposalRecord[];
-const eventsOf = (planId: string) => (fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("EVT#")) as unknown as PlanEventRecord[]).sort((a, b) => (a.sk < b.sk ? -1 : 1));
+const eventsOf = (planId: string) => (fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("EVT#")) as unknown as PlanEventRecord[]).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 const jobs = () => fake.items("jobs") as unknown as JobRecord[];
 const planJobs = (planId: string) => jobs().filter((j) => j.projectId === planId && j.type === "plan");
 const projects = () => fake.items("projects") as unknown as ProjectRecord[];
