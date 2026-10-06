@@ -37,6 +37,7 @@ import type {
   BraVersionRef,
   BraVersionSummary,
   CrossCode,
+  EvidenceSettings,
   JobRecord,
   PipelineStage,
   ProjectRecord,
@@ -97,6 +98,8 @@ import {
   isAgentNameable,
   isProjectlessMode,
   isResearchMode,
+  evidenceSettingsOf,
+  isHypothesisMode,
   isUiLocale,
   nowIso,
   planAttachmentTypeOf,
@@ -143,6 +146,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
+import { hypothesisRules } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type PreparedMaterials } from "./materials.js";
 import { planMaterialsIndex, runPlanJob } from "./planJob.js";
@@ -206,6 +210,8 @@ let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
 let research = false;
 /** The project's harness rule set (0: created before the ROI rules) */
 let harnessRules = 0;
+/** The project's evidence mode, hypothesis scopes and share limit (strict unless the project allows hypotheses) */
+let evidence: EvidenceSettings = evidenceSettingsOf(null);
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
 const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ http: literatureHttp }) : null;
 const quoteVerifier = env.quoteCheck ? new QuoteVerifier({ http: literatureHttp, threshold: env.quoteMatchThreshold }) : null;
@@ -278,6 +284,7 @@ async function main() {
   // --- codex ----------------------------------------------------------------
   research = isResearchMode(project);
   harnessRules = project.harnessRules ?? 0;
+  evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
   const codex = createCodex(apiKey, rcsConn, { lit: true });
   jobUsage = job.usage ?? EMPTY_USAGE;
@@ -447,7 +454,7 @@ async function main() {
           await setStage("ADJUST");
           const candidates = await frgCandidatesSection();
           const specs = freshThread ? `${header(project)}\n\nReference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` : "";
-          const hidden = [specs, candidates].filter(Boolean).join("\n\n---\n\n");
+          const hidden = [specs, await hypothesisNotes(), candidates].filter(Boolean).join("\n\n---\n\n");
           return hidden ? { ...p, hidden } : p;
         },
       },
@@ -474,6 +481,7 @@ async function main() {
       const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta), {
         roi: project.roi,
         bibliography: env.referenceLookup ? { mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey } : null,
+        hypothesisLines: isHypothesisMode(evidence),
       });
       xlsxDone = true;
       await syncStepStates();
@@ -575,7 +583,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
     return;
   }
   const sourceRevision = project.revision ?? 0;
-  const figures = prepareArticleFigures(paths, projectId, locale, project.roi ?? "");
+  const figures = prepareArticleFigures(paths, projectId, locale, project.roi ?? "", { hypothesisLines: isHypothesisMode(evidenceSettingsOf(project)) });
   if (!figures) {
     await fail("The CSVs of the project could not be read to draw the article figures.", { i18n: "sys.articleNoGraph" });
     return;
@@ -866,6 +874,7 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     canon: canonRun ? { ...canonRun, onNotes: logCanonNotes } : undefined,
     sabraBoundary: project.sabraBoundary,
     harnessRules: project.harnessRules,
+    ...(isHypothesisMode(evidence) ? { evidence: { ...evidence, researchMode: research } } : {}),
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
@@ -988,12 +997,17 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
 // --- prompts -----------------------------------------------------------------
 
 const specCache = new Map<Phase, string>();
-/** The phase spec, followed by the research-mode notes when the project researches, and for the FRG the bottom-up candidates. */
+/**
+ * The phase spec, followed by the research-mode notes when the project researches, the hypothesis rules when it allows
+ * hypotheses, and for the FRG the bottom-up candidates.
+ */
 async function phaseSpec(phase: Phase): Promise<string> {
   const spec = await rawPhaseSpec(phase);
   const withNotes = research ? `${spec}\n\n${await researchModeNotes()}` : spec;
+  const rules = await hypothesisNotes();
+  const withRules = rules ? `${withNotes}\n\n${rules}` : withNotes;
   const candidates = phase === "FRG" ? await frgCandidatesSection() : "";
-  return candidates ? `${withNotes}\n\n---\n\n${candidates}` : withNotes;
+  return candidates ? `${withRules}\n\n---\n\n${candidates}` : withRules;
 }
 
 /** The bottom-up candidates of the FRG phase as the last check wrote them from the HCD; empty before the HCD was checked. */
@@ -1026,6 +1040,17 @@ async function rawPhaseSpec(phase: Phase): Promise<string> {
 
 async function researchModeNotes(): Promise<string> {
   return (await readFile(join(env.promptsDir, "research_mode.md"), "utf8")).replaceAll("{P}", projectId).trim();
+}
+
+/** HYPOTHESIS.md with this project's scopes and limit; "" for projects that do not allow hypotheses (their prompts are unchanged). */
+async function hypothesisNotes(): Promise<string> {
+  return hypothesisRules(env.promptsDir, projectId, evidence, { researchMode: research });
+}
+
+/** `\n\n---\n\n<rules>` after the reference specs of a hypothesis-mode project; "" otherwise. */
+async function hypothesisNotesSection(): Promise<string> {
+  const rules = await hypothesisNotes();
+  return rules ? `\n\n---\n\n${rules}` : "";
 }
 
 function header(project: ProjectRecord): string {
@@ -1070,7 +1095,8 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
         hidden:
           `Apply the follow-up instruction to the project files (see "Follow-up instructions" in AGENTS.md). Reference specs:\n\n` +
           `${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
-          (research ? `\n\n---\n\n${await researchModeNotes()}` : ""),
+          (research ? `\n\n---\n\n${await researchModeNotes()}` : "") +
+          (await hypothesisNotesSection()),
       };
   }
 }
@@ -1085,7 +1111,8 @@ async function freshThreadPrompt(project: ProjectRecord, p: Prompt): Promise<Pro
       `Continue with this request:\n\n${p.shown}`,
     hidden:
       `${p.hidden ? `${p.hidden}\n\n---\n\n` : ""}Reference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
-      (research ? `\n\n---\n\n${await researchModeNotes()}` : ""),
+      (research ? `\n\n---\n\n${await researchModeNotes()}` : "") +
+      (await hypothesisNotesSection()),
   };
 }
 

@@ -318,6 +318,7 @@ Up to 0.16, CoBRAC's check messages and its checker (`scripts/bra-appendix-d.mjs
 | `cobrac:gn-no-circuit-id` | A node other than U. has a Circuit ID |
 | `cobrac:capability-required` | Capability missing |
 | `cobrac:frg-acyclic` | A cycle in the FRG |
+| `cobrac:hypothesis-marked` | A connection with Measurement method `Hypothetical` whose Comments do not start with the hypothesis line `Hypothesis (<claims>; <basis>): <rationale>` (hypothesis mode, since 0.32.0) |
 
 - The checker's JSON output keeps each code's old Appendix D number as `appendixD`, and the Markdown report has an Appendix D column, so earlier reports can still be compared.
 - Only the code numbers and wording changed, not what is checked. The Canon conflict codes (C1–C13) and the HCD↔FRG consistency checks (X1–X9) are CoBRAC's own and did not change.
@@ -336,7 +337,7 @@ Up to 0.16, CoBRAC's check messages and its checker (`scripts/bra-appendix-d.mjs
 | Head of circuits spanning several units | Provisionally the common BNA L2 abbreviation (`MFG`) | Whether this is acceptable |
 | `BNA` as Source of ID | Written as a CoBRAC extension (the Review Tool may report 108) | Whether `BNA` can join the enumeration (U9) |
 | Where the UC Descriptor and facets go | The last column of the CoBRAC xlsx; Template-v2-2 has no place for them | Whether the template can gain descriptor and facet columns (U21) |
-| Checks without a Master code | 12 local `cobrac:` codes | Whether some should join the Master or the Review Tool's automatic checks |
+| Checks without a Master code | 13 local `cobrac:` codes | Whether some should join the Master or the Review Tool's automatic checks |
 | Uniform is relative to each BRA | The same descriptor can be a UC in a coarse HCD and a Collection in a fine one | How WholeBIF should merge circuits whose Uniform values differ (U20) |
 
 Open on the CoBRAC side are also the thresholds for choosing a single BNA area (`p_raw`, `eff_n`), regions that are not SABRA units (such as the spinal cord), the source of the `cell` and `resp` vocabularies, and the detailed rules for qualifying a Circuit ID when two would collide.

@@ -1,0 +1,44 @@
+{
+  "nodes": [
+    {
+      "id": "R.VOR-Adaptation",
+      "subnodes": ["R.Context", "R.Learning", "R.Gain-Control"],
+      "comment": "TLF: adapt the gain of the vestibulo-ocular reflex",
+      "interface": "([U.FTN]) = R.VOR-Adaptation([U.VN])",
+      "requirement": "Adapt the reflex gain from the input of [U.VN] and drive [U.FTN] through [R.Context], [R.Learning] and [R.Gain-Control].",
+      "requirementRealization": "[U.VN] enters through [U.GC(granule)], [U.GoC(golgi)] and [U.IO]; [U.PC(purkinje)] sends the corrected gain to [U.FTN].",
+      "capability": "Supervised gain learning [Ito, 1982].",
+      "mechanism": "Error-driven plasticity in the floccular cortex."
+    },
+    {
+      "id": "R.Context",
+      "subnodes": ["U.GC(granule)", "U.PC(purkinje)"],
+      "comment": "Context representation read out by Purkinje cells",
+      "interface": "([U.FTN]) = R.Context([U.VN], [U.GoC(golgi)], [U.IO])",
+      "requirement": "Represent the head velocity context with [U.GC(granule)] and read it out with [U.PC(purkinje)].",
+      "requirementRealization": "[U.VN] and [U.GoC(golgi)] drive [U.GC(granule)]; [U.PC(purkinje)] combines it with [U.IO] and inhibits [U.FTN].",
+      "capability": "Expansion recoding and linear readout [Ito, 1982].",
+      "mechanism": "Parallel fibres converge on Purkinje cells."
+    },
+    {
+      "id": "R.Learning",
+      "subnodes": ["U.IO", "U.PC(purkinje)"],
+      "comment": "Error-driven learning of the gain",
+      "interface": "([U.FTN]) = R.Learning([U.VN], [U.GC(granule)])",
+      "requirement": "Correct the gain stored by [U.PC(purkinje)] with the error from [U.IO].",
+      "requirementRealization": "[U.VN] drives [U.IO]; [U.PC(purkinje)] combines the error with [U.GC(granule)] and inhibits [U.FTN].",
+      "capability": "Climbing fibre teaching signal [Lisberger, 1994].",
+      "mechanism": "Long-term depression of co-active synapses."
+    },
+    {
+      "id": "R.Gain-Control",
+      "subnodes": ["U.GoC(golgi)", "U.GC(granule)"],
+      "comment": "Feedforward control of the granule cell gain",
+      "interface": "([U.PC(purkinje)]) = R.Gain-Control([U.VN])",
+      "requirement": "Keep the activity of [U.GC(granule)] in range using [U.GoC(golgi)].",
+      "requirementRealization": "[U.VN] drives both [U.GoC(golgi)] and [U.GC(granule)]; the scaled code goes to [U.PC(purkinje)].",
+      "capability": "Feedforward inhibition [Eccles, 1967].",
+      "mechanism": "Golgi cell inhibition divides granule cell activity."
+    }
+  ]
+}

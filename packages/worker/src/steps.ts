@@ -19,6 +19,8 @@ export interface ProjectPaths {
   frgCandidates: string;
   /** Hash and remaining problems of the HCD / FRG files as their phase last checked them */
   phaseBaseline: string;
+  /** Hypothesis mode: the hypotheses, their share and the GNs that depend on them */
+  hypotheses: string;
   /** Research mode: the agent's survey, the worker's search log and coverage check */
   research: string;
   researchLog: string;
@@ -41,6 +43,7 @@ export function projectPaths(workDir: string, projectId: string): ProjectPaths {
     crossCheck: join(root, PROJECT_FILES.crossCheck),
     frgCandidates: join(root, PROJECT_FILES.frgCandidates),
     phaseBaseline: join(root, PROJECT_FILES.phaseBaseline),
+    hypotheses: join(root, PROJECT_FILES.hypotheses),
     research: join(root, RESEARCH_FILES.plan),
     researchLog: join(root, RESEARCH_FILES.log),
     researchCheck: join(root, RESEARCH_FILES.check),

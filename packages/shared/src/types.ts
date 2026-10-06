@@ -6,6 +6,7 @@ import type { BraVersionSummary } from "./braVersion.js";
 
 import type { ArticleJobState, ArticleMeta } from "./article.js";
 import type { ProjectAttachment } from "./attachments.js";
+import type { EvidenceMode, HypothesisScope } from "./hypothesis.js";
 import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ResearchStepMetrics } from "./research.js";
@@ -162,6 +163,16 @@ export interface ProjectRecord {
   sabraBoundary?: "neocortex";
   /** Harness rule set the checks follow (`HARNESS_RULES`: ROI elements and side, reused-quote warnings): set on projects created from v0.25.0; absent on older ones, which are checked as before */
   harnessRules?: number;
+  /**
+   * How the project treats evidence (hypothesis.ts): absent or `strict` = literature-supported evidence only;
+   * `hypothesis` = hypotheses marked as such are allowed inside `hypothesisScopes`. Read by the worker; separate from
+   * `harnessRules` (the rule-set generation), so any rule set can use hypothesis mode
+   */
+  evidenceMode?: EvidenceMode;
+  /** Where hypotheses are allowed (S1, S2, …), in the order they were added */
+  hypothesisScopes?: HypothesisScope[];
+  /** Largest share of hypothesis connections and of hypothesis UCs (`HYPOTHESIS_MAX_SHARES`; absent = 0.2) */
+  hypothesisMaxShare?: number;
   status: ProjectStatus;
   /** Step that is currently running or the last one completed */
   currentStep: WorkflowStep | null;

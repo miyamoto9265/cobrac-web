@@ -49,7 +49,7 @@ export function readReferences(paths: ProjectPaths): ArticleReference[] {
 }
 
 /** HCD / FRG graphs from the workspace CSVs (the same data as the published graphs); null when they cannot be read. */
-export function readArticleGraphs(paths: ProjectPaths, projectId: string): { hcd: HcdGraph; frg: FrgGraph } | null {
+export function readArticleGraphs(paths: ProjectPaths, projectId: string, o: { hypothesisLines?: boolean } = {}): { hcd: HcdGraph; frg: FrgGraph } | null {
   try {
     const read = (f: string) => readFileSync(join(paths.csv, f), "utf8");
     const g = buildGraphs(projectId, {
@@ -57,6 +57,7 @@ export function readArticleGraphs(paths: ProjectPaths, projectId: string): { hcd
       connectionsCsv: read("Connections.csv"),
       frgCsv: read("FRG.csv"),
       referencesCsv: read("References.csv"),
+      ...(o.hypothesisLines ? { hypothesisLines: true } : {}),
     });
     return g.hcd.nodes.length && g.frg.nodes.length ? g : null;
   } catch {
@@ -70,8 +71,8 @@ export interface ArticleFigureSet {
   generated: ArticleFigure[];
 }
 
-export function prepareArticleFigures(paths: ProjectPaths, projectId: string, locale: UiLocale, roi: string): ArticleFigureSet | null {
-  const graphs = readArticleGraphs(paths, projectId);
+export function prepareArticleFigures(paths: ProjectPaths, projectId: string, locale: UiLocale, roi: string, o: { hypothesisLines?: boolean } = {}): ArticleFigureSet | null {
+  const graphs = readArticleGraphs(paths, projectId, o);
   if (!graphs) return null;
   return { graphs, generated: buildArticleFigures(graphs.hcd, graphs.frg, { locale, roi }) };
 }

@@ -1,0 +1,137 @@
+{
+  "ucs": [
+    {
+      "circuitId": "VN",
+      "descriptor": "HOMBA:12950",
+      "names": "vestibular nuclei",
+      "roi": "noROI(input)",
+      "sourceOfId": "DHBA",
+      "transmitter": "Glutamate",
+      "modulationType": "Excitatory",
+      "comments": "Head velocity input",
+      "interface": "",
+      "outputSemantics": "[VN] head velocity;",
+      "requirement": "",
+      "requirementRealization": "",
+      "capability": "",
+      "mechanism": "",
+      "implementation": ""
+    },
+    {
+      "circuitId": "GC(granule)",
+      "descriptor": "HOMBA:12852/cell:granule",
+      "names": "cerebellar cortex; granule cells",
+      "roi": "internal",
+      "sourceOfId": "[Ito, 1982]",
+      "transmitter": "Glutamate",
+      "modulationType": "Excitatory",
+      "comments": "Granule cells relaying mossy fibre input as parallel fibres",
+      "interface": "([U.PC(purkinje)]) = GC(granule)([U.VN], [U.GoC(golgi)])",
+      "outputSemantics": "[GC(granule)] expanded vestibular context;",
+      "requirement": "Expand the head velocity context from [U.VN] under gain control by [U.GoC(golgi)] and send it to [U.PC(purkinje)].",
+      "requirementRealization": "[U.VN] supplies head velocity, [U.GoC(golgi)] scales it, and the expanded code goes to [U.PC(purkinje)].",
+      "capability": "Expansion recoding of mossy fibre input [Ito, 1982].",
+      "mechanism": "Many granule cells each sample a few mossy fibres.",
+      "implementation": "[U.GC(granule)] = f([U.VN], [U.GoC(golgi)])",
+      "hypothesis": {
+        "claims": ["role"],
+        "basis": "functional-need",
+        "rationale": "The FRG needs a context expansion stage before the Purkinje cells; the reviewed literature on the flocculus [Ito, 1982] does not state this role for its granule cells.",
+        "premises": ["[Ito, 1982]"],
+        "scope": "S1"
+      }
+    },
+    {
+      "circuitId": "PC(purkinje)",
+      "descriptor": "HOMBA:12852/cell:purkinje",
+      "names": "cerebellar cortex; Purkinje cells",
+      "roi": "internal",
+      "sourceOfId": "[Ito, 1982]",
+      "transmitter": "GABA",
+      "modulationType": "Inhibitory",
+      "comments": "Purkinje cells learning the VOR gain",
+      "interface": "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])",
+      "outputSemantics": "[PC(purkinje)] gain correction;",
+      "requirement": "Combine the context from [U.GC(granule)] with the error from [U.IO] and inhibit [U.FTN].",
+      "requirementRealization": "[U.GC(granule)] gives the context, [U.IO] the error, and the corrected gain goes to [U.FTN].",
+      "capability": "Supervised learning of the VOR gain [Ito, 1982].",
+      "mechanism": "Climbing fibre input depresses co-active parallel fibre synapses.",
+      "implementation": "[U.PC(purkinje)] = W * [U.GC(granule)]; dW = -eta * [U.IO]"
+    },
+    {
+      "circuitId": "IO",
+      "descriptor": "HOMBA:12500",
+      "names": "inferior olive",
+      "roi": "internal",
+      "sourceOfId": "DHBA",
+      "transmitter": "Glutamate",
+      "modulationType": "Excitatory",
+      "comments": "Retinal slip error signal",
+      "interface": "([U.PC(purkinje)]) = IO([U.VN])",
+      "outputSemantics": "[IO] retinal slip error;",
+      "requirement": "Signal the retinal slip error from [U.VN] to [U.PC(purkinje)].",
+      "requirementRealization": "The input from [U.VN] is turned into an error sent to [U.PC(purkinje)].",
+      "capability": "Error signalling [Lisberger, 1994].",
+      "mechanism": "Complex spikes report the retinal slip.",
+      "implementation": "[U.IO] = g([U.VN])",
+      "hypothesis": {
+        "claims": ["transmitter"],
+        "basis": "homology",
+        "rationale": "Olivary neurons are glutamatergic in the monkey [Lisberger, 1994]; no paper found reports the transmitter of the olivary neurons that project to the human flocculus.",
+        "premises": ["[Lisberger, 1994]"],
+        "scope": "S1"
+      }
+    },
+    {
+      "circuitId": "GoC(golgi)",
+      "descriptor": "HOMBA:12852/cell:golgi",
+      "names": "cerebellar cortex; Golgi cells",
+      "roi": "internal",
+      "sourceOfId": "makeshift",
+      "transmitter": "GABA",
+      "modulationType": "Inhibitory",
+      "comments": "Golgi cells controlling the granule cell gain",
+      "interface": "([U.GC(granule)]) = GoC(golgi)([U.VN])",
+      "outputSemantics": "[GoC(golgi)] granule cell gain;",
+      "requirement": "Scale the granule cell gain from the input of [U.VN] and send it to [U.GC(granule)].",
+      "requirementRealization": "The input from [U.VN] sets the inhibition sent to [U.GC(granule)].",
+      "capability": "Feedforward gain control [Eccles, 1967].",
+      "mechanism": "Golgi cell inhibition limits granule cell firing.",
+      "implementation": "[U.GoC(golgi)] = h([U.VN])",
+      "hypothesis": {
+        "claims": ["population"],
+        "basis": "analogy",
+        "rationale": "Golgi cells form a distinct inhibitory population of the cerebellar cortex in the cat [Eccles, 1967]; no paper found defines this population in the flocculus.",
+        "premises": ["[Eccles, 1967]"],
+        "scope": "S1"
+      }
+    },
+    {
+      "circuitId": "FTN",
+      "descriptor": "HOMBA:12951",
+      "names": "floccular target neurons",
+      "roi": "noROI(output)",
+      "sourceOfId": "DHBA",
+      "transmitter": "GABA",
+      "modulationType": "Inhibitory",
+      "comments": "Floccular target neurons in the vestibular nuclei",
+      "interface": "",
+      "outputSemantics": "",
+      "requirement": "",
+      "requirementRealization": "",
+      "capability": "",
+      "mechanism": "",
+      "implementation": ""
+    }
+  ],
+  "collections": [
+    {
+      "circuitId": "Cb",
+      "descriptor": "HOMBA:12852",
+      "names": "cerebellar cortex",
+      "sourceOfId": "collection",
+      "subCircuits": ["GC(granule)", "PC(purkinje)", "GoC(golgi)"],
+      "comments": "The floccular cortex is split into granule, Purkinje and Golgi cells, which differ in transmitter and projection target [Ito, 1982]."
+    }
+  ]
+}
