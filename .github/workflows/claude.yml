@@ -1,0 +1,74 @@
+# Claude Code (anthropics/claude-code-action) answers `@claude` in issues and PR comments.
+# Public repo: only the owner and the Cursor agent identity (cursor[bot], user id 206951365) can
+# start it; everyone else's comments are skipped by the job `if:` before any secret is read.
+# Authenticates with the owner's Claude subscription (secret CLAUDE_CODE_OAUTH_TOKEN, from
+# `claude setup-token`) and operates on GitHub with this job's GITHUB_TOKEN instead of the Claude
+# GitHub App, so no `id-token` is needed. Pushes and PRs made with GITHUB_TOKEN do not start other
+# workflows (ci / deploy), and GITHUB_TOKEN cannot change files under .github/workflows/.
+# issue_comment and issues events always run this file from the default branch.
+name: claude
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions: {}
+
+concurrency:
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  claude:
+    # Trigger author: the owner (author_association OWNER) or the Cursor GitHub App bot
+    # (cursor[bot] has author_association NONE, so it is pinned by its immutable user id).
+    # The issue / PR itself must also be authored by a trusted account, so its body is not untrusted
+    # input. github-actions[bot] is the author of PRs that Claude opens with GITHUB_TOKEN.
+    if: >-
+      (
+        (github.event_name == 'issue_comment' || github.event_name == 'pull_request_review_comment') &&
+        contains(github.event.comment.body, '@claude') &&
+        github.actor == github.event.comment.user.login &&
+        (
+          (github.event.comment.user.login == 'miyamoto9265' && github.event.comment.author_association == 'OWNER') ||
+          (github.event.comment.user.login == 'cursor[bot]' && github.event.comment.user.id == 206951365 && github.event.comment.user.type == 'Bot')
+        ) &&
+        contains(fromJSON('["miyamoto9265","cursor[bot]","github-actions[bot]"]'), github.event.issue.user.login || github.event.pull_request.user.login) &&
+        (github.event_name != 'pull_request_review_comment' || github.event.pull_request.head.repo.full_name == github.repository)
+      ) || (
+        github.event_name == 'issues' &&
+        (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')) &&
+        github.actor == 'miyamoto9265' &&
+        github.event.issue.user.login == 'miyamoto9265' &&
+        github.event.issue.author_association == 'OWNER'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c # v1.0.242
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          allowed_bots: cursor
+          include_comments_by_actor: miyamoto9265,cursor[bot],github-actions[bot]
+          base_branch: main
+          branch_prefix: claude/
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Bash(npm ci),Bash(npm run build),Bash(npm run typecheck),Bash(npm test),Bash(npm test:*),Bash(npm run docs:figures),Bash(npm run release:check),Bash(npm run release -- patch --no-git),Bash(npm run release -- minor --no-git),Bash(npm run release -- major --no-git),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*),Bash(gh pr view:*)"
+            --append-system-prompt "Repository rules for cobrac-web: read AGENTS.md and README.md before changing anything and follow them (also CLAUDE.md if it exists). Work only on the branch this action gives you (a claude/ branch for issues, the PR head branch for an open PR); never push to main, never push tags, never merge, never force-push. When you made a code change on a claude/ branch, open a draft PR against main with gh pr create --draft, and say in the PR whether a release is needed. Merging is the owner's decision because merging a version-bumped PR deploys to production. Versioning: write user-visible changes under [Unreleased] in CHANGELOG.md; bump the version only right before merge and only when asked, with npm run release -- patch|minor|major --no-git (never without --no-git, never edit versions by hand). UI text must be added to all 10 locales in packages/web/src/i18n (ja, en, de, es, fr, ko, pt, ru, zh, zhTw). Infrastructure: never replace or remove RETAIN resources (DynamoDB, S3, KMS, Cognito, BRA-DB instance and volume); the deploy RETAIN guard stops such changes and only the owner may override it, so call out any such risk in the PR. Run npm run build, npm run typecheck and npm test before committing. Never print, log or commit secrets or tokens."
