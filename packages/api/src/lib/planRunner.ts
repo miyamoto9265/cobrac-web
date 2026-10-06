@@ -32,6 +32,7 @@ import {
   planFinished,
   policyAllows,
   proposeProjectName,
+  replanJobDue,
   replanRows,
   rowsToStart,
   syncRow,
@@ -239,8 +240,8 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
 
 // --- re-plan (plans ordered automatically) ---------------------------------------------------------------------------
 
-/** At most this many uc.json files are read per step. */
-const USED_ANCHOR_READS = 10;
+/** At most this many uc.json files are read per step (more than a wave can hold, so a whole wave is read at once). */
+const USED_ANCHOR_READS = 20;
 
 /**
  * Finished rows learn the anchors their project actually used (the descriptors in its uc.json). Newest first, so a row
@@ -274,7 +275,7 @@ async function readUsedAnchors(plan: PlanRecord, rows: PlanRowRecord[]) {
 /**
  * Once the active wave is finished (nothing of it or before waits or runs) and rows that have not started wait in later
  * waves, those rows are ordered again from the next wave with the anchors known now (once per wave), and a re-plan job
- * is asked for proposals.
+ * is asked for proposals when enough rows have finished since the last one (`replanJobDue`).
  */
 async function replanAfterWave(plan: PlanRecord, rows: PlanRowRecord[], limits: () => Promise<EffectiveLimits>) {
   const active = plan.activeWave;
@@ -290,7 +291,11 @@ async function replanAfterWave(plan: PlanRecord, rows: PlanRowRecord[], limits: 
     }
   }
   const values: Partial<PlanRecord> = { lastReplanWave: active };
-  if (!isOpenPlanJob(plan.replan)) values.replan = { kind: "replan", jobId: null, status: "waiting", requestedAt: nowIso(), requestedBy: RUNNER, wave: active, locale: plan.settings.locale };
+  const lastJobWave = plan.replan?.wave ?? null;
+  // proposals are asked for once enough rows have finished since the last re-plan job (not after every wave)
+  if (!isOpenPlanJob(plan.replan) && replanJobDue(rows, active, lastJobWave)) {
+    values.replan = { kind: "replan", jobId: null, status: "waiting", requestedAt: nowIso(), requestedBy: RUNNER, wave: active, locale: plan.settings.locale };
+  }
   await updatePlan(plan.planId, values);
   Object.assign(plan, values);
   await putPlanEvent(plan.planId, "replanned", RUNNER, { detail: { wave: active, moved } });

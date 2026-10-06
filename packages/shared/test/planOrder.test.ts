@@ -12,7 +12,10 @@ import {
   planEstimate,
   replanRows,
   sharedAnchors,
+  MAX_REPLAN_JOBS,
+  replanJobDue,
   type OrderRow,
+  type PlanRowState,
   type PlanRowRecord,
 } from "../src/index.js";
 
@@ -210,5 +213,36 @@ describe("matchExistingProject", () => {
     expect(matchExistingProject({ roi: "STG", tlf: "Hearing" }, projects)).toEqual({ existing: null, duplicateOf: "p2" });
     expect(matchExistingProject({ roi: "MTG", tlf: "naming" }, projects)).toEqual({ existing: null, duplicateOf: null });
     expect(matchExistingProject({ roi: "Left IFG", tlf: "Speech production" }, projects, new Set(["p1"]))).toEqual({ existing: null, duplicateOf: null });
+  });
+});
+
+describe("replanJobDue", () => {
+  const r = (wave: number, state: PlanRowState = "done", existing = false) => ({ wave, state, existing: existing ? { projectId: "p", name: "n" } : null });
+  it("asks for the first re-plan job after the first wave, later ones after a tenth of the rows", () => {
+    const small = [r(1), r(2), r(3), r(4, "pending")];
+    expect(replanJobDue(small, 1, null)).toBe(true);
+    // up to 10 rows: after every wave
+    expect(replanJobDue(small, 2, 1)).toBe(true);
+    const rows = [...Array.from({ length: 6 }, (_, i) => r(i + 1)), ...Array.from({ length: 14 }, (_, i) => r(i + 7, "pending"))];
+    // 20 rows: every 2 finished rows
+    expect(replanJobDue(rows, 2, 1)).toBe(false);
+    expect(replanJobDue(rows, 3, 1)).toBe(true);
+    // rows done by an existing project, skipped and cancelled rows do not count
+    const mixed = [...rows, r(2, "done", true), r(2, "skipped"), r(2, "cancelled")];
+    expect(replanJobDue(mixed, 2, 1)).toBe(false);
+  });
+  it("asks for about MAX_REPLAN_JOBS jobs per plan, whatever the concurrency", () => {
+    // 141 rows built one per wave (concurrency 1)
+    const rows = Array.from({ length: 141 }, (_, i) => r(i + 1));
+    let last: number | null = null;
+    let jobs = 0;
+    for (let w = 1; w < 141; w++) {
+      if (replanJobDue(rows, w, last)) {
+        jobs++;
+        last = w;
+      }
+    }
+    // waves 1, 16, 31, …, 136
+    expect(jobs).toBe(MAX_REPLAN_JOBS);
   });
 });

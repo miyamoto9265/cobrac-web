@@ -27,9 +27,9 @@ export const planJobKey = (planId: string, jobId: string, file: "input.json" | "
 export const PLAN_JOB_REASONING_EFFORT = "medium" as const;
 /**
  * Wall-clock budget of one `plan` job, counted from the worker's start (a draft must be ready within 10 minutes of the
- * request; the rest is left for queueing, Fargate start-up and applying the result).
+ * request; the rest is left for queueing, Fargate start-up and the runner's next step, which applies the result).
  */
-export const PLAN_JOB_TIME_BUDGET_MS = 8 * 60 * 1000;
+export const PLAN_JOB_TIME_BUDGET_MS = 7 * 60 * 1000;
 /** At most this many of the owner's projects and Canons are summarised in the input. */
 export const PLAN_JOB_INPUT_LIMITS = { projects: 300, canons: 50, text: 600 } as const;
 export const MAX_PLAN_PROPOSALS = 30;
