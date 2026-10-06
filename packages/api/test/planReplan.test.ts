@@ -277,9 +277,19 @@ describe("plans: re-planning after each wave", () => {
     expect(eventsOf(planId).some((e) => e.type === "replan_failed")).toBe(true);
     expect(planOf(planId).status).toBe("RUNNING");
 
-    // the owner leaves every other row out while a new re-plan job is queued: it is stopped with the plan's end
+    // later re-plan jobs wait for a tenth of the rows (12 rows: 2) to finish since the last one; the order follows every wave
     projectStatus(planId, "phonological processing", "COMPLETED");
     await advancePlan(planId);
+    expect(eventsOf(planId).filter((e) => e.type === "replanned").map((e) => e.detail?.wave)).toEqual([1, 2]);
+    expect(planJobs(planId)).toHaveLength(1);
+    expect(planOf(planId).replan).toMatchObject({ status: "failed", wave: 1 });
+    const wave3 = rowsOf(planId).filter((r) => r.state === "running");
+    expect(wave3.length).toBeGreaterThan(1);
+    for (const r of wave3) projectStatus(planId, r.tlf, "COMPLETED");
+    await advancePlan(planId);
+    expect(planOf(planId).replan).toMatchObject({ status: "queued", wave: 3 });
+
+    // the owner leaves every other row out while the new re-plan job is queued: it is stopped with the plan's end
     const second = planJobs(planId).find((j) => j.jobId !== job.jobId)!;
     expect(second).toMatchObject({ status: "QUEUED", planJobKind: "replan" });
     for (const r of rowsOf(planId)) if (r.state === "pending") fake.put("plans", { ...r, state: "skipped" } as never);

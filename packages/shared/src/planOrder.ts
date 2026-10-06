@@ -276,6 +276,23 @@ export function replanRows(rows: readonly PlanRowLike[], finishedWave: number, c
   return out;
 }
 
+/** About this many re-plan jobs (proposals) at most per plan; re-ordering itself happens after every wave. */
+export const MAX_REPLAN_JOBS = 10;
+
+/**
+ * Whether a re-plan job should be asked for after wave `finishedWave`. The first one comes right after the first wave
+ * that finishes (the first seed, the main hub). Later ones wait until a tenth of the rows the plan builds (at least
+ * one) have finished since the wave of the last one (`lastJobWave`): at concurrency 1 every body wave is one row, and
+ * a job after every wave would be one paid job, and one held slot, per row.
+ */
+export function replanJobDue(rows: readonly Pick<PlanRowRecord, "state" | "existing" | "wave">[], finishedWave: number, lastJobWave: number | null): boolean {
+  if (lastJobWave === null) return true;
+  const built = rows.filter((r) => r.state !== "skipped" && r.state !== "cancelled" && !r.existing);
+  const every = Math.max(1, Math.ceil(built.length / MAX_REPLAN_JOBS));
+  const since = built.filter((r) => r.state === "done" && r.wave > lastJobWave && r.wave <= finishedWave).length;
+  return since >= every;
+}
+
 // --- duplicates of the owner's projects ----------------------------------------------------------------------------
 
 export type ProjectLike = Pick<ProjectRecord, "projectId" | "roi" | "tlf" | "status" | "hasArtifacts" | "deletedAt"> & { name?: string };

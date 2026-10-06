@@ -227,6 +227,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - Then a planning job (the re-plan) may propose changes based on the finished rows: "Add a row" (a circuit the finished rows share that no row covers yet), "Remove a row" (a row that has not started and that a finished row already covers) or "Change the granularity policy", each with the reason. Often it proposes nothing.
 - A proposal changes nothing until you "Accept" it. Accepting adds the row (it is placed in a wave automatically; when you have a finished project with the same ROI × TLF it is marked done without being built), skips the row, or replaces the policy; "Reject" leaves the plan as it is. A proposal to remove a row that has started in the meantime, or to add a row whose ROI × TLF is already in the plan, can no longer be accepted and becomes "Outdated". Decided proposals are listed under the history.
 - The re-planning job also takes a slot under the concurrency limits and its cost is recorded. It waits for a free slot and does not run while the plan is paused. If it fails, the plan goes on.
+- Re-ordering happens after every wave, but a plan runs the re-planning job about 10 times at most: once after the first wave, then each time a tenth of the plan's rows have finished (after every wave for plans of up to 10 rows). At a concurrency of 1 every wave is a single row, and a job after every wave would add one job's cost and wait per row.
 - A plan in manual order is neither re-ordered nor re-planned.
 
 ### Question inbox
