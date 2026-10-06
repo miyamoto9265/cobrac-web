@@ -7,6 +7,7 @@
 // decisions it takes are the pure functions at the end of this file, so they can be tested without AWS.
 // ---------------------------------------------------------------------------
 
+import type { FileAttachment } from "./attachments.js";
 import { parseCsv } from "./csv.js";
 import type { UiLocale } from "./locale.js";
 import { randomCrockfordId } from "./projectId.js";
@@ -50,8 +51,11 @@ export const PLAN_LEASE_MS = 90 * 1000;
 
 // --- records ---------------------------------------------------------------------------------------------------------
 
-export type PlanStatus = "DRAFT" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
-export const PLAN_STATUSES: readonly PlanStatus[] = ["DRAFT", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"];
+/** DRAFTING: a draft that waits for (or runs) its `plan` job; its rows cannot be edited meanwhile. */
+export type PlanStatus = "DRAFT" | "DRAFTING" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
+export const PLAN_STATUSES: readonly PlanStatus[] = ["DRAFT", "DRAFTING", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"];
+/** Statuses the runner advances every minute. */
+export const RUNNER_PLAN_STATUSES: readonly PlanStatus[] = ["DRAFTING", "RUNNING", "PAUSED"];
 
 /** Why a plan is paused: by its owner, or by the runner because the owner can no longer start jobs. */
 export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed";
@@ -86,8 +90,56 @@ export interface PlanSettings {
 export const PLAN_META_SK = "META";
 export const PLAN_ROW_PREFIX = "ROW#";
 export const PLAN_EVENT_PREFIX = "EVT#";
+export const PLAN_PROPOSAL_PREFIX = "PROP#";
 export const planRowSk = (rowId: string) => `${PLAN_ROW_PREFIX}${rowId}`;
 export const planEventSk = (at: string, nonce: string) => `${PLAN_EVENT_PREFIX}${at}#${nonce}`;
+export const planProposalSk = (proposalId: string) => `${PLAN_PROPOSAL_PREFIX}${proposalId}`;
+/** Proposal IDs are unique within their plan: `q` + 7 base32. */
+export const PLAN_PROPOSAL_ID_REGEX = /^q[0-9a-hjkmnp-tv-z]{7}$/;
+export function generatePlanProposalId(random?: () => number): string {
+  return randomCrockfordId("q", random);
+}
+
+/**
+ * How the waves were set. `auto`: computed by `orderPlanRows` (an LLM draft or 「自動で並べる」); the runner re-orders
+ * the rows that have not started after each wave. `manual` (absent on stage-1 plans): the owner's waves are kept.
+ */
+export type PlanOrdering = "manual" | "auto";
+
+/** One row the `plan` job could not read from a goal or an attachment, with the reason. */
+export interface PlanUnread {
+  source: string;
+  location: string;
+  reason: string;
+}
+
+export type PlanJobKind = "draft" | "replan";
+/**
+ * waiting: requested, not yet queued (the runner queues it when a slot is free, never ahead of one). queued / running:
+ * mirrors its job. done: its result was applied (draft) or stored as proposals (replan). failed / cancelled: ended
+ * without a result (`error`).
+ */
+export type PlanJobStatus = "waiting" | "queued" | "running" | "done" | "failed" | "cancelled";
+
+/** The latest `plan` job of a plan (draft or re-plan), on its `META` item. */
+export interface PlanJobState {
+  kind: PlanJobKind;
+  jobId: string | null;
+  status: PlanJobStatus;
+  requestedAt: string;
+  requestedBy: string;
+  queuedAt?: string | null;
+  endedAt?: string | null;
+  error?: string | null;
+  /** Rows the job could not read (draft) */
+  unread?: PlanUnread[];
+  /** Items of the result that pointed at rows, anchors or projects not in the input (removed) */
+  dropped?: number;
+  /** Re-plan: the wave that had just finished */
+  wave?: number | null;
+  /** Reply language of the job */
+  locale?: UiLocale | null;
+}
 
 export type PlanRowCounts = Record<PlanRowState, number>;
 
@@ -109,6 +161,18 @@ export interface PlanRecord {
   goal: string;
   status: PlanStatus;
   settings: PlanSettings;
+  /** Granularity policy (粒度方針) for the plan's Canon: written by the draft, edited in a draft, changed after confirmation only through an accepted proposal */
+  policy?: string;
+  /** Absent on stage-1 plans = manual */
+  ordering?: PlanOrdering;
+  /** Capability lists attached at creation, under `plans/{planId}/attachments/files/` (read by the `plan` job) */
+  attachments?: FileAttachment[];
+  /** The latest draft job */
+  draft?: PlanJobState | null;
+  /** The latest re-plan job */
+  replan?: PlanJobState | null;
+  /** The last wave after which the rows were re-ordered (each wave is re-planned once) */
+  lastReplanWave?: number | null;
   /** Harness rule set of every row's project, fixed at confirmation (`HARNESS_RULES` then) */
   harnessRules?: number | null;
   rowCount: number;
@@ -141,7 +205,8 @@ export interface PlanRowRecord {
   rationale: string;
   /** Owner's priority (higher first); only informative in stage 1 */
   priority?: number | null;
-  source: "manual" | "csv";
+  /** csv: a capability list read deterministically; llm: written by the `plan` job; manual: typed in */
+  source: "manual" | "csv" | "llm";
   /** Spreadsheet row of the imported CSV (header = 1) */
   sourceRow?: number | null;
   state: PlanRowState;
@@ -155,8 +220,45 @@ export interface PlanRowRecord {
   claimedAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
+  /** SABRA anchors (`HOMBA:<id>`, `BNA:<l>-<r>`, `BNAG:<L2>`) of the ROI and the expected input / output regions; absent on rows without any */
+  anchors?: string[];
+  /** predicted: from the draft (RCS); used: the anchors of the descriptors in the finished project's uc.json */
+  anchorsSource?: "predicted" | "used";
+  /** Rows this one builds on (its ROI receives input from theirs, or its TLF is a sub-function of theirs) */
+  dependsOn?: string[];
+  /** In the seed wave (種の波): built one at a time before the body waves */
+  seed?: boolean;
+  /** A COMPLETED project of the owner with the same ROI × TLF: the row is not rebuilt (it is done at confirmation) */
+  existing?: { projectId: string; name: string } | null;
+  /** A project of the owner with the same ROI × TLF that is not finished (warning only) */
+  duplicateOf?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type PlanProposalKind = "add" | "remove" | "policy";
+export type PlanProposalStatus = "open" | "accepted" | "rejected" | "stale";
+
+/** A change a re-plan job proposes; nothing changes until the owner accepts it (`PROP#<proposalId>`). */
+export interface PlanProposalRecord {
+  planId: string;
+  sk: string;
+  proposalId: string;
+  kind: PlanProposalKind;
+  /** add: the new row */
+  row?: { roi: string; tlf: string; rationale: string; anchors: string[]; dependsOn: string[] } | null;
+  /** remove: the row to leave out */
+  rowId?: string | null;
+  /** policy: the new granularity policy */
+  policy?: string | null;
+  reason: string;
+  status: PlanProposalStatus;
+  jobId: string;
+  /** The wave after which it was proposed */
+  wave: number | null;
+  createdAt: string;
+  decidedAt?: string | null;
+  decidedBy?: string | null;
 }
 
 export type PlanEventType =
@@ -175,7 +277,17 @@ export type PlanEventType =
   | "paused"
   | "resumed"
   | "cancelled"
-  | "completed";
+  | "completed"
+  | "draft_requested"
+  | "draft_applied"
+  | "draft_failed"
+  | "draft_cancelled"
+  | "ordered"
+  | "replanned"
+  | "replan_failed"
+  | "proposals_received"
+  | "proposal_accepted"
+  | "proposal_rejected";
 
 export interface PlanEventRecord {
   planId: string;
@@ -198,6 +310,8 @@ export interface PlanRowInput {
   rationale?: string;
   wave?: number;
   priority?: number | null;
+  /** A row that keeps its `rowId` keeps its anchors, dependencies, seed flag and existing project; `rebuild` drops the existing project so the row is built */
+  rebuild?: boolean;
 }
 
 export interface CreatePlanRequest {
@@ -206,17 +320,30 @@ export interface CreatePlanRequest {
   rows?: PlanRowInput[];
   /** CSV / TSV text of a capability list; its rows are appended after `rows` */
   csv?: string;
+  /** Capability lists uploaded with POST /uploads (CSV / TSV / text are read at once; xlsx / PDF by the draft job) */
+  attachments?: { uploadId: string; name: string }[];
+  /** Ask the `plan` job for a draft right away (needs a goal or an attachment) */
+  draft?: boolean;
 }
 
 export interface UpdatePlanRequest {
   name?: string;
   goal?: string;
+  /** Draft only */
+  policy?: string;
   settings?: Partial<Pick<PlanSettings, "model" | "reasoningEffort" | "researchMode">>;
+}
+
+/** POST /plans/:id/draft */
+export interface DraftPlanRequest {
+  locale?: UiLocale | null;
 }
 
 export type PlanRowRejectReason = "noRoiTlf" | "tooLong" | "duplicate" | "badWave" | "badPriority" | "tooMany";
 
 export interface PlanRowRejected {
+  /** Attached file the row is in (absent for pasted text) */
+  file?: string;
   /** Spreadsheet row number (header = 1) */
   row: number;
   reason: PlanRowRejectReason;
@@ -241,6 +368,10 @@ export interface PlanRowView extends PlanRowRecord {
     errorMessage: string | null;
     deleted: boolean;
   } | null;
+  /** Other rows sharing at least one anchor with this one (computed on read) */
+  hub?: number;
+  /** Other rows sharing at least `OVERLAP_LIMIT` anchors with this one: never in the same wave (computed on read) */
+  overlaps?: string[];
 }
 
 export interface EffectiveLimits {
@@ -257,8 +388,12 @@ export interface PlanDetailResponse {
   limits: EffectiveLimits;
   /** Estimate for the rows as they are now (all rows, current waves, current limits) */
   estimate: PlanEstimate;
-  /** Time since confirmation (to completion, or now) and the cost of the rows' projects so far */
+  /** Time since confirmation (to completion, or now) and the cost of the rows' projects and the plan's own jobs so far */
   actual: { minutes: number | null; costUsd: number | null; unpricedProjects: number };
+  /** Proposals of re-plan jobs, newest first */
+  proposals: PlanProposalRecord[];
+  /** Cost of the plan's own jobs (drafts and re-plans) */
+  planJobsCostUsd: number | null;
 }
 
 export interface PlanSummary extends PlanRecord {
@@ -350,11 +485,18 @@ export function estimatePlan(input: { seedRows: number; bodyWaveSizes: number[];
   };
 }
 
-/** Rows per wave in wave order (rows the owner skipped are left out). */
-export function waveSizes(rows: Pick<PlanRowRecord, "wave" | "state">[]): number[] {
+/** Rows per wave in wave order (rows the owner skipped and rows done by an existing project are left out). */
+export function waveSizes(rows: Pick<PlanRowRecord, "wave" | "state" | "existing">[]): number[] {
   const m = new Map<number, number>();
-  for (const r of rows) if (r.state !== "skipped") m.set(r.wave, (m.get(r.wave) ?? 0) + 1);
+  for (const r of rows) if (r.state !== "skipped" && !r.existing) m.set(r.wave, (m.get(r.wave) ?? 0) + 1);
   return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([, n]) => n);
+}
+
+/** The estimate of a plan's rows as they are: seed rows one at a time, the other waves within `concurrency`. */
+export function planEstimate(rows: Pick<PlanRowRecord, "wave" | "state" | "existing" | "seed">[], concurrency: number): PlanEstimate {
+  const built = rows.filter((r) => r.state !== "skipped" && !r.existing);
+  const seeds = built.filter((r) => r.seed).length;
+  return estimatePlan({ seedRows: seeds, bodyWaveSizes: waveSizes(built.filter((r) => !r.seed)), concurrency });
 }
 
 // --- row input ---------------------------------------------------------------------------------------------------------
