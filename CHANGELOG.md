@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.35.0] - 2026-10-06
+
 ### Added
 - BRA Planner drafts (stage 2): "Create draft" on the new-plan form, or on a draft plan, has a planning job write the plan from its goal and capability lists: the rows (ROI × TLF with a rationale; every item of a list, about 8–15 rows for a broad goal such as "a full set of BRAs for language"), each row's anchors (the SABRA units of its ROI and of its main input and output regions, looked up in RCS), which rows build on which, and one granularity policy. Rows already in the plan are kept with their ROI and TLF. While the plan is drafting its rows cannot be edited, the page shows whether the job waits for a free slot, is about to start or runs, with the time so far, and "Cancel draft" stops it. The job usually takes a few minutes and is stopped after 7 minutes (25 minutes for a draft that reads xlsx / PDF lists or covers more than 20 rows); a failed draft says why
 - Capability lists can be attached as files when a plan is created (up to 10): CSV, TSV and text files are read into rows at once (rows that cannot be read are listed with the file name, row number and reason), xlsx and PDF files are read by the draft, which lists every item it could not turn into a row with the file, the place and the reason. Other file types are refused
