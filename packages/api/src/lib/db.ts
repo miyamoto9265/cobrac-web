@@ -217,6 +217,16 @@ export async function getJob(projectId: string, jobId: string): Promise<JobRecor
 export async function putJob(j: JobRecord) {
   await ddb.send(new PutCommand({ TableName: env.tables.jobs, Item: j }));
 }
+/** Stores the job unless one with its ID exists; false when it did. */
+export async function putJobIfAbsent(j: JobRecord): Promise<boolean> {
+  try {
+    await ddb.send(new PutCommand({ TableName: env.tables.jobs, Item: j, ConditionExpression: "attribute_not_exists(jobId)" }));
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
 export function updateJob(projectId: string, jobId: string, values: Partial<JobRecord>) {
   return updateItem(env.tables.jobs, { projectId, jobId }, values);
 }

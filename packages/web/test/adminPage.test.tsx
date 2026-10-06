@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   adminOrgUsage: vi.fn(),
   adminUpdateUser: vi.fn(),
   adminCancel: vi.fn(),
+  adminConcurrency: vi.fn(),
+  adminSetConcurrency: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "u-1", role: "admin" } }) }));
@@ -51,7 +53,25 @@ beforeEach(() => {
   api.adminProjects.mockResolvedValue({ items: [project] });
   api.adminDefaultKey.mockResolvedValue({ registered: false, last4: null, updatedAt: null });
   api.adminOrgUsage.mockResolvedValue({ month: "2026-10", items: [] });
+  api.adminConcurrency.mockResolvedValue(concurrency(null, null));
 });
+
+const concurrency = (global: number | null, perUser: number | null) => ({
+  maxConcurrentJobs: global ?? 2,
+  maxConcurrentJobsPerUser: perUser ?? 1,
+  effective: Math.min(global ?? 2, perUser ?? 1),
+  setting: { maxConcurrentJobs: global, maxConcurrentJobsPerUser: perUser, updatedAt: global === null ? null : now },
+  deployment: { maxConcurrentJobs: 2, maxConcurrentJobsPerUser: 1 },
+  min: 1,
+  max: 16,
+});
+/** Types into a controlled number input the way React sees it. */
+async function type(el: HTMLInputElement, value: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(el, value);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
 afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
@@ -75,5 +95,31 @@ describe("AdminPage layout", () => {
     expect(all('[data-testid="admin-user-cards"], [data-testid="admin-project-cards"]')).toHaveLength(0);
     expect(all('[data-testid="org-tier-u-1"]')).toHaveLength(1);
     expect(all('[data-testid="org-tier-u-2"]')).toHaveLength(1);
+  });
+});
+
+describe("AdminPage concurrency", () => {
+  it("saves limits from 1 to 16 and refuses anything above 16", async () => {
+    await render(false);
+    const section = document.querySelector('[data-testid="admin-concurrency"]')!;
+    expect(section.querySelector('[data-testid="admin-concurrency-effective"]')!.textContent).toBe("In force: 2 overall, 1 per user");
+    const save = [...section.querySelectorAll("button")].find((b) => b.textContent?.trim() === "Save")!;
+    const global = section.querySelector<HTMLInputElement>('[data-testid="concurrency-global"]')!;
+    const perUser = section.querySelector<HTMLInputElement>('[data-testid="concurrency-per-user"]')!;
+    await type(global, "17");
+    expect(save.disabled).toBe(true);
+    expect(section.textContent).toContain("Enter a whole number from 1 to 16");
+    await type(global, "8");
+    await type(perUser, "8");
+    expect(save.disabled).toBe(false);
+    api.adminSetConcurrency.mockResolvedValue(concurrency(8, 8));
+    await act(async () => save.click());
+    expect(api.adminSetConcurrency).toHaveBeenCalledWith({ maxConcurrentJobs: 8, maxConcurrentJobsPerUser: 8 });
+    expect(section.querySelector('[data-testid="admin-concurrency-effective"]')!.textContent).toBe("In force: 8 overall, 8 per user");
+    // an empty field goes back to the deployment value
+    await type(perUser, "");
+    api.adminSetConcurrency.mockResolvedValue(concurrency(8, null));
+    await act(async () => save.click());
+    expect(api.adminSetConcurrency).toHaveBeenLastCalledWith({ maxConcurrentJobs: 8, maxConcurrentJobsPerUser: null });
   });
 });

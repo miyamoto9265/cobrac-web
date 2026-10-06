@@ -1,4 +1,4 @@
-import { BookMarked, BookOpen, FolderKanban, Globe, Layers, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
+import { BookMarked, BookOpen, FolderKanban, Globe, Layers, ListChecks, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
@@ -96,6 +96,9 @@ export function Layout() {
         <div className="border-t border-slate-800 p-2">
           <NavLink to="/projects" className={navCls}>
             <FolderKanban size={16} /> {t("nav.projects")}
+          </NavLink>
+          <NavLink to="/plans" className={navCls}>
+            <ListChecks size={16} /> {t("nav.planner")}
           </NavLink>
           <NavLink to="/canons" className={navCls}>
             <Layers size={16} /> {t("nav.canons")}

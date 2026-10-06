@@ -11,6 +11,7 @@ export default defineConfig({
       TABLE_WS_CONNECTIONS: "ws",
       TABLE_CANONS: "canons",
       TABLE_CATALOG: "catalog",
+      TABLE_PLANS: "plans",
     },
   },
 });

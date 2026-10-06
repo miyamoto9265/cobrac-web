@@ -167,6 +167,25 @@ export class CobracAgentsStack extends Stack {
       partitionKey: { name: "kind", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "id", type: dynamodb.AttributeType.STRING },
     });
+    // BRA Planner: META / ROW#<rowId> / EVT#<at>#<nonce> items under one planId (new table; existing tables are untouched)
+    const plans = new dynamodb.TableV2(this, "Plans", {
+      ...tableDefaults,
+      partitionKey: { name: "planId", type: dynamodb.AttributeType.STRING },
+      sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
+      globalSecondaryIndexes: [
+        // both sparse: only META items carry ownerUserId and status
+        {
+          indexName: "owner-index",
+          partitionKey: { name: "ownerUserId", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+        {
+          indexName: "status-index",
+          partitionKey: { name: "status", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+      ],
+    });
     const wsConnections = new dynamodb.TableV2(this, "WsConnections", {
       ...tableDefaults,
       removalPolicy: RemovalPolicy.DESTROY,
@@ -308,6 +327,7 @@ export class CobracAgentsStack extends Stack {
       TABLE_WS_CONNECTIONS: wsConnections.tableName,
       TABLE_CANONS: canons.tableName,
       TABLE_CATALOG: catalog.tableName,
+      TABLE_PLANS: plans.tableName,
       ARTIFACTS_BUCKET: artifacts.bucketName,
       JOB_QUEUE_URL: jobQueue.queueUrl,
       KMS_KEY_ID: key.keyId,
@@ -375,6 +395,8 @@ export class CobracAgentsStack extends Stack {
     const wsDefaultFn = fn("WsDefaultFn", "handlers/ws.ts", "defaultRoute");
     const broadcasterFn = fn("BroadcasterFn", "handlers/broadcaster.ts", "handler", { timeout: Duration.seconds(60) });
     const janitorFn = fn("JanitorFn", "handlers/janitor.ts", "handler", { timeout: Duration.minutes(2) });
+    // BRA Planner runner: one idempotent step per running or paused plan every minute (a lease on each plan keeps overlapping runs apart)
+    const planRunnerFn = fn("PlanRunnerFn", "handlers/planRunner.ts", "handler", { timeout: Duration.seconds(50) });
     // account e-mails (sign-up / resend / password reset / e-mail change / invite); no table or key access
     const authMessageFn = fn("AuthMessageFn", "handlers/authMessage.ts", "handler", {
       memorySize: 256,
@@ -389,6 +411,21 @@ export class CobracAgentsStack extends Stack {
     }
     canons.grantReadWriteData(apiFn);
     catalog.grantReadWriteData(apiFn);
+    plans.grantReadWriteData(apiFn);
+    // the plan runner starts rows' projects as the API does (Projects / Jobs / Messages, the job queue, stopping a task
+    // when its plan is cancelled), reserves their IDs (Catalog kind "id") and reads the settings (Catalog kind "config":
+    // the default API key record for the owner's key policy, the concurrency limits); it never sees a key in clear
+    for (const t of [plans, users, projects, jobs, messages]) t.grantReadWriteData(planRunnerFn);
+    planRunnerFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } } }),
+    );
+    planRunnerFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["id"] } } }),
+    );
+    // the dispatcher reads the concurrency limits set on the admin page (Catalog kind "config")
+    dispatcherFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } } }),
+    );
     artifacts.grantRead(apiFn);
     // user-arranged graph layouts are written by the API (graph/*.layout.json only)
     artifacts.grantPut(apiFn, "users/*/graph/*.layout.json");
@@ -412,7 +449,9 @@ export class CobracAgentsStack extends Stack {
     jobQueue.grantSendMessages(apiFn);
     jobQueue.grantSendMessages(dispatcherFn);
     jobQueue.grantSendMessages(janitorFn);
+    jobQueue.grantSendMessages(planRunnerFn);
     apiFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
+    planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     dispatcherFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:RunTask"], resources: [taskDef.taskDefinitionArn] }));
     dispatcherFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:TagResource"], resources: ["*"] }));
     dispatcherFn.addToRolePolicy(
@@ -426,6 +465,7 @@ export class CobracAgentsStack extends Stack {
       );
     }
     new events.Rule(this, "JanitorSchedule", { schedule: events.Schedule.rate(Duration.minutes(5)), targets: [new targets.LambdaFunction(janitorFn)] });
+    new events.Rule(this, "PlanRunnerSchedule", { schedule: events.Schedule.rate(Duration.minutes(1)), targets: [new targets.LambdaFunction(planRunnerFn)] });
 
     // -----------------------------------------------------------------------
     // HTTP API

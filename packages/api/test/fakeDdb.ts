@@ -24,6 +24,7 @@ export const KEYS: Record<string, string[]> = {
   ws: ["connectionId", "projectId"],
   canons: ["canonId", "sk"],
   catalog: ["kind", "id"],
+  plans: ["planId", "sk"],
 };
 
 export class ConditionalCheckFailedException extends Error {

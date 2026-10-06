@@ -17,6 +17,8 @@ import { PublicCanonPage } from "./pages/PublicCanonPage";
 import { PublicProjectPage } from "./pages/PublicProjectPage";
 import { CanonPullPage } from "./pages/CanonPullPage";
 import { ManualPage } from "./pages/ManualPage";
+import { PlanDetailPage } from "./pages/PlanDetailPage";
+import { PlansPage } from "./pages/PlansPage";
 import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 
@@ -46,6 +48,8 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/plans" element={<PlansPage />} />
+        <Route path="/plans/:planId" element={<PlanDetailPage />} />
         <Route path="/canons" element={<CanonsPage />} />
         <Route path="/canons/:canonId" element={<CanonDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />

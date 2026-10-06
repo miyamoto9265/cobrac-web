@@ -199,6 +199,8 @@ export interface ProjectRecord {
   clonedFrom?: ClonedFrom | null;
   /** Canon revision the project is pinned to (its generation uses that revision's definitions) */
   canonRevision?: number | null;
+  /** BRA Planner plan that created this project (absent on projects made otherwise) */
+  planId?: string | null;
 }
 
 /** Statuses with a job in flight; a project in one of these cannot be deleted until it is stopped. */
@@ -267,6 +269,8 @@ export interface JobRecord {
   costUsd?: number | null;
   /** BRA data version this job froze when it completed (a follow-up's first run may also freeze the baseline on the job before it) */
   braVersion?: BraVersionSummary;
+  /** BRA Planner plan whose row started this job (absent on jobs started otherwise) */
+  planId?: string | null;
 }
 
 export type MessageRole = "user" | "agent" | "system";

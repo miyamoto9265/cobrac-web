@@ -52,6 +52,17 @@ import type {
   OrgUsageResponse,
   DocListResponse,
   DocContentResponse,
+  ConcurrencyStatus,
+  CreatePlanRequest,
+  CreatePlanResponse,
+  ListPlansResponse,
+  PlanDetailResponse,
+  PlanRecord,
+  PlanRowInput,
+  PlanRowRecord,
+  PlanRowRejected,
+  UpdateConcurrencyRequest,
+  UpdatePlanRequest,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -196,7 +207,20 @@ export const api = {
   canonRevisions: (id: string) => request<{ items: CanonRevisionSummary[] }>("GET", `/canons/${encodeURIComponent(id)}/revisions`),
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 
+  listPlans: () => request<ListPlansResponse>("GET", "/plans"),
+  createPlan: (b: CreatePlanRequest) => request<CreatePlanResponse>("POST", "/plans", b),
+  getPlan: (id: string) => request<PlanDetailResponse>("GET", `/plans/${encodeURIComponent(id)}`),
+  updatePlan: (id: string, b: UpdatePlanRequest) => request<PlanRecord>("PUT", `/plans/${encodeURIComponent(id)}`, b),
+  deletePlan: (id: string) => request<{ planId: string; deletedAt: string }>("DELETE", `/plans/${encodeURIComponent(id)}`),
+  savePlanRows: (id: string, rows: PlanRowInput[]) => request<{ rows: PlanRowRecord[] }>("PUT", `/plans/${encodeURIComponent(id)}/rows`, { rows }),
+  importPlanRows: (id: string, csv: string) => request<{ rows: PlanRowRecord[]; rejected: PlanRowRejected[] }>("POST", `/plans/${encodeURIComponent(id)}/rows/import`, { csv }),
+  confirmPlan: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/confirm`, { locale }),
+  planAction: (id: string, action: "pause" | "resume" | "cancel") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/${action}`),
+  planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
+
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
+  adminConcurrency: () => request<ConcurrencyStatus>("GET", "/admin/concurrency"),
+  adminSetConcurrency: (b: UpdateConcurrencyRequest) => request<ConcurrencyStatus>("PUT", "/admin/concurrency", b),
   adminUpdateUser: (id: string, b: AdminUpdateUserRequest) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
   adminDefaultKey: () => request<DefaultKeyStatus>("GET", "/admin/default-api-key"),
   adminSetDefaultKey: (apiKey: string) => request<DefaultKeyStatus>("PUT", "/admin/default-api-key", { apiKey }),

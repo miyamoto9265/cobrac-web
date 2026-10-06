@@ -1,7 +1,7 @@
-import { KeyRound, Save, Trash2 } from "lucide-react";
+import { Gauge, KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
-import { formatUsd, projectDisplayName } from "@cobrac/shared";
+import type { ConcurrencyStatus, DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
+import { CONCURRENCY_MAX, CONCURRENCY_MIN, ORG_TOKENS_PER_MINUTE, RUN_TOKENS_PER_MINUTE, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
@@ -10,6 +10,83 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { fmtDate, isActive } from "../lib/format";
 import { BELOW_XL, useMediaQuery } from "../lib/useMediaQuery";
+
+/** Concurrency limits (1–16 each). An empty field uses the deployment value. */
+export function ConcurrencySection() {
+  const t = useT();
+  const [status, setStatus] = useState<ConcurrencyStatus | null>(null);
+  const [global, setGlobal] = useState("");
+  const [perUser, setPerUser] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const show = (s: ConcurrencyStatus) => {
+    setStatus(s);
+    setGlobal(s.setting.maxConcurrentJobs?.toString() ?? "");
+    setPerUser(s.setting.maxConcurrentJobsPerUser?.toString() ?? "");
+  };
+  useEffect(() => {
+    api
+      .adminConcurrency()
+      .then(show)
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
+  }, []);
+  const parse = (v: string) => (v.trim() === "" ? null : Number(v));
+  const valid = [global, perUser].every((v) => parse(v) === null || isConcurrencyLimit(parse(v)));
+  const save = () => {
+    setBusy(true);
+    setErr(null);
+    api
+      .adminSetConcurrency({ maxConcurrentJobs: parse(global), maxConcurrentJobsPerUser: parse(perUser) })
+      .then(show)
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  const field = (label: string, value: string, set: (v: string) => void, deployment: number | undefined, testId: string) => (
+    <label className="block">
+      <span className="mb-1 block text-xs text-slate-500">{label}</span>
+      <input
+        type="number"
+        inputMode="numeric"
+        min={CONCURRENCY_MIN}
+        max={CONCURRENCY_MAX}
+        step={1}
+        value={value}
+        onChange={(e) => set(e.target.value)}
+        placeholder={deployment === undefined ? "" : String(deployment)}
+        data-testid={testId}
+        className="w-28 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
+      />
+      <span className="mt-0.5 block text-[11px] text-slate-500">{t("admin.concurrencyDeployment", { n: deployment ?? "—" })}</span>
+    </label>
+  );
+  return (
+    <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="admin-concurrency">
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <Gauge size={16} aria-hidden /> {t("admin.concurrency")} <HelpTip text={t("admin.concurrencyHelp", { min: CONCURRENCY_MIN, max: CONCURRENCY_MAX })} />
+      </h2>
+      {status && (
+        <div className="mb-3 text-sm font-medium text-slate-700" data-testid="admin-concurrency-effective">
+          {t("admin.concurrencyEffective", { global: status.maxConcurrentJobs, perUser: status.maxConcurrentJobsPerUser })}
+        </div>
+      )}
+      <div className="flex flex-wrap items-end gap-4">
+        {field(t("admin.concurrencyGlobal"), global, setGlobal, status?.deployment.maxConcurrentJobs, "concurrency-global")}
+        {field(t("admin.concurrencyPerUser"), perUser, setPerUser, status?.deployment.maxConcurrentJobsPerUser, "concurrency-per-user")}
+        <button
+          type="button"
+          disabled={busy || !valid}
+          onClick={save}
+          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11"
+        >
+          <Save size={14} aria-hidden /> {t("save")}
+        </button>
+      </div>
+      {!valid && <div className="mt-2 text-xs text-rose-700">{t("admin.concurrencyRange", { min: CONCURRENCY_MIN, max: CONCURRENCY_MAX })}</div>}
+      {err && <div className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+      <p className="mt-3 text-xs text-slate-500">{t("admin.concurrencyTpm", { min: RUN_TOKENS_PER_MINUTE.min / 1000, max: RUN_TOKENS_PER_MINUTE.max / 1000, tpm: ORG_TOKENS_PER_MINUTE / 1000 })}</p>
+    </section>
+  );
+}
 
 export function AdminPage() {
   const t = useT();
@@ -163,6 +240,8 @@ export function AdminPage() {
           )}
         </div>
       </section>
+
+      <ConcurrencySection />
 
       <h2 className="mb-2 text-sm font-semibold">{t("admin.users", { n: users.length })}</h2>
       {cards && (

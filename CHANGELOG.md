@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- BRA Planner (stage 1, sidebar "BRA Planner"): put many projects (ROI × TLF) in a plan and let the system build them. A plan's rows come from a capability list (CSV, TSV or text; columns found by name in English or Japanese, or ROI, TLF, rationale in that order) or are typed in; rows that cannot be read are listed with their row number and the reason. In a draft the rows can be edited, reordered and grouped into waves by hand, and the model, reasoning effort and research mode chosen. Nothing is queued before the plan is confirmed
+- A confirmed plan runs its rows wave by wave within the concurrency limits: the next wave starts once no row of the current one waits to start or runs. Rows are started only when a slot is free, so no job waits in the queue. A failing row is retried automatically up to 2 times and then needs attention (retry or skip it) while the other rows go on. A plan can be paused (running rows continue, nothing new starts), resumed, and cancelled (running jobs are stopped); resuming never rebuilds finished rows. A plan whose owner can no longer run jobs pauses itself and says why
+- Question inbox on the plan page: when an agent asks a question only that row waits; the question appears with an answer box, and answering resumes the row
+- The plan page shows progress per row state, the current wave, how many rows run at once (with a note that the OpenAI rate limit may be the real ceiling), and the estimated against the actual time and cost
+- Projects created by a plan record it and link back to it from their header; their jobs and their versions' generator record it too. Every row of a plan uses the harness rules in force when the plan was confirmed
+- Admin page: the overall and per-user concurrency limits can be set from 1 to 16 and apply within a minute, without a deploy (empty uses the deployment value; 17 or more is refused)
+
+### Changed
+- The job dispatcher and `GET /config` use the concurrency limits set on the admin page when there are any, otherwise the deployment values as before
+
 ## [0.30.3] - 2026-10-05
 
 ### Added

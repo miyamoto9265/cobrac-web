@@ -46,14 +46,14 @@ export interface CloneCounter {
 }
 
 /**
- * Catalog rows with kind `id` reserve each random Project / Canon ID (a conditional Put; a taken ID is drawn again).
+ * Catalog rows with kind `id` reserve each random Project / Canon / plan ID (a conditional Put; a taken ID is drawn again).
  * They are never deleted, so an ID is never reused. `<userKey>-<seq>` IDs issued before have no reservation row.
  */
 export const ID_RESERVATION_KIND = "id";
 export interface IdReservation {
   kind: typeof ID_RESERVATION_KIND;
   id: string;
-  type: "project" | "canon";
+  type: "project" | "canon" | "plan";
   ownerUserId: string;
   createdAt: string;
 }

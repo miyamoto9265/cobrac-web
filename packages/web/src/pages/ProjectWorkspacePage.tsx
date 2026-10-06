@@ -22,6 +22,7 @@ import { VersionsView } from "../components/workspace/VersionsView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { isActive } from "../lib/format";
+import { planPath } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
 import { useProjectSocket } from "../lib/ws";
@@ -308,6 +309,11 @@ function Workspace({ projectId }: { projectId: string }) {
                 <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
               </span>
               {project.canonId && <CanonBadge projectId={project.projectId} canonId={project.canonId} busy={active} onFollowup={() => void load()} />}
+              {project.planId && (
+                <Link to={planPath(project.planId)} className="text-blue-700 hover:underline coarse:py-1.5" data-testid="project-plan">
+                  {t("nav.planner")} · <span className="font-mono">{project.planId}</span>
+                </Link>
+              )}
               {project.visibility === "public" && (
                 <Link to={publicProjectPath(project.projectId)} className="text-emerald-700 hover:underline coarse:py-1.5">
                   {t("vis.publicPage")} · {t("explore.clones", { n: cloneCount })}
