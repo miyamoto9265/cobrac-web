@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-06
+
 ## [0.33.0] - 2026-10-06
 
 ### Added
