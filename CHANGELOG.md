@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-06
+
 ### Added
 - BRA Planner with a Canon (stage 3): a draft plan can choose "None", one of the owner's Canons, or "A new Canon" (created at confirmation with the plan's granularity policy; a name typed just before confirming is saved first and named in the confirmation). Each row's project joins that Canon pinned to its latest rev when it starts; when it is finished it is pushed automatically, and the row waits for approval ("Awaiting approval", with a link to its pull request) and is done only once a person approves the pull request. Nothing is approved automatically
 - Rows that are not seeds get an AI review of their pull request automatically once a job slot is free (shown as waiting / running on the row, then "AI reviewed" with a link to the pull request, where the review is shown); it lists findings only, and its cost counts in the plan's cost so far
