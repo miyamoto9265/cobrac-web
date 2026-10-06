@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
-import type { BraVersionFile, BraVersionGenerator, BraVersionManifest, BraVersionOrigin, BraVersionRef, CsvFileName } from "@cobrac/shared";
+import type { BraVersionFile, BraVersionGenerator, BraVersionManifest, BraVersionOrigin, BraVersionRef, CsvFileName, JsonSchema } from "@cobrac/shared";
 import {
   BRA_VERSION_MANIFEST_SCHEMA,
   CSV_FILE_NAMES,
@@ -157,4 +157,5 @@ export async function promptsSha256(dir: string): Promise<string | null> {
   return sha256(lines.sort().join(""));
 }
 
-export const schemasSha256 = () => sha256(JSON.stringify(HARNESS_SCHEMAS));
+/** SHA-256 of the JSON Schemas shown to the agent (`agentHarnessSchemas(mode)`; default: every key, as the checks use them). */
+export const schemasSha256 = (schemas: Record<string, JsonSchema> = HARNESS_SCHEMAS) => sha256(JSON.stringify(schemas));

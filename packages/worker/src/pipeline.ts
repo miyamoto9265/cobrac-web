@@ -6,7 +6,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, EvidenceSettings, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
+import type { BuildCsvOptions, JsonSchema, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, EvidenceSettings, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
 import {
   ADJUSTMENT_CODES,
   CROSS_RULES,
@@ -179,11 +179,14 @@ export interface CheckDeps {
   csvOptions: () => Promise<BuildCsvOptions>;
 }
 
-/** Writes the JSON Schemas of the data files where the agent can read them (`<workDir>/schemas/`). */
-export async function writeSchemas(workDir: string): Promise<void> {
+/**
+ * Writes the JSON Schemas of the data files where the agent can read them (`<workDir>/schemas/`). The worker passes
+ * `agentHarnessSchemas(mode)`: projects that do not allow hypotheses are not shown the `hypothesis` key.
+ */
+export async function writeSchemas(workDir: string, schemas: Record<string, JsonSchema> = HARNESS_SCHEMAS): Promise<void> {
   const dir = join(workDir, SCHEMA_DIR);
   await mkdir(dir, { recursive: true });
-  for (const [file, schema] of Object.entries(HARNESS_SCHEMAS)) {
+  for (const [file, schema] of Object.entries(schemas)) {
     await writeFile(join(dir, schemaFileName(file)), JSON.stringify(schema, null, 2) + "\n", "utf8");
   }
 }

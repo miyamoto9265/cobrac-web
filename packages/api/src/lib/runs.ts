@@ -2,13 +2,14 @@
 // and the BRA Planner runner call the same functions with the owner's UserRecord, so a plan row starts its project
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
-import type { JobRecord, KeySource, ModelPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, isUiLocale, newId, nowIso, policyAllows } from "@cobrac/shared";
+import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, hypothesisCreateFields, isUiLocale, newId, nowIso, policyAllows } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
 import { getJob, getProject, listJobsForProject, putJob, putJobIfAbsent, putMessage, putProject, updateJob, updateProject } from "./db.js";
 import { bad } from "./http.js";
+import { scopeNotice } from "./hypothesisSettings.js";
 import { modelPolicy } from "./orgKey.js";
 
 export const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
@@ -106,6 +107,8 @@ export interface NewProject {
   recover?: boolean;
   /** Runs after the project and its first job are stored and before the job is queued (Canon membership) */
   beforeQueue?: (project: ProjectRecord) => Promise<void>;
+  /** "Allow hypotheses": hypothesis mode with scope S1 on the whole HCD (absent: literature-supported only, no new attributes) */
+  hypothesis?: HypothesisInput;
 }
 
 /** Stores a new project and its first job, then queues the job. */
@@ -136,6 +139,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     researchMode,
     sabraBoundary: "neocortex",
     harnessRules: input.harnessRules ?? HARNESS_RULES,
+    ...(input.hypothesis ? hypothesisCreateFields(input.hypothesis, jobId, now) : {}),
     ...(input.plan ? { planId: input.plan.planId } : {}),
     status: "QUEUED",
     currentStep: null,
@@ -177,6 +181,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     endedAt: null,
     errorMessage: null,
     ...(input.plan ? { planId: input.plan.planId } : {}),
+    ...(input.hypothesis ? { hypothesisScopeId: "S1" } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -196,6 +201,10 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
       ...owner,
       meta: { i18n: researchMode ? "sys.researchOn" : "sys.researchOff" },
     });
+    if (project.evidenceMode === "hypothesis" && project.hypothesisScopes?.[0]) {
+      const notice = scopeNotice(project.hypothesisScopes[0], project.hypothesisMaxShare ?? 0.2);
+      await putMessage(projectId, jobId, "system", "status", notice.content, { ...owner, meta: { ...notice.meta, i18n: "sys.hypothesisOn" } });
+    }
     if (input.plan) {
       await putMessage(projectId, jobId, "system", "status", `Started by the BRA Planner (plan “${input.plan.name}”).`, { ...owner, meta: { i18n: "sys.planStarted", name: input.plan.name, planId: input.plan.planId } });
     }

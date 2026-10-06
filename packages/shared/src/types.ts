@@ -282,6 +282,8 @@ export interface JobRecord {
   braVersion?: BraVersionSummary;
   /** BRA Planner plan whose row started this job (absent on jobs started otherwise) */
   planId?: string | null;
+  /** Hypothesis mode: the scope (S1, S2, …) this job added to the project (absent when it added none) */
+  hypothesisScopeId?: string;
 }
 
 export type MessageRole = "user" | "agent" | "system";
@@ -472,6 +474,8 @@ export interface CreateProjectRequest {
   researchMode?: boolean;
   /** Web UI language; the agent's chat replies use it */
   locale?: UiLocale | null;
+  /** "Allow hypotheses": hypothesis mode with scope S1 on the whole HCD (absent / null: literature-supported only) */
+  hypothesis?: import("./hypothesisInput.js").HypothesisCreateRequest | null;
 }
 
 export interface CreateUploadRequest {
@@ -512,6 +516,8 @@ export interface AnswerRequest {
 export interface FollowupRequest {
   instruction: string;
   locale?: UiLocale | null;
+  /** "Allow hypotheses with this instruction": a new hypothesis scope for this follow-up (absent / null: none) */
+  hypothesis?: import("./hypothesisInput.js").HypothesisFollowupRequest | null;
 }
 
 export interface RetryRequest {

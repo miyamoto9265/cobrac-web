@@ -5,6 +5,16 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Hypothesis mode can be switched on through the API (the screens follow in the next stage): creating a project with "Allow hypotheses" stores the claims allowed on the whole HCD (scope S1), the share limit (10, 20, 30 or 50%; 20% when not given) and an optional one-line note, and a follow-up can add a scope of its own (the whole HCD, or chosen circuits and GNs), also to a project that used literature-supported evidence only. The job and its scope are saved together; a follow-up's text alone never allows hypotheses. The agent's follow-up prompt names the scope it added
+- A project whose result has no hypotheses goes back to literature-supported evidence only after the job completes
+- Saved versions record the evidence mode, the scopes, the share limit and how many connections and UCs are hypotheses; copies of a public project keep its evidence mode, scopes and limit
+
+### Changed
+- A version that contains hypotheses cannot be registered in BRA-DB for now ("仮説を含む版は、いまは BRA-DB に登録できません"); versions without hypotheses, and versions saved before, register as before
+- Pushing a project into a Canon keeps its hypotheses out of the Canon's shared layer: hypothetical connections and populations stay in the project's role layer, a hypothesized transmitter or modulation is left empty there, and the pull request reports how many hypotheses were kept out. Other projects of the Canon never receive them as definitions to follow
+- The agent of a project that does not allow hypotheses is no longer shown the `hypothesis` key in its data-file schemas (as before hypothesis mode), which avoids needless fix turns
+
 ## [0.32.0] - 2026-10-06
 
 ### Added

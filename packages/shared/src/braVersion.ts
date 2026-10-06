@@ -14,6 +14,7 @@ import { parseCsv } from "./csv.js";
 import { CSV_FILE_NAMES, type CsvFileName } from "./harness.js";
 import type { JobType, ReasoningEffort } from "./types.js";
 import type { SabraBoundary } from "./ucNaming.js";
+import { versionHypothesisCount, type BradbBlockReason, type VersionHypothesisInfo } from "./hypothesisVersion.js";
 
 export const BRA_VERSION_MANIFEST_SCHEMA = "cobrac.bra-version/1";
 export const BRADB_PACKAGE_SCHEMA = "cobrac.bradb-package/1";
@@ -102,6 +103,9 @@ export interface BraVersionGenerator {
   planId?: string;
 }
 
+/** Hypothesis mode (stage 2): evidence mode, scopes, share limit and hypothesis counts of the version (absent before). */
+export interface BraVersionGenerator extends VersionHypothesisInfo {}
+
 export interface BraVersionFile {
   path: string;
   sha256: string;
@@ -149,6 +153,8 @@ export interface BraVersionSummary {
   gitSha: string | null;
   changes: BraChangeSummary | null;
   hasBradbPackage: boolean;
+  /** Hypotheses of the version (connections + UCs); absent when the version does not record them */
+  hypotheses?: number;
 }
 
 export function summarizeManifest(m: BraVersionManifest): BraVersionSummary {
@@ -163,6 +169,7 @@ export function summarizeManifest(m: BraVersionManifest): BraVersionSummary {
     gitSha: m.generator.gitSha,
     changes: m.changes,
     hasBradbPackage: !!m.bradb,
+    ...(versionHypothesisCount(m.generator) !== null ? { hypotheses: versionHypothesisCount(m.generator)! } : {}),
   };
 }
 
@@ -247,6 +254,8 @@ export interface BraVersionDetailResponse {
   manifest: BraVersionManifest | null;
   /** Files that can be downloaded (`path` as in the manifest) */
   files: { path: string; size: number; sha256: string | null }[];
+  /** Why the version cannot be registered in BRA-DB (absent when nothing stops it; hypothesis mode stage 2) */
+  bradbBlockedReason?: BradbBlockReason;
 }
 
 export interface BraVersionDiffResponse {
