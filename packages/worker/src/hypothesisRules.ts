@@ -4,9 +4,12 @@
  * fresh-thread prompts and the HCD ↔ FRG adjustment turn). Projects that do not allow hypotheses get nothing, so their
  * prompts stay exactly as they were.
  */
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describeScope, isHypothesisMode, type EvidenceSettings, type HypothesisScope } from "@cobrac/shared";
+import type { EvidenceSettings, HypothesisScope, JobRecord, ProjectRecord, VersionHypothesisInfo } from "@cobrac/shared";
+import { HCD_FILES, describeScope, isHypothesisMode, normalizeMaxShare, normalizeScopes, scopeLine, versionHypothesisCount, versionHypothesisInfo } from "@cobrac/shared";
+import type { ProjectPaths } from "./steps.js";
 
 export const HYPOTHESIS_SPEC_FILE = "HYPOTHESIS.md";
 
@@ -31,4 +34,29 @@ export async function hypothesisRules(promptsDir: string, projectId: string, evi
         : "off: leave `researchCandidate` out and name the searches in `rationale`",
     )
     .trim();
+}
+
+/**
+ * The line a follow-up prompt gets after the instruction when the follow-up allowed hypotheses (its scope and the
+ * share limit); "" for every other job, so their prompts are unchanged.
+ */
+export function followupScopeNote(project: Pick<ProjectRecord, "hypothesisScopes" | "hypothesisMaxShare">, job: Pick<JobRecord, "hypothesisScopeId">): string {
+  const id = job.hypothesisScopeId;
+  const scope = id ? normalizeScopes(project.hypothesisScopes).find((s) => s.id === id) : undefined;
+  if (!scope) return "";
+  return `\n\nHypotheses allowed with this instruction: ${scopeLine(scope, normalizeMaxShare(project.hypothesisMaxShare))}. The hypothesis rules list every scope of the project.`;
+}
+
+/** What the version of a successful job records about hypotheses (from hypotheses.json and the HCD files). */
+export function versionHypotheses(paths: Pick<ProjectPaths, "hypotheses" | "hcd">, project: Pick<ProjectRecord, "evidenceMode" | "hypothesisScopes" | "hypothesisMaxShare">): VersionHypothesisInfo {
+  const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : null);
+  return versionHypothesisInfo(project, { hypothesesJson: read(paths.hypotheses), ucJson: read(join(paths.hcd, HCD_FILES.uc)), connectionsJson: read(join(paths.hcd, HCD_FILES.connections)) });
+}
+
+/**
+ * A hypothesis-mode project goes back to literature-supported only when a job completed successfully with no
+ * hypothesis in its result (the counts of the last check say 0). Counts that cannot be read change nothing.
+ */
+export function returnsToStrict(evidence: EvidenceSettings, info: VersionHypothesisInfo): boolean {
+  return isHypothesisMode(evidence) && versionHypothesisCount(info) === 0;
 }

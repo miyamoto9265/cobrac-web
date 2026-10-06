@@ -163,6 +163,7 @@ import {
   templateInputFromFiles,
   templateXlsxKey,
   REVISIONS_PREFIX,
+  bradbBlockReason,
   bradbPackagePrefix,
   csvPath,
   diffBraCsvs,
@@ -176,6 +177,7 @@ import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
 import { bad, notFound } from "./lib/http.js";
 import { concurrencyStatus, currentLimits, getConcurrencySetting, putConcurrencySetting } from "./lib/concurrency.js";
 import { listOwnPlans } from "./lib/plans.js";
+import { readHypothesisRequest, requireBradbRegistrable, scopeNotice, storeHypothesisFollowup } from "./lib/hypothesisSettings.js";
 import { cancelPlan, confirmPlan, createPlan, deletePlan, importRows, loadOwnPlan, pausePlan, planDetail, replaceRows, resumePlan, retryRow, skipRow, updatePlanFields } from "./lib/planOps.js";
 import {
   createProject,
@@ -543,6 +545,7 @@ app.post("/projects", async (c) => {
   }
   if (body.researchMode !== undefined && typeof body.researchMode !== "boolean") throw bad("researchMode は true / false で指定してください");
   const researchMode = body.researchMode ?? true;
+  const hypothesis = readHypothesisRequest(body.hypothesis, { withTarget: false });
   const locale = readLocale(body.locale);
   const urls = attachmentUrls(body.urls);
   const staged = await stagedAttachments(u.userId, body.attachments);
@@ -555,6 +558,7 @@ app.post("/projects", async (c) => {
     model,
     reasoningEffort,
     researchMode,
+    ...(hypothesis ? { hypothesis } : {}),
     locale,
     keySource: policy.source,
     staged,
@@ -680,6 +684,8 @@ app.post("/projects/:id/followup", async (c) => {
   const body = (await c.req.json()) as FollowupRequest;
   const text = (body.instruction ?? "").trim();
   if (!text) throw bad("指示を入力してください");
+  // a scope only from the explicit request part, never from the instruction text
+  const hypothesis = readHypothesisRequest(body.hypothesis, { withTarget: true });
   const moved = await moveToAllowedModel(u, p, policy);
   const locale = readLocale(body.locale);
   const now = nowIso();
@@ -703,15 +709,22 @@ app.post("/projects/:id/followup", async (c) => {
     createdAt: now,
     updatedAt: now,
   };
-  await putJob(job);
-  await updateProject(u.userId, p.projectId, {
-    status: "QUEUED",
-    activeJobId: jobId,
-    errorMessage: null,
-    stepStates: { ...p.stepStates, XLSX: "pending" },
-  });
+  const added = hypothesis ? await storeHypothesisFollowup(p, job, hypothesis) : null;
+  if (!added) {
+    await putJob(job);
+    await updateProject(u.userId, p.projectId, {
+      status: "QUEUED",
+      activeJobId: jobId,
+      errorMessage: null,
+      stepStates: { ...p.stepStates, XLSX: "pending" },
+    });
+  }
   await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
   await noteModel(p, jobId, moved);
+  if (added) {
+    const notice = scopeNotice(added.scope, added.maxShare);
+    await putMessage(p.projectId, jobId, "system", "status", notice.content, { userId: p.userId, meta: notice.meta });
+  }
   await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return c.json({ ok: true, jobId });
@@ -868,7 +881,8 @@ app.get("/projects/:id/versions/:n", async (c) => {
   const p = await loadOwnProject(u, c.req.param("id"));
   const { item, manifest } = await loadVersion(p, c.req.param("n"));
   const files = manifest ? manifest.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId));
-  const res: BraVersionDetailResponse = { item, manifest, files };
+  const blocked = manifest ? bradbBlockReason(manifest.generator) : null;
+  const res: BraVersionDetailResponse = { item, manifest, files, ...(blocked ? { bradbBlockedReason: blocked } : {}) };
   return c.json(res);
 });
 
@@ -904,6 +918,8 @@ app.post("/projects/:id/versions/:n/bradb", async (c) => {
   if (!env.bradbImportFunction) throw bradbOff();
   const { item, manifest } = await loadVersion(p, c.req.param("n"));
   if (!manifest?.bradb) throw bad("この版には BRA-DB 登録パッケージがありません（保存済みで 5 つの CSV がそろった版だけを登録できます）");
+  // hypothesis mode: no registration of versions with hypotheses until a separate specification decides how
+  requireBradbRegistrable(manifest.generator);
   const body = (await c.req.json().catch(() => ({}))) as RegisterBradbRequest;
   const prefix = bradbPackagePrefix(item.version);
   const pkgText = await getObjectText(u.userId, p.projectId, `${prefix}manifest.json`);
@@ -2067,6 +2083,10 @@ app.post("/public/projects/:id/clone", async (c) => {
     // the copy keeps the original's UCs, so it keeps the original's SABRA boundary too
     ...(src.sabraBoundary ? { sabraBoundary: src.sabraBoundary } : {}),
     ...(src.harnessRules ? { harnessRules: src.harnessRules } : {}),
+    // the copy keeps the original's hypotheses, so it keeps the evidence mode, scopes and share limit that allowed them
+    ...(src.evidenceMode ? { evidenceMode: src.evidenceMode } : {}),
+    ...(src.hypothesisScopes ? { hypothesisScopes: src.hypothesisScopes } : {}),
+    ...(src.hypothesisMaxShare !== undefined ? { hypothesisMaxShare: src.hypothesisMaxShare } : {}),
     status: "COMPLETED",
     currentStep: "CSV",
     // copied steps are done or pending, never running (the original may be mid-run or failed); the BRA xlsx carries
