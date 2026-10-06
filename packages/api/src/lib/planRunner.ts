@@ -177,9 +177,14 @@ const openJob = (s: PlanJobState | null | undefined) => !!s && (s.status === "qu
 
 // --- draft -----------------------------------------------------------------------------------------------------------
 
-/** The draft ended without a result: the plan is an editable draft again, with the reason. */
-async function endDraft(plan: PlanRecord, d: PlanJobState, status: "failed" | "cancelled", error: string) {
-  const draft: PlanJobState = { ...d, status, error, endedAt: nowIso() };
+/** Why a plan job could not be started for the owner, for the page (`PlanJobState.errorCode`). */
+type GateCode = NonNullable<PlanJobState["errorCode"]>;
+const gateCode = (reason: PlanPauseReason): GateCode | null => (reason === "user" ? null : reason);
+const gateError = (reason: PlanPauseReason) => GATE_ERRORS[reason as GateCode] ?? reason;
+
+/** The draft ended without a result: the plan is an editable draft again, with the reason (and its code when the owner could not run it). */
+async function endDraft(plan: PlanRecord, d: PlanJobState, status: "failed" | "cancelled", error: string, errorCode: GateCode | null = null) {
+  const draft: PlanJobState = { ...d, status, error, errorCode, endedAt: nowIso() };
   if (!(await setPlanStatus(plan.planId, "DRAFTING", "DRAFT", { draft }))) return;
   plan.status = "DRAFT";
   plan.draft = draft;
@@ -198,16 +203,16 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
     const limits = await currentLimits(now);
     if (freeSlots(limits, await slotJobs(), plan.ownerUserId) <= 0) return;
     const gate = await runGate(plan, owner);
-    if (!gate.ok) return endDraft(plan, d, "failed", GATE_ERRORS[gate.reason as keyof typeof GATE_ERRORS] ?? gate.reason);
+    if (!gate.ok) return endDraft(plan, d, "failed", gateError(gate.reason), gateCode(gate.reason));
     try {
-      const state = await queuePlanJob(plan, "draft", d, await listRows(plan.planId), owner!, gate, limits.effective);
+      const state = await queuePlanJob(plan, "draft", d, await listRows(plan.planId, true), owner!, gate, limits.effective);
       if (state) {
         result.planJob = state.jobId ?? undefined;
         result.changed++;
       }
     } catch (e) {
       console.error(`[plan ${plan.planId}] draft job could not be queued`, e);
-      const fresh = await getPlan(plan.planId);
+      const fresh = await getPlan(plan.planId, true);
       if (fresh?.draft?.status === "waiting") await endDraft(plan, fresh.draft, "failed", "The draft job could not be queued.");
     }
     return;
@@ -227,7 +232,7 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
   if (!parsed) return endDraft(plan, d, "failed", "The result of the draft job could not be read.");
   const limits = await currentLimits(now);
   const projects = (await listUserProjects(plan.ownerUserId)).filter((x) => !x.deletedAt);
-  const applied = draftRows(plan.planId, await listRows(plan.planId), parsed, projects, limits.effective, nowIso());
+  const applied = draftRows(plan.planId, await listRows(plan.planId, true), parsed, projects, limits.effective, nowIso());
   for (const r of applied.rows) await putRow(r);
   const dropped = parsed.dropped + applied.dropped;
   const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso() };
@@ -302,8 +307,8 @@ async function replanAfterWave(plan: PlanRecord, rows: PlanRowRecord[], limits: 
 }
 
 /** The re-plan job ended without proposals; the plan goes on. */
-async function endReplan(plan: PlanRecord, r: PlanJobState, status: "failed" | "cancelled", error: string | null, event = true) {
-  plan.replan = { ...r, status, error, endedAt: nowIso() };
+async function endReplan(plan: PlanRecord, r: PlanJobState, status: "failed" | "cancelled", error: string | null, event = true, errorCode: GateCode | null = null) {
+  plan.replan = { ...r, status, error, errorCode, endedAt: nowIso() };
   await updatePlan(plan.planId, { replan: plan.replan });
   if (event) await putPlanEvent(plan.planId, "replan_failed", RUNNER, { detail: { error: (error ?? "").slice(0, 300), status } });
 }
@@ -340,20 +345,26 @@ export async function dropReplan(plan: PlanRecord, reason: string) {
 
 // --- step ------------------------------------------------------------------------------------------------------------
 
-/** One step of a plan (see the file comment). */
+/**
+ * One step of a plan (see the file comment). The first read only supplies the lease to take (it may lag behind another
+ * step); the step then works on strongly consistent reads of the plan, its rows and its plan jobs.
+ */
 export async function advancePlan(planId: string, now = Date.now()): Promise<AdvanceResult> {
   const result: AdvanceResult = { planId, started: [], changed: 0 };
-  const plan = await getPlan(planId);
-  if (!plan || plan.deletedAt || !RUNNER_PLAN_STATUSES.includes(plan.status)) return { ...result, skipped: "inactive", status: plan?.status };
-  const lease = await acquirePlanLease(plan, PLAN_LEASE_MS, now);
-  if (!lease) return { ...result, skipped: "busy", status: plan.status };
+  // consistent, so a kick right after a request (e.g. a draft asked for) is never skipped as inactive on a lagging read
+  const seen = await getPlan(planId, true);
+  if (!seen || seen.deletedAt || !RUNNER_PLAN_STATUSES.includes(seen.status)) return { ...result, skipped: "inactive", status: seen?.status };
+  const lease = await acquirePlanLease(seen, PLAN_LEASE_MS);
+  if (!lease) return { ...result, skipped: "busy", status: seen.status };
   try {
+    const plan = await getPlan(planId, true);
+    if (!plan || plan.deletedAt || !RUNNER_PLAN_STATUSES.includes(plan.status)) return { ...result, skipped: "inactive", status: plan?.status };
     const owner = await getUser(plan.ownerUserId);
     if (plan.status === "DRAFTING") {
       await stepDraft(plan, owner, now, result);
       return { ...result, status: plan.status };
     }
-    const rows = await listRows(planId);
+    const rows = await listRows(planId, true);
     const projects = new Map((await listUserProjects(plan.ownerUserId)).map((p) => [p.projectId, p]));
     let limitsRead: Promise<EffectiveLimits> | null = null;
     const limits = () => (limitsRead ??= currentLimits(now));
@@ -382,35 +393,35 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
         if (slots > 0) {
           const gate = await runGate(plan, owner);
           if (!gate.ok) {
-            if (replanWaits) await endReplan(plan, plan.replan!, "failed", GATE_ERRORS[gate.reason as keyof typeof GATE_ERRORS] ?? gate.reason);
+            if (replanWaits) await endReplan(plan, plan.replan!, "failed", gateError(gate.reason), true, gateCode(gate.reason));
             await pauseFor(plan, gate.reason);
             result.pausedReason = gate.reason;
           } else {
             // the re-plan job takes its slot before more rows start
-            if (replanWaits && (await getPlan(planId))?.status === "RUNNING") {
+            if (replanWaits && (await getPlan(planId, true))?.status === "RUNNING") {
               try {
                 const state = await queuePlanJob(plan, "replan", plan.replan!, rows, owner!, gate, (await limits()).effective);
                 if (state) {
                   result.planJob = state.jobId ?? undefined;
                   slots--;
                   // cancelled while the job was being stored (the cancel found no job to stop yet): stop it now
-                  if ((await getPlan(planId))?.status === "CANCELLED") await stopPlanJob(planId, state.jobId, "plan cancelled");
+                  if ((await getPlan(planId, true))?.status === "CANCELLED") await stopPlanJob(planId, state.jobId, "plan cancelled");
                 }
               } catch (e) {
                 console.error(`[plan ${planId}] re-plan job could not be queued`, e);
-                const fresh = await getPlan(planId);
+                const fresh = await getPlan(planId, true);
                 if (fresh?.replan?.status === "waiting") await endReplan(plan, fresh.replan, "failed", "The re-plan job could not be queued.");
               }
             }
             for (const row of candidates) {
               if (slots <= 0) break;
               // stop as soon as the owner pauses or cancels the plan
-              if ((await getPlan(planId))?.status !== "RUNNING") break;
+              if ((await getPlan(planId, true))?.status !== "RUNNING") break;
               if (!(await startRow(plan, row, owner!, gate))) continue;
               slots--;
               result.started.push(row.rowId);
               result.changed++;
-              if ((await getPlan(planId))?.status === "CANCELLED") {
+              if ((await getPlan(planId, true))?.status === "CANCELLED") {
                 // cancelled while this row was starting: stop what was just queued
                 const p = row.projectId ? await getProject(plan.ownerUserId, row.projectId) : null;
                 if (p && ACTIVE_PROJECT_STATUSES.includes(p.status)) await stopProject(p, "plan");

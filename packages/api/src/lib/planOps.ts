@@ -2,9 +2,10 @@
 // `plan` job of a draft the owner asks for, which the runner queues once a slot is free.
 //
 // Every change whose validity depends on the plan's status (rows, settings and policy, confirmation, drafting, ordering,
-// proposals) runs under the plan's lease (`withPlanLease`) and checks the status of a fresh read, so two tabs (or a tab
-// and the runner) can never interleave: for example rows saved while another tab confirms the plan. The runner is
-// kicked after the lease is given back.
+// proposals) runs under the plan's lease (`withPlanLease`) and checks the status of a strongly consistent read taken
+// once the lease is held (rows are read the same way), so two tabs (or a tab and the runner) can never interleave: for
+// example rows saved while another tab confirms the plan. Rows of a draft are written only after a conditional write
+// that the plan is still a draft under this lease (`holdsPlan`). The runner is kicked after the lease is given back.
 import { HTTPException } from "hono/http-exception";
 import type {
   CreatePlanRequest,
@@ -81,9 +82,11 @@ import {
   updatePlan,
   updateProposal,
   updateRow,
+  holdsPlan,
   withPlanLease,
 } from "./plans.js";
 import { deploymentDefaultModel, implicitModel, isEffort, normModel, readLocale, requireModel, requireRunKey, stopProject, type StagedAttachment } from "./runs.js";
+import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
 const STATUS_CHANGED = "計画の状態が変わりました。再読み込みしてください";
@@ -164,10 +167,18 @@ function newRow(planId: string, order: number, r: NormalizedPlanRow, source: Pla
   return { planId, sk: planRowSk(rowId), rowId, order, wave: r.wave, roi: r.roi, tlf: r.tlf, rationale: r.rationale, priority: r.priority, source, sourceRow, state: "pending", projectId: null, attempts: 0, createdAt: now, updatedAt: now };
 }
 
-/** A row's match among the owner's projects: done by a finished one (not with `rebuild`), or a warning for an unfinished one. */
-function setMatch(row: PlanRowRecord, projects: ProjectRecord[], rebuild = false): PlanRowRecord {
+/**
+ * A row's match among the owner's projects: done by a finished one, or a warning for an unfinished one. A row the
+ * owner chose to rebuild (「作り直す」, `rebuild`) is never matched: it is built.
+ */
+function setMatch(row: PlanRowRecord, projects: ProjectRecord[]): PlanRowRecord {
+  if (row.rebuild) {
+    row.existing = null;
+    row.duplicateOf = null;
+    return row;
+  }
   const m = matchExistingProject(row, projects);
-  row.existing = rebuild ? null : m.existing;
+  row.existing = m.existing;
   row.duplicateOf = m.duplicateOf;
   return row;
 }
@@ -187,6 +198,8 @@ async function stagedPlanAttachments(userId: string, list: CreatePlanRequest["at
     if (!type) throw bad(`計画に添付できるのは CSV・TSV・テキスト・xlsx・PDF のファイルです（${attachmentDisplayName(a.name)}）`);
     const safeName = safeAttachmentName(a.name);
     const staging = stagingKey(userId, a.uploadId, safeName);
+    // checked here, before the plan ID is reserved and the first file is moved, so a bad name leaves nothing behind
+    if (!safeKeySegments(staging) || !safeKeySegments(attachmentFileKey(out.length, safeName))) throw bad(`添付ファイルの名前が不正です（${attachmentDisplayName(a.name)}）`);
     const head = await headStaging(staging);
     if (!head) throw bad(`アップロードが見つかりません（${attachmentDisplayName(a.name)}）。もう一度添付してください`);
     if (head.size > ATTACHMENT_LIMITS.maxFileBytes) throw bad("ファイルが大きすぎます");
@@ -246,10 +259,9 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     ownerUserId: u.userId,
     name,
     goal,
-    status: draft ? "DRAFTING" : "DRAFT",
+    status: "DRAFT",
     settings,
     ...(attachments.length ? { attachments } : {}),
-    ...(draft ? { draft: draftState(u, now, locale) } : {}),
     rowCount: rows.length,
     rowCounts: countRows(rows),
     activeWave: null,
@@ -260,9 +272,11 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   for (const r of rows) await putRow(r);
   await putPlanEvent(planId, "created", u.userId, { detail: { rows: rows.length, rejected: rejected.length, files: attachments.length } });
   if (!draft) return { plan, rows, rejected };
+  // drafting only once every row is stored: the runner may queue the draft job as soon as the plan is DRAFTING
+  if (!(await setPlanStatus(planId, "DRAFT", "DRAFTING", { draft: draftState(u, now, locale) }))) throw conflict(STATUS_CHANGED);
   await putPlanEvent(planId, "draft_requested", u.userId, { detail: { locale } });
   await kick(planId);
-  return { plan: (await getPlan(planId)) ?? plan, rows, rejected };
+  return { plan: (await getPlan(planId, true)) ?? plan, rows, rejected };
 }
 
 export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: UpdatePlanRequest): Promise<PlanRecord> {
@@ -305,37 +319,67 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
 }
 
 /**
- * Replaces the rows of a draft (order = array order) and keeps the owner's waves (ordering becomes manual). Rows that
- * keep their `rowId` keep their history, anchors, dependencies and seed flag; `rebuild` drops their existing project;
- * new rows (and rows whose ROI × TLF changed) are matched with the owner's projects.
+ * Replaces the rows of a draft (order = array order). Rows that keep their `rowId` keep their history, anchors,
+ * dependencies and seed flag. `rebuild: true` (「作り直す」) is stored on the row: it is built and never matched with
+ * an existing project again; only `rebuild: false` clears it (the row is then matched again). New rows (and rows whose
+ * ROI × TLF changed) are matched with the owner's projects.
+ *
+ * The plan keeps its ordering only when the same rows come back in their stored order and waves (for example only a
+ * rationale or 「作り直す」 changed); an automatic order is then computed again when a row's rebuild or existing project
+ * changed. Anything else keeps the owner's waves (ordering becomes manual), and a seed row that no longer has its wave
+ * to itself among the rows to build is no seed any more.
  */
 export async function replaceRows(u: UserRecord, plan: PlanRecord, inputs: unknown): Promise<PlanRowRecord[]> {
   requireEditable(plan);
   const checked = checkRowInputs(inputs);
   return withPlanLease(plan.planId, async (fresh) => {
     requireEditable(fresh);
-    const current = await listRows(plan.planId);
+    const current = await listRows(plan.planId, true);
     const byId = new Map(current.map((r) => [r.rowId, r]));
     const now = nowIso();
     let projects: ProjectRecord[] | null = null;
     const ownerProjects = async () => (projects ??= await listUserProjects(u.userId));
     const next: PlanRowRecord[] = [];
+    const used = new Set<string>();
+    /** A row's rebuild flag or existing project changed (an automatic order depends on them) */
+    let flagsChanged = false;
     for (const [i, { input, row: n }] of checked.entries()) {
-      const old = input.rowId && PLAN_ROW_ID_REGEX.test(input.rowId) ? byId.get(input.rowId) : undefined;
+      const old = input.rowId && PLAN_ROW_ID_REGEX.test(input.rowId) && !used.has(input.rowId) ? byId.get(input.rowId) : undefined;
       if (!old) {
-        next.push(setMatch(newRow(plan.planId, i, n, "manual", null, now), await ownerProjects(), !!input.rebuild));
+        const row = newRow(plan.planId, i, n, "manual", null, now);
+        if (input.rebuild === true) row.rebuild = true;
+        next.push(setMatch(row, await ownerProjects()));
         continue;
       }
+      used.add(old.rowId);
       const r: PlanRowRecord = { ...old, order: i, roi: n.roi, tlf: n.tlf, rationale: n.rationale, wave: n.wave, priority: n.priority, updatedAt: now };
-      if (planRowKey(old.roi, old.tlf) !== planRowKey(n.roi, n.tlf)) setMatch(r, await ownerProjects(), !!input.rebuild);
-      else if (input.rebuild) r.existing = null;
+      if (input.rebuild === true) r.rebuild = true;
+      else if (input.rebuild === false) delete r.rebuild;
+      if (r.rebuild) {
+        r.existing = null;
+        r.duplicateOf = null;
+      } else if (old.rebuild || planRowKey(old.roi, old.tlf) !== planRowKey(n.roi, n.tlf)) setMatch(r, await ownerProjects());
+      if (!!r.rebuild !== !!old.rebuild || (r.existing?.projectId ?? null) !== (old.existing?.projectId ?? null)) flagsChanged = true;
       next.push(r);
     }
     const keep = new Set(next.map((r) => r.rowId));
     for (const r of next) if (r.dependsOn) r.dependsOn = r.dependsOn.filter((d) => keep.has(d));
+
+    const stored = [...current].sort((a, b) => a.order - b.order || (a.rowId < b.rowId ? -1 : 1));
+    const sameRows = next.length === stored.length && next.every((r, i) => stored[i].rowId === r.rowId && byId.get(r.rowId)!.wave === r.wave);
+    const auto = sameRows && fresh.ordering === "auto";
+    if (auto && flagsChanged) autoOrder(next, (await currentLimits()).effective);
+    else if (!auto) {
+      // the owner's waves: a seed is only a seed while it is built alone in its wave
+      const built = new Map<number, number>();
+      for (const r of next) if (r.state !== "skipped" && !r.existing) built.set(r.wave, (built.get(r.wave) ?? 0) + 1);
+      for (const r of next) if (r.seed && (r.existing || r.state === "skipped" || (built.get(r.wave) ?? 0) > 1)) r.seed = false;
+    }
+
+    if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
     for (const r of current) if (!keep.has(r.rowId)) await deleteRow(plan.planId, r.rowId);
     for (const r of next) await putRow(r);
-    if (!(await updatePlan(plan.planId, { rowCount: next.length, rowCounts: countRows(next), ordering: "manual" }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+    if (!(await updatePlan(plan.planId, { rowCount: next.length, rowCounts: countRows(next), ordering: auto ? "auto" : "manual" }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
     await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { rows: next.length } });
     return next.sort(byWaveAndOrder);
   });
@@ -347,18 +391,18 @@ export async function importRows(u: UserRecord, plan: PlanRecord, csv: unknown):
   const text = csvText(csv);
   return withPlanLease(plan.planId, async (fresh) => {
     requireEditable(fresh);
-    const current = await listRows(plan.planId);
+    const current = await listRows(plan.planId, true);
     const parsed = parsePlanRowsCsv(text, { existing: current });
     const now = nowIso();
     const start = current.reduce((m, r) => Math.max(m, r.order + 1), 0);
     const projects = parsed.rows.length ? await listUserProjects(u.userId) : [];
     const added = parsed.rows.map((r, i) => setMatch(newRow(plan.planId, start + i, r, "csv", r.sourceRow, now), projects));
     const all = [...current, ...added];
-    if (fresh.ordering === "auto" && added.length) {
-      autoOrder(all, (await currentLimits()).effective);
-      for (const r of all) await putRow(r);
-    } else for (const r of added) await putRow(r);
-    await updatePlan(plan.planId, { rowCount: all.length, rowCounts: countRows(all) });
+    const reorder = fresh.ordering === "auto" && added.length > 0;
+    if (reorder) autoOrder(all, (await currentLimits()).effective);
+    if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
+    for (const r of reorder ? all : added) await putRow(r);
+    if (!(await updatePlan(plan.planId, { rowCount: all.length, rowCounts: countRows(all) }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
     await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { added: added.length, rejected: parsed.rejected.length } });
     return { rows: all.sort(byWaveAndOrder), rejected: parsed.rejected };
   });
@@ -369,10 +413,11 @@ export async function orderPlan(u: UserRecord, plan: PlanRecord): Promise<{ plan
   requireEditable(plan);
   return withPlanLease(plan.planId, async (fresh) => {
     requireEditable(fresh);
-    const rows = await listRows(plan.planId);
+    const rows = await listRows(plan.planId, true);
     if (!rows.length) throw bad("行が 1 つもありません");
     const o = autoOrder(rows, (await currentLimits()).effective);
     const now = nowIso();
+    if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
     for (const r of rows) await putRow({ ...r, updatedAt: now });
     const values: Partial<PlanRecord> = { ordering: "auto", rowCount: rows.length, rowCounts: countRows(rows) };
     if (!(await updatePlan(plan.planId, values, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
@@ -398,7 +443,7 @@ export async function requestDraft(u: UserRecord, plan: PlanRecord, locale: UiLo
     await putPlanEvent(plan.planId, "draft_requested", u.userId, { detail: { locale } });
   });
   await kick(plan.planId);
-  return (await getPlan(plan.planId)) ?? plan;
+  return (await getPlan(plan.planId, true)) ?? plan;
 }
 
 /** Stops a draft that is waiting or running: its job is cancelled and the plan is an editable draft again. */
@@ -417,8 +462,9 @@ export async function cancelDraft(u: UserRecord, plan: PlanRecord): Promise<Plan
 
 /**
  * Confirms a draft: checks that the owner can run jobs, fixes the model, reasoning effort, research mode, reply
- * language and harness rules of every row, and lets the runner start (the first rows start right away). A plan ordered
- * automatically is ordered again for the limits in force now; rows done by an existing project are done.
+ * language and harness rules of every row, and lets the runner start (the first rows start right away). Rows done by an
+ * existing project are done, once that project is checked again (it may have been deleted or changed since the draft:
+ * then the row is built). A plan ordered automatically is ordered again for the limits in force now.
  */
 export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLocale | null): Promise<PlanRecord> {
   if (plan.status === "DRAFTING") throw conflict("下書きの作成中は確定できません");
@@ -426,7 +472,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
   const confirmed = await withPlanLease(plan.planId, async (fresh) => {
     if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は確定できません");
     if (fresh.status !== "DRAFT") throw conflict("この計画は確定済みです");
-    const rows = await listRows(plan.planId);
+    const rows = await listRows(plan.planId, true);
     if (!rows.length) throw bad("行が 1 つもありません");
     const policy = await requireRunKey(u);
     const chosen = fresh.settings.modelChosen ? fresh.settings.model : null;
@@ -435,10 +481,10 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const settings: PlanSettings = { ...fresh.settings, model, modelChosen: !!chosen, locale };
     const limits = await currentLimits();
     const at = nowIso();
-    if (fresh.ordering === "auto") {
-      autoOrder(rows, limits.effective);
-      for (const r of rows) await putRow(r);
-    }
+    const lost = await recheckExisting(u, rows, at);
+    if (fresh.ordering === "auto") autoOrder(rows, limits.effective);
+    if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
+    for (const r of rows) if (fresh.ordering === "auto" || lost.has(r.rowId)) await putRow(r);
     for (const r of rows) {
       if (!r.existing || r.state !== "pending") continue;
       const values: Partial<PlanRowRecord> = { state: "done", projectId: r.existing.projectId, completedAt: at };
@@ -447,11 +493,33 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const estimate = planEstimate(rows, limits.effective);
     const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: u.userId, estimate, activeWave: null, pausedReason: null, rowCounts: countRows(rows) };
     if (!(await setPlanStatus(plan.planId, "DRAFT", "RUNNING", values))) throw conflict(STATUS_CHANGED);
-    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, harnessRules: HARNESS_RULES } });
+    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}) } });
     return { ...fresh, ...values, status: "RUNNING" as const };
   });
   await kick(plan.planId);
   return confirmed;
+}
+
+/**
+ * Rows that wait to be done by an existing project, checked against the owner's projects now: the project must still
+ * exist, be COMPLETED and have its artifacts. Otherwise the row is matched again (another finished project with its
+ * ROI × TLF, or a warning for an unfinished one) and, without a finished project, built. Mutates `rows`; returns the
+ * IDs of the rows that changed.
+ */
+async function recheckExisting(u: UserRecord, rows: PlanRowRecord[], at: string): Promise<Set<string>> {
+  const changed = new Set<string>();
+  const waiting = rows.filter((r) => r.existing && r.state === "pending");
+  if (!waiting.length) return changed;
+  const projects = await listUserProjects(u.userId);
+  const byId = new Map(projects.map((p) => [p.projectId, p]));
+  for (const r of waiting) {
+    const p = byId.get(r.existing!.projectId);
+    if (p && !isProjectDeleted(p) && p.status === "COMPLETED" && p.hasArtifacts) continue;
+    setMatch(r, projects);
+    r.updatedAt = at;
+    changed.add(r.rowId);
+  }
+  return changed;
 }
 
 /** Lets the runner act now instead of at its next minute; a failure only waits for the scheduled step. */
@@ -492,7 +560,7 @@ export async function cancelPlan(u: UserRecord, plan: PlanRecord): Promise<void>
     if (p && !isProjectDeleted(p) && ACTIVE_PROJECT_STATUSES.includes(p.status)) await stopProject(p, "plan");
     await updateRow(plan.planId, r.rowId, { state: "cancelled", claimedAt: null }, { state: r.state });
   }
-  const fresh = await getPlan(plan.planId);
+  const fresh = await getPlan(plan.planId, true);
   if (fresh) await dropReplan(fresh, "plan cancelled");
   await putPlanEvent(plan.planId, "cancelled", u.userId);
 }
@@ -531,7 +599,7 @@ export async function deletePlan(u: UserRecord, plan: PlanRecord): Promise<strin
 /** An open proposal of a plan that is running or paused; 404 / 409 otherwise. */
 async function openProposal(fresh: PlanRecord, proposalId: string): Promise<PlanProposalRecord> {
   if (fresh.status !== "RUNNING" && fresh.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
-  const p = PLAN_PROPOSAL_ID_REGEX.test(proposalId) ? await getProposal(fresh.planId, proposalId) : null;
+  const p = PLAN_PROPOSAL_ID_REGEX.test(proposalId) ? await getProposal(fresh.planId, proposalId, true) : null;
   if (!p) throw notFound();
   if (p.status !== "open") throw conflict("この提案はすでに処理されています");
   return p;
@@ -547,7 +615,7 @@ async function staleProposal(planId: string, p: PlanProposalRecord, message: str
 export async function acceptProposal(u: UserRecord, plan: PlanRecord, proposalId: string): Promise<{ ok: true; proposal: PlanProposalRecord }> {
   const r = await withPlanLease(plan.planId, async (fresh) => {
     const p = await openProposal(fresh, proposalId);
-    const rows = await listRows(plan.planId);
+    const rows = await listRows(plan.planId, true);
     const now = nowIso();
     const detail: Record<string, string | number | null> = { kind: p.kind, proposalId: p.proposalId };
     if (p.kind === "add") {
@@ -557,16 +625,20 @@ export async function acceptProposal(u: UserRecord, plan: PlanRecord, proposalId
       if (rows.length >= PLAN_LIMITS.maxRows) throw conflict(`行は ${PLAN_LIMITS.maxRows} 行までです`);
       const ids = new Set(rows.map((r) => r.rowId));
       const lastWave = rows.reduce((m, r) => Math.max(m, r.wave), 0);
+      // a plan ordered by hand gets the row after its last wave
       const row = newRow(plan.planId, rows.reduce((m, r) => Math.max(m, r.order + 1), 0), { roi: add.roi, tlf: add.tlf, rationale: add.rationale, wave: lastWave + 1, priority: null }, "llm", null, now);
       Object.assign(row, { anchors: add.anchors, anchorsSource: "predicted", dependsOn: add.dependsOn.filter((d) => ids.has(d)) });
       const own = new Set(rows.map((r) => r.projectId).filter((x): x is string => !!x));
       const m = matchExistingProject(row, await listUserProjects(u.userId), own);
       row.existing = m.existing;
       row.duplicateOf = m.duplicateOf;
-      if (row.existing) Object.assign(row, { state: "done", projectId: row.existing.projectId, completedAt: now });
+      // done by an existing project: listed with the last wave rather than opening a wave of its own
+      if (row.existing) Object.assign(row, { state: "done", projectId: row.existing.projectId, completedAt: now, wave: Math.max(lastWave, 1) });
+      else if (fresh.ordering === "auto") row.wave = (fresh.activeWave ?? 0) + 1;
       const all = [...rows, row];
       if (fresh.ordering === "auto") {
-        // the rows that have not started (the new one among them) are placed again after the active wave
+        // the rows waiting after the active wave (the new one among them) are placed again; rows of the active wave
+        // that wait for a slot keep their wave
         for (const [rowId, wave] of replanRows(all, fresh.activeWave ?? 0, (await currentLimits()).effective)) {
           if (rowId === row.rowId) row.wave = wave;
           else if (await updateRow(plan.planId, rowId, { wave }, { state: "pending" })) all.find((x) => x.rowId === rowId)!.wave = wave;

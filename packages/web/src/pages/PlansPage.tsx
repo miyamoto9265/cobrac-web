@@ -2,7 +2,7 @@ import { FileText, FileUp, ListChecks, Plus, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanSummary } from "@cobrac/shared";
-import { ATTACHMENT_LIMITS, planAttachmentTypeOf } from "@cobrac/shared";
+import { ATTACHMENT_LIMITS, PLAN_JOB_SHORT_ROWS, planAttachmentTypeOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, uploadFile } from "../lib/api";
@@ -133,7 +133,8 @@ function CreatePlanForm() {
             ))}
           </ul>
         )}
-        {fileMsg && <div className="mt-2 whitespace-pre-line rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800">{fileMsg}</div>}
+        {/* file names are often one long token: break them anywhere rather than scroll sideways at 390 px */}
+        {fileMsg && <div className="mt-2 whitespace-pre-line rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 [overflow-wrap:anywhere]">{fileMsg}</div>}
       </div>
       <div>
         <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
@@ -141,7 +142,7 @@ function CreatePlanForm() {
         </span>
         <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} font-mono text-xs`} />
       </div>
-      {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+      {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 [overflow-wrap:anywhere]">{err}</div>}
       <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
@@ -156,7 +157,7 @@ function CreatePlanForm() {
           </span>
         )}
       </div>
-      <p className="text-xs text-slate-500">{t("plan.createDraftNote")}</p>
+      <p className="text-xs text-slate-500">{t("plan.createDraftNote", { n: PLAN_JOB_SHORT_ROWS })}</p>
     </form>
   );
 }

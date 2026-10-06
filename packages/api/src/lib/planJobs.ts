@@ -47,7 +47,7 @@ import { putProposal, updatePlan } from "./plans.js";
 /** A plan job that has not ended: the plan waits for it (draft) or will receive its proposals (re-plan). */
 export const isOpenPlanJob = (s: PlanJobState | null | undefined): s is PlanJobState => !!s && (s.status === "waiting" || s.status === "queued" || s.status === "running");
 
-/** What the runner stores when the owner cannot start a job now (English, like job errors). */
+/** What the runner stores when the owner cannot start a job now (English, like job errors; the page shows `errorCode`). */
 export const GATE_ERRORS: Record<"no_key" | "owner_disabled" | "model_not_allowed", string> = {
   no_key: "No API key to run the job with: register one in Settings, or ask an admin for the default API key.",
   owner_disabled: "The owner's account is disabled.",
@@ -75,8 +75,8 @@ export function planJobInput(
     locale: x.locale ?? null,
     goal: plan.goal,
     policy: plan.policy ?? "",
-    // CSV / TSV / text were read into rows by the API already
-    attachments: (plan.attachments ?? []).filter((a) => !isDeterministicPlanAttachment(a.name)).map((a) => ({ id: a.id, name: a.name, key: a.key })),
+    // CSV / TSV / text were read into rows by the API already; a re-plan works from the rows only
+    attachments: x.kind === "replan" ? [] : (plan.attachments ?? []).filter((a) => !isDeterministicPlanAttachment(a.name)).map((a) => ({ id: a.id, name: a.name, key: a.key })),
     rows: [...x.rows]
       .sort((a, b) => a.wave - b.wave || a.order - b.order)
       .map((r) => ({
@@ -91,6 +91,9 @@ export function planJobInput(
         anchorsSource: r.anchorsSource ?? null,
         projectId: r.projectId ?? r.existing?.projectId ?? null,
         existing: !!r.existing,
+        priority: r.priority ?? null,
+        dependsOn: r.dependsOn ?? [],
+        rebuild: !!r.rebuild,
       })),
     projects: x.projects.map((p) => ({ projectId: p.projectId, name: p.name ?? p.projectId, roi: p.roi, tlf: p.tlf, status: p.status, completed: p.status === "COMPLETED" && p.hasArtifacts, canonId: p.canonId ?? null })),
     canons: x.canons.map((c) => ({ canonId: c.canonId, name: c.name, policy: c.policy ?? "", headRevision: c.headRevision, memberCount: c.memberCount })),
@@ -118,7 +121,7 @@ export async function queuePlanJob(
   const input = planJobInput(plan, { kind, jobId, rows, projects, canons, concurrency, wave: kind === "replan" ? (state.wave ?? null) : null, locale: state.locale ?? null });
   await putPlanJson(planJobKey(plan.planId, jobId, "input.json"), input);
   const at = nowIso();
-  const next: PlanJobState = { ...state, jobId, status: "queued", queuedAt: at, error: null };
+  const next: PlanJobState = { ...state, jobId, status: "queued", queuedAt: at, error: null, errorCode: null };
   if (!(await updatePlan(plan.planId, kind === "draft" ? { draft: next } : { replan: next }, { status: plan.status }))) return null;
   plan[kind] = next;
   const job: JobRecord = {
@@ -178,7 +181,8 @@ export function planJobProgress(job: JobRecord | null): PlanJobProgress {
   }
 }
 
-export const readPlanJob = (planId: string, jobId: string | null) => (jobId ? getJob(planId, jobId) : Promise.resolve(null));
+/** A plan job, read strongly consistent (its plan's state follows it under the lease). */
+export const readPlanJob = (planId: string, jobId: string | null) => (jobId ? getJob(planId, jobId, true) : Promise.resolve(null));
 
 /** Stops a plan job that is queued or running (and its Fargate task); a finished one is left as it is. */
 export async function stopPlanJob(planId: string, jobId: string | null, reason: string): Promise<void> {
@@ -213,21 +217,23 @@ export async function readPlanResult(planId: string, kind: PlanJobKind, jobId: s
 
 /**
  * The automatic order of a draft (`orderDraft` with `concurrency` rows per body wave): wave and seed flag of every row
- * that will be built; rows done by an existing project (or skipped) keep their wave and are no seeds. `order` follows
- * the build order: wave, then hub score and priority (the start order inside a wave); unplaced rows last. Mutates and
- * returns `rows`.
+ * that will be built. Rows done by an existing project are no seeds and go to the last wave (1 when nothing is placed),
+ * so they are listed after the rows that are built rather than next to the first seed; skipped rows keep their wave.
+ * `order` follows the build order: wave, then hub score and priority (the start order inside a wave); unplaced rows
+ * last. Mutates and returns `rows`.
  */
 export function autoOrder(rows: PlanRowRecord[], concurrency: number): { rows: PlanRowRecord[]; seeds: number; cycle: boolean } {
   const r = orderDraft(rows, concurrency);
   const hub = hubScores(rows.filter((x) => x.state !== "skipped"));
   const prio = (x: PlanRowRecord) => (typeof x.priority === "number" ? x.priority : 0);
+  const lastWave = [...r.wave.values()].reduce((m, w) => Math.max(m, w), 0) || 1;
   for (const row of rows) {
     const w = r.wave.get(row.rowId);
     if (w !== undefined) {
       row.wave = w;
       row.seed = r.seed.get(row.rowId) ?? false;
     } else {
-      row.wave = row.wave >= 1 ? row.wave : 1;
+      row.wave = row.existing && row.state !== "skipped" ? lastWave : row.wave >= 1 ? row.wave : 1;
       row.seed = false;
     }
   }
@@ -242,9 +248,11 @@ export function autoOrder(rows: PlanRowRecord[], concurrency: number): { rows: P
 // --- draft -----------------------------------------------------------------------------------------------------------
 
 /**
- * A draft result applied to the plan's rows: rows it refers to get anchors, dependencies, priority (and a rationale
- * when theirs is empty); new rows are added (up to PLAN_LIMITS.maxRows); every row of the result is matched with the
- * owner's projects (existing / duplicate); rows it does not mention stay as they are. Then the rows are ordered.
+ * A draft result applied to the plan's rows: rows it refers to get anchors and dependencies (a priority only when they
+ * have none: the owner's stays, and a rationale only when theirs is empty); new rows are added (up to
+ * PLAN_LIMITS.maxRows); every row of the result is matched with the owner's projects (existing / duplicate), except
+ * rows the owner chose to rebuild, which are never marked existing; rows it does not mention stay as they are. Then
+ * the rows are ordered.
  */
 export function draftRows(
   planId: string,
@@ -301,13 +309,19 @@ export function draftRows(
     const deps = d.dependsOn.map((x) => ids.get(x) ?? (byId.has(x) ? x : null)).filter((x): x is string => !!x && x !== row.rowId);
     dropped += d.dependsOn.length - deps.length;
     row.dependsOn = [...new Set(deps)];
-    if (d.priority !== null) row.priority = d.priority;
+    // new rows were created with the model's priority; the owner's (CSV, typed) is kept
+    if (d.priority !== null && (row.priority === null || row.priority === undefined)) row.priority = d.priority;
     if (!row.rationale.trim() && d.rationale) row.rationale = d.rationale;
+    row.updatedAt = now;
+    if (row.rebuild) {
+      // 「作り直す」: built even though a finished project has its ROI × TLF (the model's choice is ignored)
+      row.existing = null;
+      continue;
+    }
     const named = d.existingProjectId ? completed.get(d.existingProjectId) : undefined;
     const m = named ? { existing: { projectId: named.projectId, name: named.name ?? named.projectId }, duplicateOf: null } : matchExistingProject(row, projects);
     row.existing = m.existing;
     row.duplicateOf = m.duplicateOf;
-    row.updatedAt = now;
   }
   const o = autoOrder(rows, concurrency);
   return { rows: o.rows, added, dropped, seeds: o.seeds, cycle: o.cycle };

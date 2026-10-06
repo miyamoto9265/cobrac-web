@@ -331,6 +331,46 @@ describe("plans: re-planning after each wave", () => {
     expect(rowOf(planId, "phonological processing").state).toBe("pending");
   });
 
+  it("accepting a new row leaves the rows of the active wave that wait for a slot in that wave", async () => {
+    await setLimits(4, 4);
+    const planId = await runningLanguagePlan();
+    expect(planOf(planId).activeWave).toBe(1);
+    // the owner's other jobs hold the other slots; a row waits in the active wave for one of them
+    for (let i = 0; i < 3; i++) fake.put("jobs", { projectId: `pother0${i}`, jobId: `job_o${i}`, userId: A.sub, type: "initial", status: "RUNNING", createdAt: now, updatedAt: now } as never);
+    fake.put("plans", { ...rowOf(planId, "reading"), wave: 1 } as never);
+    await advancePlan(planId);
+    expect(rowOf(planId, "reading")).toMatchObject({ state: "pending", wave: 1 });
+
+    const row = { roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121, 123), dependsOn: [], wave: 1, priority: null };
+    await storeProposals(planId, "job_add", 1, { proposals: [{ kind: "add", rowId: null, row: row as never, policy: null, reason: "Nobody owns the voice area yet." }] });
+    const [p] = proposalsOf(planId);
+    await json(call(A, "POST", `/plans/${planId}/proposals/${p.proposalId}/accept`));
+    expect(rowOf(planId, "reading")).toMatchObject({ state: "pending", wave: 1 });
+    expect(rowOf(planId, "voice recognition")).toMatchObject({ state: "pending", source: "llm" });
+    expect(rowOf(planId, "voice recognition").wave).toBeGreaterThan(1);
+    expect(planOf(planId).activeWave).toBe(1);
+
+    // a slot frees up: the waiting row starts in its wave
+    fake.put("jobs", { ...jobs().find((j) => j.jobId === "job_o0")!, status: "COMPLETED" } as never);
+    await advancePlan(planId);
+    expect(rowOf(planId, "reading")).toMatchObject({ state: "running", wave: 1 });
+  });
+
+  it("ends a waiting re-plan with the reason's code when the owner can no longer run jobs, and pauses", async () => {
+    await setLimits(1, 1);
+    const planId = await runningLanguagePlan();
+    projectStatus(planId, "speech production", "COMPLETED");
+    fake.put("jobs", { projectId: "pother01", jobId: "job_other", userId: A.sub, type: "initial", status: "RUNNING", createdAt: now, updatedAt: now } as never);
+    await advancePlan(planId);
+    expect(planOf(planId).replan).toMatchObject({ status: "waiting" });
+    user(A, { apiKeyRegistered: false });
+    fake.put("jobs", { ...jobs().find((j) => j.jobId === "job_other")!, status: "COMPLETED" } as never);
+    await advancePlan(planId);
+    expect(planOf(planId)).toMatchObject({ status: "PAUSED", pausedReason: "no_key", replan: { status: "failed", errorCode: "no_key" } });
+    expect(planOf(planId).replan!.error).toMatch(/API key/);
+    expect(planJobs(planId)).toEqual([]);
+  });
+
   it("stores the proposals of a result once: storing it again keeps their IDs and decisions", async () => {
     await setLimits(4, 4);
     const planId = await runningLanguagePlan();

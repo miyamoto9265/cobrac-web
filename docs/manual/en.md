@@ -206,12 +206,12 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - **Seeds** are the rows sharing anchors with the most other rows (at most 3). They are built before the other rows, one at a time, each in a wave of its own, so the circuits many rows use are worked out once and the later rows can build on them. Their wave headings say "Seed".
 - The other rows each go into the earliest wave that comes after the rows they depend on, still has room within the concurrency and holds no row they overlap with.
 - "Order automatically" sets the waves and seeds again from the anchors and dependencies (no job is run, nothing is charged). A new draft is already in this order.
-- Saving rows changed by hand switches the plan to a manual order: your waves are used as they are (and are not re-ordered after each wave). Rows added with "Import CSV" to a draft in automatic order are ordered automatically together with the others. A plan in automatic order is ordered once more at confirmation, with the concurrency in force then.
+- Saving after adding, removing or moving rows, or changing a wave, switches the plan to a manual order: your waves are used as they are (and are not re-ordered after each wave). Saving only a changed rationale, ROI, TLF or "Rebuild" keeps the order as it is. Rows added with "Import CSV" to a draft in automatic order are ordered automatically together with the others. A plan in automatic order is ordered once more at confirmation, with the concurrency in force then.
 
 ### Existing projects
 
-- When you already have a finished project with the same ROI × TLF, the row is marked "Existing" with a link to that project. On confirmation the row is marked done without being built (and it is left out of the estimate).
-- To build it anyway, tick "Rebuild" for the row in the editor and save.
+- When you already have a finished project with the same ROI × TLF, the row is marked "Existing" with a link to that project, and it is listed in the last wave. On confirmation the row is marked done without being built (and it is left out of the estimate). If you delete that project before confirming, the row is built.
+- To build it anyway, tick "Rebuild" for the row in the editor and save. In a plan in automatic order the rows are then ordered again with it. The choice stays on the row: a new draft does not mark it "Existing" again. Untick it and save to undo it.
 - When a project with the same ROI × TLF exists but is not finished, the row shows a warning with a link. If you confirm as is, the row is built separately.
 
 ### Confirm and run

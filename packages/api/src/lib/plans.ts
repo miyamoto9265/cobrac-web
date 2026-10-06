@@ -11,8 +11,12 @@ import { notFound } from "./http.js";
 
 const table = () => env.tables.plans;
 
-export async function getPlan(planId: string): Promise<PlanRecord | null> {
-  const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: PLAN_META_SK } }));
+/**
+ * The plan's META. `consistent`: a strongly consistent read, for decisions taken under the plan's lease (a default read
+ * may come from a replica that lags behind the last writes).
+ */
+export async function getPlan(planId: string, consistent = false): Promise<PlanRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: PLAN_META_SK }, ConsistentRead: consistent }));
   return (r.Item as PlanRecord | undefined) ?? null;
 }
 
@@ -80,7 +84,7 @@ export async function deleteRow(planId: string, rowId: string): Promise<void> {
   await ddb.send(new DeleteCommand({ TableName: table(), Key: { planId, sk: planRowSk(rowId) } }));
 }
 
-async function queryPrefix<T>(planId: string, prefix: string): Promise<T[]> {
+async function queryPrefix<T>(planId: string, prefix: string, consistent = false): Promise<T[]> {
   const out: T[] = [];
   let start: Record<string, unknown> | undefined;
   do {
@@ -90,6 +94,7 @@ async function queryPrefix<T>(planId: string, prefix: string): Promise<T[]> {
         KeyConditionExpression: "planId = :p AND begins_with(sk, :s)",
         ExpressionAttributeValues: { ":p": planId, ":s": prefix },
         ExclusiveStartKey: start,
+        ConsistentRead: consistent,
       }),
     );
     out.push(...((r.Items as T[]) ?? []));
@@ -98,12 +103,13 @@ async function queryPrefix<T>(planId: string, prefix: string): Promise<T[]> {
   return out;
 }
 
-export const listRows = (planId: string) => queryPrefix<PlanRowRecord>(planId, PLAN_ROW_PREFIX);
+/** The plan's rows; `consistent` under the lease (see `getPlan`). */
+export const listRows = (planId: string, consistent = false) => queryPrefix<PlanRowRecord>(planId, PLAN_ROW_PREFIX, consistent);
 export const listPlanEvents = (planId: string) => queryPrefix<PlanEventRecord>(planId, PLAN_EVENT_PREFIX);
 export const listProposals = (planId: string) => queryPrefix<PlanProposalRecord>(planId, PLAN_PROPOSAL_PREFIX);
 
-export async function getProposal(planId: string, proposalId: string): Promise<PlanProposalRecord | null> {
-  const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: planProposalSk(proposalId) } }));
+export async function getProposal(planId: string, proposalId: string, consistent = false): Promise<PlanProposalRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: planProposalSk(proposalId) }, ConsistentRead: consistent }));
   return (r.Item as PlanProposalRecord | undefined) ?? null;
 }
 
@@ -156,7 +162,8 @@ export async function putPlanEvent(planId: string, type: PlanEventType, by: stri
 
 /**
  * Takes the plan for `ms` so that two runner invocations (or the runner and an API request) never advance it at the
- * same time. Optimistic: the write only succeeds when the lease is still the one that was read.
+ * same time. Optimistic: the write only succeeds when the lease is still the one that was read. `plan` may come from a
+ * read that lags: a lease taken meanwhile fails the condition, and the holder reads the plan again once it holds it.
  */
 export async function acquirePlanLease(plan: PlanRecord, ms: number, now = Date.now()): Promise<string | null> {
   if (plan.leaseUntil && Date.parse(plan.leaseUntil) > now) return null;
@@ -168,9 +175,25 @@ export async function acquirePlanLease(plan: PlanRecord, ms: number, now = Date.
   return until;
 }
 
-/** Gives the lease back early (only if it is still ours). An expired time rather than null keeps the next condition a plain comparison. */
+/**
+ * Gives the lease back early (only if it is still ours). It writes the release time: already expired for the next
+ * step, so the next condition stays a plain comparison, and unlike a constant it differs from what earlier holders
+ * released, so a read taken before this holder's turn no longer matches the lease (no ABA). Two releases within one
+ * millisecond can still repeat a value; the holder's consistent read of the plan keeps that harmless.
+ */
 export async function releasePlanLease(planId: string, until: string): Promise<void> {
-  await updateWhere({ planId, sk: PLAN_META_SK }, { leaseUntil: new Date(0).toISOString() }, { leaseUntil: until }, false);
+  await updateWhere({ planId, sk: PLAN_META_SK }, { leaseUntil: nowIso() }, { leaseUntil: until }, false);
+}
+
+/**
+ * Under the lease: true while the plan still has `status`, is not deleted, and the lease `fresh` was read with is still
+ * in place (it is the plan `withPlanLease` passes to its function). A conditional write that changes nothing, done
+ * before rows are written, so rows never change on a plan that left `status` or was deleted meanwhile (neither takes
+ * the lease), or whose lease another step took after it expired.
+ */
+export async function holdsPlan(fresh: PlanRecord, status: PlanStatus): Promise<boolean> {
+  if (!fresh.leaseUntil) return false;
+  return updateWhere({ planId: fresh.planId, sk: PLAN_META_SK }, { leaseUntil: fresh.leaseUntil }, { status, leaseUntil: fresh.leaseUntil, deletedAt: undefined }, false);
 }
 
 /** How long an API request waits for a plan another step holds: `attempts` more reads, `delayMs` apart (tests shorten it). */
@@ -180,9 +203,10 @@ export const PLAN_BUSY_MESSAGE = "計画を更新中です。少し待ってか�
 
 /**
  * Runs `fn` on a fresh read of the plan while holding its lease, so an edit, a confirmation or a draft request never
- * interleaves with another one or with a runner step. `fn` must re-check the plan's status on the plan it is given.
- * 404 when the plan is gone; 409 when the lease stays taken. Never call `advancePlan` inside `fn` (it takes the lease
- * itself): kick the runner after this returns.
+ * interleaves with another one or with a runner step. The first read only supplies the lease to take (it may lag); `fn`
+ * gets a strongly consistent read taken once the lease is held, and must re-check the plan's status on it (and read
+ * rows with `listRows(planId, true)`). 404 when the plan is gone; 409 when the lease stays taken. Never call
+ * `advancePlan` inside `fn` (it takes the lease itself): kick the runner after this returns.
  */
 export async function withPlanLease<T>(planId: string, fn: (plan: PlanRecord) => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
@@ -191,7 +215,9 @@ export async function withPlanLease<T>(planId: string, fn: (plan: PlanRecord) =>
     const lease = await acquirePlanLease(plan, PLAN_LEASE_MS);
     if (lease) {
       try {
-        return await fn(plan);
+        const fresh = await getPlan(planId, true);
+        if (!fresh || fresh.deletedAt) throw notFound();
+        return await fn(fresh);
       } finally {
         await releasePlanLease(planId, lease).catch((e) => console.warn(`[plan ${planId}] lease release failed`, e));
       }

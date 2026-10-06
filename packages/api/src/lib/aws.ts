@@ -8,6 +8,7 @@ import type { ArtifactInfo, BradbRequest, RunJobMessage } from "@cobrac/shared";
 import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition, isPlanId, planPrefix } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
+import { safeKeySegments } from "./s3Keys.js";
 
 const kms = new KMSClient({ region: env.region });
 const s3 = new S3Client({ region: env.region });
@@ -168,7 +169,11 @@ export async function putCanonJson(key: string, value: unknown): Promise<void> {
 
 /** BRA Planner objects live under `plans/{planId}/` of the artifacts bucket (job input / result, attachments). */
 const checkPlanKey = (key: string) => {
-  if (!key.startsWith("plans/") || key.includes("..")) throw new Error("invalid plan key");
+  if (!key.startsWith("plans/") || !safeKeySegments(key)) throw new Error("invalid plan key");
+};
+/** An uploaded file waiting under `staging/` (its name may contain dots, never a ".." segment). */
+const checkStagingKey = (key: string) => {
+  if (!key.startsWith("staging/") || !safeKeySegments(key)) throw new Error("invalid staging key");
 };
 
 export async function getPlanJson<T>(key: string): Promise<T | null> {
@@ -189,8 +194,8 @@ export async function putPlanJson(key: string, value: unknown): Promise<void> {
 
 /** Moves a staging upload to `plans/{planId}/{rel}` (rel under `attachments/files/`), like `moveStagingToProject`. */
 export async function movePlanAttachment(stagingKey: string, planId: string, rel: string, contentType: string): Promise<void> {
-  if (!stagingKey.startsWith("staging/") || stagingKey.includes("..")) throw new Error("invalid staging key");
-  if (!isPlanId(planId) || !rel.startsWith("attachments/files/") || rel.includes("..")) throw new Error("invalid plan attachment key");
+  checkStagingKey(stagingKey);
+  if (!isPlanId(planId) || !rel.startsWith("attachments/files/") || !safeKeySegments(rel)) throw new Error("invalid plan attachment key");
   const key = planPrefix(planId) + rel;
   await s3.send(
     new CopyObjectCommand({
@@ -206,7 +211,7 @@ export async function movePlanAttachment(stagingKey: string, planId: string, rel
 
 /** Text of an uploaded staging object (a capability list read before it is moved); null when it does not exist. */
 export async function getStagingText(stagingKey: string): Promise<string | null> {
-  if (!stagingKey.startsWith("staging/") || stagingKey.includes("..")) throw new Error("invalid staging key");
+  checkStagingKey(stagingKey);
   try {
     const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: stagingKey }));
     return await r.Body!.transformToString("utf8");

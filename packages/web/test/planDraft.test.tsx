@@ -31,7 +31,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Erro
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
 const { PlansPage } = await import("../src/pages/PlansPage");
-const { waveRuns, isSeedWave, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
+const { waveRuns, isSeedWave, seedIndexes, wavesText, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const now = "2026-10-06T00:00:00.000Z";
@@ -142,6 +142,9 @@ describe("new plan with a draft", () => {
     const docx = new File(["fake"], "notes.docx");
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv, xlsx, pdf, docx]);
     expect(document.body.textContent).toContain("notes.docx: this file type cannot be attached");
+    // a long file name is one token: the message breaks it instead of scrolling sideways at 390 px
+    const msg = qa("div").find((el) => el.textContent === "notes.docx: this file type cannot be attached")!;
+    expect(msg.className).toContain("[overflow-wrap:anywhere]");
     const list = q('[data-testid="plan-file-list"]')!;
     expect(qa("li", list).map((li) => li.textContent?.trim())).toEqual(["language.csv", "abilities.xlsx", "review.pdf"]);
     await click(q<HTMLButtonElement>('button[aria-label="Remove: review.pdf"]', list));
@@ -233,6 +236,30 @@ describe("a draft being written", () => {
     expect(api.getPlan).toHaveBeenCalledTimes(2);
   });
 
+  it("says a draft that reads xlsx / PDF lists or many rows may take up to about half an hour", async () => {
+    api.getPlan.mockResolvedValue(drafting("running"));
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("A draft that reads xlsx or PDF lists or covers more than 20 rows can take up to about half an hour.");
+  });
+
+  it("says a few minutes for a goal or a short list, and half an hour for more than 20 rows", async () => {
+    const short = drafting("running");
+    short.plan.attachments = [{ kind: "file", id: "f1", name: "language.csv", key: "attachments/files/01-language.csv", size: 10, contentType: "text/csv" }];
+    api.getPlan.mockResolvedValue(short);
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("usually within a few minutes");
+    expect(q('[data-testid="plan-drafting"]')!.textContent).not.toContain("half an hour");
+    act(() => root?.unmount());
+    host?.remove();
+
+    const many = drafting("running");
+    many.plan.attachments = [];
+    many.rows = Array.from({ length: 21 }, (_, i) => row(`r${i + 1}`, `ROI ${i + 1}`, `TLF ${i + 1}`, "pending", 1, { source: "csv" }));
+    api.getPlan.mockResolvedValue(many);
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("can take up to about half an hour");
+  });
+
   it("does not cancel when the owner says no", async () => {
     api.getPlan.mockResolvedValue(drafting("queued"));
     await render(`/plans/${PLAN}`);
@@ -307,6 +334,50 @@ describe("a draft written by the plan job", () => {
     expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { policy: "neocortex = area" });
   });
 
+  it("keeps text typed while the policy is being saved, and saves it when the field is left again", async () => {
+    let policy = "neocortex = area × projection class, subcortex = nucleus";
+    api.getPlan.mockImplementation(async () => drafted({ policy }));
+    const saves: (() => void)[] = [];
+    api.updatePlan.mockImplementation((_id: string, b: { policy: string }) => new Promise((res) => saves.push(() => ((policy = b.policy), res({})))));
+    await render(`/plans/${PLAN}`);
+    const field = q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!;
+    const leave = () => act(async () => void field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    await type(field, "AB");
+    await leave();
+    expect(api.updatePlan).toHaveBeenCalledTimes(1);
+    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "AB" });
+    // typed and left again while the first save is in flight: not sent yet, not lost
+    await type(field, "ABC");
+    await leave();
+    expect(api.updatePlan).toHaveBeenCalledTimes(1);
+    await act(async () => saves[0]());
+    expect(field.value).toBe("ABC");
+    expect(api.updatePlan).toHaveBeenCalledTimes(2);
+    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "ABC" });
+    await act(async () => saves[1]());
+    expect(field.value).toBe("ABC");
+    expect(policy).toBe("ABC");
+  });
+
+  it("keeps text typed during a save without leaving the field, and saves it on the next blur", async () => {
+    let policy = "";
+    api.getPlan.mockImplementation(async () => drafted({ policy }));
+    const saves: (() => void)[] = [];
+    api.updatePlan.mockImplementation((_id: string, b: { policy: string }) => new Promise((res) => saves.push(() => ((policy = b.policy), res({})))));
+    await render(`/plans/${PLAN}`);
+    const field = q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!;
+    const leave = () => act(async () => void field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    await type(field, "neocortex");
+    await leave();
+    await type(field, "neocortex = area");
+    await act(async () => saves[0]());
+    // the reload after the first save does not reset the field
+    expect(field.value).toBe("neocortex = area");
+    expect(api.updatePlan).toHaveBeenCalledTimes(1);
+    await leave();
+    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "neocortex = area" });
+  });
+
   it("sends rebuild for an existing project and keeps the priorities when the rows are saved", async () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
@@ -321,13 +392,73 @@ describe("a draft written by the plan job", () => {
     expect(saved.filter((r) => "rebuild" in r)).toHaveLength(1);
   });
 
+  it("shows a stored 「作り直す」 ticked, and sends false only when it is unticked", async () => {
+    const rebuilt = rows.map((r) => (r.rowId === "r4" ? { ...r, existing: null, rebuild: true } : r));
+    api.getPlan.mockResolvedValue(detail("DRAFT", rebuilt, { ordering: "auto" }));
+    await render(`/plans/${PLAN}`);
+    const editor = q('[data-testid="plan-editor"]')!;
+    const boxes = qa<HTMLInputElement>('input[type="checkbox"]', editor);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0].checked).toBe(true);
+    // untouched: the stored choice is sent as it is
+    await type(qa<HTMLInputElement>('input[aria-label="TLF"]', editor)[4], "handwriting");
+    await click(button("Save rows", editor));
+    let saved = vi.mocked(api.savePlanRows).mock.calls[0][1] as Record<string, unknown>[];
+    expect(saved[3]).toEqual({ rowId: "r4", roi: "angular gyrus", tlf: "reading", rationale: "", wave: 3, rebuild: true });
+    expect(saved.filter((r) => "rebuild" in r)).toHaveLength(1);
+    // unticked: false, so the row may be matched with the finished project again
+    await click(qa<HTMLInputElement>('input[type="checkbox"]', editor)[0]);
+    await click(button("Save rows", editor));
+    saved = vi.mocked(api.savePlanRows).mock.calls[1][1] as Record<string, unknown>[];
+    expect(saved[3]).toEqual({ rowId: "r4", roi: "angular gyrus", tlf: "reading", rationale: "", wave: 3, rebuild: false });
+    expect(saved.filter((r) => "rebuild" in r)).toHaveLength(1);
+  });
+
+  it("notes a rebuilt row in the running view", async () => {
+    const rebuilt = rows.map((r) => (r.rowId === "r4" ? { ...r, existing: null, rebuild: true, state: "running" as const, projectId: "p0000011" } : r));
+    api.getPlan.mockResolvedValue(detail("RUNNING", rebuilt, { ordering: "auto", activeWave: 3 }));
+    await render(`/plans/${PLAN}`);
+    const view = q('[data-testid="plan-rows"]')!;
+    expect(qa('[data-testid="row-rebuild"]', view).map((el) => el.textContent)).toEqual(["Rebuild"]);
+    expect(qa('input[type="checkbox"]', view)).toHaveLength(0);
+  });
+
   it("says in the confirmation which rows an existing project covers", async () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     vi.spyOn(window, "confirm").mockReturnValue(false);
     await click(button("Confirm and start"));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Rows with a finished project (1) are marked done without being built."));
+    // each seed row is a wave of its own: the dialog and the summary count the same waves
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 4 · waves: 4"));
+    expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Waves: 4");
+  });
+
+  it("counts a seed moved next to other rows as a body row in the estimate of unsaved rows, as the headings", async () => {
+    api.getPlan.mockResolvedValue(drafted());
+    await render(`/plans/${PLAN}`);
+    const editor = q('[data-testid="plan-editor"]')!;
+    // the second seed goes into wave 3 with r3 (and the existing project's row)
+    await type(qa<HTMLInputElement>('input[aria-label="Wave"]', editor)[1], "3");
+    expect(headings(editor)).toEqual(["Wave 1Seed", "Wave 3", "Wave 4"]);
+    const facts = qa('[data-testid="row-facts"]', editor);
+    expect(facts[0].textContent).toContain("Seed");
+    expect(facts[1].textContent).not.toContain("Seed");
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    await click(button("Confirm and start"));
+    // 1 seed + waves 3 and 4 (not 2 seeds + 2 waves)
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 4 · waves: 3"));
+    const e = planEstimate(
+      [
+        { wave: 1, state: "pending", existing: null, seed: true },
+        { wave: 3, state: "pending", existing: null, seed: false },
+        { wave: 3, state: "pending", existing: null, seed: false },
+        { wave: 4, state: "pending", existing: null, seed: false },
+      ],
+      2,
+    );
+    expect(e.seedRows).toBe(1);
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining(`~${Math.round((e.minutes / 60) * 10) / 10} h`));
   });
 
   it("orders the rows automatically, saving unsaved rows first", async () => {
@@ -366,6 +497,16 @@ describe("a draft written by the plan job", () => {
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-draft-failed"]')!.textContent).toBe("The draft could not be made: no API key");
     expect(q('[data-testid="plan-unread"]')).toBeNull();
+  });
+
+  it("gives the reason a draft could not be started for the owner in the language of the screen", async () => {
+    const error = "No API key to run the job with: register one in Settings, or ask an admin for the default API key.";
+    api.getPlan.mockResolvedValue(drafted({ draft: { kind: "draft", jobId: null, status: "failed", requestedAt: now, requestedBy: "alice", error, errorCode: "no_key" } }));
+    localStorage.setItem("cobrac-locale", "ja");
+    await render(`/plans/${PLAN}`);
+    const failed = q('[data-testid="plan-draft-failed"]')!.textContent!;
+    expect(failed).toBe("下書きを作成できませんでした: ジョブを実行する API キーがありません。設定画面でキーを登録するか、管理者にデフォルトの API キーの利用承認を依頼してください。");
+    expect(failed).not.toContain("No API key");
   });
 
   it("lists the rows of an attached file that could not be read with the file name", async () => {
@@ -470,7 +611,56 @@ describe("re-planning while running", () => {
     await render(`/plans/${PLAN}`);
     const view = q('[data-testid="plan-rows"]')!;
     expect(headings(view)).toEqual(["Wave 1Seed", "Wave 2Seed", "Wave 4current", "Wave 5"]);
-    expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Wave 4 of 5");
+    // four waves numbered 1, 2, 4, 5: the active one keeps its number, without claiming a fifth wave
+    expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Wave 4 (3 of 4)");
+  });
+
+  it("says “wave n of total” when the waves are numbered without gaps", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows.map((r) => ({ ...r, wave: Math.min(r.wave, 3) })), { ordering: "auto", activeWave: 3 }));
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Wave 3 of 3");
+  });
+
+  it("explains when proposals come and that the order is updated after every wave", async () => {
+    api.getPlan.mockResolvedValue(running());
+    await render(`/plans/${PLAN}`);
+    const text = q('[data-testid="plan-proposals"]')!.textContent!;
+    expect(text).toContain("After the first wave, and then each time about a tenth of the plan's rows have finished (after every wave in plans of up to 10 rows)");
+    expect(text).toContain("Nothing changes until you accept.");
+    expect(text).toContain("The order of the rows that have not started is updated after every wave.");
+  });
+
+  it("keeps Accept and Reject busy until the plan has been read again", async () => {
+    api.getPlan.mockResolvedValue(running());
+    await render(`/plans/${PLAN}`);
+    let reloaded!: (d: PlanDetailResponse) => void;
+    api.getPlan.mockImplementationOnce(() => new Promise<PlanDetailResponse>((res) => (reloaded = res)));
+    const first = qa('[data-testid="plan-proposal"]')[0];
+    await click(button("Accept", first));
+    expect(api.proposalAction).toHaveBeenCalledWith(PLAN, "q0000001", "accept");
+    expect(api.getPlan).toHaveBeenCalledTimes(2);
+    // the POST is done but the reload is not: the proposal is still listed, and nothing can be decided twice
+    expect(qa('[data-testid="plan-proposal"]')).toHaveLength(3);
+    for (const b of qa<HTMLButtonElement>('[data-testid="plan-proposal"] button')) expect(b.disabled).toBe(true);
+    await click(button("Reject", qa('[data-testid="plan-proposal"]')[1]));
+    expect(api.proposalAction).toHaveBeenCalledTimes(1);
+
+    const after = running();
+    after.proposals = after.proposals.map((p) => (p.proposalId === "q0000001" ? { ...p, status: "accepted" as const, decidedAt: now, decidedBy: "alice" } : p));
+    await act(async () => reloaded(after));
+    expect(qa('[data-testid="plan-proposal"]')).toHaveLength(2);
+    for (const b of qa<HTMLButtonElement>('[data-testid="plan-proposal"] button')) expect(b.disabled).toBe(false);
+  });
+
+  it("gives the reason a re-plan could not be started in the language of the screen", async () => {
+    api.getPlan.mockResolvedValue(
+      detail("RUNNING", rows, { ordering: "auto", activeWave: 4, replan: { kind: "replan", jobId: null, status: "failed", requestedAt: now, requestedBy: "runner", wave: 2, error: "The model chosen for this plan is not available to the owner.", errorCode: "model_not_allowed" } }),
+    );
+    localStorage.setItem("cobrac-locale", "de");
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-replan"]')!.textContent).toBe(
+      "Neuplanung nach Welle 2: fehlgeschlagen (Das für diesen Plan gewählte Modell steht Ihnen nicht mehr zur Verfügung. Wenden Sie sich an eine Admin-Person.)",
+    );
   });
 });
 
@@ -489,6 +679,24 @@ describe("seed waves next to rows of an existing project", () => {
     // with 「作り直す」 the row is built, so the wave is no longer a seed wave
     await click(qa<HTMLInputElement>('input[type="checkbox"]', q('[data-testid="plan-editor"]')!)[0]);
     expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1", "Wave 2"]);
+  });
+
+  it("labels the seed waves when the rows of existing projects are listed in the last wave", async () => {
+    const last = [
+      row("r1", "left IFG", "speech production", "pending", 1, { seed: true }),
+      row("r2", "STG", "phonological processing", "pending", 2, { seed: true }),
+      row("r3", "arcuate fasciculus", "repetition", "pending", 3),
+      row("r4", "angular gyrus", "reading", "pending", 3, { source: "csv", existing: { projectId: "p0000009", name: "Reading" } }),
+    ];
+    api.getPlan.mockResolvedValue(detail("DRAFT", last, { ordering: "auto" }));
+    await render(`/plans/${PLAN}`);
+    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Seed", "Wave 2Seed", "Wave 3"]);
+    act(() => root?.unmount());
+    host?.remove();
+    // only seeds are built: the last wave is the last seed's, next to the existing project's row
+    api.getPlan.mockResolvedValue(detail("DRAFT", [last[0], { ...last[3], wave: 1 }], { ordering: "auto" }));
+    await render(`/plans/${PLAN}`);
+    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Seed"]);
   });
 
   it("leaves the existing project's cost out of the row in the running view", async () => {
@@ -521,11 +729,19 @@ describe("helpers", () => {
       [2, [2]],
       [1, [3]],
     ]);
-    expect(isSeedWave([{ seed: true }, { seed: true }])).toBe(true);
+    // a seed is built one at a time only while it is the only built row of its wave
+    expect(isSeedWave([{ seed: true }])).toBe(true);
+    expect(isSeedWave([{ seed: true }, { seed: true }])).toBe(false);
     expect(isSeedWave([{ seed: true }, {}])).toBe(false);
     expect(isSeedWave([])).toBe(false);
     expect(isSeedWave([{ seed: true }, { existing: { projectId: "p0000009", name: "Reading" } }, { state: "skipped" }])).toBe(true);
     expect(isSeedWave([{ existing: { projectId: "p0000009", name: "Reading" } }])).toBe(false);
+    expect([...seedIndexes([{ wave: 1, seed: true }, { wave: 2, seed: true }, { wave: 2 }, { wave: 3, seed: true }, { wave: 3, existing: { projectId: "p0000009", name: "Reading" } }, { wave: 4, seed: true, state: "skipped" }])]).toEqual([0, 3]);
+    const tw = (k: string, v?: Record<string, string | number>) => `${k}:${JSON.stringify(v)}`;
+    expect(wavesText([1, 2, 3], null, tw as never)).toBe('plan.waveCount:{"n":3}');
+    expect(wavesText([1, 2, 3], 2, tw as never)).toBe('plan.waveOf:{"n":2,"total":3}');
+    expect(wavesText([1, 3, 5], 3, tw as never)).toBe('plan.waveOfGapped:{"n":3,"i":2,"count":3}');
+    expect(wavesText([], 1, tw as never)).toBe('plan.waveOf:{"n":1,"total":1}');
     expect(shownAnchors(["a", "b", "c", "d", "e", "f"])).toEqual({ shown: ["a", "b", "c", "d"], more: 2 });
     expect(shownAnchors(undefined)).toEqual({ shown: [], more: 0 });
     const t = (k: string, v?: Record<string, string | number>) => `${k}:${JSON.stringify(v)}`;

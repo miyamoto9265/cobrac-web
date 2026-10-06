@@ -48,13 +48,34 @@ export const PLAN_FILE_ACCEPT = PLAN_ATTACHMENT_EXTS.map((e) => `.${e}`).join(",
 /** Stored wave numbers of the rows, ascending (headings show these, not their position). */
 export const planWaves = (rows: { wave: number }[]) => [...new Set(rows.map((r) => r.wave))].sort((a, b) => a - b);
 
+type SeedFacts = { seed?: boolean; existing?: unknown; state?: string };
+/** Rows done by an existing project and skipped rows are not built. */
+const isBuilt = (r: SeedFacts) => !r.existing && r.state !== "skipped";
+
 /**
- * A seed wave (「種」): every row of it that is built is a seed row. Rows done by an existing project keep their wave
- * (often 1, next to the first seed) and skipped rows are not built, so neither counts.
+ * A seed wave (「種」): its only built row is a seed row (a seed put next to other rows by hand runs with them). Rows
+ * done by an existing project (listed in the last wave) and skipped rows are not built, so they do not count.
  */
-export function isSeedWave(rows: { seed?: boolean; existing?: unknown; state?: string }[]): boolean {
-  const built = rows.filter((r) => !r.existing && r.state !== "skipped");
-  return built.length > 0 && built.every((r) => r.seed);
+export function isSeedWave(rows: SeedFacts[]): boolean {
+  const built = rows.filter(isBuilt);
+  return built.length === 1 && !!built[0].seed;
+}
+
+/** Indexes of the rows built one at a time as seeds: seed rows that are the only built row of their wave (as `isSeedWave`). */
+export function seedIndexes(rows: (SeedFacts & { wave: number })[]): Set<number> {
+  const byWave = new Map<number, number[]>();
+  rows.forEach((r, i) => isBuilt(r) && byWave.set(r.wave, [...(byWave.get(r.wave) ?? []), i]));
+  return new Set([...byWave.values()].filter((ix) => ix.length === 1 && rows[ix[0]].seed).map((ix) => ix[0]));
+}
+
+/**
+ * The waves line of the summary. Before confirmation: how many waves. Running: the stored number of the active wave
+ * (as its heading) out of the total, or its position among the waves when the stored numbers have gaps (1, 3, 5).
+ */
+export function wavesText(waves: number[], activeWave: number | null | undefined, t: TFn): string {
+  if (!activeWave) return t("plan.waveCount", { n: waves.length });
+  if (!waves.length || waves.at(-1) === waves.length) return t("plan.waveOf", { n: activeWave, total: Math.max(waves.length, activeWave) });
+  return t("plan.waveOfGapped", { n: activeWave, i: waves.filter((w) => w <= activeWave).length, count: waves.length });
 }
 
 /** Runs of consecutive rows with the same wave, in list order, with each row's index (the draft editor's headings). */

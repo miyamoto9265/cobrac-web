@@ -1,8 +1,8 @@
 // BRA Planner stage 2: drafts written by the `plan` job, capability lists attached at creation, the automatic order,
 // existing projects, plan jobs and the limits, the janitor and the dispatcher for plan jobs.
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePlanResponse, JobRecord, PlanDetailResponse, PlanDraftRow, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord, UsageSummary } from "@cobrac/shared";
-import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, planJobKey, sharedAnchors } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, sharedAnchors } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -34,6 +34,7 @@ const { fake } = await import("./fakeDdb.js");
 const { app } = await import("../src/app.js");
 const aws = await import("../src/lib/aws.js");
 const { advancePlan } = await import("../src/lib/planRunner.js");
+const { planJobInput } = await import("../src/lib/planJobs.js");
 const { resetLimitsCache } = await import("../src/lib/concurrency.js");
 const { handler: dispatcher } = await import("../src/handlers/dispatcher.js");
 const { handler: janitor } = await import("../src/handlers/janitor.js");
@@ -115,13 +116,27 @@ function languageResult(ids: { r01: string; r02: string }): Partial<PlanJobResul
     anchors: i === 3 ? [...r.anchors, "Broca"] : r.anchors,
     // one dependency on a row that is not in the draft (dropped)
     dependsOn: [...(r.dependsOn ?? []).map(id), ...(i === 4 ? ["new99"] : [])],
-    priority: i === 0 ? 2 : null,
+    // the reply schema always gives an integer (0 by default)
+    priority: i === 0 ? 2 : 0,
     // the job names a finished project that covers the row under another ROI wording
     existingProjectId: r.tlf === "semantic comprehension" ? "psemant1" : null,
     source: i < 2 ? "goal" : "capabilities.xlsx row " + (i + 1),
   }));
   return { rows, policy: POLICY, unread: [{ source: "capabilities.xlsx", location: "Sheet1!A14", reason: "not a brain function" }], dropped: 1 };
 }
+
+/** Runs `before` ahead of the DynamoDB calls it picks (it may make calls of its own); undone after each test. */
+function intercept(before: (cmd: { kind: string; input: Record<string, unknown> }) => Promise<void> | void) {
+  const send = fake.send.bind(fake);
+  fake.send = (async (cmd: { kind: string; input: Record<string, unknown> }) => {
+    await before(cmd);
+    return send(cmd as never);
+  }) as typeof fake.send;
+}
+
+afterEach(() => {
+  delete (fake as { send?: unknown }).send;
+});
 
 beforeEach(() => {
   fake.tables.clear();
@@ -265,6 +280,91 @@ describe("plans: drafting with the plan job", () => {
     expect(rowsOf(planId).filter((r) => r.state === "running").map((r) => r.tlf)).toEqual(["speech production"]);
   });
 
+  it("asks for the draft only once every row is stored: a runner step during the writes queues nothing", async () => {
+    const rows = Array.from({ length: 6 }, (_, i) => ({ roi: `R${i}`, tlf: `F${i}` }));
+    const steps: Awaited<ReturnType<typeof advancePlan>>[] = [];
+    let puts = 0;
+    intercept(async (cmd) => {
+      const item = cmd.input.Item as Record<string, unknown> | undefined;
+      // the scheduled runner arrives while the third row is written
+      if (cmd.kind === "Put" && item && String(item.sk).startsWith("ROW#") && ++puts === 3) steps.push(await advancePlan(String(item.planId)));
+    });
+    const created = await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, draft: true, rows }));
+    const planId = created.plan.planId;
+    expect(steps).toEqual([expect.objectContaining({ skipped: "inactive", status: "DRAFT" })]);
+    const [job] = planJobs(planId);
+    expect(planJobs(planId)).toHaveLength(1);
+    expect(inputOf(planId, job.jobId).rows.map((r) => r.tlf)).toEqual(rows.map((r) => r.tlf));
+    expect(created.plan).toMatchObject({ status: "DRAFTING", draft: { status: "queued", jobId: job.jobId } });
+    expect(eventsOf(planId).map((e) => e.type)).toEqual(["created", "draft_requested"]);
+  });
+
+  it("keeps the owner's priorities: the job sees them, and the draft fills in only missing ones", async () => {
+    const csv = "roi,tlf,priority\nleft IFG (areas 44/45),speech production,50\nSTG,phonological processing,-10\nMTG / ITG,naming,\n";
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, csv, draft: true }))).plan.planId;
+    const [job] = planJobs(planId);
+    expect(inputOf(planId, job.jobId).rows.map((r) => [r.tlf, r.priority, r.dependsOn, r.rebuild])).toEqual([
+      ["speech production", 50, [], false],
+      ["phonological processing", -10, [], false],
+      ["naming", null, [], false],
+    ]);
+    // the reply gives every input row a priority (0 is the schema's default)
+    const reply = (tlf: string, priority: number, dependsOn: string[] = []): PlanDraftRow => {
+      const r = rowOf(planId, tlf);
+      return { id: r.rowId, ref: r.rowId, roi: r.roi, tlf, rationale: "", anchors: [], dependsOn, priority, existingProjectId: null, source: "capabilities.csv" };
+    };
+    finishJob(planId, job.jobId, { rows: [reply("speech production", 0), reply("phonological processing", 0), reply("naming", 3, [rowOf(planId, "speech production").rowId])], policy: POLICY });
+    await advancePlan(planId);
+    expect(planOf(planId).status).toBe("DRAFT");
+    expect(rowOf(planId, "speech production").priority).toBe(50);
+    expect(rowOf(planId, "phonological processing").priority).toBe(-10);
+    expect(rowOf(planId, "naming").priority).toBe(3);
+
+    // a second draft sees the dependencies the first one gave
+    await json(call(A, "POST", `/plans/${planId}/draft`, {}));
+    const second = planJobs(planId).find((j) => j.jobId !== job.jobId)!;
+    expect(inputOf(planId, second.jobId).rows.find((r) => r.tlf === "naming")).toMatchObject({ priority: 3, dependsOn: [rowOf(planId, "speech production").rowId] });
+  });
+
+  it("keeps 「作り直す」: the row is built, and a new draft does not mark it existing again", async () => {
+    project("pprosody", "anterior STG", "prosody");
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, rows: [{ roi: "left IFG (areas 44/45)", tlf: "speech production" }, { roi: "anterior STG", tlf: "prosody" }] }))).plan.planId;
+    expect(rowOf(planId, "prosody").existing).toMatchObject({ projectId: "pprosody" });
+    const edit = (rebuild?: boolean) =>
+      rowsOf(planId)
+        .sort(byWaveAndOrder)
+        .map((r) => ({ rowId: r.rowId, roi: r.roi, tlf: r.tlf, wave: r.wave, ...(r.tlf === "prosody" && rebuild !== undefined ? { rebuild } : {}) }));
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit(true) }));
+    expect(rowOf(planId, "prosody")).toMatchObject({ rebuild: true, existing: null, duplicateOf: null });
+    // saved again without the flag: the choice stays
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit() }));
+    expect(rowOf(planId, "prosody")).toMatchObject({ rebuild: true, existing: null });
+    // only an explicit false undoes it: the row is matched again
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit(false) }));
+    expect(rowOf(planId, "prosody").rebuild).toBeUndefined();
+    expect(rowOf(planId, "prosody").existing).toMatchObject({ projectId: "pprosody" });
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit(true) }));
+
+    // a new draft: the job is told, and naming the finished project does not undo the choice
+    await json(call(A, "POST", `/plans/${planId}/draft`, {}));
+    const [job] = planJobs(planId);
+    expect(inputOf(planId, job.jobId).rows.find((r) => r.tlf === "prosody")).toMatchObject({ rebuild: true, existing: false, projectId: null });
+    const reply = (tlf: string, anchors: string[], existingProjectId: string | null): PlanDraftRow => {
+      const r = rowOf(planId, tlf);
+      return { id: r.rowId, ref: r.rowId, roi: r.roi, tlf, rationale: "", anchors, dependsOn: [], priority: 0, existingProjectId, source: "goal" };
+    };
+    finishJob(planId, job.jobId, { rows: [reply("speech production", bna(29, 33), null), reply("prosody", bna(79, 77), "pprosody")], policy: POLICY });
+    await advancePlan(planId);
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", ordering: "auto" });
+    expect(rowOf(planId, "prosody")).toMatchObject({ rebuild: true, existing: null, anchors: bna(79, 77) });
+
+    // confirmed: the row is built, not done by the finished project
+    await setLimits(4, 4);
+    await json(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    expect(rowOf(planId, "prosody")).toMatchObject({ state: "running", existing: null });
+    expect(rowOf(planId, "prosody").projectId).not.toBe("pprosody");
+  });
+
   it("goes back to an editable draft with the error when the job fails or its result cannot be read", async () => {
     const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, draft: true }))).plan.planId;
     const [job] = planJobs(planId);
@@ -305,9 +405,15 @@ describe("plans: drafting with the plan job", () => {
     user(A, { apiKeyRegistered: false, encryptedApiKey: "" });
     fake.put("jobs", { ...jobs().find((j) => j.jobId === "job_busy")!, status: "COMPLETED" } as never);
     await advancePlan(planId);
-    expect(planOf(planId)).toMatchObject({ status: "DRAFT", draft: { status: "failed" } });
+    // the reason as a code, so the page can say it in the owner's language
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", draft: { status: "failed", errorCode: "no_key" } });
     expect(planOf(planId).draft!.error).toMatch(/API key/);
     expect(planJobs(planId)).toEqual([]);
+
+    // a new request starts without the old reason
+    user(A);
+    await json(call(A, "POST", `/plans/${planId}/draft`, {}));
+    expect(planOf(planId).draft).toMatchObject({ status: "queued", error: null, errorCode: null });
   });
 
   it("cancels a draft: its job and task are stopped and the rows can be edited again", async () => {
@@ -389,6 +495,22 @@ describe("plans: capability lists attached at creation", () => {
     const [job] = planJobs(planId);
     expect(inputOf(planId, job.jobId).attachments).toEqual([{ id: "f2", name: "list.xlsx", key: "attachments/files/02-list.xlsx" }]);
     expect(inputOf(planId, job.jobId).rows).toHaveLength(5);
+    // a re-plan job works from the rows: it gets no files to read
+    const rows = rowsOf(planId);
+    const replan = planJobInput(planOf(planId), { kind: "replan", jobId: "job_r", rows, projects: [], canons: [], concurrency: 1, wave: 1, locale: null });
+    expect(replan.attachments).toEqual([]);
+    expect(planJobInput(planOf(planId), { kind: "draft", jobId: "job_d", rows, projects: [], canons: [], concurrency: 1, wave: null, locale: null }).attachments).toHaveLength(1);
+  });
+
+  it("accepts file names with inner dots", async () => {
+    staged("up_csv00002", "capabilities..v2.csv", "roi,tlf\nSTG,phonological processing\n");
+    staged("up_pdf00002", "list...pdf", "%PDF-1.7");
+    const r = await json<CreatePlanResponse>(
+      call(A, "POST", "/plans", { name: "Language", attachments: [{ uploadId: "up_csv00002", name: "capabilities..v2.csv" }, { uploadId: "up_pdf00002", name: "list...pdf" }] }),
+    );
+    expect(r.rows.map((x) => x.tlf)).toEqual(["phonological processing"]);
+    expect(r.plan.attachments!.map((a) => a.key)).toEqual(["attachments/files/01-capabilities..v2.csv", "attachments/files/02-list...pdf"]);
+    expect(s3.get(`plans/${r.plan.planId}/attachments/files/02-list...pdf`)).toBe("%PDF-1.7");
   });
 });
 
@@ -406,13 +528,48 @@ describe("plans: order without the LLM, and manual edits", () => {
     expect(rowOf(planId, "speech production")).toMatchObject({ seed: true, wave: 1 });
     expect(rowOf(planId, "phonological processing")).toMatchObject({ seed: true, wave: 2 });
     expect(eventsOf(planId).at(-1)).toMatchObject({ type: "ordered", detail: { rows: 12, seeds: 2 } });
+    // the row an existing project covers is listed with the last wave, not next to the first seed
+    const lastWave = Math.max(...rowsOf(planId).map((r) => r.wave));
+    expect(lastWave).toBeGreaterThan(2);
+    expect(rowOf(planId, "prosody")).toMatchObject({ wave: lastWave, seed: false });
+    expect(ordered.rows.at(-1)!.tlf).toBe("prosody");
 
-    // a manual edit keeps the owner's waves and the rows' anchors; rebuild drops the existing project
-    const rows = ordered.rows.map((r) => ({ rowId: r.rowId, roi: r.roi, tlf: r.tlf, wave: r.wave, ...(r.tlf === "prosody" ? { rebuild: true } : {}) }));
-    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows }));
-    expect(planOf(planId).ordering).toBe("manual");
+    // 「作り直す」 alone keeps the automatic order, which now places the row among the rows to build
+    const edit = (patch: (r: PlanRowRecord) => Record<string, unknown> = () => ({})) =>
+      rowsOf(planId)
+        .sort(byWaveAndOrder)
+        .map((r) => ({ rowId: r.rowId, roi: r.roi, tlf: r.tlf, rationale: r.rationale, wave: r.wave, ...patch(r) }));
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit((r) => (r.tlf === "prosody" ? { rebuild: true } : {})) }));
+    expect(planOf(planId).ordering).toBe("auto");
+    expect(rowOf(planId, "prosody")).toMatchObject({ rebuild: true, existing: null, duplicateOf: null, seed: false });
+    expect(rowOf(planId, "prosody").wave).toBeGreaterThan(2);
+    expect(rowsOf(planId).filter((r) => r.wave === 1).map((r) => r.tlf)).toEqual(["speech production"]);
     expect(rowOf(planId, "speech production")).toMatchObject({ seed: true, wave: 1, anchors: LANGUAGE[0].anchors, anchorsSource: "predicted" });
-    expect(rowOf(planId, "prosody").existing).toBeNull();
+    for (const w of new Set(rowsOf(planId).map((r) => r.wave))) {
+      const members = rowsOf(planId).filter((r) => r.wave === w);
+      expect(members.length).toBeLessThanOrEqual(4);
+      for (let i = 0; i < members.length; i++) for (let j = i + 1; j < members.length; j++) expect(sharedAnchors(members[i].anchors, members[j].anchors)).toBeLessThan(OVERLAP_LIMIT);
+    }
+    // a rationale alone changes neither the ordering nor a wave
+    const waves = Object.fromEntries(rowsOf(planId).map((r) => [r.rowId, r.wave]));
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit((r) => (r.tlf === "reading" ? { rationale: "Visual word form area to angular gyrus." } : {})) }));
+    expect(planOf(planId).ordering).toBe("auto");
+    expect(rowOf(planId, "reading").rationale).toBe("Visual word form area to angular gyrus.");
+    expect(Object.fromEntries(rowsOf(planId).map((r) => [r.rowId, r.wave]))).toEqual(waves);
+    // rows in another order are the owner's order
+    const swapped = edit();
+    [swapped[3], swapped[4]] = [swapped[4], swapped[3]];
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: swapped }));
+    expect(planOf(planId).ordering).toBe("manual");
+    await json(call(A, "POST", `/plans/${planId}/order`));
+
+    // a wave changed by hand: the owner's waves; a seed that shares its wave is no seed any more
+    await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: edit((r) => (r.tlf === "phonological processing" ? { wave: 3 } : {})) }));
+    expect(planOf(planId).ordering).toBe("manual");
+    expect(rowsOf(planId).filter((r) => r.wave === 3).length).toBeGreaterThan(1);
+    expect(rowOf(planId, "phonological processing")).toMatchObject({ wave: 3, seed: false });
+    expect(rowOf(planId, "speech production")).toMatchObject({ wave: 1, seed: true });
+    expect((await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`))).estimate.seedRows).toBe(1);
     // a new row matching a finished project is existing
     await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: rowsOf(planId).filter((r) => r.tlf !== "prosody").map((r) => ({ rowId: r.rowId, roi: r.roi, tlf: r.tlf, wave: r.wave })).concat([{ roi: "anterior STG", tlf: "prosody" } as never]) }));
     expect(rowOf(planId, "prosody").existing).toMatchObject({ projectId: "pprosody" });
@@ -425,6 +582,34 @@ describe("plans: order without the LLM, and manual edits", () => {
     await json(call(A, "PUT", `/plans/${planId}/rows`, { rows: many }));
     expect(Math.max(...rowsOf(planId).map((r) => r.wave))).toBeGreaterThan(99);
     expect(await status(call(A, "PUT", `/plans/${planId}/rows`, { rows: [{ roi: "A", tlf: "a", wave: 201 }] }))).toBe(400);
+  });
+
+  it("checks an existing project again at confirmation: a deleted or unfinished one no longer covers its row", async () => {
+    await setLimits(4, 4);
+    project("pprosody", "anterior STG", "prosody");
+    project("pnaming1", "MTG / ITG", "naming");
+    project("pwriting", "Exner's area", "writing");
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", rows: LANGUAGE.map((r) => ({ roi: r.roi, tlf: r.tlf })) }))).plan.planId;
+    for (const l of LANGUAGE) fake.put("plans", { ...rowOf(planId, l.tlf), anchors: l.anchors, anchorsSource: "predicted" } as never);
+    await json(call(A, "POST", `/plans/${planId}/order`));
+    for (const tlf of ["prosody", "naming", "writing"]) expect(rowOf(planId, tlf).existing).toBeTruthy();
+    // meanwhile the owner deletes one project and starts a follow-up of another
+    project("pprosody", "anterior STG", "prosody", { deletedAt: now });
+    project("pnaming1", "MTG / ITG", "naming", { status: "RUNNING" });
+
+    const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    expect(rowOf(planId, "writing")).toMatchObject({ state: "done", projectId: "pwriting" });
+    expect(rowOf(planId, "prosody")).toMatchObject({ existing: null, duplicateOf: null });
+    expect(rowOf(planId, "naming")).toMatchObject({ existing: null, duplicateOf: "pnaming1" });
+    for (const tlf of ["prosody", "naming"]) {
+      expect(rowOf(planId, tlf).state).not.toBe("done");
+      expect(["pprosody", "pnaming1"]).not.toContain(rowOf(planId, tlf).projectId);
+    }
+    // both are built in body waves of the automatic order, after the seeds
+    const seeds = rowsOf(planId).filter((r) => r.seed).length;
+    for (const tlf of ["prosody", "naming"]) expect(rowOf(planId, tlf).wave).toBeGreaterThan(seeds);
+    expect(confirmed.estimate).toMatchObject({ rows: 11 });
+    expect(eventsOf(planId).find((e) => e.type === "confirmed")).toMatchObject({ detail: { rows: 12, existingGone: 2 } });
   });
 
   it("edits the policy of a draft only", async () => {

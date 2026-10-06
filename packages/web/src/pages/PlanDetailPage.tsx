@@ -1,14 +1,14 @@
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, FileUp, ListChecks, Loader2, Pause, Pencil, Play, Plus, RotateCcw, Save, Send, SkipForward, Sparkles, Square, Trash2, Wand2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { PlanDetailResponse, PlanEventRecord, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, ReasoningEffort } from "@cobrac/shared";
-import { MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, planEstimate } from "@cobrac/shared";
+import type { PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, ReasoningEffort } from "@cobrac/shared";
+import { MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, planEstimate } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, fmtDuration, fmtElapsed, isSeedWave, planPath, planWaves, shownAnchors, splitIntoWaves, waveRuns } from "../lib/plan";
+import { ROW_STATE_COLOR, ROW_STATE_ORDER, fmtDuration, fmtElapsed, isSeedWave, planPath, planWaves, seedIndexes, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
 import { inputCls, primaryBtn } from "./CanonsPage";
 import { PlanStatusBadge } from "./PlansPage";
 
@@ -30,12 +30,16 @@ interface DraftRow {
   priority?: number | null;
   /** The row as last read (seed, anchors, existing project…), shown read-only; absent on new rows */
   view?: PlanRowView;
-  /** Build the row although a finished project covers it */
+  /** 「作り直す」: build the row although a finished project covers it (stored on the row once saved) */
   rebuild?: boolean;
 }
 
 let draftSeq = 0;
-const toDraft = (r: PlanRowView): DraftRow => ({ key: r.rowId ?? `new${++draftSeq}`, rowId: r.rowId, roi: r.roi, tlf: r.tlf, rationale: r.rationale, wave: r.wave, priority: r.priority, view: r });
+const toDraft = (r: PlanRowView): DraftRow => ({ key: r.rowId ?? `new${++draftSeq}`, rowId: r.rowId, roi: r.roi, tlf: r.tlf, rationale: r.rationale, wave: r.wave, priority: r.priority, view: r, rebuild: !!r.rebuild });
+/** What decides the seeds of rows being edited (a row ticked 「作り直す」 is built). */
+const seedFactsOf = (rows: DraftRow[]) => rows.map((r) => ({ wave: r.wave, seed: !!r.view?.seed, existing: r.rebuild ? null : (r.view?.existing ?? null), state: "pending" as const }));
+/** Why a plan job failed: the reason in the screen's language when the owner could not run it, else the job's own error. */
+const jobError = (j: PlanJobState, t: TFn) => (j.errorCode ? t(`plan.jobError.${j.errorCode}` as MessageKey) : (j.error ?? ""));
 
 const rowLabel = (r: { roi: string; tlf: string }) => [r.tlf, r.roi].filter((s) => s.trim()).join(" in ");
 /** Short name of a row for the lists of other rows (overlaps, dependencies). */
@@ -81,7 +85,7 @@ function DraftOutcome({ plan }: { plan: PlanRecord }) {
   if (j.status === "failed")
     return (
       <div className="mb-3 break-words rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700" data-testid="plan-draft-failed">
-        {t("plan.draftFailed", { error: j.error || "—" })}
+        {t("plan.draftFailed", { error: jobError(j, t) || "—" })}
       </div>
     );
   if (j.status === "cancelled") return <p className="mb-3 text-xs text-slate-500">{t("plan.draftCancelled")}</p>;
@@ -116,16 +120,18 @@ function DraftOutcome({ plan }: { plan: PlanRecord }) {
 }
 
 /** A draft being written by its job: how far it is, and a way to stop it. */
-function DraftJobBanner({ plan, busy, onCancel }: { plan: PlanRecord; busy: boolean; onCancel: () => void }) {
+function DraftJobBanner({ plan, rows, busy, onCancel }: { plan: PlanRecord; rows: number; busy: boolean; onCancel: () => void }) {
   const t = useT();
   const j = plan.draft;
+  // the job gets the long budget for xlsx / PDF lists or many rows (as planJobBudgetMs)
+  const long = (plan.attachments ?? []).some((a) => !isDeterministicPlanAttachment(a.name)) || rows > PLAN_JOB_SHORT_ROWS;
   return (
     <div className="mb-3 flex flex-col gap-2 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700 sm:flex-row sm:items-center" data-testid="plan-drafting" role="status">
       <div className="flex min-w-0 flex-1 items-start gap-2">
         <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin" aria-hidden />
         <div className="min-w-0">
           <div className="font-medium">{t("plan.drafting", { state: t(`plan.job.${j?.status ?? "waiting"}` as MessageKey), time: fmtElapsed(j?.requestedAt, Date.now(), t) })}</div>
-          <div className="text-xs">{t("plan.draftingNote")}</div>
+          <div className="text-xs">{long ? t("plan.draftingNoteLong", { n: PLAN_JOB_SHORT_ROWS }) : t("plan.draftingNote")}</div>
         </div>
       </div>
       <button type="button" disabled={busy} onClick={onCancel} className={`${secondaryBtn} shrink-0 text-slate-700`}>
@@ -173,7 +179,7 @@ function Summary({ d }: { d: PlanDetailResponse }) {
         </div>
       </Stat>
       <Stat label={t("plan.waves")}>
-        <div className="font-medium">{plan.activeWave ? t("plan.waveOf", { n: plan.activeWave, total: waves.at(-1) ?? plan.activeWave }) : t("plan.waveCount", { n: waves.length })}</div>
+        <div className="font-medium">{wavesText(waves, plan.activeWave, t)}</div>
         <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
           {t("plan.concurrency", { n: limits.effective })}
           <HelpTip
@@ -265,22 +271,41 @@ function Policy({ plan, onSaved, onError }: { plan: PlanRecord; onSaved: () => P
   const editable = plan.status === "DRAFT";
   // null: not edited, the stored text is shown (and follows reloads)
   const [text, setText] = useState<string | null>(null);
-  const saving = useRef(false);
+  // the text as typed (a save that ends reads it), the text being saved, and a blur while it is saved
+  const typed = useRef<string | null>(null);
+  const sending = useRef<string | null>(null);
+  const blurred = useRef(false);
   const stored = plan.policy ?? "";
   if (!editable && !stored.trim()) return null;
+  const edit = (v: string | null) => {
+    typed.current = v;
+    setText(v);
+  };
+  const send = (value: string) => {
+    sending.current = value;
+    api
+      .updatePlan(plan.planId, { policy: value })
+      .then(() => onSaved())
+      // text typed meanwhile stays
+      .then(() => typed.current === value && edit(null))
+      .catch(onError)
+      .finally(() => {
+        sending.current = null;
+        const again = blurred.current;
+        blurred.current = false;
+        // the field was left again during the save with other text: save that too
+        if (again && typed.current !== null && typed.current !== value) send(typed.current);
+      });
+  };
   const save = () => {
-    if (text === null || saving.current) return;
-    if (text === stored) {
-      setText(null);
+    const now = typed.current;
+    if (now === null) return;
+    if (sending.current !== null) {
+      blurred.current = true;
       return;
     }
-    saving.current = true;
-    api
-      .updatePlan(plan.planId, { policy: text })
-      .then(() => onSaved())
-      .then(() => setText(null))
-      .catch(onError)
-      .finally(() => (saving.current = false));
+    if (now === stored) edit(null);
+    else send(now);
   };
   return (
     <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-policy">
@@ -290,7 +315,7 @@ function Policy({ plan, onSaved, onError }: { plan: PlanRecord; onSaved: () => P
       {editable ? (
         <textarea
           value={text ?? stored}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => edit(e.target.value)}
           onBlur={save}
           rows={2}
           maxLength={2000}
@@ -394,11 +419,12 @@ function Attention({ rows, act }: { rows: PlanRowView[]; act: (rowId: string, ac
   );
 }
 
-type RowFactsOf = Pick<Partial<PlanRowView>, "seed" | "anchors" | "hub" | "overlaps" | "existing" | "duplicateOf" | "dependsOn">;
+type RowFactsOf = Pick<Partial<PlanRowView>, "seed" | "anchors" | "hub" | "overlaps" | "existing" | "duplicateOf" | "dependsOn" | "rebuild">;
 
 /**
- * What the plan knows about a row besides ROI × TLF: seed, finished project that covers it (with 「作り直す」 in the
- * editor), unfinished project with the same ROI × TLF, anchors, hub score, overlapping rows and dependencies.
+ * What the plan knows about a row besides ROI × TLF: seed, finished project that covers it or 「作り直す」 (a checkbox
+ * in the editor, a note elsewhere), unfinished project with the same ROI × TLF, anchors, hub score, overlapping rows
+ * and dependencies.
  */
 function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: ReadonlyMap<string, string>; rebuild?: { checked: boolean; onChange: (v: boolean) => void } }) {
   const t = useT();
@@ -407,7 +433,7 @@ function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: ReadonlyMap
   const others = (ids: string[]) => ids.map((id) => names.get(id) ?? id).join(t("plan.sep"));
   const overlaps = row.overlaps ?? [];
   const deps = row.dependsOn ?? [];
-  if (!row.seed && !row.existing && !row.duplicateOf && !anchors.length && !overlaps.length && !deps.length) return null;
+  if (!row.seed && !row.existing && !row.rebuild && !row.duplicateOf && !anchors.length && !overlaps.length && !deps.length) return null;
   return (
     <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px]" data-testid="row-facts">
       {row.seed && (
@@ -423,11 +449,16 @@ function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: ReadonlyMap
           </Link>
         </span>
       )}
-      {row.existing && rebuild && (
-        <label className="inline-flex items-center gap-1 text-slate-600 coarse:min-h-11">
+      {(row.existing || row.rebuild) && rebuild && (
+        <label className="inline-flex items-center gap-1 text-slate-600 coarse:min-h-11" title={t("plan.rebuildHelp")}>
           <input type="checkbox" checked={rebuild.checked} onChange={(e) => rebuild.onChange(e.target.checked)} />
           {t("plan.rebuild")}
         </label>
+      )}
+      {row.rebuild && !rebuild && (
+        <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-700" title={t("plan.rebuildHelp")} data-testid="row-rebuild">
+          {t("plan.rebuild")}
+        </span>
       )}
       {row.duplicateOf && (
         <Link to={projectPath(row.duplicateOf)} className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-amber-800 hover:underline" title={t("plan.duplicateHelp")}>
@@ -475,6 +506,8 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
   const t = useT();
   const waves = planWaves(d.rows);
   const names = useMemo(() => new Map(d.rows.map((r) => [r.rowId, rowName(r)])), [d.rows]);
+  // 「種」 on a row only while it is the seed of its wave (as the headings)
+  const seeds = useMemo(() => new Set([...seedIndexes(d.rows)].map((i) => d.rows[i].rowId)), [d.rows]);
   const canSkip = d.plan.status === "RUNNING" || d.plan.status === "PAUSED" || d.plan.status === "CANCELLED";
   return (
     <section className="mb-5" data-testid="plan-rows">
@@ -494,7 +527,7 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
                       <span className="text-slate-500"> · {r.roi || "—"}</span>
                     </div>
                     {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
-                    <RowFacts row={r} names={names} />
+                    <RowFacts row={{ ...r, seed: seeds.has(r.rowId) }} names={names} />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     {r.projectId && (
@@ -544,6 +577,8 @@ function DraftEditor({
   const { planId } = d.plan;
   // names of other rows for overlaps and dependencies: as edited, else as last read
   const names = useMemo(() => new Map([...d.rows.map((r) => [r.rowId, rowName(r)] as const), ...rows.filter((r) => r.rowId).map((r) => [r.rowId!, rowName(r)] as const)]), [d.rows, rows]);
+  // seeds of the rows as edited (a seed moved next to other rows is no longer one), for the headings and the chips
+  const seeds = useMemo(() => seedIndexes(seedFactsOf(rows)), [rows]);
 
   useEffect(() => {
     if (!dirty) setRows(d.rows.map(toDraft));
@@ -570,7 +605,8 @@ function DraftEditor({
         rationale: r.rationale,
         wave: r.wave,
         ...(typeof r.priority === "number" ? { priority: r.priority } : {}),
-        ...(r.rebuild ? { rebuild: true } : {}),
+        // unticking a saved 「作り直す」 sends false; rows never ticked send nothing (the stored value is kept)
+        ...(r.rebuild ? { rebuild: true } : r.view?.rebuild ? { rebuild: false } : {}),
       })),
     );
     setDirty(false);
@@ -616,7 +652,7 @@ function DraftEditor({
       <ul className="grid gap-2">
         {waveRuns(rows).flatMap((runOf) => [
           <li key={`wave-${runOf.items[0].row.key}`} className="pt-1">
-            <WaveHeading wave={runOf.wave} seed={isSeedWave(runOf.items.map((x) => ({ seed: x.row.view?.seed, existing: x.row.rebuild ? null : x.row.view?.existing })))} className="" />
+            <WaveHeading wave={runOf.wave} seed={runOf.items.some((x) => seeds.has(x.index))} className="" />
           </li>,
           ...runOf.items.map(({ row: r, index: i }) => (
             <li key={r.key} className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-white p-2 sm:grid-cols-[4.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_6.5rem]">
@@ -641,7 +677,7 @@ function DraftEditor({
               </div>
               {r.view && (
                 <div className="col-span-2 min-w-0 empty:hidden sm:col-span-5">
-                  <RowFacts row={r.view} names={names} rebuild={{ checked: !!r.rebuild, onChange: (v) => patch(i, { rebuild: v }) }} />
+                  <RowFacts row={{ ...r.view, seed: seeds.has(i) }} names={names} rebuild={{ checked: !!r.rebuild, onChange: (v) => patch(i, { rebuild: v }) }} />
                 </div>
               )}
             </li>
@@ -731,7 +767,7 @@ function Proposals({ d, busy, decide }: { d: PlanDetailResponse; busy: boolean; 
   const line = replan ? (
     <p className="break-words text-xs text-slate-500" data-testid="plan-replan">
       {t("plan.replanLine", { wave: replan.wave ?? "—", state: t(`plan.job.${replan.status}` as MessageKey) })}
-      {replan.status === "failed" && replan.error ? ` (${replan.error})` : ""}
+      {replan.status === "failed" && jobError(replan, t) ? ` (${jobError(replan, t)})` : ""}
     </p>
   ) : null;
   if (!open.length) return line ? <div className="mb-5">{line}</div> : null;
@@ -872,12 +908,10 @@ export function PlanDetailPage() {
   const rowAct = (rowId: string, action: "retry" | "skip") => act(() => api.planRowAction(planId, rowId, action));
   const confirm = () => {
     const unsaved = saveRef.current;
-    const e = unsaved
-      ? planEstimate(
-          unsaved.rows.map((r) => ({ wave: r.wave, state: "pending" as const, existing: r.rebuild ? null : (r.view?.existing ?? null), seed: !!r.view?.seed })),
-          d.limits.effective,
-        )
-      : d.estimate;
+    // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「種」 headings)
+    const facts = unsaved ? seedFactsOf(unsaved.rows) : [];
+    const seeds = seedIndexes(facts);
+    const e = unsaved ? planEstimate(facts.map((f, i) => ({ ...f, seed: seeds.has(i) })), d.limits.effective) : d.estimate;
     const existing = unsaved ? unsaved.rows.filter((r) => r.view?.existing && !r.rebuild).length : rows.filter((r) => r.existing).length;
     const text = [
       t("plan.confirmQ", { n: e.rows, waves: e.waves, c: e.concurrency, time: fmtDuration(e.minutes, t), cost: `${formatUsd(e.costUsd.min)}–${formatUsd(e.costUsd.max)}` }),
@@ -899,7 +933,15 @@ export function PlanDetailPage() {
     });
   };
   const cancelDraft = () => window.confirm(t("plan.cancelDraftQ")) && act(() => api.cancelDraft(planId));
-  const decide = (p: PlanProposalRecord, action: "accept" | "reject") => act(() => api.proposalAction(planId, p.proposalId, action));
+  // busy until the plan is read again, so a decided proposal cannot be decided twice
+  const decide = (p: PlanProposalRecord, action: "accept" | "reject") =>
+    act(
+      async () => {
+        await api.proposalAction(planId, p.proposalId, action);
+        await load();
+      },
+      () => {},
+    );
   const banner =
     plan.status === "DRAFT"
       ? { cls: "bg-blue-50 text-blue-700", text: t("plan.draftNote") }
@@ -953,7 +995,7 @@ export function PlanDetailPage() {
         </div>
         {plan.goal && <p className="mb-3 whitespace-pre-line break-words text-sm text-slate-600">{plan.goal}</p>}
         {!!plan.attachments?.length && <p className="mb-3 break-words text-xs text-slate-500">{t("plan.attachments", { names: plan.attachments.map((a) => a.name).join(t("plan.sep")) })}</p>}
-        {plan.status === "DRAFTING" && <DraftJobBanner plan={plan} busy={busy} onCancel={cancelDraft} />}
+        {plan.status === "DRAFTING" && <DraftJobBanner plan={plan} rows={rows.length} busy={busy} onCancel={cancelDraft} />}
         {banner && <div className={`mb-3 rounded-md px-3 py-2 text-sm ${banner.cls}`}>{banner.text}</div>}
         {err && <div className="mb-3 break-words rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
         {plan.status === "DRAFT" && <DraftOutcome plan={plan} />}
