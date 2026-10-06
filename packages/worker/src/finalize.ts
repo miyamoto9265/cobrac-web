@@ -28,6 +28,8 @@ export interface FinalizeOptions {
   templatePath?: string;
   /** Uploads (default: S3); tests pass a stub */
   put?: (key: string, body: Buffer | string, contentType?: string) => Promise<void>;
+  /** Hypothesis mode: the graphs read signs and ROI tags without the hypothesis lines of the Comments */
+  hypothesisLines?: boolean;
 }
 
 /**
@@ -84,6 +86,7 @@ export async function finalizeProject(
     connectionsCsv: await read("Connections.csv"),
     frgCsv: await read("FRG.csv"),
     referencesCsv: await read("References.csv"),
+    ...(opts.hypothesisLines ? { hypothesisLines: true } : {}),
   });
   await put(`${prefix}graph/hcd.json`, JSON.stringify(hcd), "application/json");
   await put(`${prefix}graph/frg.json`, JSON.stringify(frg), "application/json");

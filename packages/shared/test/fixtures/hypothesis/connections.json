@@ -1,0 +1,130 @@
+{
+  "bif": [
+    {
+      "sender": "vestibular nuclei",
+      "receiver": "flocculus",
+      "comment": "mossy fibres",
+      "referenceIds": ["[Ito, 1982]"]
+    },
+    {
+      "sender": "inferior olive",
+      "receiver": "flocculus",
+      "comment": "climbing fibres",
+      "referenceIds": ["[Lisberger, 1994]"]
+    }
+  ],
+  "connections": [
+    {
+      "sender": "VN",
+      "senderRelation": "=",
+      "senderInLiterature": "vestibular nuclei",
+      "receiver": "GC(granule)",
+      "receiverRelation": "=",
+      "receiverInLiterature": "granule cells",
+      "comment": "mossy fibres",
+      "referenceIds": ["[Ito, 1982]"],
+      "taxon": "Rabbit",
+      "measurementMethod": "Axonal tracing",
+      "pointersOnLiterature": "Mossy fibres from the vestibular nuclei terminate on granule cells of the flocculus in the rabbit.",
+      "pointersOnFigure": "Fig. 1"
+    },
+    {
+      "sender": "VN",
+      "senderRelation": "=",
+      "senderInLiterature": "vestibular nuclei",
+      "receiver": "IO",
+      "receiverRelation": "=",
+      "receiverInLiterature": "inferior olive",
+      "comment": "co-activation of vestibular and olivary neurons",
+      "referenceIds": ["[Lisberger, 1994]"],
+      "taxon": "Macaque",
+      "measurementMethod": "Electro physiology",
+      "pointersOnLiterature": "Activity in the vestibular nuclei and the inferior olive was correlated during adaptation of the reflex in monkeys.",
+      "pointersOnFigure": "",
+      "hypothesis": {
+        "claims": ["direction"],
+        "basis": "indirect",
+        "rationale": "Vestibular and olivary activity are correlated in the monkey [Lisberger, 1994]; no paper found states that the vestibular nuclei drive the inferior olive rather than the reverse.",
+        "premises": ["[Lisberger, 1994]"],
+        "scope": "S1"
+      }
+    },
+    {
+      "sender": "VN",
+      "senderRelation": "=",
+      "senderInLiterature": "vestibular nuclei",
+      "receiver": "GoC(golgi)",
+      "receiverRelation": "=",
+      "receiverInLiterature": "Golgi cells",
+      "comment": "mossy fibre collaterals",
+      "referenceIds": ["[Ito, 1982]"],
+      "taxon": "Rabbit",
+      "measurementMethod": "Axonal tracing",
+      "pointersOnLiterature": "Mossy fibre collaterals from the vestibular nuclei also contact Golgi cells in the granular layer of the flocculus.",
+      "pointersOnFigure": "Fig. 2"
+    },
+    {
+      "sender": "GC(granule)",
+      "senderRelation": "=",
+      "senderInLiterature": "granule cells",
+      "receiver": "PC(purkinje)",
+      "receiverRelation": "=",
+      "receiverInLiterature": "Purkinje cells",
+      "comment": "parallel fibres",
+      "referenceIds": ["[Ito, 1982]"],
+      "taxon": "Rabbit",
+      "measurementMethod": "Axonal tracing",
+      "pointersOnLiterature": "Parallel fibres of the granule cells make excitatory synapses on the dendrites of Purkinje cells in the flocculus.",
+      "pointersOnFigure": "Fig. 3"
+    },
+    {
+      "sender": "IO",
+      "senderRelation": "=",
+      "senderInLiterature": "inferior olive",
+      "receiver": "PC(purkinje)",
+      "receiverRelation": "=",
+      "receiverInLiterature": "Purkinje cells",
+      "comment": "climbing fibres",
+      "referenceIds": ["[Lisberger, 1994]"],
+      "taxon": "Macaque",
+      "measurementMethod": "Axonal tracing",
+      "pointersOnLiterature": "Climbing fibres from the inferior olive terminate on floccular Purkinje cells and carry the retinal slip signal.",
+      "pointersOnFigure": "Fig. 4"
+    },
+    {
+      "sender": "GoC(golgi)",
+      "senderRelation": "=",
+      "senderInLiterature": "Golgi cells",
+      "receiver": "GC(granule)",
+      "receiverRelation": "=",
+      "receiverInLiterature": "granule cells",
+      "comment": "inhibition",
+      "referenceIds": ["[Eccles, 1967]"],
+      "taxon": "Cat",
+      "measurementMethod": "Hypothetical",
+      "pointersOnLiterature": "Golgi cells exert a powerful inhibitory action on the granule cells of the cerebellar cortex in the cat.",
+      "pointersOnFigure": "",
+      "hypothesis": {
+        "claims": ["existence"],
+        "basis": "homology",
+        "rationale": "Golgi cells inhibit granule cells in the cat cerebellar cortex [Eccles, 1967]; no paper found states this projection in the flocculus of the modelled species.",
+        "premises": ["[Eccles, 1967]"],
+        "scope": "S1"
+      }
+    },
+    {
+      "sender": "PC(purkinje)",
+      "senderRelation": "=",
+      "senderInLiterature": "Purkinje cells",
+      "receiver": "FTN",
+      "receiverRelation": "=",
+      "receiverInLiterature": "floccular target neurons",
+      "comment": "inhibition",
+      "referenceIds": ["[Lisberger, 1994]"],
+      "taxon": "Macaque",
+      "measurementMethod": "Axonal tracing",
+      "pointersOnLiterature": "Floccular Purkinje cells inhibit a subset of neurons in the vestibular nuclei called floccular target neurons.",
+      "pointersOnFigure": "Fig. 5"
+    }
+  ]
+}

@@ -253,6 +253,8 @@ export interface CitationCheck {
 
 /** Keys whose values are Reference ID lists (`checkHcd` already reports unknown IDs in them). */
 const STRUCTURED_KEYS = new Set(["sourceOfId", "referenceIds"]);
+/** The `premises` of a `hypothesis` key are a Reference ID list too (hypothesis mode; `checkHcd` reports unknown premises). */
+const isPremises = (key: string, parentPath: string) => key === "premises" && parentPath.endsWith("/hypothesis");
 const BIBLIOGRAPHY_RE = /^##\s+references?\b/i;
 
 /** Normalized form for comparing citations with IDs (spacing and case around the comma). */
@@ -322,7 +324,7 @@ export function checkCitations(files: CitationInputs): CitationCheck {
         } else textCitation(c, file, `${file} ${path}`);
       }
     } else if (Array.isArray(v)) v.forEach((x, i) => walk(file, x, `${path}/${i}`, structured));
-    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(file, x, `${path}/${k}`, structured || STRUCTURED_KEYS.has(k));
+    else if (v && typeof v === "object") for (const [k, x] of Object.entries(v)) walk(file, x, `${path}/${k}`, structured || STRUCTURED_KEYS.has(k) || isPremises(k, path));
   };
   walk(HCD_FILES.uc, parseJson(files.uc), "", false);
   walk(HCD_FILES.connections, parseJson(files.connections), "", false);

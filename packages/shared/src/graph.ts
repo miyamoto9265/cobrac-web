@@ -1,6 +1,7 @@
 import { isRoiCircuitId } from "./bra.js";
 import { col, parseCsvObjects } from "./csv.js";
 import { classifyEdgeSign } from "./edgeSign.js";
+import { stripHypothesisLine } from "./hypothesis.js";
 import { findFrgCandidates } from "./motifs.js";
 import type {
   FrgEdge,
@@ -20,6 +21,11 @@ export interface GraphSources {
   connectionsCsv: string;
   frgCsv: string;
   referencesCsv?: string;
+  /**
+   * Hypothesis mode (hypothesis.ts): the Comments of a hypothesis start with its hypothesis line, whose rationale
+   * describes the premises, so the edge sign and the ROI tag are read without it. Other projects leave it unset.
+   */
+  hypothesisLines?: boolean;
 }
 
 export { classifyEdgeSign } from "./edgeSign.js";
@@ -94,6 +100,9 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   // Connections.csv has one row per reference; rows of the same sender -> receiver become one edge
   const edgeByPair = new Map<string, HcdEdge>();
   const hcdEdges: HcdEdge[] = [];
+  /** Hypothesis mode: each row's Comments without its hypothesis line, merged like `comments`, for the edge sign */
+  const signText = new Map<HcdEdge, string>();
+  const ownText = (comments: string) => (src.hypothesisLines ? stripHypothesisLine(comments) : comments);
   connections
     .map((c, idx) => {
       const source = stripPrefix(col(c, "Sender Circuit ID (sCID)", "Sender Circuit ID", "sCID", "Sender"));
@@ -118,8 +127,10 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
       if (!prev) {
         edgeByPair.set(key, e);
         hcdEdges.push(e);
+        signText.set(e, ownText(e.comments));
         return;
       }
+      signText.set(prev, joinDistinct(signText.get(prev) ?? "", ownText(e.comments), " / "));
       prev.comments = joinDistinct(prev.comments, e.comments, " / ");
       prev.referenceId = joinDistinct(prev.referenceId, e.referenceId, "; ");
       prev.taxon = joinDistinct(prev.taxon, e.taxon, "; ");
@@ -159,7 +170,7 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
         transmitter: col(c, "Transmitter"),
         modulationType: col(c, "Modulation Type"),
         comments,
-        roiClass: classifyRoi(id, comments, roiUcIds, outgoing, incoming),
+        roiClass: classifyRoi(id, ownText(comments), roiUcIds, outgoing, incoming),
         interfaceText: deriveInterface(id, outgoing.get(id), incoming.get(id)),
         outputSemantics: f?.outputSemantics ?? "",
         requirement: f?.requirement ?? "",
@@ -211,7 +222,7 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
   const nodeById = new Map(hcdNodes.map((n) => [n.id, n]));
   for (const e of hcdEdges) {
     e.outputSemantics = osById.get(e.source) ?? "";
-    e.sign = classifyEdgeSign(e, nodeById.get(e.source));
+    e.sign = classifyEdgeSign(src.hypothesisLines ? { comments: signText.get(e) ?? "" } : e, nodeById.get(e.source));
   }
 
   const collectionRows = allCircuits.filter(isCollectionRow).map((c) => ({

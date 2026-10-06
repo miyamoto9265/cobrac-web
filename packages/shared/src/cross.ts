@@ -4,6 +4,7 @@
  * in `{P}/cross_check.json` without sending it back to the agent yet (record-only).
  */
 import { parseInterface, type FrgModel, type GnRow, type HcdModel } from "./harness.js";
+import { evidencePaths, gnHypothesisDependencies, hypothesisRecords, isHypothesisMode, type EvidenceMode, type GnHypotheses } from "./hypothesis.js";
 import { frgCandidatesFromHcd } from "./motifs.js";
 import { parseUcDescriptor } from "./ucNaming.js";
 
@@ -86,10 +87,24 @@ export interface CrossStats {
   largeGnsOnMotif: number;
 }
 
+/** Hypothesis mode only (record-only, like the findings): what the hypotheses carry in the HCD and the FRG. */
+export interface CrossHypotheses {
+  /** Hypotheses of the HCD (UCs and connections) */
+  count: number;
+  /** A path from the ROI inputs through the ROI to its outputs uses no hypothesis connection */
+  evidenceOnlyPath: boolean;
+  /** Such a path exists when the hypothesis connections are counted too */
+  pathWithHypotheses: boolean;
+  /** GNs that contain a hypothesis UC, or whose UCs are connected only through hypothesis connections */
+  gns: GnHypotheses[];
+}
+
 export interface CrossCheck {
   findings: CrossFinding[];
   summary: Record<CrossCode, number>;
   stats: CrossStats;
+  /** Hypothesis mode only (absent in other projects, so their record is unchanged) */
+  hypotheses?: CrossHypotheses;
 }
 
 const ucRefs = (text: string) => new Set([...text.matchAll(/\[U\.([^[\]\s]+)\]/g)].map((m) => m[1]));
@@ -98,6 +113,8 @@ const fmt = (ids: Iterable<string>) => [...ids].map((x) => `[U.${x}]`).join(", "
 export interface CheckCrossOptions {
   /** The project's harness rule set; from 2 the FRG check enforces what X4 records, so X4 is not computed */
   harnessRules?: number;
+  /** The project's evidence mode; `hypothesis` adds the `hypotheses` record */
+  evidence?: { mode: EvidenceMode };
 }
 
 export function checkCross(hcd: HcdModel, frg: FrgModel, opts: CheckCrossOptions = {}): CrossCheck {
@@ -263,5 +280,14 @@ export function checkCross(hcd: HcdModel, frg: FrgModel, opts: CheckCrossOptions
   }
 
   const summary = Object.fromEntries(CROSS_CODES.map((c) => [c, findings.filter((f) => f.code === c).length])) as Record<CrossCode, number>;
-  return { findings, summary, stats: { roiUcs: roiUcs.size, gns: frg.gns.length, interfacesParsed, depth, largeGns: largeGns.length, largeGnsOnMotif: motifGns } };
+  const stats: CrossStats = { roiUcs: roiUcs.size, gns: frg.gns.length, interfacesParsed, depth, largeGns: largeGns.length, largeGnsOnMotif: motifGns };
+  if (!isHypothesisMode(opts.evidence)) return { findings, summary, stats };
+  const records = hypothesisRecords(hcd);
+  const paths = evidencePaths(hcd);
+  return {
+    findings,
+    summary,
+    stats,
+    hypotheses: { count: records.length, evidenceOnlyPath: paths.evidenceOnly, pathWithHypotheses: paths.withHypotheses, gns: gnHypothesisDependencies(hcd, frg, records) },
+  };
 }

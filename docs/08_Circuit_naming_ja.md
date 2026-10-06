@@ -318,6 +318,7 @@ Descriptor に関わる主な照合は次のとおりです（コードは CoBRA
 | `cobrac:gn-no-circuit-id` | U. 以外のノードに Circuit ID がある |
 | `cobrac:capability-required` | Capability が未記載 |
 | `cobrac:frg-acyclic` | FRG の循環 |
+| `cobrac:hypothesis-marked` | Measurement method が `Hypothetical` の接続で、Comments の 1 行目が仮説の行（`Hypothesis (<claims>; <basis>): <rationale>`）でない（仮説モード、0.32.0 から） |
 
 - チェッカーの JSON 出力では、各コードに旧い付録 D の番号を `appendixD` として残しています。Markdown の報告にも「付録 D」の列があるので、以前の報告と照合できます。
 - 変えたのはコードの番号と文言だけで、判定の挙動は変えていません。Canon の衝突コード（C1〜C13）と HCD↔FRG の整合チェック（X1〜X9）は CoBRAC 独自の体系で、今回は変えていません。
@@ -336,7 +337,7 @@ Descriptor に関わる主な照合は次のとおりです（コードは CoBRA
 | 複数の単位にまたがる回路の略称 | 暫定で共通の BNA の L2 略称（`MFG`） | この扱いでよいか |
 | Source of ID の `BNA` | CoBRAC の拡張として書いている（Review Tool は 108 を出しうる） | 列挙値に `BNA` を足してもらえるか（U9） |
 | UC Descriptor とファセットの置き場所 | CoBRAC 形式の xlsx の最後の列に書く。Template-v2-2 には置き場所が無い | テンプレートに Descriptor やファセットの列を足せるか（U21） |
-| Master にコードの無い検査 | `cobrac:` のローカルコード 12 個 | Master に加えるもの、Review Tool の自動判定に入れるものがあるか |
+| Master にコードの無い検査 | `cobrac:` のローカルコード 13 個 | Master に加えるもの、Review Tool の自動判定に入れるものがあるか |
 | Uniform が BRA ごとに相対的であること | 同じ Descriptor が、粗い HCD では UC、細かい HCD では Collection になりうる | WholeBIF に統合するとき、Uniform の値が違う場合をどう扱うか（U20） |
 
 このほか、CoBRAC の側で未決の点として、BNA の領域を 1 つに決める閾値（`p_raw`・`eff_n`）、脊髄のような SABRA の単位にならない領域の扱い、`cell`・`resp` の語彙の出典、Circuit ID が衝突したときの修飾の細則が残っています。

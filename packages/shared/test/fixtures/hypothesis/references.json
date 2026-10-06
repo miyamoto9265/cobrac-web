@@ -1,0 +1,26 @@
+{
+  "references": [
+    {
+      "id": "[Ito, 1982]",
+      "doi": "10.1146/annurev.ne.05.030182.001423",
+      "literatureType": "Review"
+    },
+    {
+      "id": "[Lisberger, 1994]",
+      "doi": "N/A",
+      "pmid": "8083711",
+      "literatureType": "Experimental results"
+    },
+    {
+      "id": "[Eccles, 1967]",
+      "doi": "10.1007/978-3-662-13147-3",
+      "literatureType": "Textbook"
+    },
+    {
+      "id": "[Marr, 1969]",
+      "doi": "N/A",
+      "literatureType": "Modeling",
+      "alternativeUrl": "https://example.org/marr-1969"
+    }
+  ]
+}

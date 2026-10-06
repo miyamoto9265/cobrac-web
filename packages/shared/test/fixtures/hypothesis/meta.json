@@ -1,0 +1,14 @@
+{
+  "roi": "Cerebellar flocculus",
+  "tlf": "VOR adaptation",
+  "description": "HCD and FRG of VOR adaptation in the cerebellar flocculus, with marked hypotheses.",
+  "name": "VOR adaptation in cerebellar flocculus",
+  "roiElements": [
+    {
+      "name": "cerebellar flocculus",
+      "ucs": ["Cb", "IO"]
+    }
+  ],
+  "roiSide": "both",
+  "roiSideSource": "assumed"
+}
