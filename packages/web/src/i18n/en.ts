@@ -905,9 +905,10 @@ export const en = {
   "bradb.warnings": "{n} warning(s)",
   "bradb.skipped": "circuits kept as other projects defined them: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Plan a set of BRA projects (ROI × TLF) and let the system build them in waves within the concurrency limits. A draft can be written for you from a goal and capability lists. No project is created until you confirm the plan.",
   "plan.new": "New plan",
   "plan.name": "Name",
@@ -1098,8 +1099,8 @@ export const en = {
   "plan.evt.proposals_received": "Proposals received",
   "plan.evt.proposal_accepted": "Proposal accepted",
   "plan.evt.proposal_rejected": "Proposal rejected",
-  "sys.planStarted": "Started by the BRA Planner (plan “{name}”).",
-  "sys.planCancelled": "Job cancelled because its BRA Planner plan was cancelled.",
+  "sys.planStarted": "Started by the CoBRAC Orchestrator (plan “{name}”).",
+  "sys.planCancelled": "Job cancelled because its CoBRAC Orchestrator plan was cancelled.",
   "admin.concurrency": "Concurrent jobs",
   "admin.concurrencyHelp": "How many jobs run at once, overall and per user ({min}–{max}). A change applies within a minute, without a deploy. Leave a field empty to use the deployment value.",
   "admin.concurrencyGlobal": "Overall",
@@ -1153,7 +1154,7 @@ export const en = {
   "plan.evt.row_resolved": "Decided by a person",
   "plan.evt.row_ai_review": "AI review started",
   "pr.plan": "Plan {id}",
-  "pr.planHelp": "Pushed by this BRA Planner plan",
+  "pr.planHelp": "Pushed by this CoBRAC Orchestrator plan",
   "pr.bulkApprove": "Approve selected",
   "pr.bulkApproveCount": "Approve selected ({n})",
   "pr.bulkApproveQ": "Approve {n} pull requests one after another? Each is checked against the Canon as it is then, and the run stops at the first one that has a conflict.",

@@ -206,7 +206,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
       await putMessage(projectId, jobId, "system", "status", notice.content, { ...owner, meta: { ...notice.meta, i18n: "sys.hypothesisOn" } });
     }
     if (input.plan) {
-      await putMessage(projectId, jobId, "system", "status", `Started by the BRA Planner (plan “${input.plan.name}”).`, { ...owner, meta: { i18n: "sys.planStarted", name: input.plan.name, planId: input.plan.planId } });
+      await putMessage(projectId, jobId, "system", "status", `Started by the CoBRAC Orchestrator (plan “${input.plan.name}”).`, { ...owner, meta: { i18n: "sys.planStarted", name: input.plan.name, planId: input.plan.planId } });
     }
   }
   // also when a recovered start stores its job only now, so the job is never queued before it
@@ -306,7 +306,7 @@ export function afterStop(p: ProjectRecord, job: JobRecord | null): Partial<Proj
 const STOP_NOTICE = {
   user: { reason: "cancelled by user", text: "Job cancelled by the user.", i18n: "sys.cancelled" },
   admin: { reason: "cancelled by admin", text: "Job stopped by an admin.", i18n: "sys.adminStopped" },
-  plan: { reason: "plan cancelled", text: "Job cancelled because its BRA Planner plan was cancelled.", i18n: "sys.planCancelled" },
+  plan: { reason: "plan cancelled", text: "Job cancelled because its CoBRAC Orchestrator plan was cancelled.", i18n: "sys.planCancelled" },
 } as const;
 
 /** Stops the project's active job (and its Fargate task) and marks the project stopped. */

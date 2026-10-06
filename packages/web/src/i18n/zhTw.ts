@@ -907,9 +907,10 @@ export const zhTw: Record<MessageKey, string> = {
   "bradb.warnings": "{n} 則警告",
   "bradb.skipped": "依其他專案的定義保留的迴路：{ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "把要製作的 BRA 專案（ROI × TLF）彙整成一個計畫，系統會在同時執行上限內分批自動製作。也可以依目標與能力清單產生草稿。確認計畫之前不會建立任何專案。",
   "plan.new": "新計畫",
   "plan.name": "名稱",
@@ -1100,8 +1101,8 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "收到建議",
   "plan.evt.proposal_accepted": "已接受建議",
   "plan.evt.proposal_rejected": "已拒絕建議",
-  "sys.planStarted": "由 BRA Planner 的計畫「{name}」啟動。",
-  "sys.planCancelled": "由於所屬的 BRA Planner 計畫已中止，工作已停止。",
+  "sys.planStarted": "由 CoBRAC Orchestrator 的計畫「{name}」啟動。",
+  "sys.planCancelled": "由於所屬的 CoBRAC Orchestrator 計畫已中止，工作已停止。",
   "admin.concurrency": "同時執行的工作數",
   "admin.concurrencyHelp": "同時執行的工作數上限（整體與每位使用者，{min}–{max}）。變更無需部署，1 分鐘內生效。留空則使用部署時的值。",
   "admin.concurrencyGlobal": "整體",
@@ -1155,7 +1156,7 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "已由人工判斷",
   "plan.evt.row_ai_review": "已開始 AI 審查",
   "pr.plan": "計畫 {id}",
-  "pr.planHelp": "由此 BRA Planner 計畫推送",
+  "pr.planHelp": "由此 CoBRAC Orchestrator 計畫推送",
   "pr.bulkApprove": "批次核准",
   "pr.bulkApproveCount": "批次核准（{n}）",
   "pr.bulkApproveQ": "要依序核准 {n} 個拉取請求嗎？每個都會與當時的 Canon 核對，遇到第一個有衝突的拉取請求時停止。",

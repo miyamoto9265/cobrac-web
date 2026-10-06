@@ -907,9 +907,10 @@ export const ru: Record<MessageKey, string> = {
   "bradb.warnings": "предупреждений: {n}",
   "bradb.skipped": "схемы оставлены в определении других проектов: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Соберите в план проекты BRA (ROI × TLF), которые нужно создать; система построит их волнами в пределах ограничения на одновременные запуски. Черновик плана можно также получить по цели и спискам способностей. До подтверждения плана ни один проект не создаётся.",
   "plan.new": "Новый план",
   "plan.name": "Название",
@@ -1100,8 +1101,8 @@ export const ru: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "Получены предложения",
   "plan.evt.proposal_accepted": "Предложение принято",
   "plan.evt.proposal_rejected": "Предложение отклонено",
-  "sys.planStarted": "Запущено BRA Planner (план «{name}»).",
-  "sys.planCancelled": "Задание отменено, потому что его план BRA Planner был отменён.",
+  "sys.planStarted": "Запущено CoBRAC Orchestrator (план «{name}»).",
+  "sys.planCancelled": "Задание отменено, потому что его план CoBRAC Orchestrator был отменён.",
   "admin.concurrency": "Одновременные задания",
   "admin.concurrencyHelp": "Сколько заданий выполняется одновременно — всего и на пользователя ({min}–{max}). Изменение применяется в течение минуты, без развёртывания. Пустое поле означает значение из развёртывания.",
   "admin.concurrencyGlobal": "Всего",
@@ -1155,7 +1156,7 @@ export const ru: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "Решено человеком",
   "plan.evt.row_ai_review": "ИИ-ревью запущено",
   "pr.plan": "План {id}",
-  "pr.planHelp": "Отправлено этим планом BRA Planner",
+  "pr.planHelp": "Отправлено этим планом CoBRAC Orchestrator",
   "pr.bulkApprove": "Одобрить выбранные",
   "pr.bulkApproveCount": "Одобрить выбранные ({n})",
   "pr.bulkApproveQ": "Одобрить {n} pull request по очереди? Каждый сверяется с Canon в его текущем виде, и одобрение останавливается на первом с конфликтом.",

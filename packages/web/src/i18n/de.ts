@@ -907,9 +907,10 @@ export const de: Record<MessageKey, string> = {
   "bradb.warnings": "{n} Warnung(en)",
   "bradb.skipped": "wie von anderen Projekten definiert belassene Schaltkreise: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC Orchestrator
+  "nav.planner": "CoBRAC Orchestrator",
+  "plan.title": "CoBRAC Orchestrator",
+  "plan.shortName": "Orchestrator",
   "plan.intro": "Fassen Sie die BRA-Projekte (ROI × TLF), die Sie erstellen möchten, in einem Plan zusammen; das System baut sie in Wellen innerhalb der Parallelitätsgrenzen. Ein Entwurf kann auch aus einem Ziel und Fähigkeitslisten für Sie geschrieben werden. Bis Sie den Plan bestätigen, wird kein Projekt erstellt.",
   "plan.new": "Neuer Plan",
   "plan.name": "Name",
@@ -1100,8 +1101,8 @@ export const de: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "Vorschläge erhalten",
   "plan.evt.proposal_accepted": "Vorschlag angenommen",
   "plan.evt.proposal_rejected": "Vorschlag abgelehnt",
-  "sys.planStarted": "Vom BRA Planner gestartet (Plan „{name}“).",
-  "sys.planCancelled": "Auftrag abgebrochen, weil sein BRA-Planner-Plan abgebrochen wurde.",
+  "sys.planStarted": "Vom CoBRAC Orchestrator gestartet (Plan „{name}“).",
+  "sys.planCancelled": "Auftrag abgebrochen, weil sein Plan im CoBRAC Orchestrator abgebrochen wurde.",
   "admin.concurrency": "Gleichzeitige Aufträge",
   "admin.concurrencyHelp": "Wie viele Aufträge gleichzeitig laufen, insgesamt und pro Person ({min}–{max}). Eine Änderung gilt innerhalb einer Minute, ohne Deployment. Ein leeres Feld verwendet den Wert des Deployments.",
   "admin.concurrencyGlobal": "Insgesamt",
@@ -1155,7 +1156,7 @@ export const de: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "Von einem Menschen entschieden",
   "plan.evt.row_ai_review": "KI-Review gestartet",
   "pr.plan": "Plan {id}",
-  "pr.planHelp": "Von diesem BRA-Planner-Plan gepusht",
+  "pr.planHelp": "Von diesem Plan im CoBRAC Orchestrator gepusht",
   "pr.bulkApprove": "Auswahl genehmigen",
   "pr.bulkApproveCount": "Auswahl genehmigen ({n})",
   "pr.bulkApproveQ": "{n} Pull Requests nacheinander genehmigen? Jeder wird gegen den dann aktuellen Canon geprüft, und der Vorgang hält beim ersten mit einem Konflikt an.",

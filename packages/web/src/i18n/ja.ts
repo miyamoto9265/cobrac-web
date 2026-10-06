@@ -907,9 +907,10 @@ export const ja: Record<MessageKey, string> = {
   "bradb.warnings": "警告 {n} 件",
   "bradb.skipped": "他のプロジェクトの定義のまま残した回路: {ids}",
 
-  // BRA Planner
-  "nav.planner": "BRA Planner",
-  "plan.title": "BRA Planner",
+  // CoBRAC オーケストレーター
+  "nav.planner": "CoBRAC オーケストレーター",
+  "plan.title": "CoBRAC オーケストレーター",
+  "plan.shortName": "オーケストレーター",
   "plan.intro": "作りたい BRA プロジェクト（ROI × TLF）を計画にまとめると、同時実行数の上限の範囲で波ごとに自動で作ります。目標と能力リストから下書きを作ることもできます。計画を確定するまでプロジェクトは作られません。",
   "plan.new": "新しい計画",
   "plan.name": "名前",
@@ -1100,8 +1101,8 @@ export const ja: Record<MessageKey, string> = {
   "plan.evt.proposals_received": "提案を受け取り",
   "plan.evt.proposal_accepted": "提案を承認",
   "plan.evt.proposal_rejected": "提案を却下",
-  "sys.planStarted": "BRA Planner の計画「{name}」から開始しました。",
-  "sys.planCancelled": "BRA Planner の計画が中止されたため、ジョブを停止しました。",
+  "sys.planStarted": "CoBRAC オーケストレーターの計画「{name}」から開始しました。",
+  "sys.planCancelled": "CoBRAC オーケストレーターの計画が中止されたため、ジョブを停止しました。",
   "admin.concurrency": "同時実行数",
   "admin.concurrencyHelp": "同時に実行するジョブの数の上限です（全体と 1 人あたり、{min}〜{max}）。変更はデプロイなしで 1 分以内に反映されます。空欄にするとデプロイ時の値を使います。",
   "admin.concurrencyGlobal": "全体",
@@ -1155,7 +1156,7 @@ export const ja: Record<MessageKey, string> = {
   "plan.evt.row_resolved": "人が判断",
   "plan.evt.row_ai_review": "AI レビューを開始",
   "pr.plan": "計画 {id}",
-  "pr.planHelp": "この BRA Planner の計画が push しました",
+  "pr.planHelp": "この CoBRAC オーケストレーターの計画が push しました",
   "pr.bulkApprove": "まとめて承認",
   "pr.bulkApproveCount": "まとめて承認（{n}）",
   "pr.bulkApproveQ": "{n} 件の PR を順に承認しますか？ 1 件ずつそのときの Canon と照らし合わせ、矛盾が出た PR で止めます。",
