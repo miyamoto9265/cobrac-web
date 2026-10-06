@@ -282,6 +282,16 @@ const HYPOTHESIS_LINE_RE = new RegExp(`^Hypothesis \\((?:${CLAIM_ALT})(?:, (?:${
  */
 export const stripHypothesisLine = (comments: string): string => comments.replace(HYPOTHESIS_LINE_RE, "");
 
+/** The same line as `HYPOTHESIS_LINE_RE`, with the claims, the basis and the rationale captured. */
+const HYPOTHESIS_LINE_PARTS_RE = new RegExp(`^Hypothesis \\(((?:${CLAIM_ALT})(?:, (?:${CLAIM_ALT}))*); (${HYPOTHESIS_BASES.join("|")})\\): ([^\\n]*)(?:\\n|$)`);
+
+/** The hypothesis line at the start of CSV Comments (the line `stripHypothesisLine` removes), or null. */
+export function parseHypothesisLine(comments: string): { claims: HypothesisClaim[]; basis: HypothesisBasis; rationale: string } | null {
+  const m = HYPOTHESIS_LINE_PARTS_RE.exec(comments);
+  if (!m) return null;
+  return { claims: m[1].split(", ") as HypothesisClaim[], basis: m[2] as HypothesisBasis, rationale: m[3].trim() };
+}
+
 // --- share ---------------------------------------------------------------------------------------------------------
 
 export interface ShareFigure {

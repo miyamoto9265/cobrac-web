@@ -4,6 +4,9 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { FrgGraph, FrgNode, FrgNodeKind, HcdGraph } from "@cobrac/shared";
 import { Badge, DetailPanel, Field, Section, actionBtn, primaryActionBtn } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GNode, type LegendItem } from "../components/GraphCanvas";
+import { frgHypothesisLegend } from "../components/hypothesis/GraphHypotheses";
+import { HypothesisDetail, markTitle } from "../components/hypothesis/HypothesisInfo";
+import { HypothesisMark } from "../components/hypothesis/HypothesisMark";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { circuitsUnderGroup, pathFromRoot } from "../lib/graphView";
@@ -87,9 +90,10 @@ export function FrgGraphPage({ embedded = false }: { embedded?: boolean }) {
             width: n.kind === "uc" ? 150 : 210,
             height: n.kind === "uc" ? 36 : 48,
             collapse: n.kind !== "uc" && n.subnodes.length > 0 ? { collapsed: collapsed.has(n.id), count: n.subnodes.length } : undefined,
+            ...(n.hypotheses?.length ? { hypothesis: { title: markTitle(t, n.hypotheses, "hyp.dependsTitle") } } : {}),
           } satisfies GNode;
         }) ?? [],
-    [graph, visible, collapsed, hcdById],
+    [graph, visible, collapsed, hcdById, t],
   );
   const edges = useMemo<GEdge[]>(() => graph?.edges.filter((e) => visible.has(e.source) && visible.has(e.target)).map((e) => ({ id: e.id, source: e.source, target: e.target })) ?? [], [graph, visible]);
 
@@ -106,7 +110,13 @@ export function FrgGraphPage({ embedded = false }: { embedded?: boolean }) {
     [],
   );
   const collapseLabel = useCallback((c: boolean) => (c ? t("graph.expand") : t("graph.collapse")), [t]);
-  const legend = useMemo<LegendItem[]>(() => KIND_KEYS.map((k) => ({ color: KIND_STYLE[k].fill, accent: KIND_STYLE[k].accent, label: t(`frg.${k}` as MessageKey), shape: k === "uc" ? ("pill" as const) : ("rect" as const) })), [t]);
+  const legend = useMemo<LegendItem[]>(
+    () => [
+      ...KIND_KEYS.map((k) => ({ color: KIND_STYLE[k].fill, accent: KIND_STYLE[k].accent, label: t(`frg.${k}` as MessageKey), shape: k === "uc" ? ("pill" as const) : ("rect" as const) })),
+      ...frgHypothesisLegend(t, graph),
+    ],
+    [t, graph],
+  );
 
   if (err) return <div className="p-6 text-sm text-rose-600">{t("graph.frgFail", { err })}</div>;
   if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">{t("graph.loading")}</div>;
@@ -212,6 +222,12 @@ function FrgDetail({
           </Badge>
           <Badge color="#f1f5f9">Level {node.level}</Badge>
           {circuit && <Badge color="#f1f5f9">{t("graph.hcdConnections", { in: hcdIn, out: hcdOut })}</Badge>}
+          {!!node.hypotheses?.length && (
+            <Badge color="#fffbeb" text="#92400e">
+              <HypothesisMark size={12} />
+              {t("hyp.dependsTitle", { ids: node.hypotheses.join(", ") })}
+            </Badge>
+          )}
         </>
       }
       actions={
@@ -251,6 +267,7 @@ function FrgDetail({
           ))}
         </nav>
       )}
+      <HypothesisDetail hypothesis={circuit?.hypothesis} />
       <Field label="Comment" value={node.comments} />
       {(node.parents.length > 0 || node.subnodes.length > 0) && <Section title={t("graph.structure")} />}
       {node.parents.length > 0 && (

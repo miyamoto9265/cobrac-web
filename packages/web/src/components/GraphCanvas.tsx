@@ -51,6 +51,8 @@ export interface GEdge {
   dashed?: boolean;
   /** physiological sign → default colour / arrow head */
   sign?: EdgeSign;
+  /** Hypothesis mode: dotted with an "H" mark (title: the hypothesis IDs); `hollow`: the direction is the hypothesis */
+  hypothesis?: { title: string; hollow?: boolean };
 }
 
 interface Props {
@@ -77,6 +79,8 @@ interface Props {
   menuItems?: MenuItem[];
   /** node / edge details: a column beside the canvas when there is room, otherwise a sheet over its lower part */
   detail?: ReactNode;
+  /** page-specific buttons at the end of the toolbar (e.g. "Hide hypotheses") */
+  toolbarExtra?: ReactNode;
   /** banner under the toolbar (e.g. an active filter) */
   banner?: ReactNode;
   onToggleCollapse?: (id: string) => void;
@@ -180,6 +184,7 @@ function Inner({
   exportName = "graph",
   menuItems = [],
   detail,
+  toolbarExtra,
   banner,
   onToggleCollapse,
   collapseLabel,
@@ -358,7 +363,8 @@ function Inner({
       const resolved = resolveEdgeStyle(e.sign, override, e.dashed);
       const style = dark ? { ...resolved, color: edgeColor(resolved.color, true) } : resolved;
       addMarker({ type: style.markerStart, color: style.color, width: style.width });
-      addMarker({ type: style.markerEnd, color: style.color, width: style.width });
+      const hollow = e.hypothesis?.hollow ? canvas.bg : undefined;
+      addMarker({ type: style.markerEnd, color: style.color, width: style.width, hollow });
       const self = e.source === e.target;
       const a = positions[e.source];
       const b = positions[e.target];
@@ -390,11 +396,12 @@ function Inner({
           dim: !!focus && (focus.edges ? !related : !(focus.nodes.has(e.source) && focus.nodes.has(e.target))),
           editing: editing && e.id === selectedEdgeId,
           onWaypointsChange,
+          ...(e.hypothesis ? { hypothesis: { title: e.hypothesis.title, hollow } } : {}),
         } satisfies EdgeData,
       };
     });
     return { rfEdges: list, markers: [...mk.values()] };
-  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing, dark]);
+  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing, dark, canvas.bg]);
 
   // Reconnect = move an edge end to another handle of the *same* node.
   const onReconnect = useCallback(
@@ -701,6 +708,7 @@ function Inner({
             <ToolButton label={t("graph.editStyle")} onClick={() => setEditing((v) => !v)} active={editing} showLabel={!compact}>
               <Paintbrush size={15} />
             </ToolButton>
+            {toolbarExtra}
             <OverflowMenu items={menu} />
             <SaveStatus saving={layout.saving} compact={compact} />
           </div>

@@ -44,7 +44,7 @@ Open "New project" in the sidebar.
 2. If needed, use the buttons under the input:
    - "+": attach reference materials (PDF, images, text, Office files, URLs). Up to 10 files, 50 MB in total (20 MB per file), and 20 URLs. The agent uses them as hints but checks papers and quotes against the published literature.
    - "Canon": choose one when circuit definitions should match other projects ([using a Canon](#using-a-canon)).
-   - "v": model, reasoning effort and research mode ([research mode and models](#research-mode-and-models)).
+   - "v": model, reasoning effort, research mode and evidence ([research mode and models](#research-mode-and-models), [hypothesis mode](#hypothesis-mode)).
 3. Press "Run". Enter in the ROI moves to the TLF; Enter in the TLF runs (Shift+Enter adds a line).
 
 The project gets a name automatically; you can change it on the project page. The Contributor name comes from Settings.
@@ -81,7 +81,7 @@ A question appears at the end of the Agent panel in an amber box. If it has opti
 
 ### Follow-up instructions
 
-On a completed project, write what to change in the input box of the Agent panel (for example "Add a UC for … and review the connections"). The instruction runs as a new job and costs usage.
+On a completed project, write what to change in the input box of the Agent panel (for example "Add a UC for … and review the connections"). The instruction runs as a new job and costs usage. For the "Allow hypotheses with this instruction" switch under the input box, see [hypothesis mode](#hypothesis-mode).
 
 ### Stop and retry
 
@@ -128,6 +128,39 @@ Each time a run or a follow-up finishes, its result is kept as a version (v1, v2
 Projects finished before versions were kept show their current data as "Not saved yet"; the next follow-up saves it as a version before changing anything.
 
 When the site has a BRA-DB, a saved version also has a **BRA-DB** box: it says which version BRA-DB holds, and "Register v<n> in BRA-DB" puts this version in BRA-DB. BRA-DB keeps the history of every registration (which version, its content hash, who and when). Registering the same content again changes nothing; if the version has fewer circuits or connections than BRA-DB holds, you are asked to confirm first.
+
+## Hypothesis mode
+
+By default, the BRA contains only connections and UCs that the literature directly supports ("Literature-supported only"). With "Allow hypotheses", connections and UC properties that the literature does not directly support can be included, marked as **hypotheses**. A hypothesis still needs at least one premise paper that can be verified (what other studies report, a homologous region, …). Citations, DOIs, the SABRA boundary and the other checks stay as they are.
+
+### Choosing it
+
+- **When creating**: under "v" in the input box, choose "Allow hypotheses" under "Evidence". Choose the claims that may be hypotheses (a connection's existence, direction and sign; a UC's cell population, transmitter and modulation, and role) and the share limit. You can add one line (up to 200 characters) on where hypotheses may be needed. The scope is the whole graph.
+- **With a follow-up**: switch on "Allow hypotheses with this instruction" under the input box of the Agent panel. Choose the claims, the target ("Whole HCD" or "Circuits and GNs selected in the graph") and the limit, then send. To narrow the target, first select a circuit, Collection or GN in the HCD or FRG graph. The switch turns off after sending.
+- Writing "hypotheses are fine" in an instruction does not allow hypotheses. Always use the switch.
+
+The chosen claims and target are recorded as a scope (S1, S2, …), and the agent places hypotheses only inside the scopes. When a job completes with no hypothesis in its result, the project goes back to "Literature-supported only".
+
+### Share limit
+
+For connections and for UCs separately, a result whose hypotheses exceed this share of all elements (10%, 20%, 30% or 50%; 20% by default) is sent back to the agent. Exactly the limit passes. A follow-up can change the limit.
+
+### Reading the graphs and screens
+
+- **HCD graph**: a hypothesis connection is drawn with short dots and an "H" in the middle, a connection whose direction alone is a hypothesis with a hollow arrowhead, and a hypothesis UC with a dotted border and an "H" (Collections have a dashed border). Hover over an "H" to see the hypothesis numbers (H1, H2, …). "Hide hypotheses" in the toolbar shows the evidence-only graph.
+- **FRG graph**: GNs that depend on hypotheses carry a small "H"; hover over it to see which hypotheses.
+- **Detail panel**: the basis ("Basis: hypothesis (homology)" and so on), the rationale and the premise papers.
+- **Header and project list**: a "Hypothesis mode" badge with the number of hypotheses in the latest version.
+- **Versions**: the generation conditions show the evidence mode, the scopes, and for connections and UCs "hypotheses / all (share) · limit".
+- **Canons**: hypotheses do not enter the Canon's shared definitions. The push screen shows "Hypotheses: n (kept out of the shared layer)".
+
+### BRA-DB
+
+Versions that contain hypotheses cannot be registered in BRA-DB for now (the button in the version's BRA-DB section is disabled and says why). Rules for registering hypotheses will be decided separately. Versions without hypotheses register as before.
+
+### No suggestions for further study
+
+Hypotheses show what the BRA contains. The tool does not suggest studies, experiments or predictions to test them; what to do with a hypothesis is the researcher's decision. To reduce hypotheses, ask in a follow-up, for example "Remove H3" or "Find evidence for H3 and replace it".
 
 ## Explanatory articles
 

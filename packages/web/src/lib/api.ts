@@ -63,6 +63,7 @@ import type {
   PlanRowRejected,
   UpdateConcurrencyRequest,
   UpdatePlanRequest,
+  HypothesisFollowupRequest,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -128,8 +129,8 @@ export const api = {
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   cancel: (id: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/cancel`),
   answer: (id: string, answer: string, locale: UiLocale) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/answer`, { answer, locale }),
-  followup: (id: string, instruction: string, locale: UiLocale) =>
-    request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/followup`, { instruction, locale }),
+  followup: (id: string, instruction: string, locale: UiLocale, hypothesis?: HypothesisFollowupRequest | null) =>
+    request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/followup`, { instruction, locale, ...(hypothesis ? { hypothesis } : {}) }),
   retry: (id: string, locale: UiLocale) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/retry`, { locale }),
   artifacts: (id: string) => request<{ items: ArtifactInfo[] }>("GET", `/projects/${encodeURIComponent(id)}/artifacts`),
   downloadUrl: (id: string, key: string) =>

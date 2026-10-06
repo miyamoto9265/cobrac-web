@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { EvidenceSettings, HypothesisScope, JobRecord, ProjectRecord, VersionHypothesisInfo } from "@cobrac/shared";
+import type { EvidenceSettings, HypothesesFile, HypothesisScope, JobRecord, ProjectRecord, VersionHypothesisInfo } from "@cobrac/shared";
 import { HCD_FILES, describeScope, isHypothesisMode, normalizeMaxShare, normalizeScopes, scopeLine, versionHypothesisCount, versionHypothesisInfo } from "@cobrac/shared";
 import type { ProjectPaths } from "./steps.js";
 
@@ -59,4 +59,14 @@ export function versionHypotheses(paths: Pick<ProjectPaths, "hypotheses" | "hcd"
  */
 export function returnsToStrict(evidence: EvidenceSettings, info: VersionHypothesisInfo): boolean {
   return isHypothesisMode(evidence) && versionHypothesisCount(info) === 0;
+}
+
+/** hypotheses.json of the last check (hypothesis mode), for the marks on the graphs; null when missing or unreadable. */
+export async function readHypothesesFile(p: Pick<ProjectPaths, "hypotheses">): Promise<HypothesesFile | null> {
+  try {
+    const text = existsSync(p.hypotheses) ? await readFile(p.hypotheses, "utf8") : null;
+    return text ? (JSON.parse(text) as HypothesesFile) : null;
+  } catch {
+    return null;
+  }
 }
