@@ -1,18 +1,19 @@
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, FileUp, ListChecks, Loader2, Pause, Pencil, Play, Plus, RotateCcw, Save, Send, SkipForward, Sparkles, Square, Trash2, Wand2, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, FileUp, GitPullRequest, Layers, ListChecks, Loader2, Pause, Pencil, Play, Plus, RotateCcw, Save, Send, SkipForward, Sparkles, Square, Trash2, Upload, Wand2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, ReasoningEffort } from "@cobrac/shared";
-import { MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, planEstimate } from "@cobrac/shared";
+import type { CanonRecord, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, ReasoningEffort } from "@cobrac/shared";
+import { MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, planEstimate } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, fmtDuration, fmtElapsed, isSeedWave, planPath, planWaves, seedIndexes, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
-import { inputCls, primaryBtn } from "./CanonsPage";
+import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedIndexes, seedsHolding, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
+import { canonPath, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { PlanStatusBadge } from "./PlansPage";
 
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
+const DECISION_REASONS: PlanDecisionReason[] = ["conflicts", "conform_limit", "pr_rejected", "pr_withdrawn", "other_canon", "push_failed"];
 const secondaryBtn = "flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11";
 const dangerBtn = "flex items-center justify-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11";
 const iconBtn = "flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30 coarse:h-11 coarse:w-11";
@@ -44,6 +45,8 @@ const jobError = (j: PlanJobState, t: TFn) => (j.errorCode ? t(`plan.jobError.${
 const rowLabel = (r: { roi: string; tlf: string }) => [r.tlf, r.roi].filter((s) => s.trim()).join(" in ");
 /** Short name of a row for the lists of other rows (overlaps, dependencies). */
 const rowName = (r: { roi: string; tlf: string }) => r.tlf.trim() || r.roi.trim() || "—";
+/** Element ID of a row's entry in 「人の判断」. */
+const decisionAnchor = (rowId: string) => `plan-decision-${rowId}`;
 
 function RowStateChip({ state }: { state: PlanRowState }) {
   const t = useT();
@@ -159,7 +162,9 @@ function Summary({ d }: { d: PlanDetailResponse }) {
   const total = rows.length || 1;
   // wave numbers as stored (the headings of the rows show the same numbers)
   const waves = planWaves(rows);
-  const shown = ROW_STATE_ORDER.filter((s) => (s === "running" ? counts.running + counts.starting : counts[s]) > 0);
+  // plans counted before stage 3 have no review / decision counts
+  const n = (s: PlanRowState) => (s === "running" ? counts.running + counts.starting : (counts[s] ?? 0));
+  const shown = ROW_STATE_ORDER.filter((s) => n(s) > 0);
   return (
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="plan-summary">
       <Stat label={t("plan.progress")}>
@@ -168,12 +173,14 @@ function Summary({ d }: { d: PlanDetailResponse }) {
           <div className="bg-emerald-500" style={{ width: `${(counts.done / total) * 100}%` }} />
           <div className="bg-blue-500" style={{ width: `${((counts.running + counts.starting) / total) * 100}%` }} />
           <div className="bg-amber-400" style={{ width: `${(counts.question / total) * 100}%` }} />
+          <div className="bg-violet-400" style={{ width: `${(n("review") / total) * 100}%` }} />
+          <div className="bg-amber-600" style={{ width: `${(n("decision") / total) * 100}%` }} />
           <div className="bg-rose-500" style={{ width: `${(counts.attention / total) * 100}%` }} />
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {shown.map((s) => (
             <span key={s} className={`rounded-full px-1.5 py-0.5 text-[11px] ${ROW_STATE_COLOR[s]}`}>
-              {t(`plan.row.${s}` as MessageKey)} {s === "running" ? counts.running + counts.starting : counts[s]}
+              {t(`plan.row.${s}` as MessageKey)} {n(s)}
             </span>
           ))}
         </div>
@@ -419,6 +426,333 @@ function Attention({ rows, act }: { rows: PlanRowView[]; act: (rowId: string, ac
   );
 }
 
+/** The Canon named in the confirmation: none, or its name and whether it is created at confirmation. */
+type ConfirmCanon = { isNew: boolean; name: string } | null;
+/** Stores the Canon choice that is still being edited; `false` when it could not be saved. */
+type CanonFlush = () => Promise<ConfirmCanon | false>;
+
+/** The plan's Canon: chosen in a draft (none, one of the owner's Canons, or a new one created at confirmation), read-only afterwards. */
+function CanonSection({ d, onSaved, onError, flushRef }: { d: PlanDetailResponse; onSaved: () => Promise<unknown>; onError: (e: unknown) => void; flushRef: React.MutableRefObject<CanonFlush | null> }) {
+  const t = useT();
+  const { plan } = d;
+  const editable = plan.status === "DRAFT";
+  const [own, setOwn] = useState<CanonRecord[] | null>(null);
+  // the choice while it is being saved (the stored one is shown otherwise)
+  const [pending, setPending] = useState<PlanCanonChoice | null>(null);
+  const [name, setName] = useState<string | null>(null);
+  // the save in flight (confirming waits for it) and whether it was stored
+  const inflight = useRef<{ choice: PlanCanonChoice; done: Promise<boolean> } | null>(null);
+  useEffect(() => {
+    if (!editable) return;
+    let live = true;
+    // only the owner's own Canons that are not deleted (a co-edited Canon cannot take the owner's projects)
+    Promise.resolve()
+      .then(() => api.listCanons())
+      .then((r) => live && setOwn((r.items ?? []).filter((c) => !c.deletedAt)))
+      .catch(() => live && setOwn([]));
+    return () => {
+      live = false;
+    };
+  }, [editable]);
+  const stored: PlanCanonChoice = plan.canonNew ? { mode: "new", name: plan.canonNew.name } : plan.canonId ? { mode: "existing", canonId: plan.canonId } : { mode: "none" };
+  const choice = pending ?? stored;
+  const save = (c: PlanCanonChoice): Promise<boolean> => {
+    setPending(c);
+    const done: Promise<boolean> = api
+      .setPlanCanon(plan.planId, c)
+      .then(() => onSaved())
+      .then(
+        () => true,
+        (e) => {
+          onError(e);
+          return false;
+        },
+      )
+      .finally(() => {
+        if (inflight.current?.done === done) inflight.current = null;
+        setPending(null);
+      });
+    inflight.current = { choice: c, done };
+    return done;
+  };
+  const canonName = (c: PlanCanonChoice): ConfirmCanon =>
+    c.mode === "none" ? null : c.mode === "new" ? { isNew: true, name: c.name } : { isNew: false, name: own?.find((x) => x.canonId === c.canonId)?.name ?? (d.canon?.canonId === c.canonId ? d.canon.name : c.canonId) };
+  // confirming first stores a new Canon name that is typed but not saved yet (or waits for the save in flight)
+  flushRef.current = editable
+    ? async () => {
+        const typed = choice.mode === "new" ? (name ?? "").trim() : "";
+        const f = inflight.current;
+        if (f && !(typed && f.choice.mode === "new" && typed !== f.choice.name)) return (await f.done) ? canonName(f.choice) : false;
+        if (f) await f.done;
+        if (choice.mode === "new" && typed && typed !== choice.name) {
+          const c: PlanCanonChoice = { mode: "new", name: typed };
+          return (await save(c)) ? canonName(c) : false;
+        }
+        return canonName(choice);
+      }
+    : null;
+
+  if (!editable) {
+    const c = d.canon;
+    if (!c && !plan.canonNew) return null;
+    return (
+      <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-canon">
+        <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+          {t("plan.canon")} <HelpTip text={t("plan.canonHelp")} />
+        </h2>
+        {c?.missing ? (
+          <p className="text-sm text-rose-700">{t("plan.canonMissing")}</p>
+        ) : c ? (
+          <Link to={canonPath(c.canonId)} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 text-sm text-blue-700 hover:underline coarse:min-h-11">
+            <Layers size={14} className="shrink-0" aria-hidden />
+            <span className="min-w-0 break-words font-medium">{c.name}</span>
+            <span className="font-mono text-xs text-slate-500">{t("canon.revision", { n: c.headRevision })}</span>
+          </Link>
+        ) : (
+          <p className="break-words text-sm text-slate-700">{t("plan.canonToCreate", { name: plan.canonNew!.name })}</p>
+        )}
+      </section>
+    );
+  }
+
+  const canons = own ?? [];
+  const pickedId = choice.mode === "existing" ? choice.canonId : (canons[0]?.canonId ?? "");
+  // the stored Canon is listed even when the list does not have it (e.g. while it loads)
+  const options = choice.mode === "existing" && !canons.some((c) => c.canonId === choice.canonId) ? [{ canonId: choice.canonId, name: d.canon?.name ?? choice.canonId }, ...canons] : canons;
+  const newName = name ?? (choice.mode === "new" ? choice.name : plan.name);
+  const busy = pending !== null;
+  const radio = "flex items-center gap-2 text-sm coarse:min-h-11";
+  return (
+    <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-canon">
+      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+        {t("plan.canon")} <HelpTip text={t("plan.canonHelp")} />
+      </h2>
+      <div className="grid gap-2" role="radiogroup" aria-label={t("plan.canon")}>
+        <label className={radio}>
+          <input type="radio" name="plan-canon" checked={choice.mode === "none"} disabled={busy} onChange={() => save({ mode: "none" })} data-testid="canon-none" />
+          {t("plan.canonNone")}
+        </label>
+        <div className="grid gap-1">
+          <label className={radio}>
+            <input
+              type="radio"
+              name="plan-canon"
+              checked={choice.mode === "existing"}
+              disabled={busy || (!options.length && choice.mode !== "existing")}
+              onChange={() => pickedId && save({ mode: "existing", canonId: pickedId })}
+              data-testid="canon-existing"
+            />
+            {t("plan.canonExisting")}
+          </label>
+          {own !== null && !options.length && <p className="pl-6 text-xs text-slate-500">{t("plan.canonNoOwn")}</p>}
+          {choice.mode === "existing" && (
+            <select
+              value={choice.canonId}
+              disabled={busy}
+              onChange={(e) => e.target.value && save({ mode: "existing", canonId: e.target.value })}
+              aria-label={t("plan.canonSelect")}
+              className={`${inputCls} min-w-0 bg-white sm:ml-6 sm:max-w-md`}
+              data-testid="canon-select"
+            >
+              {options.map((c) => (
+                <option key={c.canonId} value={c.canonId}>
+                  {c.name} ({c.canonId})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="grid gap-1">
+          <label className={radio}>
+            <input type="radio" name="plan-canon" checked={choice.mode === "new"} disabled={busy} onChange={() => save({ mode: "new", name: newName.trim() || plan.name })} data-testid="canon-new" />
+            {t("plan.canonNew")}
+          </label>
+          {choice.mode === "new" && (
+            <div className="grid gap-1 sm:pl-6">
+              <input
+                value={newName}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={() => {
+                  const v = newName.trim();
+                  if (v && v !== choice.name) save({ mode: "new", name: v });
+                  else setName(null);
+                }}
+                maxLength={200}
+                aria-label={t("plan.canonNewName")}
+                placeholder={t("plan.canonNewName")}
+                className={`${inputCls} sm:max-w-md`}
+                data-testid="canon-new-name"
+              />
+              <p className="text-xs text-slate-500">{t("plan.canonNewNote")}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** Link to a row's pull request in the plan's Canon. */
+function PrLink({ canonId, prNo }: { canonId: string; prNo: number }) {
+  const t = useT();
+  return (
+    <Link to={canonPullPath(canonId, prNo)} className="inline-flex items-center gap-1 text-blue-700 hover:underline coarse:min-h-11" data-testid="row-pr">
+      <GitPullRequest size={12} aria-hidden /> {t("plan.pr", { n: prNo })}
+    </Link>
+  );
+}
+
+/**
+ * What a row of a Canon plan adds: its pull request (also while it waits for its update to match the Canon), the AI review
+ * of it (待ち / 実行中, then 「AI レビュー済み」 linking to the pull request, where the review is shown), and the conform
+ * follow-ups it got.
+ */
+function RowCanonFacts({ row, canonId }: { row: PlanRowView; canonId: string | null }) {
+  const t = useT();
+  const conformWaits = row.state === "pending" && !!row.conform;
+  const pr = canonId && row.prNo && (row.state === "review" || row.state === "decision" || row.state === "done" || conformWaits) ? row.prNo : null;
+  const prOpen = row.state === "review" || row.state === "decision";
+  const chip = "rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-700";
+  // 待ち / 実行中 while the row waits for approval (the runner clears 実行中 when the review job ends); afterwards a link to
+  // the pull request, where the review is shown
+  const aiState = row.state === "review" && row.aiReview ? row.aiReview : !row.aiReview && row.aiReviewJobId && prOpen && pr ? "done" : null;
+  return (
+    <>
+      {pr && <PrLink canonId={canonId!} prNo={pr} />}
+      {conformWaits && (
+        <span className="text-slate-500" data-testid="row-conform-waiting">
+          {t("plan.conformWaiting")}
+        </span>
+      )}
+      {aiState === "done" ? (
+        <Link to={canonPullPath(canonId!, pr!)} className={`${chip} inline-flex items-center hover:underline coarse:min-h-11`} data-testid="row-ai-review">
+          {t("plan.aiReview.done")}
+        </Link>
+      ) : aiState ? (
+        <span className={chip} data-testid="row-ai-review">
+          {t(`plan.aiReview.${aiState}` as MessageKey)}
+        </span>
+      ) : null}
+      {(row.conformAttempts ?? 0) > 0 && (
+        <span className="text-slate-500" data-testid="row-conform">
+          {t("plan.conformAttempts", { n: row.conformAttempts ?? 0, max: MAX_CONFORM_FOLLOWUPS })}
+        </span>
+      )}
+    </>
+  );
+}
+
+/** Rows whose pull request needs a human decision (「人の判断」): mark done or push again (running / paused plans), or skip. */
+function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: { rows: PlanRowView[]; canonId: string | null; busy: boolean; canResolve: boolean; canSkip: boolean; resolve: (rowId: string, action: "done" | "push") => void; skip: (rowId: string) => void }) {
+  const t = useT();
+  if (!rows.length) return null;
+  return (
+    <section className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4" data-testid="plan-decisions">
+      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold text-amber-800">
+        {t("plan.decisions", { n: rows.length })} <HelpTip text={t("plan.decisionsHelp")} />
+      </h2>
+      <ul className="grid gap-2">
+        {rows.map((r) => {
+          // only an existing, completed project can be pushed (the API answers 409 otherwise)
+          const canPush = !!r.project && !r.project.deleted && r.project.status === "COMPLETED";
+          return (
+            <li key={r.rowId} id={decisionAnchor(r.rowId)} className="flex min-w-0 scroll-mt-4 flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3 lg:flex-row lg:items-center" data-testid="plan-decision">
+              <div className="min-w-0 flex-1 text-sm">
+                <div className="break-words font-medium">{rowLabel(r)}</div>
+                <div className="text-xs text-amber-800">{t(`plan.decision.${r.decisionReason ?? "conflicts"}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</div>
+                {r.lastError && <div className="line-clamp-2 break-words text-xs text-slate-600">{r.lastError}</div>}
+                <div className="flex flex-wrap items-center gap-x-3 text-xs">
+                  {r.projectId && (
+                    <Link to={projectPath(r.projectId)} className="inline-flex min-w-0 max-w-full items-center text-blue-700 hover:underline coarse:min-h-11">
+                      {r.project?.name ?? r.projectId}
+                    </Link>
+                  )}
+                  {canonId && r.prNo ? <PrLink canonId={canonId} prNo={r.prNo} /> : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" disabled={busy || !canResolve} onClick={() => window.confirm(t("plan.resolveDoneQ")) && resolve(r.rowId, "done")} className={secondaryBtn}>
+                  <CheckCheck size={14} aria-hidden /> {t("plan.resolveDone")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || !canResolve || !canPush}
+                  title={canPush ? undefined : t("plan.resolvePushNeedsCompleted")}
+                  onClick={() => window.confirm(t("plan.resolvePushQ")) && resolve(r.rowId, "push")}
+                  className={secondaryBtn}
+                >
+                  <Upload size={14} aria-hidden /> {t("plan.resolvePush")}
+                </button>
+                <button type="button" disabled={busy || !canSkip} onClick={() => window.confirm(t("plan.skipDecisionQ")) && skip(r.rowId)} className={secondaryBtn}>
+                  <SkipForward size={14} aria-hidden /> {t("plan.skip")}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/** Link that scrolls to a row's entry in 「人の判断」 on this page. */
+function DecisionLink({ row }: { row: PlanRowView }) {
+  const id = decisionAnchor(row.rowId);
+  return (
+    <a
+      href={`#${id}`}
+      onClick={(e) => {
+        e.preventDefault();
+        document.getElementById(id)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }}
+      className="inline-flex min-w-0 max-w-full items-center gap-1 break-words text-amber-900 underline coarse:min-h-11"
+      data-testid="seed-decision-link"
+    >
+      {rowLabel(row) || row.rowId}
+    </a>
+  );
+}
+
+/**
+ * Why a running Canon plan does not start rows: a seed pull request waits for approval or a seed needs a human decision
+ * (both hold every later wave and every other seed), or too many pull requests wait (back-pressure, later waves only).
+ */
+function CanonGates({ d }: { d: PlanDetailResponse }) {
+  const t = useT();
+  const { plan, rows } = d;
+  const canonId = plan.canonId ?? d.canon?.canonId ?? null;
+  if (!canonId || (plan.status !== "RUNNING" && plan.status !== "PAUSED")) return null;
+  const seeds = seedsHolding(rows, plan.activeWave);
+  const inReview = seeds.filter((r) => r.state === "review");
+  const toDecide = seeds.filter((r) => r.state === "decision");
+  // back-pressure only holds rows of later waves; nothing to explain once none is waiting
+  const held = backPressure(rows) && rows.some((r) => r.state === "pending" && r.wave > (plan.activeWave ?? 0));
+  if (!seeds.length && !held) return null;
+  return (
+    <div className="mb-3 grid gap-2">
+      {inReview.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-violet-50 px-3 py-2 text-sm text-violet-700" role="status" data-testid="plan-seed-gate">
+          <span className="min-w-0 break-words">{t("plan.seedGate")}</span>
+          {inReview.map((r) => (r.prNo ? <PrLink key={r.rowId} canonId={canonId} prNo={r.prNo} /> : null))}
+        </div>
+      )}
+      {toDecide.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status" data-testid="plan-seed-decision">
+          <span className="min-w-0 break-words">{t("plan.seedGateDecision")}</span>
+          {toDecide.map((r) => (
+            <DecisionLink key={r.rowId} row={r} />
+          ))}
+        </div>
+      )}
+      {held && (
+        <div className="break-words rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status" data-testid="plan-back-pressure">
+          {t("plan.backPressure", { n: rows.filter((r) => r.state === "review").length })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type RowFactsOf = Pick<Partial<PlanRowView>, "seed" | "anchors" | "hub" | "overlaps" | "existing" | "duplicateOf" | "dependsOn" | "rebuild">;
 
 /**
@@ -509,6 +843,7 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
   // 「種」 on a row only while it is the seed of its wave (as the headings)
   const seeds = useMemo(() => new Set([...seedIndexes(d.rows)].map((i) => d.rows[i].rowId)), [d.rows]);
   const canSkip = d.plan.status === "RUNNING" || d.plan.status === "PAUSED" || d.plan.status === "CANCELLED";
+  const canonId = d.plan.canonId ?? d.canon?.canonId ?? null;
   return (
     <section className="mb-5" data-testid="plan-rows">
       <h2 className="mb-2 text-sm font-semibold">{t("plan.rows", { n: d.rows.length })}</h2>
@@ -538,6 +873,7 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
                     {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
                     {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
                     {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}
+                    <RowCanonFacts row={r} canonId={canonId} />
                     <RowStateChip state={r.state} />
                     {canSkip && r.state === "pending" && (
                       <button type="button" onClick={() => act(r.rowId, "skip")} className="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 coarse:min-h-11" title={t("plan.skip")}>
@@ -841,7 +1177,9 @@ function History({ events, rows, t }: { events: PlanEventRecord[]; rows: PlanRow
           return (
             <li key={e.sk} className="flex flex-wrap gap-x-2">
               <span className="text-slate-500">{fmtDate(e.at, locale)}</span>
-              <span>{t(`plan.evt.${e.type}` as MessageKey, { wave: e.detail?.wave ?? "" })}</span>
+              <span>{t(`plan.evt.${e.type}` as MessageKey, { wave: e.detail?.wave ?? "", revision: e.detail?.revision ?? "" })}</span>
+              {e.type === "row_pushed" && typeof e.detail?.prNo === "number" && <span className="font-mono text-slate-500">#{e.detail.prNo}</span>}
+              {e.type === "row_decision" && DECISION_REASONS.includes(e.detail?.reason as PlanDecisionReason) && <span className="text-amber-800">{t(`plan.decision.${e.detail?.reason}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</span>}
               {row && <span className="text-slate-600">{rowLabel(row)}</span>}
             </li>
           );
@@ -863,6 +1201,7 @@ export function PlanDetailPage() {
   const [rejected, setRejected] = useState<PlanRowRejected[]>(() => ((location.state as { rejected?: PlanRowRejected[] } | null)?.rejected ?? []));
   const [renaming, setRenaming] = useState<string | null>(null);
   const saveRef = useRef<{ save: () => Promise<void>; rows: DraftRow[] } | null>(null);
+  const canonFlushRef = useRef<CanonFlush | null>(null);
 
   const onError = useCallback((e: unknown) => setErr(e instanceof Error ? e.message : String(e)), []);
   const load = useCallback(
@@ -906,7 +1245,17 @@ export function PlanDetailPage() {
       .finally(() => setBusy(false));
   };
   const rowAct = (rowId: string, action: "retry" | "skip") => act(() => api.planRowAction(planId, rowId, action));
-  const confirm = () => {
+  const resolveRow = (rowId: string, action: "done" | "push") => act(() => api.resolvePlanRow(planId, rowId, action));
+  const confirm = async () => {
+    // a new Canon name typed but not saved yet is stored first, so the dialog names the Canon that is created
+    let canon: ConfirmCanon = plan.canonNew ? { isNew: true, name: plan.canonNew.name } : d.canon && !d.canon.missing ? { isNew: false, name: d.canon.name } : null;
+    const flush = canonFlushRef.current;
+    if (flush) {
+      setBusy(true);
+      const stored = await flush().finally(() => setBusy(false));
+      if (stored === false) return;
+      canon = stored;
+    }
     const unsaved = saveRef.current;
     // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「種」 headings)
     const facts = unsaved ? seedFactsOf(unsaved.rows) : [];
@@ -916,6 +1265,7 @@ export function PlanDetailPage() {
     const text = [
       t("plan.confirmQ", { n: e.rows, waves: e.waves, c: e.concurrency, time: fmtDuration(e.minutes, t), cost: `${formatUsd(e.costUsd.min)}–${formatUsd(e.costUsd.max)}` }),
       ...(existing ? [t("plan.confirmExisting", { n: existing })] : []),
+      ...(canon ? [t(canon.isNew ? "plan.confirmCanonNew" : "plan.confirmCanon", { name: canon.name })] : []),
     ].join("\n\n");
     if (!window.confirm(text)) return;
     act(async () => {
@@ -998,12 +1348,13 @@ export function PlanDetailPage() {
         {plan.status === "DRAFTING" && <DraftJobBanner plan={plan} rows={rows.length} busy={busy} onCancel={cancelDraft} />}
         {banner && <div className={`mb-3 rounded-md px-3 py-2 text-sm ${banner.cls}`}>{banner.text}</div>}
         {err && <div className="mb-3 break-words rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+        <CanonGates d={d} />
         {plan.status === "DRAFT" && <DraftOutcome plan={plan} />}
         <Rejected items={rejected} onClose={() => setRejected([])} />
 
         <div className="mb-4 flex flex-wrap gap-2" data-testid="plan-actions">
           {plan.status === "DRAFT" && (
-            <button type="button" disabled={busy || !rows.length} onClick={confirm} className={primaryBtn}>
+            <button type="button" disabled={busy || !rows.length} onClick={() => void confirm()} className={primaryBtn}>
               <Play size={14} aria-hidden /> {t("plan.confirm")}
             </button>
           )}
@@ -1036,10 +1387,12 @@ export function PlanDetailPage() {
 
         <Summary d={d} />
         <Inbox rows={rows.filter((r) => r.state === "question")} onDone={() => void load()} onError={onError} />
+        <Decisions rows={rows.filter((r) => r.state === "decision")} canonId={plan.canonId ?? d.canon?.canonId ?? null} busy={busy} canResolve={plan.status === "RUNNING" || plan.status === "PAUSED"} canSkip={plan.status === "RUNNING" || plan.status === "PAUSED" || plan.status === "CANCELLED"} resolve={resolveRow} skip={(rowId) => rowAct(rowId, "skip")} />
         <Attention rows={rows.filter((r) => r.state === "attention")} act={rowAct} />
         {(plan.status === "RUNNING" || plan.status === "PAUSED") && <Proposals d={d} busy={busy} decide={decide} />}
         <Settings d={d} onChanged={() => void load()} onError={onError} />
         <Policy plan={plan} onSaved={load} onError={onError} />
+        <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
         {plan.status === "DRAFT" ? <DraftEditor d={d} onSaved={() => void load()} onError={onError} onRejected={setRejected} saveRef={saveRef} /> : <RowsByWave d={d} act={rowAct} />}
         <History events={d.events} rows={rows} t={t} />
         <DecidedProposals d={d} />

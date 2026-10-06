@@ -12,6 +12,7 @@ import type {
   CreatePlanResponse,
   FileAttachment,
   NormalizedPlanRow,
+  PlanCanonChoice,
   PlanDetailResponse,
   PlanJobState,
   PlanProposalRecord,
@@ -44,10 +45,13 @@ import {
   generatePlanRowId,
   hubScores,
   isDeterministicPlanAttachment,
+  isCanonDeleted,
+  isCanonId,
   isMovableRow,
   isPlanId,
   isProjectDeleted,
   matchExistingProject,
+  normalizeCanonName,
   normalizePlanRow,
   normalizeProjectName,
   nowIso,
@@ -62,6 +66,8 @@ import {
   stagingKey,
 } from "@cobrac/shared";
 import { getStagingText, headStaging, movePlanAttachment } from "./aws.js";
+import { canonFields, createCanon, ownedCanon } from "./canonOps.js";
+import { getCanon, listPullRequests } from "./canons.js";
 import { reserveNewId } from "./catalog.js";
 import { currentLimits } from "./concurrency.js";
 import { getProject, listJobsForCanon, listUserProjects } from "./db.js";
@@ -118,6 +124,22 @@ function planPolicy(v: unknown): string {
   const policy = cleanPlanNote(v);
   if ([...policy].length > PLAN_POLICY_MAX) throw bad(`粒度方針は ${PLAN_POLICY_MAX} 文字までです`);
   return policy;
+}
+
+/** The Canon choice of a draft, checked (an existing Canon is checked for ownership under the lease). */
+function planCanonChoice(v: unknown): PlanCanonChoice {
+  const c = (v ?? {}) as { mode?: unknown; canonId?: unknown; name?: unknown };
+  if (c.mode === "none") return { mode: "none" };
+  if (c.mode === "existing") {
+    if (typeof c.canonId !== "string" || !isCanonId(c.canonId)) throw bad("canon.canonId が不正です");
+    return { mode: "existing", canonId: c.canonId };
+  }
+  if (c.mode === "new") {
+    const n = normalizeCanonName(c.name);
+    if ("error" in n) throw bad(`Canon の名前が不正です（${n.error}）`);
+    return { mode: "new", name: n.name };
+  }
+  throw bad("canon.mode が不正です");
 }
 
 function csvText(v: unknown): string {
@@ -284,7 +306,8 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
   if (body.name !== undefined) values.name = planName(body.name);
   if (body.goal !== undefined) values.goal = planGoal(body.goal);
   const policy = body.policy !== undefined ? planPolicy(body.policy) : undefined;
-  if (body.settings === undefined && policy === undefined) {
+  const canon = body.canon !== undefined ? planCanonChoice(body.canon) : undefined;
+  if (body.settings === undefined && policy === undefined && canon === undefined) {
     // name and goal can change in any status
     if (!(await updatePlan(plan.planId, values, { status: plan.status }))) throw conflict(STATUS_CHANGED);
     return { ...plan, ...values, updatedAt: nowIso() };
@@ -294,6 +317,22 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
       if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は粒度方針を変更できません");
       if (fresh.status !== "DRAFT") throw conflict("確定後の計画の粒度方針は変更できません");
       values.policy = policy;
+    }
+    if (canon !== undefined) {
+      if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は Canon を変更できません");
+      if (fresh.status !== "DRAFT") throw conflict("確定後の計画の Canon は変更できません");
+      if (canon.mode === "existing") {
+        // a plan's projects join its Canon, and projects can only join their owner's Canons
+        if (!(await ownedCanon(canon.canonId, fresh.ownerUserId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
+        values.canonId = canon.canonId;
+        values.canonNew = null;
+      } else if (canon.mode === "new") {
+        values.canonId = null;
+        values.canonNew = { name: canon.name };
+      } else {
+        values.canonId = null;
+        values.canonNew = null;
+      }
     }
     if (body.settings !== undefined) {
       if (fresh.status !== "DRAFT" && fresh.status !== "DRAFTING") throw conflict("確定後の計画の設定は変更できません");
@@ -483,18 +522,39 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const at = nowIso();
     const lost = await recheckExisting(u, rows, at);
     if (fresh.ordering === "auto") autoOrder(rows, limits.effective);
+    // the plan's Canon: an existing one must still be the owner's; a new one is checked now and created below
+    let canonId = fresh.canonId ?? null;
+    if (canonId && !(await ownedCanon(canonId, u.userId))) throw conflict("この計画の Canon が見つかりません");
+    const newCanon = !canonId && fresh.canonNew ? canonFields({ name: fresh.canonNew.name, policy: fresh.policy ?? "" }, false) : null;
     if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
+    if (newCanon) {
+      const created = await createCanon(u, newCanon);
+      canonId = created.canonId;
+      // stored at once, so a confirmation that fails after this point keeps the Canon instead of making another
+      if (!(await updatePlan(plan.planId, { canonId, canonNew: null }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+      await putPlanEvent(plan.planId, "canon_created", u.userId, { detail: { canonId, name: created.name } });
+    }
     for (const r of rows) if (fresh.ordering === "auto" || lost.has(r.rowId)) await putRow(r);
+    const owned = canonId && rows.some((r) => r.existing && r.state === "pending") ? new Map((await listUserProjects(u.userId)).map((p) => [p.projectId, p])) : null;
     for (const r of rows) {
       if (!r.existing || r.state !== "pending") continue;
-      const values: Partial<PlanRowRecord> = { state: "done", projectId: r.existing.projectId, completedAt: at };
-      if (await updateRow(plan.planId, r.rowId, values, { state: "pending" })) Object.assign(r, values);
+      let values: Partial<PlanRowRecord> = { state: "done", projectId: r.existing.projectId, completedAt: at };
+      const inCanon = owned?.get(r.existing.projectId)?.canonId ?? null;
+      // in a plan with a Canon an existing project counts once it is in that Canon: one in another Canon needs a human;
+      // one in no Canon waits for its wave like any other row (seeds first), and the runner then pushes it (joining
+      // the Canon pinned to its head) without building anything
+      if (canonId && inCanon !== canonId) {
+        values = inCanon ? { state: "decision", decisionReason: "other_canon", projectId: r.existing.projectId } : { state: "pending", projectId: r.existing.projectId };
+      }
+      if (!(await updateRow(plan.planId, r.rowId, values, { state: "pending" }))) continue;
+      Object.assign(r, values);
+      if (values.state === "decision") await putPlanEvent(plan.planId, "row_decision", u.userId, { rowId: r.rowId, projectId: r.existing.projectId, detail: { reason: "other_canon" } });
     }
     const estimate = planEstimate(rows, limits.effective);
     const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: u.userId, estimate, activeWave: null, pausedReason: null, rowCounts: countRows(rows) };
     if (!(await setPlanStatus(plan.planId, "DRAFT", "RUNNING", values))) throw conflict(STATUS_CHANGED);
-    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}) } });
-    return { ...fresh, ...values, status: "RUNNING" as const };
+    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
+    return { ...fresh, ...values, ...(canonId ? { canonId, canonNew: null } : {}), status: "RUNNING" as const };
   });
   await kick(plan.planId);
   return confirmed;
@@ -579,10 +639,36 @@ export async function skipRow(u: UserRecord, plan: PlanRecord, rowId: string): P
   if (plan.status === "DRAFT" || plan.status === "DRAFTING" || plan.status === "COMPLETED") throw conflict("確定済みで終了していない計画の行だけをスキップできます");
   const row = (await listRows(plan.planId)).find((r) => r.rowId === rowId);
   if (!row) throw notFound();
-  if (row.state !== "pending" && row.state !== "attention") throw conflict("待ちまたは要対応の行だけをスキップできます");
+  if (row.state !== "pending" && row.state !== "attention" && row.state !== "decision") throw conflict("待ち・要対応・人の判断の行だけをスキップできます");
   if (!(await updateRow(plan.planId, rowId, { state: "skipped" }, { state: row.state }))) throw conflict("行の状態が変わりました。再読み込みしてください");
   await putPlanEvent(plan.planId, "row_skipped", u.userId, { rowId });
   if (plan.status === "RUNNING" || plan.status === "PAUSED") await kick(plan.planId);
+}
+
+/**
+ * The owner decides a 「人の判断」 row of a plan with a Canon: `done` counts it as done as it is (its pull request, if
+ * any, stays as it is in the Canon); `push` pushes its finished project again (the runner pushes it on its next step).
+ */
+export async function resolveRow(u: UserRecord, plan: PlanRecord, rowId: string, action: unknown): Promise<void> {
+  if (action !== "done" && action !== "push") throw bad("action は done か push です");
+  if (plan.status !== "RUNNING" && plan.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
+  const running = await withPlanLease(plan.planId, async (fresh) => {
+    if (fresh.status !== "RUNNING" && fresh.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
+    const row = (await listRows(plan.planId, true)).find((r) => r.rowId === rowId);
+    if (!row) throw notFound();
+    if (row.state !== "decision") throw conflict("人の判断を待つ行ではありません");
+    let values: Partial<PlanRowRecord>;
+    if (action === "done") values = { state: "done", completedAt: nowIso(), lastError: null };
+    else {
+      const p = row.projectId ? await getProject(u.userId, row.projectId) : null;
+      if (!p || isProjectDeleted(p) || p.status !== "COMPLETED") throw conflict("完了したプロジェクトの行だけをもう一度 push できます");
+      values = { state: "running", decisionReason: null, lastError: null, claimedAt: null };
+    }
+    if (!(await updateRow(plan.planId, rowId, values, { state: "decision" }))) throw conflict("行の状態が変わりました。再読み込みしてください");
+    await putPlanEvent(plan.planId, "row_resolved", u.userId, { rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { action, reason: row.decisionReason ?? null } });
+    return fresh.status === "RUNNING";
+  });
+  if (running || action === "push") await kick(plan.planId);
 }
 
 /** Soft delete of a draft, finished or cancelled plan (its projects stay). */
@@ -721,6 +807,24 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     jobsPriced = true;
   }
   const end = plan.completedAt ?? plan.cancelledAt ?? null;
+  // only plans with a Canon read it
+  const canon = plan.canonId ? await getCanon(plan.canonId) : null;
+  // AI reviews of the plan's pull requests are stored under the Canon ID: they count toward what the plan spent
+  if (canon && !isCanonDeleted(canon)) {
+    const ours = new Set((await listPullRequests(canon.canonId)).filter((pr) => pr.planId === plan.planId).map((pr) => pr.prNo));
+    if (ours.size) {
+      for (const j of await listJobsForCanon(canon.canonId)) {
+        if (j.type !== "canon-review" || j.userId !== plan.ownerUserId || typeof j.costUsd !== "number" || !ours.has(j.reviewPrNo ?? -1)) continue;
+        cost += j.costUsd;
+        priced = true;
+      }
+    }
+  }
+  const canonView: PlanDetailResponse["canon"] = plan.canonId
+    ? canon && !isCanonDeleted(canon) && canon.ownerUserId === plan.ownerUserId
+      ? { canonId: canon.canonId, name: canon.name, headRevision: canon.headRevision }
+      : { canonId: plan.canonId, name: canon?.name ?? "", headRevision: canon?.headRevision ?? 0, missing: true }
+    : null;
   const minutes = plan.confirmedAt ? Math.max(0, Math.round(((end ? Date.parse(end) : Date.now()) - Date.parse(plan.confirmedAt)) / 60000)) : null;
   return {
     plan: { ...plan, rowCounts: countRows(rows), rowCount: rows.length },
@@ -731,6 +835,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null, unpricedProjects },
     proposals: proposals.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.sk < b.sk ? 1 : -1)),
     planJobsCostUsd: jobsPriced ? round6(jobsCost) : null,
+    canon: canonView,
   };
 }
 

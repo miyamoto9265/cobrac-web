@@ -7,7 +7,7 @@ import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, uploadFile } from "../lib/api";
 import { fmtBytes, fmtDate } from "../lib/format";
-import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, planPath } from "../lib/plan";
+import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, planPath } from "../lib/plan";
 import { inputCls, primaryBtn } from "./CanonsPage";
 
 const MB = 1024 * 1024;
@@ -196,6 +196,14 @@ export function PlansPage() {
                   <span className="font-mono text-[11px] text-slate-500">{p.planId}</span>
                   <span className="ml-auto flex items-center gap-2 text-xs text-slate-600">
                     <span>{t("plan.doneOf", { done: p.rowCounts.done, n: p.rowCount })}</span>
+                    {/* plans with a Canon: rows waiting for approval or for a decision */}
+                    {(["review", "decision"] as const).map((st) =>
+                      (p.rowCounts[st] ?? 0) > 0 ? (
+                        <span key={st} className={`rounded-full px-1.5 py-0.5 text-[11px] ${ROW_STATE_COLOR[st]}`}>
+                          {t(`plan.row.${st}`)} {p.rowCounts[st]}
+                        </span>
+                      ) : null,
+                    )}
                     <PlanStatusBadge status={p.status} />
                   </span>
                 </div>

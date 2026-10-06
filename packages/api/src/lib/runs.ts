@@ -9,7 +9,7 @@ import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
 import { getJob, getProject, listJobsForProject, putJob, putJobIfAbsent, putMessage, putProject, updateJob, updateProject } from "./db.js";
 import { bad } from "./http.js";
-import { scopeNotice } from "./hypothesisSettings.js";
+import { scopeNotice, storeHypothesisFollowup } from "./hypothesisSettings.js";
 import { modelPolicy } from "./orgKey.js";
 
 export const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
@@ -105,7 +105,7 @@ export interface NewProject {
    * is kept (no second project, messages or job), and its job is queued only if it was never stored.
    */
   recover?: boolean;
-  /** Runs after the project and its first job are stored and before the job is queued (Canon membership) */
+  /** Runs after the project and its first job are stored and before the job is queued (Canon membership); idempotent */
   beforeQueue?: (project: ProjectRecord) => Promise<void>;
   /** "Allow hypotheses": hypothesis mode with scope S1 on the whole HCD (absent: literature-supported only, no new attributes) */
   hypothesis?: HypothesisInput;
@@ -208,8 +208,9 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     if (input.plan) {
       await putMessage(projectId, jobId, "system", "status", `Started by the BRA Planner (plan “${input.plan.name}”).`, { ...owner, meta: { i18n: "sys.planStarted", name: input.plan.name, planId: input.plan.planId } });
     }
-    if (input.beforeQueue) await input.beforeQueue(project);
   }
+  // also when a recovered start stores its job only now, so the job is never queued before it
+  if (input.beforeQueue) await input.beforeQueue(project);
   await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return project;
@@ -246,6 +247,52 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
   await noteModel(p, jobId, opts.moved);
   await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { userId: p.userId, meta: { i18n: "sys.retryQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
+  return jobId;
+}
+
+/** Queues a follow-up job (an instruction to a COMPLETED project, checked by the caller); `moved` as in `queueRetry`. */
+export async function queueFollowup(u: UserRecord, p: ProjectRecord, policy: ModelPolicy & { source: KeySource }, opts: { instruction: string; locale: UiLocale | null; moved: string | null; hypothesis?: HypothesisInput | null }): Promise<string> {
+  const text = opts.instruction;
+  const now = nowIso();
+  const jobId = newId("job_");
+  const job: JobRecord = {
+    projectId: p.projectId,
+    jobId,
+    userId: u.userId,
+    type: "followup",
+    status: "QUEUED",
+    keySource: policy.source,
+    instruction: text,
+    pendingAnswer: null,
+    locale: opts.locale,
+    ecsTaskArn: null,
+    retryCount: 0,
+    lastHeartbeat: null,
+    startedAt: null,
+    endedAt: null,
+    errorMessage: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  // hypothesis mode: a follow-up that adds a scope stores the job and the project's new scope together
+  const added = opts.hypothesis ? await storeHypothesisFollowup(p, job, opts.hypothesis) : null;
+  if (!added) {
+    await putJob(job);
+    await updateProject(u.userId, p.projectId, {
+      status: "QUEUED",
+      activeJobId: jobId,
+      errorMessage: null,
+      stepStates: { ...p.stepStates, XLSX: "pending" },
+    });
+  }
+  await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
+  await noteModel(p, jobId, opts.moved);
+  if (added) {
+    const notice = scopeNotice(added.scope, added.maxShare);
+    await putMessage(p.projectId, jobId, "system", "status", notice.content, { userId: p.userId, meta: notice.meta });
+  }
+  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
+  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return jobId;
 }
 

@@ -1,5 +1,5 @@
-import type { PlanRowState, PlanStatus } from "@cobrac/shared";
-import { PLAN_ATTACHMENT_EXTS } from "@cobrac/shared";
+import type { CanonPullRequestRecord, PlanRowState, PlanRowView, PlanStatus } from "@cobrac/shared";
+import { PLAN_ATTACHMENT_EXTS, PLAN_MAX_WAITING_PRS, waitingPrs } from "@cobrac/shared";
 import type { TFn } from "../i18n";
 
 export const planPath = (planId: string) => `/plans/${encodeURIComponent(planId)}`;
@@ -23,10 +23,38 @@ export const ROW_STATE_COLOR: Record<PlanRowState, string> = {
   attention: "bg-rose-50 text-rose-700",
   skipped: "bg-slate-50 text-slate-500",
   cancelled: "bg-slate-100 text-slate-700",
+  review: "bg-violet-50 text-violet-700",
+  decision: "bg-amber-50 text-amber-700",
 };
 
 /** States shown in the progress bar and counts, in workflow order (starting is counted as running). */
-export const ROW_STATE_ORDER: PlanRowState[] = ["pending", "running", "question", "attention", "done", "skipped", "cancelled"];
+export const ROW_STATE_ORDER: PlanRowState[] = ["pending", "running", "question", "review", "decision", "attention", "done", "skipped", "cancelled"];
+
+/**
+ * Seed rows that hold the plan (the runner's seed gate): seeds of the active wave or an earlier one whose pull request
+ * waits for approval (「承認待ち」) or that need a human decision (「人の判断」). Both hold every later wave, and every other
+ * seed (one seed at a time).
+ */
+export function seedGateRows<T extends Pick<PlanRowView, "seed" | "state" | "wave">>(rows: T[], activeWave: number | null | undefined): T[] {
+  if (!activeWave) return [];
+  return rows.filter((r) => r.seed && (r.state === "review" || r.state === "decision") && r.wave <= activeWave);
+}
+
+/**
+ * The gating seeds that actually hold a row: a pending row of a later wave, or any pending seed (seeds are built one at a
+ * time, even when they share a wave).
+ */
+export function seedsHolding<T extends Pick<PlanRowView, "seed" | "state" | "wave">>(rows: T[], activeWave: number | null | undefined): T[] {
+  const waiting = rows.filter((r) => r.state === "pending");
+  return seedGateRows(rows, activeWave).filter((s) => waiting.some((r) => r.wave > s.wave || r.seed));
+}
+
+/** Back-pressure: no new wave starts while this many pull requests of the plan wait for approval. */
+export const backPressure = (rows: Pick<PlanRowView, "state">[]) => waitingPrs(rows) >= PLAN_MAX_WAITING_PRS;
+
+/** Open pull requests 「まとめて承認」 may offer: no conflicts or needs-review items, and no request for changes. */
+export const bulkApprovable = (p: Pick<CanonPullRequestRecord, "state" | "summary" | "reviewState">) =>
+  p.state === "open" && p.summary.errors === 0 && p.summary.warnings === 0 && p.reviewState !== "changes_requested";
 
 /** `48 min` below two hours, else `~12.5 h` / `~32 h`. */
 export function fmtDuration(minutes: number | null | undefined, t: TFn): string {

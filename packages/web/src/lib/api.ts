@@ -65,6 +65,9 @@ import type {
   PlanRowRejected,
   UpdateConcurrencyRequest,
   UpdatePlanRequest,
+  ApproveManyRequest,
+  ApproveManyResponse,
+  PlanCanonChoice,
   HypothesisFollowupRequest,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
@@ -224,6 +227,12 @@ export const api = {
   requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
   cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),
   orderPlan: (id: string) => request<{ plan: PlanRecord; rows: PlanRowRecord[] }>("POST", `/plans/${encodeURIComponent(id)}/order`),
+  setPlanCanon: (id: string, canon: PlanCanonChoice) => request<PlanRecord>("PUT", `/plans/${encodeURIComponent(id)}`, { canon } satisfies UpdatePlanRequest),
+  /** A row in 「人の判断」: done (taken as it is) or push (push its project again) */
+  resolvePlanRow: (id: string, rowId: string, action: "done" | "push") =>
+    request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/resolve`, { action }),
+  approveManyPulls: (canonId: string, prNos: number[]) =>
+    request<ApproveManyResponse>("POST", `/canons/${encodeURIComponent(canonId)}/pulls/approve-many`, { prNos } satisfies ApproveManyRequest),
   proposalAction: (id: string, proposalId: string, action: "accept" | "reject") =>
     request<{ ok: true; proposal: PlanProposalRecord }>("POST", `/plans/${encodeURIComponent(id)}/proposals/${encodeURIComponent(proposalId)}/${action}`),
 

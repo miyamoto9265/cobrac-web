@@ -5,6 +5,21 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- BRA Planner with a Canon (stage 3): a draft plan can choose "None", one of the owner's Canons, or "A new Canon" (created at confirmation with the plan's granularity policy; a name typed just before confirming is saved first and named in the confirmation). Each row's project joins that Canon pinned to its latest rev when it starts; when it is finished it is pushed automatically, and the row waits for approval ("Awaiting approval", with a link to its pull request) and is done only once a person approves the pull request. Nothing is approved automatically
+- Rows that are not seeds get an AI review of their pull request automatically once a job slot is free (shown as waiting / running on the row, then "AI reviewed" with a link to the pull request, where the review is shown); it lists findings only, and its cost counts in the plan's cost so far
+- When a row's pull request has error conflicts because the Canon moved on after the row started, the project is pinned to the latest rev again and gets the follow-up "Canon rev N に合わせて更新" automatically, then is pushed again; at most 2 times per row, shown on the row. While the row waits for a slot it shows its pull request and "Waiting to update to match the Canon"; a pull request approved or rejected in the Canon meanwhile marks the row done or sends it to "Your decision" instead, and no update is sent
+- "Your decision" rows: conflicts that remain after 2 updates or are not caused by the Canon moving on, a rejected or withdrawn pull request, a project in another Canon, or a push that failed put the row under "Your decision" with the reason; the owner can mark it done, push it again or skip it; approving the row's pull request in the Canon also marks it done
+- Seed rows of a plan with a Canon are built one at a time, and neither the next seed nor the later waves start until a person has approved each seed's pull request (the plan page says so, with a link; also when a seed row needs a decision, with a link to the row); in automatic order the re-plan after a wave runs once that wave's pull requests are approved; no new wave starts while 20 of the plan's pull requests await approval (the plan page says so too)
+- A plan whose Canon is deleted pauses with the reason shown instead of starting rows that could not join it; its rows awaiting approval and finished rows that would be pushed go to "Your decision"
+- Rows with an existing finished project in no Canon are pushed to the plan's Canon when their wave comes (after the seeds), without being rebuilt
+- "Approve selected" on the Canon page: reviewers (the owner and co-editors) tick open pull requests without conflicts or items to review and approve them in one go, one after another, each checked against the Canon as the previous approval left it; it stops at the first one that gains a conflict (or is already decided or gone) and says how many were approved and why it stopped (an unexpected error also stops it there, keeping the approvals made so far). The approver is recorded on each pull request and rev as for a single approval
+- Pull requests pushed by a plan show the plan's ID on the Canon's list of pull requests and on the pull request page, with a link to the plan for the Canon's owner; the plan list shows how many rows await approval or a decision
+
+### Changed
+- In a plan with a Canon a row counts as done only once its pull request is approved (or the owner marks it done), so such a plan completes only when every row's pull request has been approved or the row was resolved or skipped. Cancelling a plan leaves rows that await approval or a decision, and their pull requests, as they are. Skipping a row now also works for rows awaiting a decision
+- The AI reviews and Canon updates a plan starts are ordinary jobs: each takes one slot under the concurrency limits, is never queued ahead of a free slot, runs on the owner's key or the default API key, and its cost is recorded
+
 ## [0.35.0] - 2026-10-06
 
 ### Added
