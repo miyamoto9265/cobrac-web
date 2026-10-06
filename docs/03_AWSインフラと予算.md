@@ -34,10 +34,11 @@ Internet
   ├─ HTTP API  ── JWT ── Lambda http
   └─ WebSocket ── JWT ── Lambda ws
                       │
-                      ├─ DynamoDB × 7
+                      ├─ DynamoDB × 8
                       ├─ SQS (+ DLQ) ── Lambda dispatcher ── ECS RunTask
                       ├─ DynamoDB Streams ── Lambda broadcaster ── WS
                       ├─ EventBridge 5min ── Lambda janitor
+                      ├─ EventBridge 1min ── Lambda planRunner (BRA Planner)
                       ├─ KMS (API keys)
                       └─ S3 Artifacts
 
@@ -57,7 +58,7 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 
 | Resource | Spec | When it runs |
 | -------- | ---- | ------------ |
-| Lambda × 9 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand; authMessage 256 MB, 5 s). http/ws 30s, dispatcher/broadcaster 60s, janitor 2 min | Request / SQS / Streams / every 5 minutes / Cognito custom message trigger |
+| Lambda × 10 | Node 22 ARM64, 512 MB (http 1024 MB: it builds the Template-v2-2 workbook of older projects on demand; authMessage 256 MB, 5 s). http/ws 30s, dispatcher/broadcaster 60s, planRunner 50 s, janitor 2 min | Request / SQS / Streams / every 5 minutes (janitor) / every minute (planRunner, BRA Planner) / Cognito custom message trigger |
 | ECS Cluster | Fargate + Fargate Spot, Container Insights off | Always (the cluster itself is nearly free) |
 | Fargate Task | 1 vCPU / 2 GB / ephemeral 21 GB, x86_64 | One task per job |
 | CodeBuild | Image build at deploy. The base image `node:22-bookworm-slim` is pulled from the ECR Public mirror (`public.ecr.aws/docker/library/`), not Docker Hub, whose rate limit on anonymous pulls from CodeBuild's shared IPs failed deploys | During `cdk deploy` |
@@ -70,7 +71,8 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | DynamoDB Users / Projects / Jobs / Messages | On-Demand. Streams on Projects/Messages. PITR off. RETAIN |
 | DynamoDB WsConnections | On-Demand, TTL, DESTROY |
 | DynamoDB Canons | On-Demand, GSI `owner-index`. PITR off. RETAIN (added with the Canon MVP; a new table, existing tables are unchanged). Canon revision snapshots and pull-request payloads are JSON under `canons/` in the artifacts bucket. The worker task role can read it (the pinned revision) |
-| DynamoDB Catalog | On-Demand. Public listing and clone counters. PITR off. RETAIN (new table) |
+| DynamoDB Catalog | On-Demand. Public listing and clone counters, ID reservations (Project / Canon / plan), settings (`config`: the default API key, the concurrency limits). PITR off. RETAIN (new table) |
+| DynamoDB Plans | On-Demand, GSIs `owner-index` and `status-index` (both sparse: only the `META` item of a plan carries their keys). PITR off. RETAIN. Added with the BRA Planner (stage 1; a new table, existing tables are unchanged). Items: `META` (the plan), `ROW#<rowId>` (one row = one project to build), `EVT#<at>#<nonce>` (history) |
 | S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, the bucket policy denies deleting BRA data versions (`users/*/*/revisions/*`, design spec 6.20) to every principal, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
 | S3 Web | Private, OAC, DESTROY + auto-empty |
 | SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
@@ -137,7 +139,7 @@ BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6; design spec 6.21) runs in i
 | Waiting for a question | Fargate above stops. Only S3 storage and DynamoDB |
 | `cdk deploy` | CodeBuild (when the image is rebuilt), ECR push, CloudFront invalidation, Lambda update |
 
-Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user. Excess messages are re-queued after 60 seconds (wait time is SQS only).
+Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user (`COBRAC_MAX_CONCURRENT_JOBS_PER_USER`). An admin can override both on the admin page (1–16 each, Catalog `config` / `concurrency`); the dispatcher and the plan runner re-read the setting every 30 seconds, so a change needs no deploy. Excess messages are re-queued after 60 seconds (wait time is SQS only). The BRA Planner never queues a row ahead of a free slot, so its rows wait in DynamoDB rather than in SQS.
 
 ---
 
@@ -165,7 +167,7 @@ Total run time 100–200 hours.
 | Same, On-Demand fallback | roughly 2.5–3× Spot | +$1–3 if mixed |
 | CloudFront + frontend S3 | Low traffic | $1 |
 | API Gateway HTTP + WS | Under a few hundred thousand requests | $1–2 |
-| Lambda | ARM, short runs | $0–1 |
+| Lambda | ARM, short runs; planRunner runs every minute (about 43,800 invocations a month, a Query or two when no plan runs, well inside the free tier) | $0–1 |
 | DynamoDB On-Demand | Mostly message writes | $1–2 |
 | S3 artifacts (a few GB, many PUTs) | With workspace sync | $0.5–1.5 |
 | CloudWatch Logs | 14 days, worker output | $0.5–2 |
@@ -239,7 +241,8 @@ Jobs of approved users without their own key run on the default API key, the org
 - No NAT / custom domain / Container Insights / PITR.
 - CloudFront Price Class 200.
 - Logs 14 days. Incomplete multipart uploads deleted after 3 days.
-- Concurrency caps prevent unnoticed piles of Spot tasks.
+- Concurrency caps prevent unnoticed piles of Spot tasks. The admin setting accepts 1–16 per limit; 17 or more is refused.
+- BRA Planner (every minute): a plan starts a row only when a slot is free under both limits (queued jobs count), so a large plan never leaves jobs queued long enough for the 24-hour queue timeout. A failing row is retried at most 2 times, then waits for a person (「要対応」). A plan whose owner can no longer run jobs (no key, account disabled, chosen model no longer allowed) pauses itself instead of failing row after row.
 - Janitor (every 5 minutes): auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue. On a Spot interruption the worker gets SIGTERM and up to 120 s (the task's stop timeout): it saves the workspace and thread to S3 and marks its heartbeat stale, so the job resumes at the next janitor run instead of after 15–30 minutes. During a turn the worker also saves every 5 minutes, so at most that much work is lost when the task dies without SIGTERM.
 
 ---
@@ -266,8 +269,8 @@ The source of truth is the GitHub repository's Actions **Variables** (and the **
 | -------- | ------- | ------- |
 | `COBRAC_ADMIN_EMAILS` | (required) | Admin on first login |
 | `COBRAC_SELF_SIGNUP` | true | false for invite-only |
-| `COBRAC_MAX_CONCURRENT_JOBS` | 2 | Overall concurrent Fargate tasks |
-| `COBRAC_MAX_CONCURRENT_JOBS_PER_USER` | 1 | Per user |
+| `COBRAC_MAX_CONCURRENT_JOBS` | 2 | Overall concurrent Fargate tasks (deployment value; the admin page setting, 1–16, overrides it without a deploy) |
+| `COBRAC_MAX_CONCURRENT_JOBS_PER_USER` | 1 | Per user (same) |
 | `COBRAC_CODEX_MODEL` | empty | Model when unspecified |
 | `COBRAC_CODEX_REASONING_EFFORT` | high | Effort when unspecified |
 | `COBRAC_RCS_MCP_URL` | production `rcs-mcp` endpoint | RCS MCP server for SABRA lookups; empty disables RCS. Optional, not in Actions Variables |

@@ -1187,6 +1187,8 @@ async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise
         sabraBoundary: project.sabraBoundary ?? "legacy",
         rcsBoundaryVersion: rcs ? await rcs.sabraBoundaryVersion() : null,
         harnessRules: project.harnessRules ?? 0,
+        // provenance of a project a BRA Planner plan created (absent otherwise, so other manifests are unchanged)
+        ...(project.planId ? { planId: project.planId } : {}),
       },
     });
     if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });
@@ -1232,6 +1234,7 @@ async function freezeBaseline(project: ProjectRecord) {
         sabraBoundary: project.sabraBoundary ?? "legacy",
         rcsBoundaryVersion: null,
         harnessRules: project.harnessRules ?? 0,
+        ...(project.planId ? { planId: project.planId } : {}),
       },
     });
     if (!summary) return;

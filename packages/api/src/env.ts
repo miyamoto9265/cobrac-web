@@ -17,6 +17,7 @@ export const env = {
     wsConnections: get("TABLE_WS_CONNECTIONS", ""),
     canons: get("TABLE_CANONS", ""),
     catalog: get("TABLE_CATALOG", ""),
+    plans: get("TABLE_PLANS", ""),
   },
   artifactsBucket: get("ARTIFACTS_BUCKET", ""),
   jobQueueUrl: get("JOB_QUEUE_URL", ""),
@@ -25,6 +26,7 @@ export const env = {
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean),
+  /** Deployment values of the concurrency limits; an admin setting (Catalog `config` / `concurrency`) overrides them (lib/concurrency.ts) */
   maxConcurrentJobs: Number(process.env.MAX_CONCURRENT_JOBS ?? "2"),
   maxConcurrentJobsPerUser: Number(process.env.MAX_CONCURRENT_JOBS_PER_USER ?? "1"),
   ecs: {

@@ -98,6 +98,8 @@ export interface BraVersionGenerator {
   harnessRules?: number;
   /** `BRA version` of Project.csv (the CoBRAC CSV format) */
   braFormat: string | null;
+  /** BRA Planner plan that created the project; absent when the project was not made by a plan */
+  planId?: string;
 }
 
 export interface BraVersionFile {

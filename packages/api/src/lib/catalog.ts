@@ -1,6 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type { CatalogItem, CatalogKind, CloneCounter, IdReservation } from "@cobrac/shared";
-import { generateCanonId, generateProjectId, ID_RESERVATION_KIND, nowIso, RANDOM_ID_ATTEMPTS } from "@cobrac/shared";
+import { generateCanonId, generatePlanId, generateProjectId, ID_RESERVATION_KIND, nowIso, RANDOM_ID_ATTEMPTS } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
 
@@ -42,7 +42,9 @@ export async function listCatalog(kind: Exclude<CatalogKind, "clones">): Promise
  * The reservation is what makes the ID globally unique: the Projects table is keyed by user, so its own conditional
  * Put cannot see other users' projects.
  */
-export async function reserveNewId(type: IdReservation["type"], ownerUserId: string, generate: () => string = type === "project" ? generateProjectId : generateCanonId): Promise<string> {
+const GENERATORS: Record<IdReservation["type"], () => string> = { project: generateProjectId, canon: generateCanonId, plan: generatePlanId };
+
+export async function reserveNewId(type: IdReservation["type"], ownerUserId: string, generate: () => string = GENERATORS[type]): Promise<string> {
   for (let i = 0; i < RANDOM_ID_ATTEMPTS; i++) {
     const id = generate();
     const row: IdReservation = { kind: ID_RESERVATION_KIND, id, type, ownerUserId, createdAt: nowIso() };

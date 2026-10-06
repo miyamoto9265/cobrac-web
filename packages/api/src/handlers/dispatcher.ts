@@ -1,5 +1,6 @@
 /**
- * SQS consumer: starts one Fargate task per queued job while enforcing concurrency limits.
+ * SQS consumer: starts one Fargate task per queued job while enforcing concurrency limits (the admin setting, else the
+ * deployment values; lib/concurrency.ts).
  * When limits are hit (or Spot capacity is unavailable) the message is re-enqueued with a delay.
  */
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
@@ -8,6 +9,7 @@ import type { RunJobMessage } from "@cobrac/shared";
 import { nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun } from "../lib/aws.js";
+import { currentLimits } from "../lib/concurrency.js";
 import { getJob, listJobsByStatus, putMessage, updateJob, updateProject } from "../lib/db.js";
 
 const ecs = new ECSClient({ region: env.region });
@@ -38,10 +40,11 @@ async function dispatch(msg: RunJobMessage) {
     return;
   }
 
-  // Concurrency check ---------------------------------------------------------
+  // Concurrency check (admin setting over the deployment values, re-read every 30 s) ---------------------------
+  const limits = await currentLimits();
   const active = [...(await listJobsByStatus("RUNNING")), ...(await listJobsByStatus("FINALIZING"))];
   const mine = active.filter((j) => j.userId === msg.userId);
-  if (active.length >= env.maxConcurrentJobs || mine.length >= env.maxConcurrentJobsPerUser) {
+  if (active.length >= limits.maxConcurrentJobs || mine.length >= limits.maxConcurrentJobsPerUser) {
     console.log(`concurrency limit reached (all=${active.length}, user=${mine.length}); re-enqueue`);
     await enqueueRun(msg, RETRY_DELAY_SECONDS);
     return;

@@ -1,0 +1,553 @@
+// ---------------------------------------------------------------------------
+// BRA Planner (UI: 「BRA Planner」, one unit is a 「計画」 / "plan"). A plan is a list of rows (ROI × TLF) that the
+// system builds as projects in waves, within the concurrency limits, after its owner confirms it. Stage 1: rows come
+// from CSV or manual input and the owner sets order and waves by hand; no Canon, no LLM drafting.
+//
+// The runner (packages/api/src/handlers/planRunner.ts) advances every running plan by small idempotent steps. The
+// decisions it takes are the pure functions at the end of this file, so they can be tested without AWS.
+// ---------------------------------------------------------------------------
+
+import { parseCsv } from "./csv.js";
+import type { UiLocale } from "./locale.js";
+import { randomCrockfordId } from "./projectId.js";
+import type { ProjectRecord, ProjectStatus, ReasoningEffort } from "./types.js";
+
+/** Random plan IDs: `n` + 7 lower-case Crockford base32 (`n4h8w2rk`). Neither a Project ID nor a Canon ID. */
+export const PLAN_ID_REGEX = /^n[0-9a-hjkmnp-tv-z]{7}$/;
+export const isPlanId = (id: string): boolean => PLAN_ID_REGEX.test(id);
+/** A new random plan ID; uniqueness is checked when it is reserved (Catalog `id` row, like Project and Canon IDs). */
+export function generatePlanId(random?: () => number): string {
+  return randomCrockfordId("n", random);
+}
+/** Row IDs are unique within their plan: `r` + 7 base32. */
+export const PLAN_ROW_ID_REGEX = /^r[0-9a-hjkmnp-tv-z]{7}$/;
+export function generatePlanRowId(random?: () => number): string {
+  return randomCrockfordId("r", random);
+}
+
+// --- limits ----------------------------------------------------------------------------------------------------------
+
+export const PLAN_LIMITS = {
+  maxRows: 200,
+  maxRoi: 300,
+  maxTlf: 300,
+  maxRationale: 1000,
+  maxGoal: 4000,
+  maxName: 200,
+  maxWave: 99,
+  minPriority: -1000,
+  maxPriority: 1000,
+  /** Size of a CSV accepted for import (characters) */
+  maxCsvChars: 500_000,
+} as const;
+
+/** Automatic retries of a failed row before it needs attention (「要対応」). */
+export const MAX_ROW_AUTO_RETRIES = 2;
+/** A row whose start was claimed but not finished (the runner stopped in between) is started again after this long. */
+export const ROW_START_STALE_MS = 2 * 60 * 1000;
+/** How long one runner invocation holds a plan (a second invocation skips the plan meanwhile). */
+export const PLAN_LEASE_MS = 90 * 1000;
+
+// --- records ---------------------------------------------------------------------------------------------------------
+
+export type PlanStatus = "DRAFT" | "RUNNING" | "PAUSED" | "COMPLETED" | "CANCELLED";
+export const PLAN_STATUSES: readonly PlanStatus[] = ["DRAFT", "RUNNING", "PAUSED", "COMPLETED", "CANCELLED"];
+
+/** Why a plan is paused: by its owner, or by the runner because the owner can no longer start jobs. */
+export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed";
+
+/**
+ * pending: waits for its turn (with `projectId`: a retry of that project). starting: the runner claimed it and is
+ * creating its project. running: its project has a job queued or running. question: its agent asked a question
+ * (only this row waits). done: its project completed. attention: needs a human (「要対応」). skipped: left out by the
+ * owner. cancelled: stopped when the plan was cancelled.
+ */
+export type PlanRowState = "pending" | "starting" | "running" | "question" | "done" | "attention" | "skipped" | "cancelled";
+export const PLAN_ROW_STATES: readonly PlanRowState[] = ["pending", "starting", "running", "question", "done", "attention", "skipped", "cancelled"];
+/** Rows whose project has a job queued or running: they hold the current wave. */
+export const IN_FLIGHT_ROW_STATES: readonly PlanRowState[] = ["starting", "running"];
+/** Rows with a project the runner keeps in step with. */
+export const TRACKED_ROW_STATES: readonly PlanRowState[] = ["starting", "running", "question"];
+
+export type PlanAttentionReason = "failed" | "question_timeout" | "cancelled_outside" | "project_deleted" | "start_failed";
+
+/** Settings every row's project is created with; fixed when the plan is confirmed. */
+export interface PlanSettings {
+  /** Model the rows run on: chosen, or resolved from the defaults at confirmation (null before) */
+  model: string | null;
+  /** True when the owner picked `model`; a picked model the owner may no longer use pauses the plan instead of being replaced */
+  modelChosen: boolean;
+  reasoningEffort: ReasoningEffort | null;
+  researchMode: boolean;
+  /** Language of the agents' chat replies (the UI language at confirmation) */
+  locale: UiLocale | null;
+}
+
+export const PLAN_META_SK = "META";
+export const PLAN_ROW_PREFIX = "ROW#";
+export const PLAN_EVENT_PREFIX = "EVT#";
+export const planRowSk = (rowId: string) => `${PLAN_ROW_PREFIX}${rowId}`;
+export const planEventSk = (at: string, nonce: string) => `${PLAN_EVENT_PREFIX}${at}#${nonce}`;
+
+export type PlanRowCounts = Record<PlanRowState, number>;
+
+export interface PlanEstimate {
+  rows: number;
+  seedRows: number;
+  waves: number;
+  concurrency: number;
+  minutes: number;
+  costUsd: { min: number; max: number };
+}
+
+/** Plans table, `META` item. `ownerUserId` + `createdAt` feed `owner-index`, `status` + `createdAt` feed `status-index` (only META items carry them). */
+export interface PlanRecord {
+  planId: string;
+  sk: typeof PLAN_META_SK;
+  ownerUserId: string;
+  name: string;
+  goal: string;
+  status: PlanStatus;
+  settings: PlanSettings;
+  /** Harness rule set of every row's project, fixed at confirmation (`HARNESS_RULES` then) */
+  harnessRules?: number | null;
+  rowCount: number;
+  rowCounts?: PlanRowCounts;
+  /** Wave the runner works on: rows of this wave and earlier ones may start (null before confirmation) */
+  activeWave?: number | null;
+  /** Estimate at confirmation (the screen recomputes it live) */
+  estimate?: PlanEstimate | null;
+  pausedReason?: PlanPauseReason | null;
+  confirmedAt?: string | null;
+  confirmedBy?: string | null;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
+  /** A runner invocation works on the plan until then */
+  leaseUntil?: string | null;
+  deletedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanRowRecord {
+  planId: string;
+  sk: string;
+  rowId: string;
+  /** Position in the plan (ascending); rows of one wave start in this order */
+  order: number;
+  wave: number;
+  roi: string;
+  tlf: string;
+  rationale: string;
+  /** Owner's priority (higher first); only informative in stage 1 */
+  priority?: number | null;
+  source: "manual" | "csv";
+  /** Spreadsheet row of the imported CSV (header = 1) */
+  sourceRow?: number | null;
+  state: PlanRowState;
+  projectId?: string | null;
+  /** Job created with the project (kept so a start the runner did not finish can be completed without a second project) */
+  startJobId?: string | null;
+  /** Automatic retries used */
+  attempts: number;
+  attentionReason?: PlanAttentionReason | null;
+  lastError?: string | null;
+  claimedAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type PlanEventType =
+  | "created"
+  | "rows_changed"
+  | "confirmed"
+  | "wave_started"
+  | "row_started"
+  | "row_question"
+  | "row_resumed"
+  | "row_done"
+  | "row_retry"
+  | "row_attention"
+  | "row_skipped"
+  | "row_cancelled"
+  | "paused"
+  | "resumed"
+  | "cancelled"
+  | "completed";
+
+export interface PlanEventRecord {
+  planId: string;
+  sk: string;
+  type: PlanEventType;
+  at: string;
+  /** userId of the person, or "runner" */
+  by: string;
+  rowId?: string;
+  projectId?: string;
+  detail?: Record<string, string | number | null>;
+}
+
+// --- API DTOs --------------------------------------------------------------------------------------------------------
+
+export interface PlanRowInput {
+  rowId?: string;
+  roi: string;
+  tlf: string;
+  rationale?: string;
+  wave?: number;
+  priority?: number | null;
+}
+
+export interface CreatePlanRequest {
+  name: string;
+  goal?: string;
+  rows?: PlanRowInput[];
+  /** CSV / TSV text of a capability list; its rows are appended after `rows` */
+  csv?: string;
+}
+
+export interface UpdatePlanRequest {
+  name?: string;
+  goal?: string;
+  settings?: Partial<Pick<PlanSettings, "model" | "reasoningEffort" | "researchMode">>;
+}
+
+export type PlanRowRejectReason = "noRoiTlf" | "tooLong" | "duplicate" | "badWave" | "badPriority" | "tooMany";
+
+export interface PlanRowRejected {
+  /** Spreadsheet row number (header = 1) */
+  row: number;
+  reason: PlanRowRejectReason;
+  /** Start of the row as read, for the message */
+  text: string;
+}
+
+export interface CreatePlanResponse {
+  plan: PlanRecord;
+  rows: PlanRowRecord[];
+  rejected: PlanRowRejected[];
+}
+
+/** A row with the live state of its project (read on every request; not stored). */
+export interface PlanRowView extends PlanRowRecord {
+  project?: {
+    name: string;
+    status: ProjectStatus;
+    pendingQuestion: string | null;
+    costUsd: number | null;
+    revision: number;
+    errorMessage: string | null;
+    deleted: boolean;
+  } | null;
+}
+
+export interface EffectiveLimits {
+  maxConcurrentJobs: number;
+  maxConcurrentJobsPerUser: number;
+  /** min(global, per user): how many rows of one owner can run at once */
+  effective: number;
+}
+
+export interface PlanDetailResponse {
+  plan: PlanRecord;
+  rows: PlanRowView[];
+  events: PlanEventRecord[];
+  limits: EffectiveLimits;
+  /** Estimate for the rows as they are now (all rows, current waves, current limits) */
+  estimate: PlanEstimate;
+  /** Time since confirmation (to completion, or now) and the cost of the rows' projects so far */
+  actual: { minutes: number | null; costUsd: number | null; unpricedProjects: number };
+}
+
+export interface PlanSummary extends PlanRecord {
+  rowCounts: PlanRowCounts;
+}
+
+export interface ListPlansResponse {
+  items: PlanSummary[];
+}
+
+// --- concurrency setting (admin, Catalog `config` / `concurrency`) ------------------------------------------------------
+
+export const CONCURRENCY_MIN = 1;
+export const CONCURRENCY_MAX = 16;
+export const CONCURRENCY_CATALOG_KEY = { kind: "config", id: "concurrency" } as const;
+/** Lambdas re-read the setting after this long (the dispatcher reads it for every job it starts). */
+export const CONCURRENCY_CACHE_MS = 30 * 1000;
+/**
+ * OpenAI tokens per minute: one BRA run uses about 140–170k, and the organisation's limit for gpt-6-luna is 200k (as of
+ * 2026-10), so the real ceiling on parallel runs may be the TPM limit rather than the concurrency setting.
+ */
+export const RUN_TOKENS_PER_MINUTE = { min: 140_000, max: 170_000 } as const;
+export const ORG_TOKENS_PER_MINUTE = 200_000;
+
+export interface ConcurrencySettingRecord {
+  kind: typeof CONCURRENCY_CATALOG_KEY.kind;
+  id: typeof CONCURRENCY_CATALOG_KEY.id;
+  /** null / absent: the deployment value (GitHub Variables → CDK → Lambda environment) */
+  maxConcurrentJobs?: number | null;
+  maxConcurrentJobsPerUser?: number | null;
+  updatedAt: string;
+  updatedBy: string;
+}
+
+export interface ConcurrencyStatus extends EffectiveLimits {
+  setting: { maxConcurrentJobs: number | null; maxConcurrentJobsPerUser: number | null; updatedAt: string | null };
+  deployment: { maxConcurrentJobs: number; maxConcurrentJobsPerUser: number };
+  min: number;
+  max: number;
+}
+
+export interface UpdateConcurrencyRequest {
+  maxConcurrentJobs?: number | null;
+  maxConcurrentJobsPerUser?: number | null;
+}
+
+export const isConcurrencyLimit = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= CONCURRENCY_MIN && v <= CONCURRENCY_MAX;
+
+/** Limits in force: the admin setting where it is set (and valid), else the deployment value. */
+export function effectiveLimits(setting: Pick<ConcurrencySettingRecord, "maxConcurrentJobs" | "maxConcurrentJobsPerUser"> | null, deployment: { maxConcurrentJobs: number; maxConcurrentJobsPerUser: number }): EffectiveLimits {
+  const pick = (v: number | null | undefined, fallback: number) => (isConcurrencyLimit(v) ? v : fallback);
+  const maxConcurrentJobs = pick(setting?.maxConcurrentJobs, deployment.maxConcurrentJobs);
+  const maxConcurrentJobsPerUser = pick(setting?.maxConcurrentJobsPerUser, deployment.maxConcurrentJobsPerUser);
+  return { maxConcurrentJobs, maxConcurrentJobsPerUser, effective: Math.max(1, Math.min(maxConcurrentJobs, maxConcurrentJobsPerUser)) };
+}
+
+// --- estimate --------------------------------------------------------------------------------------------------------
+
+/** Constants of the plan estimate (median production run 2026-10: ~48 min, $0.18; up to $0.39 with more fix turns). */
+export const PLAN_ESTIMATE = {
+  minutesPerRun: 48,
+  /** Share of rows expected to need a rework run, and how long one takes */
+  reworkShare: 0.2,
+  reworkMinutes: 15,
+  costPerRowUsd: { min: 0.18, max: 0.39 },
+} as const;
+
+/**
+ * Time ≈ seed rows × 48 min (one at a time) + Σ over body waves ceil(rows of the wave / concurrency) × 48 min
+ * + 20 % of rows × 15 min of rework spread over the parallel slots; cost ≈ rows × $0.18–0.39. Time spent waiting for
+ * answers or approvals is not included. With 3 seed rows and 138 body rows in one wave: ~120 h at 1, ~32 h at 4,
+ * ~18 h at 8, ~13 h at 12, ~10 h at 16.
+ */
+export function estimatePlan(input: { seedRows: number; bodyWaveSizes: number[]; concurrency: number }): PlanEstimate {
+  const c = Math.max(1, Math.floor(input.concurrency));
+  const body = input.bodyWaveSizes.filter((n) => n > 0);
+  const bodyRows = body.reduce((a, n) => a + n, 0);
+  const rows = input.seedRows + bodyRows;
+  const e = PLAN_ESTIMATE;
+  const minutes = input.seedRows * e.minutesPerRun + body.reduce((a, n) => a + Math.ceil(n / c) * e.minutesPerRun, 0) + (rows * e.reworkShare * e.reworkMinutes) / c;
+  const round2 = (v: number) => Math.round(v * 100) / 100;
+  return {
+    rows,
+    seedRows: input.seedRows,
+    waves: body.length + (input.seedRows > 0 ? 1 : 0),
+    concurrency: c,
+    minutes: Math.round(minutes),
+    costUsd: { min: round2(rows * e.costPerRowUsd.min), max: round2(rows * e.costPerRowUsd.max) },
+  };
+}
+
+/** Rows per wave in wave order (rows the owner skipped are left out). */
+export function waveSizes(rows: Pick<PlanRowRecord, "wave" | "state">[]): number[] {
+  const m = new Map<number, number>();
+  for (const r of rows) if (r.state !== "skipped") m.set(r.wave, (m.get(r.wave) ?? 0) + 1);
+  return [...m.entries()].sort((a, b) => a[0] - b[0]).map(([, n]) => n);
+}
+
+// --- row input ---------------------------------------------------------------------------------------------------------
+
+/** Trimmed single-line text: NFC, control characters and line breaks become spaces, runs of spaces collapse. */
+export function cleanPlanText(s: unknown): string {
+  if (typeof s !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  return s.normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/gu, " ").replace(/\s+/gu, " ").trim();
+}
+
+/** Free text with line breaks kept (rationale, goal). */
+export function cleanPlanNote(s: unknown): string {
+  if (typeof s !== "string") return "";
+  // eslint-disable-next-line no-control-regex
+  return s.normalize("NFC").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu, " ").trim();
+}
+
+/** Key of a row's ROI × TLF for duplicate checks (case and spacing ignored). */
+export const planRowKey = (roi: string, tlf: string) => `${cleanPlanText(roi).toLowerCase()}\u0000${cleanPlanText(tlf).toLowerCase()}`;
+
+export type NormalizedPlanRow = { roi: string; tlf: string; rationale: string; wave: number; priority: number | null };
+
+/** One row from a form or a CSV line; the reason it cannot be used otherwise. */
+export function normalizePlanRow(input: { roi?: unknown; tlf?: unknown; rationale?: unknown; wave?: unknown; priority?: unknown }, defaultWave = 1): { row: NormalizedPlanRow } | { reason: Exclude<PlanRowRejectReason, "duplicate" | "tooMany"> } {
+  const roi = cleanPlanText(input.roi);
+  const tlf = cleanPlanText(input.tlf);
+  const rationale = cleanPlanNote(input.rationale);
+  if (!roi && !tlf) return { reason: "noRoiTlf" };
+  if ([...roi].length > PLAN_LIMITS.maxRoi || [...tlf].length > PLAN_LIMITS.maxTlf || [...rationale].length > PLAN_LIMITS.maxRationale) return { reason: "tooLong" };
+  let wave = defaultWave;
+  if (input.wave !== undefined && input.wave !== null && input.wave !== "") {
+    const n = typeof input.wave === "number" ? input.wave : Number(String(input.wave).trim());
+    if (!Number.isInteger(n) || n < 1 || n > PLAN_LIMITS.maxWave) return { reason: "badWave" };
+    wave = n;
+  }
+  let priority: number | null = null;
+  if (input.priority !== undefined && input.priority !== null && input.priority !== "") {
+    const n = typeof input.priority === "number" ? input.priority : Number(String(input.priority).trim());
+    if (!Number.isInteger(n) || n < PLAN_LIMITS.minPriority || n > PLAN_LIMITS.maxPriority) return { reason: "badPriority" };
+    priority = n;
+  }
+  return { row: { roi, tlf, rationale, wave, priority } };
+}
+
+const HEADER_ALIASES: Record<"roi" | "tlf" | "rationale" | "wave" | "priority", string[]> = {
+  roi: ["roi", "region", "regionofinterest", "brainregion", "area", "脳領域", "領域", "部位", "関心領域", "脳部位"],
+  tlf: ["tlf", "toplevelfunction", "function", "capability", "ability", "機能", "能力", "トップレベル機能", "最上位機能"],
+  rationale: ["rationale", "reason", "note", "notes", "comment", "comments", "description", "理由", "根拠", "備考", "説明", "メモ"],
+  wave: ["wave", "波"],
+  priority: ["priority", "優先度", "優先順位"],
+};
+const headerKey = (cell: string) => cell.normalize("NFKC").toLowerCase().replace(/[\s_\-.()（）・:：]/gu, "");
+
+function columnsOf(header: string[]): Partial<Record<keyof typeof HEADER_ALIASES, number>> | null {
+  const cols: Partial<Record<keyof typeof HEADER_ALIASES, number>> = {};
+  header.forEach((cell, i) => {
+    const k = headerKey(cell);
+    for (const [field, aliases] of Object.entries(HEADER_ALIASES) as [keyof typeof HEADER_ALIASES, string[]][]) {
+      if (cols[field] === undefined && aliases.includes(k)) cols[field] = i;
+    }
+  });
+  return cols.roi !== undefined || cols.tlf !== undefined ? cols : null;
+}
+
+/** Tab-separated when the first line has a tab and no comma; otherwise CSV. */
+function splitTable(text: string): string[][] {
+  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  const first = body.split(/\r?\n/, 1)[0] ?? "";
+  if (first.includes("\t") && !first.includes(",")) return body.split(/\r?\n/).map((line) => line.split("\t"));
+  return parseCsv(body);
+}
+
+/**
+ * Rows of a capability list (CSV or TSV). With a header row, the columns are found by name (ROI / region / 脳領域,
+ * TLF / function / capability / 機能 / 能力, rationale / note / 理由, wave / 波, priority / 優先度; other columns are
+ * ignored). Without one, a single column is the TLF and otherwise the columns are ROI, TLF, rationale. Blank lines are
+ * skipped; every other row is either returned or listed in `rejected` with its spreadsheet row number and the reason.
+ */
+export function parsePlanRowsCsv(text: string, opts: { existing?: { roi: string; tlf: string }[]; maxRows?: number } = {}): { rows: (NormalizedPlanRow & { sourceRow: number })[]; rejected: PlanRowRejected[]; header: boolean } {
+  const table = splitTable(text);
+  const cols = table.length ? columnsOf(table[0]) : null;
+  const start = cols ? 1 : 0;
+  const width = Math.max(0, ...table.map((r) => r.filter((c) => c.trim()).length ? r.length : 0));
+  const pick = (r: string[], i: number | undefined) => (i === undefined ? undefined : r[i]);
+  const positional: Partial<Record<keyof typeof HEADER_ALIASES, number>> = width <= 1 ? { tlf: 0 } : { roi: 0, tlf: 1, rationale: 2 };
+  const map = cols ?? positional;
+  const seen = new Set((opts.existing ?? []).map((r) => planRowKey(r.roi, r.tlf)));
+  const max = opts.maxRows ?? PLAN_LIMITS.maxRows;
+  const rows: (NormalizedPlanRow & { sourceRow: number })[] = [];
+  const rejected: PlanRowRejected[] = [];
+  for (let i = start; i < table.length; i++) {
+    const r = table[i];
+    if (!r.some((c) => c.trim())) continue;
+    const sourceRow = i + 1;
+    const text = cleanPlanText(r.filter((c) => c.trim()).join(" | ")).slice(0, 120);
+    const n = normalizePlanRow({ roi: pick(r, map.roi), tlf: pick(r, map.tlf), rationale: pick(r, map.rationale), wave: pick(r, cols?.wave), priority: pick(r, cols?.priority) });
+    if ("reason" in n) {
+      rejected.push({ row: sourceRow, reason: n.reason, text });
+      continue;
+    }
+    const key = planRowKey(n.row.roi, n.row.tlf);
+    if (seen.has(key)) {
+      rejected.push({ row: sourceRow, reason: "duplicate", text });
+      continue;
+    }
+    if (rows.length + (opts.existing?.length ?? 0) >= max) {
+      rejected.push({ row: sourceRow, reason: "tooMany", text });
+      continue;
+    }
+    seen.add(key);
+    rows.push({ ...n.row, sourceRow });
+  }
+  return { rows, rejected, header: !!cols };
+}
+
+// --- runner decisions (pure) ------------------------------------------------------------------------------------------
+
+export function countRows(rows: Pick<PlanRowRecord, "state">[]): PlanRowCounts {
+  const out = Object.fromEntries(PLAN_ROW_STATES.map((s) => [s, 0])) as PlanRowCounts;
+  for (const r of rows) out[r.state]++;
+  return out;
+}
+
+export const byWaveAndOrder = (a: Pick<PlanRowRecord, "wave" | "order" | "rowId">, b: Pick<PlanRowRecord, "wave" | "order" | "rowId">) =>
+  a.wave - b.wave || a.order - b.order || (a.rowId < b.rowId ? -1 : a.rowId > b.rowId ? 1 : 0);
+
+/** A plan is finished when every row is done or was skipped by the owner. */
+export const planFinished = (rows: Pick<PlanRowRecord, "state">[]) => rows.length > 0 && rows.every((r) => r.state === "done" || r.state === "skipped");
+
+/**
+ * The wave the runner may start rows of. It moves on (to the next wave that still has rows waiting) once no row of the
+ * active wave or an earlier one is waiting to start or running. Rows waiting for an answer or needing attention do not
+ * hold it up: only those rows wait. Never goes back.
+ */
+export function nextActiveWave(rows: Pick<PlanRowRecord, "wave" | "state">[], active: number | null | undefined): number | null {
+  const pendingWaves = rows.filter((r) => r.state === "pending").map((r) => r.wave);
+  if (!pendingWaves.length) return active ?? null;
+  const first = Math.min(...pendingWaves);
+  if (active === null || active === undefined) return first;
+  const busy = rows.some((r) => r.wave <= active && (r.state === "pending" || IN_FLIGHT_ROW_STATES.includes(r.state)));
+  if (busy) return active;
+  const later = pendingWaves.filter((w) => w > active);
+  return later.length ? Math.min(...later) : active;
+}
+
+/** Pending rows of the active wave (and earlier ones, e.g. retries), in start order, at most `slots`. */
+export function rowsToStart<T extends Pick<PlanRowRecord, "wave" | "order" | "rowId" | "state">>(rows: T[], activeWave: number | null, slots: number): T[] {
+  if (activeWave === null || slots <= 0) return [];
+  return rows.filter((r) => r.state === "pending" && r.wave <= activeWave).sort(byWaveAndOrder).slice(0, slots);
+}
+
+/** Jobs that occupy a slot: queued (they will run) and running. */
+export const SLOT_JOB_STATUSES = ["QUEUED", "RUNNING", "FINALIZING"] as const;
+
+/**
+ * How many more jobs the owner may queue now: what is left under the global limit and under the owner's limit,
+ * counting queued jobs too, so nothing is queued that could not start (the janitor fails jobs queued for 24 h).
+ */
+export function freeSlots(limits: Pick<EffectiveLimits, "maxConcurrentJobs" | "maxConcurrentJobsPerUser">, activeJobs: { userId: string }[], ownerUserId: string): number {
+  const mine = activeJobs.filter((j) => j.userId === ownerUserId).length;
+  return Math.max(0, Math.min(limits.maxConcurrentJobs - activeJobs.length, limits.maxConcurrentJobsPerUser - mine));
+}
+
+export type RowSync =
+  | { state: "running" | "question" | "done" | "cancelled"; event: PlanEventType | null }
+  | { state: "pending"; retry: true; event: "row_retry"; error: string | null }
+  | { state: "attention"; reason: PlanAttentionReason; event: "row_attention"; error: string | null };
+
+/**
+ * What a tracked row (starting / running / question) becomes given its project now; null when nothing changes. A
+ * failed project is retried (the row goes back to pending with its project) up to `MAX_ROW_AUTO_RETRIES` times, then
+ * needs attention. A project that failed while waiting for an answer (the 7-day timeout) or was stopped outside the
+ * plan is not retried.
+ */
+export function syncRow(row: Pick<PlanRowRecord, "state" | "attempts">, project: Pick<ProjectRecord, "status" | "errorMessage" | "deletedAt"> | null, planStatus: PlanStatus): RowSync | null {
+  if (!project || project.deletedAt) return row.state === "attention" ? null : { state: "attention", reason: "project_deleted", event: "row_attention", error: null };
+  switch (project.status) {
+    case "QUEUED":
+    case "RUNNING":
+    case "FINALIZING":
+      if (row.state === "running") return null;
+      return { state: "running", event: row.state === "question" ? "row_resumed" : null };
+    case "WAITING_USER_INPUT":
+      return row.state === "question" ? null : { state: "question", event: "row_question" };
+    case "COMPLETED":
+      return { state: "done", event: "row_done" };
+    case "CANCELLED":
+      if (planStatus === "CANCELLED") return { state: "cancelled", event: "row_cancelled" };
+      return { state: "attention", reason: "cancelled_outside", event: "row_attention", error: project.errorMessage ?? null };
+    case "FAILED":
+      if (row.state === "question") return { state: "attention", reason: "question_timeout", event: "row_attention", error: project.errorMessage ?? null };
+      if (row.attempts < MAX_ROW_AUTO_RETRIES) return { state: "pending", retry: true, event: "row_retry", error: project.errorMessage ?? null };
+      return { state: "attention", reason: "failed", event: "row_attention", error: project.errorMessage ?? null };
+  }
+}

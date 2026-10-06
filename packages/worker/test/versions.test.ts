@@ -71,6 +71,13 @@ function storeWithOutputs() {
 }
 
 describe("freezeVersion", () => {
+  it("records the BRA Planner plan that created the project, and nothing for other projects", async () => {
+    const planned = await freezeVersion(input({ generator: { ...input().generator, planId: "n4h8w2rk" } }), storeWithOutputs());
+    expect(planned.manifest.generator.planId).toBe("n4h8w2rk");
+    const plain = await freezeVersion(input(), storeWithOutputs());
+    expect("planId" in plain.manifest.generator).toBe(false);
+  });
+
   it("copies the data, writes the BRA-DB package and writes the manifest last", async () => {
     const store = storeWithOutputs();
     const r = await freezeVersion(input(), store);

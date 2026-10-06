@@ -42,11 +42,8 @@ import type {
   DocListResponse,
   FollowupRequest,
   JobRecord,
-  KeySource,
   MeResponse,
-  ModelPolicy,
   ModelsResponse,
-  ProjectAttachment,
   ProjectRecord,
   EdgeStyle,
   GraphLayout,
@@ -55,7 +52,6 @@ import type {
   ReasoningEffort,
   RetryRequest,
   TokenUsage,
-  UiLocale,
   PublicCanonDetail,
   PublicCanonSummary,
   PublicProjectDetail,
@@ -66,14 +62,22 @@ import type {
   UpdateProjectResponse,
   UsageSummary,
   UserRecord,
+  ConcurrencySettingRecord,
+  CreatePlanRequest,
+  ListPlansResponse,
+  UpdateConcurrencyRequest,
+  UpdatePlanRequest,
 } from "@cobrac/shared";
 import {
+  CONCURRENCY_CATALOG_KEY,
+  CONCURRENCY_MAX,
+  CONCURRENCY_MIN,
+  countRows,
+  isConcurrencyLimit,
   ARROW_HEADS,
   ATTACHMENT_LIMITS,
-  HARNESS_RULES,
   UPLOAD_ID_REGEX,
   attachmentDisplayName,
-  attachmentFileKey,
   attachmentTypeOf,
   normalizeAttachmentUrl,
   safeAttachmentName,
@@ -81,7 +85,6 @@ import {
   CANON_DESCRIPTION_MAX,
   CANON_META_SK,
   CANON_POLICY_MAX,
-  DEFAULT_CODEX_MODEL,
   canDeleteProject,
   isProjectDeleted,
   EDGE_LINE_TYPES,
@@ -90,7 +93,6 @@ import {
   PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
-  allowedDefaultModel,
   DEFAULT_KEY_CATALOG_KEY,
   isOrgTier,
   policyAllows,
@@ -171,6 +173,25 @@ import {
 import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
+import { bad, notFound } from "./lib/http.js";
+import { concurrencyStatus, currentLimits, getConcurrencySetting, putConcurrencySetting } from "./lib/concurrency.js";
+import { listOwnPlans } from "./lib/plans.js";
+import { cancelPlan, confirmPlan, createPlan, deletePlan, importRows, loadOwnPlan, pausePlan, planDetail, replaceRows, resumePlan, retryRow, skipRow, updatePlanFields } from "./lib/planOps.js";
+import {
+  createProject,
+  deploymentDefaultModel,
+  implicitModel,
+  isEffort,
+  moveToAllowedModel,
+  normModel,
+  noteModel,
+  queueRetry,
+  readLocale,
+  requireModel,
+  requireRunKey,
+  stopProject,
+  type StagedAttachment,
+} from "./lib/runs.js";
 import { getCatalogItem, getCloneCount, incrementCloneCount, listCatalog, putCatalogItem, deleteCatalogItem, reserveNewId } from "./lib/catalog.js";
 import {
   deleteObject,
@@ -184,13 +205,11 @@ import {
   listArtifacts,
   invokeBradb,
   listVersionNumbers,
-  moveStagingToProject,
   presignDownload,
   presignUpload,
   putObjectBytes,
   putCanonJson,
   putObjectText,
-  stopEcsTask,
 } from "./lib/aws.js";
 import { loadBraTemplate } from "./lib/braTemplate.js";
 import { listDocs, readDoc } from "./lib/docs.js";
@@ -279,8 +298,6 @@ const requireAdmin = (u: UserRecord) => {
   if (u.role !== "admin") throw new HTTPException(403, { message: "admin only" });
 };
 
-const bad = (msg: string) => new HTTPException(400, { message: msg });
-const notFound = () => new HTTPException(404, { message: "not found" });
 
 // ---------------------------------------------------------------------------
 // Users
@@ -292,59 +309,6 @@ app.get("/users/me", async (c) => {
   const res: MeResponse = { ...toPublicUser(u), keySource: policy.source, orgTier: policy.tier };
   return c.json(res);
 });
-
-const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
-/** Optional UI language of a request (absent / null = let the agent follow the user's language). */
-const readLocale = (v: unknown): UiLocale | null => {
-  if (v === undefined || v === null) return null;
-  if (!isUiLocale(v)) throw bad("locale が不正です");
-  return v;
-};
-const normModel = (v: unknown): string | null => {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v !== "string" || !/^[A-Za-z0-9._-]{1,64}$/.test(v)) throw bad("モデル名が不正です");
-  return v;
-};
-
-/** Model of a job when neither the job nor the project names one (the worker resolves it the same way). */
-const deploymentDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
-
-/** The caller's key and model policy; 400 when the caller has no key to run a job with. */
-async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: KeySource }> {
-  const { policy } = await modelPolicy(u);
-  if (policy.source) return { ...policy, source: policy.source };
-  if (u.orgAccess) throw bad("デフォルトの API キーが登録されていません。管理者に連絡してください");
-  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者にデフォルトの API キーの利用承認を依頼してください");
-}
-
-/** 403 when the default-API-key tier does not include `model` (the message never names the tier). */
-function requireModel(policy: ModelPolicy, model: string) {
-  if (!policyAllows(policy, model)) throw new HTTPException(403, { message: `このモデル（${model}）は利用できません` });
-}
-
-/**
- * The model a project's next job runs. A project made with a model the user can no longer run (made with their own
- * key, or before the tier changed) moves to the tier's default model and keeps it; null when nothing changes.
- */
-async function moveToAllowedModel(u: UserRecord, p: ProjectRecord, policy: ModelPolicy): Promise<string | null> {
-  const current = p.model || deploymentDefaultModel();
-  const model = implicitModel(policy, current);
-  if (model === current) return null;
-  await updateProject(u.userId, p.projectId, { model });
-  p.model = model;
-  return model;
-}
-
-const noteModel = (p: ProjectRecord, jobId: string, model: string | null) =>
-  model
-    ? putMessage(p.projectId, jobId, "system", "status", `Model: ${model} / reasoning effort: ${p.reasoningEffort ?? "default"}`, {
-        userId: p.userId,
-        meta: { i18n: "sys.model", model, effort: p.reasoningEffort ?? "" },
-      })
-    : undefined;
-
-/** A default (user setting, deployment) the user did not pick for this job: replaced by an allowed model when the tier excludes it. */
-const implicitModel = (policy: ModelPolicy, preferred: string) => (policy.allowed ? allowedDefaultModel(policy, preferred) : preferred);
 
 app.put("/users/me", async (c) => {
   const body = (await c.req.json()) as Partial<Pick<UserRecord, "displayName" | "contributorName" | "defaultModel" | "defaultReasoningEffort" | "defaultCanonId">>;
@@ -519,11 +483,11 @@ app.post("/uploads", async (c) => {
 });
 
 /** Checks the staged uploads of a create request (they must exist and fit the limits) before anything is written. */
-async function stagedAttachments(userId: string, list: CreateProjectRequest["attachments"]) {
+async function stagedAttachments(userId: string, list: CreateProjectRequest["attachments"]): Promise<StagedAttachment[]> {
   if (list === undefined || list === null) return [];
   if (!Array.isArray(list)) throw bad("attachments が不正です");
   if (list.length > ATTACHMENT_LIMITS.maxFiles) throw bad(`添付ファイルは ${ATTACHMENT_LIMITS.maxFiles} 個までです`);
-  const out: { staging: string; safeName: string; name: string; size: number; contentType: string }[] = [];
+  const out: StagedAttachment[] = [];
   let total = 0;
   const seen = new Set<string>();
   for (const a of list) {
@@ -583,90 +547,27 @@ app.post("/projects", async (c) => {
   const urls = attachmentUrls(body.urls);
   const staged = await stagedAttachments(u.userId, body.attachments);
 
-  const projectId = await reserveNewId("project", u.userId);
-  const attachments: ProjectAttachment[] = [];
-  for (const [i, f] of staged.entries()) {
-    const key = attachmentFileKey(i, f.safeName);
-    await moveStagingToProject(f.staging, u.userId, projectId, key, f.contentType);
-    attachments.push({ kind: "file", id: `f${i + 1}`, name: f.name, key, size: f.size, contentType: f.contentType });
-  }
-  urls.forEach((url, i) => attachments.push({ kind: "url", id: `u${i + 1}`, url }));
-  const now = nowIso();
-  const jobId = newId("job_");
-  const project: ProjectRecord = {
-    userId: u.userId,
-    projectId,
-    name,
-    nameSource: "provisional",
-    revision: 0,
+  const project = await createProject(u, {
     roi,
     tlf,
+    name,
     contributor,
-    ...(attachments.length ? { attachments } : {}),
     model,
     reasoningEffort,
     researchMode,
-    sabraBoundary: "neocortex",
-    harnessRules: HARNESS_RULES,
-    status: "QUEUED",
-    currentStep: null,
-    stepStates: { HCD: "pending", FRG: "pending", CSV: "pending", XLSX: "pending" },
-    activeJobId: jobId,
-    codexThreadId: null,
-    pendingQuestion: null,
-    hasArtifacts: false,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-    completedAt: null,
-  };
-  try {
-    await putProject(project, true);
-  } catch (e) {
-    if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "Project ID の採番が衝突しました。もう一度作成してください" });
-    throw e;
-  }
-  const job: JobRecord = {
-    projectId,
-    jobId,
-    userId: u.userId,
-    type: "initial",
-    status: "QUEUED",
-    keySource: policy.source,
-    instruction: null,
-    pendingAnswer: null,
     locale,
-    ecsTaskArn: null,
-    retryCount: 0,
-    lastHeartbeat: null,
-    startedAt: null,
-    endedAt: null,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putJob(job);
-  const owner = { userId: u.userId };
-  await putMessage(projectId, jobId, "user", "prompt", `ROI: ${roi || "(not set)"}\nTLF: ${tlf || "(not set)"}`, {
-    ...owner,
-    meta: { kind: "create", roi, tlf, projectId, name, model, reasoningEffort, researchMode, ...(attachments.length ? { attachments: attachments.length } : {}) },
-  });
-  await putMessage(projectId, jobId, "system", "status", `Model: ${model ?? "default"} / reasoning effort: ${reasoningEffort ?? "default"}`, {
-    ...owner,
-    meta: { i18n: "sys.model", model: model ?? "", effort: reasoningEffort ?? "" },
-  });
-  await putMessage(projectId, jobId, "system", "status", researchMode ? "Research mode: on" : "Research mode: off", {
-    ...owner,
-    meta: { i18n: researchMode ? "sys.researchOn" : "sys.researchOff" },
-  });
-  if (canonPlan) {
+    keySource: policy.source,
+    staged,
+    urls,
     // before the job is queued, so the worker's first run already follows the Canon
-    const canonId = await applyProjectCanon(u, project, canonPlan);
-    const joined = await getProject(u.userId, projectId);
-    if (joined) Object.assign(project, { canonId, canonRevision: joined.canonRevision });
-  }
-  await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
-  await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
+    beforeQueue: canonPlan
+      ? async (project) => {
+          const canonId = await applyProjectCanon(u, project, canonPlan);
+          const joined = await getProject(u.userId, project.projectId);
+          if (joined) Object.assign(project, { canonId, canonRevision: joined.canonRevision });
+        }
+      : undefined,
+  });
   return c.json(project, 201);
 });
 
@@ -742,24 +643,11 @@ app.get("/projects/:id/messages", async (c) => {
   return c.json({ ...r, items: correctUsageMessages(items, await legacyCorrections(p.projectId, jobs)) });
 });
 
-/** Project fields after its active job is stopped. An article job leaves the finished BRA data as it was. */
-function afterStop(p: ProjectRecord, job: JobRecord | null): Partial<ProjectRecord> {
-  if (job?.type !== "article") return { status: "CANCELLED", activeJobId: null, activeStage: null, pendingQuestion: null };
-  const articleJob: ArticleJobState | null = p.articleJob?.jobId === job.jobId ? { ...p.articleJob, status: "CANCELLED" } : (p.articleJob ?? null);
-  return { status: "COMPLETED", activeJobId: null, pendingQuestion: null, articleJob };
-}
-
 app.post("/projects/:id/cancel", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (!["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"].includes(p.status)) throw bad("このプロジェクトは実行中ではありません");
-  const job = p.activeJobId ? await getJob(p.projectId, p.activeJobId) : null;
-  if (job) {
-    await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
-    if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by user");
-    await putMessage(p.projectId, job.jobId, "system", "status", "Job cancelled by the user.", { userId: p.userId, meta: { i18n: "sys.cancelled" } });
-  }
-  await updateProject(u.userId, p.projectId, afterStop(p, job));
+  await stopProject(p, "user");
   return c.json({ ok: true });
 });
 
@@ -837,34 +725,7 @@ app.post("/projects/:id/retry", async (c) => {
   const moved = await moveToAllowedModel(u, p, policy);
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
   const locale = readLocale(body?.locale);
-  const jobs = await listJobsForProject(p.projectId, u.userId);
-  const last = jobs.filter((j) => j.type !== "article").sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
-  const now = nowIso();
-  const jobId = newId("job_");
-  const job: JobRecord = {
-    projectId: p.projectId,
-    jobId,
-    userId: u.userId,
-    type: last?.type ?? "initial",
-    status: "QUEUED",
-    keySource: policy.source,
-    instruction: last?.instruction ?? null,
-    pendingAnswer: null,
-    locale: locale ?? last?.locale ?? null,
-    ecsTaskArn: null,
-    retryCount: (last?.retryCount ?? 0) + 1,
-    lastHeartbeat: null,
-    startedAt: null,
-    endedAt: null,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putJob(job);
-  await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, pendingQuestion: null });
-  await noteModel(p, jobId, moved);
-  await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { userId: p.userId, meta: { i18n: "sys.retryQueued" } });
-  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
+  const jobId = await queueRetry(u, p, policy, { locale, moved });
   return c.json({ ok: true, jobId });
 });
 
@@ -2250,6 +2111,88 @@ app.get("/public/canons/:id", async (c) => {
 });
 
 // ---------------------------------------------------------------------------
+// BRA Planner (plans: rows of ROI × TLF built as projects in waves; owner only)
+// ---------------------------------------------------------------------------
+
+app.get("/plans", async (c) => {
+  const u = c.get("user");
+  const items = (await listOwnPlans(u.userId))
+    .filter((p) => !p.deletedAt)
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+    .map((p) => ({ ...p, rowCounts: p.rowCounts ?? countRows([]) }));
+  const res: ListPlansResponse = { items };
+  return c.json(res);
+});
+
+app.post("/plans", async (c) => {
+  const u = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as CreatePlanRequest;
+  return c.json(await createPlan(u, body), 201);
+});
+
+app.get("/plans/:id", async (c) => {
+  const u = c.get("user");
+  return c.json(await planDetail(u, await loadOwnPlan(u, c.req.param("id"))));
+});
+
+app.put("/plans/:id", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  return c.json(await updatePlanFields(u, plan, (await c.req.json().catch(() => ({}))) as UpdatePlanRequest));
+});
+
+app.delete("/plans/:id", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  return c.json({ planId: plan.planId, deletedAt: await deletePlan(u, plan) });
+});
+
+app.put("/plans/:id/rows", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as { rows?: unknown };
+  return c.json({ rows: await replaceRows(u, plan, body.rows) });
+});
+
+app.post("/plans/:id/rows/import", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as { csv?: unknown };
+  return c.json(await importRows(u, plan, body.csv));
+});
+
+app.post("/plans/:id/confirm", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as { locale?: unknown };
+  return c.json(await confirmPlan(u, plan, readLocale(body.locale)));
+});
+
+for (const [action, run] of [
+  ["pause", pausePlan],
+  ["resume", resumePlan],
+  ["cancel", cancelPlan],
+] as const) {
+  app.post(`/plans/:id/${action}`, async (c) => {
+    const u = c.get("user");
+    await run(u, await loadOwnPlan(u, c.req.param("id")));
+    return c.json({ ok: true });
+  });
+}
+
+app.post("/plans/:id/rows/:rowId/retry", async (c) => {
+  const u = c.get("user");
+  await retryRow(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("rowId"));
+  return c.json({ ok: true });
+});
+
+app.post("/plans/:id/rows/:rowId/skip", async (c) => {
+  const u = c.get("user");
+  await skipRow(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("rowId"));
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
 // Admin
 // ---------------------------------------------------------------------------
 
@@ -2313,6 +2256,34 @@ app.get("/admin/org-usage", async (c) => {
   return c.json(orgUsage(await listAllJobs(), nowIso().slice(0, 7)));
 });
 
+/** Concurrency limits (1–16 each; null = the deployment value). Read by the dispatcher and the plan runner without a deploy. */
+app.get("/admin/concurrency", async (c) => {
+  requireAdmin(c.get("user"));
+  return c.json(await concurrencyStatus());
+});
+
+app.put("/admin/concurrency", async (c) => {
+  const me = c.get("user");
+  requireAdmin(me);
+  const body = (await c.req.json().catch(() => ({}))) as UpdateConcurrencyRequest;
+  const current = await getConcurrencySetting();
+  const next: ConcurrencySettingRecord = {
+    ...CONCURRENCY_CATALOG_KEY,
+    maxConcurrentJobs: current?.maxConcurrentJobs ?? null,
+    maxConcurrentJobsPerUser: current?.maxConcurrentJobsPerUser ?? null,
+    updatedAt: nowIso(),
+    updatedBy: me.userId,
+  };
+  for (const key of ["maxConcurrentJobs", "maxConcurrentJobsPerUser"] as const) {
+    if (!(key in body)) continue;
+    const v = body[key];
+    if (v !== null && !isConcurrencyLimit(v)) throw bad(`同時実行数は ${CONCURRENCY_MIN}〜${CONCURRENCY_MAX} の整数です`);
+    next[key] = v;
+  }
+  await putConcurrencySetting(next);
+  return c.json(await concurrencyStatus());
+});
+
 app.get("/admin/projects", async (c) => {
   requireAdmin(c.get("user"));
   const items = (await listAllProjects()).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
@@ -2336,14 +2307,11 @@ app.post("/admin/projects/:userId/:id/cancel", async (c) => {
   requireAdmin(c.get("user"));
   const p = await getProject(c.req.param("userId"), c.req.param("id"));
   if (!p) throw notFound();
-  const job = p.activeJobId ? await getJob(p.projectId, p.activeJobId) : null;
-  if (job) {
-    await updateJob(p.projectId, job.jobId, { status: "CANCELLED", endedAt: nowIso() });
-    if (job.ecsTaskArn) await stopEcsTask(job.ecsTaskArn, "cancelled by admin");
-    await putMessage(p.projectId, job.jobId, "system", "status", "Job stopped by an admin.", { userId: p.userId, meta: { i18n: "sys.adminStopped" } });
-  }
-  await updateProject(p.userId, p.projectId, afterStop(p, job));
+  await stopProject(p, "admin");
   return c.json({ ok: true });
 });
 
-app.get("/config", (c) => c.json({ maxConcurrentJobs: env.maxConcurrentJobs, maxConcurrentJobsPerUser: env.maxConcurrentJobsPerUser, codexModel: env.codexModel || null }));
+app.get("/config", async (c) => {
+  const limits = await currentLimits();
+  return c.json({ maxConcurrentJobs: limits.maxConcurrentJobs, maxConcurrentJobsPerUser: limits.maxConcurrentJobsPerUser, codexModel: env.codexModel || null });
+});
