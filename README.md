@@ -23,6 +23,7 @@ npm run release -- patch --no-git   # or minor / major / 0.2.0
 | -------- | ------- | ------------ |
 | `.github/workflows/ci.yml` | Pull requests | `npm ci` → build → typecheck → test → `release:check` → `cdk synth` (no AWS credentials). The job summary says whether merging deploys |
 | `.github/workflows/deploy.yml` | Push to `main`, manual run | Deploys only when tag `v<version>` does not exist yet: settings check → build / typecheck / test → OIDC role → `cdk diff` → RETAIN guard → `npm run deploy` → push tag → check `GET /health` reports the new version |
+| `.github/workflows/claude.yml` | `@claude` in an issue, issue comment or PR comment by `miyamoto9265` (OWNER) or `cursor[bot]` (user id 206951365) | Runs Claude Code (`anthropics/claude-code-action`) with the owner's subscription token (secret `CLAUDE_CODE_OAUTH_TOKEN`) and the job's `GITHUB_TOKEN` (contents / issues / pull-requests write; no `id-token`, no AWS). Claude works on a `claude/` branch (or the open PR's branch) and opens a draft PR; it never pushes to `main` or merges. Its pushes and PRs do not start `ci` or `deploy` (GitHub does not run workflows for `GITHUB_TOKEN` events), so run `ci` on the branch with "Run workflow" before merging |
 
 - A merge that does not bump the version (docs only, for example) does not deploy; it ships with the next release.
 - **RETAIN guard** (`scripts/retain-guard.mjs`): if `cdk diff` would replace, remove, or orphan a DynamoDB table, S3 bucket, KMS key, or Cognito User Pool, the deploy stops before touching the stack. After reviewing the diff in the job log, deploy anyway with `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` (a plain "Re-run" stops again).
@@ -33,7 +34,7 @@ npm run release -- patch --no-git   # or minor / major / 0.2.0
 
 ```
 package.json                 npm workspaces (build / typecheck / test / deploy)
-.github/workflows/           ci.yml (pull requests) / deploy.yml (main → AWS via OIDC)
+.github/workflows/           ci.yml (pull requests) / deploy.yml (main → AWS via OIDC) / claude.yml (@claude → Claude Code)
 scripts/                     release.mjs (version + CHANGELOG), retain-guard.mjs (stops risky deploys),
                              bra-appendix-d.mjs (checks a BRA xlsx / CSV folder against the BRA error codes of the Error code List (Master); local `cobrac:` codes for checks without one)
 prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args), templates/Template-v2-2.bra.xlsx (official BRA template)
