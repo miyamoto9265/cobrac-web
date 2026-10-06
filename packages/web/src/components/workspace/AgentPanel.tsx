@@ -7,6 +7,7 @@ import { isActive } from "../../lib/format";
 import { useMediaQuery } from "../../lib/useMediaQuery";
 import { ChatTimeline } from "../ChatTimeline";
 import { HelpTip } from "../HelpTip";
+import { FollowupHypothesis, followupRequestOf, useGraphSelection, type FollowupHypothesisDraft } from "../hypothesis/FollowupHypothesis";
 
 /** What the composer at the bottom does in the project's current state. */
 export type ComposerMode = "answer" | "followup" | "busy" | "idle";
@@ -42,6 +43,9 @@ export function AgentPanel({
   const { t, locale } = useI18n();
   const mode = composerMode(project);
   const [draft, setDraft] = useState("");
+  /** "Allow hypotheses with this instruction": off (null) by default and after every send */
+  const [hyp, setHyp] = useState<FollowupHypothesisDraft | null>(null);
+  const selection = useGraphSelection();
   const [stick, setStick] = useState(true);
   const [unseen, setUnseen] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -81,13 +85,15 @@ export function AgentPanel({
     el.style.height = `${Math.min(el.scrollHeight, 176)}px`;
   }, [draft, mode]);
 
-  const canSend = (mode === "answer" || mode === "followup") && !busy && !!draft.trim();
+  const hypothesis = mode === "followup" && hyp ? followupRequestOf(hyp, selection) : null;
+  const canSend = (mode === "answer" || mode === "followup") && !busy && !!draft.trim() && !(mode === "followup" && hyp && !hypothesis);
   const send = () => {
     if (!canSend) return;
     const text = draft.trim();
     setDraft("");
+    setHyp(null);
     setStick(true);
-    void act(() => (mode === "answer" ? api.answer(projectId, text, locale) : api.followup(projectId, text, locale)));
+    void act(() => (mode === "answer" ? api.answer(projectId, text, locale) : hypothesis ? api.followup(projectId, text, locale, hypothesis) : api.followup(projectId, text, locale)));
   };
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // touch keyboards keep Enter for new lines; IME conversion must never send
@@ -158,6 +164,7 @@ export function AgentPanel({
             data-testid="agent-input"
             className="block max-h-44 w-full resize-none bg-transparent px-3 pb-1 pt-2.5 text-[13.5px] leading-relaxed text-slate-800 placeholder:text-slate-400 focus:outline-none disabled:cursor-not-allowed"
           />
+          {mode === "followup" && <FollowupHypothesis project={project} value={hyp} onChange={setHyp} selection={selection} disabled={busy} />}
           <div className="flex items-center gap-2 px-2 pb-2">
             <span className={`flex min-w-0 items-center gap-1.5 pl-1 text-[11px] font-medium ${mode === "answer" ? "text-amber-700" : "text-slate-500"}`}>
               {mode === "answer" ? (

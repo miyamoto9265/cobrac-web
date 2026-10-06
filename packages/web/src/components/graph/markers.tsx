@@ -5,12 +5,14 @@ export interface MarkerSpec {
   type: ArrowHead;
   color: string;
   width: number;
+  /** Hypothesis mode: drawn hollow (filled with the canvas colour), for a connection whose direction is a hypothesis */
+  hollow?: string;
 }
 
 const safe = (s: string) => s.replace(/[^a-zA-Z0-9]/g, "_");
 
 export function markerId(m: MarkerSpec): string {
-  return `mk-${m.type}-${safe(m.color)}-${safe(String(m.width))}`;
+  return `mk-${m.type}-${safe(m.color)}-${safe(String(m.width))}${m.hollow ? `-h${safe(m.hollow)}` : ""}`;
 }
 
 export function markerUrl(m: MarkerSpec | null): string | undefined {
@@ -27,7 +29,22 @@ export function markerBoxSize(width: number) {
   return Math.max(8, 7 + width * 2.2);
 }
 
-function shape(type: ArrowHead, color: string): { el: ReactElement; refX: number } {
+function shape(type: ArrowHead, color: string, hollow?: string): { el: ReactElement; refX: number } {
+  if (hollow) {
+    // the same outlines, filled with the canvas colour
+    const p = { fill: hollow, stroke: color, strokeWidth: 1.4, strokeLinejoin: "round" as const };
+    switch (type) {
+      case "square":
+        return { el: <rect x={1.5} y={1.5} width={7} height={7} {...p} />, refX: 9 };
+      case "circle":
+        return { el: <circle cx={5} cy={5} r={3.8} {...p} />, refX: 9 };
+      case "diamond":
+        return { el: <path d="M5,0.8 L9.2,5 L5,9.2 L0.8,5 Z" {...p} />, refX: 9.5 };
+      case "arrow":
+      case "arrowOpen":
+        return { el: <path d="M0.8,0.8 L9.2,5 L0.8,9.2 Z" {...p} />, refX: 9.5 };
+    }
+  }
   switch (type) {
     case "arrow":
       return { el: <path d="M0,0 L10,5 L0,10 Z" fill={color} />, refX: 10 };
@@ -58,7 +75,7 @@ export function MarkerDefs({ markers }: { markers: MarkerSpec[] }) {
         {markers.map((m) => {
           if (m.type === "none") return null;
           const s = markerBoxSize(m.width);
-          const { el, refX } = shape(m.type, m.color);
+          const { el, refX } = shape(m.type, m.color, m.hollow);
           return (
             <marker key={markerId(m)} id={markerId(m)} viewBox="0 0 10 10" markerWidth={s} markerHeight={s} markerUnits="userSpaceOnUse" refX={refX} refY={5} orient="auto-start-reverse">
               {el}

@@ -2,11 +2,13 @@ import { ArrowLeft, GitFork, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { EdgeSign, FrgGraph, HcdCollection, HcdEdge, HcdGraph, HcdMotif, HcdNode, RoiClass } from "@cobrac/shared";
-import { classifyEdgeSign } from "@cobrac/shared";
+import { classifyEdgeSign, evidenceOnlyHcd, graphHypothesisCount, isDirectionOnly } from "@cobrac/shared";
 import { Badge, DetailPanel, Field, Section, actionBtn, primaryActionBtn } from "../components/DetailPanel";
 import { GraphCanvas, type GEdge, type GGroup, type GNode, type LegendItem } from "../components/GraphCanvas";
 import { EdgeGlyph } from "../components/graph/Legend";
 import { SIGN_DEFAULTS } from "../components/graph/StyledEdge";
+import { HideHypothesesButton, HypothesesHiddenBanner, hypothesisLegend } from "../components/hypothesis/GraphHypotheses";
+import { HypothesisDetail, markTitle } from "../components/hypothesis/HypothesisInfo";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { circuitsUnderGroup, frgIdForCircuit, parentGroupsOfCircuit } from "../lib/graphView";
@@ -29,7 +31,11 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const { projectId = "" } = useParams();
   const [params, setParams] = useSearchParams();
-  const [graph, setGraph] = useState<HcdGraph | null>(null);
+  const [fullGraph, setGraph] = useState<HcdGraph | null>(null);
+  /** "Hide hypotheses": the evidence-only graph */
+  const [hideHypotheses, setHideHypotheses] = useState(false);
+  const hypothesisCount = useMemo(() => graphHypothesisCount(fullGraph), [fullGraph]);
+  const graph = useMemo(() => (fullGraph && hideHypotheses && hypothesisCount ? evidenceOnlyHcd(fullGraph) : fullGraph), [fullGraph, hideHypotheses, hypothesisCount]);
   const [frg, setFrg] = useState<FrgGraph | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
@@ -58,8 +64,9 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         accent: ROI_STYLE[n.roiClass].accent,
         width: 176,
         height: 38,
+        ...(n.hypothesis ? { hypothesis: { title: markTitle(t, n.hypothesis.items.map((h) => h.id)), dotted: true } } : {}),
       })) ?? [],
-    [graph],
+    [graph, t],
   );
   const byId = useMemo(() => new Map(graph?.nodes.map((n) => [n.id, n]) ?? []), [graph]);
   const collections = useMemo(() => graph?.collections ?? [], [graph]);
@@ -80,8 +87,9 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         label: e.outputSemantics.replace(/^\[[^\]]+\]\s*/, "").slice(0, 60) || undefined,
         title: e.comments,
         sign: signs.get(e.id) ?? "unknown",
+        ...(e.hypothesis ? { hypothesis: { title: markTitle(t, e.hypothesis.items.map((h) => h.id)), hollow: isDirectionOnly(e.hypothesis) } } : {}),
       })) ?? [],
-    [graph, signs],
+    [graph, signs, t],
   );
   const signCounts = useMemo(() => {
     const c: Record<EdgeSign, number> = { excitatory: 0, inhibitory: 0, modulatory: 0, unknown: 0 };
@@ -149,6 +157,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
             ...ROI_KEYS.filter((k) => graph.nodes.some((n) => n.roiClass === k)).map((k) => ({ color: ROI_STYLE[k].fill, accent: ROI_STYLE[k].accent, label: t(`roi.${k}` as MessageKey) })),
             ...(collections.length && showCollections ? [{ color: "transparent", label: t("graph.collectionLegend"), kind: "group" as const }] : []),
             ...SIGNS.filter((s) => signCounts[s] > 0).map((s) => ({ color: SIGN_DEFAULTS[s].color, label: t("graph.projection", { sign: t(`sign.${s}` as MessageKey), n: signCounts[s] }), kind: "edge" as const, sign: s })),
+            ...hypothesisLegend(t, graph),
           ]
         : [],
     [graph, signCounts, collections.length, showCollections, t],
@@ -185,6 +194,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         </>
       }
     >
+      <HypothesisDetail hypothesis={edge.hypothesis} />
       <Field label="Output Semantics (sender)" value={edge.outputSemantics} />
       <Field label="Comments" value={edge.comments} />
       <Field label="Reference ID" value={edge.referenceId} />
@@ -251,6 +261,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
           showGroups={showCollections}
           selectedGroupId={collection?.id ?? null}
           onSelectGroup={select}
+          toolbarExtra={hypothesisCount > 0 ? <HideHypothesesButton active={hideHypotheses} onToggle={() => setHideHypotheses((v) => !v)} /> : undefined}
           menuItems={[
             { label: t("graph.showLabels"), checked: showLabels, onClick: () => setShowLabels((v) => !v), separator: true },
             ...(collections.length ? [{ label: t("graph.showCollections"), checked: showCollections, onClick: () => setShowCollections((v) => !v) }] : []),
@@ -289,6 +300,8 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
                   <X size={12} />
                 </button>
               </div>
+            ) : hideHypotheses && hypothesisCount > 0 ? (
+              <HypothesesHiddenBanner onShow={() => setHideHypotheses(false)} />
             ) : undefined
           }
         />
@@ -391,6 +404,7 @@ function NodeDetail({
         ) : undefined
       }
     >
+      <HypothesisDetail hypothesis={node.hypothesis} />
       <Section title={t("graph.connections", { in: incoming.length, out: outgoing.length })} />
       {incoming.length + outgoing.length === 0 && <div className="mb-3 text-xs text-slate-500">—</div>}
       {incoming.map((e) => (

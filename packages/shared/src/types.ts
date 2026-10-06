@@ -359,6 +359,8 @@ export interface HcdNode {
   mechanism: string;
   implementation: string;
   projectedCircuits: string[];
+  /** Hypothesis mode: the UC's hypothesis (graphHypothesis.ts); absent on evidence and on graphs of other projects */
+  hypothesis?: import("./graphHypothesis.js").GraphHypothesis;
 }
 
 export interface HcdEdge {
@@ -375,6 +377,8 @@ export interface HcdEdge {
   outputSemantics: string;
   /** Physiological sign, filled by buildGraphs() from comments + sender transmitter */
   sign?: EdgeSign;
+  /** Hypothesis mode: the hypotheses among the connection's records (graphHypothesis.ts) */
+  hypothesis?: import("./graphHypothesis.js").GraphHypothesis;
 }
 
 /** Collection Circuit (Circuits.csv row with Uniform = FALSE other than the ROI row); not a node of the graph */
@@ -435,6 +439,8 @@ export interface FrgNode {
   outputSemantics: string;
   /** Circuit ID for UC nodes */
   circuitId: string | null;
+  /** Hypothesis mode: IDs of the hypotheses a GN depends on (`H2`, `H5`); absent when it depends on none */
+  hypotheses?: string[];
 }
 
 export interface FrgEdge {

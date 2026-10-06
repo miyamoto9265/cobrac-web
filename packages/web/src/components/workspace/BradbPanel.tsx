@@ -1,6 +1,6 @@
 import { Database, Loader2 } from "lucide-react";
 import { useState } from "react";
-import type { BradbRegisterResponse, BradbRegistration, BraVersionListItem, ProjectBradbResponse } from "@cobrac/shared";
+import type { BradbBlockReason, BradbRegisterResponse, BradbRegistration, BraVersionListItem, ProjectBradbResponse } from "@cobrac/shared";
 import { useI18n, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtDate } from "../../lib/format";
@@ -13,7 +13,20 @@ const STATUS_TONE: Record<BradbRegistration["status"], string> = {
 };
 
 /** Registration of one version in BRA-DB: what BRA-DB holds, the register button and this version's attempts. */
-export function BradbPanel({ projectId, item, status, onChanged }: { projectId: string; item: BraVersionListItem; status: ProjectBradbResponse | null; onChanged: () => void }) {
+export function BradbPanel({
+  projectId,
+  item,
+  status,
+  onChanged,
+  blocked = null,
+}: {
+  projectId: string;
+  item: BraVersionListItem;
+  status: ProjectBradbResponse | null;
+  onChanged: () => void;
+  /** Why this version cannot be registered (hypothesis mode: it contains hypotheses) */
+  blocked?: BradbBlockReason | null;
+}) {
   const { t, locale } = useI18n();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<BradbRegisterResponse | null>(null);
@@ -21,7 +34,7 @@ export function BradbPanel({ projectId, item, status, onChanged }: { projectId: 
   if (!status?.enabled) return null;
 
   const holdsThis = status.current?.versionId === item.versionId;
-  const canRegister = item.frozen && item.hasBradbPackage && !holdsThis;
+  const canRegister = item.frozen && item.hasBradbPackage && !holdsThis && !blocked;
   const attempts = status.registrations.filter((r) => r.versionId === item.versionId);
 
   const register = async (allowShrink: boolean) => {
@@ -81,6 +94,11 @@ export function BradbPanel({ projectId, item, status, onChanged }: { projectId: 
           </button>
         )}
         {!item.hasBradbPackage && <span className="text-slate-500">{t("bradb.needsPackage")}</span>}
+        {blocked === "hypotheses" && !holdsThis && (
+          <span className="text-amber-800" data-testid="bradb-blocked">
+            {t("bradb.hypothesisBlocked")}
+          </span>
+        )}
       </div>
       {(message || err) && <div className="mt-2">{err ? <p className="text-rose-700">{err}</p> : message}</div>}
       {attempts.length > 0 && (

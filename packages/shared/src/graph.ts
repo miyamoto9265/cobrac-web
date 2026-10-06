@@ -1,7 +1,8 @@
 import { isRoiCircuitId } from "./bra.js";
 import { col, parseCsvObjects } from "./csv.js";
 import { classifyEdgeSign } from "./edgeSign.js";
-import { stripHypothesisLine } from "./hypothesis.js";
+import { markGraphHypotheses } from "./graphHypothesis.js";
+import { stripHypothesisLine, type HypothesesFile } from "./hypothesis.js";
 import { findFrgCandidates } from "./motifs.js";
 import type {
   FrgEdge,
@@ -26,6 +27,8 @@ export interface GraphSources {
    * describes the premises, so the edge sign and the ROI tag are read without it. Other projects leave it unset.
    */
   hypothesisLines?: boolean;
+  /** Hypothesis mode: hypotheses.json, whose IDs and premises the graphs carry (graphHypothesis.ts); null when unreadable */
+  hypotheses?: Pick<HypothesesFile, "hypotheses" | "gns"> | null;
 }
 
 export { classifyEdgeSign } from "./edgeSign.js";
@@ -343,6 +346,7 @@ export function buildGraphs(projectId: string, src: GraphSources): { hcd: HcdGra
     edges: frgEdges,
   };
 
+  if (src.hypothesisLines) markGraphHypotheses(hcd, frgGraph, { connectionsCsv: src.connectionsCsv, hypotheses: src.hypotheses ?? null });
   return { hcd, frg: frgGraph };
 }
 

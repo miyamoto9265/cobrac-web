@@ -38,3 +38,4 @@ export * from "./plan.js";
 export * from "./hypothesis.js";
 export * from "./hypothesisInput.js";
 export * from "./hypothesisVersion.js";
+export * from "./graphHypothesis.js";
