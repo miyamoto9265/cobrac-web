@@ -85,6 +85,7 @@ import {
   harnessPromptNotice,
   isAgentNameable,
   isResearchMode,
+  agentHarnessSchemas,
   evidenceSettingsOf,
   isHypothesisMode,
   isUiLocale,
@@ -117,7 +118,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
-import { hypothesisRules } from "./hypothesisRules.js";
+import { followupScopeNote, hypothesisRules, returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type PreparedMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
@@ -473,6 +474,11 @@ async function main() {
     await log(mode === "followup" ? "Follow-up completed." : "BRA data generation completed.", {
       i18n: mode === "followup" ? "sys.followupDone" : "sys.braDone",
     });
+    if (csvComplete(paths) && returnsToStrict(evidence, versionHypotheses(paths, project))) {
+      // no hypothesis in the result: the project is literature-supported only again (its scopes stay as a record)
+      await updateProject(userId, projectId, { evidenceMode: "strict" });
+      await log("The result has no hypotheses, so the project uses literature-supported evidence only again.", { i18n: "sys.hypothesisStrict" });
+    }
     console.log("[worker] completed");
   } catch (e) {
     console.error("[worker] fatal", e);
@@ -1056,7 +1062,7 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
     case "followup":
       // specs are always attached: the thread may be new, and follow-ups can touch every file
       return {
-        shown: `${header(project)}\n\nFollow-up instruction:\n${job.instruction ?? ""}`,
+        shown: `${header(project)}\n\nFollow-up instruction:\n${job.instruction ?? ""}${followupScopeNote(project, job)}`,
         hidden:
           `Apply the follow-up instruction to the project files (see "Follow-up instructions" in AGENTS.md). Reference specs:\n\n` +
           `${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
@@ -1099,7 +1105,8 @@ async function prepareWorkspace(project: ProjectRecord) {
   // harness rules at the workspace root (Codex loads AGENTS.md from its working directory)
   const agents = (await readFile(join(env.promptsDir, "AGENTS.md"), "utf8")).replaceAll("{P}", projectId);
   await writeFile(join(env.workDir, "AGENTS.md"), agents, "utf8");
-  await writeSchemas(env.workDir);
+  // projects that do not allow hypotheses are not shown the hypothesis key (the checks still reject it)
+  await writeSchemas(env.workDir, agentHarnessSchemas(evidenceSettingsOf(project).mode));
 
   if (mode !== "initial" || project.codexThreadId) {
     await log("Restoring previous workspace…", { i18n: "sys.restoring" });
@@ -1206,7 +1213,7 @@ async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise
         appVersion: env.appVersion,
         gitSha: env.gitSha,
         promptsSha256: await promptsSha256(env.promptsDir),
-        schemasSha256: schemasSha256(),
+        schemasSha256: schemasSha256(agentHarnessSchemas(evidence.mode)),
         model: resolvedModel,
         reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
         researchMode: research,
@@ -1216,6 +1223,8 @@ async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise
         harnessRules: project.harnessRules ?? 0,
         // provenance of a project a BRA Planner plan created (absent otherwise, so other manifests are unchanged)
         ...(project.planId ? { planId: project.planId } : {}),
+        // hypothesis mode: evidence mode, scopes, share limit and hypothesis counts (the BRA-DB guard reads them)
+        ...versionHypotheses(paths, { ...project, evidenceMode: evidence.mode }),
       },
     });
     if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });

@@ -252,6 +252,24 @@ describe("cloning", () => {
     }
   });
 
+  it("keeps the original's evidence mode, hypothesis scopes and share limit (none for a project without them)", async () => {
+    const scopes = [{ id: "S1", claims: ["existence" as const], target: { kind: "all" as const }, jobId: "job_1", createdAt: now }];
+    const cases: Partial<ProjectRecord>[] = [{ evidenceMode: "hypothesis", hypothesisScopes: scopes, hypothesisMaxShare: 0.3 }, { evidenceMode: "strict", hypothesisScopes: scopes, hypothesisMaxShare: 0.5 }, {}];
+    for (const [i, extra] of cases.entries()) {
+      const id = `u7m2q9xa-${i + 40}`;
+      fake.put("projects", project(A.sub, id, extra));
+      put(A.sub, id, "workspace/report.md", "# Report");
+      await json(call(A, "PUT", `/projects/${id}/visibility`, { visibility: "public" }));
+      const { projectId } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${id}/clone`));
+      const clone = await json<ProjectRecord>(call(B, "GET", `/projects/${projectId}`));
+      expect({ evidenceMode: clone.evidenceMode, hypothesisScopes: clone.hypothesisScopes, hypothesisMaxShare: clone.hypothesisMaxShare }).toEqual({
+        evidenceMode: extra.evidenceMode,
+        hypothesisScopes: extra.hypothesisScopes,
+        hypothesisMaxShare: extra.hypothesisMaxShare,
+      });
+    }
+  });
+
   it("gives a Tier 1 cloner's copy a model the tier allows", async () => {
     fake.put("catalog", { kind: "config", id: "default-api-key", encryptedApiKey: "default", last4: "abcd", availableModels: [], updatedAt: now, updatedBy: "sub-admin" });
     const bob = fake.items("users").find((u) => u.userId === B.sub)!;

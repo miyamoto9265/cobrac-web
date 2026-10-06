@@ -71,8 +71,13 @@ export class FakeDdb {
   }
 
   async send(cmd: { kind: string; input: Input }): Promise<Record<string, unknown>> {
+    return this.exec(cmd);
+  }
+
+  /** Synchronous, so a transaction cannot interleave with other requests. */
+  private exec(cmd: { kind: string; input: Input }): Record<string, unknown> {
     const i = cmd.input;
-    const t = this.table(i.TableName);
+    const t = cmd.kind === "TransactWrite" ? new Map<string, Item>() : this.table(i.TableName);
     switch (cmd.kind) {
       case "Get":
         return { Item: structuredClone(t.get(this.key(i.TableName, i.Key!))) };
@@ -135,6 +140,21 @@ export class FakeDdb {
       }
       case "Scan":
         return { Items: [...t.values()].map((x) => structuredClone(x)) };
+      case "TransactWrite": {
+        // all or nothing: apply the writes in order and restore every table when one condition fails
+        const saved = new Map([...this.tables].map(([name, rows]) => [name, new Map([...rows].map(([k, v]) => [k, structuredClone(v)]))]));
+        try {
+          for (const item of (i as unknown as { TransactItems: Record<string, Input>[] }).TransactItems) {
+            const [kind, input] = Object.entries(item)[0];
+            this.exec({ kind, input });
+          }
+        } catch (e) {
+          this.tables = saved;
+          if (e instanceof ConditionalCheckFailedException) throw Object.assign(new Error("transaction cancelled"), { name: "TransactionCanceledException" });
+          throw e;
+        }
+        return {};
+      }
       default:
         throw new Error(`unsupported command ${cmd.kind}`);
     }
@@ -157,4 +177,5 @@ export const libDynamodbMock = {
   UpdateCommand: command("Update"),
   QueryCommand: command("Query"),
   ScanCommand: command("Scan"),
+  TransactWriteCommand: command("TransactWrite"),
 };

@@ -7,6 +7,7 @@
 // ---------------------------------------------------------------------------
 
 import { checkHcd, type HcdModel } from "./harness.js";
+import { DEFAULT_HYPOTHESIS_MAX_SHARE, hypothesisRecords, type EvidenceOptions, type HypothesisRecord } from "./hypothesis.js";
 import { modernCircuitId, normalizeUcDescriptor, parseUcDescriptor, ucFacetValues } from "./ucNaming.js";
 
 export type CanonCircuitStatus = "uniform" | "collection";
@@ -122,6 +123,18 @@ export interface CanonProjectRoles {
   ucRoles: CanonUcRole[];
   /** frg.json as the project wrote it (null when absent) */
   frg: unknown;
+  /**
+   * Hypothesis mode: the project's hypotheses (H1, …) and the entries kept out of the shared layer — connections with a
+   * hypothesis or ending on a hypothesized population, and the UCs whose population is a hypothesis. Absent when the
+   * project has none; never part of the shared layer, never a constraint or a checked quote for other projects.
+   */
+  hypotheses?: CanonRoleHypotheses;
+}
+
+export interface CanonRoleHypotheses {
+  records: HypothesisRecord[];
+  circuits: CanonCircuit[];
+  connections: CanonConnection[];
 }
 
 export interface CanonContent {
@@ -146,6 +159,8 @@ export interface CanonIncoming extends CanonContent {
   projectRevision: number;
   /** Circuits the converter had to leave out (no UC Descriptor, unknown members) */
   skipped: string[];
+  /** Hypotheses it brings, kept in the role layer only (absent when none) */
+  hypothesisCount?: number;
 }
 
 export function emptyCanonSnapshot(canonId: string, createdAt: string): CanonSnapshot {
@@ -184,9 +199,12 @@ function parseJson(text: string | null | undefined): unknown {
  * (sender, receiver, paper). UCs without a descriptor cannot be matched across projects and are skipped (listed).
  * Circuit IDs of older projects enter the Canon in their current form (`modernCircuitId`).
  */
-export function canonFromProject(projectId: string, projectRevision: number, files: ProjectCanonFiles): CanonIncoming {
-  const r = checkHcd({ uc: files.uc, connections: files.connections, references: files.references, meta: files.meta });
+export function canonFromProject(projectId: string, projectRevision: number, files: ProjectCanonFiles, opts: { hypotheses?: "role-layer" | "as-evidence" } = {}): CanonIncoming {
+  // the hypothesis keys are read whatever the project's mode, so a marked element never reaches the shared layer
+  const r = checkHcd({ uc: files.uc, connections: files.connections, references: files.references, meta: files.meta }, { evidence: READ_HYPOTHESES });
   const model: HcdModel = r.model ?? { meta: null, refs: [], ucs: [], collections: [], bif: [], connections: [] };
+  // "as-evidence" (the generation check of a member project): every element is compared with the Canon as before
+  const kept = opts.hypotheses === "as-evidence" ? null : hypothesisSplit(model);
   const origin: CanonOrigin = { projectId, projectRevision, pr: 0 };
   const skipped: string[] = [];
 
@@ -195,20 +213,23 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
   for (const c of model.collections) idToKey.set(c.id, c.descriptor ? normalizeUcDescriptor(c.descriptor) : `group:${c.id}`);
 
   const circuits: CanonCircuit[] = [];
+  const roleCircuits: CanonCircuit[] = [];
   for (const u of model.ucs) {
     if (!u.descriptor) {
       skipped.push(u.id);
       continue;
     }
-    circuits.push({
+    const claims = kept?.ucClaims.get(u.id);
+    (claims?.includes("population") ? roleCircuits : circuits).push({
       descriptor: u.descriptor,
       key: normalizeUcDescriptor(u.descriptor),
       circuitId: modernCircuitId(u.id),
       names: u.names,
       status: "uniform",
       subCircuits: [],
-      transmitter: u.transmitter,
-      modulationType: u.modulationType,
+      // a hypothesized property stays out of the shared layer (empty there; the role layer keeps the hypothesis)
+      transmitter: claims?.includes("transmitter") ? "" : u.transmitter,
+      modulationType: claims?.includes("modulation") ? "" : u.modulationType,
       sourceOfId: u.sourceOfId,
       outputSemantics: u.outputSemantics,
       origin,
@@ -218,8 +239,9 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
   }
   const groups: CanonGroup[] = [];
   for (const c of model.collections) {
-    const members = c.subCircuits.map((m) => idToKey.get(m)).filter((k): k is string => !!k);
-    if (members.length < c.subCircuits.length) skipped.push(...c.subCircuits.filter((m) => !idToKey.has(m)));
+    // a hypothesized population is not a member in the shared layer (it is in the role layer only)
+    const members = c.subCircuits.filter((m) => !kept?.populations.has(m)).map((m) => idToKey.get(m)).filter((k): k is string => !!k);
+    if (members.length < c.subCircuits.filter((m) => !kept?.populations.has(m)).length) skipped.push(...c.subCircuits.filter((m) => !idToKey.has(m)));
     if (c.descriptor) {
       circuits.push({
         descriptor: c.descriptor,
@@ -244,12 +266,14 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
   const quotes = (parseJson(files.quoteCheck) as { quotes?: { sender: string; receiver: string; referenceIds: string[]; status: string }[] } | null)?.quotes ?? [];
   const quoteOf = (s: string, rcv: string, ref: string) => quotes.find((q) => q.sender === s && q.receiver === rcv && q.referenceIds.includes(ref))?.status ?? "";
   const connections: CanonConnection[] = [];
+  const roleConnections: CanonConnection[] = [];
   for (const c of model.connections) {
     const s = idToKey.get(c.sender);
     const rcv = idToKey.get(c.receiver);
     if (!s || !rcv) continue;
+    const toRole = !!kept && (!!c.hypothesis || kept.populations.has(c.sender) || kept.populations.has(c.receiver));
     for (const ref of c.referenceIds.length ? c.referenceIds : [""]) {
-      connections.push({
+      (toRole ? roleConnections : connections).push({
         key: connKey(s, rcv, ref),
         sender: s,
         receiver: rcv,
@@ -307,9 +331,19 @@ export function canonFromProject(projectId: string, projectRevision: number, fil
       comments: u.comments,
     }));
   const meta = model.meta;
-  const roles: CanonProjectRoles[] = [{ projectId, projectRevision, roi: meta?.roi ?? "", tlf: meta?.tlf ?? "", ucRoles, frg: parseJson(files.frg) }];
+  const hypotheses = kept?.records.length ? { records: kept.records, circuits: roleCircuits, connections: roleConnections } : null;
+  const roles: CanonProjectRoles[] = [{ projectId, projectRevision, roi: meta?.roi ?? "", tlf: meta?.tlf ?? "", ucRoles, frg: parseJson(files.frg), ...(hypotheses ? { hypotheses } : {}) }];
 
-  return { projectId, projectRevision, circuits, groups, connections, bif, references, roles, skipped: [...new Set(skipped)] };
+  return { projectId, projectRevision, circuits, groups, connections, bif, references, roles, skipped: [...new Set(skipped)], ...(hypotheses ? { hypothesisCount: hypotheses.records.length } : {}) };
+}
+
+/** checkHcd options that read every `hypothesis` key (no scope: only the model is used here, not the problems). */
+const READ_HYPOTHESES = { mode: "hypothesis", scopes: [], maxShare: DEFAULT_HYPOTHESIS_MAX_SHARE } as const satisfies EvidenceOptions;
+
+/** The project's hypotheses: their records, the claims of each hypothesis UC and the UCs whose population is hypothetical. */
+function hypothesisSplit(model: HcdModel): { records: HypothesisRecord[]; ucClaims: Map<string, string[]>; populations: Set<string> } {
+  const ucClaims = new Map(model.ucs.filter((u) => u.hypothesis).map((u) => [u.id, u.hypothesis!.claims]));
+  return { records: hypothesisRecords(model), ucClaims, populations: new Set([...ucClaims].filter(([, c]) => c.includes("population")).map(([id]) => id)) };
 }
 
 /**
@@ -330,6 +364,7 @@ export function canonFromCanon(stored: CanonSnapshot): CanonIncoming {
     references: snapshot.references.map(tag),
     roles: clone(snapshot.roles),
     skipped: [],
+    ...(roleHypothesisCount(snapshot.roles) ? { hypothesisCount: roleHypothesisCount(snapshot.roles) } : {}),
   };
 }
 
@@ -373,6 +408,8 @@ export interface CanonImpact {
 }
 
 export interface CanonDiff {
+  /** Hypotheses the push brings, kept in the role layer and out of the shared layer (absent when none) */
+  hypotheses?: number;
   baseRevision: number;
   items: CanonDiffItem[];
   conflicts: CanonConflict[];
@@ -595,8 +632,12 @@ export function diffCanon(stored: CanonSnapshot, incoming: CanonIncoming): Canon
       warnings: unique.filter((c) => c.severity === "warning").length,
       infos: unique.filter((c) => c.severity === "info").length,
     },
+    ...(incoming.hypothesisCount ? { hypotheses: incoming.hypothesisCount } : {}),
   };
 }
+
+/** Hypotheses in a role layer (all projects together). */
+export const roleHypothesisCount = (roles: CanonProjectRoles[]) => roles.reduce((n, r) => n + (r.hypotheses?.records.length ?? 0), 0);
 
 /**
  * What still blocks approval: errors that cannot be overridden, resolvable errors without the choice "incoming", and

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { BradbRegisterRequest, BradbRegisterResponse, BraVersionManifest, ProjectBradbResponse, ProjectRecord } from "@cobrac/shared";
+import type { BradbRegisterRequest, BradbRegisterResponse, BraVersionDetailResponse, BraVersionManifest, ProjectBradbResponse, ProjectRecord } from "@cobrac/shared";
 import { summarizeManifest } from "@cobrac/shared";
 
 vi.hoisted(() => {
@@ -129,5 +129,44 @@ describe("BRA-DB routes", () => {
     const r = (await (await call(A, "GET", `/projects/${P}/bradb`)).json()) as ProjectBradbResponse;
     expect(r).toEqual({ enabled: true, projectId: P, current: null, registrations: [] });
     expect(invoke).toHaveBeenCalledWith({ action: "status", projectId: P });
+  });
+});
+
+describe("BRA-DB guard for versions with hypotheses (hypothesis mode)", () => {
+  const counts = (connections: number, ucs: number) => ({ connections: { count: connections, total: 10 }, ucs: { count: ucs, total: 6 } });
+  /** Version 2 again, with the hypothesis fields of its generator replaced */
+  const withGenerator = (extra: Partial<BraVersionManifest["generator"]>) => put("revisions/2/manifest.json", JSON.stringify({ ...manifest(2), generator: { ...manifest(2).generator, ...extra } }));
+  const registered: BradbRegisterResponse = {
+    registration: { registrationId: 8, versionId: `${P}@v2`, version: 2, parentVersionId: null, contentSha256: "c".repeat(64), status: "registered", mode: "create", reason: null, counts: null, changes: null, skippedCircuits: [], warnings: [], requestedBy: "Alice A.", registeredAt: now },
+  };
+
+  it("refuses a version with hypotheses without calling BRA-DB, and says why in the version detail", async () => {
+    for (const extra of [
+      { evidenceMode: "hypothesis" as const, hypotheses: counts(1, 0) },
+      { evidenceMode: "hypothesis" as const, hypotheses: counts(0, 2) },
+      // a hypothesis-mode version that does not record its counts cannot be shown to have none
+      { evidenceMode: "hypothesis" as const },
+    ]) {
+      withGenerator(extra);
+      const r = await call(A, "POST", `/projects/${P}/versions/2/bradb`, {});
+      expect(r.status).toBe(400);
+      expect(await r.text()).toContain("仮説を含む版は、いまは BRA-DB に登録できません");
+      const detail = (await (await call(A, "GET", `/projects/${P}/versions/2`)).json()) as BraVersionDetailResponse;
+      expect(detail.bradbBlockedReason).toBe("hypotheses");
+    }
+    expect(invoke).not.toHaveBeenCalled();
+    expect(fake.items("projects")[0].bradb).toBeUndefined();
+  });
+
+  it("registers versions without hypotheses and versions saved before the fields as before", async () => {
+    for (const extra of [{ evidenceMode: "hypothesis" as const, hypotheses: counts(0, 0) }, { evidenceMode: "strict" as const, hypotheses: counts(0, 0) }, {}]) {
+      invoke.mockReset();
+      invoke.mockResolvedValue(registered);
+      withGenerator(extra);
+      expect((await call(A, "POST", `/projects/${P}/versions/2/bradb`, {})).status).toBe(200);
+      expect(invoke).toHaveBeenCalledTimes(1);
+      const detail = (await (await call(A, "GET", `/projects/${P}/versions/2`)).json()) as BraVersionDetailResponse;
+      expect(detail.bradbBlockedReason).toBeUndefined();
+    }
   });
 });

@@ -134,7 +134,8 @@ function describe(c: CanonConflict): string {
  * fix, smaller differences are notes.
  */
 export function canonGenerationProblems(snapshot: CanonSnapshot, info: CanonRunInfo, projectId: string, files: ProjectCanonFiles): { errors: string[]; notes: string[] } {
-  const diff = diffCanon(snapshot, canonFromProject(projectId, 0, files));
+  // hypotheses are checked against the Canon like evidence: the Canon's constraints are not relaxed for them
+  const diff = diffCanon(snapshot, canonFromProject(projectId, 0, files, { hypotheses: "as-evidence" }));
   const prefix = `Canon "${info.name}" rev ${info.revision}: `;
   const errors: string[] = [];
   const notes: string[] = [];
