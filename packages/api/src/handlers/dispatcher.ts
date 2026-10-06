@@ -6,7 +6,7 @@
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
 import type { SQSEvent, SQSBatchResponse } from "aws-lambda";
 import type { RunJobMessage } from "@cobrac/shared";
-import { nowIso } from "@cobrac/shared";
+import { isProjectlessMode, nowIso } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun } from "../lib/aws.js";
 import { currentLimits } from "../lib/concurrency.js";
@@ -105,8 +105,9 @@ async function dispatch(msg: RunJobMessage) {
       launch = "Fargate (On-Demand fallback)";
     }
     await updateJob(msg.projectId, msg.jobId, { ecsTaskArn: taskArn, lastHeartbeat: nowIso() });
-    // an AI review of a Canon pull request has no project (projectId is the Canon ID), so no chat message or status
-    if (msg.mode === "canon-review") return;
+    // an AI review of a Canon pull request or a BRA Planner plan job has no project (projectId is the Canon or plan
+    // ID), so no chat message or status
+    if (isProjectlessMode(msg.mode)) return;
     await putMessage(msg.projectId, msg.jobId, "system", "status", `Worker started (${launch}).`, { userId: msg.userId, meta: { i18n: "sys.workerStarted", taskArn, launch } });
     // mark project RUNNING so the UI reflects progress even before the worker boots
     await updateProject(msg.userId, msg.projectId, { status: "RUNNING" });
@@ -114,7 +115,7 @@ async function dispatch(msg: RunJobMessage) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("runTask failed; re-enqueue", message);
     const reason = message.slice(0, 200);
-    if (msg.mode !== "canon-review") {
+    if (!isProjectlessMode(msg.mode)) {
       await putMessage(msg.projectId, msg.jobId, "system", "status", `Retrying the worker start (${reason}).`, { userId: msg.userId, meta: { i18n: "sys.workerStartRetry", reason } });
     }
     await enqueueRun(msg, RETRY_DELAY_SECONDS);

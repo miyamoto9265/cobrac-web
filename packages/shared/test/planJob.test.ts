@@ -143,6 +143,7 @@ describe("parsePlanResult (replan)", () => {
     expect(r.rows).toEqual([]);
     expect(r.proposals.map((p) => p.kind)).toEqual(["add", "remove", "policy"]);
     expect(r.proposals[0].row).toMatchObject({ roi: "pSTS", anchors: ["BNA:121-122"], dependsOn: ["rdone0001"] });
+    expect(Object.keys(r.proposals[0].row!).sort()).toEqual(["anchors", "dependsOn", "rationale", "roi", "tlf"]);
     expect(r.proposals[1].rowId).toBe("rwait0001");
     expect(r.proposals[2].policy).toBe("new policy");
     // the draft row, "nope", the duplicate add, removing a done row and a started row, the unchanged policy
