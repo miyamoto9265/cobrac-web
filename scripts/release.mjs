@@ -50,7 +50,7 @@ function readChangelog() {
 }
 
 function unreleasedBody(text) {
-  const m = text.match(/## \[Unreleased\]\s*\n([\s\S]*?)(?=\n## \[|$)/);
+  const m = text.match(/## \[Unreleased\][ \t]*\n([\s\S]*?)(?=\n## \[|$)/);
   return m ? m[1].trim() : "";
 }
 
@@ -104,7 +104,7 @@ if (!body) {
   console.error("CHANGELOG.md の [Unreleased] が空です。変更内容を書いてから release してください。");
   process.exit(1);
 }
-const promoted = text.replace(/## \[Unreleased\]\s*\n[\s\S]*?(?=\n## \[|$)/, `## [Unreleased]\n\n## [${next}] - ${today}\n\n${body}\n`);
+const promoted = text.replace(/## \[Unreleased\][ \t]*\n[\s\S]*?(?=\n## \[|$)/, `## [Unreleased]\n\n## [${next}] - ${today}\n\n${body}\n`);
 writeFileSync(clPath, promoted);
 
 console.log(`${current} -> ${next}`);
