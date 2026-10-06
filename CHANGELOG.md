@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.32.0] - 2026-10-06
+
 ### Added
 - The checks, exports and agent instructions for projects that allow hypotheses ("Allow hypotheses"). Such a project may include connections and UCs, or their direction, sign, population, transmitter, modulation or role, that no paper states directly, but only inside the scopes the user chose, and each is marked as a hypothesis with the kind of reasoning behind it, a rationale and at least one premise paper with a DOI or PMID, which is verified and quoted like any reference. Everything else (references, quotes, naming, interfaces, the FRG) is checked as before, and nothing proposes further investigations
   - The CSV and xlsx files mark each hypothesis without new columns: its Comments start with `Hypothesis (<claims>; <basis>): <rationale>`, an assumed connection has Measurement method `Hypothetical`, an assumed population Source of ID `makeshift`, and a GN of the FRG that relies on hypotheses ends its Comments with `Depends on hypotheses: H2, H5`
