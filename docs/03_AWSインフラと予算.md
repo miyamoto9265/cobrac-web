@@ -72,10 +72,22 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | DynamoDB WsConnections | On-Demand, TTL, DESTROY |
 | DynamoDB Canons | On-Demand, GSI `owner-index`. PITR off. RETAIN (added with the Canon MVP; a new table, existing tables are unchanged). Canon revision snapshots and pull-request payloads are JSON under `canons/` in the artifacts bucket. The worker task role can read it (the pinned revision) |
 | DynamoDB Catalog | On-Demand. Public listing and clone counters, ID reservations (Project / Canon / plan), settings (`config`: the default API key, the concurrency limits). PITR off. RETAIN (new table) |
-| DynamoDB Plans | On-Demand, GSIs `owner-index` and `status-index` (both sparse: only the `META` item of a plan carries their keys). PITR off. RETAIN. Added with the BRA Planner (stage 1; a new table, existing tables are unchanged). Items: `META` (the plan), `ROW#<rowId>` (one row = one project to build), `EVT#<at>#<nonce>` (history) |
-| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, the bucket policy denies deleting BRA data versions (`users/*/*/revisions/*`, design spec 6.20) to every principal, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN |
+| DynamoDB Plans | On-Demand, GSIs `owner-index` and `status-index` (both sparse: only the `META` item of a plan carries their keys). PITR off. RETAIN. Added with the BRA Planner (stage 1; a new table, existing tables are unchanged). Items: `META` (the plan), `ROW#<rowId>` (one row = one project to build), `EVT#<at>#<nonce>` (history), and since stage 2 `PROP#<proposalId>` (proposals of re-plan jobs; new items in the same table, no table or index change) |
+| S3 Artifacts | Private, SSE-S3, incomplete MPU aborted after 3 days, `staging/` (reference uploads not yet attached to a project) expires after 1 day, the bucket policy denies deleting BRA data versions (`users/*/*/revisions/*`, design spec 6.20) to every principal, CORS `POST` from the CloudFront domain and `https://cobrac.site` for browser uploads, RETAIN. `plans/{planId}/` (BRA Planner stage 2) holds a plan's capability lists (`attachments/`) and the `input.json` / `result.json` of its plan jobs (`jobs/{jobId}/`); no API key or other secret is ever written there |
 | S3 Web | Private, OAC, DESTROY + auto-empty |
 | SQS JobQueue | Visibility 120s, retention 4 days, DLQ 14 days (after 5 failures) |
+
+**BRA Planner access** (`packages/infra/lib/cobrac-stack.ts`). Stage 1: the API reads and writes the Plans table; the plan runner reads and writes Plans / Users / Projects / Jobs / Messages, may `GetItem` only the `config` partition and `PutItem` only the `id` partition of the Catalog, sends to the job queue and may stop tasks of the cluster. Added in stage 2 (drafting and re-planning, design spec 6.22.1):
+
+| Who | Grant | Why |
+| --- | ----- | --- |
+| API (http) | S3 `PutObject` on `plans/*` (reads were already allowed on the bucket) | moves the capability lists attached at creation from `staging/` to `plans/{planId}/attachments/files/` |
+| planRunner | Canons table read | lists the owner's Canons (`owner-index`) for the plan job's input |
+| planRunner | S3 get / put on `plans/*` | writes a plan job's `input.json`, reads its `result.json` |
+| planRunner | S3 get on `users/*_HCD/uc.json` | reads the finished rows' `uc.json` for the anchors they actually used (at most 10 reads per step) |
+| Worker task role | unchanged | already reads and writes the artifacts bucket and the Jobs table, and is the only role with KMS `Decrypt` |
+
+Neither the API nor the plan runner can decrypt an API key (the API only encrypts a key when it is registered; the runner has no KMS grant at all), and the input of a plan job holds none. The worker resolves and decrypts the key of a plan job as it does for any job.
 
 ### 3.3 Network, delivery, auth
 
@@ -137,9 +149,10 @@ BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6; design spec 6.21) runs in i
 | Chat subscription | WebSocket connection time + messages, Streams Lambda |
 | Job execution | **Fargate CPU/memory time**, ENI/public IP, worker CloudWatch, S3 PUT, DynamoDB writes |
 | Waiting for a question | Fargate above stops. Only S3 storage and DynamoDB |
+| BRA Planner draft or re-plan | One Fargate task for a short Codex run (one turn, a second when the reply does not parse; at most 8 minutes, so well under a cent on Spot), a few small S3 objects, DynamoDB writes |
 | `cdk deploy` | CodeBuild (when the image is rebuilt), ECR push, CloudFront invalidation, Lambda update |
 
-Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user (`COBRAC_MAX_CONCURRENT_JOBS_PER_USER`). An admin can override both on the admin page (1–16 each, Catalog `config` / `concurrency`); the dispatcher and the plan runner re-read the setting every 30 seconds, so a change needs no deploy. Excess messages are re-queued after 60 seconds (wait time is SQS only). The BRA Planner never queues a row ahead of a free slot, so its rows wait in DynamoDB rather than in SQS.
+Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user (`COBRAC_MAX_CONCURRENT_JOBS_PER_USER`). An admin can override both on the admin page (1–16 each, Catalog `config` / `concurrency`); the dispatcher and the plan runner re-read the setting every 30 seconds, so a change needs no deploy. Excess messages are re-queued after 60 seconds (wait time is SQS only). The BRA Planner never queues a row, or one of its own plan jobs (a draft or a re-plan), ahead of a free slot, so they wait in DynamoDB rather than in SQS. A plan job counts toward both limits like any job while it is queued or running.
 
 ---
 
@@ -212,7 +225,7 @@ A 1-year Compute Savings Plan lowers the two instances by about 30 %. Stopping t
 
 ### 5.6 OpenAI (outside AWS, paid by each user or by the default API key)
 
-A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps. Research mode (on by default, [01 §6.11](./01_設計仕様.md)) adds a literature survey before the HCD: roughly +10–60 minutes of Fargate time (about $0.01–0.05 at 1 vCPU / 2 GB Spot) and, on the OpenAI side, the cost of 1.5–6M mostly cached input tokens and 40–150k output tokens at reasoning effort `high` or more; the create screen shows the estimate for the selected model. Turn it off there for quick drafts.
+A long HCD→FRG→CSV agent on gpt-5-class models with high reasoning can be **several to tens of dollars per job**. That dwarfs ~$10 of infrastructure. Lowering model and effort on the create screen helps. Research mode (on by default, [01 §6.11](./01_設計仕様.md)) adds a literature survey before the HCD: roughly +10–60 minutes of Fargate time (about $0.01–0.05 at 1 vCPU / 2 GB Spot) and, on the OpenAI side, the cost of 1.5–6M mostly cached input tokens and 40–150k output tokens at reasoning effort `high` or more; the create screen shows the estimate for the selected model. Turn it off there for quick drafts. A BRA Planner draft or re-plan is one short Codex turn (one retry when the reply does not parse) at reasoning effort `medium` with RCS lookups and a budget of 8 minutes ([01 §6.22.1](./01_設計仕様.md)): a small cost next to one BRA run. It is billed like any job (the owner's key or the default API key), recorded on the job, and shown on the plan page as the cost of the plan's own jobs.
 
 The app also tracks this. Each job records the model used, input/output tokens, and estimated cost. Totals and per-model breakdown appear on the project list, job breakdown in the chat header, and the admin screen. Estimates use the table in `packages/shared/src/pricing.ts` and may not match the OpenAI invoice (especially models missing from the table, shown as `$—`).
 
@@ -243,6 +256,7 @@ Jobs of approved users without their own key run on the default API key, the org
 - Logs 14 days. Incomplete multipart uploads deleted after 3 days.
 - Concurrency caps prevent unnoticed piles of Spot tasks. The admin setting accepts 1–16 per limit; 17 or more is refused.
 - BRA Planner (every minute): a plan starts a row only when a slot is free under both limits (queued jobs count), so a large plan never leaves jobs queued long enough for the 24-hour queue timeout. A failing row is retried at most 2 times, then waits for a person (「要対応」). A plan whose owner can no longer run jobs (no key, account disabled, chosen model no longer allowed) pauses itself instead of failing row after row.
+- BRA Planner plan jobs (stage 2): a draft or re-plan job is queued only when a slot is free, the same gate as rows (it is never queued ahead of one), and counts toward both limits; a re-plan runs at most once per wave, only for automatically ordered plans and never while the plan is paused. The worker aborts a plan job after 8 minutes; the janitor fails one whose heartbeat stops or that waits 24 hours in the queue and never retries it. The runner reads at most 10 `uc.json` files per step.
 - Janitor (every 5 minutes): auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue. On a Spot interruption the worker gets SIGTERM and up to 120 s (the task's stop timeout): it saves the workspace and thread to S3 and marks its heartbeat stale, so the job resumes at the next janitor run instead of after 15–30 minutes. During a turn the worker also saves every 5 minutes, so at most that much work is lost when the task dies without SIGTERM.
 
 ---

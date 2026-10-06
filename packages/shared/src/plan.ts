@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
 // BRA Planner (UI: 「BRA Planner」, one unit is a 「計画」 / "plan"). A plan is a list of rows (ROI × TLF) that the
-// system builds as projects in waves, within the concurrency limits, after its owner confirms it. Stage 1: rows come
-// from CSV or manual input and the owner sets order and waves by hand; no Canon, no LLM drafting.
+// system builds as projects in waves, within the concurrency limits, after its owner confirms it. Rows come from CSV or
+// manual input (stage 1) or from a draft written by a `plan` job (stage 2, see planJob.ts); the build order is set by
+// hand or computed from the rows' anchors (planOrder.ts), and auto-ordered plans are re-planned after each wave.
 //
 // The runner (packages/api/src/handlers/planRunner.ts) advances every running plan by small idempotent steps. The
 // decisions it takes are the pure functions at the end of this file, so they can be tested without AWS.
@@ -203,7 +204,7 @@ export interface PlanRowRecord {
   roi: string;
   tlf: string;
   rationale: string;
-  /** Owner's priority (higher first); only informative in stage 1 */
+  /** Owner's priority (higher first); breaks ties when rows are ordered automatically */
   priority?: number | null;
   /** csv: a capability list read deterministically; llm: written by the `plan` job; manual: typed in */
   source: "manual" | "csv" | "llm";
@@ -322,8 +323,10 @@ export interface CreatePlanRequest {
   csv?: string;
   /** Capability lists uploaded with POST /uploads (CSV / TSV / text are read at once; xlsx / PDF by the draft job) */
   attachments?: { uploadId: string; name: string }[];
-  /** Ask the `plan` job for a draft right away (needs a goal or an attachment) */
+  /** Ask the `plan` job for a draft right away (needs a goal, an attachment or rows) */
   draft?: boolean;
+  /** Language of the draft's texts (with `draft`) */
+  locale?: UiLocale | null;
 }
 
 export interface UpdatePlanRequest {
@@ -412,8 +415,8 @@ export const CONCURRENCY_CATALOG_KEY = { kind: "config", id: "concurrency" } as 
 /** Lambdas re-read the setting after this long (the dispatcher reads it for every job it starts). */
 export const CONCURRENCY_CACHE_MS = 30 * 1000;
 /**
- * OpenAI tokens per minute: one BRA run uses about 140–170k, and the organisation's limit for gpt-6-luna is 200k (as of
- * 2026-10), so the real ceiling on parallel runs may be the TPM limit rather than the concurrency setting.
+ * OpenAI tokens per minute: one BRA run uses about 140–170k, and the organisation's limit for the model the runs use is
+ * 200k (as of 2026-10), so the real ceiling on parallel runs may be the TPM limit rather than the concurrency setting.
  */
 export const RUN_TOKENS_PER_MINUTE = { min: 140_000, max: 170_000 } as const;
 export const ORG_TOKENS_PER_MINUTE = 200_000;

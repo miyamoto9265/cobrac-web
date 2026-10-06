@@ -5,7 +5,7 @@ import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type { ArtifactInfo, BradbRequest, RunJobMessage } from "@cobrac/shared";
-import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition } from "@cobrac/shared";
+import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition, isPlanId, planPrefix } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 
@@ -164,6 +164,56 @@ export async function getCanonJson<T>(key: string): Promise<T | null> {
 export async function putCanonJson(key: string, value: unknown): Promise<void> {
   if (!key.startsWith("canons/") || key.includes("..")) throw new Error("invalid canon key");
   await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
+}
+
+/** BRA Planner objects live under `plans/{planId}/` of the artifacts bucket (job input / result, attachments). */
+const checkPlanKey = (key: string) => {
+  if (!key.startsWith("plans/") || key.includes("..")) throw new Error("invalid plan key");
+};
+
+export async function getPlanJson<T>(key: string): Promise<T | null> {
+  checkPlanKey(key);
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return JSON.parse(await r.Body!.transformToString("utf8")) as T;
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+export async function putPlanJson(key: string, value: unknown): Promise<void> {
+  checkPlanKey(key);
+  await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: key, Body: JSON.stringify(value), ContentType: "application/json" }));
+}
+
+/** Moves a staging upload to `plans/{planId}/{rel}` (rel under `attachments/files/`), like `moveStagingToProject`. */
+export async function movePlanAttachment(stagingKey: string, planId: string, rel: string, contentType: string): Promise<void> {
+  if (!stagingKey.startsWith("staging/") || stagingKey.includes("..")) throw new Error("invalid staging key");
+  if (!isPlanId(planId) || !rel.startsWith("attachments/files/") || rel.includes("..")) throw new Error("invalid plan attachment key");
+  const key = planPrefix(planId) + rel;
+  await s3.send(
+    new CopyObjectCommand({
+      Bucket: env.artifactsBucket,
+      CopySource: `${env.artifactsBucket}/${stagingKey.split("/").map(encodeURIComponent).join("/")}`,
+      Key: key,
+      ContentType: contentType,
+      MetadataDirective: "REPLACE",
+    }),
+  );
+  await s3.send(new DeleteObjectCommand({ Bucket: env.artifactsBucket, Key: stagingKey }));
+}
+
+/** Text of an uploaded staging object (a capability list read before it is moved); null when it does not exist. */
+export async function getStagingText(stagingKey: string): Promise<string | null> {
+  if (!stagingKey.startsWith("staging/") || stagingKey.includes("..")) throw new Error("invalid staging key");
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: stagingKey }));
+    return await r.Body!.transformToString("utf8");
+  } catch (e) {
+    if ((e as { name?: string }).name === "NoSuchKey") return null;
+    throw e;
+  }
 }
 
 export async function enqueueRun(msg: RunJobMessage, delaySeconds = 0) {
