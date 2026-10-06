@@ -59,7 +59,8 @@ export const PLAN_STATUSES: readonly PlanStatus[] = ["DRAFT", "DRAFTING", "RUNNI
 export const RUNNER_PLAN_STATUSES: readonly PlanStatus[] = ["DRAFTING", "RUNNING", "PAUSED"];
 
 /** Why a plan is paused: by its owner, or by the runner because the owner can no longer start jobs. */
-export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed";
+/** canon_missing (stage 3): the plan's Canon was deleted; no row starts until it is resolved (rows could not join it). */
+export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed" | "canon_missing";
 
 /**
  * pending: waits for its turn (with `projectId`: a retry of that project). starting: the runner claimed it and is
@@ -147,7 +148,7 @@ export interface PlanJobState {
   endedAt?: string | null;
   error?: string | null;
   /** Why the job could not be started for the owner (the error text is then English; the page shows this reason) */
-  errorCode?: Exclude<PlanPauseReason, "user"> | null;
+  errorCode?: Exclude<PlanPauseReason, "user" | "canon_missing"> | null;
   /** Rows the job could not read (draft) */
   unread?: PlanUnread[];
   /** Items of the result that pointed at rows, anchors or projects not in the input (removed) */

@@ -7,10 +7,34 @@
 // automatically (`ordering: "auto"`) learns the anchors its finished rows actually used (their uc.json), re-orders the
 // rows that have not started after each wave, and asks a re-plan job for proposals. Plans ordered by hand (all stage-1
 // plans) skip all of this: no S3 reads, no plan jobs.
-import type { EffectiveLimits, JobRecord, KeySource, ModelPolicy, PlanAttentionReason, PlanEventType, PlanJobState, PlanPauseReason, PlanRecord, PlanRowRecord, PlanRowState, ProjectRecord, UserRecord } from "@cobrac/shared";
+//
+// Stage 3: a plan with a Canon (`canonId`) pins each row's project to the Canon head when it starts, pushes the
+// finished project instead of finishing the row (「承認待ち」 until a human approves its pull request), asks an AI review
+// of body rows' pull requests when a slot is free, sends conform follow-ups for conflicts caused by the Canon moving on,
+// and hands everything else to a human (「人の判断」). A seed row holds the later waves until its pull request is approved,
+// and no new wave starts while `PLAN_MAX_WAITING_PRS` pull requests wait. The runner never approves, rejects or answers.
+// Plans without a Canon read no Canon.
+import type {
+  CanonRecord,
+  EffectiveLimits,
+  JobRecord,
+  KeySource,
+  ModelPolicy,
+  PlanAttentionReason,
+  PlanDecisionReason,
+  PlanEventType,
+  PlanJobState,
+  PlanPauseReason,
+  PlanRecord,
+  PlanRowRecord,
+  PlanRowState,
+  ProjectRecord,
+  UserRecord,
+} from "@cobrac/shared";
 import {
   ACTIVE_PROJECT_STATUSES,
   HARNESS_RULES,
+  PLAN_MAX_WAITING_PRS,
   HCD_FILES,
   IN_FLIGHT_ROW_STATES,
   MAX_ROW_AUTO_RETRIES,
@@ -22,6 +46,9 @@ import {
   SLOT_JOB_STATUSES,
   TRACKED_ROW_STATES,
   anchorsOfUcJson,
+  canonAlignInstruction,
+  canonFollowStatus,
+  conformTitle,
   countRows,
   freeSlots,
   isMovableRow,
@@ -31,19 +58,24 @@ import {
   nowIso,
   planFinished,
   policyAllows,
+  prOutcome,
+  pushOutcome,
   proposeProjectName,
   replanJobDue,
   replanRows,
   rowsToStart,
   syncRow,
+  waitingPrs,
 } from "@cobrac/shared";
 import { getObjectText } from "./aws.js";
+import { loadCanonHead, loadCanonRevision, ownedCanon, pinProject, pushProject, requestAiReview } from "./canonOps.js";
+import { addCanonMember, getPullRequest } from "./canons.js";
 import { reserveNewId } from "./catalog.js";
 import { currentLimits } from "./concurrency.js";
 import { getProject, getUser, listJobsByStatus, listUserProjects } from "./db.js";
 import { GATE_ERRORS, draftRows, isOpenPlanJob, planJobProgress, queuePlanJob, readPlanJob, readPlanResult, stopPlanJob, storeProposals } from "./planJobs.js";
 import { acquirePlanLease, getPlan, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateRow } from "./plans.js";
-import { createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
 export const RUNNER = "runner";
 
@@ -83,8 +115,84 @@ async function setRow(plan: PlanRecord, row: PlanRowRecord, to: PlanRowState, va
 const attention = (plan: PlanRecord, row: PlanRowRecord, reason: PlanAttentionReason, error: string | null) =>
   setRow(plan, row, "attention", { attentionReason: reason, lastError: error }, "row_attention", { reason, error });
 
+/**
+ * The plan's Canon as this step sees it (read once per step). `canon` is null for a plan without one, and for a plan
+ * whose Canon was deleted or is no longer its owner's (rows that would push then need a human).
+ */
+interface CanonStep {
+  canon: CanonRecord | null;
+  owner: UserRecord | null;
+}
+
+const CANON_MISSING = "The plan's Canon was not found.";
+const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
+
+const decide = (plan: PlanRecord, row: PlanRowRecord, reason: PlanDecisionReason, error: string | null, extra: Partial<PlanRowRecord> = {}) =>
+  setRow(plan, row, "decision", { ...extra, decisionReason: reason, lastError: error, claimedAt: null }, "row_decision", { reason, error, ...(extra.prNo ? { prNo: extra.prNo } : {}) });
+
+/**
+ * A finished row of a plan with a Canon: its project is pushed to the plan's Canon (joining it, pinned to the head, when
+ * it is in no Canon yet). The pull request then waits for a human (「承認待ち」; body rows also get an AI review), or its
+ * error conflicts caused by the Canon moving on since the row's pin get a conform follow-up, or a human decides.
+ */
+async function pushRow(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord, cs: CanonStep): Promise<boolean> {
+  const { canon, owner } = cs;
+  if (!canon) return decide(plan, row, "push_failed", CANON_MISSING);
+  if (!owner) return decide(plan, row, "push_failed", "The plan's owner was not found.");
+  if (p.canonId && p.canonId !== canon.canonId) return decide(plan, row, "other_canon", null);
+  if (!p.canonId) {
+    const added = await addCanonMember(canon.canonId, owner.userId, p.projectId, canon.headRevision);
+    if (!added.ok) return decide(plan, row, "push_failed", "The project could not join the plan's Canon.");
+    Object.assign(p, { canonId: canon.canonId, canonRevision: canon.headRevision });
+  }
+  let pushed: Awaited<ReturnType<typeof pushProject>>;
+  try {
+    pushed = await pushProject(owner, canon, p);
+  } catch (e) {
+    console.error(`[plan ${plan.planId}] row ${row.rowId} could not be pushed`, errorText(e));
+    return decide(plan, row, "push_failed", errorText(e));
+  }
+  const prNo = pushed.pr.prNo;
+  const headMoved = canon.headRevision > (row.canonRevision ?? p.canonRevision ?? 0);
+  const o = pushOutcome(pushed.diff.summary, headMoved, row.conformAttempts ?? 0);
+  if (o.to === "review") {
+    return setRow(plan, row, "review", { prNo, aiReview: row.seed ? null : "wanted", aiReviewJobId: null, decisionReason: null, lastError: null, claimedAt: null }, "row_pushed", { prNo });
+  }
+  if (o.to === "conform") return setRow(plan, row, "pending", { prNo, conform: true, lastError: null, claimedAt: null }, "row_pushed", { prNo, conform: 1 });
+  return decide(plan, row, o.reason, null, { prNo });
+}
+
+/** A 「承認待ち」 row follows its pull request: approved → done, closed without approval → a human, superseded → the new one. */
+async function followReview(plan: PlanRecord, row: PlanRowRecord, cs: CanonStep): Promise<boolean> {
+  if (!cs.canon) return decide(plan, row, "push_failed", CANON_MISSING);
+  const o = prOutcome(row.prNo ? await getPullRequest(cs.canon.canonId, row.prNo) : null);
+  if (!o) return false;
+  if (o.to === "done") return setRow(plan, row, "done", { completedAt: nowIso(), attentionReason: null }, "row_done", { prNo: row.prNo ?? null });
+  if (o.to === "decision") return decide(plan, row, o.reason, null);
+  if (!(await updateRow(plan.planId, row.rowId, { prNo: o.prNo }, { state: "review", prNo: row.prNo ?? undefined }))) return false;
+  row.prNo = o.prNo;
+  return true;
+}
+
+/** Seed row states that no longer hold another seed (as the seed gate of `nextActiveWave`), plus `pending`. */
+const SEED_IDLE: readonly PlanRowState[] = ["pending", "done", "skipped", "cancelled"];
+
+/**
+ * Seed rows of a plan with a Canon are built one at a time, even when several share a wave: no seed starts while another
+ * seed is in flight, waits for approval or needs a human, and at most one seed starts per step.
+ */
+function oneSeedAtATime(rows: PlanRowRecord[], candidates: PlanRowRecord[]): PlanRowRecord[] {
+  let taken = rows.some((r) => r.seed && !SEED_IDLE.includes(r.state));
+  return candidates.filter((r) => {
+    if (!r.seed) return true;
+    if (taken) return false;
+    taken = true;
+    return true;
+  });
+}
+
 /** Keeps a tracked row in step with its project. */
-async function syncTracked(plan: PlanRecord, row: PlanRowRecord, project: ProjectRecord | null, now: number): Promise<boolean> {
+async function syncTracked(plan: PlanRecord, row: PlanRowRecord, project: ProjectRecord | null, now: number, cs: CanonStep | null): Promise<boolean> {
   if (row.state === "starting" && !project) {
     // a start that did not finish (the step stopped in between): start again later with the same project ID
     if (now - Date.parse(row.claimedAt ?? row.updatedAt) < ROW_START_STALE_MS) return false;
@@ -95,33 +203,41 @@ async function syncTracked(plan: PlanRecord, row: PlanRowRecord, project: Projec
   const now_ = nowIso();
   if (s.state === "attention") return attention(plan, row, s.reason, s.error);
   if (s.state === "pending") return setRow(plan, row, "pending", { attempts: row.attempts + 1, lastError: s.error, claimedAt: null }, "row_retry", { attempt: row.attempts + 1, max: MAX_ROW_AUTO_RETRIES, error: s.error });
+  // a plan with a Canon: a row is done only once its pull request is approved
+  if (s.state === "done" && cs && project) return pushRow(plan, row, project, cs);
   if (s.state === "done") return setRow(plan, row, "done", { completedAt: now_, attentionReason: null }, s.event);
   return setRow(plan, row, s.state, {}, s.event);
 }
 
 /** Starts one pending row: its project (new, or the one a start did not finish), or a retry of its failed project. */
-async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }): Promise<boolean> {
+async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }, cs: CanonStep | null): Promise<boolean> {
   const at = nowIso();
+  const canon = cs?.canon ?? null;
   const existing = row.projectId ? await getProject(owner.userId, row.projectId) : null;
   if (existing && isProjectDeleted(existing)) {
     await attention(plan, row, "project_deleted", null);
     return false;
   }
+  if (existing && row.conform && cs && existing.status === "COMPLETED") return startConform(plan, row, existing, owner, gate, canon);
+  const unconform: Partial<PlanRowRecord> = row.conform ? { conform: false } : {};
   if (existing) {
     if (existing.status !== "FAILED" && existing.status !== "CANCELLED") {
       // already running again or finished (for example retried by hand): follow it from the next step
-      await setRow(plan, row, "running", { claimedAt: null }, null);
+      await setRow(plan, row, "running", { claimedAt: null, ...unconform }, null);
       return false;
     }
-    if (!(await setRow(plan, row, "starting", { claimedAt: at }, null))) return false;
+    if (!(await setRow(plan, row, "starting", { claimedAt: at, ...unconform }, null))) return false;
+    let pin: Partial<PlanRowRecord> = {};
     try {
+      // a retry follows the Canon head as it is now
+      if (canon && (await joinCanon(owner, existing, canon))) pin = { canonRevision: canon.headRevision };
       const moved = await moveToAllowedModel(owner, existing, gate.policy);
       await queueRetry(owner, existing, gate.policy, { locale: plan.settings.locale, moved });
     } catch (e) {
       await startFailed(plan, row, e);
       return false;
     }
-    await setRow(plan, row, "running", { startedAt: at }, "row_started", { retry: 1 });
+    await setRow(plan, row, "running", { startedAt: at, ...pin }, "row_started", { retry: 1 });
     return true;
   }
   const projectId = row.projectId ?? (await reserveNewId("project", owner.userId));
@@ -144,12 +260,98 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       projectId,
       jobId,
       recover,
+      // the new project follows the Canon head from its first job on
+      beforeQueue: canon
+        ? async (project) => {
+            if (!(await joinCanon(owner, project, canon))) throw new Error("The new project could not join the plan's Canon.");
+          }
+        : undefined,
     });
+    // a recovered start whose job an earlier step already stored (beforeQueue did not run again): join the Canon now
+    if (canon && recover) {
+      const p = await getProject(owner.userId, projectId);
+      if (p && !p.canonId) await joinCanon(owner, p, canon);
+    }
   } catch (e) {
     await startFailed(plan, row, e);
     return false;
   }
-  await setRow(plan, row, "running", { startedAt: at }, "row_started");
+  await setRow(plan, row, "running", { startedAt: at, ...(canon ? { canonRevision: canon.headRevision } : {}) }, "row_started");
+  return true;
+}
+
+/**
+ * Pins the project to the Canon head: a member is re-pinned, a project in no Canon joins pinned to the head. False for a
+ * project in another Canon (left as it is) or one that could not join.
+ */
+async function joinCanon(owner: UserRecord, p: ProjectRecord, canon: CanonRecord): Promise<boolean> {
+  if (p.canonId === canon.canonId) {
+    await pinProject(owner, p, canon, canon.headRevision);
+    return true;
+  }
+  if (p.canonId) return false;
+  const added = await addCanonMember(canon.canonId, owner.userId, p.projectId, canon.headRevision);
+  if (added.ok) Object.assign(p, { canonId: canon.canonId, canonRevision: canon.headRevision });
+  return added.ok;
+}
+
+/**
+ * A conform follow-up: the row's finished project is re-pinned to the Canon head and gets the fixed instruction
+ * 「Canon rev N に合わせて更新」 with what changed for it since its pin; it is pushed again when it completes.
+ */
+async function startConform(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }, canon: CanonRecord | null): Promise<boolean> {
+  if (!canon) {
+    await decide(plan, row, "push_failed", CANON_MISSING, { conform: false });
+    return false;
+  }
+  if (p.canonId !== canon.canonId) {
+    await decide(plan, row, p.canonId ? "other_canon" : "push_failed", p.canonId ? null : "The project is no longer in the plan's Canon.", { conform: false });
+    return false;
+  }
+  const at = nowIso();
+  if (!(await setRow(plan, row, "starting", { claimedAt: at }, null))) return false;
+  const head = canon.headRevision;
+  const attempt = (row.conformAttempts ?? 0) + 1;
+  try {
+    const status = canonFollowStatus(await loadCanonRevision(canon, Math.min(p.canonRevision ?? 0, head)), await loadCanonHead(canon), p.projectId);
+    const instruction = `${conformTitle(head)}\n\n${canonAlignInstruction({ canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: head }, status)}`;
+    await pinProject(owner, p, canon, head);
+    const moved = await moveToAllowedModel(owner, p, gate.policy);
+    await queueFollowup(owner, p, gate.policy, { instruction, locale: plan.settings.locale, moved });
+  } catch (e) {
+    await startFailed(plan, row, e);
+    return false;
+  }
+  await setRow(plan, row, "running", { startedAt: at, conform: false, conformAttempts: attempt, canonRevision: head }, "row_conform", { revision: head, attempt });
+  return true;
+}
+
+/**
+ * Asks the AI review of a 「承認待ち」 body row's pull request (on a slot the caller counted). False when no job was
+ * queued: the pull request is no longer open (nothing to review), or a review of it is already queued or running.
+ */
+async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: CanonRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }): Promise<boolean> {
+  const set = async (values: Partial<PlanRowRecord>) => {
+    if (await updateRow(plan.planId, row.rowId, values, { state: "review" })) Object.assign(row, values);
+  };
+  const pr = row.prNo ? await getPullRequest(canon.canonId, row.prNo) : null;
+  if (!pr || pr.state !== "open") {
+    await set({ aiReview: null });
+    return false;
+  }
+  let r: Awaited<ReturnType<typeof requestAiReview>>;
+  try {
+    r = await requestAiReview(owner, canon, pr, gate.policy, { model: gate.model, locale: plan.settings.locale ?? "ja" });
+  } catch (e) {
+    console.error(`[plan ${plan.planId}] AI review of #${pr.prNo} could not be queued`, errorText(e));
+    return false;
+  }
+  if (!r.ok) {
+    await set(r.reason === "active" ? { aiReview: "queued" } : { aiReview: null, ...(r.reason === "material" ? { lastError: r.message } : {}) });
+    return false;
+  }
+  await set({ aiReview: "queued", aiReviewJobId: r.job.jobId });
+  await putPlanEvent(plan.planId, "row_ai_review", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { prNo: pr.prNo, jobId: r.job.jobId } });
   return true;
 }
 
@@ -179,7 +381,7 @@ const openJob = (s: PlanJobState | null | undefined) => !!s && (s.status === "qu
 
 /** Why a plan job could not be started for the owner, for the page (`PlanJobState.errorCode`). */
 type GateCode = NonNullable<PlanJobState["errorCode"]>;
-const gateCode = (reason: PlanPauseReason): GateCode | null => (reason === "user" ? null : reason);
+const gateCode = (reason: PlanPauseReason): GateCode | null => (reason === "user" || reason === "canon_missing" ? null : reason);
 const gateError = (reason: PlanPauseReason) => GATE_ERRORS[reason as GateCode] ?? reason;
 
 /** The draft ended without a result: the plan is an editable draft again, with the reason (and its code when the owner could not run it). */
@@ -369,8 +571,13 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
     let limitsRead: Promise<EffectiveLimits> | null = null;
     const limits = () => (limitsRead ??= currentLimits(now));
 
+    // a plan with a Canon reads it once per step; plans without one read none
+    const cs: CanonStep | null = plan.canonId ? { canon: await ownedCanon(plan.canonId, plan.ownerUserId), owner } : null;
     for (const row of rows.filter((r) => TRACKED_ROW_STATES.includes(r.state))) {
-      if (await syncTracked(plan, row, row.projectId ? (projects.get(row.projectId) ?? null) : null, now)) result.changed++;
+      if (await syncTracked(plan, row, row.projectId ? (projects.get(row.projectId) ?? null) : null, now, cs)) result.changed++;
+    }
+    if (cs) {
+      for (const row of rows.filter((r) => r.state === "review")) if (await followReview(plan, row, cs)) result.changed++;
     }
     if (openJob(plan.replan)) await followReplan(plan, result);
 
@@ -379,15 +586,22 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
         await readUsedAnchors(plan, rows);
         await replanAfterWave(plan, rows, limits);
       }
-      const wave = nextActiveWave(rows, plan.activeWave ?? null);
+      // with a Canon: each seed holds the later waves until its pull request is approved, and too many waiting pull
+      // requests hold back a new wave
+      const wave = cs ? nextActiveWave(rows, plan.activeWave ?? null, { seedGate: true, holdNewWave: waitingPrs(rows) >= PLAN_MAX_WAITING_PRS }) : nextActiveWave(rows, plan.activeWave ?? null);
       if (wave !== (plan.activeWave ?? null)) {
         await updatePlan(planId, { activeWave: wave });
         plan.activeWave = wave;
         if (wave !== null) await putPlanEvent(planId, "wave_started", RUNNER, { detail: { wave } });
       }
-      const candidates = rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
+      const candidates = cs ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows)) : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
       const replanWaits = plan.replan?.status === "waiting";
-      if (candidates.length || replanWaits) {
+      const reviewsWanted = cs?.canon ? rows.filter((r) => r.state === "review" && r.aiReview === "wanted") : [];
+      if (cs && !cs.canon && candidates.length) {
+        // the Canon was deleted: a new row could not join it, so nothing starts until the owner resolves it
+        await pauseFor(plan, "canon_missing");
+        result.pausedReason = "canon_missing";
+      } else if (candidates.length || replanWaits || reviewsWanted.length) {
         const active = await slotJobs();
         let slots = freeSlots(await limits(), active, plan.ownerUserId);
         if (slots > 0) {
@@ -413,11 +627,19 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
                 if (fresh?.replan?.status === "waiting") await endReplan(plan, fresh.replan, "failed", "The re-plan job could not be queued.");
               }
             }
+            // then the AI reviews of body rows' pull requests, each on a slot of its own
+            for (const row of reviewsWanted) {
+              if (slots <= 0) break;
+              if ((await getPlan(planId, true))?.status !== "RUNNING") break;
+              if (!(await requestRowReview(plan, row, cs!.canon!, owner!, gate))) continue;
+              slots--;
+              result.changed++;
+            }
             for (const row of candidates) {
               if (slots <= 0) break;
               // stop as soon as the owner pauses or cancels the plan
               if ((await getPlan(planId, true))?.status !== "RUNNING") break;
-              if (!(await startRow(plan, row, owner!, gate))) continue;
+              if (!(await startRow(plan, row, owner!, gate, cs))) continue;
               slots--;
               result.started.push(row.rowId);
               result.changed++;

@@ -10,6 +10,7 @@ import { ReviewGraph } from "../components/canonReview/ReviewGraph";
 import { Trail } from "../components/canonReview/Trail";
 import { DiffSummary } from "../components/CanonDiffView";
 import { HelpLink, HelpTip } from "../components/HelpTip";
+import { PlanChip } from "../components/PlanChip";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -207,6 +208,7 @@ export function CanonPullPage() {
               {t(`pr.state.${pr.state}` as MessageKey)}
             </span>
             {open && pr.reviewState === "changes_requested" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-normal text-amber-800">{t("rv.changesRequested")}</span>}
+            {pr.planId && <PlanChip planId={pr.planId} link={data.viewerRole === "owner"} />}
           </h1>
           <div className="mb-3 mt-1 text-xs text-slate-500">
             {t("pr.meta", { base: pr.baseRevision, rev: pr.sourceRevision, date: fmtDate(pr.createdAt, locale) })}

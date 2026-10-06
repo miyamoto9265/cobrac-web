@@ -104,7 +104,7 @@ export interface NewProject {
    * is kept (no second project, messages or job), and its job is queued only if it was never stored.
    */
   recover?: boolean;
-  /** Runs after the project and its first job are stored and before the job is queued (Canon membership) */
+  /** Runs after the project and its first job are stored and before the job is queued (Canon membership); idempotent */
   beforeQueue?: (project: ProjectRecord) => Promise<void>;
 }
 
@@ -199,8 +199,9 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     if (input.plan) {
       await putMessage(projectId, jobId, "system", "status", `Started by the BRA Planner (plan “${input.plan.name}”).`, { ...owner, meta: { i18n: "sys.planStarted", name: input.plan.name, planId: input.plan.planId } });
     }
-    if (input.beforeQueue) await input.beforeQueue(project);
   }
+  // also when a recovered start stores its job only now, so the job is never queued before it
+  if (input.beforeQueue) await input.beforeQueue(project);
   await putMessage(projectId, jobId, "system", "status", "Job queued. Waiting for a worker to start…", { ...owner, meta: { i18n: "sys.queued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId, jobId, mode: "initial" });
   return project;
@@ -237,6 +238,44 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
   await noteModel(p, jobId, opts.moved);
   await putMessage(p.projectId, jobId, "system", "status", "Retry queued. Continuing from previous artifacts.", { userId: p.userId, meta: { i18n: "sys.retryQueued" } });
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "retry" });
+  return jobId;
+}
+
+/** Queues a follow-up job (an instruction to a COMPLETED project, checked by the caller); `moved` as in `queueRetry`. */
+export async function queueFollowup(u: UserRecord, p: ProjectRecord, policy: ModelPolicy & { source: KeySource }, opts: { instruction: string; locale: UiLocale | null; moved: string | null }): Promise<string> {
+  const text = opts.instruction;
+  const now = nowIso();
+  const jobId = newId("job_");
+  const job: JobRecord = {
+    projectId: p.projectId,
+    jobId,
+    userId: u.userId,
+    type: "followup",
+    status: "QUEUED",
+    keySource: policy.source,
+    instruction: text,
+    pendingAnswer: null,
+    locale: opts.locale,
+    ecsTaskArn: null,
+    retryCount: 0,
+    lastHeartbeat: null,
+    startedAt: null,
+    endedAt: null,
+    errorMessage: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await putJob(job);
+  await updateProject(u.userId, p.projectId, {
+    status: "QUEUED",
+    activeJobId: jobId,
+    errorMessage: null,
+    stepStates: { ...p.stepStates, XLSX: "pending" },
+  });
+  await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
+  await noteModel(p, jobId, opts.moved);
+  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
+  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
   return jobId;
 }
 

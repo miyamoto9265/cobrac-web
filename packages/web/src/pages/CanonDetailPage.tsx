@@ -1,9 +1,10 @@
-import { ArrowLeft, Layers, LogOut, Plus, Save, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowLeft, CheckCheck, Layers, LogOut, Plus, Save, Trash2, UserPlus, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
+import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
+import { PlanChip } from "../components/PlanChip";
 import { SendCanonPr } from "../components/SendCanonPr";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
@@ -11,6 +12,7 @@ import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { fmtDate } from "../lib/format";
+import { bulkApprovable } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { PolicyLabel, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { publicCanonPath } from "./ExplorePage";
@@ -275,27 +277,80 @@ function MembersList({ detail }: { detail: CanonDetailResponse }) {
   );
 }
 
-function PullsCard({ canonId, pulls }: { canonId: string; pulls: CanonPullRequestRecord[] }) {
+function PullsCard({ canonId, pulls, role, onChanged }: { canonId: string; pulls: CanonPullRequestRecord[]; role: CanonRole; onChanged: () => void }) {
   const t = useT();
   const { locale } = useI18n();
   const shown = pulls.filter((p) => p.state !== "superseded");
+  // reviewers (owner, co-editors) approve; 「まとめて承認」 offers only conflict-free open pull requests
+  const reviewer = role === "owner" || role === "editor";
+  const approvable = reviewer ? shown.filter(bulkApprovable).map((p) => p.prNo) : [];
+  const [picked, setPicked] = useState<number[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // selected pull requests that can still be approved together, oldest first
+  const selected = approvable.filter((n) => picked.includes(n)).sort((x, y) => x - y);
+  const toggle = (n: number, on: boolean) => setPicked((s) => (on ? [...s.filter((x) => x !== n), n] : s.filter((x) => x !== n)));
+  const approve = async () => {
+    if (!selected.length || !window.confirm(t("pr.bulkApproveQ", { n: selected.length }))) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.approveManyPulls(canonId, selected);
+      const parts = [t("pr.bulkApproved", { n: r.approved.length })];
+      if (r.stopped) parts.push(t(`pr.bulkStopped.${r.stopped.reason}` as MessageKey, { no: r.stopped.prNo }));
+      setMsg({ ok: !r.stopped, text: parts.join(" ") });
+      setPicked([]);
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+      onChanged();
+    }
+  };
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <h2 className="mb-2 text-sm font-semibold">
         {t("pr.list")} <span className="font-normal text-slate-400">({pulls.filter((p) => p.state === "open").length})</span>
       </h2>
+      {approvable.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2" data-testid="bulk-approve">
+          <label className="flex items-center gap-2 text-xs text-slate-600 coarse:min-h-11">
+            <input type="checkbox" checked={selected.length === approvable.length} onChange={(e) => setPicked(e.target.checked ? approvable : [])} data-testid="bulk-select-all" />
+            {t("pr.selectAll")}
+          </label>
+          <button type="button" disabled={busy || !selected.length} onClick={() => void approve()} className={`${primaryBtn} ml-auto`} data-testid="bulk-approve-button">
+            <CheckCheck size={14} aria-hidden /> {selected.length ? t("pr.bulkApproveCount", { n: selected.length }) : t("pr.bulkApprove")}
+          </button>
+          <HelpTip text={t("pr.bulkHelp")} />
+        </div>
+      )}
+      {msg && (
+        <div className={`mb-2 break-words rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`} role="status" data-testid="bulk-result">
+          {msg.text}
+        </div>
+      )}
       {shown.length === 0 && <div className="text-sm text-slate-400">{t("pr.none")}</div>}
       <ul className="divide-y divide-slate-100" data-testid="canon-pulls">
         {shown.map((p) => (
-          <li key={p.prNo} className="py-2">
-            <Link to={canonPullPath(canonId, p.prNo)} className="flex flex-wrap items-center gap-x-2 text-sm hover:underline">
-              <span className="font-mono text-slate-500">#{p.prNo}</span>
-              <span className="min-w-0 break-words font-medium text-blue-700">{p.sourceName}</span>
-              <span className={`rounded px-1.5 py-0.5 text-[11px] ${p.state === "open" ? "bg-violet-100 text-violet-800" : "bg-slate-100 text-slate-600"}`}>{t(`pr.state.${p.state}` as MessageKey)}</span>
-              {p.state === "open" && p.reviewState === "changes_requested" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">{t("rv.changesRequested")}</span>}
-            </Link>
-            <div className="text-[11px] text-slate-500">
-              {t("pr.added", { n: p.summary.added })} · {t("pr.changed", { n: p.summary.changed })} · {t("pr.errors", { n: p.summary.errors })} · {t("pr.warnings", { n: p.summary.warnings })} · {fmtDate(p.createdAt, locale)}
+          <li key={p.prNo} className="flex items-start gap-2 py-2" data-pr={p.prNo}>
+            {approvable.includes(p.prNo) && (
+              <label className="-ml-1 flex shrink-0 items-center justify-center p-1 coarse:min-h-11 coarse:min-w-11">
+                <input type="checkbox" checked={picked.includes(p.prNo)} onChange={(e) => toggle(p.prNo, e.target.checked)} aria-label={t("pr.select", { n: p.prNo })} data-testid="bulk-pick" />
+              </label>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <Link to={canonPullPath(canonId, p.prNo)} className="flex min-w-0 flex-wrap items-center gap-x-2 text-sm hover:underline">
+                  <span className="font-mono text-slate-500">#{p.prNo}</span>
+                  <span className="min-w-0 break-words font-medium text-blue-700">{p.sourceName}</span>
+                  <span className={`rounded px-1.5 py-0.5 text-[11px] ${p.state === "open" ? "bg-violet-100 text-violet-800" : "bg-slate-100 text-slate-600"}`}>{t(`pr.state.${p.state}` as MessageKey)}</span>
+                  {p.state === "open" && p.reviewState === "changes_requested" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-800">{t("rv.changesRequested")}</span>}
+                </Link>
+                {p.planId && <PlanChip planId={p.planId} link={role === "owner"} />}
+              </div>
+              <div className="text-[11px] text-slate-500">
+                {t("pr.added", { n: p.summary.added })} · {t("pr.changed", { n: p.summary.changed })} · {t("pr.errors", { n: p.summary.errors })} · {t("pr.warnings", { n: p.summary.warnings })} · {fmtDate(p.createdAt, locale)}
+              </div>
             </div>
           </li>
         ))}
@@ -460,7 +515,7 @@ export function CanonDetailPage() {
           <div className="grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
               {detail.role === "owner" ? <MembersCard detail={detail} projects={projects} onChanged={reload} /> : <MembersList detail={detail} />}
-              <PullsCard canonId={c.canonId} pulls={pulls} />
+              <PullsCard canonId={c.canonId} pulls={pulls} role={detail.role} onChanged={reload} />
               <ContentsCard snapshot={snapshot} revisions={revisions} />
               {detail.role === "owner" && <SendCanonPr canon={c} />}
               <div className="text-[11px] text-slate-400">

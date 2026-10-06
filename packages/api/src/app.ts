@@ -5,6 +5,8 @@ import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   AdminUpdateUserRequest,
   AnswerRequest,
+  ApproveManyRequest,
+  ApproveManyResponse,
   BraVersionDetailResponse,
   BradbPackageManifest,
   BradbRegisterResponse,
@@ -83,9 +85,7 @@ import {
   normalizeAttachmentUrl,
   safeAttachmentName,
   stagingKey,
-  CANON_DESCRIPTION_MAX,
   CANON_META_SK,
-  CANON_POLICY_MAX,
   canDeleteProject,
   isProjectDeleted,
   EDGE_LINE_TYPES,
@@ -111,27 +111,18 @@ import {
   VISIBILITIES,
   cloneName,
   cloneTargetKey,
-  blockingConflicts,
-  buildCanonAiPacket,
   canonAiReviewKey,
   canonEditorSk,
-  requiredApprovals,
-  type CanonApproval,
   type CanonEditorRecord,
   type CanonEditorSummary,
   type CanonRole,
-  canonReviewChecks,
   parseReviewItemId,
-  reviewEntries,
-  reviewGraph,
   reviewItemId,
   CANON_PR_NOTE_MAX,
-  type ReviewProvenance,
   canonAlignInstruction,
   canonFollowStatus,
   canonFromCanon,
   composeSeeds,
-  canonFromProject,
   canonOutSk,
   canonPrKey,
   canonPrSk,
@@ -139,8 +130,6 @@ import {
   canonRevisionSk,
   diffCanon,
   emptyCanonSnapshot,
-  mergeCanon,
-  FRG_FILES,
   isArticleStale,
   isCanonDeleted,
   isCloneTextFile,
@@ -153,7 +142,6 @@ import {
   isProjectIdLike,
   isUiLocale,
   newId,
-  normalizeCanonName,
   normalizeCanonText,
   normalizeProjectName,
   nowIso,
@@ -192,6 +180,7 @@ import {
   rejectProposal,
   replaceRows,
   requestDraft,
+  resolveRow,
   resumePlan,
   retryRow,
   skipRow,
@@ -205,6 +194,7 @@ import {
   moveToAllowedModel,
   normModel,
   noteModel,
+  queueFollowup,
   queueRetry,
   readLocale,
   requireModel,
@@ -232,6 +222,19 @@ import {
   putObjectText,
 } from "./lib/aws.js";
 import { loadBraTemplate } from "./lib/braTemplate.js";
+import {
+  approvePullRequest,
+  canonFields,
+  createCanon,
+  loadCanonHead,
+  loadCanonRevision,
+  openProjectPr,
+  pinProject,
+  prReviewMaterial,
+  projectIncoming,
+  pushProject,
+  requestAiReview,
+} from "./lib/canonOps.js";
 import { listDocs, readDoc } from "./lib/docs.js";
 import {
   findProjectByLegacyId,
@@ -703,38 +706,7 @@ app.post("/projects/:id/followup", async (c) => {
   if (!text) throw bad("指示を入力してください");
   const moved = await moveToAllowedModel(u, p, policy);
   const locale = readLocale(body.locale);
-  const now = nowIso();
-  const jobId = newId("job_");
-  const job: JobRecord = {
-    projectId: p.projectId,
-    jobId,
-    userId: u.userId,
-    type: "followup",
-    status: "QUEUED",
-    keySource: policy.source,
-    instruction: text,
-    pendingAnswer: null,
-    locale,
-    ecsTaskArn: null,
-    retryCount: 0,
-    lastHeartbeat: null,
-    startedAt: null,
-    endedAt: null,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putJob(job);
-  await updateProject(u.userId, p.projectId, {
-    status: "QUEUED",
-    activeJobId: jobId,
-    errorMessage: null,
-    stepStates: { ...p.stepStates, XLSX: "pending" },
-  });
-  await putMessage(p.projectId, jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "followup" } });
-  await noteModel(p, jobId, moved);
-  await putMessage(p.projectId, jobId, "system", "status", "Follow-up job queued.", { userId: p.userId, meta: { i18n: "sys.followupQueued" } });
-  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "followup" });
+  const jobId = await queueFollowup(u, p, policy, { instruction: text, locale, moved });
   return c.json({ ok: true, jobId });
 });
 
@@ -1150,25 +1122,6 @@ async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean
   return canon;
 }
 
-function canonFields(body: CreateCanonRequest | UpdateCanonRequest, partial: boolean): Partial<CanonRecord> {
-  const out: Partial<CanonRecord> = {};
-  if (!partial || body.name !== undefined) {
-    const n = normalizeCanonName(body.name);
-    if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
-    out.name = n.name;
-  }
-  for (const [key, max] of [
-    ["description", CANON_DESCRIPTION_MAX],
-    ["policy", CANON_POLICY_MAX],
-  ] as const) {
-    if (partial && body[key] === undefined) continue;
-    const r = normalizeCanonText(body[key], max);
-    if ("error" in r) throw bad(`${key === "policy" ? "粒度方針" : "説明"}が不正です（${r.error}）`);
-    out[key] = r.text;
-  }
-  return out;
-}
-
 app.get("/canons", async (c) => {
   const u = c.get("user");
   const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
@@ -1184,21 +1137,7 @@ app.get("/canons", async (c) => {
 app.post("/canons", async (c) => {
   const u = c.get("user");
   const fields = canonFields((await c.req.json()) as CreateCanonRequest, false);
-  const now = nowIso();
-  const canon: CanonRecord = {
-    canonId: await reserveNewId("canon", u.userId),
-    sk: CANON_META_SK,
-    ownerUserId: u.userId,
-    name: fields.name!,
-    description: fields.description ?? "",
-    policy: fields.policy ?? "",
-    visibility: "private",
-    headRevision: 0,
-    memberCount: 0,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putCanon(canon);
+  const canon = await createCanon(u, fields);
   return c.json(canon, 201);
 });
 
@@ -1329,31 +1268,6 @@ app.get("/canons/:id/revisions", async (c) => {
 
 // --- push and pull requests (stage 2) ----------------------------------------
 
-async function loadCanonHead(canon: CanonRecord): Promise<CanonSnapshot> {
-  if (canon.headRevision === 0) return emptyCanonSnapshot(canon.canonId, canon.createdAt);
-  const snap = await getCanonJson<CanonSnapshot>(canonRevisionKey(canon.canonId, canon.headRevision));
-  if (!snap) throw new Error(`Canon ${canon.canonId} revision ${canon.headRevision} is missing`);
-  return snap;
-}
-
-/** The project's latest completed data in Canon form (Q16: only a COMPLETED project with artifacts can be pushed). */
-async function projectIncoming(u: UserRecord, p: ProjectRecord): Promise<CanonIncoming> {
-  if (p.status !== "COMPLETED" || !p.hasArtifacts) throw new HTTPException(409, { message: "完了したプロジェクトだけを Canon に push できます" });
-  const P = p.projectId;
-  const text = (rel: string) => getObjectText(u.userId, P, `workspace/${rel}`);
-  const uc = await text(`${P}_HCD/${HCD_FILES.uc}`);
-  if (!uc) throw new HTTPException(409, { message: "このプロジェクトには uc.json がありません" });
-  return canonFromProject(P, p.revision ?? 0, {
-    uc,
-    connections: await text(`${P}_HCD/${HCD_FILES.connections}`),
-    references: await text(`${P}_HCD/${HCD_FILES.references}`),
-    frg: await text(`${P}_FRG/${FRG_FILES.frg}`),
-    meta: await text(PROJECT_FILES.meta),
-    referenceCheck: await text(PROJECT_FILES.referenceCheck),
-    quoteCheck: await text(PROJECT_FILES.quoteCheck),
-  });
-}
-
 async function projectCanon(u: UserRecord, projectId: string): Promise<{ p: ProjectRecord; canon: CanonRecord }> {
   const p = await loadOwnProject(u, projectId);
   if (!p.canonId) throw new HTTPException(409, { message: "このプロジェクトは Canon に入っていません" });
@@ -1368,44 +1282,10 @@ app.post("/projects/:id/canon/preview", async (c) => {
   return c.json({ canonId: canon.canonId, diff });
 });
 
-/** Stores a project's push as an open pull request of `canon` (superseding its older open one). */
-async function openProjectPr(u: UserRecord, canon: CanonRecord, p: ProjectRecord, incoming: CanonIncoming, diff: CanonDiff): Promise<CanonPullRequestRecord> {
-  const source = `project:${p.projectId}`;
-  const prNo = await nextPrNumber(canon.canonId);
-  await putCanonJson(canonPrKey(canon.canonId, prNo, "incoming.json"), incoming);
-  await putCanonJson(canonPrKey(canon.canonId, prNo, "diff.json"), diff);
-  for (const old of await listPullRequests(canon.canonId)) {
-    if (old.state === "open" && old.source === source && old.prNo !== prNo && (await closePullRequest(canon.canonId, old.prNo, { state: "superseded", reason: `#${prNo}` }))) {
-      await putPrEvent(canon.canonId, old.prNo, { type: "superseded", actor: u.userId, actorName: actorName(u), byPr: prNo });
-    }
-  }
-  const now = nowIso();
-  const pr: CanonPullRequestRecord = {
-    canonId: canon.canonId,
-    sk: canonPrSk(prNo),
-    prNo,
-    source,
-    sourceName: projectDisplayName(p),
-    sourceRevision: incoming.projectRevision,
-    baseRevision: diff.baseRevision,
-    state: "open",
-    summary: diff.summary,
-    createdBy: u.userId,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putPullRequest(pr);
-  await putPrEvent(canon.canonId, prNo, { type: "pushed", at: now, actor: u.userId, actorName: actorName(u), revision: incoming.projectRevision });
-  return pr;
-}
-
 app.post("/projects/:id/canon/push", async (c) => {
   const u = c.get("user");
   const { p, canon } = await projectCanon(u, c.req.param("id"));
-  const incoming = await projectIncoming(u, p);
-  const diff = diffCanon(await loadCanonHead(canon), incoming);
-  const pr = await openProjectPr(u, canon, p, incoming, diff);
-  return c.json({ pr, diff }, 201);
+  return c.json(await pushProject(u, canon, p), 201);
 });
 
 // --- seeding a new Canon from existing projects (stage 3′) ---------------------------
@@ -1547,35 +1427,6 @@ async function loadPrForViewer(u: UserRecord, canonId: string, no: string): Prom
   return { canon, pr, isOwner: role === "owner" || role === "editor", role };
 }
 
-/** Where the PR comes from and whether that source still exists (and has moved on) now. */
-async function prProvenance(canon: CanonRecord, pr: CanonPullRequestRecord): Promise<ReviewProvenance> {
-  const [kind, id] = pr.source.split(":") as ["project" | "canon", string];
-  let current: number | null = null;
-  let available = false;
-  if (kind === "project") {
-    const p = await getProject(canon.ownerUserId, id);
-    available = !!p && !isProjectDeleted(p) && p.canonId === canon.canonId;
-    current = p ? (p.revision ?? null) : null;
-  } else {
-    const src = isCanonId(id) ? await getCanon(id) : null;
-    available = !!src && !isCanonDeleted(src);
-    current = src?.headRevision ?? null;
-  }
-  return { sourceKind: kind, sourceId: id, sourceRevision: pr.sourceRevision, sourceCurrentRevision: current, sourceAvailable: available, headRevision: canon.headRevision };
-}
-
-/** The diff, its base revision and the incoming payload of a PR, with the review aids computed from them. */
-async function prReviewMaterial(canon: CanonRecord, pr: CanonPullRequestRecord) {
-  const [diff, incoming] = await Promise.all([
-    getCanonJson<CanonDiff>(canonPrKey(canon.canonId, pr.prNo, "diff.json")),
-    getCanonJson<CanonIncoming>(canonPrKey(canon.canonId, pr.prNo, "incoming.json")),
-  ]);
-  if (!diff || !incoming) return { diff, incoming, base: null, checks: null, entries: {}, graph: null, provenance: null };
-  const base = await loadCanonRevision(canon, Math.min(diff.baseRevision, canon.headRevision));
-  const provenance = await prProvenance(canon, pr);
-  return { diff, incoming, base, provenance, checks: canonReviewChecks(base, incoming, diff, provenance), entries: reviewEntries(base, incoming, diff), graph: reviewGraph(base, incoming, diff) };
-}
-
 app.get("/canons/:id/pulls/:no", async (c) => {
   const u = c.get("user");
   const { canon, pr, isOwner, role } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
@@ -1663,48 +1514,9 @@ app.post("/canons/:id/pulls/:no/ai-review", async (c) => {
   if (picked && filterCodexModels([picked]).length === 0) throw bad("このモデルは AI レビューに使えません");
   const model = picked ?? implicitModel(policy, deploymentDefaultModel());
   requireModel(policy, model);
-  const jobs = reviewJobsOf(await listJobsForCanon(canon.canonId), pr.prNo);
-  if (jobs.some(isActiveJob)) throw new HTTPException(409, { message: "この PR の AI レビューは実行中です" });
-  const m = await prReviewMaterial(canon, pr);
-  if (!m.diff || !m.incoming || !m.base || !m.checks) throw new HTTPException(409, { message: "この PR の差分を読めません" });
-  const jobId = newId("job_");
-  const packet = buildCanonAiPacket(
-    { id: canon.canonId, name: canon.name, policy: canon.policy, headRevision: canon.headRevision },
-    { no: pr.prNo, source: pr.source, sourceName: pr.sourceName, sourceRevision: pr.sourceRevision, baseRevision: m.diff.baseRevision },
-    m.diff,
-    m.checks.checks,
-    m.entries,
-    m.base,
-    m.incoming,
-  );
-  await putCanonJson(canonAiReviewKey(canon.canonId, pr.prNo, jobId, "input.json"), packet);
-  const now = nowIso();
-  const job: JobRecord = {
-    projectId: canon.canonId,
-    jobId,
-    userId: u.userId,
-    type: "canon-review",
-    status: "QUEUED",
-    keySource: policy.source,
-    instruction: null,
-    pendingAnswer: null,
-    reviewPrNo: pr.prNo,
-    reviewLocale: body.locale,
-    model,
-    reasoningEffort: null,
-    ecsTaskArn: null,
-    retryCount: 0,
-    lastHeartbeat: null,
-    startedAt: null,
-    endedAt: null,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-  await putJob(job);
-  await putPrEvent(canon.canonId, pr.prNo, { type: "ai_requested", at: now, actor: u.userId, actorName: actorName(u), jobId, model });
-  await enqueueRun({ version: 1, userId: u.userId, projectId: canon.canonId, jobId, mode: "canon-review" });
-  return c.json({ ai: aiState(job, null) }, 202);
+  const r = await requestAiReview(u, canon, pr, policy, { model, locale: body.locale });
+  if (!r.ok) throw new HTTPException(409, { message: r.message });
+  return c.json({ ai: r.ai }, 202);
 });
 
 app.post("/canons/:id/pulls/:no/approve", async (c) => {
@@ -1716,52 +1528,48 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
   const note = reviewNote(body.note, false, "メモが不正です");
   const choices: Record<string, CanonChoice> = {};
   for (const [k, v] of Object.entries(body.choices ?? {})) if (v === "canon" || v === "incoming") choices[k] = v;
-  const incoming = await getCanonJson<CanonIncoming>(canonPrKey(canon.canonId, pr.prNo, "incoming.json"));
-  if (!incoming) throw new Error(`PR ${pr.prNo} payload is missing`);
-  const head = await loadCanonHead(canon);
-  let diff = await getCanonJson<CanonDiff>(canonPrKey(canon.canonId, pr.prNo, "diff.json"));
-  if (!diff || diff.baseRevision !== head.revision) {
-    // the Canon moved since the push: judge the PR against the current head
-    const from = diff?.baseRevision ?? pr.baseRevision;
-    diff = diffCanon(head, incoming);
-    await putCanonJson(canonPrKey(canon.canonId, pr.prNo, "diff.json"), diff);
-    await updatePullRequest(canon.canonId, pr.prNo, { baseRevision: diff.baseRevision, summary: diff.summary });
-    await putPrEvent(canon.canonId, pr.prNo, { type: "rebased", actor: u.userId, actorName: actorName(u), note: `rev ${from} → rev ${diff.baseRevision}`, revision: diff.baseRevision });
+  const r = await approvePullRequest(u, canon, pr, { choices, note });
+  if (!r.ok) return c.json(r.body, r.status);
+  return c.json({ revision: r.revision });
+});
+
+/** Most pull requests one 「まとめて承認」 approves. */
+const APPROVE_MANY_MAX = 50;
+
+/**
+ * 「まとめて承認」: approves the given pull requests one after another, in order, each judged against the head the
+ * previous approval made (exactly as a single approval, without conflict choices); stops at the first one that cannot be
+ * approved (conflicts, closed, missing, approvals or a race) and leaves the rest untried.
+ */
+app.post("/canons/:id/pulls/approve-many", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
+  const body = (await c.req.json().catch(() => ({}))) as Partial<ApproveManyRequest>;
+  const list = body.prNos;
+  if (!Array.isArray(list) || list.length === 0 || list.length > APPROVE_MANY_MAX || !list.every((n) => Number.isInteger(n) && n >= 1)) {
+    throw bad(`prNos は 1〜${APPROVE_MANY_MAX} 件の PR 番号で指定してください`);
   }
-  const blocking = blockingConflicts(diff, choices);
-  if (blocking.length) return c.json({ error: "解決していない衝突があります", blocking, diff }, 409);
-  const now = nowIso();
-  const approval: CanonApproval = { userId: u.userId, name: actorName(u), at: now };
-  const approvals = [...(pr.approvals ?? []).filter((a) => a.userId !== u.userId), approval];
-  // one approval is enough for now (requiredApprovals); the list is kept for a future setting
-  if (approvals.length < requiredApprovals(canon)) return c.json({ error: "承認がまだ足りません", approvals }, 409);
-  const next = mergeCanon(head, incoming, diff, choices, pr.prNo, now);
-  await putCanonJson(canonRevisionKey(canon.canonId, next.revision), next);
-  if (!(await advanceCanonHead(canon.canonId, head.revision))) {
-    return c.json({ error: "ほかの取り込みと重なりました。もう一度承認してください" }, 409);
+  const res: ApproveManyResponse = { approved: [], stopped: null };
+  for (const prNo of [...new Set(list)]) {
+    const fresh = await getCanon(canon.canonId);
+    if (!fresh || isCanonDeleted(fresh)) throw notFound();
+    const pr = await getPullRequest(canon.canonId, prNo);
+    if (!pr) {
+      res.stopped = { prNo, reason: "not_found" };
+      break;
+    }
+    if (pr.state !== "open") {
+      res.stopped = { prNo, reason: "closed" };
+      break;
+    }
+    const r = await approvePullRequest(u, fresh, pr, { choices: {} });
+    if (!r.ok) {
+      res.stopped = { prNo, reason: r.reason, ...(r.blocking ? { blocking: r.blocking } : {}) };
+      break;
+    }
+    res.approved.push({ prNo, revision: r.revision });
   }
-  await putCanonRevision({
-    canonId: canon.canonId,
-    sk: canonRevisionSk(next.revision),
-    revision: next.revision,
-    prNo: pr.prNo,
-    source: pr.source,
-    createdAt: now,
-    circuitCount: next.circuits.length,
-    connectionCount: next.connections.length,
-    approvedBy: u.userId,
-    approvedByName: approval.name,
-    approvedAt: now,
-  });
-  await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedByName: approval.name, decidedAt: now, approvals, mergedRevision: next.revision, ...(note ? { reason: note } : {}) });
-  await putPrEvent(canon.canonId, pr.prNo, { type: "approved", at: now, actor: u.userId, actorName: actorName(u), note, revision: next.revision, choices });
-  // the pushing project follows the revision that contains its own content (Q9)
-  if (pr.source.startsWith("project:")) {
-    const pid = pr.source.slice("project:".length);
-    const p = await getProject(canon.ownerUserId, pid);
-    if (p && p.canonId === canon.canonId && !isProjectDeleted(p)) await updateProject(canon.ownerUserId, pid, { canonRevision: next.revision });
-  }
-  return c.json({ revision: next.revision });
+  return c.json(res);
 });
 
 app.post("/canons/:id/pulls/:no/reject", async (c) => {
@@ -1792,13 +1600,6 @@ app.post("/canons/:id/pulls/:no/withdraw", async (c) => {
 
 // --- following a Canon (stage 3) -------------------------------------------------
 
-async function loadCanonRevision(canon: CanonRecord, rev: number): Promise<CanonSnapshot> {
-  if (rev <= 0) return emptyCanonSnapshot(canon.canonId, canon.createdAt);
-  const snap = await getCanonJson<CanonSnapshot>(canonRevisionKey(canon.canonId, rev));
-  if (!snap) throw new Error(`Canon ${canon.canonId} revision ${rev} is missing`);
-  return snap;
-}
-
 /** Pinned revision vs head, judged on what the project uses, plus the follow-up text that aligns it. */
 app.get("/projects/:id/canon", async (c) => {
   const u = c.get("user");
@@ -1816,8 +1617,7 @@ app.post("/projects/:id/canon/pull", async (c) => {
   const { revision } = (await c.req.json().catch(() => ({}))) as { revision?: number };
   const rev = revision === undefined ? canon.headRevision : Number(revision);
   if (!Number.isInteger(rev) || rev < 0 || rev > canon.headRevision) throw bad("revision が不正です");
-  await updateProject(u.userId, p.projectId, { canonRevision: rev });
-  return c.json({ canonRevision: rev });
+  return c.json({ canonRevision: await pinProject(u, p, canon, rev) });
 });
 
 // --- Canon → Canon pull requests (stage 2′) --------------------------------------
@@ -2239,6 +2039,15 @@ app.post("/plans/:id/rows/:rowId/retry", async (c) => {
 app.post("/plans/:id/rows/:rowId/skip", async (c) => {
   const u = c.get("user");
   await skipRow(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("rowId"));
+  return c.json({ ok: true });
+});
+
+/** 「人の判断」: the owner counts the row as done, or has its project pushed again. */
+app.post("/plans/:id/rows/:rowId/resolve", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as { action?: unknown };
+  await resolveRow(u, plan, c.req.param("rowId"), body.action);
   return c.json({ ok: true });
 });
 

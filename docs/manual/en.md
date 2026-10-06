@@ -164,6 +164,7 @@ Projects in a Canon are built to its definitions (circuit IDs, names, breakdowns
    - AI review: a model points out inconsistencies with reasons and sources (it does not decide)
    - History: who did what and when
 3. **Decide**: "Approve" creates a new rev (version) of the Canon; one approval is enough. "Request changes" keeps the PR open until the sender fixes it and pushes again. "Reject" closes the PR.
+   - **Approve selected**: in the Canon's list of PRs, tick the open PRs that have no conflicts and no items to review (and no request for changes) and press "Approve selected". The selected PRs are approved one after another, in number order. Each is checked again against the Canon as the previous approval left it, and the run stops at the first PR that now has a conflict (or was already decided, or is gone); the rest are not approved. A line shows how many were approved and where and why it stopped. The approver is recorded on each PR and rev, as for a single approval.
 
 **Co-editors**: the owner adds a co-editor on the Canon page by the e-mail address they signed up with. Co-editors open the Canon from "Shared with you" and can review its PRs. Settings and deletion stay with the owner.
 
@@ -230,15 +231,30 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - Re-ordering happens after every wave, but a plan runs the re-planning job about 10 times at most: once after the first wave, then each time a tenth of the plan's rows have finished (after every wave for plans of up to 10 rows). At a concurrency of 1 every wave is a single row, and a job after every wave would add one job's cost and wait per row.
 - A plan in manual order is neither re-ordered nor re-planned.
 
+### Plans with a Canon
+
+When a plan has a Canon, its finished rows are taken into that Canon as the plan goes. A row is "Done" only once a person has approved its PR; nothing is ever approved automatically.
+
+- **Choose the Canon**: under "Canon" in a draft, pick "None", "An existing Canon" (one of the Canons you own; Canons you co-edit cannot be chosen) or "A new Canon" (its name starts as the plan's name). A new Canon is created when you confirm the plan, with the plan's granularity policy. After confirmation the choice cannot change, and the plan shows a link to the Canon with its latest rev.
+- **Starting a row**: each row's project joins the Canon when it starts and is pinned to the Canon's latest rev at that moment. A row done by an existing finished project counts as done if that project is already in this Canon; a project in no Canon is added to it and pushed; a project in another Canon needs your decision.
+- **Push and "Awaiting approval"**: when a row's project is finished it is pushed to the Canon automatically and the row is "Awaiting approval", with a link to its PR. For rows that are not seeds an AI review also starts automatically once a job slot is free ("AI review waiting" → "AI review running"). The AI review only lists findings; it never decides. Items that need review always go to a person.
+- **Updating to match the Canon**: when the PR has error conflicts with the Canon because the Canon moved to a newer rev after the row started, the project is pinned to the latest rev again and gets the follow-up instruction "Canon rev N に合わせて更新" (update to match Canon rev N) automatically, once a job slot is free. When it is finished it is pushed again. A row gets at most 2 such updates, shown as "Updated to match the Canon 1/2".
+- **Your decision**: a row needs your decision, with the reason shown, when conflicts remain after 2 updates, when it has conflicts although the Canon did not move, when its PR was rejected or withdrawn, when its project is in another Canon, or when it could not be pushed. Look at the PR, then choose "Mark done" (the PR stays as it is and is not taken in automatically), "Push again" (only for a finished project; it is pushed on the plan's next step) or "Skip".
+- **Seed PRs**: seed rows are built one at a time, and neither the next seed nor any other wave starts until a person has approved each seed's PR. Meanwhile the plan shows "Waiting for the seed pull request to be approved" with a link to it. The later rows then start from the rev that contains the seed.
+- **Many PRs waiting**: while 20 of the plan's PRs await approval, no new wave starts ("20 pull requests are waiting for approval, so the next wave is on hold"); rows of the current wave go on. The next wave starts as approvals come in; "Approve selected" on the Canon page approves conflict-free PRs together.
+- **From a PR to its plan**: PRs pushed by a plan show the plan's ID in the Canon's list of PRs and on the PR page; the Canon's owner can open the plan from there.
+- **Cost**: AI reviews and updates to match the Canon are ordinary jobs: each takes a slot under the concurrency limits, waits for a free one, and its cost is recorded.
+- A plan is complete when every row is "Done" or "Skipped"; rows awaiting approval or your decision keep it open.
+
 ### Question inbox
 
 When an agent asks a question, only that row stops and the question appears in the plan's "Questions" inbox. Answering resumes the row; the other rows keep running. You can also answer on the project page.
 
 ### Pause, resume and cancel
 
-- **Pause**: no new row starts; running rows continue. If your API key can no longer be used, the plan pauses itself and shows why.
+- **Pause**: no new row starts; running rows continue. In a plan with a Canon, finished rows are still pushed and approved PRs still mark their rows done. If your API key can no longer be used, the plan pauses itself and shows why.
 - **Resume**: continues from where it stopped. Finished rows are not rebuilt.
-- **Cancel**: stops the running jobs and starts nothing new. A cancelled plan can be resumed too (stopped rows continue from their work so far).
+- **Cancel**: stops the running jobs and starts nothing new. A cancelled plan can be resumed too (stopped rows continue from their work so far). Rows awaiting approval or your decision, and their PRs, stay as they are (the PRs can still be approved in the Canon).
 - Draft, completed and cancelled plans can be deleted (a plan that is drafting: cancel the draft first). Their projects stay.
 
 ## Publishing and cloning
