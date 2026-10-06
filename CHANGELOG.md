@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-10-06
+
 ### Added
 - Hypothesis mode can be switched on through the API (the screens follow in the next stage): creating a project with "Allow hypotheses" stores the claims allowed on the whole HCD (scope S1), the share limit (10, 20, 30 or 50%; 20% when not given) and an optional one-line note, and a follow-up can add a scope of its own (the whole HCD, or chosen circuits and GNs), also to a project that used literature-supported evidence only. The job and its scope are saved together; a follow-up's text alone never allows hypotheses. The agent's follow-up prompt names the scope it added
 - A project whose result has no hypotheses goes back to literature-supported evidence only after the job completes
