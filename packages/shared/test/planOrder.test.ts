@@ -140,6 +140,24 @@ describe("orderPlanRows", () => {
     expect(new Set([r.wave.get("a"), r.wave.get("b")])).toEqual(new Set([1, 2]));
   });
 
+  it("breaks a cycle at a row of the cycle, so a row that depends on it still comes later", () => {
+    // c (the best-ranked row) depends on a, which is on the cycle a <-> b
+    const r = orderPlanRows(
+      [
+        { rowId: "a", dependsOn: ["b"], anchors: bna(29) },
+        { rowId: "b", dependsOn: ["a"], anchors: bna(31) },
+        { rowId: "c", dependsOn: ["a"], anchors: bna(29, 31, 33), priority: 9 },
+        { rowId: "d", anchors: bna(33) },
+        { rowId: "e", anchors: bna(35) },
+      ],
+      { concurrency: 4, seeds: "none" },
+    );
+    expect(r.cycle).toBe(true);
+    expect(r.wave.get("c")!).toBeGreaterThan(r.wave.get("a")!);
+    // the cycle is broken at a (its best-ranked row), so b comes after a
+    expect(r.wave.get("b")!).toBeGreaterThan(r.wave.get("a")!);
+  });
+
   it("counts context rows for the hub scores without placing them", () => {
     const r = orderPlanRows([{ rowId: "a", anchors: bna(29) }, { rowId: "b", anchors: bna(31) }], { concurrency: 2, context: [{ rowId: "x", anchors: bna(29) }] });
     expect(r.hub.get("a")).toBe(1);
@@ -192,6 +210,19 @@ describe("orderDraft and replanRows", () => {
     for (const id of ["s1", "s2", "retry", "q"]) expect(moved.has(id)).toBe(false);
   });
 
+  it("leaves rows of the finished (active) wave that still wait for a slot where they are", () => {
+    const rows = [
+      planRow("s1", 1, "done", { seed: true, projectId: "p1", anchors: bna(29) }),
+      planRow("run", 2, "running", { projectId: "p2", anchors: bna(41) }),
+      planRow("wait", 2, "pending", { anchors: bna(43) }),
+      planRow("later", 3, "pending", { anchors: bna(45) }),
+      planRow("new", 4, "pending", { anchors: bna(47) }),
+    ];
+    const moved = replanRows(rows, 2, 3);
+    expect(moved.has("wait")).toBe(false);
+    expect(moved.get("new")).toBe(3);
+  });
+
   it("keeps seed rows that have not started as seeds, one per wave", () => {
     const rows = [planRow("s1", 1, "done", { seed: true, projectId: "p1" }), planRow("s2", 2, "pending", { seed: true }), planRow("s3", 3, "pending", { seed: true }), planRow("a", 4, "pending")];
     const moved = replanRows(rows, 1, 4);
@@ -201,7 +232,8 @@ describe("orderDraft and replanRows", () => {
   it("estimates seeds one at a time and leaves existing rows out", () => {
     const rows = [planRow("s1", 1, "pending", { seed: true }), planRow("s2", 2, "pending", { seed: true }), planRow("a", 3, "pending"), planRow("b", 3, "pending"), planRow("x", 1, "done", { existing: { projectId: "p", name: "x" } })];
     // the seed wave counts once (its rows are built one after another), then one body wave of 2
-    expect(planEstimate(rows, 2)).toMatchObject({ rows: 4, seedRows: 2, waves: 2, minutes: 2 * 48 + 48 + Math.round((4 * 0.2 * 15) / 2) });
+    // each seed row is a wave of its own, as the rows are stored and built
+    expect(planEstimate(rows, 2)).toMatchObject({ rows: 4, seedRows: 2, waves: 3, minutes: 2 * 48 + 48 + Math.round((4 * 0.2 * 15) / 2) });
   });
 });
 

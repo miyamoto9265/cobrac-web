@@ -6,8 +6,8 @@ The prompt ends with the task of this job (DRAFT or REPLAN), the reply language 
 
 - `goal`: what the owner wants the plan to cover (may be empty when lists are attached).
 - `policy`: the plan's current granularity policy (may be empty).
-- `attachments`: capability lists for you to read (xlsx, PDF); the prompt says where each file and its text are. CSV, TSV and text lists were already read into `rows`.
-- `rows`: the plan's rows as they are: `rowId`, `roi`, `tlf`, `rationale`, `state` (`pending` = not started, `starting` / `running` / `question` = being built, `done` = its project is finished, `attention` = failed, `skipped` = left out by the owner, `cancelled` = stopped with the plan), `wave`, `seed`, `anchors`, `anchorsSource` (`predicted` = from an earlier draft, `used` = read from the finished project's own circuits), `projectId` (the project the row built or reuses), `existing` (the row reuses a finished project).
+- `attachments`: capability lists for you to read (xlsx, PDF; DRAFT only); the prompt says where each file and its text are. CSV, TSV and text lists were already read into `rows`.
+- `rows`: the plan's rows as they are: `rowId`, `roi`, `tlf`, `rationale`, `state` (`pending` = not started, `starting` / `running` / `question` = being built, `done` = its project is finished, `attention` = failed, `skipped` = left out by the owner, `cancelled` = stopped with the plan), `wave`, `seed`, `anchors`, `anchorsSource` (`predicted` = from an earlier draft, `used` = read from the finished project's own circuits), `projectId` (the project the row built or reuses), `existing` (the row reuses a finished project), `priority` (the owner's, or null), `dependsOn` (row IDs), `rebuild` (the owner wants the row built even though a finished project has its ROI × TLF).
 - `projects`: the owner's projects, newest first (`completed: true` = finished, with its outputs).
 - `canons`: the owner's Canons (sets of projects whose circuit definitions must agree) with their granularity `policy`.
 - `concurrency`: how many rows run at once (for your sense of scale only).
@@ -37,19 +37,20 @@ Anchor each row on the SABRA units of its ROI and of the main regions you expect
 
 Write the rows of the plan from the goal, the attached lists and the rows already in the input.
 
-- **Rows of the input**: return every one of them with its `rowId` as `id` and its `roi` and `tlf` copied exactly (they are not changed); add `anchors`, `dependsOn`, `priority`, `existingProjectId`, a `rationale` when the row has none (else return its own) and `source` `input`.
+- **Rows of the input**: return every one of them with its `rowId` as `id` and its `roi` and `tlf` copied exactly (they are not changed); add `anchors`, `dependsOn`, `existingProjectId` and `source` `input`. `priority`: the row's own `priority` unchanged (0 when it is null). `rationale`: write one when the row has none; when it has one, return `""` (the row keeps its own).
 - **New rows**: `id` `new1`, `new2`, … in the order you write them.
   - From a capability list: one row for every item of every list, ROI × TLF as the item states them; when an item names only a function, take the ROI the literature most associates with it (and the other way round). An item you cannot turn into a row (no function or region you can identify, unreadable, a heading, the same ROI × TLF as another row) goes into `unread` instead.
   - From the goal: the rows that together cover it. A broad goal such as 「言語の BRA を一通りそろえたい」 ("a full set of BRAs for language") needs about 8–15 rows: its main sub-functions (for language e.g. speech perception, phonological processing, lexical-semantic access, sentence comprehension, speech production, reading), each on the ROI that carries it. A narrow goal may need only a few rows. Do not split one function into near-duplicate rows, and never repeat a ROI × TLF.
 - `rationale`: 1–2 sentences on why the row belongs in the plan.
-- `dependsOn`: `id`s of other rows of your reply (input rows by their row ID) that this row builds on. Row B depends on row A when B's ROI receives input from A's ROI in this function, or B's TLF is a sub-function of A's. Leave it empty when no dependency is clear; never make a cycle.
-- `priority`: integer, 0 by default; higher for rows the owner asked to have first (in the goal or the list), lower for rows the owner marked optional. Between -1000 and 1000.
-- `existingProjectId`: the `projectId` of a project in `projects` with `completed: true` and the same ROI × TLF (the same meaning, the wording may differ), else `""`. Never a project that is not completed.
+- `dependsOn`: `id`s of other rows of your reply (input rows by their row ID) whose finished circuits this row is built from. Row B depends on row A only when B's function is a composite that combines A's function with others, e.g. repetition depends on phonological processing and on speech production. Anatomical input alone is **not** a dependency: rows that share regions or pathways are already kept apart through their shared `anchors`, and the rows most others share are built first. A row with a dependency is never built first, so most rows have none; leave it empty unless the composition is clear, and never make a cycle.
+- `priority` of a new row: integer, 0 by default; higher for rows the owner asked to have first (in the goal or the list), lower for rows the owner marked optional. Between -1000 and 1000.
+- `existingProjectId`: the `projectId` of a project in `projects` with `completed: true` and the same ROI × TLF (the same meaning, the wording may differ), else `""`. Never a project that is not completed, and always `""` for an input row with `rebuild: true`.
 - `source`: where the row comes from: `goal`, or the file name and the place in it (`capabilities.xlsx, Sheet1, row 12`, `targets.pdf, p. 3`), or `input` for a row of the input.
 - `unread`: every item of the lists (or part of the goal) you could not turn into a row: `source` (file name, or `goal`), `location` (sheet and row, page, line), `reason` (short). `[]` when you read everything.
 - `policy`: one granularity policy for the plan's projects, in one to three sentences: how finely their circuits are cut, so the projects can later join one Canon (e.g. `neocortex = area × projection class, subcortex = nucleus`). When a Canon in `canons` covers the same field, take its policy (adapt it only where it does not fit the rows). When the input `policy` is not empty, keep it unless it clearly does not fit.
 - `proposals`: `[]`.
 - **Do not order the rows** and do not group them into waves: the system computes the build order from `anchors`, `dependsOn` and `priority`. The order of `rows` in your reply does not matter.
+- **Long lists** (more than about 30 rows in all): the reply is long, so keep each row short. Use 3–6 anchors per row, look up each region once and reuse its ID for every row on it, and keep `rationale` to one short sentence and `notes` to a few lines. Every item still gets a row or an `unread` entry.
 
 ## Task REPLAN
 
@@ -88,4 +89,4 @@ Reply with the JSON object of the output schema only: no text before or after it
 ## Rules
 
 - Use only the input, the attached files and the `rcs` tools. Do not search the web or download anything.
-- Finish within a few minutes: the job has a strict time budget, and a reply that comes too late is lost. Prefer fewer, well-founded anchors over many searches.
+- Finish quickly: the job has a strict time budget (about 7 minutes for a goal, a short list or a re-plan; more for long lists), and a reply that comes too late is lost. Prefer fewer, well-founded anchors over many searches.

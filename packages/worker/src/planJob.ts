@@ -1,8 +1,8 @@
 /**
  * The `plan` job of the BRA Planner (draft or re-plan), free of AWS / Codex so it can be tested with a mock model:
  * one turn on the input the plan runner wrote, one more when the reply is not the schema's object, all within the
- * job's time budget. Only what refers to the input is kept (`parsePlanResult`); HOMBA anchors RCS does not know are
- * removed as well.
+ * job's time budget. Only what refers to the input is kept (`parsePlanResult`); HOMBA anchors RCS does not know, or
+ * that SABRA covers with BNA, are removed as well.
  */
 import type { ParsedPlanResult, PlanJobInput, SabraLookup, TokenUsage } from "@cobrac/shared";
 import { EMPTY_USAGE, PLAN_RETRY_PROMPT, addUsage, parsePlanResult, planJobPrompt } from "@cobrac/shared";
@@ -85,8 +85,10 @@ export async function runPlanJob(d: PlanJobDriver): Promise<PlanJobOutcome> {
 }
 
 /**
- * Removes HOMBA anchors RCS reports unknown (`null`) from the rows and the added rows, counting them in `dropped`.
- * Anchors that could not be looked up (RCS down, out of time) are kept: they are still valid IDs as far as we know.
+ * Removes HOMBA anchors RCS reports unknown (`null`), or on the BNA side of SABRA (a region whose SABRA unit is a BNA
+ * area, which finished projects anchor as `BNA:<l>-<r>`, so the HOMBA ID would never match their anchors), from the rows
+ * and the added rows, counting them in `dropped`. Anchors that could not be looked up (RCS down, out of time) are kept:
+ * they are still valid IDs as far as we know.
  */
 export async function dropUnknownHomba(parsed: ParsedPlanResult, lookup: (ids: string[]) => Promise<SabraLookup>, timedOut?: Promise<unknown>): Promise<void> {
   const lists: { anchors: string[] }[] = [...parsed.rows, ...parsed.proposals.flatMap((p) => (p.row ? [p.row] : []))];
@@ -104,7 +106,7 @@ export async function dropUnknownHomba(parsed: ParsedPlanResult, lookup: (ids: s
     return;
   }
   for (const r of lists) {
-    const keep = r.anchors.filter((a) => !(known.has(a) && known.get(a) === null));
+    const keep = r.anchors.filter((a) => !(known.has(a) && (known.get(a) === null || known.get(a)?.atlas === "BNA")));
     parsed.dropped += r.anchors.length - keep.length;
     r.anchors = keep;
   }

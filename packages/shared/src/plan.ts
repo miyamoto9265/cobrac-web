@@ -132,6 +132,8 @@ export interface PlanJobState {
   queuedAt?: string | null;
   endedAt?: string | null;
   error?: string | null;
+  /** Why the job could not be started for the owner (the error text is then English; the page shows this reason) */
+  errorCode?: Exclude<PlanPauseReason, "user"> | null;
   /** Rows the job could not read (draft) */
   unread?: PlanUnread[];
   /** Items of the result that pointed at rows, anchors or projects not in the input (removed) */
@@ -233,6 +235,8 @@ export interface PlanRowRecord {
   existing?: { projectId: string; name: string } | null;
   /** A project of the owner with the same ROI × TLF that is not finished (warning only) */
   duplicateOf?: string | null;
+  /** The owner chose 「作り直す」: the row is built even when a finished project has its ROI × TLF (never matched again) */
+  rebuild?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -481,7 +485,8 @@ export function estimatePlan(input: { seedRows: number; bodyWaveSizes: number[];
   return {
     rows,
     seedRows: input.seedRows,
-    waves: body.length + (input.seedRows > 0 ? 1 : 0),
+    // each seed row is a wave of its own (they are built one at a time)
+    waves: body.length + input.seedRows,
     concurrency: c,
     minutes: Math.round(minutes),
     costUsd: { min: round2(rows * e.costPerRowUsd.min), max: round2(rows * e.costPerRowUsd.max) },

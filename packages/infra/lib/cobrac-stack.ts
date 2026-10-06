@@ -424,7 +424,7 @@ export class CobracAgentsStack extends Stack {
     );
     // plan jobs (drafting and re-planning): the runner lists the owner's Canons for the job input, writes the job's
     // input.json and reads its result.json under plans/, and reads finished rows' uc.json for the anchors they used
-    canons.grantReadData(planRunnerFn);
+    planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["dynamodb:Query"], resources: [`${canons.tableArn}/index/owner-index`] }));
     artifacts.grantRead(planRunnerFn, "plans/*");
     artifacts.grantPut(planRunnerFn, "plans/*");
     artifacts.grantRead(planRunnerFn, "users/*_HCD/uc.json");

@@ -30,6 +30,15 @@ export const PLAN_JOB_REASONING_EFFORT = "medium" as const;
  * request; the rest is left for queueing, Fargate start-up and the runner's next step, which applies the result).
  */
 export const PLAN_JOB_TIME_BUDGET_MS = 7 * 60 * 1000;
+/** Budget of a draft that reads capability lists (xlsx / PDF) or covers many rows: one row of output per item. */
+export const PLAN_JOB_LONG_TIME_BUDGET_MS = 25 * 60 * 1000;
+/** A draft with more input rows than this gets the long budget. */
+export const PLAN_JOB_SHORT_ROWS = 20;
+
+/** The budget of a job: short for a goal or a short list and for every re-plan, long for a draft of long lists. */
+export function planJobBudgetMs(input: Pick<PlanJobInput, "kind" | "attachments" | "rows">): number {
+  return input.kind === "draft" && (input.attachments.length > 0 || input.rows.length > PLAN_JOB_SHORT_ROWS) ? PLAN_JOB_LONG_TIME_BUDGET_MS : PLAN_JOB_TIME_BUDGET_MS;
+}
 /** At most this many of the owner's projects and Canons are summarised in the input. */
 export const PLAN_JOB_INPUT_LIMITS = { projects: 300, canons: 50, text: 600 } as const;
 export const MAX_PLAN_PROPOSALS = 30;
@@ -63,6 +72,11 @@ export interface PlanJobInputRow {
   /** The project the row built or reuses */
   projectId: string | null;
   existing: boolean;
+  /** The owner's priority (returned unchanged by the job) and the row's current dependencies (row IDs) */
+  priority: number | null;
+  dependsOn: string[];
+  /** The owner chose to build the row although a finished project has its ROI × TLF: never name an existing project */
+  rebuild: boolean;
 }
 
 export interface PlanJobInput {

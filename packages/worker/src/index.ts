@@ -70,7 +70,7 @@ import {
   PLAN_JOB_INPUT_SCHEMA,
   PLAN_JOB_REASONING_EFFORT,
   PLAN_JOB_RESULT_SCHEMA,
-  PLAN_JOB_TIME_BUDGET_MS,
+  planJobBudgetMs,
   PLAN_RESULT_SCHEMA,
   type PlanJobInput,
   type PlanJobResult,
@@ -138,6 +138,7 @@ import {
   refreshProjectUsage,
   updateAutoProjectName,
   updateJob,
+  updateJobIfStatus,
   updateProject,
 } from "./db.js";
 import { env } from "./env.js";
@@ -1505,12 +1506,10 @@ async function planJobMain() {
   const reasoningEffort = job.reasoningEffort ?? PLAN_JOB_REASONING_EFFORT;
   const ecsTaskArn = await taskArn();
   // the owner may have cancelled the draft meanwhile: never turn a cancelled job back into a running one
-  const latest = stopping ? null : await getJob(projectId, jobId);
-  if (latest?.status !== "QUEUED") {
-    console.log(`[worker] plan job is ${latest?.status ?? "stopping"}; exiting`);
+  if (stopping || !(await updateJobIfStatus(projectId, jobId, "QUEUED", { status: "RUNNING", startedAt: nowIso(), lastHeartbeat: nowIso(), ecsTaskArn, keySource: key.source }))) {
+    console.log("[worker] plan job is no longer queued (cancelled, or the worker is stopping); exiting");
     return;
   }
-  await updateJob(projectId, jobId, { status: "RUNNING", startedAt: nowIso(), lastHeartbeat: nowIso(), ecsTaskArn, keySource: key.source });
   // after SIGTERM the job is left to the janitor (its heartbeat is marked stale), so no beat may follow
   const heartbeat = setInterval(() => void (stopping ? undefined : updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined)), 45_000);
   try {
@@ -1560,8 +1559,8 @@ async function planJobMain() {
         return { text: t.finalResponse, usage: toTokens(usage) };
       },
       lookupHomba: rcsClient ? (ids) => rcsClient.lookupHomba(ids) : undefined,
-      // the budget counts from the worker's start, so the draft is ready in time after the request
-      deadlineMs: startedAt + PLAN_JOB_TIME_BUDGET_MS,
+      // the budget counts from the worker's start, so the draft is ready in time after the request (long lists get more)
+      deadlineMs: startedAt + planJobBudgetMs(input),
     });
     let usage = outcome.usage;
     if (outcome.result === "failed" && thread.id) {
@@ -1585,8 +1584,15 @@ async function planJobMain() {
       createdAt: nowIso(),
       ...outcome.parsed,
     };
-    await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
-    await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
+    try {
+      await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
+      await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
+    } catch (e) {
+      // the turns ran and are billed: keep their usage on the failed job
+      console.error("[worker] plan result could not be stored", e);
+      await endPlanJob({ ...cost, status: "FAILED", errorMessage: "The result of the plan job could not be stored.", endedAt: nowIso() });
+      return;
+    }
     const p = outcome.parsed;
     console.log(`[worker] plan ${input.kind} written (${p.rows.length} rows, ${p.proposals.length} proposals, ${p.unread.length} unread, ${p.dropped} dropped, ${outcome.attempts} turn(s))`);
   } finally {
@@ -1604,7 +1610,11 @@ async function planMaterials(input: PlanJobInput): Promise<string | null> {
   if (!input.attachments.length) return null;
   const failed = (a: { id: string; name: string }, note: string): MaterialEntry => ({ id: a.id, kind: "file", source: a.name, path: null, textPath: null, image: false, status: "failed", note });
   // keys come from the plan's META; anything outside its files folder is not read
-  const inFiles = (key: string) => key.startsWith(ATTACHMENT_FILES_PREFIX) && !key.slice(ATTACHMENT_FILES_PREFIX.length).includes("/") && !key.includes("..");
+  const inFiles = (key: string) => {
+    const name = key.startsWith(ATTACHMENT_FILES_PREFIX) ? key.slice(ATTACHMENT_FILES_PREFIX.length) : "";
+    // one file name, no path (a name may contain dots, e.g. `list..v2.xlsx`)
+    return !!name && name !== "." && name !== ".." && !name.includes("/") && !name.includes("\\");
+  };
   const files: FileAttachment[] = input.attachments
     .filter((a) => inFiles(a.key))
     .map((a) => ({ kind: "file", id: a.id, name: a.name, key: a.key, size: 0, contentType: (planAttachmentTypeOf(a.name) ?? planAttachmentTypeOf(a.key))?.mime ?? "application/octet-stream" }));

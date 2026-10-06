@@ -11,7 +11,7 @@ const input = (over: Partial<PlanJobInput> = {}): PlanJobInput =>
     goal: "言語の BRA を一通りそろえたい",
     policy: "",
     attachments: [],
-    rows: [{ rowId: "r1aaaaaaa", roi: "STG", tlf: "hearing", rationale: "", state: "pending", wave: 1, seed: false, anchors: [], anchorsSource: null, projectId: null, existing: false }],
+    rows: [{ rowId: "r1aaaaaaa", roi: "STG", tlf: "hearing", rationale: "", state: "pending", wave: 1, seed: false, anchors: [], anchorsSource: null, projectId: null, existing: false, priority: null, dependsOn: [], rebuild: false }],
     projects: [
       { projectId: "pdone001", name: "VOR", roi: "flocculus", tlf: "VOR", status: "COMPLETED", completed: true, canonId: null },
       { projectId: "prun0001", name: "x", roi: "x", tlf: "x", status: "RUNNING", completed: false, canonId: null },
@@ -118,9 +118,9 @@ describe("parsePlanResult (replan)", () => {
     wave: 2,
     policy: "old policy",
     rows: [
-      { rowId: "rwait0001", roi: "MTG", tlf: "naming", rationale: "", state: "pending", wave: 3, seed: false, anchors: [], anchorsSource: null, projectId: null, existing: false },
-      { rowId: "rdone0001", roi: "STG", tlf: "hearing", rationale: "", state: "done", wave: 1, seed: true, anchors: [], anchorsSource: "used", projectId: "p1", existing: false },
-      { rowId: "rretry001", roi: "IPL", tlf: "memory", rationale: "", state: "pending", wave: 2, seed: false, anchors: [], anchorsSource: null, projectId: "p2", existing: false },
+      { rowId: "rwait0001", roi: "MTG", tlf: "naming", rationale: "", state: "pending", wave: 3, seed: false, anchors: [], anchorsSource: null, projectId: null, existing: false, priority: null, dependsOn: [], rebuild: false },
+      { rowId: "rdone0001", roi: "STG", tlf: "hearing", rationale: "", state: "done", wave: 1, seed: true, anchors: [], anchorsSource: "used", projectId: "p1", existing: false, priority: null, dependsOn: [], rebuild: false },
+      { rowId: "rretry001", roi: "IPL", tlf: "memory", rationale: "", state: "pending", wave: 2, seed: false, anchors: [], anchorsSource: null, projectId: "p2", existing: false, priority: null, dependsOn: [], rebuild: false },
     ],
   });
 

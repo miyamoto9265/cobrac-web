@@ -177,6 +177,18 @@ describe("runPlanJob", () => {
     expect(r.parsed.dropped).toBe(1);
   });
 
+  it("drops HOMBA anchors whose region SABRA covers with BNA (finished projects anchor it on the BNA area)", async () => {
+    const lookupHomba = async (): Promise<SabraLookup> =>
+      new Map<string, HombaSabraInfo | null>([
+        ["HOMBA:12261", dhba("VTA")],
+        ["HOMBA:99999", dhba("X")],
+        ["HOMBA:10339", { ...dhba(""), atlas: "BNA" }],
+      ]);
+    const r = await runPlanJob({ input: input(), spec: SPEC, materialsIndex: null, turn: scripted([DRAFT]).turn, lookupHomba, deadlineMs: deadline() });
+    expect(r.result === "completed" && r.parsed.rows[1].anchors).toEqual(["BNA:29-30", "HOMBA:99999"]);
+    expect(r.result === "completed" && r.parsed.dropped).toBe(1);
+  });
+
   it("checks the anchors of added rows in a re-plan, and keeps every anchor when the lookup fails", async () => {
     const replan = input({
       kind: "replan",

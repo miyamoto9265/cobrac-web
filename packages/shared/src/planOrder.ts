@@ -184,6 +184,32 @@ function chooseSeeds(rows: OrderRow[], hub: Map<string, number>, ids: Set<string
   return best.filter((r) => (hub.get(r.rowId) ?? 0) >= threshold).slice(0, MAX_SEED_ROWS);
 }
 
+/**
+ * Rows of `pending` that lie on a dependency cycle all of whose unplaced dependencies are in that cycle (a sink of the
+ * graph of unplaced dependencies): breaking the cycle at one of them breaks no other dependency.
+ */
+function cycleRows(pending: OrderRow[], deps: Map<string, string[]>): OrderRow[] {
+  const ids = new Set(pending.map((r) => r.rowId));
+  const reach = new Map<string, Set<string>>();
+  for (const r of pending) {
+    const seen = new Set<string>();
+    const stack = [r.rowId];
+    while (stack.length) {
+      for (const d of deps.get(stack.pop()!) ?? []) {
+        if (ids.has(d) && !seen.has(d)) {
+          seen.add(d);
+          stack.push(d);
+        }
+      }
+    }
+    reach.set(r.rowId, seen);
+  }
+  return pending.filter((r) => {
+    const from = reach.get(r.rowId)!;
+    return from.has(r.rowId) && [...from].every((x) => reach.get(x)!.has(r.rowId));
+  });
+}
+
 const byRank = (hub: Map<string, number>) => (a: OrderRow, b: OrderRow) =>
   (hub.get(b.rowId) ?? 0) - (hub.get(a.rowId) ?? 0) || prio(b) - prio(a) || (a.rowId < b.rowId ? -1 : a.rowId > b.rowId ? 1 : 0);
 
@@ -220,9 +246,11 @@ export function orderPlanRows(rows: readonly OrderRow[], opts: OrderOptions): Or
     let next: OrderRow;
     if (ready.length) next = ready.sort(rank)[0];
     else {
-      // a cycle: take the best row of it and keep going
+      // a cycle: take the best row of a cycle that waits on nothing outside it, and keep going (a row that only
+      // depends on a cycle member still comes after it)
       cycle = true;
-      next = pending.sort(rank)[0];
+      const inCycle = cycleRows(pending, deps);
+      next = (inCycle.length ? inCycle : pending).sort(rank)[0];
     }
     const after = Math.max(bodyStart - 1, ...deps.get(next.rowId)!.filter((d) => wave.has(d)).map((d) => wave.get(d)!));
     let w = after + 1;
@@ -257,16 +285,18 @@ export function orderDraft(rows: readonly PlanRowLike[], concurrency: number): {
 }
 
 /**
- * Re-plan after wave `finishedWave`: the rows that have not started are ordered again from the next wave, with the
- * current anchors (the finished rows' actual ones) and hub scores; seed rows that have not started stay seeds. Rows
- * that started, finished or need attention keep their waves. Returns the new wave of each movable row whose wave changes.
+ * Re-plan after wave `finishedWave`: the rows that have not started and wait in a later wave are ordered again from the
+ * next wave, with the current anchors (the finished rows' actual ones) and hub scores; seed rows that have not started
+ * stay seeds. Rows that started, finished or need attention, and rows of `finishedWave` or earlier (still waiting for a
+ * slot in the active wave), keep their waves. Returns the new wave of each movable row whose wave changes.
  */
 export function replanRows(rows: readonly PlanRowLike[], finishedWave: number, concurrency: number): Map<string, number> {
-  const movable = rows.filter(isMovableRow);
+  const moves = (x: PlanRowLike) => isMovableRow(x) && x.wave > finishedWave;
+  const movable = rows.filter(moves);
   if (!movable.length) return new Map();
   const r = orderPlanRows(
     movable.map((x) => ({ rowId: x.rowId, anchors: x.anchors, dependsOn: x.dependsOn, priority: x.priority, seed: x.seed })),
-    { concurrency, firstWave: finishedWave + 1, seeds: "keep", context: rows.filter((x) => !isMovableRow(x) && x.state !== "skipped") },
+    { concurrency, firstWave: finishedWave + 1, seeds: "keep", context: rows.filter((x) => !moves(x) && x.state !== "skipped") },
   );
   const out = new Map<string, number>();
   for (const x of movable) {
