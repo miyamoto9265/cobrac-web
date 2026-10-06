@@ -39,7 +39,7 @@ async function json<T>(r: Response | Promise<Response>): Promise<T> {
 
 const rowsOf = (planId: string) => fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("ROW#")) as unknown as PlanRowRecord[];
 const planOf = (planId: string) => fake.items("plans").find((x) => x.planId === planId && x.sk === "META") as unknown as PlanRecord;
-const eventsOf = (planId: string) => (fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("EVT#")) as unknown as PlanEventRecord[]).sort((a, b) => (a.sk < b.sk ? -1 : 1));
+const eventsOf = (planId: string) => (fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("EVT#")) as unknown as PlanEventRecord[]).sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 const rowsKey = (planId: string) => rowsOf(planId).map((r) => `${r.roi}|${r.tlf}|${r.wave}|${r.updatedAt}`).sort();
 
 async function newPlan(): Promise<string> {
