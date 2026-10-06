@@ -112,8 +112,9 @@ export async function putPullRequest(pr: CanonPullRequestRecord) {
   await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: pr }));
 }
 
-export async function getPullRequest(canonId: string, no: number): Promise<CanonPullRequestRecord | null> {
-  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonPrSk(no) } }));
+/** `consistent`: a strongly consistent read (the plan runner reads a PR it may have written in the same step). */
+export async function getPullRequest(canonId: string, no: number, consistent = false): Promise<CanonPullRequestRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonPrSk(no) }, ConsistentRead: consistent }));
   return (r.Item as CanonPullRequestRecord) ?? null;
 }
 

@@ -87,6 +87,16 @@ Why there is no NAT Gateway: in Tokyo it adds roughly **$32/month per AZ plus da
 | planRunner | S3 get on `users/*_HCD/uc.json` | reads the finished rows' `uc.json` for the anchors they actually used (at most 20 reads per step) |
 | Worker task role | unchanged | already reads and writes the artifacts bucket and the Jobs table, and is the only role with KMS `Decrypt` |
 
+Stage 3 (the plan's Canon, design spec 6.22.2) changes the plan runner's grants as follows; the API, the dispatcher and the worker are unchanged:
+
+| Who | Grant | Why |
+| --- | ----- | --- |
+| planRunner | Canons: read / write (`grantReadWriteData`; replaces the stage-2 Query on `owner-index`) | lists the owner's Canons for the plan job's input; reads the plan's Canon each step; adds rows' projects to it (`MEMBER#`); creates pull requests (`PR#`, `PEV#`, superseding the project's older open one) and follows their state (the AI review job itself goes to the Jobs table, already granted) |
+| planRunner | S3 get / put on `canons/*` | reads the Canon's revisions (`canons/{id}/rev/`) to diff a push and to describe a conform follow-up; writes a pull request's `incoming.json` / `diff.json` (`canons/{id}/pr/{no}/`) and an AI review's `input.json` (`…/ai/{jobId}/`) |
+| planRunner | S3 get on `users/*/workspace/*` (replaces the stage-2 `users/*_HCD/uc.json`) | reads a finished project's workspace files (`uc.json`, connections, references, FRG, meta and the reference checks) to push it, and the finished rows' `uc.json` for the anchors they used |
+
+The runner gets no KMS grant and never approves, rejects or answers anything; approving stays a human action through the API (「まとめて承認」 included).
+
 Neither the API nor the plan runner can decrypt an API key (the API only encrypts a key when it is registered; the runner has no KMS grant at all), and the input of a plan job holds none. The worker resolves and decrypts the key of a plan job as it does for any job.
 
 ### 3.3 Network, delivery, auth
@@ -150,6 +160,7 @@ BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6; design spec 6.21) runs in i
 | Job execution | **Fargate CPU/memory time**, ENI/public IP, worker CloudWatch, S3 PUT, DynamoDB writes |
 | Waiting for a question | Fargate above stops. Only S3 storage and DynamoDB |
 | BRA Planner draft or re-plan | One Fargate task for a short Codex run (one turn, a second when the reply does not parse; at most 7 minutes, 25 for a draft of long lists, so about a cent at most on Spot), a few small S3 objects, DynamoDB writes |
+| BRA Planner with a Canon (stage 3) | No new kind of job: each body row's pull request gets one ordinary AI review job (`canon-review`), and a row whose pull request has conflicts because the Canon moved on gets at most 2 ordinary follow-up jobs (conform). Pushes are a few small S3 objects and DynamoDB writes in the runner |
 | `cdk deploy` | CodeBuild (when the image is rebuilt), ECR push, CloudFront invalidation, Lambda update |
 
 Concurrency: overall `COBRAC_MAX_CONCURRENT_JOBS` (default 2), 1 per user (`COBRAC_MAX_CONCURRENT_JOBS_PER_USER`). An admin can override both on the admin page (1–16 each, Catalog `config` / `concurrency`); the dispatcher and the plan runner re-read the setting every 30 seconds, so a change needs no deploy. Excess messages are re-queued after 60 seconds (wait time is SQS only). The BRA Planner never queues a row, or one of its own plan jobs (a draft or a re-plan), ahead of a free slot, so they wait in DynamoDB rather than in SQS. A plan job counts toward both limits like any job while it is queued or running.
@@ -257,6 +268,7 @@ Jobs of approved users without their own key run on the default API key, the org
 - Concurrency caps prevent unnoticed piles of Spot tasks. The admin setting accepts 1–16 per limit; 17 or more is refused.
 - BRA Planner (every minute): a plan starts a row only when a slot is free under both limits (queued jobs count), so a large plan never leaves jobs queued long enough for the 24-hour queue timeout. A failing row is retried at most 2 times, then waits for a person (「要対応」). A plan whose owner can no longer run jobs (no key, account disabled, chosen model no longer allowed) pauses itself instead of failing row after row.
 - BRA Planner plan jobs (stage 2): a draft or re-plan job is queued only when a slot is free, the same gate as rows (it is never queued ahead of one), and counts toward both limits; a re-plan job runs at most once per wave and about 10 times per plan (`MAX_REPLAN_JOBS`; the first after the first finished wave, later ones once a tenth of the rows have finished since the last), only for automatically ordered plans and never while the plan is paused. The worker aborts a plan job after 7 minutes (25 for a draft of long lists); the janitor fails one whose heartbeat stops or that waits 24 hours in the queue and never retries it. The runner reads at most 20 `uc.json` files per step.
+- BRA Planner with a Canon (stage 3): the AI reviews of body rows' pull requests and the conform follow-ups (at most 2 per row, `MAX_CONFORM_FOLLOWUPS`) are ordinary jobs on the owner's key or the default API key: they go through the same free-slot gate as rows (never queued ahead of a slot), count toward both limits and are billed like any job; the plan page counts the AI reviews of the plan's pull requests in the plan's cost so far. Seed rows get no AI review. A conform follow-up is sent only while its pull request is still open (the runner reads it again first), so no paid follow-up is spent on a pull request a person already approved or rejected. No new wave starts while 20 of the plan's pull requests wait for approval (`PLAN_MAX_WAITING_PRS`), so an unattended plan stops building instead of piling up work for its reviewers. Nothing is approved automatically.
 - Janitor (every 5 minutes): auto-retry up to 2 times if heartbeat is missing for 15 minutes; FAILED after 7 days waiting for a question or 24 hours in queue. On a Spot interruption the worker gets SIGTERM and up to 120 s (the task's stop timeout): it saves the workspace and thread to S3 and marks its heartbeat stale, so the job resumes at the next janitor run instead of after 15–30 minutes. During a turn the worker also saves every 5 minutes, so at most that much work is lost when the task dies without SIGTERM.
 
 ---

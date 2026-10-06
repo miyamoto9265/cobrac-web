@@ -99,6 +99,20 @@ export interface CanonPullRequestRecord {
   /** The reviewer asked for changes; the PR stays open until it is re-pushed (superseded), approved or rejected */
   reviewState?: "changes_requested" | null;
   reviewNote?: string | null;
+  /** BRA Planner: the plan of the pushed project (shown on the PR list and page) */
+  planId?: string | null;
+}
+
+/** POST /canons/:id/pulls/approve-many: the selected pull requests, approved one after another in this order. */
+export interface ApproveManyRequest {
+  prNos: number[];
+}
+
+export interface ApproveManyResponse {
+  /** Approved, in order, with the revision each one created */
+  approved: { prNo: number; revision: number }[];
+  /** The pull request the run stopped at (the rest were not tried), or null when all were approved */
+  stopped: { prNo: number; reason: "conflicts" | "closed" | "not_found" | "approvals" | "race"; blocking?: number } | null;
 }
 
 export interface CanonApproval {
