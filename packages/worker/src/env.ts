@@ -1,5 +1,5 @@
 import type { RunMode } from "@cobrac/shared";
-import { RESEARCH_BUDGET, isCanonId, isProjectIdLike } from "@cobrac/shared";
+import { RESEARCH_BUDGET, isCanonId, isPlanId, isProjectIdLike } from "@cobrac/shared";
 
 function req(name: string): string {
   const v = process.env[name];
@@ -61,8 +61,12 @@ export const env = {
   workflowTimeoutMs: Number(process.env.WORKFLOW_TIMEOUT_MS ?? String(6 * 60 * 60 * 1000)),
 };
 
-/** The ID names the work directory and S3 prefix, so only ID-shaped values are accepted (a Canon ID for an AI review). */
-function projectIdOf(v: string, mode: string | undefined): string {
-  if (!(mode === "canon-review" ? isCanonId(v) : isProjectIdLike(v))) throw new Error(`Invalid JOB_PROJECT_ID: ${v}`);
+/**
+ * The ID names the work directory and S3 prefix, so only ID-shaped values are accepted (a Canon ID for an AI review,
+ * a plan ID for a `plan` job).
+ */
+export function projectIdOf(v: string, mode: string | undefined): string {
+  const ok = mode === "canon-review" ? isCanonId(v) : mode === "plan" ? isPlanId(v) : isProjectIdLike(v);
+  if (!ok) throw new Error(`Invalid JOB_PROJECT_ID: ${v}`);
   return v;
 }

@@ -167,7 +167,7 @@ export class CobracAgentsStack extends Stack {
       partitionKey: { name: "kind", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "id", type: dynamodb.AttributeType.STRING },
     });
-    // BRA Planner: META / ROW#<rowId> / EVT#<at>#<nonce> items under one planId (new table; existing tables are untouched)
+    // BRA Planner: META / ROW#<rowId> / EVT#<at>#<nonce> / PROP#<proposalId> items under one planId (new table; existing tables are untouched)
     const plans = new dynamodb.TableV2(this, "Plans", {
       ...tableDefaults,
       partitionKey: { name: "planId", type: dynamodb.AttributeType.STRING },
@@ -422,6 +422,12 @@ export class CobracAgentsStack extends Stack {
     planRunnerFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["id"] } } }),
     );
+    // plan jobs (drafting and re-planning): the runner lists the owner's Canons for the job input, writes the job's
+    // input.json and reads its result.json under plans/, and reads finished rows' uc.json for the anchors they used
+    planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["dynamodb:Query"], resources: [`${canons.tableArn}/index/owner-index`] }));
+    artifacts.grantRead(planRunnerFn, "plans/*");
+    artifacts.grantPut(planRunnerFn, "plans/*");
+    artifacts.grantRead(planRunnerFn, "users/*_HCD/uc.json");
     // the dispatcher reads the concurrency limits set on the admin page (Catalog kind "config")
     dispatcherFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } } }),
@@ -439,6 +445,8 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantPut(apiFn, "staging/*");
     artifacts.grantDelete(apiFn, "staging/*");
     artifacts.grantPut(apiFn, "users/*/attachments/files/*");
+    // BRA Planner attachments (capability lists) are moved from staging/ into plans/{planId}/attachments/
+    artifacts.grantPut(apiFn, "plans/*");
     key.grantEncrypt(apiFn);
     // registering versions in BRA-DB (the function is in the BraDb stack; called by its fixed name)
     if (props.braDbImportFunction) {

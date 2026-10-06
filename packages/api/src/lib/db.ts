@@ -210,8 +210,9 @@ export async function listAllProjects(): Promise<ProjectRecord[]> {
 
 // --- jobs -------------------------------------------------------------------
 
-export async function getJob(projectId: string, jobId: string): Promise<JobRecord | null> {
-  const r = await ddb.send(new GetCommand({ TableName: env.tables.jobs, Key: { projectId, jobId } }));
+/** `consistent`: a strongly consistent read (the plan runner follows its plan jobs with one under the plan's lease). */
+export async function getJob(projectId: string, jobId: string, consistent = false): Promise<JobRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.jobs, Key: { projectId, jobId }, ConsistentRead: consistent }));
   return (r.Item as JobRecord) ?? null;
 }
 export async function putJob(j: JobRecord) {
