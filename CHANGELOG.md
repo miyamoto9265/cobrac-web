@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-10-06
+
 ### Changed
 - The BRA Planner is now called CoBRAC Orchestrator (「CoBRAC オーケストレーター」 in Japanese; "Orchestrator" / 「オーケストレーター」 on project chips and the plan's back link, where space is tight). The sidebar, page titles, chat notices ("Started by the CoBRAC Orchestrator …"), the pull-request chip help, the user manual and the design documents use the new name in all 10 languages. One unit is still a 「計画」 / "plan"; plans, URLs and stored data are unchanged
 
