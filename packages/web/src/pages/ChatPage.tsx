@@ -5,6 +5,7 @@ import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
+import { createRequestOf } from "../components/hypothesis/HypothesisControls";
 import { PairFields } from "../components/create/PairFields";
 import { Popover } from "../components/create/Popover";
 import { HelpTip } from "../components/HelpTip";
@@ -51,6 +52,7 @@ function NewProject() {
         researchMode: run.research,
         locale,
         canon: canonRequest(canon),
+        ...(run.hypothesis ? { hypothesis: createRequestOf(run.hypothesis) } : {}),
       });
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {

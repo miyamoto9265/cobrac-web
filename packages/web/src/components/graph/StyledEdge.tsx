@@ -3,6 +3,7 @@ import { memo, useEffect, useRef, useState, type PointerEvent as ReactPointerEve
 import type { ArrowHead, EdgeLineType, EdgeSign, EdgeStyle } from "@cobrac/shared";
 import { useT } from "../../i18n";
 import { SELF_LOOP_STEP, laneGeometry, laneLabelPlacement, type Lane, type LaneRoom, type Side } from "../../lib/parallelEdges";
+import { HypothesisMark, hypothesisDash } from "../hypothesis/HypothesisMark";
 import { markerBoxSize, markerUrl } from "./markers";
 
 export type XY = { x: number; y: number };
@@ -32,6 +33,8 @@ export type EdgeData = {
   /** set when other edges share this node pair: the lane keeps them apart */
   lane?: Lane;
   laneRoom?: LaneRoom;
+  /** Hypothesis mode: a hypothesis connection (dotted, with an "H" mark); `hollow` is the canvas colour of a hollow arrowhead */
+  hypothesis?: { title: string; hollow?: string };
   /** true when this edge is selected → show waypoint editing handles */
   editing: boolean;
   onWaypointsChange?: (id: string, wps: XY[]) => void;
@@ -298,7 +301,8 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
     : { transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` };
 
   const startMarker = markerUrl(s.markerStart === "none" ? null : { type: s.markerStart, color: s.color, width: s.width });
-  const endMarker = markerUrl(s.markerEnd === "none" ? null : { type: s.markerEnd, color: s.color, width: s.width });
+  const endMarker = markerUrl(s.markerEnd === "none" ? null : { type: s.markerEnd, color: s.color, width: s.width, hollow: d.hypothesis?.hollow });
+  const hyp = d.hypothesis;
   const width = s.width + (d.related || selected ? 1.2 : 0);
   const opacity = d.dim ? 0.12 : 1;
 
@@ -363,7 +367,8 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
         style={{
           stroke: s.color,
           strokeWidth: width,
-          strokeDasharray: s.dashed ? `${4 + s.width * 2} ${3 + s.width}` : undefined,
+          strokeDasharray: hyp ? hypothesisDash(s.width) : s.dashed ? `${4 + s.width * 2} ${3 + s.width}` : undefined,
+          strokeLinecap: hyp ? "round" : undefined,
           opacity,
           filter: selected ? `drop-shadow(0 0 2px ${s.color})` : undefined,
           transition: "stroke-width 120ms",
@@ -372,11 +377,19 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
       {d.label && (
         <EdgeLabelRenderer>
           <div
-            className="nodrag nopan pointer-events-none absolute max-w-[200px] truncate rounded border border-slate-200 bg-white/90 px-1 text-[10px] text-slate-600"
+            className="nodrag nopan pointer-events-none absolute flex max-w-[200px] items-center gap-1 truncate rounded border border-slate-200 bg-white/90 px-1 text-[10px] text-slate-600"
             style={{ transform: labelPlace.transform, maxWidth: selected || d.related ? undefined : labelPlace.maxWidth, opacity }}
             title={d.title}
           >
-            {d.label}
+            {hyp && <HypothesisMark title={hyp.title} size={12} className="pointer-events-auto" />}
+            <span className="truncate">{d.label}</span>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {hyp && !d.label && (
+        <EdgeLabelRenderer>
+          <div className="nodrag nopan absolute" style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, opacity, pointerEvents: "all" }}>
+            <HypothesisMark title={hyp.title} />
           </div>
         </EdgeLabelRenderer>
       )}

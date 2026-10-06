@@ -7,6 +7,8 @@ import { useI18n, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes, fmtDate } from "../../lib/format";
 import type { TableSource } from "../../lib/table";
+import { bradbBlockReason } from "@cobrac/shared";
+import { versionHypothesisRows } from "../hypothesis/HypothesisInfo";
 import { BradbPanel } from "./BradbPanel";
 import { TablesView } from "./TablesView";
 
@@ -218,7 +220,10 @@ function VersionDetail({
     ["ver.sabra", g?.sabraBoundary ? <span className="font-mono">{g.sabraBoundary}{g.rcsBoundaryVersion ? ` · RCS ${g.rcsBoundaryVersion}` : ""}</span> : unknown],
     ["ver.harnessRules", typeof g?.harnessRules === "number" ? <span className="font-mono">{g.harnessRules}</span> : unknown],
     ["ver.format", g?.braFormat ? <span className="font-mono">{g.braFormat}</span> : unknown],
+    ...versionHypothesisRows(t, g),
   ];
+  // hypothesis mode: versions with hypotheses cannot be registered in BRA-DB (the API refuses them as well)
+  const bradbBlocked = detail ? (detail.bradbBlockedReason ?? bradbBlockReason(g)) : item.hypotheses ? "hypotheses" : null;
 
   const btn = "flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium coarse:min-h-11 disabled:opacity-50";
 
@@ -242,7 +247,7 @@ function VersionDetail({
         ))}
       </dl>
 
-      <BradbPanel projectId={projectId} item={item} status={bradb} onChanged={onBradbChanged} />
+      <BradbPanel projectId={projectId} item={item} status={bradb} onChanged={onBradbChanged} blocked={bradbBlocked} />
 
       <div>
         <button type="button" disabled={tableSources.length === 0} onClick={() => setShowTables((v) => !v)} aria-expanded={showTables} className={`${btn} border border-slate-300 text-slate-700 hover:bg-slate-50`} data-testid="version-tables">

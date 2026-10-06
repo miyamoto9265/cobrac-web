@@ -5,6 +5,7 @@ import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared"
 import { formatTokens, formatUsd, projectDisplayName } from "@cobrac/shared";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { StatusBadge } from "../components/StatusBadge";
+import { HypothesisBadge } from "../components/hypothesis/HypothesisInfo";
 import { UsageBadge } from "../components/UsageBadge";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
@@ -170,6 +171,7 @@ export function ProjectsPage() {
                 {projectDisplayName(p)}
                 <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
+              <HypothesisBadge project={p} className="ml-auto" />
               <StatusBadge status={p.status} />
             </div>
             <dl className="mt-1 space-y-0.5 text-xs text-slate-600">
@@ -226,6 +228,7 @@ export function ProjectsPage() {
                     {projectDisplayName(p)}
                   </Link>
                   <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+                  <HypothesisBadge project={p} className="mt-0.5" />
                 </td>
                 <td className="max-w-[16rem] truncate px-4 py-2" title={p.roi}>
                   {p.roi || "-"}

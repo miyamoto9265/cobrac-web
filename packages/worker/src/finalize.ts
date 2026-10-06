@@ -7,6 +7,7 @@ import { BIBLIOGRAPHY_FILE, BRA_TEMPLATE_FILE, CSV_FILE_NAMES, HCD_FILES, buildG
 import { updateBibliography, type BibliographyOptions } from "./bibliography.js";
 import { childEnv } from "./childEnv.js";
 import { env } from "./env.js";
+import { readHypothesesFile } from "./hypothesisRules.js";
 import { projectPrefix, putObject } from "./s3sync.js";
 import { CSV_FILES, csvComplete, type ProjectPaths } from "./steps.js";
 
@@ -86,7 +87,7 @@ export async function finalizeProject(
     connectionsCsv: await read("Connections.csv"),
     frgCsv: await read("FRG.csv"),
     referencesCsv: await read("References.csv"),
-    ...(opts.hypothesisLines ? { hypothesisLines: true } : {}),
+    ...(opts.hypothesisLines ? { hypothesisLines: true, hypotheses: await readHypothesesFile(p) } : {}),
   });
   await put(`${prefix}graph/hcd.json`, JSON.stringify(hcd), "application/json");
   await put(`${prefix}graph/frg.json`, JSON.stringify(frg), "application/json");

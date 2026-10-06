@@ -4,6 +4,7 @@ import { memo, type CSSProperties } from "react";
 import type { NodeStyle } from "@cobrac/shared";
 import { CANVAS, edgeColor, inkOn, nodeFill } from "../../lib/graphTheme";
 import { useDark } from "../../lib/theme";
+import { HypothesisMark } from "../hypothesis/HypothesisMark";
 
 export interface GNode {
   id: string;
@@ -21,6 +22,11 @@ export interface GNode {
   height?: number;
   /** extra text matched by the search box (not shown on the node) */
   search?: string;
+  /**
+   * Hypothesis mode: an "H" mark whose title lists the hypothesis IDs; `dotted` draws a dotted border (a hypothesis UC on
+   * the HCD; the dashed border is the Collections')
+   */
+  hypothesis?: { title: string; dotted?: boolean };
   /** collapsible group (FRG): number of direct children and whether they are hidden */
   collapse?: { collapsed: boolean; count: number };
 }
@@ -85,7 +91,8 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
   const fill = nodeFill(style?.color ?? g.color, dark);
   const ink = inkOn(fill);
   const custom = style?.border ?? g.border;
-  const border = selected ? canvas.selected : custom ? edgeColor(custom, dark) : canvas.nodeBorder;
+  // a hypothesis UC's dotted border is drawn in the colour of its "H" so that it reads at a glance
+  const border = selected ? canvas.selected : custom ? edgeColor(custom, dark) : g.hypothesis?.dotted ? edgeColor("#b45309", dark) : canvas.nodeBorder;
   const pill = g.shape === "pill";
   return (
     <div
@@ -96,7 +103,8 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
       style={{
         background: fill,
         borderColor: border,
-        borderWidth: selected ? 2 : 1,
+        borderWidth: selected ? 2 : g.hypothesis?.dotted ? 1.6 : 1,
+        borderStyle: g.hypothesis?.dotted ? "dotted" : "solid",
         width: width ?? g.width ?? DEFAULT_NODE_W,
         height: height ?? g.height ?? DEFAULT_NODE_H,
         opacity: dim ? 0.22 : 1,
@@ -104,6 +112,7 @@ function BoxNodeImpl({ id, data, selected, width, height }: NodeProps<BoxNodeTyp
       }}
     >
       {g.accent && !pill && <span aria-hidden className="absolute inset-y-0 left-0 w-1.5" style={{ background: g.accent }} />}
+      {g.hypothesis && <HypothesisMark title={g.hypothesis.title} size={far ? 18 : 14} className="absolute right-0.5 top-0.5 z-[1]" />}
       <NodeResizer
         isVisible={!!selected && data.resizable}
         minWidth={60}

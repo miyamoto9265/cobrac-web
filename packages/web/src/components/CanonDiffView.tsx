@@ -1,6 +1,7 @@
 import { AlertOctagon, AlertTriangle, Info } from "lucide-react";
 import type { CanonChoice, CanonConflict, CanonDiff } from "@cobrac/shared";
 import { useT, type MessageKey } from "../i18n";
+import { CanonHypothesisChip } from "./hypothesis/HypothesisInfo";
 
 const SEVERITY = {
   error: { Icon: AlertOctagon, cls: "border-rose-200 bg-rose-50", icon: "text-rose-600" },
@@ -20,6 +21,7 @@ export function DiffSummary({ diff }: { diff: CanonDiff }) {
       {s.dropped > 0 && <span className={`${chip} bg-slate-100 text-slate-600`}>{t("pr.dropped", { n: s.dropped })}</span>}
       <span className={`${chip} ${s.errors ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500"}`}>{t("pr.errors", { n: s.errors })}</span>
       <span className={`${chip} ${s.warnings ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>{t("pr.warnings", { n: s.warnings })}</span>
+      <CanonHypothesisChip n={diff.hypotheses} />
     </div>
   );
 }

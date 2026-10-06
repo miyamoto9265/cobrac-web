@@ -18,6 +18,13 @@ import {
   UC_CLAIMS,
   buildCsvs,
   buildGraphs,
+  evidenceOnlyHcd,
+  gnDependenciesFromComments,
+  graphHypothesisCount,
+  isDirectionOnly,
+  isHypotheticalUc,
+  parseHypothesisLine,
+  stripHypothesisLine,
   checkCitations,
   buildHypothesesFile,
   buildTemplateXlsx,
@@ -1222,5 +1229,84 @@ describe("claims allowed by different scopes", () => {
       errors,
       lit("uc.json: `IO`: no single hypothesis scope allows all of its claims (role, transmitter): role by S1; transmitter by S2. A hypothesis names one scope, so keep only the claims one scope allows"),
     );
+  });
+});
+
+// --- stage 3: marks on the graph JSON -------------------------------------------------------------------------------
+
+describe("hypothesis marks on the graphs", () => {
+  const graphs = (o: { hypotheses?: boolean; mode?: boolean } = {}) => {
+    const m = modelOf();
+    const out = csvsOf(m);
+    const file = buildHypothesesFile(m, frgOf(m), { mode: "hypothesis", scopes: [S1], maxShare: 0.5 }, "2026-10-01T00:00:00.000Z");
+    return buildGraphs("HYP", {
+      circuitsCsv: out["Circuits.csv"],
+      connectionsCsv: out["Connections.csv"],
+      frgCsv: out["FRG.csv"],
+      ...(o.mode === false ? {} : { hypothesisLines: true }),
+      ...(o.hypotheses === false ? {} : { hypotheses: file }),
+    });
+  };
+  const node = (g: ReturnType<typeof buildGraphs>, id: string) => g.hcd.nodes.find((n) => n.id === id)!;
+  const edge = (g: ReturnType<typeof buildGraphs>, s: string, r: string) => g.hcd.edges.find((e) => e.source === s && e.target === r)!;
+
+  it("parses the hypothesis line with the same pattern stripHypothesisLine removes", () => {
+    const line = "Hypothesis (existence, sign; homology): Rat tracing [Smith, 2010].\nrest";
+    expect(parseHypothesisLine(line)).toEqual({ claims: ["existence", "sign"], basis: "homology", rationale: "Rat tracing [Smith, 2010]." });
+    expect(stripHypothesisLine(line)).toBe("rest");
+    for (const other of ["Hypothesis (guess; homology): x", "Hypothesis (existence; hunch): x", "note\nHypothesis (existence; homology): x"]) {
+      expect(parseHypothesisLine(other)).toBeNull();
+      expect(stripHypothesisLine(other)).toBe(other);
+    }
+  });
+
+  it("marks UCs, connections and GNs with the IDs, bases and premises of hypotheses.json", () => {
+    const g = graphs();
+    expect(node(g, "GC(granule)").hypothesis).toEqual({ items: [expect.objectContaining({ id: "H1", claims: ["role"], scope: "S1" })] });
+    expect(node(g, "GoC(golgi)").hypothesis!.items[0]).toMatchObject({ id: "H3", claims: ["population"] });
+    expect(isHypotheticalUc(node(g, "GoC(golgi)"))).toBe(true);
+    expect(isHypotheticalUc(node(g, "IO"))).toBe(false);
+    expect(node(g, "VN").hypothesis).toBeUndefined();
+    const vnIo = edge(g, "VN", "IO").hypothesis!;
+    expect(vnIo.items.map((i) => i.id)).toEqual(["H4"]);
+    expect(vnIo.items[0].premises.length).toBeGreaterThan(0);
+    expect(isDirectionOnly(vnIo)).toBe(true);
+    const goc = edge(g, "GoC(golgi)", "GC(granule)").hypothesis!;
+    expect(goc).toMatchObject({ only: true, items: [{ id: "H5", claims: ["existence"] }] });
+    expect(isDirectionOnly(goc)).toBe(false);
+    expect(edge(g, "VN", "GC(granule)").hypothesis).toBeUndefined();
+    expect(graphHypothesisCount(g.hcd)).toBe(5);
+    const gain = g.frg.nodes.find((n) => n.id === "R.Gain-Control")!;
+    expect(gain.hypotheses).toContain("H5");
+    expect(g.frg.nodes.filter((n) => n.kind === "uc").every((n) => n.hypotheses === undefined)).toBe(true);
+  });
+
+  it("falls back to the Comments when hypotheses.json is missing (no IDs), and marks nothing outside hypothesis mode", () => {
+    const g = graphs({ hypotheses: false });
+    expect(edge(g, "GoC(golgi)", "GC(granule)").hypothesis!.items[0]).toMatchObject({ claims: ["existence"], basis: expect.any(String) });
+    expect(edge(g, "GoC(golgi)", "GC(granule)").hypothesis!.items[0].id).toBeUndefined();
+    expect(node(g, "IO").hypothesis!.items[0].claims).toEqual(["transmitter"]);
+    // the GN dependencies are in the FRG Comments
+    expect(g.frg.nodes.find((n) => n.id === "R.Gain-Control")!.hypotheses).toContain("H5");
+    const plain = graphs({ mode: false });
+    expect(graphHypothesisCount(plain.hcd)).toBe(0);
+    expect(JSON.stringify(plain)).not.toMatch(/"hypothes[ie]s?"/);
+  });
+
+  it("reads the GN dependency note at the end of the Comments only", () => {
+    expect(gnDependenciesFromComments("Gain control. Depends on hypotheses: H2, H5")).toEqual(["H2", "H5"]);
+    expect(gnDependenciesFromComments("Depends on hypotheses: H2, H5 and more")).toEqual([]);
+  });
+
+  it("evidenceOnlyHcd drops hypothesis-only connections and population UCs, keeps property hypotheses without marks", () => {
+    const g = graphs();
+    const e = evidenceOnlyHcd(g.hcd);
+    expect(e.nodes.map((n) => n.id)).not.toContain("GoC(golgi)");
+    expect(e.nodes.map((n) => n.id)).toContain("IO");
+    expect(e.edges.some((x) => x.source === "GoC(golgi)" || x.target === "GoC(golgi)")).toBe(false);
+    expect(graphHypothesisCount(e)).toBe(0);
+    // a direction hypothesis rests on an evidence record of the projection itself, but it is the pair's only record
+    expect(e.edges.some((x) => x.source === "VN" && x.target === "IO")).toBe(false);
+    expect(g.hcd.nodes.length).toBeGreaterThan(e.nodes.length);
   });
 });
