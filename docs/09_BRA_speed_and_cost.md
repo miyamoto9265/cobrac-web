@@ -5,7 +5,7 @@
 | Document | How long BRA generation takes and what it costs in OpenAI usage: the investigation into where the time goes, the v0.18.0 speed-up and its before/after comparison, the fix for usage counted twice (v0.17.1) and the correction of older jobs (v0.18.1), and faster recovery from Spot interruptions (v0.18.2) |
 | Audience | Users, operators, and anyone checking how long BRA generation takes or what it costs |
 | Versions | App 0.17.1–0.18.2 (all released on 2026-10-01). The investigation looked at production runs on 0.16.0 |
-| Related | [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) (harness v2) / [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [09_BRA_speed_and_cost_ja.md](./09_BRA_speed_and_cost_ja.md) |
+| Related | [04_CoBRAC_Harness_v2.md](./04_CoBRAC_Harness_v2.md) (harness v2) / [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [09_BRA_speed_and_cost_ja.md](./09_BRA_speed_and_cost_ja.md) |
 | PRs | [#61](https://github.com/miyamoto9265/cobrac-web/pull/61) (0.18.0 speed-up), [#63](https://github.com/miyamoto9265/cobrac-web/pull/63) (0.17.1 double count), [#69](https://github.com/miyamoto9265/cobrac-web/pull/69) (0.18.1 correction of older jobs), [#66](https://github.com/miyamoto9265/cobrac-web/pull/66)–[#68](https://github.com/miyamoto9265/cobrac-web/pull/68) and [#70](https://github.com/miyamoto9265/cobrac-web/pull/70) (0.18.2 Spot interruption, clones, message language) |
 
 ---

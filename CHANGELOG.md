@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.36.2] - 2026-10-07
+
+### Changed
+- Admin documentation now includes a comprehensive Japanese/English guide to the current CoBRAC harness v2, covering architecture, current ROI and GN rules, hypotheses, validation, outputs and saved versions. Full prompt sources and reference tables open on demand through “Show details”. The three earlier transition articles are retained in a separate collapsed archive, with their existing URLs and language switches preserved
+
 ## [0.36.1] - 2026-10-06
 
 ### Changed

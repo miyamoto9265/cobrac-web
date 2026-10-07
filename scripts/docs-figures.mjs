@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { C, NW, arrow, badge, box, legendRows, pill, svg, text, textWidth } from "./docs-figures-lib.mjs";
 import { HARNESS_V1_1_FIGURES } from "./docs-figures-harness-v1-1.mjs";
 import { HARNESS_V2_FIGURES } from "./docs-figures-harness-v2.mjs";
+import { HARNESS_CURRENT_FIGURES } from "./docs-figures-harness-current.mjs";
 import { CIRCUIT_NAMING_FIGURES } from "./docs-figures-circuit-naming.mjs";
 import { SPEED_COST_FIGURES } from "./docs-figures-speed-cost.mjs";
 import { MANUAL_FIGURES } from "./docs-figures-manual.mjs";
@@ -792,6 +793,7 @@ function outputNarrow(lang) {
 const FIGURES = {
   ...HARNESS_V1_1_FIGURES,
   ...HARNESS_V2_FIGURES,
+  ...HARNESS_CURRENT_FIGURES,
   ...CIRCUIT_NAMING_FIGURES,
   ...SPEED_COST_FIGURES,
   "harness-overview": [overview, (lang) => overview(lang, true)],

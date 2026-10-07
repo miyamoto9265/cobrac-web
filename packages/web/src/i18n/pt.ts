@@ -371,6 +371,8 @@ export const pt: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} tarefas",
 
   "docs.title": "Docs",
+  "docs.archive": "Arquivo",
+  "docs.archivedNotice": "Este artigo arquivado compara versões anteriores. Consulte a documentação atual para conhecer o comportamento vigente.",
   "docs.repo": "Repositório",
   "docs.empty": "Nenhum documento",
   "releases.title": "Notas da versão",

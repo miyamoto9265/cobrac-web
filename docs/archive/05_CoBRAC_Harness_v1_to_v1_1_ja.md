@@ -5,7 +5,7 @@
 | 文書 | CoBRAC ハーネス v1 から v1.1 への変更点の解説。データファイルの JSON 化、SABRA に基づく UC の命名、レポートと判断ログの閲覧 |
 | 対象読者 | 利用者、運用者、BRA の品質や OpenAI の利用料を確認する人 |
 | 対象バージョン | v1 = アプリ 0.5.0〜0.6.0 / v1.1 = アプリ 0.8.0 以降。UC の命名規則と RCS 連携は 0.7.0 で先に入った（0.7.x はデータがまだ md の表だった途中段階） |
-| 関連 | [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md)（v0 → v1）/ [01_設計仕様.md](./01_設計仕様.md) / English: [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) |
+| 関連 | [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md)（v0 → v1）/ [01_設計仕様.md](../01_設計仕様.md) / English: [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) |
 
 ---
 
@@ -15,7 +15,7 @@ v1 で、ワーカーがフェーズを進めて検証する仕組みになり�
 
 v1.1 では 3 つを変えました。**データは JSON で書き、JSON Schema で形を保証します。** CSV はいつもコードが作ります。**UC は RCS で SABRA の単位に固定して名付け、その名前をワーカーが検査します。** そして、**md は人が読むレポートと判断ログの 2 本だけにし、どちらもチャット画面で読めるようにしました。**
 
-![v1 ではデータが md の表で、ワーカーがパースし直していた。v1.1 ではデータが JSON で、JSON Schema と UC 命名規則で検査し、レポートと判断ログも画面で読める](./figures/harness-v1-1-overview.ja.svg "図 1　ハーネス v1 と v1.1 の比較：データの形式と UC の名前")
+![v1 ではデータが md の表で、ワーカーがパースし直していた。v1.1 ではデータが JSON で、JSON Schema と UC 命名規則で検査し、レポートと判断ログも画面で読める](../figures/harness-v1-1-overview.ja.svg "図 1　ハーネス v1 と v1.1 の比較：データの形式と UC の名前")
 
 ---
 
@@ -37,7 +37,7 @@ v1.1 では 3 つを変えました。**データは JSON で書き、JSON Schem
 
 ### 3.1 v1：データは md の表、ワーカーがパースし直す
 
-![v1 のデータの流れ。エージェントは HCD の md 6 本と FRG の md 5 本を書き、ワーカーはそのうち 5 本の表をパースして検査し、CSV を作る。残りの md は存在を確認するだけ。CSV が作れないとエージェントが手書きする](./figures/harness-v1-1-v1-flow.ja.svg "図 2　v1 のデータの流れ（丸数字は下の弱点に対応）")
+![v1 のデータの流れ。エージェントは HCD の md 6 本と FRG の md 5 本を書き、ワーカーはそのうち 5 本の表をパースして検査し、CSV を作る。残りの md は存在を確認するだけ。CSV が作れないとエージェントが手書きする](../figures/harness-v1-1-v1-flow.ja.svg "図 2　v1 のデータの流れ（丸数字は下の弱点に対応）")
 
 v1 の弱点：
 
@@ -48,7 +48,7 @@ v1 の弱点：
 
 ### 3.2 v1.1：データは JSON、名前は SABRA に固定
 
-![v1.1 のデータの流れ。エージェントは RCS で脳領域を照会し、JSON のデータファイル 4 本と md 2 本を書く。ワーカーは JSON Schema、相互参照、UC 命名規則で検査し、問題を JSON ポインタ付きで返す。CSV はコードだけが作る](./figures/harness-v1-1-v11-flow.ja.svg "図 3　v1.1 のデータの流れ（丸数字は 3.1 の弱点への対応）")
+![v1.1 のデータの流れ。エージェントは RCS で脳領域を照会し、JSON のデータファイル 4 本と md 2 本を書く。ワーカーは JSON Schema、相互参照、UC 命名規則で検査し、問題を JSON ポインタ付きで返す。CSV はコードだけが作る](../figures/harness-v1-1-v11-flow.ja.svg "図 3　v1.1 のデータの流れ（丸数字は 3.1 の弱点への対応）")
 
 フェーズの骨格（HCD → FRG → CSV → xlsx、ワーカーがフェーズを進めて検証する、ターンの終わりに `{status, message, question}` を返す）は v1 と同じです。変わったのは、エージェントが書くファイルと、ワーカーの検査と生成です。
 
@@ -86,7 +86,7 @@ v1 の弱点：
 
 0.7.0 から、すべての UC（ROI の内側も外側も）を SABRA の単位 1 つに固定して名付けます。SABRA にも UC にも独自の ID はありません。**UC Descriptor**（アンカー + 必要なときだけファセット）が UC のキーで、**Circuit ID** はその読みやすい別名です。同じ神経集団には、どのプロジェクトでも同じ名前が付きます。
 
-![UC Descriptor HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe から Circuit ID VTA(DA,out:NAC,rpe) を組み立てる対応と、アンカーを決める 4 つの手順](./figures/harness-v1-1-uc-naming.ja.svg "図 4　UC Descriptor と Circuit ID の組み立て方")
+![UC Descriptor HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe から Circuit ID VTA(DA,out:NAC,rpe) を組み立てる対応と、アンカーを決める 4 つの手順](../figures/harness-v1-1-uc-naming.ja.svg "図 4　UC Descriptor と Circuit ID の組み立て方")
 
 - **アンカーだけが通常です。** UC が SABRA の単位そのものなら、記述子はアンカーだけ、Circuit ID は略称だけです（`HOMBA:12261` / `VTA`、`BNA:223-224` / `NAC`、`BNA:57` / `A4ul@L`）。ファセットは、単位より細かい集団が HCD に必要なときだけ足します。伝達物質は Transmitter 列、内容は Output Semantics に書き、UC を説明するためにファセットを足すことはしません。
 - **Circuit ID の先頭はアンカーの正式略称です。** DHBA の略称か BNA の領域略称をそのまま使い、独自の略称（`NAc`、`LC`）や下位単位の略称（`NACs`、`CA1`）は括弧の中に入れます。片側だけの UC は `@L` / `@R` を付けます。
@@ -106,7 +106,7 @@ v1 の弱点：
 
 0.8.0 から、ワーカーがパースしていた md の表を JSON のデータファイルに置き換えました。
 
-![v1 の md ファイルと v1.1 のファイルの対応。4 本の md は廃止された](./figures/harness-v1-1-files.ja.svg "図 5　ファイルの対応：v1 の md から v1.1 のファイルへ")
+![v1 の md ファイルと v1.1 のファイルの対応。4 本の md は廃止された](../figures/harness-v1-1-files.ja.svg "図 5　ファイルの対応：v1 の md から v1.1 のファイルへ")
 
 | v1 | v1.1 | 理由 |
 | -- | ---- | ---- |
@@ -147,7 +147,7 @@ CSV フェーズにエージェントのターンはありません。`buildCsvs
 
 各フェーズで、リクエストのたびに文脈に載っている指示の量です。
 
-![HCD フェーズは 2,017 から 4,915 トークン、FRG フェーズは 3,053 から 5,979 トークン。増えた分の大半は HCD.md の UC 命名規則](./figures/harness-v1-1-instruction-tokens.ja.svg "図 6　各フェーズで、リクエストのたびに文脈に載っている指示の量（v1 と v1.1）")
+![HCD フェーズは 2,017 から 4,915 トークン、FRG フェーズは 3,053 から 5,979 トークン。増えた分の大半は HCD.md の UC 命名規則](../figures/harness-v1-1-instruction-tokens.ja.svg "図 6　各フェーズで、リクエストのたびに文脈に載っている指示の量（v1 と v1.1）")
 
 v1.1 の指示は v1 のおよそ 2 倍です。増えた分の約 3 分の 2 は、0.7.0 で `HCD.md` に入った UC 命名規則（+1,877）です。JSON 化の増分は `AGENTS.md` +299 と `HCD.md` +501 で、ファイル構成・JSON の書き方・判断ログの説明が増えました。JSON Schema 自体は `schemas/` に置き、エージェントが必要なときだけ読むので、毎回の文脈には入りません。
 

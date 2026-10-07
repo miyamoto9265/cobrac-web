@@ -28,11 +28,18 @@ describe("docSummary / compareDocs", () => {
     expect(items[0]).toMatchObject({ number: "02", title: "A", group: "docs" });
     expect(items[2]).toMatchObject({ number: null, title: "README", group: "repo" });
   });
+
+  it("keeps archived articles and their original slugs separate from current documents", () => {
+    const old = docSummary("04_Old", "# Old harness", true);
+    const items = [old, docSummary("README", "# README"), docSummary("07_Current", "# Current harness")].sort(compareDocs);
+    expect(old).toMatchObject({ slug: "04_Old", group: "archive", number: "04" });
+    expect(items.map((d) => d.slug)).toEqual(["07_Current", "04_Old", "README"]);
+  });
 });
 
 describe("docFigureFiles", () => {
   it("lists referenced figures with their phone versions", () => {
-    const md = '![a](./figures/x.ja.svg "c")\n![b](figures/y.svg)\n![ext](https://e/z.svg)';
-    expect(docFigureFiles(md)).toEqual(["x.ja.svg", "x.ja.narrow.svg", "y.svg", "y.narrow.svg"]);
+    const md = '![a](./figures/x.ja.svg "c")\n![b](figures/y.svg)\n![archived](../figures/old.svg)\n![ext](https://e/z.svg)';
+    expect(docFigureFiles(md)).toEqual(["x.ja.svg", "x.ja.narrow.svg", "y.svg", "y.narrow.svg", "old.svg", "old.narrow.svg"]);
   });
 });

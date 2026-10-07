@@ -3,7 +3,7 @@
  * are not part of the public web bundle. The release notes (`CHANGELOG.md`) are not among them.
  */
 
-export type DocGroup = "docs" | "repo";
+export type DocGroup = "docs" | "archive" | "repo";
 
 export interface DocSummary {
   slug: string;
@@ -91,14 +91,15 @@ export function docDescription(text: string): string {
   return clip(plain(joined));
 }
 
-export function docSummary(slug: string, text: string): DocSummary {
+export function docSummary(slug: string, text: string, archived = false): DocSummary {
   const repo = (REPO_DOCS as readonly string[]).includes(slug);
-  return { slug, title: repo ? slug : docTitle(slug, text), description: docDescription(text), number: repo ? null : docNumber(slug), group: repo ? "repo" : "docs" };
+  return { slug, title: repo ? slug : docTitle(slug, text), description: docDescription(text), number: repo ? null : docNumber(slug), group: repo ? "repo" : archived ? "archive" : "docs" };
 }
 
-/** Numbered documents first (by number, then slug), then README and AGENTS. */
+/** Current documents, archived documents, then README and AGENTS. */
 export function compareDocs(a: DocSummary, b: DocSummary): number {
-  if (a.group !== b.group) return a.group === "docs" ? -1 : 1;
+  const order = { docs: 0, archive: 1, repo: 2 };
+  if (a.group !== b.group) return order[a.group] - order[b.group];
   if (a.group === "repo") return REPO_DOCS.indexOf(a.slug as (typeof REPO_DOCS)[number]) - REPO_DOCS.indexOf(b.slug as (typeof REPO_DOCS)[number]);
   return Number(a.number ?? 99) - Number(b.number ?? 99) || a.slug.localeCompare(b.slug);
 }
@@ -106,7 +107,7 @@ export function compareDocs(a: DocSummary, b: DocSummary): number {
 /** `figures/<file>.svg` referenced from the Markdown, plus the phone version `<file>.narrow.svg` of each. */
 export function docFigureFiles(text: string): string[] {
   const out = new Set<string>();
-  for (const m of text.matchAll(/!\[[^\]]*\]\(\s*(?:\.\/)?figures\/([A-Za-z0-9._-]+\.svg)/g)) {
+  for (const m of text.matchAll(/!\[[^\]]*\]\(\s*(?:\.{1,2}\/)?figures\/([A-Za-z0-9._-]+\.svg)/g)) {
     out.add(m[1]);
     if (!m[1].endsWith(".narrow.svg")) out.add(m[1].replace(/\.svg$/, ".narrow.svg"));
   }

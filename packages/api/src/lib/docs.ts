@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { REPO_DOCS, compareDocs, docFigureFiles, docSummary, type DocContentResponse, type DocSummary } from "@cobrac/shared";
 
 /**
- * Root that holds `docs/*.md`, `docs/figures/*.svg`, `README.md` and `AGENTS.md`: DOCS_ROOT, else `admin-docs/` next to
+ * Root that holds `docs/*.md`, `docs/archive/*.md`, `docs/figures/*.svg`, README and AGENTS: DOCS_ROOT, else `admin-docs/` next to
  * the Lambda handler (copied there by the CDK bundling), else the repository checkout (tests, local runs).
  */
 function docsRoot(): string {
@@ -23,14 +23,26 @@ let cached: Promise<Loaded> | null = null;
 async function load(): Promise<Loaded> {
   const root = docsRoot();
   const files = new Map<string, string>();
+  const archived = new Set<string>();
   const names = (await readdir(join(root, "docs"))).filter((n) => n.endsWith(".md"));
   for (const n of names) files.set(n.replace(/\.md$/, ""), join(root, "docs", n));
+  const archiveNames = await readdir(join(root, "docs", "archive")).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  });
+  for (const n of archiveNames.filter((n) => n.endsWith(".md"))) {
+    const slug = n.replace(/\.md$/, "");
+    // Keep the original URL when moving an article; a current article wins any duplicate basename.
+    if (files.has(slug) || (REPO_DOCS as readonly string[]).includes(slug)) continue;
+    files.set(slug, join(root, "docs", "archive", n));
+    archived.add(slug);
+  }
   for (const n of REPO_DOCS) files.set(n, join(root, `${n}.md`));
   const items: DocSummary[] = [];
   for (const [slug, path] of files) {
     const text = await readFile(path, "utf8").catch(() => null);
     if (text === null) files.delete(slug);
-    else items.push(docSummary(slug, text));
+    else items.push(docSummary(slug, text, archived.has(slug)));
   }
   return { files, items: items.sort(compareDocs) };
 }
