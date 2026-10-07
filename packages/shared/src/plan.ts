@@ -91,16 +91,28 @@ export type PlanDecisionReason = "conflicts" | "conform_limit" | "pr_rejected" |
 /** The Canon of a plan, chosen in a draft: none, one of the owner's Canons, or a new one created at confirmation. */
 export type PlanCanonChoice = { mode: "none" } | { mode: "existing"; canonId: string } | { mode: "new"; name: string };
 
-/** Settings every row's project is created with; fixed when the plan is confirmed. */
+/** Settings every row's project (and the Orchestrator's own jobs) is created with; fixed when the plan is confirmed. */
 export interface PlanSettings {
   /** Model the rows run on: chosen, or resolved from the defaults at confirmation (null before) */
   model: string | null;
   /** True when the owner picked `model`; a picked model the owner may no longer use pauses the plan instead of being replaced */
   modelChosen: boolean;
+  /**
+   * Model of the Orchestrator's own jobs (drafts, re-plans, AI reviews of the rows' pull requests): chosen, or resolved
+   * from the defaults at confirmation (null before). Absent on plans made before it could be chosen: they use `model`.
+   */
+  orchestratorModel?: string | null;
+  /** True when the owner picked `orchestratorModel` (as `modelChosen`) */
+  orchestratorModelChosen?: boolean;
   reasoningEffort: ReasoningEffort | null;
   researchMode: boolean;
   /** Language of the agents' chat replies (the UI language at confirmation) */
   locale: UiLocale | null;
+}
+
+/** The Orchestrator's model and whether the owner picked it; plans made before it could be chosen use the rows' model. */
+export function orchestratorModelOf(s: PlanSettings): { model: string | null; chosen: boolean } {
+  return s.orchestratorModel === undefined ? { model: s.model, chosen: s.modelChosen } : { model: s.orchestratorModel, chosen: !!s.orchestratorModelChosen };
 }
 
 export const PLAN_META_SK = "META";
@@ -179,7 +191,7 @@ export interface PlanRecord {
   goal: string;
   status: PlanStatus;
   settings: PlanSettings;
-  /** Granularity policy (粒度方針) for the plan's Canon: written by the draft, edited in a draft, changed after confirmation only through an accepted proposal */
+  /** Granularity policy (粒度方針) for the plan's Canon: written by the Orchestrator (the draft, then re-plans), never by the owner */
   policy?: string;
   /** Absent on stage-1 plans = manual */
   ordering?: PlanOrdering;
@@ -275,7 +287,10 @@ export interface PlanRowRecord {
 export type PlanProposalKind = "add" | "remove" | "policy";
 export type PlanProposalStatus = "open" | "accepted" | "rejected" | "stale";
 
-/** A change a re-plan job proposes; nothing changes until the owner accepts it (`PROP#<proposalId>`). */
+/**
+ * A change a re-plan job proposes (`PROP#<proposalId>`). Rows change only when the owner accepts it; a new policy is
+ * the Orchestrator's own decision and is stored already accepted, with `decidedBy` "runner".
+ */
 export interface PlanProposalRecord {
   planId: string;
   sk: string;
@@ -373,11 +388,9 @@ export interface CreatePlanRequest {
 export interface UpdatePlanRequest {
   name?: string;
   goal?: string;
-  /** Draft only */
-  policy?: string;
   /** Draft only: the plan's Canon (stage 3) */
   canon?: PlanCanonChoice;
-  settings?: Partial<Pick<PlanSettings, "model" | "reasoningEffort" | "researchMode">>;
+  settings?: Partial<Pick<PlanSettings, "model" | "orchestratorModel" | "reasoningEffort" | "researchMode">>;
 }
 
 /** POST /plans/:id/draft */
@@ -595,7 +608,7 @@ const HEADER_ALIASES: Record<"roi" | "tlf" | "rationale" | "wave" | "priority", 
   roi: ["roi", "region", "regionofinterest", "brainregion", "area", "脳領域", "領域", "部位", "関心領域", "脳部位"],
   tlf: ["tlf", "toplevelfunction", "function", "capability", "ability", "機能", "能力", "トップレベル機能", "最上位機能"],
   rationale: ["rationale", "reason", "note", "notes", "comment", "comments", "description", "理由", "根拠", "備考", "説明", "メモ"],
-  wave: ["wave", "波"],
+  wave: ["wave", "batch", "バッチ", "波"],
   priority: ["priority", "優先度", "優先順位"],
 };
 const headerKey = (cell: string) => cell.normalize("NFKC").toLowerCase().replace(/[\s_\-.()（）・:：]/gu, "");
@@ -621,7 +634,7 @@ function splitTable(text: string): string[][] {
 
 /**
  * Rows of a capability list (CSV or TSV). With a header row, the columns are found by name (ROI / region / 脳領域,
- * TLF / function / capability / 機能 / 能力, rationale / note / 理由, wave / 波, priority / 優先度; other columns are
+ * TLF / function / capability / 機能 / 能力, rationale / note / 理由, wave / batch / バッチ / 波, priority / 優先度; other columns are
  * ignored). Without one, a single column is the TLF and otherwise the columns are ROI, TLF, rationale. Blank lines are
  * skipped; every other row is either returned or listed in `rejected` with its spreadsheet row number and the reason.
  */

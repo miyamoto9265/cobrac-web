@@ -56,6 +56,7 @@ import {
   newId,
   nextActiveWave,
   nowIso,
+  orchestratorModelOf,
   planFinished,
   policyAllows,
   prOutcome,
@@ -91,17 +92,27 @@ export interface AdvanceResult {
   planJob?: string;
 }
 
-/** Whether the owner may start a job now, and on which model (the plan's model, or the tier default for one the owner did not pick). */
-export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<{ ok: true; policy: ModelPolicy & { source: KeySource }; model: string } | { ok: false; reason: PlanPauseReason }> {
+/** The models a plan's jobs run on: the rows' (`model`) and the Orchestrator's own jobs' (`orchestratorModel`). */
+export type PlanGate = { policy: ModelPolicy & { source: KeySource }; model: string; orchestratorModel: string };
+
+/**
+ * Whether the owner may start a job now, and on which models (each the plan's, or the tier default for one the owner did
+ * not pick). A picked model the owner may no longer use stops both kinds of job.
+ */
+export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
   const policy = await runPolicy(owner);
   if (!policy.source) return { ok: false, reason: "no_key" };
-  let model = plan.settings.model || deploymentDefaultModel();
-  if (!policyAllows(policy, model)) {
-    if (plan.settings.modelChosen) return { ok: false, reason: "model_not_allowed" };
-    model = implicitModel(policy, model);
-  }
-  return { ok: true, policy: { ...policy, source: policy.source }, model };
+  const resolve = (chosen: string | null, picked: boolean): string | null => {
+    const model = chosen || deploymentDefaultModel();
+    if (policyAllows(policy, model)) return model;
+    return picked ? null : implicitModel(policy, model);
+  };
+  const o = orchestratorModelOf(plan.settings);
+  const model = resolve(plan.settings.model, plan.settings.modelChosen);
+  const orchestratorModel = resolve(o.model, o.chosen);
+  if (!model || !orchestratorModel) return { ok: false, reason: "model_not_allowed" };
+  return { ok: true, policy: { ...policy, source: policy.source }, model, orchestratorModel };
 }
 
 async function setRow(plan: PlanRecord, row: PlanRowRecord, to: PlanRowState, values: Partial<PlanRowRecord>, event: PlanEventType | null, detail?: Record<string, string | number | null>): Promise<boolean> {
@@ -246,7 +257,7 @@ async function syncTracked(plan: PlanRecord, row: PlanRowRecord, project: Projec
 }
 
 /** Starts one pending row: its project (new, or the one a start did not finish), or a retry of its failed project. */
-async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }, cs: CanonStep | null): Promise<boolean> {
+async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord, gate: PlanGate, cs: CanonStep | null): Promise<boolean> {
   const at = nowIso();
   const canon = cs?.canon ?? null;
   const existing = row.projectId ? await getProject(owner.userId, row.projectId) : null;
@@ -342,7 +353,7 @@ async function joinCanon(owner: UserRecord, p: ProjectRecord, canon: CanonRecord
  * A conform follow-up: the row's finished project is re-pinned to the Canon head and gets the fixed instruction
  * 「Canon rev N に合わせて更新」 with what changed for it since its pin; it is pushed again when it completes.
  */
-async function startConform(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }, canon: CanonRecord | null): Promise<boolean> {
+async function startConform(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord, owner: UserRecord, gate: PlanGate, canon: CanonRecord | null): Promise<boolean> {
   if (!canon) {
     await decide(plan, row, "push_failed", CANON_MISSING, { conform: false });
     return false;
@@ -383,7 +394,7 @@ async function startConform(plan: PlanRecord, row: PlanRowRecord, p: ProjectReco
  * Asks the AI review of a 「承認待ち」 body row's pull request (on a slot the caller counted). False when no job was
  * queued: the pull request is no longer open (nothing to review), or a review of it is already queued or running.
  */
-async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: CanonRecord, owner: UserRecord, gate: { policy: ModelPolicy & { source: KeySource }; model: string }): Promise<boolean> {
+async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: CanonRecord, owner: UserRecord, gate: PlanGate): Promise<boolean> {
   const set = async (values: Partial<PlanRowRecord>) => {
     if (await updateRow(plan.planId, row.rowId, values, { state: "review" })) Object.assign(row, values);
   };
@@ -394,7 +405,7 @@ async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: Can
   }
   let r: Awaited<ReturnType<typeof requestAiReview>>;
   try {
-    r = await requestAiReview(owner, canon, pr, gate.policy, { model: gate.model, locale: plan.settings.locale ?? "ja" });
+    r = await requestAiReview(owner, canon, pr, gate.policy, { model: gate.orchestratorModel, locale: plan.settings.locale ?? "ja" });
   } catch (e) {
     console.error(`[plan ${plan.planId}] AI review of #${pr.prNo} could not be queued`, errorText(e));
     return false;
@@ -587,7 +598,7 @@ async function followReplan(plan: PlanRecord, result: AdvanceResult) {
   if (p.to !== "completed") return endReplan(plan, r, p.to, p.error);
   const parsed = await readPlanResult(plan.planId, "replan", r.jobId!);
   if (!parsed) return endReplan(plan, r, "failed", "The result of the re-plan job could not be read.");
-  const n = await storeProposals(plan.planId, r.jobId!, r.wave ?? null, parsed);
+  const n = await storeProposals(plan.planId, r.jobId!, r.wave ?? null, parsed, RUNNER);
   plan.replan = { ...r, status: "done", error: null, dropped: parsed.dropped, endedAt: nowIso() };
   await updatePlan(plan.planId, { replan: plan.replan });
   await putPlanEvent(plan.planId, "proposals_received", RUNNER, { detail: { n, wave: r.wave ?? null } });

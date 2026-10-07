@@ -1,8 +1,8 @@
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, FileUp, GitPullRequest, Layers, ListChecks, Loader2, Pause, Pencil, Play, Plus, RotateCcw, Save, Send, SkipForward, Sparkles, Square, Trash2, Upload, Wand2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { CanonRecord, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, ReasoningEffort } from "@cobrac/shared";
-import { MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, planEstimate } from "@cobrac/shared";
+import type { CanonRecord, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, UpdatePlanRequest } from "@cobrac/shared";
+import { MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, orchestratorModelOf, planEstimate } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
@@ -233,18 +233,20 @@ function Settings({ d, onChanged, onError }: { d: PlanDetailResponse; onChanged:
   const t = useT();
   const { plan } = d;
   const s = plan.settings;
+  const o = orchestratorModelOf(s);
   // the settings stay open while a draft is being written (only the rows are locked then)
   const draft = plan.status === "DRAFT" || plan.status === "DRAFTING";
-  const save = (b: { model?: string | null; reasoningEffort?: ReasoningEffort | null; researchMode?: boolean }) => void api.updatePlan(plan.planId, { settings: b }).then(onChanged).catch(onError);
-  // the model and effort are shown from local state and saved after a pause, so typing a custom model ID is not interrupted
-  const [choice, setChoice] = useState({ model: s.modelChosen ? s.model : null, effort: s.reasoningEffort });
+  const save = (b: NonNullable<UpdatePlanRequest["settings"]>) => void api.updatePlan(plan.planId, { settings: b }).then(onChanged).catch(onError);
+  // the models and effort are shown from local state and saved after a pause, so typing a custom model ID is not interrupted
+  const [choice, setChoice] = useState({ model: s.modelChosen ? s.model : null, effort: s.reasoningEffort, orchestratorModel: o.chosen ? o.model : null });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
-  const choose = (v: { model: string | null; effort: ReasoningEffort | null }) => {
+  const choose = (v: typeof choice) => {
     setChoice(v);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort }), 600);
+    timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort, orchestratorModel: v.orchestratorModel }), 600);
   };
+  const sub = "mb-1 text-xs font-semibold text-slate-700";
   return (
     <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-settings">
       <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
@@ -252,87 +254,57 @@ function Settings({ d, onChanged, onError }: { d: PlanDetailResponse; onChanged:
       </h2>
       {draft ? (
         <div className="grid gap-3">
-          <ModelSelect model={choice.model} effort={choice.effort} onChange={choose} compact={false} />
+          <div data-testid="plan-orchestrator-model">
+            <h3 className={`${sub} flex items-center gap-1`}>
+              {t("plan.orchestratorModel")} <HelpTip text={t("plan.orchestratorModelHelp")} />
+            </h3>
+            <ModelSelect model={choice.orchestratorModel} effort={null} onChange={(v) => choose({ ...choice, orchestratorModel: v.model })} hideEffort />
+          </div>
+          <div data-testid="plan-agents-model">
+            <h3 className={`${sub} flex items-center gap-1`}>
+              {t("plan.agentsModel")} <HelpTip text={t("plan.agentsModelHelp")} />
+            </h3>
+            <ModelSelect model={choice.model} effort={choice.effort} onChange={(v) => choose({ ...choice, model: v.model, effort: v.effort })} compact={false} />
+          </div>
           <label className="flex items-center gap-2 text-sm coarse:min-h-11">
             <input type="checkbox" checked={s.researchMode} onChange={(e) => save({ researchMode: e.target.checked })} />
             {t("plan.researchMode")}
           </label>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-          <span className="font-mono">{s.model ?? "—"}</span>
-          <span>effort: {s.reasoningEffort ?? "default"}</span>
-          <span>
-            {t("plan.researchMode")}: {s.researchMode ? "on" : "off"}
-          </span>
-          {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
+        <div className="grid gap-1 text-xs text-slate-600">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>{t("plan.orchestratorModel")}:</span>
+            <span className="font-mono">{o.model ?? "—"}</span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>{t("plan.agentsModel")}:</span>
+            <span className="font-mono">{s.model ?? "—"}</span>
+            <span>effort: {s.reasoningEffort ?? "default"}</span>
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>
+              {t("plan.researchMode")}: {s.researchMode ? "on" : "off"}
+            </span>
+            {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
+          </div>
         </div>
       )}
     </section>
   );
 }
 
-/** The granularity policy: editable in a draft (saved when the field loses focus), read-only afterwards. */
-function Policy({ plan, onSaved, onError }: { plan: PlanRecord; onSaved: () => Promise<unknown>; onError: (e: unknown) => void }) {
+/** The granularity policy: written by the Orchestrator (the draft, then re-plans) and only shown here. */
+function Policy({ plan }: { plan: PlanRecord }) {
   const t = useT();
-  const editable = plan.status === "DRAFT";
-  // null: not edited, the stored text is shown (and follows reloads)
-  const [text, setText] = useState<string | null>(null);
-  // the text as typed (a save that ends reads it), the text being saved, and a blur while it is saved
-  const typed = useRef<string | null>(null);
-  const sending = useRef<string | null>(null);
-  const blurred = useRef(false);
   const stored = plan.policy ?? "";
-  if (!editable && !stored.trim()) return null;
-  const edit = (v: string | null) => {
-    typed.current = v;
-    setText(v);
-  };
-  const send = (value: string) => {
-    sending.current = value;
-    api
-      .updatePlan(plan.planId, { policy: value })
-      .then(() => onSaved())
-      // text typed meanwhile stays
-      .then(() => typed.current === value && edit(null))
-      .catch(onError)
-      .finally(() => {
-        sending.current = null;
-        const again = blurred.current;
-        blurred.current = false;
-        // the field was left again during the save with other text: save that too
-        if (again && typed.current !== null && typed.current !== value) send(typed.current);
-      });
-  };
-  const save = () => {
-    const now = typed.current;
-    if (now === null) return;
-    if (sending.current !== null) {
-      blurred.current = true;
-      return;
-    }
-    if (now === stored) edit(null);
-    else send(now);
-  };
+  if (!stored.trim()) return null;
   return (
     <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-policy">
       <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
         {t("canon.policy")} <HelpTip text={t("plan.policyHelp")} />
       </h2>
-      {editable ? (
-        <textarea
-          value={text ?? stored}
-          onChange={(e) => edit(e.target.value)}
-          onBlur={save}
-          rows={2}
-          maxLength={2000}
-          placeholder={t("canon.policyHint")}
-          aria-label={t("canon.policy")}
-          className={inputCls}
-        />
-      ) : (
-        <p className="whitespace-pre-line break-words text-sm text-slate-700">{stored}</p>
-      )}
+      <p className="whitespace-pre-line break-words text-sm text-slate-700">{stored}</p>
     </section>
   );
 }
@@ -1153,7 +1125,7 @@ function DecidedProposals({ d }: { d: PlanDetailResponse }) {
           <li key={p.proposalId} className="grid gap-1 border-t border-slate-200 pt-2 text-xs first:border-t-0 first:pt-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{t(`plan.proposal.${p.kind}` as MessageKey)}</span>
-              <span className={`rounded-full px-1.5 py-0.5 ${PROPOSAL_STATUS_COLOR[p.status]}`}>{t(`plan.proposal.${p.status}` as MessageKey)}</span>
+              <span className={`rounded-full px-1.5 py-0.5 ${PROPOSAL_STATUS_COLOR[p.status]}`}>{t(p.status === "accepted" && p.decidedBy === "runner" ? "plan.proposal.applied" : (`plan.proposal.${p.status}` as MessageKey))}</span>
               {p.decidedAt && <span className="text-slate-500">{fmtDate(p.decidedAt, locale)}</span>}
             </div>
             <ProposalBody p={p} rows={d.rows} names={names} compact />
@@ -1391,7 +1363,7 @@ export function PlanDetailPage() {
         <Attention rows={rows.filter((r) => r.state === "attention")} act={rowAct} />
         {(plan.status === "RUNNING" || plan.status === "PAUSED") && <Proposals d={d} busy={busy} decide={decide} />}
         <Settings d={d} onChanged={() => void load()} onError={onError} />
-        <Policy plan={plan} onSaved={load} onError={onError} />
+        <Policy plan={plan} />
         <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
         {plan.status === "DRAFT" ? <DraftEditor d={d} onSaved={() => void load()} onError={onError} onRejected={setRejected} saveRef={saveRef} /> : <RowsByWave d={d} act={rowAct} />}
         <History events={d.events} rows={rows} t={t} />

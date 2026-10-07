@@ -213,7 +213,7 @@ describe("a draft being written", () => {
     await render(`/plans/${PLAN}`);
     const banner = q('[data-testid="plan-drafting"]')!;
     expect(banner.textContent).toContain("Drafting: running (1 min so far)");
-    expect(document.body.textContent).toContain("Capability lists: abilities.xlsx");
+    expect(document.body.textContent).toContain("Source lists: abilities.xlsx");
     // the rows are read-only while the job runs, and the plan cannot be confirmed or deleted
     expect(q('[data-testid="plan-editor"]')).toBeNull();
     expect(q('[data-testid="plan-rows"]')).not.toBeNull();
@@ -320,62 +320,18 @@ describe("a draft written by the plan job", () => {
     expect(unread.textContent).toContain("Parts of the draft not used: 2");
 
     expect(q('[data-testid="plan-jobs-cost"]')!.textContent).toBe("incl. planning jobs $0.03");
-    expect(q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!.value).toBe("neocortex = area × projection class, subcortex = nucleus");
+    expect(q('[data-testid="plan-policy"]')!.textContent).toContain("neocortex = area × projection class, subcortex = nucleus");
   });
 
-  it("saves the policy when the field is left", async () => {
+  it("shows the policy the Orchestrator wrote without a field to edit it, and chooses the two models apart", async () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
-    const policy = q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!;
-    await type(policy, "neocortex = area");
-    await act(async () => {
-      policy.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
-    });
-    expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { policy: "neocortex = area" });
-  });
-
-  it("keeps text typed while the policy is being saved, and saves it when the field is left again", async () => {
-    let policy = "neocortex = area × projection class, subcortex = nucleus";
-    api.getPlan.mockImplementation(async () => drafted({ policy }));
-    const saves: (() => void)[] = [];
-    api.updatePlan.mockImplementation((_id: string, b: { policy: string }) => new Promise((res) => saves.push(() => ((policy = b.policy), res({})))));
-    await render(`/plans/${PLAN}`);
-    const field = q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!;
-    const leave = () => act(async () => void field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
-    await type(field, "AB");
-    await leave();
-    expect(api.updatePlan).toHaveBeenCalledTimes(1);
-    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "AB" });
-    // typed and left again while the first save is in flight: not sent yet, not lost
-    await type(field, "ABC");
-    await leave();
-    expect(api.updatePlan).toHaveBeenCalledTimes(1);
-    await act(async () => saves[0]());
-    expect(field.value).toBe("ABC");
-    expect(api.updatePlan).toHaveBeenCalledTimes(2);
-    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "ABC" });
-    await act(async () => saves[1]());
-    expect(field.value).toBe("ABC");
-    expect(policy).toBe("ABC");
-  });
-
-  it("keeps text typed during a save without leaving the field, and saves it on the next blur", async () => {
-    let policy = "";
-    api.getPlan.mockImplementation(async () => drafted({ policy }));
-    const saves: (() => void)[] = [];
-    api.updatePlan.mockImplementation((_id: string, b: { policy: string }) => new Promise((res) => saves.push(() => ((policy = b.policy), res({})))));
-    await render(`/plans/${PLAN}`);
-    const field = q<HTMLTextAreaElement>('[data-testid="plan-policy"] textarea')!;
-    const leave = () => act(async () => void field.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
-    await type(field, "neocortex");
-    await leave();
-    await type(field, "neocortex = area");
-    await act(async () => saves[0]());
-    // the reload after the first save does not reset the field
-    expect(field.value).toBe("neocortex = area");
-    expect(api.updatePlan).toHaveBeenCalledTimes(1);
-    await leave();
-    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { policy: "neocortex = area" });
+    expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
+    // the Orchestrator's model has no reasoning effort; the Agents' model has one
+    expect(q('[data-testid="plan-orchestrator-model"]')!.textContent).toContain("Orchestrator model");
+    expect(q('[data-testid="plan-orchestrator-model"]')!.querySelectorAll("select")).toHaveLength(1);
+    expect(q('[data-testid="plan-agents-model"]')!.textContent).toContain("Agents model");
+    expect(q('[data-testid="plan-agents-model"]')!.querySelectorAll("select")).toHaveLength(2);
   });
 
   it("sends rebuild for an existing project and keeps the priorities when the rows are saved", async () => {
@@ -554,6 +510,7 @@ describe("re-planning while running", () => {
     proposal("q0000002", "remove", { rowId: "r5", reason: "speech production already covers it." }),
     proposal("q0000003", "policy", { policy: "neocortex = area × layer", reason: "The finished rows split by layer." }),
     proposal("q0000004", "add", { status: "accepted", decidedAt: now, decidedBy: "alice", row: { roi: "SMA", tlf: "speech initiation", rationale: "", anchors: [], dependsOn: [] } }),
+    proposal("q0000005", "policy", { status: "accepted", decidedAt: now, decidedBy: "runner", policy: "neocortex = area" }),
   ];
   const running = () =>
     detail(
@@ -590,8 +547,10 @@ describe("re-planning while running", () => {
     // decided proposals are collapsed under the history; the actions of a running plan are unchanged
     const decided = q('[data-testid="plan-decided"]')!;
     expect(decided.tagName).toBe("DETAILS");
-    expect(decided.textContent).toContain("Decided proposals (1)");
+    expect(decided.textContent).toContain("Decided proposals (2)");
     expect(decided.textContent).toContain("Accepted");
+    // a policy is the Orchestrator's decision: applied without the owner
+    expect(decided.textContent).toContain("Applied by the Orchestrator");
     expect(qa("button", q('[data-testid="plan-actions"]')!).map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel plan"]);
     // the policy is read-only after confirmation; the cost of the plan's own jobs is shown apart
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
@@ -626,7 +585,7 @@ describe("re-planning while running", () => {
     await render(`/plans/${PLAN}`);
     const text = q('[data-testid="plan-proposals"]')!.textContent!;
     expect(text).toContain("After the first wave, and then each time about a tenth of the plan's rows have finished (after every wave in plans of up to 10 rows)");
-    expect(text).toContain("Nothing changes until you accept.");
+    expect(text).toContain("a planning job may propose adding or removing rows; nothing changes until you accept. The Orchestrator may also change the granularity policy, which applies at once.");
     expect(text).toContain("The order of the rows that have not started is updated after every wave.");
   });
 

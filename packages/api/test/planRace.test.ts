@@ -115,7 +115,7 @@ describe("plans: edits and confirmation under the plan's lease", () => {
       ["POST", `/plans/${planId}/rows/import`, { csv: "roi,tlf\nMTG,naming\n" }],
       ["POST", `/plans/${planId}/order`, undefined],
       ["POST", `/plans/${planId}/draft`, {}],
-      ["PUT", `/plans/${planId}`, { policy: "area × projection class" }],
+      ["PUT", `/plans/${planId}`, { canon: { mode: "new", name: "Language" } }],
       ["PUT", `/plans/${planId}`, { settings: { researchMode: false } }],
     ] as const) {
       const res = await call(A, method, path, body);

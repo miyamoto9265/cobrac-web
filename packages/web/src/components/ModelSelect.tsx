@@ -45,10 +45,12 @@ interface Props {
   /** Label for the "default" option */
   defaultLabel?: string;
   compact?: boolean;
+  /** Only the model is chosen (the reasoning effort is fixed by the caller) */
+  hideEffort?: boolean;
 }
 
 /** Model + reasoning-effort picker. Model list comes from the user's registered OpenAI key. */
-export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false }: Props) {
+export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false, hideEffort = false }: Props) {
   const t = useT();
   const fallbackLabel = defaultLabel ?? t("model.default");
   const { models, priced, envDefault, onDefaultKey, restricted, custom, setCustom } = useModelList(model);
@@ -57,7 +59,7 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
   const lbl = "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   return (
-    <div className={`grid gap-4 ${compact ? "" : "md:grid-cols-2"}`}>
+    <div className={`grid gap-4 ${compact || hideEffort ? "" : "md:grid-cols-2"}`}>
       <label className="block">
         <span className={lbl}>{t("model.label")}</span>
         <select
@@ -96,17 +98,19 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
         )}
         {models.length === 0 && <span className="mt-1 block text-[11px] text-slate-400">{t("model.needKey")}</span>}
       </label>
-      <label className="block">
-        <span className={lbl}>{t("model.effort")}</span>
-        <select value={effort ?? ""} onChange={(e) => onChange({ model, effort: (e.target.value || null) as ReasoningEffort | null })} className={sel}>
-          <option value="">{fallbackLabel}</option>
-          {REASONING_EFFORTS.map((x) => (
-            <option key={x} value={x}>
-              {t(`effort.${x}` as MessageKey)}
-            </option>
-          ))}
-        </select>
-      </label>
+      {!hideEffort && (
+        <label className="block">
+          <span className={lbl}>{t("model.effort")}</span>
+          <select value={effort ?? ""} onChange={(e) => onChange({ model, effort: (e.target.value || null) as ReasoningEffort | null })} className={sel}>
+            <option value="">{fallbackLabel}</option>
+            {REASONING_EFFORTS.map((x) => (
+              <option key={x} value={x}>
+                {t(`effort.${x}` as MessageKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   );
 }
