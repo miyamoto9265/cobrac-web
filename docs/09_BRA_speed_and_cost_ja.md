@@ -5,7 +5,7 @@
 | 文書 | BRA 作成にかかる時間と OpenAI の費用についての解説。遅さの原因の調査、v0.18.0 の高速化と変更前後の比較、費用の二重計上の修正（v0.17.1）と過去のジョブの補正（v0.18.1）、Spot 中断からの再開の改善（v0.18.2） |
 | 対象読者 | 利用者、運用者、BRA の作成時間や OpenAI の利用料を確認する人 |
 | 対象バージョン | アプリ 0.17.1〜0.18.2（すべて 2026-10-01 リリース）。調査の対象は 0.16.0 の本番の実行 |
-| 関連 | [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md)（ハーネス v2）/ [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / [01_設計仕様.md](./01_設計仕様.md) / English: [09_BRA_speed_and_cost.md](./09_BRA_speed_and_cost.md) |
+| 関連 | [04_CoBRAC_Harness_v2_ja.md](./04_CoBRAC_Harness_v2_ja.md)（ハーネス v2）/ [03_AWSインフラと予算.md](./03_AWSインフラと予算.md) / [01_設計仕様.md](./01_設計仕様.md) / English: [09_BRA_speed_and_cost.md](./09_BRA_speed_and_cost.md) |
 | PR | [#61](https://github.com/miyamoto9265/cobrac-web/pull/61)（0.18.0 高速化）、[#63](https://github.com/miyamoto9265/cobrac-web/pull/63)（0.17.1 二重計上）、[#69](https://github.com/miyamoto9265/cobrac-web/pull/69)（0.18.1 過去のジョブの補正）、[#66](https://github.com/miyamoto9265/cobrac-web/pull/66)〜[#68](https://github.com/miyamoto9265/cobrac-web/pull/68) と [#70](https://github.com/miyamoto9265/cobrac-web/pull/70)（0.18.2 Spot 中断・複製・メッセージの言語） |
 
 ---

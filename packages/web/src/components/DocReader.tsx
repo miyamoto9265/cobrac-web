@@ -50,6 +50,12 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
     const el = document.getElementById(id);
     const box = scrollRef.current;
     if (!el || !box) return;
+    // A deep link or TOC entry may target a heading inside a closed disclosure.
+    let parent = el.parentElement;
+    while (parent) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true;
+      parent = parent.parentElement;
+    }
     box.scrollTo({ top: el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 12 });
   }, []);
 
@@ -63,9 +69,12 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
 
   useEffect(() => {
     const id = decodeURIComponent(location.hash.slice(1));
-    if (id) requestAnimationFrame(() => scrollToId(id));
-    else scrollRef.current?.scrollTo({ top: 0 });
-  }, [docKey]);
+    if (id) {
+      const frame = requestAnimationFrame(() => scrollToId(id));
+      return () => cancelAnimationFrame(frame);
+    }
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [docKey, location.hash, scrollToId]);
 
   useEffect(() => {
     const box = scrollRef.current;
@@ -77,7 +86,7 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
       let current: string | null = toc[0].id;
       for (const h of toc) {
         const el = document.getElementById(h.id);
-        if (el && el.getBoundingClientRect().top <= top) current = h.id;
+        if (el && !el.closest("details:not([open])") && el.getBoundingClientRect().top <= top) current = h.id;
       }
       setActiveId(current);
     };

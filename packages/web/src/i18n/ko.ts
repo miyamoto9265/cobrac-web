@@ -371,6 +371,8 @@ export const ko: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "작업 {n}건",
 
   "docs.title": "문서",
+  "docs.archive": "보관 문서",
+  "docs.archivedNotice": "과거 버전의 차이를 기록한 문서입니다. 현재 동작은 문서 목록의 최신 설명을 참고하세요.",
   "docs.repo": "저장소",
   "docs.empty": "문서가 없습니다",
   "releases.title": "릴리스 노트",

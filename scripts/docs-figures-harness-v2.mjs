@@ -1,4 +1,4 @@
-// Figures of docs/07_CoBRAC_Harness_v1_1_to_v2*.md (harness v1.1 → v2). Rendered by docs-figures.mjs.
+// Figures of docs/archive/07_CoBRAC_Harness_v1_1_to_v2*.md (harness v1.1 → v2). Rendered by docs-figures.mjs.
 import { C, NW, arrow, badge, box, chip, group, header, legendLine, pill, svg, text, textWidth } from "./docs-figures-lib.mjs";
 
 const W = 860;

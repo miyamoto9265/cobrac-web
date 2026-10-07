@@ -12,7 +12,7 @@ const REPO_TITLE_KEY: Record<string, MessageKey> = { README: "docs.readme", AGEN
 
 /** A document that exists as `Foo.md` (English) and `Foo_ja.md` (Japanese) is listed once. */
 function pairOf(d: DocSummary, slugs: Set<string>): { base: string; lang: "ja" | "en" } | null {
-  if (d.group !== "docs") return null;
+  if (d.group === "repo") return null;
   const l = docLanguage(d.slug);
   return slugs.has(l.base) && slugs.has(`${l.base}_ja`) ? l : null;
 }
@@ -82,6 +82,8 @@ export function DocsPage() {
   if (slug && doc) {
     const current = items.find((d) => d.slug === doc.slug);
     const pair = current ? pairOf(current, slugs) : null;
+    const harnessSlug = `04_CoBRAC_Harness_v2${(pair?.lang ?? preferredLang) === "ja" ? "_ja" : ""}`;
+    const currentHarness = items.find((d) => d.group === "docs" && d.slug === harnessSlug);
     const variants: DocVariant[] = pair
       ? (["ja", "en"] as const).map((l) => {
           const s = l === "ja" ? `${pair.base}_ja` : pair.base;
@@ -98,6 +100,14 @@ export function DocsPage() {
         back={{ to: "/docs", label: t("docs.back") }}
         variants={variants}
         navTitle={current ? title(current) : undefined}
+        notice={current?.group === "archive" ? (
+          <p className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900" data-testid="docs-archive-notice">
+            {t("docs.archivedNotice")}{" "}
+            <Link to={currentHarness ? docPath(currentHarness.slug) : "/docs"} className="underline">
+              {currentHarness ? title(currentHarness) : t("docs.back")}
+            </Link>
+          </p>
+        ) : undefined}
       />
     );
   }
@@ -106,12 +116,14 @@ export function DocsPage() {
     const p = pairOf(d, slugs);
     return !p || p.lang === preferredLang;
   });
-  const section = (group: DocSummary["group"], label: string) => {
+  const currentCount = listed.filter((d) => d.group !== "archive").length;
+  const archiveCount = listed.length - currentCount;
+  const section = (group: DocSummary["group"], label?: string) => {
     const ds = listed.filter((d) => d.group === group);
     if (ds.length === 0) return null;
     return (
       <section className="mt-6 first:mt-0">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</h2>
+        {label && <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</h2>}
         <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white" data-testid={`docs-index-${group}`}>
           {ds.map((d) => (
             <li key={d.slug}>
@@ -134,12 +146,20 @@ export function DocsPage() {
       <div className="mx-auto max-w-3xl px-4 py-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-8">
         <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
           <BookOpen size={20} className="text-slate-500" /> {t("docs.title")}
-          <span className="text-sm font-normal text-slate-500">{t("docs.count", { n: listed.length })}</span>
+          <span className="text-sm font-normal text-slate-500">{t("docs.count", { n: currentCount })}</span>
         </h1>
         <p className="mb-5 mt-1 text-sm text-slate-600">{t("docs.intro")}</p>
         {listed.length === 0 && <div className="text-sm text-slate-500">{t("docs.empty")}</div>}
         {section("docs", t("docs.title"))}
         {section("repo", t("docs.repo"))}
+        {archiveCount > 0 && (
+          <details className="mt-6 rounded-lg border border-slate-200 p-4" data-testid="docs-archive">
+            <summary className="cursor-pointer text-sm font-semibold text-slate-600">
+              {t("docs.archive")} · {t("docs.count", { n: archiveCount })}
+            </summary>
+            <div className="mt-3">{section("archive")}</div>
+          </details>
+        )}
       </div>
     </div>
   );

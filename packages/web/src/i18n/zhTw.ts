@@ -371,6 +371,8 @@ export const zhTw: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} 個工作",
 
   "docs.title": "文件",
+  "docs.archive": "封存",
+  "docs.archivedNotice": "這是記錄歷史版本差異的文章。請從文件列表查看最新版本的說明。",
   "docs.repo": "儲存庫",
   "docs.empty": "沒有文件",
   "releases.title": "發行說明",

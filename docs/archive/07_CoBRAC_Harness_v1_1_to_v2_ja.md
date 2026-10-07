@@ -5,7 +5,7 @@
 | 文書 | CoBRAC ハーネス v1.1 から v2 への変更点の解説。HCD と FRG の往復（整合チェック・調整ターン・戻り道）、調査ステップと文献ツール、文献と引用文の照合、BRA 仕様への準拠、Collection、Template-v2-2 形式の xlsx、Canon、参考資料、長いジョブの堅牢性 |
 | 対象読者 | 利用者、運用者、BRA の品質や OpenAI の利用料を確認する人 |
 | 対象バージョン | v1.1 = アプリ 0.8.0〜0.8.1 / v2 = アプリ 0.13.0 以降。v2 の部品は 0.9.0〜0.12.1 で順に入り、0.13.0 の戻り道と調整ターンで一方通行でなくなった |
-| 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md)（v1 → v1.1）/ [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md)（v0 → v1）/ [06_Research_mode_and_Canon_ja.md](./06_Research_mode_and_Canon_ja.md)（調査モードと Canon の利用ガイド）/ [01_設計仕様.md](./01_設計仕様.md) / English: [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) |
+| 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md)（v1 → v1.1）/ [04_CoBRAC_Harness_v0_to_v1_ja.md](./04_CoBRAC_Harness_v0_to_v1_ja.md)（v0 → v1）/ [06_Research_mode_and_Canon_ja.md](../06_Research_mode_and_Canon_ja.md)（調査モードと Canon の利用ガイド）/ [01_設計仕様.md](../01_設計仕様.md) / English: [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) |
 
 ---
 
@@ -17,7 +17,7 @@ v2 では、**FRG から HCD に戻る道**ができました。ワーカーは 
 
 あわせて、生成の前に文献を集める**調査ステップ**と文献ツール `lit`、**文献と引用文の照合**、**BRA 仕様への準拠**（CoBRAC-v1-1）、**Collection**、公式テンプレート **Template-v2-2 形式の xlsx**、**Canon** の制約、**参考資料**の添付、長いジョブの**堅牢性**が入りました。
 
-![v1.1 はエージェントが HCD を仕上げてから FRG を作る一方通行で、ワーカーは HCD と FRG の整合を見なかった。v2 はエージェントが調査ステップで文献を集め、FRG から HCD に戻って UC を分けられる。ワーカーは BRA の値・文献・引用文まで検査し、整合チェック X1〜X9 を記録し、HCD が後段で変われば検証し直す](./figures/harness-v2-overview.ja.svg "図 1　ハーネス v1.1 と v2 の比較：一方通行から往復へ")
+![v1.1 はエージェントが HCD を仕上げてから FRG を作る一方通行で、ワーカーは HCD と FRG の整合を見なかった。v2 はエージェントが調査ステップで文献を集め、FRG から HCD に戻って UC を分けられる。ワーカーは BRA の値・文献・引用文まで検査し、整合チェック X1〜X9 を記録し、HCD が後段で変われば検証し直す](../figures/harness-v2-overview.ja.svg "図 1　ハーネス v1.1 と v2 の比較：一方通行から往復へ")
 
 **なぜ v2 か。** リポジトリの約束（`AGENTS.md`）では、ワークフローの骨格「HCD → FRG → CSV → xlsx の順、ワーカーがフェーズを進めて検証する方式、ターン終了時の JSON 出力」は相談なしに変えないことになっています。今回はこの骨格を、ユーザーの承認を得て「HCD → FRG →（整合チェック・調整）→ CSV → xlsx」に広げました。一方通行でなくなったことが、v1 → v1.1 のような部品の置き換えより大きな変化なので、版を v2 としました。ターン終了時の JSON（`{status, message, question}`）と、フェーズごとの決定的な検証は変わっていません。
 
@@ -45,7 +45,7 @@ v2 では、**FRG から HCD に戻る道**ができました。ワーカーは 
 
 ### 3.1 パイプラインの比較
 
-![v1.1 は HCD → FRG → CSV → xlsx を 1 回ずつ進み、受理したら戻らない。v2 は調査ステップから始まり、FRG の後に整合チェックを記録し、X1〜X3・X8 があれば調整ターンを 1 回送る。調整ターンでは FRG を直すか、HCD に戻って UC を分ける・足す。HCD が変われば再検証してから CSV に進み、xlsx を 2 種類作る](./figures/harness-v2-pipeline.ja.svg "図 2　パイプラインの比較（上が v1.1、下が v2。丸数字は弱点とその対応）")
+![v1.1 は HCD → FRG → CSV → xlsx を 1 回ずつ進み、受理したら戻らない。v2 は調査ステップから始まり、FRG の後に整合チェックを記録し、X1〜X3・X8 があれば調整ターンを 1 回送る。調整ターンでは FRG を直すか、HCD に戻って UC を分ける・足す。HCD が変われば再検証してから CSV に進み、xlsx を 2 種類作る](../figures/harness-v2-pipeline.ja.svg "図 2　パイプラインの比較（上が v1.1、下が v2。丸数字は弱点とその対応）")
 
 v1.1 の流れの弱点は 3 つでした。
 
@@ -115,7 +115,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 
 ### 4.2 調整ターンと HCD への戻り道
 
-![FRG の段が終わると整合チェックを記録する。X1・X2・X3・X8 がなければ記録だけで CSV へ。あれば調整ターンを 1 回送り、エージェントは FRG を直す、HCD の手順 3 に戻って UC を分ける・足す、直さずに理由を残す、のどれかを選んで revisions 節に書く。HCD が変われば検証をやり直してから CSV と xlsx を作る](./figures/harness-v2-adjustment.ja.svg "図 3　調整ターンと HCD への戻り道")
+![FRG の段が終わると整合チェックを記録する。X1・X2・X3・X8 がなければ記録だけで CSV へ。あれば調整ターンを 1 回送り、エージェントは FRG を直す、HCD の手順 3 に戻って UC を分ける・足す、直さずに理由を残す、のどれかを選んで revisions 節に書く。HCD が変われば検証をやり直してから CSV と xlsx を作る](../figures/harness-v2-adjustment.ja.svg "図 3　調整ターンと HCD への戻り道")
 
 - **戻り道**（`prompts/phases/FRG.md` の手順 3）。数の制約を満たせないとき、または GN が HCD にない流れや区別を必要とするとき、エージェントは証拠で次のどちらかを選びます。
   - TLF の分解を細かくする。
@@ -149,7 +149,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 
 ### 4.5 調査ステップと `lit` ツール
 
-![生成中、エージェントは lit ツールの search_pubmed、search_europepmc、get_abstract、find_sentences で論文を探し、抄録や全文から文を取る。Europe PMC が答えないときは PubMed と PMC（BioC）から取る。通信は打ち切り・再試行・休止・間隔で守る。ワーカーは文献を Crossref・PubMed で、引用文を全文か抄録で照合し、問題を修正依頼として返す](./figures/harness-v2-literature.ja.svg "図 4　文献の流れ：生成中の lit ツールと、ワーカーの照合")
+![生成中、エージェントは lit ツールの search_pubmed、search_europepmc、get_abstract、find_sentences で論文を探し、抄録や全文から文を取る。Europe PMC が答えないときは PubMed と PMC（BioC）から取る。通信は打ち切り・再試行・休止・間隔で守る。ワーカーは文献を Crossref・PubMed で、引用文を全文か抄録で照合し、問題を修正依頼として返す](../figures/harness-v2-literature.ja.svg "図 4　文献の流れ：生成中の lit ツールと、ワーカーの照合")
 
 - **調査ステップ**（0.11.0、調査モードは作成時に選び、既定でオン）。HCD の前に `prompts/phases/RESEARCH.md` に従って、候補の投射（ROI への入力・出力・内部、最大 40 件）ごとに、PubMed・Europe PMC・Web でトレーサー研究、霊長類とげっ歯類、層・細胞種の証拠を探し、検索・証拠・欠けを `{P}/research.json` に書きます。HCD のファイルは書きません。
 - **網羅性の検査**（`checkResearch`）。候補ごとに 2 件以上の検索（1 件以上は PubMed か Europe PMC）、書いた検索が本当に検索の記録（`research_queries.jsonl`）にあるか、カバレッジの値と証拠が合うか、を見ます。欠けは最大 2 回まで差し戻しますが、実行は止めません。時間の上限は 60 分、推論の強さは `high` 以上です。
@@ -182,7 +182,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 | 名前 | 自由 | Names は SABRA の正式名から始める。機能の記述では `[U.<Circuit ID>]` で組織を指す |
 | ROI 行・Review End Line | なし | Circuits の先頭に `ROI_<Project ID>`。Project に各シートの最後の行 |
 
-![sCID / rCID relation は UC と論文の回路の関係を書く。< は UC が論文の回路の一部、= は同じ、> は UC が論文の細かい回路を含む。論文上の名前は Notation 列に書く。v1.1 は 1 行に複数の文献を連結し relation はいつも = だったが、v2 は 1 行 1 文献で、同じ送り手と受け手を文献ごとに繰り返す](./figures/harness-v2-relation.ja.svg "図 5　BRA 形式の接続：sCID / rCID relation と 1 行 1 文献")
+![sCID / rCID relation は UC と論文の回路の関係を書く。< は UC が論文の回路の一部、= は同じ、> は UC が論文の細かい回路を含む。論文上の名前は Notation 列に書く。v1.1 は 1 行に複数の文献を連結し relation はいつも = だったが、v2 は 1 行 1 文献で、同じ送り手と受け手を文献ごとに繰り返す](../figures/harness-v2-relation.ja.svg "図 5　BRA 形式の接続：sCID / rCID relation と 1 行 1 文献")
 
 - xlsx の BRA version は `CoBRAC-v1-1` です。列は末尾に足しただけで、既存の列の位置は変わりません。
 - `BNA`（Source of ID）は CoBRAC の拡張値で、上流に追加を依頼しています。
@@ -251,14 +251,14 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 | X9 | 測れない | 3 | **0** |
 | 付録 D の自動判定で違反したコード | 7 | 1（Circuit ID の `@`、上流に依頼中） | 測っていない |
 
-![言語野の 3 つの実行の比較。ROI 内の UC は 5、4、7。Collection は 0、0、3。接続の行は 17、14、21。文献は 19、17、21。照合済みの引用文は 0、14、21。FRG の GN は 8、2、4。深さは 3、2、3。X9 は測れない、3、0。付録 D の違反コードは 7、1、測っていない](./figures/harness-v2-language-metrics.ja.svg "図 6　言語野の 3 つの実行：v0、0.11.0、戻り道の試行")
+![言語野の 3 つの実行の比較。ROI 内の UC は 5、4、7。Collection は 0、0、3。接続の行は 17、14、21。文献は 19、17、21。照合済みの引用文は 0、14、21。FRG の GN は 8、2、4。深さは 3、2、3。X9 は測れない、3、0。付録 D の違反コードは 7、1、測っていない](../figures/harness-v2-language-metrics.ja.svg "図 6　言語野の 3 つの実行：v0、0.11.0、戻り道の試行")
 
 - v0 → 0.11.0 で、付録 D の自動判定の違反は 7 コードから 1 コードに減りました。引用文は 14 件すべてが論文の原文になり、全文か抄録と照合済みです。Source of ID は 1 値、Reference ID は 1 行 1 文献になりました（[4.6](#46-文献の照合と引用文の照合)、[4.7](#47-bra-仕様への準拠cobrac-v1-1)）。
 - 一方で 0.11.0 は、v0 より粒度が粗くなりました。紡錘状回（v0 では pFG と VWFA）、下頭頂小葉（角回と縁上回）、下前頭回（弁蓋部と三角部）が、それぞれ回全体の UC 1 つになり、FRG も GN 2 つ・深さ 2 に潰れました。v0 の FRG は深さ 3 でしたが、UC は自由な名前で、同じ UC が複数の GN に入っていました。
 
 ### 5.2 戻り道の試行で何が変わったか
 
-![前（0.11.0）は ROI 内の UC が回全体の FuG@L、IPL@L、IFG@L と A22c@L の 4 つで、FRG は GN 2 つ、深さ 2。X1〜X8 はすべて 0 で、粗さを捉えたのは X9 だけだった。後（戻り道の試行）は 3 つの回を 2 つずつの UC に分けて Collection にし、FRG は腹側の正書法分析、側頭頭頂の音韻分析（その下に下頭頂の音韻支援）、前頭の音韻出力の GN 4 つ、深さ 3 になった](./figures/harness-v2-language-trial.ja.svg "図 7　言語野の試行：回単位の UC を分けると FRG の分解が変わった")
+![前（0.11.0）は ROI 内の UC が回全体の FuG@L、IPL@L、IFG@L と A22c@L の 4 つで、FRG は GN 2 つ、深さ 2。X1〜X8 はすべて 0 で、粗さを捉えたのは X9 だけだった。後（戻り道の試行）は 3 つの回を 2 つずつの UC に分けて Collection にし、FRG は腹側の正書法分析、側頭頭頂の音韻分析（その下に下頭頂の音韻支援）、前頭の音韻出力の GN 4 つ、深さ 3 になった](../figures/harness-v2-language-trial.ja.svg "図 7　言語野の試行：回単位の UC を分けると FRG の分解が変わった")
 
 - エージェントは HCD に戻り、回全体の UC 3 つを 7 つの UC と 3 つの Collection に分けました。新しい接続にはすべて文献と原文の引用を付け、21 件の引用文はすべて照合を通りました。
 - それに合わせて FRG の分解が変わりました。前の FRG は「正書法と頭頂」を 1 つの GN にまとめ、紡錘状回と下頭頂小葉を束ねていました。後の FRG は、腹側の正書法分析、側頭頭頂の音韻分析、前頭の音韻出力の 3 つに分かれ、角回と縁上回は下位の GN になりました。読字研究でいう腹側経路と背側経路の区別に近い形で、**HCD を細かくしたことが FRG の分解を実際に変えました**。
@@ -291,7 +291,7 @@ FRG と CSV の検査のたびに、ワーカーは `checkCross`（`packages/sha
 
 各段で、リクエストのたびに文脈に載っている指示の量です。調査モードでは、調査ステップの仕様と調査モードの注記が後の段でも文脈に残ります（会話を圧縮するまで）。
 
-![調査ステップは v2 だけで 3,621 トークン。HCD は v1.1 の 4,915 から v2 の 8,145（調査モードでは +1,786）。FRG は 5,979 から 9,506（調査モードでは +1,786）。増えた分の大半は HCD.md と AGENTS.md](./figures/harness-v2-instruction-tokens.ja.svg "図 8　各段で、リクエストのたびに文脈に載っている指示の量（v1.1 と v2）")
+![調査ステップは v2 だけで 3,621 トークン。HCD は v1.1 の 4,915 から v2 の 8,145（調査モードでは +1,786）。FRG は 5,979 から 9,506（調査モードでは +1,786）。増えた分の大半は HCD.md と AGENTS.md](../figures/harness-v2-instruction-tokens.ja.svg "図 8　各段で、リクエストのたびに文脈に載っている指示の量（v1.1 と v2）")
 
 - `HCD.md` の増分（+2,300）は、BRA の値の規則（Source of ID、relation と表記、1 行 1 文献、引用文、列挙値）と、Collection・203・`uniformityNote` です。`FRG.md` の増分（+297）は戻り道です。
 - `AGENTS.md` の増分（+930）は、文献ツールと原文の引用の規則、参考資料、revisions 節の書き方、ワーカーが書くファイルの説明、返信の言語です。

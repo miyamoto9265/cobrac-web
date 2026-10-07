@@ -64,6 +64,7 @@ afterEach(() => {
   act(() => root?.unmount());
   host?.remove();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("DocsPage", () => {
@@ -93,5 +94,60 @@ describe("DocsPage", () => {
     await render("/docs");
     expect(document.querySelector('[data-testid="chat"]')).not.toBeNull();
     expect(api.adminDocs).not.toHaveBeenCalled();
+  });
+
+  it("keeps language-paired archives collapsed and out of the current document count", async () => {
+    api.adminDocs.mockResolvedValue({ items: [...list.items,
+      { slug: "04_Old", title: "Old harness", description: "Historic", number: "04", group: "archive" },
+      { slug: "04_Old_ja", title: "旧ハーネス", description: "過去", number: "04", group: "archive" },
+    ] });
+    await render("/docs");
+    const archive = document.querySelector<HTMLDetailsElement>('[data-testid="docs-archive"]')!;
+    expect(archive.open).toBe(false);
+    expect(archive.querySelectorAll("li")).toHaveLength(1);
+    expect(archive.querySelector("a")!.getAttribute("href")).toBe("/docs/04_Old");
+    expect(document.querySelector("h1")!.textContent).toContain("3 documents");
+    expect(document.querySelector('[data-testid="docs-index-docs"]')!.textContent).not.toContain("Old harness");
+  });
+
+  it("opens an archived article at its original URL with language links and an archive notice", async () => {
+    api.adminDocs.mockResolvedValue({ items: list.items.map((d) => d.slug.startsWith("04_") ? { ...d, group: "archive" } : d) });
+    api.adminDoc.mockResolvedValue({ ...doc, text: doc.text.replace("./01_Spec.md", "../01_Spec.md").replace("./figures/f.svg", "../figures/f.svg") });
+    await render("/docs/04_Harness");
+    expect(document.querySelector('[data-testid="docs-archive-notice"]')!.textContent).toContain("archived");
+    expect($$('[aria-label="Document language"] a').map((a) => a.getAttribute("href"))).toEqual(["/docs/04_Harness_ja", "/docs/04_Harness"]);
+    expect(document.querySelector('a[href="/docs/01_Spec"]')).not.toBeNull();
+    expect(document.querySelector("figure img")!.getAttribute("src")).toBe("blob:x");
+  });
+
+  it("reveals a folded heading when it is selected in the table of contents", async () => {
+    api.adminDoc.mockResolvedValue({ ...doc, text: "# Harness\n\n<details>\n<summary>Show details</summary>\n\n## Checklist\n\n- Check output\n\n</details>" });
+    await render("/docs/04_Harness");
+    const details = document.querySelector<HTMLDetailsElement>("article .docs-details")!;
+    expect(details.open).toBe(false);
+    await act(async () => document.querySelector<HTMLAnchorElement>(".docs-toc a")!.click());
+    expect(details.open).toBe(true);
+    expect(document.querySelector("h2")!.id).toBe("checklist");
+  });
+
+  it("links archived articles to the current harness in the article's language", async () => {
+    api.adminDocs.mockResolvedValue({ items: [
+      ...list.items.map((d) => d.slug.startsWith("04_") ? { ...d, group: "archive" } : d),
+      { slug: "04_CoBRAC_Harness_v2", title: "Current harness", description: "", number: "04", group: "docs" },
+      { slug: "04_CoBRAC_Harness_v2_ja", title: "現行ハーネス", description: "", number: "04", group: "docs" },
+    ] });
+    api.adminDoc.mockResolvedValue({ ...doc, slug: "04_Harness_ja" });
+    await render("/docs/04_Harness_ja");
+    expect(document.querySelector('[data-testid="docs-archive-notice"] a')!.getAttribute("href")).toBe("/docs/04_CoBRAC_Harness_v2_ja");
+  });
+
+  it("reveals folded content when an in-document file link changes only the hash", async () => {
+    vi.spyOn(globalThis, "requestAnimationFrame").mockImplementation((callback) => { callback(0); return 1; });
+    api.adminDoc.mockResolvedValue({ ...doc, text: "# Harness\n\n[Jump](./04_Harness.md#checklist)\n\n<details>\n<summary>Show details</summary>\n\n## Checklist\n\n- Check output\n\n</details>" });
+    await render("/docs/04_Harness");
+    const details = document.querySelector<HTMLDetailsElement>("article .docs-details")!;
+    expect(details.open).toBe(false);
+    await act(async () => document.querySelector<HTMLAnchorElement>('article a[href="/docs/04_Harness#checklist"]')!.click());
+    expect(details.open).toBe(true);
   });
 });

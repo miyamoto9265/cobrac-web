@@ -371,6 +371,8 @@ export const ru: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "заданий: {n}",
 
   "docs.title": "Документы",
+  "docs.archive": "Архив",
+  "docs.archivedNotice": "Эта архивная статья сравнивает прошлые версии. Текущее поведение описано в актуальной документации.",
   "docs.repo": "Репозиторий",
   "docs.empty": "Нет документов",
   "releases.title": "Заметки о выпуске",

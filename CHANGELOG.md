@@ -14,6 +14,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - CoBRAC Orchestrator: the granularity policy is decided by the Orchestrator only. The plan page shows it read-only (the edit field is gone and the API refuses a policy from the owner); the draft writes it, and a policy change from a re-plan applies at once without approval and is listed with the decided proposals as "Applied by the Orchestrator". Proposals to add or remove rows still wait for approval
 - Japanese wording of the Orchestrator: 「波」 is now 「バッチ」 (e.g. 「第 1 バッチ」, 「種のバッチ」) and 「能力リスト」 is now 「資料」; in English, "capability lists" are now "source lists". A CSV column named 「バッチ」 or "batch" is read as the wave, as 「波」 still is
 
+## [0.36.2] - 2026-10-07
+
+### Changed
+- Admin documentation now includes a comprehensive Japanese/English guide to the current CoBRAC harness v2, covering architecture, current ROI and GN rules, hypotheses, validation, outputs and saved versions. Full prompt sources and reference tables open on demand through “Show details”. The three earlier transition articles are retained in a separate collapsed archive, with their existing URLs and language switches preserved
+
 ## [0.36.1] - 2026-10-06
 
 ### Changed

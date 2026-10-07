@@ -2,7 +2,8 @@
 
 Web application that runs the BRA (Brain Reference Architecture) data-creation workflow
 (HCD → FRG → CSV → xlsx) with the Codex SDK on the server. Design, security, and infrastructure
-docs live in `docs/` (admins can read them on the site “Documentation” page). Change history is
+docs live in `docs/` (admins can read them on the site “Documentation” page). The current harness guide is [CoBRAC Harness v2](docs/04_CoBRAC_Harness_v2.md)
+([日本語](docs/04_CoBRAC_Harness_v2_ja.md)); earlier transition articles are kept in `docs/archive/`. Change history is
 `CHANGELOG.md`. Working rules, including versioning, are in `AGENTS.md`.
 
 ## Versioning and release
@@ -124,6 +125,12 @@ npm run dev:web
 - After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
 - If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption). While a turn runs, the worker saves the workspace and thread to S3 every 5 minutes; on SIGTERM (Spot interruption, 120 s stop timeout) it saves them at once and marks its heartbeat stale, so the next janitor run (every 5 minutes) resumes the job.
 - User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.
+
+## Documentation sources
+
+The harness guide embeds the full prompt sources in closed details sections. After changing a prompt, run
+`npm run docs:prompts` and verify it with `npm run docs:prompts:check`. Diagrams are generated with
+`npm run docs:figures`. Both current and archived articles stay behind the admin documentation API.
 
 ## Operations notes
 
