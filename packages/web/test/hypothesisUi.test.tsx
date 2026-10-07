@@ -104,10 +104,7 @@ afterEach(() => {
 
 async function createWith(setup?: () => Promise<void>) {
   await render(<ChatPage />);
-  if (setup) {
-    await click($("composer-model"));
-    await setup();
-  }
+  if (setup) await setup();
   await type($<HTMLTextAreaElement>("roi-input")!, "Cerebellum");
   await type($<HTMLTextAreaElement>("tlf-input")!, "VOR adaptation");
   await key($("tlf-input")!, "Enter");
@@ -115,23 +112,28 @@ async function createWith(setup?: () => Promise<void>) {
   return api.createProject.mock.calls[0][0] as Record<string, unknown>;
 }
 
-describe("create screen: Evidence", () => {
-  it("starts with literature-supported only and sends no hypothesis", async () => {
+describe("create screen: hypothesis mode", () => {
+  it("shows hypothesis mode as an unchecked box on the composer, with its help, and sends no hypothesis", async () => {
     await render(<ChatPage />);
-    await click($("composer-model"));
-    expect($<HTMLInputElement>("evidence-strict")!.checked).toBe(true);
-    expect($<HTMLInputElement>("evidence-hypothesis")!.checked).toBe(false);
+    // on the composer itself, not inside the model menu
+    expect($("model-menu")).toBeNull();
+    expect($<HTMLInputElement>("hypothesis-mode-check")!.checked).toBe(false);
+    expect($<HTMLInputElement>("hypothesis-mode-check")!.type).toBe("checkbox");
     expect($("hypothesis-settings")).toBeNull();
-    expect($("evidence-choice")!.textContent).toContain("文献の裏付けのみ");
+    expect($("hypothesis-mode")!.textContent).toContain("仮説モード");
+    // the "?" next to it explains the mode
+    expect($("hypothesis-mode")!.textContent).toContain("文献が直接は裏付けない接続や UC");
+    await click($("composer-model"));
+    expect($("model-menu")!.textContent).not.toContain("仮説");
     act(() => root?.unmount());
     host?.remove();
     const body = await createWith();
     expect(body).not.toHaveProperty("hypothesis");
   });
 
-  it("sends every claim, the default limit 20% and no note when only “Allow hypotheses” is chosen", async () => {
+  it("sends every claim, the default limit 20% and no note when only the box is checked", async () => {
     const body = await createWith(async () => {
-      await click($("evidence-hypothesis"));
+      await click($("hypothesis-mode-check"));
       const boxes = [...$("hypothesis-claims")!.querySelectorAll<HTMLInputElement>("input[type=checkbox]")];
       expect(boxes.length).toBe(6);
       expect(boxes.every((b) => b.checked)).toBe(true);
@@ -141,7 +143,7 @@ describe("create screen: Evidence", () => {
 
   it("sends the chosen claims, limit and note", async () => {
     const body = await createWith(async () => {
-      await click($("evidence-hypothesis"));
+      await click($("hypothesis-mode-check"));
       for (const c of ["sign", "population", "transmitter"]) await click($("hypothesis-claims")!.querySelector(`[data-claim="${c}"]`));
       await click(document.querySelector('[data-limit="0.1"]'));
       await type($<HTMLInputElement>("hypothesis-note")!, "  inputs to the\n inferior olive ");
@@ -149,12 +151,12 @@ describe("create screen: Evidence", () => {
     expect(body.hypothesis).toEqual({ claims: ["existence", "direction", "role"], maxShare: 0.1, note: "inputs to the inferior olive" });
   });
 
-  it("keeps at least one claim and goes back to literature-supported only", async () => {
+  it("keeps at least one claim and goes back to literature-supported only when unchecked", async () => {
     const body = await createWith(async () => {
-      await click($("evidence-hypothesis"));
+      await click($("hypothesis-mode-check"));
       for (const c of ["existence", "direction", "sign", "population", "transmitter"]) await click($("hypothesis-claims")!.querySelector(`[data-claim="${c}"]`));
       expect($<HTMLInputElement>("hypothesis-claims")!.querySelector<HTMLInputElement>('[data-claim="role"]')!.disabled).toBe(true);
-      await click($("evidence-strict"));
+      await click($("hypothesis-mode-check"));
       expect($("hypothesis-settings")).toBeNull();
     });
     expect(body).not.toHaveProperty("hypothesis");

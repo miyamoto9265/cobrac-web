@@ -3,8 +3,7 @@ import type { ReasoningEffort } from "@cobrac/shared";
 import { REASONING_EFFORTS, formatUsd, researchModeEstimate } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { HelpLink, HelpTip } from "../HelpTip";
-import { EvidenceChoice, type HypothesisDraft } from "../hypothesis/HypothesisControls";
-import { HypothesisMark } from "../hypothesis/HypothesisMark";
+import type { HypothesisDraft } from "../hypothesis/HypothesisControls";
 import { isPriced, useModelList } from "../ModelSelect";
 import { MenuHeading, Popover } from "./Popover";
 
@@ -16,7 +15,7 @@ export interface RunSettings {
   hypothesis?: HypothesisDraft | null;
 }
 
-/** The composer's "v" menu: model, reasoning effort, research mode and evidence. The chip shows the model that will run. */
+/** The composer's "v" menu: model, reasoning effort and research mode (hypothesis mode is a checkbox on the composer). The chip shows the model that will run. */
 export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value: RunSettings; onChange: (v: RunSettings) => void; fallbackModel: string; disabled?: boolean }) {
   const t = useT();
   const { models, priced, envDefault, onDefaultKey, restricted, custom, setCustom } = useModelList(value.model);
@@ -38,13 +37,12 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
       minSpace={460}
       disabled={disabled}
       trigger={{
-        label: `${t("model.label")}: ${shown}${value.effort ? ` · ${value.effort}` : ""}${value.research ? ` · ${t("chat.research")}` : ""}${value.hypothesis ? ` · ${t("hyp.allow")}` : ""}`,
+        label: `${t("model.label")}: ${shown}${value.effort ? ` · ${value.effort}` : ""}${value.research ? ` · ${t("chat.research")}` : ""}`,
         className:
           "flex max-w-[7.5rem] items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:min-h-11 sm:max-w-[16rem]",
         content: (
           <>
             {value.research && <BookOpenCheck size={14} className="shrink-0 text-blue-600" aria-hidden />}
-            {value.hypothesis && <HypothesisMark size={14} />}
             <span className="truncate font-mono">{shown}</span>
             {value.effort && <span className="hidden shrink-0 text-slate-400 sm:inline">· {value.effort}</span>}
             <ChevronDown size={14} className="shrink-0 text-slate-400" aria-hidden />
@@ -128,7 +126,6 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
             )}
             <HelpLink section="research" className="mt-1" />
           </div>
-          <EvidenceChoice value={value.hypothesis ?? null} onChange={(hypothesis) => set({ hypothesis })} />
         </div>
       )}
     </Popover>
