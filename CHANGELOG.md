@@ -5,6 +5,15 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-07
+
+### Added
+- CoBRAC Orchestrator: the plan's settings choose the Orchestrator model and the Agents model separately. The Orchestrator model runs the Orchestrator's own jobs (writing the draft, re-planning after the waves, and the AI review of the rows' pull requests); the Agents model and reasoning effort run the agents that build each row's BRA project. Either left at "default" is resolved when the plan is confirmed; both are shown after confirmation. Plans made earlier keep using one model for both
+
+### Changed
+- CoBRAC Orchestrator: the granularity policy is decided by the Orchestrator only. The plan page shows it read-only (the edit field is gone and the API refuses a policy from the owner); the draft writes it, and a policy change from a re-plan applies at once without approval and is listed with the decided proposals as "Applied by the Orchestrator". Proposals to add or remove rows still wait for approval
+- Japanese wording of the Orchestrator: 「波」 is now 「バッチ」 (e.g. 「第 1 バッチ」, 「種のバッチ」) and 「能力リスト」 is now 「資料」; in English, "capability lists" are now "source lists". A CSV column named 「バッチ」 or "batch" is read as the wave, as 「波」 still is
+
 ## [0.36.2] - 2026-10-07
 
 ### Changed

@@ -150,7 +150,11 @@ describe("plans: running", () => {
     ]);
     await json(call(A, "PUT", `/plans/${planId}`, { settings: { researchMode: false, reasoningEffort: "medium" } }));
     const plan = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, { locale: "ja" }));
-    expect(plan).toMatchObject({ status: "RUNNING", harnessRules: HARNESS_RULES, settings: { model: "gpt-6-luna", modelChosen: false, researchMode: false, reasoningEffort: "medium", locale: "ja" } });
+    expect(plan).toMatchObject({
+      status: "RUNNING",
+      harnessRules: HARNESS_RULES,
+      settings: { model: "gpt-6-luna", modelChosen: false, orchestratorModel: "gpt-6-luna", orchestratorModelChosen: false, researchMode: false, reasoningEffort: "medium", locale: "ja" },
+    });
     // deployment limits: 2 overall, 1 per user → one row starts
     expect(projects()).toHaveLength(1);
     const p = projects()[0];

@@ -383,6 +383,23 @@ describe("plans: drafting with the plan job", () => {
     expect(rowsOf(planId)).toEqual([]);
   });
 
+  it("runs its own jobs on the Orchestrator's model and the rows on the Agents' model", async () => {
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, rows: [{ roi: "left IFG", tlf: "speech production" }] }))).plan.planId;
+    const p = await json<PlanRecord>(call(A, "PUT", `/plans/${planId}`, { settings: { model: "agents-model", orchestratorModel: "orchestrator-model" } }));
+    expect(p.settings).toMatchObject({ model: "agents-model", modelChosen: true, orchestratorModel: "orchestrator-model", orchestratorModelChosen: true });
+    await json(call(A, "POST", `/plans/${planId}/draft`, {}));
+    await advancePlan(planId);
+    const [job] = planJobs(planId);
+    expect(job).toMatchObject({ type: "plan", planJobKind: "draft", model: "orchestrator-model" });
+    finishJob(planId, job.jobId, { rows: [], policy: POLICY });
+    await advancePlan(planId);
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", policy: POLICY });
+    const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    expect(confirmed.settings).toMatchObject({ model: "agents-model", orchestratorModel: "orchestrator-model" });
+    const project = fake.items("projects").find((x) => x.planId === planId) as unknown as { model: string };
+    expect(project.model).toBe("agents-model");
+  });
+
   it("needs a key to run jobs with, and the chosen model", async () => {
     user(A, { apiKeyRegistered: false, encryptedApiKey: "" });
     expect(await status(call(A, "POST", "/plans", { name: "Language", goal: GOAL, draft: true }))).toBe(400);
@@ -612,15 +629,13 @@ describe("plans: order without the LLM, and manual edits", () => {
     expect(eventsOf(planId).find((e) => e.type === "confirmed")).toMatchObject({ detail: { rows: 12, existingGone: 2 } });
   });
 
-  it("edits the policy of a draft only", async () => {
+  it("leaves the policy to the Orchestrator: the owner cannot set it", async () => {
     const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", rows: [{ roi: "A", tlf: "a" }] }))).plan.planId;
-    const p = await json<PlanRecord>(call(A, "PUT", `/plans/${planId}`, { policy: `  ${POLICY}\r\n  ` }));
-    expect(p.policy).toBe(POLICY);
-    expect(planOf(planId).policy).toBe(POLICY);
-    expect(await status(call(A, "PUT", `/plans/${planId}`, { policy: "x".repeat(2001) }))).toBe(400);
+    expect(await status(call(A, "PUT", `/plans/${planId}`, { policy: POLICY }))).toBe(400);
+    expect(planOf(planId).policy).toBeUndefined();
     await json(call(A, "POST", `/plans/${planId}/confirm`, {}));
-    expect(await status(call(A, "PUT", `/plans/${planId}`, { policy: "other" }))).toBe(409);
-    expect(planOf(planId).policy).toBe(POLICY);
+    expect(await status(call(A, "PUT", `/plans/${planId}`, { policy: "other" }))).toBe(400);
+    expect(planOf(planId).policy).toBeUndefined();
   });
 });
 

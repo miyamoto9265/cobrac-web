@@ -42,7 +42,7 @@ import { createHash } from "node:crypto";
 import { enqueueRun, getPlanJson, putPlanJson, stopEcsTask } from "./aws.js";
 import { listOwnCanons } from "./canons.js";
 import { compareProjectsByCreation, getJob, listUserProjects, putJob, updateJob } from "./db.js";
-import { putProposal, updatePlan } from "./plans.js";
+import { putPlanEvent, putProposal, updatePlan } from "./plans.js";
 
 /** A plan job that has not ended: the plan waits for it (draft) or will receive its proposals (re-plan). */
 export const isOpenPlanJob = (s: PlanJobState | null | undefined): s is PlanJobState => !!s && (s.status === "waiting" || s.status === "queued" || s.status === "running");
@@ -113,7 +113,7 @@ export async function queuePlanJob(
   state: PlanJobState,
   rows: PlanRowRecord[],
   owner: UserRecord,
-  gate: { policy: ModelPolicy & { source: KeySource }; model: string },
+  gate: { policy: ModelPolicy & { source: KeySource }; orchestratorModel: string },
   concurrency: number,
 ): Promise<PlanJobState | null> {
   const jobId = newId("job_");
@@ -136,7 +136,7 @@ export async function queuePlanJob(
     instruction: null,
     pendingAnswer: null,
     locale: input.locale,
-    model: gate.model,
+    model: gate.orchestratorModel,
     reasoningEffort: PLAN_JOB_REASONING_EFFORT,
     ecsTaskArn: null,
     retryCount: 0,
@@ -336,15 +336,39 @@ function proposalIdOf(jobId: string, index: number): string {
   return generatePlanProposalId(() => bytes[i++ % bytes.length] / 256);
 }
 
-/** Stores the proposals of a re-plan result (open until the owner decides); returns how many there are. */
-export async function storeProposals(planId: string, jobId: string, wave: number | null, parsed: Pick<ParsedPlanResult, "proposals">): Promise<number> {
+/**
+ * Stores the proposals of a re-plan result: rows to add or leave out stay open until the owner decides; a new policy is
+ * the Orchestrator's own decision, applied at once and stored as accepted by `by`. Returns how many wait for the owner.
+ */
+export async function storeProposals(planId: string, jobId: string, wave: number | null, parsed: Pick<ParsedPlanResult, "proposals">, by: string): Promise<number> {
   const at = nowIso();
+  let open = 0;
   for (const [i, p] of parsed.proposals.entries()) {
     const proposalId = proposalIdOf(jobId, i);
     // the parsed row also carries the wave and priority of a typed row: keep the proposal's fields only
     const row = p.row ? { roi: p.row.roi, tlf: p.row.tlf, rationale: p.row.rationale, anchors: p.row.anchors, dependsOn: p.row.dependsOn } : null;
-    const record: PlanProposalRecord = { planId, sk: planProposalSk(proposalId), proposalId, kind: p.kind, row, rowId: p.rowId, policy: p.policy, reason: p.reason, status: "open", jobId, wave, createdAt: at, decidedAt: null, decidedBy: null };
-    await putProposal(record);
+    const applied = p.kind === "policy" && !!p.policy;
+    const record: PlanProposalRecord = {
+      planId,
+      sk: planProposalSk(proposalId),
+      proposalId,
+      kind: p.kind,
+      row,
+      rowId: p.rowId,
+      policy: p.policy,
+      reason: p.reason,
+      status: applied ? "accepted" : "open",
+      jobId,
+      wave,
+      createdAt: at,
+      decidedAt: applied ? at : null,
+      decidedBy: applied ? by : null,
+    };
+    // the policy first (setting it again is harmless), so a step that stops in between still applies it when it stores the result again
+    if (applied) await updatePlan(planId, { policy: p.policy! });
+    const stored = await putProposal(record);
+    if (applied && stored) await putPlanEvent(planId, "proposal_accepted", by, { detail: { kind: "policy", proposalId } });
+    if (!applied) open++;
   }
-  return parsed.proposals.length;
+  return open;
 }

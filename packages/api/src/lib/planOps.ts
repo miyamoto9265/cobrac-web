@@ -55,6 +55,7 @@ import {
   normalizePlanRow,
   normalizeProjectName,
   nowIso,
+  orchestratorModelOf,
   overlapsOf,
   parsePlanRowsCsv,
   planAttachmentTypeOf,
@@ -96,8 +97,6 @@ import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
 const STATUS_CHANGED = "計画の状態が変わりました。再読み込みしてください";
-/** Granularity policy (粒度方針) length */
-const PLAN_POLICY_MAX = 2000;
 
 /** The caller's own, not-deleted plan; anything else is 404. */
 export async function loadOwnPlan(u: UserRecord, planId: string): Promise<PlanRecord> {
@@ -117,13 +116,6 @@ function planGoal(v: unknown): string {
   const goal = cleanPlanNote(v);
   if ([...goal].length > PLAN_LIMITS.maxGoal) throw bad(`目標は ${PLAN_LIMITS.maxGoal} 文字までです`);
   return goal;
-}
-
-function planPolicy(v: unknown): string {
-  if (typeof v !== "string") throw bad("粒度方針が不正です");
-  const policy = cleanPlanNote(v);
-  if ([...policy].length > PLAN_POLICY_MAX) throw bad(`粒度方針は ${PLAN_POLICY_MAX} 文字までです`);
-  return policy;
 }
 
 /** The Canon choice of a draft, checked (an existing Canon is checked for ownership under the lease). */
@@ -179,7 +171,7 @@ const REASON_JA: Record<PlanRowRejected["reason"], string> = {
   noRoiTlf: "ROI と TLF のどちらか一方は必須です",
   tooLong: "長すぎる値があります",
   duplicate: "同じ ROI × TLF の行がすでにあります",
-  badWave: "波は 1〜99 の整数です",
+  badWave: "バッチは 1〜99 の整数です",
   badPriority: "優先度は整数です",
   tooMany: `行は ${PLAN_LIMITS.maxRows} 行までです`,
 };
@@ -244,7 +236,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   const draft = body.draft === true;
   // not in CreatePlanRequest: the reply language of the draft (absent: the language of the goal)
   const locale = readLocale(body.locale);
-  if (draft && !goal && !staged.length && !manual.length && !csv?.rows.length) throw bad("下書きを作成するには目標か能力リストが必要です");
+  if (draft && !goal && !staged.length && !manual.length && !csv?.rows.length) throw bad("下書きを作成するには目標か資料が必要です");
   if (draft) await requireRunKey(u);
 
   // capability lists in CSV / TSV / text are read now (before they are moved); xlsx and PDF wait for the draft job
@@ -254,7 +246,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     if (!isDeterministicPlanAttachment(f.name)) continue;
     const text = await getStagingText(f.staging);
     if (text === null) throw bad(`アップロードが見つかりません（${f.name}）。もう一度添付してください`);
-    if (text.length > PLAN_LIMITS.maxCsvChars || text.includes("\u0000")) throw bad(`能力リストとして読めないファイルです（${f.name}）`);
+    if (text.length > PLAN_LIMITS.maxCsvChars || text.includes("\u0000")) throw bad(`資料として読めないファイルです（${f.name}）`);
     const parsed = parsePlanRowsCsv(text, { existing: [...manual.map((m) => m.row), ...(csv?.rows ?? []), ...fileRows] });
     fileRows.push(...parsed.rows);
     rejected.push(...parsed.rejected.map((r) => ({ file: f.name, ...r })));
@@ -274,7 +266,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   ];
   const projects = typed.length ? await listUserProjects(u.userId) : [];
   const rows: PlanRowRecord[] = typed.map((t, i) => setMatch(newRow(planId, i, t.row, t.source, t.sourceRow, now), projects));
-  const settings: PlanSettings = { model: null, modelChosen: false, reasoningEffort: u.defaultReasoningEffort ?? null, researchMode: true, locale: null };
+  const settings: PlanSettings = { model: null, modelChosen: false, orchestratorModel: null, orchestratorModelChosen: false, reasoningEffort: u.defaultReasoningEffort ?? null, researchMode: true, locale: null };
   const plan: PlanRecord = {
     planId,
     sk: PLAN_META_SK,
@@ -305,19 +297,15 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
   const values: Partial<PlanRecord> = {};
   if (body.name !== undefined) values.name = planName(body.name);
   if (body.goal !== undefined) values.goal = planGoal(body.goal);
-  const policy = body.policy !== undefined ? planPolicy(body.policy) : undefined;
+  // the granularity policy is the Orchestrator's to write (the draft, then re-plans), never the owner's
+  if ((body as { policy?: unknown }).policy !== undefined) throw bad("粒度方針はオーケストレーターが決めます");
   const canon = body.canon !== undefined ? planCanonChoice(body.canon) : undefined;
-  if (body.settings === undefined && policy === undefined && canon === undefined) {
+  if (body.settings === undefined && canon === undefined) {
     // name and goal can change in any status
     if (!(await updatePlan(plan.planId, values, { status: plan.status }))) throw conflict(STATUS_CHANGED);
     return { ...plan, ...values, updatedAt: nowIso() };
   }
   return withPlanLease(plan.planId, async (fresh) => {
-    if (policy !== undefined) {
-      if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は粒度方針を変更できません");
-      if (fresh.status !== "DRAFT") throw conflict("確定後の計画の粒度方針は変更できません");
-      values.policy = policy;
-    }
     if (canon !== undefined) {
       if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は Canon を変更できません");
       if (fresh.status !== "DRAFT") throw conflict("確定後の計画の Canon は変更できません");
@@ -341,6 +329,10 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
       if ("model" in s) {
         settings.model = normModel(s.model);
         settings.modelChosen = !!settings.model;
+      }
+      if ("orchestratorModel" in s) {
+        settings.orchestratorModel = normModel(s.orchestratorModel);
+        settings.orchestratorModelChosen = !!settings.orchestratorModel;
       }
       if ("reasoningEffort" in s) {
         if (s.reasoningEffort !== null && s.reasoningEffort !== undefined && !isEffort(s.reasoningEffort)) throw bad("reasoning effort が不正です");
@@ -465,19 +457,22 @@ export async function orderPlan(u: UserRecord, plan: PlanRecord): Promise<{ plan
   });
 }
 
-/** The draft job may run for the owner: a key to run jobs with (400) and the chosen model (403). */
-async function requireDraftRun(u: UserRecord, plan: PlanRecord) {
+/** Every job of the plan may run for the owner: a key to run jobs with (400) and the chosen models (403). */
+async function requirePlanRun(u: UserRecord, plan: PlanRecord) {
   const policy = await requireRunKey(u);
+  const o = orchestratorModelOf(plan.settings);
   if (plan.settings.modelChosen && plan.settings.model) requireModel(policy, plan.settings.model);
+  if (o.chosen && o.model) requireModel(policy, o.model);
+  return policy;
 }
 
 /** Asks the `plan` job for a draft: the plan waits (rows locked) until the runner queues it on a free slot. */
 export async function requestDraft(u: UserRecord, plan: PlanRecord, locale: UiLocale | null): Promise<PlanRecord> {
   if (plan.status !== "DRAFT") throw conflict(plan.status === "DRAFTING" ? "下書きを作成中です" : "確定後の計画の下書きは作成できません");
-  await requireDraftRun(u, plan);
+  await requirePlanRun(u, plan);
   await withPlanLease(plan.planId, async (fresh) => {
     if (fresh.status !== "DRAFT") throw conflict(fresh.status === "DRAFTING" ? "下書きを作成中です" : "確定後の計画の下書きは作成できません");
-    if (!fresh.goal && !fresh.attachments?.length && !fresh.rowCount) throw bad("下書きを作成するには目標か能力リストが必要です");
+    if (!fresh.goal && !fresh.attachments?.length && !fresh.rowCount) throw bad("下書きを作成するには目標か資料が必要です");
     if (!(await setPlanStatus(plan.planId, "DRAFT", "DRAFTING", { draft: draftState(u, nowIso(), locale) }))) throw conflict(STATUS_CHANGED);
     await putPlanEvent(plan.planId, "draft_requested", u.userId, { detail: { locale } });
   });
@@ -513,11 +508,14 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     if (fresh.status !== "DRAFT") throw conflict("この計画は確定済みです");
     const rows = await listRows(plan.planId, true);
     if (!rows.length) throw bad("行が 1 つもありません");
-    const policy = await requireRunKey(u);
+    const policy = await requirePlanRun(u, fresh);
+    const fallback = () => implicitModel(policy, u.defaultModel || deploymentDefaultModel());
     const chosen = fresh.settings.modelChosen ? fresh.settings.model : null;
-    if (chosen) requireModel(policy, chosen);
-    const model = chosen || implicitModel(policy, u.defaultModel || deploymentDefaultModel());
-    const settings: PlanSettings = { ...fresh.settings, model, modelChosen: !!chosen, locale };
+    const model = chosen || fallback();
+    const o = orchestratorModelOf(fresh.settings);
+    const orchestratorChosen = o.chosen ? o.model : null;
+    const orchestratorModel = orchestratorChosen || fallback();
+    const settings: PlanSettings = { ...fresh.settings, model, modelChosen: !!chosen, orchestratorModel, orchestratorModelChosen: !!orchestratorChosen, locale };
     const limits = await currentLimits();
     const at = nowIso();
     const lost = await recheckExisting(u, rows, at);
@@ -553,7 +551,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const estimate = planEstimate(rows, limits.effective);
     const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: u.userId, estimate, activeWave: null, pausedReason: null, rowCounts: countRows(rows) };
     if (!(await setPlanStatus(plan.planId, "DRAFT", "RUNNING", values))) throw conflict(STATUS_CHANGED);
-    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
+    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, orchestratorModel, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
     return { ...fresh, ...values, ...(canonId ? { canonId, canonNew: null } : {}), status: "RUNNING" as const };
   });
   await kick(plan.planId);
@@ -600,8 +598,7 @@ export async function pausePlan(u: UserRecord, plan: PlanRecord): Promise<void> 
 /** Continues a paused or cancelled plan: done rows stay done; rows stopped by the cancel continue from their artifacts. */
 export async function resumePlan(u: UserRecord, plan: PlanRecord): Promise<void> {
   if (plan.status !== "PAUSED" && plan.status !== "CANCELLED") throw conflict("一時停止中または中止した計画ではありません");
-  const policy = await requireRunKey(u);
-  if (plan.settings.modelChosen && plan.settings.model) requireModel(policy, plan.settings.model);
+  await requirePlanRun(u, plan);
   if (plan.status === "CANCELLED") {
     for (const r of await listRows(plan.planId)) if (r.state === "cancelled") await updateRow(plan.planId, r.rowId, { state: "pending", claimedAt: null }, { state: "cancelled" });
   }

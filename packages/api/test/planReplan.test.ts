@@ -186,14 +186,19 @@ describe("plans: re-planning after each wave", () => {
     const rowsBefore = snapshot(planId);
     await advancePlan(planId);
     expect(planOf(planId).replan).toMatchObject({ status: "done", jobId: job.jobId, dropped: 1 });
-    expect(eventsOf(planId).at(-1)).toMatchObject({ type: "proposals_received", detail: { n: 5, wave: 1 } });
+    expect(eventsOf(planId).at(-1)).toMatchObject({ type: "proposals_received", detail: { n: 4, wave: 1 } });
     expect(proposalsOf(planId)).toHaveLength(5);
-    expect(proposalsOf(planId).every((p) => p.status === "open" && p.jobId === job.jobId && p.wave === 1)).toBe(true);
+    expect(proposalsOf(planId).every((p) => p.jobId === job.jobId && p.wave === 1)).toBe(true);
+    expect(proposalsOf(planId).filter((p) => p.status === "open").map((p) => p.kind)).toEqual(expect.arrayContaining(["add", "remove", "remove", "remove"]));
     expect(snapshot(planId)).toEqual(rowsBefore);
-    expect(planOf(planId).policy).toBeUndefined();
+    // the policy is the Orchestrator's: applied at once, without the owner
+    expect(planOf(planId).policy).toBe("neocortex = area, subcortex = nucleus");
+    expect(proposalsOf(planId).find((p) => p.kind === "policy")).toMatchObject({ status: "accepted", decidedBy: "runner" });
+    expect(eventsOf(planId).filter((e) => e.type === "proposal_accepted")).toHaveLength(1);
     // stored once even if the step runs again
     await advancePlan(planId);
     expect(proposalsOf(planId)).toHaveLength(5);
+    expect(eventsOf(planId).filter((e) => e.type === "proposal_accepted")).toHaveLength(1);
 
     const d = await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`));
     expect(d.proposals).toHaveLength(5);
@@ -208,11 +213,11 @@ describe("plans: re-planning after each wave", () => {
     expect(voice.wave).toBeGreaterThan(2);
     expect(planOf(planId).rowCount).toBe(13);
     expect(eventsOf(planId).at(-1)).toMatchObject({ type: "proposal_accepted", rowId: voice.rowId, detail: { kind: "add" } });
-    // accept: the row is left out; the policy changes
+    // accept: the row is left out
     await json(call(A, "POST", `/plans/${planId}/proposals/${prop("remove", id("prosody")).proposalId}/accept`));
     expect(rowOf(planId, "prosody").state).toBe("skipped");
-    await json(call(A, "POST", `/plans/${planId}/proposals/${prop("policy").proposalId}/accept`));
-    expect(planOf(planId).policy).toBe("neocortex = area, subcortex = nucleus");
+    // the applied policy is no longer open
+    expect(await status(call(A, "POST", `/plans/${planId}/proposals/${prop("policy").proposalId}/accept`))).toBe(409);
     // reject: nothing changes
     const writing = rowOf(planId, "writing");
     await json(call(A, "POST", `/plans/${planId}/proposals/${prop("remove", id("writing")).proposalId}/reject`));
@@ -342,7 +347,7 @@ describe("plans: re-planning after each wave", () => {
     expect(rowOf(planId, "reading")).toMatchObject({ state: "pending", wave: 1 });
 
     const row = { roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121, 123), dependsOn: [], wave: 1, priority: null };
-    await storeProposals(planId, "job_add", 1, { proposals: [{ kind: "add", rowId: null, row: row as never, policy: null, reason: "Nobody owns the voice area yet." }] });
+    await storeProposals(planId, "job_add", 1, { proposals: [{ kind: "add", rowId: null, row: row as never, policy: null, reason: "Nobody owns the voice area yet." }] }, "runner");
     const [p] = proposalsOf(planId);
     await json(call(A, "POST", `/plans/${planId}/proposals/${p.proposalId}/accept`));
     expect(rowOf(planId, "reading")).toMatchObject({ state: "pending", wave: 1 });
@@ -381,17 +386,18 @@ describe("plans: re-planning after each wave", () => {
         { kind: "add" as const, rowId: null, row: { roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121), dependsOn: [], wave: 1, priority: null } as never, policy: null, reason: "Nobody owns it yet." },
       ],
     };
-    expect(await storeProposals(planId, "job_same", 1, parsed)).toBe(3);
+    expect(await storeProposals(planId, "job_same", 1, parsed, "runner")).toBe(2);
+    expect(planOf(planId).policy).toBe("neocortex = area");
     const first = proposalsOf(planId);
     expect(first.find((p) => p.kind === "add")!.row).toEqual({ roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121), dependsOn: [] });
     const remove = first.find((p) => p.kind === "remove")!;
     await json(call(A, "POST", `/plans/${planId}/proposals/${remove.proposalId}/reject`));
     // a step that stopped before recording the re-plan as done stores the same result again
-    await storeProposals(planId, "job_same", 1, parsed);
+    await storeProposals(planId, "job_same", 1, parsed, "runner");
     expect(proposalsOf(planId).map((p) => p.proposalId).sort()).toEqual(first.map((p) => p.proposalId).sort());
     expect(proposalsOf(planId).find((p) => p.proposalId === remove.proposalId)).toMatchObject({ status: "rejected", decidedBy: A.sub });
     // another job's proposals are new ones
-    await storeProposals(planId, "job_next", 2, parsed);
+    await storeProposals(planId, "job_next", 2, parsed, "runner");
     expect(proposalsOf(planId)).toHaveLength(6);
   });
 

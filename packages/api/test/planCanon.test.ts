@@ -209,7 +209,8 @@ describe("plans with a Canon: choosing it", () => {
     expect(await json<PlanRecord>(put({ mode: "none" }))).toMatchObject({ canonId: null, canonNew: null });
     expect((await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`))).canon).toBeNull();
 
-    await json(call(A, "PUT", `/plans/${planId}`, { policy: "neocortex = area × projection class" }));
+    // as the Orchestrator's draft writes it
+    fake.put("plans", { ...planOf(planId), policy: "neocortex = area × projection class" } as never);
     expect(await json<PlanRecord>(put({ mode: "new", name: "Language (plan)" }))).toMatchObject({ canonId: null, canonNew: { name: "Language (plan)" } });
     const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, {}));
     expect(confirmed.canonId).toBeTruthy();
