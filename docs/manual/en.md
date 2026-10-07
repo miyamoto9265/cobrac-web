@@ -44,7 +44,8 @@ Open "New project" in the sidebar.
 2. If needed, use the buttons under the input:
    - "+": attach reference materials (PDF, images, text, Office files, URLs). Up to 10 files, 50 MB in total (20 MB per file), and 20 URLs. The agent uses them as hints but checks papers and quotes against the published literature.
    - "Canon": choose one when circuit definitions should match other projects ([using a Canon](#using-a-canon)).
-   - "v": model, reasoning effort, research mode and evidence ([research mode and models](#research-mode-and-models), [hypothesis mode](#hypothesis-mode)).
+   - "v": model, reasoning effort and research mode ([research mode and models](#research-mode-and-models)).
+   - The "Hypothesis mode" checkbox at the bottom of the input box; hover over its "?" for an explanation ([hypothesis mode](#hypothesis-mode)).
 3. Press "Run". Enter in the ROI moves to the TLF; Enter in the TLF runs (Shift+Enter adds a line).
 
 The project gets a name automatically; you can change it on the project page. The Contributor name comes from Settings.
@@ -131,11 +132,11 @@ When the site has a BRA-DB, a saved version also has a **BRA-DB** box: it says w
 
 ## Hypothesis mode
 
-By default, the BRA contains only connections and UCs that the literature directly supports ("Literature-supported only"). With "Allow hypotheses", connections and UC properties that the literature does not directly support can be included, marked as **hypotheses**. A hypothesis still needs at least one premise paper that can be verified (what other studies report, a homologous region, …). Citations, DOIs, the SABRA boundary and the other checks stay as they are.
+By default, the BRA contains only connections and UCs that the literature directly supports ("Literature-supported only"). With "Hypothesis mode" checked, connections and UC properties that the literature does not directly support can be included, marked as **hypotheses**. A hypothesis still needs at least one premise paper that can be verified (what other studies report, a homologous region, …). Citations, DOIs, the SABRA boundary and the other checks stay as they are.
 
 ### Choosing it
 
-- **When creating**: under "v" in the input box, choose "Allow hypotheses" under "Evidence". Choose the claims that may be hypotheses (a connection's existence, direction and sign; a UC's cell population, transmitter and modulation, and role) and the share limit. You can add one line (up to 200 characters) on where hypotheses may be needed. The scope is the whole graph.
+- **When creating**: check "Hypothesis mode" at the bottom of the input box (its "?" explains it). Choose the claims that may be hypotheses (a connection's existence, direction and sign; a UC's cell population, transmitter and modulation, and role) and the share limit. You can add one line (up to 200 characters) on where hypotheses may be needed. The scope is the whole graph.
 - **With a follow-up**: switch on "Allow hypotheses with this instruction" under the input box of the Agent panel. Choose the claims, the target ("Whole HCD" or "Circuits and GNs selected in the graph") and the limit, then send. To narrow the target, first select a circuit, Collection or GN in the HCD or FRG graph. The switch turns off after sending.
 - Writing "hypotheses are fine" in an instruction does not allow hypotheses. Always use the switch.
 

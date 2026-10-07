@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-10-07
+
+### Changed
+- Create screen: hypothesis mode is now a checkbox at the bottom of the input box (「仮説モード」 / "Hypothesis mode", unchecked by default) instead of the "Evidence" choice deep in the "v" model menu. Hovering over its "?" explains the mode; checking it shows the claims, the share limit and the optional note as before. What is sent when creating a project is unchanged
+
 ## [0.37.0] - 2026-10-07
 
 ### Added

@@ -1,13 +1,14 @@
 /**
- * Hypothesis mode, stage 3: the controls that allow hypotheses. The create screen's "Evidence" choice (literature-
- * supported only, the default, or "Allow hypotheses" with claims, share limit and a note) and the pieces the follow-up
- * switch reuses. They build the stage 2 request types; nothing is sent while hypotheses are not allowed.
+ * Hypothesis mode, stage 3: the controls that allow hypotheses. The create screen's hypothesis-mode checkbox (off =
+ * literature-supported only, the default; on = claims, share limit and a note) and the pieces the follow-up switch
+ * reuses. They build the stage 2 request types; nothing is sent while hypotheses are not allowed.
  */
 import { useId } from "react";
 import type { HypothesisClaim, HypothesisCreateRequest } from "@cobrac/shared";
 import { DEFAULT_HYPOTHESIS_MAX_SHARE, HYPOTHESIS_MAX_SHARES, HYPOTHESIS_NOTE_MAX } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { HelpTip } from "../HelpTip";
+import { HypothesisMark } from "./HypothesisMark";
 
 /** The claim checkboxes: one per claim, transmitter and modulation together. */
 export const CLAIM_GROUPS: { key: string; label: MessageKey; claims: HypothesisClaim[] }[] = [
@@ -99,27 +100,27 @@ export function LimitPicker({ value, onChange, keep }: { value: number | null; o
 }
 
 /**
- * The create screen's "Evidence" choice (next to research mode). `value` null = literature-supported only (the
- * default); a draft = "Allow hypotheses".
+ * Hypothesis mode of a new project: a checkbox on the composer (off = literature-supported only), with its help on
+ * the "?" and, once on, the claims, the share limit and an optional note.
  */
-export function EvidenceChoice({ value, onChange }: { value: HypothesisDraft | null; onChange: (v: HypothesisDraft | null) => void }) {
+export function HypothesisModeChoice({ value, onChange, disabled }: { value: HypothesisDraft | null; onChange: (v: HypothesisDraft | null) => void; disabled?: boolean }) {
   const t = useT();
-  const name = useId();
-  const row = "flex cursor-pointer items-start gap-2 rounded-lg px-1 py-1 text-sm text-slate-800 has-[:focus-visible]:bg-slate-100 coarse:min-h-11";
   return (
-    <div className="mx-3 mt-3 border-t border-slate-100 pt-2" data-testid="evidence-choice">
-      <div role="radiogroup" aria-label={t("hyp.evidence")}>
-        <div className="mb-1 flex items-center gap-1 text-xs font-semibold text-slate-500">
-          {t("hyp.evidence")} <HelpTip text={t("hyp.allowHelp")} />
-        </div>
-        <label className={row}>
-          <input type="radio" name={name} className="mt-1 h-3.5 w-3.5 shrink-0 text-blue-600" checked={!value} onChange={() => onChange(null)} data-testid="evidence-strict" />
-          <span>{t("hyp.strict")}</span>
+    <div className="border-t border-slate-100 px-3 py-1.5" data-testid="hypothesis-mode">
+      <div className="flex items-center gap-1.5">
+        <label className="flex min-w-0 cursor-pointer items-center gap-2 text-xs font-medium text-slate-700 coarse:min-h-11">
+          <input
+            type="checkbox"
+            checked={!!value}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.checked ? (value ?? defaultHypothesisDraft()) : null)}
+            className="h-3.5 w-3.5 shrink-0 rounded text-amber-600"
+            data-testid="hypothesis-mode-check"
+          />
+          <HypothesisMark size={13} />
+          <span className="truncate">{t("hyp.badge")}</span>
         </label>
-        <label className={row}>
-          <input type="radio" name={name} className="mt-1 h-3.5 w-3.5 shrink-0 text-blue-600" checked={!!value} onChange={() => onChange(value ?? defaultHypothesisDraft())} data-testid="evidence-hypothesis" />
-          <span>{t("hyp.allow")}</span>
-        </label>
+        <HelpTip text={t("hyp.modeHelp")} />
       </div>
       {value && (
         <div className="mt-1.5 space-y-2.5 rounded-lg bg-slate-50 px-2.5 py-2" data-testid="hypothesis-settings">

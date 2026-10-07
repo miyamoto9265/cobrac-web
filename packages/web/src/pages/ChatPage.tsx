@@ -5,7 +5,7 @@ import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
-import { createRequestOf } from "../components/hypothesis/HypothesisControls";
+import { HypothesisModeChoice, createRequestOf } from "../components/hypothesis/HypothesisControls";
 import { PairFields } from "../components/create/PairFields";
 import { Popover } from "../components/create/Popover";
 import { HelpTip } from "../components/HelpTip";
@@ -126,6 +126,7 @@ function NewProject() {
               </button>
             </div>
           </div>
+          <HypothesisModeChoice value={run.hypothesis ?? null} onChange={(hypothesis) => setRun({ ...run, hypothesis })} disabled={busy} />
           {files.fileInput}
           {files.drag && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-3xl bg-blue-50/80 text-sm font-medium text-blue-700">
