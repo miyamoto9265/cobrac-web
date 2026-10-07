@@ -5,7 +5,7 @@
 | Document | Explainer: how the CoBRAC harness changed from v1 to v1.1 — JSON data files, UC names based on SABRA, and a report and decision log you can read in the app |
 | Audience | Users, operators, and anyone reviewing BRA output quality or OpenAI spend |
 | Applies to | v1 = app 0.5.0–0.6.0 / v1.1 = app 0.8.0 and later. The UC naming rules and RCS came first, in 0.7.0 (0.7.x is an intermediate stage whose data was still markdown tables) |
-| Related | [04_CoBRAC_Harness_v0_to_v1.md](./04_CoBRAC_Harness_v0_to_v1.md) (v0 → v1) / [01_設計仕様.md](./01_設計仕様.md) / 日本語版: [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md) |
+| Related | [04_CoBRAC_Harness_v0_to_v1.md](./04_CoBRAC_Harness_v0_to_v1.md) (v0 → v1) / [01_設計仕様.md](../01_設計仕様.md) / 日本語版: [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md) |
 
 ---
 
@@ -13,7 +13,7 @@
 
 v1 made the worker drive the phases and verify them ([the 04 explainer](./04_CoBRAC_Harness_v0_to_v1.md)). The agent, however, still wrote its data as markdown tables. The worker parsed those tables back to check them, and when the CSVs could not be built it had the agent type them by hand. Circuit IDs were free names, and only the xlsx and graphs were visible in the app. v1.1 changes three things. **Data is written as JSON, and JSON Schemas guarantee its shape**; the CSVs are always built by code. **Every UC is anchored on a SABRA unit found with RCS and named after it, and the worker checks the names.** **Markdown is kept only for the two documents people read, the report and the decision log, and both can be read in the chat screen.**
 
-![In v1 the data was markdown tables that the worker parsed back. In v1.1 the data is JSON, checked against JSON Schemas and the UC naming rules, and the report and decision log are visible in the app](./figures/harness-v1-1-overview.en.svg "Figure 1. Harness v1 vs v1.1: data format and UC names")
+![In v1 the data was markdown tables that the worker parsed back. In v1.1 the data is JSON, checked against JSON Schemas and the UC naming rules, and the report and decision log are visible in the app](../figures/harness-v1-1-overview.en.svg "Figure 1. Harness v1 vs v1.1: data format and UC names")
 
 ---
 
@@ -35,7 +35,7 @@ v1 made the worker drive the phases and verify them ([the 04 explainer](./04_CoB
 
 ### 3.1 v1: markdown tables, parsed back by the worker
 
-![Data flow of v1. The agent writes six HCD and five FRG markdown files; the worker parses the tables of five of them, checks them and builds the CSVs. The other files are only checked for existence. When the CSVs cannot be built, the agent types them](./figures/harness-v1-1-v1-flow.en.svg "Figure 2. Data flow of v1 (circled numbers match the weak points below)")
+![Data flow of v1. The agent writes six HCD and five FRG markdown files; the worker parses the tables of five of them, checks them and builds the CSVs. The other files are only checked for existence. When the CSVs cannot be built, the agent types them](../figures/harness-v1-1-v1-flow.en.svg "Figure 2. Data flow of v1 (circled numbers match the weak points below)")
 
 Weak points:
 
@@ -46,7 +46,7 @@ Weak points:
 
 ### 3.2 v1.1: JSON data, names fixed to SABRA
 
-![Data flow of v1.1. The agent looks up brain regions with RCS and writes four JSON data files and two markdown files. The worker checks JSON Schemas, cross-references and the UC naming rules and returns problems with JSON pointers. Only code builds the CSVs](./figures/harness-v1-1-v11-flow.en.svg "Figure 3. Data flow of v1.1 (circled numbers: how the weak points of 3.1 are addressed)")
+![Data flow of v1.1. The agent looks up brain regions with RCS and writes four JSON data files and two markdown files. The worker checks JSON Schemas, cross-references and the UC naming rules and returns problems with JSON pointers. Only code builds the CSVs](../figures/harness-v1-1-v11-flow.en.svg "Figure 3. Data flow of v1.1 (circled numbers: how the weak points of 3.1 are addressed)")
 
 The skeleton of the workflow is the same as in v1: HCD → FRG → CSV → xlsx, the worker drives and verifies the phases, and every turn ends with `{status, message, question}`. What changed are the files the agent writes and what the worker checks and generates.
 
@@ -84,7 +84,7 @@ How the weak points in 3.1 map to the changes:
 
 Since 0.7.0 every UC, inside or outside the ROI, is fixed to exactly one SABRA unit and named after it. Neither SABRA nor UCs have IDs of their own: the **UC Descriptor** (anchor plus facets only when needed) is the UC's key and the **Circuit ID** its readable alias. The same population gets the same names in every project.
 
-![Building the Circuit ID VTA(DA,out:NAC,rpe) from the UC Descriptor HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe, and the four steps for finding the anchor](./figures/harness-v1-1-uc-naming.en.svg "Figure 4. How a UC Descriptor and a Circuit ID are built")
+![Building the Circuit ID VTA(DA,out:NAC,rpe) from the UC Descriptor HOMBA:12261/nt:DA/out:BNA:223-224/resp:rpe, and the four steps for finding the anchor](../figures/harness-v1-1-uc-naming.en.svg "Figure 4. How a UC Descriptor and a Circuit ID are built")
 
 - **The anchor alone is the normal case.** When a UC is a whole SABRA unit, its descriptor is just the anchor and its Circuit ID just the abbreviation (`HOMBA:12261` / `VTA`, `BNA:223-224` / `NAC`, `BNA:57` / `A4ul@L`). Facets are added only when the HCD needs a population finer than the unit. The transmitter goes in Transmitter and the content in Output Semantics; facets are not used to describe a UC.
 - **The Circuit ID starts with the anchor's official abbreviation**: the DHBA acronym or the BNA area abbreviation, exactly. Custom abbreviations (`NAc`, `LC`) and sub-unit ones (`NACs`, `CA1`) go inside the parentheses. One-sided UCs get `@L` / `@R`.
@@ -104,7 +104,7 @@ The agent uses RCS as an MCP server: `search_homba_candidates` to find candidate
 
 Since 0.8.0 the markdown tables that the worker parsed are JSON data files.
 
-![Mapping of the v1 markdown files to the v1.1 files; four were removed](./figures/harness-v1-1-files.en.svg "Figure 5. File mapping: from the v1 markdown files to v1.1")
+![Mapping of the v1 markdown files to the v1.1 files; four were removed](../figures/harness-v1-1-files.en.svg "Figure 5. File mapping: from the v1 markdown files to v1.1")
 
 | v1 | v1.1 | Why |
 | -- | ---- | --- |
@@ -145,7 +145,7 @@ Measured with the `o200k_base` tokenizer. The 0.7.0 column is the intermediate s
 
 Instructions in the context of every request, by phase:
 
-![HCD phase: 2,017 → 4,915 tokens; FRG phase: 3,053 → 5,979 tokens. Most of the increase is the UC naming rules in HCD.md](./figures/harness-v1-1-instruction-tokens.en.svg "Figure 6. Instructions in the context of every request, by phase (v1 vs v1.1)")
+![HCD phase: 2,017 → 4,915 tokens; FRG phase: 3,053 → 5,979 tokens. Most of the increase is the UC naming rules in HCD.md](../figures/harness-v1-1-instruction-tokens.en.svg "Figure 6. Instructions in the context of every request, by phase (v1 vs v1.1)")
 
 The v1.1 instructions are about twice as long as v1's. About two thirds of the increase is the UC naming rules added to `HCD.md` in 0.7.0 (+1,877). The JSON switch added `AGENTS.md` +299 and `HCD.md` +501 (file layout, how to write JSON, the decision log). The JSON Schemas themselves sit in `schemas/` and are read only when needed, so they are not part of every request.
 

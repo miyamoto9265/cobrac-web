@@ -371,6 +371,8 @@ export const de: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} Jobs",
 
   "docs.title": "Dokumentation",
+  "docs.archive": "Archiv",
+  "docs.archivedNotice": "Dieser archivierte Vergleich beschreibt eine frühere Version. Das aktuelle Verhalten ist in der aktuellen Dokumentation beschrieben.",
   "docs.repo": "Repository",
   "docs.empty": "Keine Dokumente",
   "releases.title": "Release Notes",

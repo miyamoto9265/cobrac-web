@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import remarkGfm from "remark-gfm";
 import { useT } from "../i18n";
 import type { DocHeading } from "../lib/docs";
+import { remarkDetails } from "../lib/remarkDetails";
 
 type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[]; position?: { start: { line: number } } };
 
@@ -19,7 +20,7 @@ interface Props {
   /** Resolves a relative `Foo.md` link to an in-app path, or null if it is not a document of the app. */
   docHref: (file: string) => string | null;
   onAnchor: (id: string) => void;
-  /** Resolves `./figures/<file>`; other images keep their src */
+  /** Resolves `./figures/<file>` and archived documents' `../figures/<file>`; other images keep their src */
   figures?: DocFigures;
 }
 
@@ -63,7 +64,7 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
         return onlyImage && kids.length > 0 ? <>{children}</> : <p>{children}</p>;
       },
       img: ({ src = "", alt = "", title }) => {
-        const file = src.match(/^(?:\.\/)?figures\/([^/?#]+)$/)?.[1];
+        const file = src.match(/^(?:\.{1,2}\/)?figures\/([^/?#]+)$/)?.[1];
         if (figures && !(file && figures[file])) return null;
         const url = figures ? figures[file!].url : src;
         const narrow = figures ? figures[file!].narrow : undefined;
@@ -97,7 +98,7 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
             </a>
           );
         }
-        const md = href.match(/^(?:\.\/)?([^/:?#]+)\.md(#.*)?$/);
+        const md = href.match(/^(?:\.{1,2}\/)*(?:docs\/)?(?:archive\/)?([^/:?#]+)\.md(#.*)?$/);
         const to = md ? docHref(decodeURIComponent(md[1])) : null;
         if (to) return <Link to={`${to}${md?.[2] ?? ""}`}>{children}</Link>;
         return /^https?:/.test(href) ? (
@@ -113,6 +114,8 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
           <table>{children}</table>
         </div>
       ),
+      details: ({ children }) => <details className="docs-details">{children}</details>,
+      summary: ({ children }) => <summary>{children}</summary>,
       th: ({ node, children, style }) => {
         const label = nodeText(node as HastNode | undefined).trim();
         const version = label === "v0" || label === "v1" || label === "v1.1" ? label.replace(".", "-") : null;
@@ -123,7 +126,7 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
 
   return (
     <div className="markdown docs">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkDetails]} components={components}>
         {text}
       </ReactMarkdown>
     </div>

@@ -371,6 +371,8 @@ export const es: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} trabajos",
 
   "docs.title": "Docs",
+  "docs.archive": "Archivo",
+  "docs.archivedNotice": "Este artículo archivado compara versiones anteriores. Consulte la documentación actual para conocer el funcionamiento vigente.",
   "docs.repo": "Repositorio",
   "docs.empty": "No hay documentos",
   "releases.title": "Notas de la versión",

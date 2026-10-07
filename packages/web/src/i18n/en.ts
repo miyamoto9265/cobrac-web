@@ -369,6 +369,8 @@ export const en = {
   "admin.orgUsageJobs": "{n} jobs",
 
   "docs.title": "Docs",
+  "docs.archive": "Archive",
+  "docs.archivedNotice": "This is an archived comparison article. It describes a past version; use the current documentation for today’s behavior.",
   "docs.repo": "Repository",
   "docs.empty": "No documents",
   "releases.title": "Release notes",

@@ -5,7 +5,7 @@
 | Document | What changed from CoBRAC harness v1.1 to v2: round trips between HCD and FRG (consistency checks, adjustment turn, back-edge), the research step and literature tools, reference and quote checks, BRA spec compliance, Collections, the Template-v2-2 workbook, Canons, reference materials and the robustness of long jobs |
 | Audience | Users, operators, and anyone checking BRA quality or OpenAI costs |
 | Versions | v1.1 = app 0.8.0–0.8.1 / v2 = app 0.13.0 and later. The parts of v2 arrived one by one in 0.9.0–0.12.1; the back-edge and the adjustment turn of 0.13.0 ended the one-way flow |
-| Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) (v1 → v1.1) / [04_CoBRAC_Harness_v0_to_v1.md](./04_CoBRAC_Harness_v0_to_v1.md) (v0 → v1) / [06_Research_mode_and_Canon.md](./06_Research_mode_and_Canon.md) (user guide to research mode and Canons) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md) |
+| Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) (v1 → v1.1) / [04_CoBRAC_Harness_v0_to_v1.md](./04_CoBRAC_Harness_v0_to_v1.md) (v0 → v1) / [06_Research_mode_and_Canon.md](../06_Research_mode_and_Canon.md) (user guide to research mode and Canons) / [01_設計仕様.md](../01_設計仕様.md) / 日本語: [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md) |
 
 ---
 
@@ -17,7 +17,7 @@ v2 adds a **back-edge from the FRG to the HCD**. After the FRG step the worker c
 
 Alongside, v2 brings a **research step** before generation with the `lit` literature tools, **reference and quote checks**, **BRA spec compliance** (CoBRAC-v1-1), **Collections**, a workbook in the official **Template-v2-2** layout, **Canon** constraints, **reference materials**, and **robustness** for long jobs.
 
-![In v1.1 the agent finished the HCD before building the FRG, one way, and the worker did not check that the two agree. In v2 the agent gathers literature in a research step and can go back from the FRG to split HCD UCs. The worker also checks BRA values, references and quotes, records the consistency checks X1–X9, and validates the HCD again when a later step changes it](./figures/harness-v2-overview.en.svg "Figure 1. Harness v1.1 vs v2: from one-way to round trips")
+![In v1.1 the agent finished the HCD before building the FRG, one way, and the worker did not check that the two agree. In v2 the agent gathers literature in a research step and can go back from the FRG to split HCD UCs. The worker also checks BRA values, references and quotes, records the consistency checks X1–X9, and validates the HCD again when a later step changes it](../figures/harness-v2-overview.en.svg "Figure 1. Harness v1.1 vs v2: from one-way to round trips")
 
 **Why v2.** The repository rules (`AGENTS.md`) say that the workflow skeleton — "HCD → FRG → CSV → xlsx in this order, the worker drives and validates the phases, a JSON output `{status, message, question}` at the end of each turn" — is not changed without consultation. With the user's approval, this skeleton now reads "HCD → FRG → (consistency check, adjustment) → CSV → xlsx". Ending the one-way flow is a larger change than the component swaps of v1 → v1.1, hence the new major label v2. The end-of-turn JSON and the deterministic per-phase validation are unchanged.
 
@@ -45,7 +45,7 @@ Alongside, v2 brings a **research step** before generation with the `lit` litera
 
 ### 3.1 Pipeline comparison
 
-![v1.1 runs HCD → FRG → CSV → xlsx once each and never goes back. v2 starts with a research step, records the consistency checks after the FRG, and sends one adjustment turn when X1–X3 or X8 are found. In it the agent fixes the FRG or goes back to split or add HCD UCs. A changed HCD is validated again before the CSV step, and two workbooks are written](./figures/harness-v2-pipeline.en.svg "Figure 2. Pipeline comparison (top: v1.1, bottom: v2; the circled numbers are the weaknesses and their answers)")
+![v1.1 runs HCD → FRG → CSV → xlsx once each and never goes back. v2 starts with a research step, records the consistency checks after the FRG, and sends one adjustment turn when X1–X3 or X8 are found. In it the agent fixes the FRG or goes back to split or add HCD UCs. A changed HCD is validated again before the CSV step, and two workbooks are written](../figures/harness-v2-pipeline.en.svg "Figure 2. Pipeline comparison (top: v1.1, bottom: v2; the circled numbers are the weaknesses and their answers)")
 
 The v1.1 flow had three weaknesses:
 
@@ -115,7 +115,7 @@ At every FRG and CSV check, the worker runs `checkCross` (`packages/shared/src/c
 
 ### 4.2 The adjustment turn and the back-edge to the HCD
 
-![When the FRG step ends, the consistency checks are recorded. Without X1, X2, X3 or X8 the run goes on to the CSVs. With them one adjustment turn is sent; the agent fixes the FRG, goes back to HCD step 3 to split or add UCs, or keeps the difference with a reason, and writes it in the revisions section. A changed HCD is validated again before the CSVs and xlsx](./figures/harness-v2-adjustment.en.svg "Figure 3. The adjustment turn and the back-edge to the HCD")
+![When the FRG step ends, the consistency checks are recorded. Without X1, X2, X3 or X8 the run goes on to the CSVs. With them one adjustment turn is sent; the agent fixes the FRG, goes back to HCD step 3 to split or add UCs, or keeps the difference with a reason, and writes it in the revisions section. A changed HCD is validated again before the CSVs and xlsx](../figures/harness-v2-adjustment.en.svg "Figure 3. The adjustment turn and the back-edge to the HCD")
 
 - **Back-edge** (`prompts/phases/FRG.md`, step 3). When the count rules cannot be met, or a GN needs a flow or distinction the HCD does not have, the agent chooses from the evidence:
   - decompose the TLF more finely, or
@@ -149,7 +149,7 @@ The agent writes one line per change, with its reason and evidence, under `## HC
 
 ### 4.5 Research step and the `lit` tools
 
-![During generation the agent searches papers and takes sentences from abstracts and full texts with the lit tools search_pubmed, search_europepmc, get_abstract and find_sentences. When Europe PMC does not answer, PubMed and PMC (BioC) are used. Requests are guarded by timeouts, retries, host cooldowns and spacing. The worker checks references against Crossref and PubMed and quotes against the full text or abstract, and sends problems back as fix prompts](./figures/harness-v2-literature.en.svg "Figure 4. Literature flow: lit tools during generation, checks by the worker")
+![During generation the agent searches papers and takes sentences from abstracts and full texts with the lit tools search_pubmed, search_europepmc, get_abstract and find_sentences. When Europe PMC does not answer, PubMed and PMC (BioC) are used. Requests are guarded by timeouts, retries, host cooldowns and spacing. The worker checks references against Crossref and PubMed and quotes against the full text or abstract, and sends problems back as fix prompts](../figures/harness-v2-literature.en.svg "Figure 4. Literature flow: lit tools during generation, checks by the worker")
 
 - **Research step** (0.11.0; research mode is chosen at creation and on by default). Before the HCD, following `prompts/phases/RESEARCH.md`, the agent searches PubMed, Europe PMC and the web for tract-tracing, primate and rodent, and layer / cell-type evidence for each candidate projection (inputs, outputs and internal projections of the ROI, up to 40), and writes queries, evidence and gaps to `{P}/research.json`. It writes no HCD files.
 - **Coverage check** (`checkResearch`): at least two queries per candidate (one of them in PubMed or Europe PMC), every listed query must be in the search log (`research_queries.jsonl`), and the coverage values must agree with the evidence. Gaps go back up to twice but never stop the run. The step has 60 minutes and runs at reasoning effort `high` or above.
@@ -182,7 +182,7 @@ Since 0.10.0 the HCD check enforces the values the BRA Data Preparation Manual a
 | Names | Free | Names start with the SABRA official name; function texts refer to tissue as `[U.<Circuit ID>]` |
 | ROI row, Review End Line | None | `ROI_<Project ID>` first in Circuits; the last row of each sheet in Project |
 
-![The sCID / rCID relation says how the UC relates to the paper's circuit: < the UC is part of it, = the same, > the UC contains the paper's finer circuit. The paper's name goes to the Notation column. v1.1 joined several references in one row with relation always =; v2 writes one reference per row and repeats the same sender and receiver per paper](./figures/harness-v2-relation.en.svg "Figure 5. BRA connections: sCID / rCID relation and one reference per row")
+![The sCID / rCID relation says how the UC relates to the paper's circuit: < the UC is part of it, = the same, > the UC contains the paper's finer circuit. The paper's name goes to the Notation column. v1.1 joined several references in one row with relation always =; v2 writes one reference per row and repeats the same sender and receiver per paper](../figures/harness-v2-relation.en.svg "Figure 5. BRA connections: sCID / rCID relation and one reference per row")
 
 - The BRA version in the xlsx is `CoBRAC-v1-1`. Columns were only appended; existing column positions are unchanged.
 - `BNA` as Source of ID is a CoBRAC extension; adding it upstream has been requested.
@@ -251,14 +251,14 @@ Three runs with the same input (TLF `nonword reading`, ROI `Angular gyrus, fosif
 | X9 | cannot be measured | 3 | **0** |
 | Appendix D codes violated (automatic check) | 7 | 1 (the `@` in Circuit IDs, requested upstream) | not measured |
 
-![Three runs of the language area. ROI-internal UCs 5, 4, 7. Collections 0, 0, 3. Connection rows 17, 14, 21. References 19, 17, 21. Checked quotes 0, 14, 21. FRG GNs 8, 2, 4. Depth 3, 2, 3. X9 not measurable, 3, 0. Appendix D violations 7, 1, not measured](./figures/harness-v2-language-metrics.en.svg "Figure 6. Three runs of the language area: v0, 0.11.0 and the back-edge trial")
+![Three runs of the language area. ROI-internal UCs 5, 4, 7. Collections 0, 0, 3. Connection rows 17, 14, 21. References 19, 17, 21. Checked quotes 0, 14, 21. FRG GNs 8, 2, 4. Depth 3, 2, 3. X9 not measurable, 3, 0. Appendix D violations 7, 1, not measured](../figures/harness-v2-language-metrics.en.svg "Figure 6. Three runs of the language area: v0, 0.11.0 and the back-edge trial")
 
 - From v0 to 0.11.0, the Appendix D violations fell from 7 codes to 1. All 14 quotes became verbatim sentences from the papers, checked against full text or abstract. Source of ID became one value and Reference ID one per row ([4.6](#46-reference-and-quote-checks), [4.7](#47-bra-spec-compliance-cobrac-v1-1)).
 - But 0.11.0 was coarser than v0. The fusiform gyrus (pFG and VWFA in v0), the inferior parietal lobule (angular and supramarginal gyrus) and the inferior frontal gyrus (opercular and triangular parts) each became one whole-gyrus UC, and the FRG collapsed to 2 GNs at depth 2. v0's FRG had depth 3, but its UCs were free names and the same UC sat in several GNs.
 
 ### 5.2 What the back-edge trial changed
 
-![Before (0.11.0) the ROI had 4 UCs, the whole gyri FuG@L, IPL@L, IFG@L and A22c@L, and the FRG had 2 GNs at depth 2; X1–X8 found nothing and only X9 caught the coarseness. After (back-edge trial) each gyrus was split into two UCs and became a Collection, and the FRG has 4 GNs at depth 3: ventral orthographic analysis, temporo-parietal phonological analysis (with inferior parietal support below it) and frontal phonological output](./figures/harness-v2-language-trial.en.svg "Figure 7. Language-area trial: splitting gyrus-level UCs changed the FRG")
+![Before (0.11.0) the ROI had 4 UCs, the whole gyri FuG@L, IPL@L, IFG@L and A22c@L, and the FRG had 2 GNs at depth 2; X1–X8 found nothing and only X9 caught the coarseness. After (back-edge trial) each gyrus was split into two UCs and became a Collection, and the FRG has 4 GNs at depth 3: ventral orthographic analysis, temporo-parietal phonological analysis (with inferior parietal support below it) and frontal phonological output](../figures/harness-v2-language-trial.en.svg "Figure 7. Language-area trial: splitting gyrus-level UCs changed the FRG")
 
 - The agent went back to the HCD and turned the three whole-gyrus UCs into 7 UCs and 3 Collections. Every new connection has a reference and a verbatim quote, and all 21 quotes passed the check.
 - The FRG decomposition changed with it. The earlier FRG put "orthographic and parietal" into one GN that bundled the fusiform gyrus and the inferior parietal lobule. The new one splits into ventral orthographic analysis, temporo-parietal phonological analysis and frontal phonological output, with angular and supramarginal gyrus as a lower GN. This is close to the ventral / dorsal route distinction of reading research: **refining the HCD actually changed the FRG decomposition**.
@@ -291,7 +291,7 @@ Counted with the `o200k_base` tokenizer.
 
 The instructions present in the context of every request, per step. In research mode, the research spec and the research-mode notes stay in the context in later steps (until the conversation is compacted).
 
-![The research step exists only in v2, with 3,621 tokens. HCD goes from 4,915 in v1.1 to 8,145 in v2 (+1,786 in research mode). FRG goes from 5,979 to 9,506 (+1,786 in research mode). Most of the increase is HCD.md and AGENTS.md](./figures/harness-v2-instruction-tokens.en.svg "Figure 8. Instructions in the context of every request, by step (v1.1 vs v2)")
+![The research step exists only in v2, with 3,621 tokens. HCD goes from 4,915 in v1.1 to 8,145 in v2 (+1,786 in research mode). FRG goes from 5,979 to 9,506 (+1,786 in research mode). Most of the increase is HCD.md and AGENTS.md](../figures/harness-v2-instruction-tokens.en.svg "Figure 8. Instructions in the context of every request, by step (v1.1 vs v2)")
 
 - The `HCD.md` increase (+2,300) is the BRA value rules (Source of ID, relations and notations, one reference per row, quotes, enumerations) and Collections, 203 and `uniformityNote`. The `FRG.md` increase (+297) is the back-edge.
 - The `AGENTS.md` increase (+930) is the literature tools and the verbatim-quote rule, reference materials, how to write the revisions section, the files the worker writes, and the reply language.

@@ -5,7 +5,7 @@
 | 文書 | CoBRAC が UC（Uniform Circuit）と Collection に付ける名前の規則の解説。名前の規則が必要になった理由、SABRA のアンカー、9 本のファセット、UC Descriptor と Circuit ID、左右の扱い、Canon での使い方、WBAI の Error code List (Master) に合わせたエラーコード、WBAI に確認したい点 |
 | 対象読者 | 利用者、BRA を審査・統合する WBAI のメンバー、CoBRAC の出力を他のデータと突き合わせる人 |
 | 対象バージョン | 命名規則の導入はアプリ 0.7.0。左右のファセット `side`、Circuit ID の文字集合と区切り、Master に合わせたエラーコードは 0.17.0 から。BNA を新皮質だけに使う SABRA の境界は 0.24.0 から（§4.3） |
-| 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./05_CoBRAC_Harness_v1_to_v1_1_ja.md)（命名規則が入った v1.1 の解説）/ [06_Research_mode_and_Canon_ja.md](./06_Research_mode_and_Canon_ja.md)（Canon の利用ガイド）/ [07_CoBRAC_Harness_v1_1_to_v2_ja.md](./07_CoBRAC_Harness_v1_1_to_v2_ja.md)（v2 の解説）/ [01_設計仕様.md](./01_設計仕様.md) / English: [08_Circuit_naming.md](./08_Circuit_naming.md) |
+| 関連 | [05_CoBRAC_Harness_v1_to_v1_1_ja.md](./archive/05_CoBRAC_Harness_v1_to_v1_1_ja.md)（命名規則が入った v1.1 の解説）/ [06_Research_mode_and_Canon_ja.md](./06_Research_mode_and_Canon_ja.md)（Canon の利用ガイド）/ [04_CoBRAC_Harness_v2_ja.md](./04_CoBRAC_Harness_v2_ja.md)（v2 の解説）/ [01_設計仕様.md](./01_設計仕様.md) / English: [08_Circuit_naming.md](./08_Circuit_naming.md) |
 
 ---
 

@@ -1,7 +1,7 @@
 # CoBRAC Harness v0 archive
 
 Read-only copy of the material from before the web app became the main tool. Formerly kept in the separate `CoBRAC` repository, which has been retired.
-Nothing here is used by the app, the worker image, or the site documentation. For how v0 differs from the current harness, see `docs/04_CoBRAC_Harness_v0_to_v1.md`.
+Nothing here is used by the app, the worker image, or the site documentation. For the current harness, see `docs/04_CoBRAC_Harness_v2.md`. The historical v0-to-v1 comparison is preserved in `docs/archive/04_CoBRAC_Harness_v0_to_v1.md`.
 
 | Folder | Contents |
 | ------ | -------- |

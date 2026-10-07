@@ -5,7 +5,7 @@
 | Document | How CoBRAC names UCs (Uniform Circuits) and Collections: why naming rules were needed, SABRA anchors, the nine facets, the UC Descriptor and the Circuit ID, laterality, how the Canon uses the descriptor, error codes aligned with WBAI's Error code List (Master), and the points to settle with WBAI |
 | Readers | Users, WBAI members who review and merge BRAs, anyone who matches CoBRAC output against other data |
 | Versions | The naming rules came with app 0.7.0. The `side` facet, the Circuit ID character set and separators, and the Master error codes are from 0.17.0. The SABRA boundary that uses BNA for the neocortex only is from 0.24.0 (§4.3) |
-| Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./05_CoBRAC_Harness_v1_to_v1_1.md) (harness v1.1, where the naming rules were introduced) / [06_Research_mode_and_Canon.md](./06_Research_mode_and_Canon.md) (Canon user guide) / [07_CoBRAC_Harness_v1_1_to_v2.md](./07_CoBRAC_Harness_v1_1_to_v2.md) (harness v2) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [08_Circuit_naming_ja.md](./08_Circuit_naming_ja.md) |
+| Related | [05_CoBRAC_Harness_v1_to_v1_1.md](./archive/05_CoBRAC_Harness_v1_to_v1_1.md) (harness v1.1, where the naming rules were introduced) / [06_Research_mode_and_Canon.md](./06_Research_mode_and_Canon.md) (Canon user guide) / [04_CoBRAC_Harness_v2.md](./04_CoBRAC_Harness_v2.md) (harness v2) / [01_設計仕様.md](./01_設計仕様.md) / 日本語: [08_Circuit_naming_ja.md](./08_Circuit_naming_ja.md) |
 
 ---
 

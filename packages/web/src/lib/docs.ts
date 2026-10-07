@@ -29,12 +29,13 @@ export interface DocHeading {
 export function extractHeadings(markdown: string): DocHeading[] {
   const out: DocHeading[] = [];
   const seen = new Map<string, number>();
-  let fence: string | null = null;
+  let fence: { marker: string; length: number } | null = null;
   markdown.split("\n").forEach((raw, i) => {
-    const fenceMatch = raw.match(/^\s*(`{3,}|~{3,})/);
+    const fenceMatch = raw.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
     if (fenceMatch) {
-      if (!fence) fence = fenceMatch[1][0];
-      else if (fenceMatch[1][0] === fence) fence = null;
+      const marker = fenceMatch[1][0];
+      if (!fence && (marker !== "`" || !fenceMatch[2].includes("`"))) fence = { marker, length: fenceMatch[1].length };
+      else if (fence && marker === fence.marker && fenceMatch[1].length >= fence.length && !fenceMatch[2].trim()) fence = null;
       return;
     }
     if (fence) return;

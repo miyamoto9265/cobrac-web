@@ -371,6 +371,8 @@ export const zh: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} 个作业",
 
   "docs.title": "文档",
+  "docs.archive": "归档",
+  "docs.archivedNotice": "这是记录历史版本差异的文章。请从文档列表查看最新版本的说明。",
   "docs.repo": "代码仓库",
   "docs.empty": "暂无文档",
   "releases.title": "发行说明",

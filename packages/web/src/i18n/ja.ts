@@ -371,6 +371,8 @@ export const ja: Record<MessageKey, string> = {
   "admin.orgUsageJobs": "{n} 件のジョブ",
 
   "docs.title": "ドキュメント",
+  "docs.archive": "アーカイブ",
+  "docs.archivedNotice": "過去のバージョン差分を記録した記事です。現在の挙動はドキュメント一覧の最新版をご覧ください。",
   "docs.repo": "リポジトリ",
   "docs.empty": "ドキュメントがありません",
   "releases.title": "リリースノート",
