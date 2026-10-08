@@ -2,13 +2,15 @@ import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, FileUp
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { CanonRecord, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, UpdatePlanRequest } from "@cobrac/shared";
-import { MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, orchestratorModelOf, planEstimate } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, orchestratorModelOf, planEstimate } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
+import { PipelineProgress } from "../components/PipelineProgress";
+import { LiveDot, PlanBar } from "../components/PlanBar";
 import { ModelSelect } from "../components/ModelSelect";
 import { useI18n, useT, type MessageKey, type TFn } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedIndexes, seedsHolding, shownAnchors, splitIntoWaves, wavesText, waveRuns } from "../lib/plan";
+import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedIndexes, seedsHolding, shownAnchors, splitIntoWaves, waveCounts, wavesText, waveRuns } from "../lib/plan";
 import { canonPath, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { PlanStatusBadge } from "./PlansPage";
 
@@ -159,7 +161,6 @@ function Summary({ d }: { d: PlanDetailResponse }) {
   const t = useT();
   const { plan, rows, limits, estimate, actual } = d;
   const counts = plan.rowCounts!;
-  const total = rows.length || 1;
   // wave numbers as stored (the headings of the rows show the same numbers)
   const waves = planWaves(rows);
   // plans counted before stage 3 have no review / decision counts
@@ -169,18 +170,14 @@ function Summary({ d }: { d: PlanDetailResponse }) {
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="plan-summary">
       <Stat label={t("plan.progress")}>
         <div className="font-medium">{t("plan.doneOf", { done: counts.done, n: rows.length })}</div>
-        <div className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-slate-100" aria-hidden>
-          <div className="bg-emerald-500" style={{ width: `${(counts.done / total) * 100}%` }} />
-          <div className="bg-blue-500" style={{ width: `${((counts.running + counts.starting) / total) * 100}%` }} />
-          <div className="bg-amber-400" style={{ width: `${(counts.question / total) * 100}%` }} />
-          <div className="bg-violet-400" style={{ width: `${(n("review") / total) * 100}%` }} />
-          <div className="bg-amber-600" style={{ width: `${(n("decision") / total) * 100}%` }} />
-          <div className="bg-rose-500" style={{ width: `${(counts.attention / total) * 100}%` }} />
-        </div>
+        <PlanBar waves={waveCounts(rows)} activeWave={plan.activeWave} live={plan.status === "RUNNING"} className="mt-1.5" />
         <div className="mt-1.5 flex flex-wrap gap-1">
           {shown.map((s) => (
             <span key={s} className={`rounded-full px-1.5 py-0.5 text-[11px] ${ROW_STATE_COLOR[s]}`}>
-              {t(`plan.row.${s}` as MessageKey)} {n(s)}
+              {t(`plan.row.${s}` as MessageKey)}{" "}
+              <span key={n(s)} className="inline-block tabular-nums motion-safe:animate-count-in">
+                {n(s)}
+              </span>
             </span>
           ))}
         </div>
@@ -808,6 +805,9 @@ function WaveHeading({ wave, seed, current, className = "mb-1" }: { wave: number
   );
 }
 
+/** A row whose project is being built now (the stage strip and the accent of the row). */
+const building = (r: PlanRowView) => (r.state === "starting" || r.state === "running" || r.state === "question") && !!r.project && ACTIVE_PROJECT_STATUSES.includes(r.project.status);
+
 function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, action: "retry" | "skip") => void }) {
   const t = useT();
   const waves = planWaves(d.rows);
@@ -827,7 +827,11 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
             <ul className="grid gap-1.5">
               {rows.map((r) => (
                 // min-w-0: a grid item is as wide as its widest unbreakable content otherwise (the truncated project name of 「既存」)
-                <li key={r.rowId} className="flex min-w-0 flex-col gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:gap-3">
+                <li
+                  key={r.rowId}
+                  data-state={r.state}
+                  className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"}`}
+                >
                   <div className="min-w-0 flex-1">
                     <div className="break-words text-sm">
                       <span className="font-medium">{r.tlf || "—"}</span>
@@ -835,6 +839,9 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
                     </div>
                     {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
                     <RowFacts row={{ ...r, seed: seeds.has(r.rowId) }} names={names} />
+                    {building(r) && r.project?.stepStates && (
+                      <PipelineProgress project={{ status: r.project.status, stepStates: r.project.stepStates, activeStage: r.project.activeStage ?? null, researchMode: r.project.researchMode }} jobs={[]} help={false} className="mt-1.5" />
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     {r.projectId && (
@@ -1309,7 +1316,10 @@ export function PlanDetailPage() {
               </button>
             </form>
           )}
-          <PlanStatusBadge status={plan.status} />
+          <span className="flex items-center gap-1.5">
+            {(plan.status === "RUNNING" || plan.status === "DRAFTING" || plan.status === "PAUSED") && <LiveDot tone={plan.status === "PAUSED" ? "waiting" : "running"} />}
+            <PlanStatusBadge status={plan.status} />
+          </span>
           <span className="font-mono text-[11px] text-slate-500" title={t("plan.planId")}>
             {plan.planId}
           </span>

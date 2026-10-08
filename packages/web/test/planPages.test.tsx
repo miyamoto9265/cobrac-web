@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
+import type { PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView, PlanSummary } from "@cobrac/shared";
 import { countRows, estimatePlan } from "@cobrac/shared";
 
 const api = vi.hoisted(() => ({
@@ -187,6 +187,99 @@ describe("plan list", () => {
     await act(async () => button("Create plan")!.click());
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
+  });
+});
+
+describe("plan list as a live view", () => {
+  const summary = (planId: string, status: PlanRecord["status"], extra: Partial<PlanSummary> = {}): PlanSummary => ({ ...detail(status, []).plan, planId, name: `Plan ${planId}`, rowCounts: countRows([]), ...extra });
+  const project = (status: NonNullable<PlanRowView["project"]>["status"], extra: Partial<NonNullable<PlanRowView["project"]>> = {}) => ({
+    name: "P",
+    status,
+    pendingQuestion: null,
+    costUsd: null,
+    revision: 0,
+    errorMessage: null,
+    deleted: false,
+    stepStates: { HCD: "done", FRG: "running", CSV: "pending", XLSX: "pending" } as const,
+    activeStage: "FRG" as const,
+    ...extra,
+  });
+  const running = row("r1", "amygdala", "fear conditioning", "running", 1, { projectId: "p0000001", startedAt: now, project: project("RUNNING") });
+  const asking = row("r2", "STG", "phonology", "question", 1, { projectId: "p0000002", project: project("WAITING_USER_INPUT", { pendingQuestion: "Left or both?" }) });
+  const live = summary("n0000001", "RUNNING", {
+    confirmedAt: now,
+    rowCount: 3,
+    rowCounts: countRows([running, asking, row("r3", "IFG", "speech", "pending", 2)]),
+    pulse: {
+      waves: [
+        { wave: 1, counts: { running: 1, question: 1 } },
+        { wave: 2, counts: { pending: 1 } },
+      ],
+      running: [running],
+      waiting: [asking],
+      events: [{ sk: "EVT#2", type: "row_question", at: now, row: { roi: "STG", tlf: "phonology" } }],
+      openProposals: 1,
+      estimate: estimatePlan({ seedRows: 0, bodyWaveSizes: [2, 1], concurrency: 2 }),
+      actual: { minutes: 12, costUsd: 0.4, unpricedProjects: 0 },
+    },
+  });
+  const items = [
+    live,
+    summary("n0000002", "DRAFT", { draft: { status: "done", requestedAt: now } as PlanRecord["draft"] }),
+    summary("n0000003", "COMPLETED", { completedAt: now }),
+  ];
+
+  it("shows what waits on the owner first, then the running plans as lanes, the drafts and the finished plans", async () => {
+    api.listPlans.mockResolvedValue({ items });
+    await render("/plans");
+    const turn = q('[data-testid="plan-turn"]')!;
+    expect(turn.textContent).toContain("Your turn");
+    expect(turn.textContent).toContain("Answer a question");
+    expect(turn.textContent).toContain("Left or both?");
+    expect(turn.textContent).toContain("Decide on 1 re-plan proposals");
+    expect(turn.textContent).toContain("Check the draft and confirm");
+
+    const lane = q('[data-testid="plan-lane"]')!;
+    expect(lane.dataset.status).toBe("RUNNING");
+    expect(lane.querySelector('[data-testid="plan-lane-running"]')!.textContent).toContain("fear conditioning");
+    expect(lane.querySelector('[data-testid="plan-lane-stage"]')!.textContent).toBe("FRG");
+    expect(lane.querySelector('[data-testid="plan-lane-events"]')!.textContent).toContain("phonology");
+    const bar = lane.querySelector('[data-testid="plan-bar"]')!;
+    expect([...bar.querySelectorAll("[data-wave]")].map((w) => (w as HTMLElement).dataset.wave)).toEqual(["1", "2"]);
+    expect(bar.querySelector('[data-wave="1"]')!.getAttribute("data-current")).toBe("true");
+    expect(bar.querySelector('[data-state="starting"]')!.className).toContain("plan-flow");
+    expect(q('[data-testid="plan-live"]')).not.toBeNull();
+    expect(q('[data-testid="plan-drafts"]')!.textContent).toContain("Plan n0000002");
+    expect(q<HTMLDetailsElement>('[data-testid="plan-finished"]')!.open).toBe(false);
+  });
+
+  it("opens the new-plan form in a drawer that Esc closes", async () => {
+    api.listPlans.mockResolvedValue({ items });
+    await render("/plans");
+    expect(q('[data-testid="plan-new-drawer"]')).toBeNull();
+    await act(async () => button("New plan")!.click());
+    const drawer = q('[data-testid="plan-new-drawer"]')!;
+    expect(drawer.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(drawer.querySelector('input[maxlength="200"]')).toBe(document.activeElement);
+    await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
+    expect(q('[data-testid="plan-new-drawer"]')).toBeNull();
+  });
+
+  it("says when nothing waits on the owner while plans run", async () => {
+    api.listPlans.mockResolvedValue({ items: [{ ...live, pulse: { ...live.pulse!, waiting: [], openProposals: 0 } }] });
+    await render("/plans");
+    expect(q('[data-testid="plan-turn"]')).toBeNull();
+    expect(q('[data-testid="plan-turn-none"]')!.textContent).toContain("Nothing waits on you right now.");
+  });
+
+  it("shows the stage strip on the rows being built in the plan screen", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", [running, row("r3", "IFG", "speech", "done", 1)]));
+    await render("/plans/n4h8w2rk");
+    const rowsEl = q('[data-testid="plan-rows"]')!;
+    const strips = rowsEl.querySelectorAll('[data-testid="pipeline"]');
+    expect(strips.length).toBe(1);
+    expect(strips[0].querySelector('[data-testid="stage-frg"]')!.getAttribute("data-status")).toBe("active");
+    expect(q('[data-testid="plan-summary"] [data-testid="plan-bar"]')).not.toBeNull();
   });
 });
 

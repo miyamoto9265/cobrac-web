@@ -20,9 +20,24 @@ export default {
           from: { opacity: "0", transform: "translateY(4px)" },
           to: { opacity: "1", transform: "none" },
         },
+        "drawer-in": {
+          from: { transform: "translateX(100%)" },
+          to: { transform: "none" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
+        },
+        "count-in": {
+          from: { opacity: "0", transform: "translateY(-6px)" },
+          to: { opacity: "1", transform: "none" },
+        },
       },
       animation: {
         "step-in": "step-in 240ms ease-out",
+        "drawer-in": "drawer-in 280ms cubic-bezier(0.22, 1, 0.36, 1)",
+        "fade-in": "fade-in 200ms ease-out",
+        "count-in": "count-in 360ms cubic-bezier(0.22, 1, 0.36, 1)",
       },
     },
     backgroundColor: bg,
