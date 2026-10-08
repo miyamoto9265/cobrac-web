@@ -80,9 +80,9 @@
   <text x="601" y="301" text-anchor="middle" font-size="8.3">別のシステム</text>
   <text x="601" y="316" text-anchor="middle" font-size="8.3">（同じアカウント）</text>
   <text x="601" y="331" text-anchor="middle" font-size="8.3" fill="#5b6474">SABRA の候補を返す</text>
-  <g stroke="#0e7490" stroke-width="1.3" fill="none" marker-end="url(#a71)"><path d="M251 168V286"/><path d="M531 168V264"/><path d="M200 332V356"/></g>
+  <g stroke="#0e7490" stroke-width="1.3" fill="none" marker-end="url(#a71)"><path d="M251 168V286"/><path d="M531 168V256H500V264"/><path d="M200 332V356"/></g>
   <text x="256" y="262" font-size="7.8" fill="#0e7490">RunTask</text>
-  <text x="535" y="262" font-size="7.8" fill="#0e7490">Invoke</text>
+  <text x="536" y="259" font-size="7.8" fill="#0e7490">Invoke</text>
   <rect x="116" y="358" width="550" height="32" rx="7" fill="#fff" stroke="#94a3b8"/>
   <text x="391" y="378" text-anchor="middle" font-size="8.5" fill="#1f2937">外部：OpenAI API（Codex のモデル）／ 文献サービス（Crossref・PubMed・Europe PMC・Semantic Scholar）／ 参考資料の URL</text>
 </svg>
@@ -158,7 +158,7 @@
 <table class="compact">
   <thead><tr><th style="width:18%">リソース</th><th>設定</th></tr></thead>
   <tbody>
-    <tr><td>VPC</td><td>2 つの AZ にパブリックサブネット（/24）を 1 つずつ。インターネットゲートウェイあり、NAT なし</td></tr>
+    <tr><td>VPC</td><td>CDK の既定の /16。2 つの AZ にパブリックサブネット（/24）を 1 つずつ。インターネットゲートウェイあり、NAT なし</td></tr>
     <tr><td>ワーカーのセキュリティグループ</td><td>受信の規則なし。送信はすべて許可（OpenAI・AWS の API・文献サービス）</td></tr>
     <tr><td>CloudFront</td><td>Price Class 200（北米・欧州・アジア）。HTTP は HTTPS へ転送。403・404 は <code>index.html</code> を返す（SPA）。<code>/config.json</code> はキャッシュしない</td></tr>
     <tr><td>HTTP API（<code>cobrac-agents-api</code>）</td><td>JWT オーソライザー（Cognito の ID トークンの発行者と対象を確かめる）。匿名で呼べるのは <code>GET /health</code> だけ。CORS のプリフライトは API Gateway 自身が答える</td></tr>
@@ -175,6 +175,7 @@
 
 <h3>BRA-DB（スタック BraDb）の要約</h3>
 <p>BRA-DB は、専用の VPC（<code>10.42.0.0/24</code>、1 AZ）に置いた EC2（t4g.small、PostgreSQL 17 + Apache AGE 1.7）、外向きの通信だけを通す NAT インスタンス（t4g.micro）、登録 Lambda <code>cobrac-bradb-import</code> からなる常時稼働のスタックで、月に約 $34 かかります。インターネットから受ける通信はなく、5432 番は登録 Lambda からしか受けません。データ用のボリュームは RETAIN で、毎日スナップショットを取って 7 世代を残します。synth のときに <code>COBRAC_BRADB=false</code> にすると、このスタックは作られません。構成は 5.3 を、接続・復元・インスタンスの置き換えの手順と費用の内訳は 5.8 を見てください。</p>
+<p class="small">運用上の補足：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は、CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。CDK の既定のスクリプトは <code>yum install</code> が t4g.nano ではメモリ不足で強制終了され、<code>route</code> も AL2023 に無いためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しないので、設定を変えたときは新しい論理 ID（いまは <code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので RETAIN ガードの対象外です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
 <p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/infra/lib/bradb-stack.ts</code>、<code>packages/api/src/handlers/ws.ts</code>（TTL）、<code>packages/worker/src/db.ts</code>（メッセージの長さ）</p>
 
 <h2 id="s7-3">7.3 IAM の権限：どの主体が何に触れるか</h2>
@@ -183,7 +184,7 @@
   <thead><tr><th style="width:17%">主体</th><th>付いている権限</th><th style="width:25%">付いていないもの</th></tr></thead>
   <tbody>
     <tr><td>ワーカーのタスクロール（Fargate のプログラム。Codex を子プロセスで動かす）</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き。<code>Canons</code> の読み取り（固定した rev）。<code>Catalog</code> は <code>config</code> の区画だけの <code>GetItem</code>（既定の API キー）。成果物バケット全体の読み書き。KMS の <code>Decrypt</code>。Secrets Manager の <code>rcs/mcp-bearer-token</code> の読み取り（RCS を使うとき）</td><td>KMS の <code>Encrypt</code>。<code>Plans</code>・<code>WsConnections</code></td></tr>
-    <tr><td>API（http）</td><td>8 つのテーブルのうち <code>WsConnections</code> を含む全テーブルの読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが確かめる）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
+    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが確かめる）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
     <tr><td>dispatcher</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>WsConnections</code> の読み書き。<code>Catalog</code> の <code>config</code> の <code>GetItem</code>（同時実行数）。キューの受け取りと送信（積み直し）。ワーカーのタスク定義の <code>RunTask</code>、タグ付け、タスクロールと実行ロールの <code>PassRole</code></td><td>KMS</td></tr>
     <tr><td>janitor</td><td>上の 5 つのテーブルの読み書き。キューへの送信</td><td>KMS</td></tr>
     <tr><td>WebSocket の Lambda・broadcaster</td><td>上の 5 つのテーブルの読み書き。WebSocket の接続の管理（<code>WsDefaultFn</code> と broadcaster）</td><td>KMS</td></tr>
@@ -378,7 +379,7 @@
 </ul>
 <h3>管理者</h3>
 <ul>
-  <li>サインインのたびに、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code>（GitHub の Secret）に含まれるか、Cognito のグループ <code>admin</code> に属していれば、役割を <code>admin</code> にします。既存の利用者も次のサインインで管理者になります。一覧からアドレスを消しても自動では一般の利用者に戻らないので、管理者画面で役割を変えます。</li>
+  <li>API は要求のたびに、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code>（GitHub の Secret）に含まれるか、Cognito のグループ <code>admin</code> に属しているかを確かめ、そうなら役割を <code>admin</code> にします。初回のサインインで作る利用者も、既存の利用者も同じです。一覧からアドレスを消しても自動では一般の利用者に戻らないので、管理者画面で役割を変えます。</li>
   <li>管理者の機能：利用者の一覧、無効化と有効化（自分自身は無効にできない）、役割の変更、既定の API キーの承認とティア、既定の API キーの登録と削除、利用者ごとの既定のキーの費用（累計と今月）、同時実行数の設定、全プロジェクトの一覧と強制停止、管理者向けの文書。</li>
   <li>無効化された利用者は、すべての API で 403 になります。</li>
 </ul>
@@ -418,7 +419,7 @@
     <tr><td>子プロセスの環境変数</td><td>ワーカーが起動するすべてのプロセス（Codex、<code>pdftotext</code>・<code>pandoc</code>、xlsx の生成）の環境から、AWS の認証情報とコンテナの認証情報の URI、RCS のトークン、<code>NCBI_API_KEY</code> を取り除く。Codex のプロセスにだけ、必要な RCS のトークンを戻す。さらに <code>shell_environment_policy</code> で、エージェントのシェルのコマンドから <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> と RCS のトークンを外す。Codex の設定（<code>CODEX_HOME</code> と信頼済みの <code>/work/.codex</code>）は root の所有なので、エージェントは Codex の環境で動く MCP サーバー・フック・通知のコマンドを足せない</td></tr>
     <tr><td>使えるキー</td><td>そのジョブの userId で復号したキー（承認済みでキーを持たない利用者なら既定の API キー）だけ</td></tr>
     <tr><td>権限</td><td>タスクロールは <code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・成果物の S3 の読み書き、<b>KMS は Decrypt だけ</b>（Encrypt は API）、RCS MCP のトークンのシークレット <code>rcs/mcp-bearer-token</code> の <code>GetSecretValue</code>（7.3）</td></tr>
-    <tr><td>RCS MCP のトークン</td><td>ワーカーが起動時に読み、Codex のプロセスにだけ渡す（<code>RCS_MCP_TOKEN</code>）。エージェントのシェルのコマンドには渡さない。ブラウザには送らない</td></tr>
+    <tr><td>RCS MCP のトークン</td><td>ワーカーが起動時に Secrets Manager から読み、Codex のプロセスにだけ渡す（<code>RCS_MCP_TOKEN</code>）。エージェントのシェルのコマンドには渡さない。ブラウザには送らない。シークレットにはカンマ区切りで受け付けるトークンが入っており（入れ替えの間は <code>旧,新</code>）、最後のものを使う。設定が無いか読めないときは、RCS なしで続ける（RCS 側の問題で BRA の作成を止めない）</td></tr>
   </tbody>
 </table>
 <div class="box">
@@ -605,7 +606,7 @@
 <h3>だれが払うか</h3>
 <p>OpenAI の利用料は AWS の外で、各利用者の API キー、または既定の API キーに請求されます。自分のキーを持たない承認済みの利用者のジョブは既定の API キー（管理者が登録した組織のキー、7.6）で動くので、その費用はそのキーの OpenAI の請求に載ります。Tier 1 の利用者は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code>（単価表で最も安い 2 行）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理者画面には、利用者ごとの既定のキーの費用が累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません。</b>既定のキーの OpenAI のプロジェクトに月の予算を設定してください。</p>
 <h3>単価表</h3>
-<table class="compact">
+<table class="compact avoid">
   <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-09-25</code>、OpenAI の標準の短いコンテキストの単価）</caption>
   <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">出力（推論を含む）</th></tr></thead>
   <tbody>
@@ -682,7 +683,7 @@
 <h2 id="s7-13">7.13 BRA の速度と費用（測定）</h2>
 <div class="box note">
   <div class="h">この節の位置づけ</div>
-  <p>この節は、ある時点の<b>測定の報告</b>です。数値は 2026-09〜10 の本番の記録と比較のための実行から出したもので（アプリ v0.16.0〜v0.18.0、<code>gpt-6-luna</code>、推論 high、調査モード on、日本語）、<b>保証する値ではありません</b>。モデル、アプリの版、プロンプト、OpenAI 側の状態で変わります。調べたのは BRA の作成にかかる時間と OpenAI の費用、遅さの原因、v0.18.0 の高速化とその前後の比較で、あわせて見つかった費用の二重計上は 7.12、Spot の中断からの再開は 7.4 にまとめています。</p>
+  <p>この節は、ある時点の<b>測定の報告</b>です。数値は 2026-09〜10 の本番の記録と比較のための実行から出したもので（調べたのは v0.16.0 の本番の実行。変更は v0.17.1〜v0.18.2 で、どれも 2026-10-01 のリリース。<code>gpt-6-luna</code>、推論 high、調査モード on、日本語）、<b>保証する値ではありません</b>。モデル、アプリの版、プロンプト、OpenAI 側の状態で変わります。調べたのは BRA の作成にかかる時間と OpenAI の費用、遅さの原因、v0.18.0 の高速化とその前後の比較で、あわせて見つかった費用の二重計上は 7.12、Spot の中断からの再開は 7.4 にまとめています。</p>
 </div>
 <h3>要点</h3>
 <p>0.16.0 の本番の実行を調べると、BRA の作成 1 件にかかる時間（平均 60 分）の 88% は、モデルの応答を待っている時間でした。1 回の応答の待ち時間は、そのリクエストのコンテキスト（それまでの会話の長さ）でほぼ決まります。コンテキストが 8 万トークン未満なら固定の待ちは約 4 秒ですが、12 万を超えると約 42 秒になります。当時は会話の圧縮を 15 万トークンで行っていたので、モデル時間の 4 分の 3 近くがこの遅い領域で使われていました。</p>
@@ -1012,3 +1013,95 @@
   <li>秘密（API キー、<code>.env</code>、トークン）はコミットしない。追跡するのは <code>.env.example</code> だけ。</li>
 </ul>
 <p class="src">典拠：<code>.github/workflows/ci.yml</code>・<code>deploy.yml</code>・<code>claude.yml</code>、<code>scripts/release.mjs</code>・<code>retain-guard.mjs</code>、<code>package.json</code>、<code>packages/infra/bin/app.ts</code>、<code>packages/worker/src/env.ts</code>、<code>AGENTS.md</code>、<code>README.md</code></p>
+
+<h2 id="s7-15">7.15 権限と承認：人・CI・クラウドエージェント</h2>
+<p>開発と運用には、人（所有者）、GitHub Actions のプログラム、2 種類のコーディングエージェント（LLM）が関わります。だれがどの認証で何をでき、何を承認するのかを次に定めます。長期の AWS のアクセスキーは、CI にもエージェントにも渡しません。</p>
+<table class="compact">
+  <thead><tr><th style="width:16%">主体（種類）</th><th style="width:20%">認証</th><th>できること</th><th style="width:28%">できないこと</th></tr></thead>
+  <tbody>
+    <tr><td>所有者（人。GitHub <code>miyamoto9265</code>）</td><td>手元の IAM ユーザー <code>miyamoto</code>（プロファイル <code>rcs-org</code>）。セッションが切れたら <code>aws login --remote --profile rcs-org</code></td><td>PR のマージ（デプロイの承認）、RETAIN ガードを越える再実行の判断、運用ロール自身・権限境界・<code>gha-*</code>・<code>cdk-*</code> の IAM の変更と信頼ポリシーの変更、ガードレールで禁じた破壊的な操作、CI 以外での cobrac-web のデプロイ（緊急時）、GitHub の PAT の発行</td><td>—</td></tr>
+    <tr><td>GitHub Actions <code>ci</code>（プログラム）</td><td>AWS の認証なし</td><td>build・test・synth、「マージでデプロイされるか」の表示</td><td>AWS に触れない</td></tr>
+    <tr><td>GitHub Actions <code>deploy</code>（プログラム）</td><td>GitHub OIDC → <code>gha-cobrac-web-deploy</code>（<code>main</code> だけ、1 時間）</td><td>CDK の bootstrap ロールを引き受けて <code>cdk deploy</code>、<code>CobracAgents</code> の <code>DescribeStacks</code>、タグの push</td><td>ガードレール（下記）で拒む操作</td></tr>
+    <tr><td>Cursor の Cloud Agent（LLM）</td><td>Cursor の OIDC → 運用ロール <code>cursor-cloud-agent-ops</code>（1 時間）。GitHub は <code>GH_MERGE_TOKEN</code></td><td>作業ブランチと PR、<b>利用者の明示の指示があったときだけ</b>のマージ、Lambda の環境変数・コードの更新、シークレットの値の更新、ログの読み取り、DynamoDB への書き込み、<code>cobrac.site</code> の DNS レコードの変更、ワークフローの再実行（指示を受けたとき）</td><td><code>main</code> への直接の push、IAM のユーザー・キー・ロールの作成、信頼ポリシー・権限境界・OIDC の変更、<code>cdk-*</code>・<code>gha-*</code>・<code>cursor-*</code> の引き受け、CloudFormation の作成・更新・削除（cobrac-web のデプロイは CI だけ）、テーブル・バケット・鍵・ユーザープール・シークレット・Lambda・ロググループなどの削除、CloudTrail・Budgets の改変</td></tr>
+    <tr><td>Claude Code（LLM。<code>claude.yml</code>）</td><td>所有者の Claude のサブスクリプションのトークン（Secret <code>CLAUDE_CODE_OAUTH_TOKEN</code>）と、ジョブの <code>GITHUB_TOKEN</code>（contents・issues・pull-requests の書き込み）</td><td><code>claude/</code> ブランチ（開いている PR ならその PR のブランチ）での作業と draft の PR の作成。使えるコマンドは <code>npm ci</code>・build・typecheck・test・<code>docs:figures</code>・<code>release:check</code>・<code>release -- patch|minor|major --no-git</code>、<code>git status</code>・<code>diff</code>・<code>log</code>、<code>gh pr create</code>・<code>view</code> だけ（最大 80 ターン、60 分）</td><td><code>main</code> とタグへの push、マージ、force push、AWS（<code>id-token</code> なし）、<code>.github/workflows/</code> の変更（<code>GITHUB_TOKEN</code> では不可）</td></tr>
+  </tbody>
+</table>
+<h3>だれが何を承認するか</h3>
+<table class="compact">
+  <thead><tr><th style="width:26%">判断</th><th style="width:16%">だれが</th><th>どうやって</th></tr></thead>
+  <tbody>
+    <tr><td>本番へのデプロイ</td><td>所有者</td><td>版を上げた PR を <code>main</code> にマージする。Cursor の Cloud Agent は所有者の明示の指示があったときだけマージする。Claude Code はマージしない（版を上げるのも頼まれたときだけ、マージの直前に行う）</td></tr>
+    <tr><td>RETAIN ガードで止まったデプロイの続行</td><td>所有者</td><td>Cloud Agent が Actions のログの差分を要約して示し、所有者が判断する。指示を受けたときだけ <code>GH_TOKEN=$GH_MERGE_TOKEN gh workflow run deploy.yml -R miyamoto9265/cobrac-web --ref main -f allow_retain_replacement=true</code> で実行し直す</td></tr>
+    <tr><td>RETAIN のリソースを置き換える変更</td><td>人が必ず確認</td><td>DynamoDB・S3・KMS・Cognito・BRA-DB のインスタンスとボリューム。エージェントは PR にそのリスクを書く</td></tr>
+    <tr><td>IAM と信頼ポリシーの変更</td><td>所有者（手元）</td><td>Cloud Agent は、手順と記入欄を書いたファイルを PR で出して依頼し、完了したらそのファイルを消す</td></tr>
+    <tr><td>緊急の手元からのデプロイ</td><td>所有者</td><td>7.14。同じ内容を PR で <code>main</code> に戻し、タグを push する</td></tr>
+    <tr><td>ワークフローの骨格の変更</td><td>所有者と相談</td><td>7.14 の「変更するときの約束」</td></tr>
+    <tr><td>既定の API キーの利用</td><td>管理者</td><td>管理者画面で Tier 1・2 を承認する（7.6）</td></tr>
+    <tr><td>Canon の PR の取り込み</td><td>Canon の所有者・共同編集者</td><td>自動では承認しない。オーケストレーターの行も人の承認で完了する（第 4 部・第 6 部）</td></tr>
+  </tbody>
+</table>
+<h3>CI のデプロイロール</h3>
+<ul>
+  <li>OIDC プロバイダー：<code>arn:aws:iam::765959262011:oidc-provider/token.actions.githubusercontent.com</code>。<code>aud</code> は <code>sts.amazonaws.com</code>。</li>
+  <li><code>gha-cobrac-web-deploy</code> の信頼：<code>sub</code> が <code>repo:miyamoto9265/cobrac-web:ref:refs/heads/main</code> と、その不変の形（owner ID・repo ID を含む形）のとき。cobrac-web は GitHub の OIDC の設定で immutable subject を有効にしているので、<code>sub</code> に owner ID と repo ID が入ります。リポジトリを作り直すと ID が変わるので、信頼ポリシーも直します。</li>
+  <li>ガードレール（<code>guardrails</code>、Deny）：IAM・Organizations の変更、CloudTrail・Budgets の改変、シークレットの値・SSM・KMS の復号・DynamoDB の読み取り、<code>lambda:UpdateFunctionConfiguration</code>。</li>
+  <li>実際のデプロイは <code>cdk-hnb659fds-cfn-exec-role</code> が行い、このロールは既定で <code>AdministratorAccess</code> を持ちます。したがって、<code>main</code> にマージできる人は、実質的にこのアカウントに何でもデプロイできます。絞るには <code>--cloudformation-execution-policies</code> を付けて bootstrap をやり直す必要があり、まだ行っていません。</li>
+  <li>同じアカウントには、RCS（rosetta-candidate-search）のデプロイロール <code>gha-rcs-deploy</code> もあります（権限境界 <code>cursor-ops-boundary</code> 付き。RCS の Lambda・S3・CloudFront だけを更新する）。</li>
+</ul>
+<h3>Cursor の Cloud Agent の AWS アクセス</h3>
+<p>Cloud Agent は Cursor の OIDC で認証します。VM のソケット <code>/run/cursor/api.sock</code> が有効期間 5 分の JWT（<code>iss=https://api.cursor.com</code>、<code>aud=sts.amazonaws.com</code>、<code>sub</code> は所有者の Cursor の利用者）を発行し、<code>sts:AssumeRoleWithWebIdentity</code> で 1 時間の認証情報に交換します。シークレットの登録は要りません。<code>CURSOR_AWS_ASSUME_IAM_ROLE_ARN</code> は登録しません（登録すると Cursor が AWS の設定を上書きする）。<code>wbai-repos</code> の <code>scripts/bootstrap.sh</code> が AWS CLI v2 を入れ、ソケットのある VM でだけ <code>~/.aws/config</code> を書きます。<code>default</code> のプロファイルが運用ロールで（<code>--profile rcs-org</code> は付けない）、DNS の操作だけ <code>--profile dns</code> を付けます。<code>aws sts get-caller-identity</code> の Arn が <code>assumed-role/cursor-cloud-agent-ops/cursor-cloud-agent</code> なら正常です。</p>
+<table class="compact">
+  <thead><tr><th style="width:28%">ロール・ポリシー</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>cursor-cloud-agent-ops</code>（<code>765959262011</code>）</td><td>信頼は <code>api.cursor.com</code> の所有者の <code>sub</code> だけ。<code>PowerUserAccess</code> + <code>iam-limited</code> + <code>guardrails</code>（Deny）</td></tr>
+    <tr><td><code>iam-limited</code></td><td>IAM の読み取り。<code>rcs-*</code> のロールと <code>gha-rcs-deploy</code> のポリシーの編集（権限境界 <code>cursor-ops-boundary</code> 付きのロールだけ）。<code>iam:PassRole</code> は <code>rcs-lambda-role</code> を Lambda に渡すときだけ</td></tr>
+    <tr><td><code>guardrails</code>（Deny）</td><td>ユーザー・アクセスキー・ロールの作成、信頼ポリシーの変更、権限境界の付け外し、OIDC・SAML の変更。<code>cdk-*</code>・<code>gha-*</code>・<code>cursor-*</code> の引き受け。CloudFormation の作成・更新・削除。DynamoDB のテーブル・S3 のバケット・KMS の鍵・Cognito のユーザープール・シークレット・Lambda・ロググループなどの削除。<code>rcs-api-web-765959262011</code> 以外での <code>s3:DeleteObject</code>。CloudTrail・Budgets の改変</td></tr>
+    <tr><td><code>cursor-ops-boundary</code></td><td>権限境界。<code>rcs-lambda-role</code> と <code>gha-rcs-deploy</code> に設定済み</td></tr>
+    <tr><td><code>cursor-cloud-agent-dns</code>（個人アカウント <code>618703232062</code>）</td><td>信頼は <code>cursor-cloud-agent-ops</code> だけ。<code>cobrac.site</code> のゾーンのレコードの変更と Route 53 の読み取り</td></tr>
+  </tbody>
+</table>
+<h3>GitHub の権限</h3>
+<ul>
+  <li>Cloud Agent の既定の <code>gh</code> は読み取りだけです。マージ・ワークフローの再実行・Actions の設定の変更には、所有者が発行した fine-grained PAT <code>GH_MERGE_TOKEN</code> を <code>GH_TOKEN=$GH_MERGE_TOKEN gh …</code> の形で使い、値は出力しません。対象のリポジトリは <code>wbai-repos</code>・<code>cobrac-web</code>・<code>rosetta-candidate-search</code>、権限は Contents・Pull requests・Actions・Workflows が読み書き、Metadata が読み取りです（Administration は必要になったら足す）。</li>
+  <li>この PAT の有効期限は 2026-12-27 ごろです。期限の前に所有者が発行し直し、Cursor の Cloud Agent の Secrets を更新します（新しく起動した Cloud Agent から有効）。</li>
+  <li>fine-grained PAT では Checks の読み取りを付けられないので、<code>gh run watch</code> の注釈は 403 になります。結果は <code>gh run view</code> で確かめます。</li>
+  <li>cobrac-web の <code>main</code> にはブランチの保護を設定していません（2026-10-08 に確認）。「<code>main</code> に直接 push しない」は運用の規則で守ります。</li>
+  <li><code>claude.yml</code> を起動できるのは、<code>@claude</code> を含むコメントを書いたのが <code>miyamoto9265</code>（OWNER）か <code>cursor[bot]</code>（利用者 ID 206951365 で固定）のときで、さらにその Issue・PR の作成者が <code>miyamoto9265</code>・<code>cursor[bot]</code>・<code>github-actions[bot]</code> のどれかのときだけです（PR のレビューコメントは同じリポジトリのブランチの PR に限る。Issue の新規作成は所有者のものだけ）。ほかの人のコメントは、シークレットを読む前にジョブの条件で飛ばします。Claude Code が <code>GITHUB_TOKEN</code> で行った push と PR は、GitHub の仕様で <code>ci</code>・<code>deploy</code> を起動しないので、マージの前にそのブランチで <code>ci</code> を「Run workflow」で実行します。</li>
+</ul>
+<p class="src">典拠：<code>AGENTS.md</code>、<code>README.md</code>、<code>.github/workflows/deploy.yml</code>・<code>claude.yml</code>、<code>miyamoto9265/wbai-repos</code> の <code>AGENTS.md</code> と <code>docs/cloud-operations.md</code></p>
+
+<h2 id="s7-16">7.16 監視・緊急停止・撤去</h2>
+<h3>監視</h3>
+<ol>
+  <li><b>AWS Budgets。</b>アカウントには <code>My Monthly Cost Budget</code>（10 USD）があります（アカウントは RCS と共用）。cobrac-web には、AWS の予測 $20・実績 $30 でメールを送る予算を勧めます。</li>
+  <li><b>Cost Explorer</b> でサービスごとに見ます。急に増えたときにまず疑うのは <b>Fargate</b>、次に <b>CloudWatch Logs</b> と <b>CodeBuild</b> です。</li>
+  <li><b>ワーカーのログ</b>はスタックの出力 <code>WorkerLogGroup</code> のロググループにあります（14 日）。</li>
+  <li><b>OpenAI の使用量と推定費用</b>は <code>Jobs.usage</code>・<code>Jobs.costUsd</code>、プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code> にあり、OpenAI の請求書と突き合わせるのに使います。AWS の費用とは別です（7.12）。</li>
+  <li><b>SES の評判。</b>バウンス率が 5%、苦情率が 0.1% に達すると、スタックのアラームが <code>/cobrac-web/alarm-email</code> のアドレスにメールを送ります（SES はこの率でアカウントを審査することがあり、10%・0.5% から送信を止めることがある）。バウンスや苦情のあったアドレスは、アカウント単位の抑制リストがすでに送信先から外しているので、アラームは原因（たとえば打ち間違えたアドレスでのサインアップ）を探すためのものです。CloudFormation は、変わっていないパラメータの値の変化に気づかないので、通知先を変えるときは新しいパラメータにアドレスを入れ、<code>COBRAC_ALARM_EMAIL_PARAMETER</code>（または <code>packages/infra/bin/app.ts</code> の既定値）をそれに向けてデプロイします。購読が置き換わり、新しいアドレスに確認のメールが届きます。</li>
+  <li><b>管理者画面</b>で、利用者、既定の API キーの費用、全プロジェクトと実行中のジョブを見ます。</li>
+  <li><b>デプロイの結果</b>は Actions の実行（<code>gh run view --log</code>）とジョブの要約（Plan・RETAIN guard・Tag・Health）で確かめます。</li>
+</ol>
+<p>アプリはこれらが無くても動きますが、Budgets が無いと、Spot から On-Demand への切り替わりやログの急増を見逃しやすくなります。AWS の操作の追跡は 7.10 の「監査」を見てください。</p>
+<h3>緊急停止</h3>
+<table class="compact">
+  <thead><tr><th style="width:22%">止めたいもの</th><th>方法</th><th style="width:16%">だれが</th></tr></thead>
+  <tbody>
+    <tr><td>CI からのデプロイ</td><td>GitHub で <code>deploy</code> ワークフローを無効にする。または <code>gha-cobrac-web-deploy</code> の信頼ポリシーの <code>sub</code> を存在しない値に書き換える</td><td>所有者（信頼ポリシーは手元で）</td></tr>
+    <tr><td>Cloud Agent や CI の AWS アクセス全体</td><td>ロールの信頼ポリシーの <code>sub</code> を存在しない値に書き換えるか、<code>aws:TokenIssueTime</code> を条件にした全 Deny を付ける。後者は発行済みのセッションも止める。GitHub 側では Actions を無効にする</td><td>所有者（手元で）</td></tr>
+    <tr><td>実行中のジョブ</td><td>管理者画面から強制停止する（ECS のタスクを止める）。利用者を無効にすると、その人の API は 403 になる</td><td>管理者</td></tr>
+    <tr><td>新規の登録</td><td><code>COBRAC_SELF_SIGNUP=false</code> にしてデプロイする</td><td>所有者</td></tr>
+    <tr><td>漏れた API キー</td><td>OpenAI 側で失効させ、設定画面で登録し直す。既定の API キーは管理者画面で消すか登録し直す（次のジョブの起動から効く）</td><td>利用者・管理者</td></tr>
+  </tbody>
+</table>
+<h3>撤去と残る費用</h3>
+<p><code>cdk destroy</code> の後も、次のものは残り、わずかな保存の費用がかかり続けます。</p>
+<ul>
+  <li>KMS の CMK（無効にしてから待機期間を経ないと消せない）</li>
+  <li>Cognito のユーザープール</li>
+  <li>DynamoDB の <code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>Canons</code>・<code>Catalog</code>・<code>Plans</code>（<code>WsConnections</code> だけは消える）</li>
+  <li>S3 の成果物バケット（オブジェクトが残っている間は消せない。版の削除を禁じるバケットポリシーがあるので、空にする前にその文を外す）</li>
+  <li><code>BraDb</code> のデータ用ボリュームとそのスナップショット（第 5 部）</li>
+</ul>
+<p>おおまかな撤去の順序は、成果物バケットを空にする → テーブルを消す → ユーザープールを消す → KMS の鍵の削除を予約する、です。ECR のイメージと CloudWatch のロググループも確かめます。</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（RETAIN・アラーム・出力）、<code>packages/infra/bin/app.ts</code>、<code>packages/api/src/app.ts</code>（<code>/admin/*</code>）、<code>README.md</code>（Operations notes）、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code></p>
+</section>
