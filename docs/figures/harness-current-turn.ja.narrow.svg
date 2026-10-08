@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 686" width="430" height="686" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC ハーネス v2：1 ターンの受け渡し</title>
+<desc id="d">ワーカー（プログラム）、作業場所（ファイル）、CoBRAC エージェント（LLM）の 3 者の間で 1 ターンに起きることを順に示す。1. ワーカーが段の仕様・問題一覧・候補から依頼文を組み立て、会話のメッセージとして送る。2. エージェントが考え、lit・RCS・Web 検索・シェルを使う。3. エージェントが作業場所のデータ JSON と md を書き換える。4. エージェントがターン終了の JSON（status・message・question）を返す。done は作業を終えたという申告で、合格の意味ではない。5. ワーカーがファイルを読み直して検証器で検査し、検査結果 JSON を書く。6. ワーカーのコードが次を決める。問題があれば修正依頼、合格なら次の段の依頼を 1 に戻って送り、question なら保存して停止する。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="686" fill="#ffffff"/>
+<rect x="10" y="10" width="410" height="30" rx="8" fill="#1e3a8a"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：1 ターンの受け渡し</tspan></text>
+<rect x="26" y="56" width="394" height="76" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="81.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>① ワーカー：依頼文を送る</tspan></text>
+<text x="38" y="99.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>段の仕様・問題一覧・候補</tspan></text>
+<text x="38" y="116.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>会話のメッセージとして渡す</tspan></text>
+<path d="M223 132 L223 154" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="154" width="394" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="178.85000000000002" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>② エージェント：考えて道具を使う</tspan></text>
+<text x="38" y="197.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit・RCS・Web 検索・シェル</tspan></text>
+<path d="M223 212 L223 234" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="234" width="394" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="258.85" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>③ エージェント：ファイルを書き換える</tspan></text>
+<text x="38" y="277.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>作業場所のデータ JSON・report.md など</tspan></text>
+<path d="M223 292 L223 314" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="314" width="394" height="76" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="339.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>④ エージェント：終了 JSON を返す</tspan></text>
+<text x="38" y="357.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>status・message・question</tspan></text>
+<text x="38" y="374.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>done は申告で、合格の意味ではない</tspan></text>
+<path d="M223 390 L223 412" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="412" width="394" height="76" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="437.15000000000003" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>⑤ ワーカー：ファイルを検査</tspan></text>
+<text x="38" y="455.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>読み直して検証器にかける</tspan></text>
+<text x="38" y="472.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>検査結果 JSON を作業場所に書く</tspan></text>
+<path d="M223 488 L223 510" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="510" width="394" height="94" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="535.4499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>⑥ ワーカー：次を決める（コード）</tspan></text>
+<text x="38" y="553.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>問題あり → 修正依頼（① へ）</tspan></text>
+<text x="38" y="571.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>合格 → 次の段の依頼（① へ）</tspan></text>
+<text x="38" y="588.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>question → 保存して停止</tspan></text>
+<path d="M26 557 L12 557 L12 94 L26 94" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<text x="10" y="632" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>会話で渡るのは依頼文と終了 JSON だけ</tspan></text>
+<text x="10" y="650" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>作業の中身はファイルで受け渡す</tspan></text>
+<text x="10" y="668" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>次へ進むかはワーカーのコードが決める</tspan></text>
+</svg>

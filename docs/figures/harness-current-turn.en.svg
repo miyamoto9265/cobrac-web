@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 702" width="860" height="702" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC harness v2: what passes in one turn</title>
+<desc id="d">What happens in one turn between the worker (a program), the workspace (files) and the CoBRAC agent (the LLM). 1. The worker builds a request from the phase specification, the list of problems and the candidates, and sends it as a conversation message. 2. The agent reasons and uses lit, RCS, web search and the shell. 3. The agent edits the data JSON and markdown files in the workspace. 4. The agent returns the JSON that ends the turn (status, message, question); done means it has finished its work, not that the work passed. 5. The worker rereads the files, runs the validators and writes the check-result JSON. 6. The worker's code decides what comes next: a fix request or the next phase's request goes back to step 1, and a question saves the state and stops.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="702" fill="#ffffff"/>
+<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC harness v2: what passes in one turn</tspan></text>
+<path d="M145 112 L145 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M430 112 L430 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M715 112 L715 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="20" y="54" width="250" height="58" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="145" y="78.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>Worker</tspan></text>
+<text x="145" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Program (no LLM)</tspan></text>
+<rect x="305" y="54" width="250" height="58" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="430" y="78.85" font-size="13" font-weight="700" fill="#065f46" text-anchor="middle"><tspan>Workspace</tspan></text>
+<text x="430" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Files in the project folder</tspan></text>
+<rect x="590" y="54" width="250" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="715" y="78.85" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan>CoBRAC agent</tspan></text>
+<text x="715" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>LLM (Codex + an OpenAI model)</tspan></text>
+<rect x="20" y="130" width="250" height="62" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="156.85000000000002" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>1 Build the request</tspan></text>
+<text x="32" y="175.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Spec, problems, candidates</tspan></text>
+<path d="M270 161 L590 161" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="335.7" y="142" width="188.6" height="16" fill="#ffffff"/><text x="430" y="153" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Request (a conversation message)</tspan></text>
+<rect x="590" y="130" width="250" height="62" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="602" y="156.85000000000002" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>2 Reason and use tools</tspan></text>
+<text x="602" y="175.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit, RCS, web search, shell</tspan></text>
+<rect x="305" y="222" width="250" height="62" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="248.85000000000002" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Data files (by the agent)</tspan></text>
+<text x="317" y="267.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">uc.json</tspan><tspan>, </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">frg.json</tspan><tspan>, </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">report.md</tspan></text>
+<path d="M715 192 L715 253 L555 253" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="635" y="245" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>3 Edits</tspan></text>
+<path d="M715 320 L147 320" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="282.1" y="301" width="295.8" height="16" fill="#ffffff"/><text x="430" y="312" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>4 JSON that ends the turn: status, message, question</tspan></text>
+<rect x="248.0" y="327.5" width="364.1" height="15.5" fill="#ffffff"/><text x="430" y="338" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>done means the agent has finished its work, not that the work passed</tspan></text>
+<rect x="20" y="360" width="250" height="62" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="386.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>5 Run the validators</tspan></text>
+<text x="32" y="405.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Reread the files and judge</tspan></text>
+<path d="M428 391 L270 391" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<text x="349" y="383" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>5 Reads</tspan></text>
+<rect x="305" y="446" width="250" height="62" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="472.85" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Check results (by the worker)</tspan></text>
+<text x="317" y="491.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">quote_check.json</tspan><tspan>, </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">cross_check.json</tspan></text>
+<path d="M270 410 L430 410 L430 446" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="438" y="432" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>Writes</tspan></text>
+<path d="M145 422 L145 536" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="20" y="536" width="250" height="96" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="562.4499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>6 Decide what next (code)</tspan></text>
+<text x="32" y="580.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Problems → fix request, to 1</tspan></text>
+<text x="32" y="598.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Passed → next phase, to 1</tspan></text>
+<text x="32" y="615.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>question → save and stop</tspan></text>
+<path d="M20 584 L8 584 L8 161 L20 161" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<text x="10" y="666" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Only the request and the end JSON travel as messages; all work is handed over as files.</tspan></text>
+<text x="10" y="686" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>The worker's code decides whether to move on, not the agent's report.</tspan></text>
+</svg>

@@ -1,61 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 751" width="860" height="751" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
-<title id="t">CoBRAC ハーネス v2：全体のアーキテクチャ</title>
-<desc id="d">利用者の入力を Web 画面と API がジョブにし、SQS を読む dispatcher が Fargate ワーカーを起動する。ワーカーが Codex エージェントへフェーズ仕様と修正指示を送り、エージェントは RCS と lit を使って JSON と説明文を作る。ワーカーはファイルを検証し、コードで CSV・xlsx・グラフを生成して S3 に保存する。質問時は作業ファイルと会話を保存して終了し、回答後に新しいワーカーが復元して再開する。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 754" width="860" height="754" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC ハーネス v2：登場する主体と受け渡し</title>
+<desc id="d">紫は LLM、青はプログラム、緑はファイル、白は人・外部サービス・保存先を表す。利用者の入力を API（Lambda）がジョブとして記録し、dispatcher（Lambda）がジョブごとに Fargate コンテナでワーカーを起動する。ワーカーは LLM を含まないプログラムで、CoBRAC エージェント（Codex が動かす OpenAI のモデル）に依頼文を送り、ターン終了の JSON を受け取る。作業の中身は作業場所のファイルで受け渡す。エージェントはデータ JSON と説明の md を書き、ワーカーはそれを検査して検査結果、CSV、xlsx、グラフを書く。推論はコンテナの外の OpenAI API で行われる。エージェントは lit で文献データベースを、RCS で SABRA の候補を調べる。成果物と会話は S3 に保存し、進捗は DynamoDB と WebSocket で画面に送る。質問するかどうかはエージェントが決め、保存・停止・再開はワーカーが行う。</desc>
 <defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
-<rect width="860" height="751" fill="#ffffff"/>
-<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：全体のアーキテクチャ</tspan></text>
-<rect x="10" y="58" width="240" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-<text x="22" y="87.14999999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>利用者 / Web 画面</tspan></text>
-<text x="22" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ROI・TLF・資料・追加指示</tspan></text>
-<text x="22" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>進捗・質問・成果物を表示</tspan></text>
-<rect x="310" y="58" width="240" height="84" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="322" y="87.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>API / ジョブ管理</tspan></text>
-<text x="322" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>認証・設定・実行受付</tspan></text>
-<text x="322" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>状態とメッセージ：DynamoDB</tspan></text>
-<rect x="610" y="58" width="240" height="84" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="622" y="87.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>SQS → dispatcher</tspan></text>
-<text x="622" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>同時実行数を制御</tspan></text>
-<text x="622" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ジョブごとにワーカーを起動</tspan></text>
-<path d="M250 100 L310 100" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<path d="M550 100 L610 100" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<path d="M730 142 L730 190" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="190" width="840" height="300" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="210" font-size="12.5" font-weight="700" fill="#3b82f6" text-anchor="start"><tspan>Fargate ワーカー：実行を管理する CoBRAC ハーネス</tspan></text>
-<rect x="30" y="235" width="340" height="94" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="42" y="269.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>フェーズ制御</tspan></text>
-<text x="42" y="287.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>調査 → HCD → FRG → CSV</tspan></text>
-<text x="42" y="304.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>検証結果から修正・再検証を指示</tspan></text>
-<rect x="490" y="235" width="340" height="94" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="502" y="269.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>Codex エージェント</tspan></text>
-<text x="502" y="287.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>回路と機能を推論し JSON を編集</tspan></text>
-<text x="502" y="304.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>report / decision_log を記録</tspan></text>
-<path d="M370 266 L490 266" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
-<path d="M490 311 L370 311" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
-<text x="430" y="253" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>仕様・修正指示</tspan></text>
-<text x="430" y="298" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>JSON・md・状態</tspan></text>
-<path d="M200 329 L200 382" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
-<path d="M660 329 L660 382" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
-<rect x="30" y="382" width="340" height="88" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="42" y="404.45" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>検証器</tspan></text>
-<text x="42" y="422.84999999999997" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Schema・命名・BRA・HCD↔FRG</tspan></text>
-<text x="42" y="440.24999999999994" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>文献・引用文・許可された仮説</tspan></text>
-<text x="42" y="457.6499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>検証結果をファイルに記録</tspan></text>
-<rect x="490" y="382" width="340" height="88" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="502" y="413.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>RCS + </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">lit</tspan><tspan>（MCP）</tspan></text>
-<text x="502" y="431.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>RCS：SABRA（利用可能な場合）</tspan></text>
-<text x="502" y="448.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit：PubMed / Europe PMC（常時）</tspan></text>
-<text x="10" y="644" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>進捗：DynamoDB → WebSocket → 画面。成果物は API 経由で参照。</tspan></text>
-<path d="M200 470 L200 491 L275 491 L275 538" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
-<rect x="10" y="538" width="530" height="86" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="22" y="568.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>コードで成果物を生成</tspan></text>
-<text x="22" y="586.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>JSON → CSV → xlsx × 2 / HCD・FRG グラフ</tspan></text>
-<text x="22" y="603.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>CoBRAC-v1-1 / Template-v2-2</tspan></text>
-<rect x="590" y="538" width="260" height="86" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="602" y="568.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>S3 に保存</tspan></text>
-<text x="602" y="586.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>作業ファイル・会話</tspan></text>
-<text x="602" y="603.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>成果物・版の履歴</tspan></text>
-<path d="M540 581 L590 581" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
-<rect x="10" y="659" width="840" height="82" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
-<text x="22" y="687.15" font-size="13" font-weight="700" fill="#92400e" text-anchor="start"><tspan>質問が必要なときは、保存して待つ</tspan></text>
-<text x="22" y="705.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>質問 → 作業ファイルと会話を S3 に保存 → ワーカー終了</tspan></text>
-<text x="22" y="722.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>利用者の回答 → API / SQS → 新しいワーカーが復元して再開</tspan></text>
+<rect width="860" height="754" fill="#ffffff"/>
+<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：登場する主体と受け渡し</tspan></text>
+<rect x="10" y="51" width="16" height="14" rx="3" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="32" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>LLM（推論する）</tspan></text>
+<rect x="149.76" y="51" width="16" height="14" rx="3" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="171.76" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>プログラム（決まった手順）</tspan></text>
+<rect x="349.76" y="51" width="16" height="14" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="371.76" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>ファイル（受け渡しの場）</tspan></text>
+<rect x="537.76" y="51" width="16" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="559.76" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>人・外部サービス・保存先</tspan></text>
+<rect x="10" y="82" width="250" height="72" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="105.14999999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>利用者（人）</tspan></text>
+<text x="22" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ROI・TLF・資料・追加指示</tspan></text>
+<text x="22" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>質問への回答・承認</tspan></text>
+<rect x="305" y="82" width="250" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="317" y="105.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>API（Lambda・プログラム）</tspan></text>
+<text x="317" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>プロジェクトとジョブを記録</tspan></text>
+<text x="317" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>SQS に実行を依頼</tspan></text>
+<rect x="600" y="82" width="250" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="612" y="105.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>dispatcher（Lambda）</tspan></text>
+<text x="612" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>同時実行数を確認</tspan></text>
+<text x="612" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ジョブごとにワーカーを起動</tspan></text>
+<path d="M260 118 L305 118" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M555 118 L600 118" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M725 154 L725 172 L250 172 L250 230" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="487" y="168" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>ワーカーを起動</tspan></text>
+<rect x="10" y="190" width="630" height="372" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="210" font-size="12.5" font-weight="700" fill="#3b82f6" text-anchor="start"><tspan>Fargate コンテナ（ジョブごと）</tspan></text>
+<rect x="30" y="230" width="240" height="124" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="42" y="261.75" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>ワーカー（プログラム・LLM なし）</tspan></text>
+<text x="42" y="280.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>段の順序と依頼文を決める</tspan></text>
+<text x="42" y="297.54999999999995" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ファイルを検査（文献・RCS 照合も）</tspan></text>
+<text x="42" y="314.94999999999993" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>CSV・xlsx・グラフを生成</tspan></text>
+<text x="42" y="332.3499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>保存・停止・再開</tspan></text>
+<rect x="370" y="230" width="250" height="124" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="382" y="261.75" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>CoBRAC エージェント（LLM）</tspan></text>
+<text x="382" y="280.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Codex が OpenAI のモデルを動かす</tspan></text>
+<text x="382" y="297.54999999999995" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>文献を読み、回路と機能を判断</tspan></text>
+<text x="382" y="314.94999999999993" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>作業場所のファイルを書き換える</tspan></text>
+<text x="382" y="332.3499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>1 プロジェクトで 1 つの会話</tspan></text>
+<path d="M270 268 L370 268" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M370 318 L270 318" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="320" y="260" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>依頼文</tspan></text>
+<text x="320" y="310" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>終了 JSON</tspan></text>
+<rect x="470" y="372" width="150" height="56" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="482" y="395.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>lit（MCP）</tspan></text>
+<text x="482" y="414.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>文献検索・原文取得</tspan></text>
+<path d="M545 354 L545 372" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="30" y="448" width="590" height="96" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="42" y="474.45" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>作業場所（ワーカーのディスク）：受け渡しの場</tspan></text>
+<text x="42" y="492.84999999999997" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>エージェントが書く：データ JSON・report.md・decision_log.md</tspan></text>
+<text x="42" y="510.24999999999994" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ワーカーが書く：検査結果 JSON・CSV・xlsx・グラフ</tspan></text>
+<text x="42" y="527.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ワーカーが置く：AGENTS.md・schemas・資料・Canon（変更禁止）</tspan></text>
+<path d="M120 354 L120 448" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M160 448 L160 354" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="170" y="405" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>読む・書く</tspan></text>
+<path d="M400 354 L400 448" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<path d="M440 448 L440 354" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="392" y="405" font-size="10.5" font-weight="400" fill="#475569" text-anchor="end"><tspan>書く・読む</tspan></text>
+<rect x="660" y="230" width="190" height="76" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="672" y="255.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>OpenAI API</tspan></text>
+<text x="672" y="273.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>モデルが推論する場所</tspan></text>
+<text x="672" y="290.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>（コンテナの外）</tspan></text>
+<path d="M620 268 L660 268" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="660" y="322" width="190" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="672" y="347.85" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>RCS（外部）</tspan></text>
+<text x="672" y="366.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>領域名 → SABRA 候補</tspan></text>
+<path d="M620 336 L650 336 L650 352 L660 352" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="660" y="398" width="190" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="672" y="423.85" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>文献データベース</tspan></text>
+<text x="672" y="442.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>PubMed・Europe PMC</tspan></text>
+<path d="M620 400 L650 400 L650 428 L660 428" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M215 544 L215 582" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="10" y="582" width="410" height="62" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="608.8499999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>S3 に保存</tspan></text>
+<text x="22" y="627.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>作業場所・会話・成果物・保存版</tspan></text>
+<rect x="440" y="582" width="410" height="62" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="452" y="608.8499999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>進捗と質問の表示</tspan></text>
+<text x="452" y="627.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ワーカー → DynamoDB → WebSocket → 画面</tspan></text>
+<rect x="10" y="664" width="840" height="80" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="22" y="691.15" font-size="13" font-weight="700" fill="#92400e" text-anchor="start"><tspan>質問が必要なとき：質問するかはエージェント、保存と再開はワーカー</tspan></text>
+<text x="22" y="709.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>質問の JSON → 作業場所と会話を S3 に保存 → ワーカー終了</tspan></text>
+<text x="22" y="726.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>利用者の回答 → API / SQS → 新しいワーカーが復元し、同じ会話を再開</tspan></text>
 </svg>

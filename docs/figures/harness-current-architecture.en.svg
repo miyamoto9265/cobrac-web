@@ -1,61 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 751" width="860" height="751" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
-<title id="t">CoBRAC harness v2: overall architecture</title>
-<desc id="d">The Web UI and API turn user input into jobs. An SQS dispatcher starts a Fargate worker. The worker sends phase specifications and fixes to the Codex agent, which uses RCS and lit to edit JSON and explanatory text. The worker validates the files and generates CSVs, two xlsx formats and graphs in code, storing the results in S3. For a question it saves the workspace and conversation and exits; after the user answers, a new worker restores them and resumes.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 754" width="860" height="754" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC harness v2: the actors and what they hand over</title>
+<desc id="d">Purple marks the LLM, blue a program, green files, and white people, external services and storage. The API (Lambda) records the user's input as a job, and the dispatcher (Lambda) starts a worker in a Fargate container for each job. The worker is a program with no LLM: it sends requests to the CoBRAC agent (an OpenAI model run by Codex) and receives the JSON that ends each turn. The work itself is handed over as files in the workspace: the agent writes the data JSON and the explanatory markdown, and the worker checks them and writes the check results, CSVs, xlsx files and graphs. The model reasons outside the container, on the OpenAI API. The agent searches literature databases through lit and SABRA candidates through RCS. Results and the conversation are stored in S3, and progress reaches the screen through DynamoDB and WebSocket. The agent decides whether to ask a question; the worker saves, stops and resumes.</desc>
 <defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
-<rect width="860" height="751" fill="#ffffff"/>
-<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC harness v2: overall architecture</tspan></text>
-<rect x="10" y="58" width="240" height="84" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-<text x="22" y="87.14999999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>User / Web UI</tspan></text>
-<text x="22" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ROI, TLF, sources, follow-ups</tspan></text>
-<text x="22" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Progress, questions and results</tspan></text>
-<rect x="310" y="58" width="240" height="84" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="322" y="87.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>API / job management</tspan></text>
-<text x="322" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Authentication, settings, requests</tspan></text>
-<text x="322" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>State and messages: DynamoDB</tspan></text>
-<rect x="610" y="58" width="240" height="84" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="622" y="87.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>SQS → dispatcher</tspan></text>
-<text x="622" y="105.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Enforces concurrency limits</tspan></text>
-<text x="622" y="122.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Starts one worker per job</tspan></text>
-<path d="M250 100 L310 100" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<path d="M550 100 L610 100" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<path d="M730 142 L730 190" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="190" width="840" height="300" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="210" font-size="12.5" font-weight="700" fill="#3b82f6" text-anchor="start"><tspan>Fargate worker: the CoBRAC harness controls execution</tspan></text>
-<rect x="30" y="235" width="340" height="94" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="42" y="269.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Phase control</tspan></text>
-<text x="42" y="287.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Research → HCD → FRG → CSV</tspan></text>
-<text x="42" y="304.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Requests fixes and rechecks from findings</tspan></text>
-<rect x="490" y="235" width="340" height="94" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="502" y="269.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>Codex agent</tspan></text>
-<text x="502" y="287.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Reasons about circuits; edits JSON</tspan></text>
-<text x="502" y="304.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Writes report / decision_log</tspan></text>
-<path d="M370 266 L490 266" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
-<path d="M490 311 L370 311" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
-<text x="430" y="253" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Specs / fixes</tspan></text>
-<text x="430" y="298" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>JSON / md / status</tspan></text>
-<path d="M200 329 L200 382" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
-<path d="M660 329 L660 382" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
-<rect x="30" y="382" width="340" height="88" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="42" y="404.45" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Validators</tspan></text>
-<text x="42" y="422.84999999999997" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Schema, naming, BRA, HCD↔FRG</tspan></text>
-<text x="42" y="440.24999999999994" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>References, quotes, allowed hypotheses</tspan></text>
-<text x="42" y="457.6499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Records findings in files</tspan></text>
-<rect x="490" y="382" width="340" height="88" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="502" y="413.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>RCS + </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="12.0" fill="#1e293b">lit</tspan><tspan> (MCP)</tspan></text>
-<text x="502" y="431.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>RCS: SABRA (when available)</tspan></text>
-<text x="502" y="448.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit: PubMed / Europe PMC (always)</tspan></text>
-<text x="10" y="644" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Progress: DynamoDB → WebSocket → UI. Results are accessed through the API.</tspan></text>
-<path d="M200 470 L200 491 L275 491 L275 538" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
-<rect x="10" y="538" width="530" height="86" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="22" y="568.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Code generates the results</tspan></text>
-<text x="22" y="586.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>JSON → CSV → two xlsx formats / HCD and FRG graphs</tspan></text>
-<text x="22" y="603.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>CoBRAC-v1-1 / Template-v2-2</tspan></text>
-<rect x="590" y="538" width="260" height="86" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="602" y="568.15" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Stored in S3</tspan></text>
-<text x="602" y="586.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Workspace, conversation</tspan></text>
-<text x="602" y="603.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Results and version history</tspan></text>
-<path d="M540 581 L590 581" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
-<rect x="10" y="659" width="840" height="82" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
-<text x="22" y="687.15" font-size="13" font-weight="700" fill="#92400e" text-anchor="start"><tspan>When the agent needs an answer: save and wait</tspan></text>
-<text x="22" y="705.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Question → save workspace and conversation to S3 → worker exits</tspan></text>
-<text x="22" y="722.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>User answer → API / SQS → a new worker restores the state and resumes</tspan></text>
+<rect width="860" height="754" fill="#ffffff"/>
+<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC harness v2: the actors and what they hand over</tspan></text>
+<rect x="10" y="51" width="16" height="14" rx="3" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="32" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>LLM (reasons)</tspan></text>
+<rect x="133.92000000000002" y="51" width="16" height="14" rx="3" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="155.92000000000002" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Program (fixed procedure)</tspan></text>
+<rect x="330.32000000000005" y="51" width="16" height="14" rx="3" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="352.32000000000005" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Files (where work is handed over)</tspan></text>
+<rect x="567.52" y="51" width="16" height="14" rx="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="589.52" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>People, services, storage</tspan></text>
+<rect x="10" y="82" width="250" height="72" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="105.14999999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>User (person)</tspan></text>
+<text x="22" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ROI, TLF, sources, follow-ups</tspan></text>
+<text x="22" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Answers and approvals</tspan></text>
+<rect x="305" y="82" width="250" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="317" y="105.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>API (Lambda, program)</tspan></text>
+<text x="317" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Records the project and job</tspan></text>
+<text x="317" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Requests a run through SQS</tspan></text>
+<rect x="600" y="82" width="250" height="72" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="612" y="105.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Dispatcher (Lambda)</tspan></text>
+<text x="612" y="123.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Checks concurrency limits</tspan></text>
+<text x="612" y="140.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Starts one worker per job</tspan></text>
+<path d="M260 118 L305 118" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M555 118 L600 118" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
+<path d="M725 154 L725 172 L250 172 L250 230" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="487" y="168" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>Starts the worker</tspan></text>
+<rect x="10" y="190" width="630" height="372" rx="10" fill="#ffffff" stroke="#3b82f6" stroke-width="1.2" stroke-dasharray="4 4"/><text x="22" y="210" font-size="12.5" font-weight="700" fill="#3b82f6" text-anchor="start"><tspan>Fargate container (one per job)</tspan></text>
+<rect x="30" y="230" width="240" height="124" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="42" y="261.75" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>Worker (program, no LLM)</tspan></text>
+<text x="42" y="280.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Decides phase order and requests</tspan></text>
+<text x="42" y="297.54999999999995" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Checks files (also refs and RCS)</tspan></text>
+<text x="42" y="314.94999999999993" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Generates CSV, xlsx and graphs</tspan></text>
+<text x="42" y="332.3499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Saves, stops and resumes</tspan></text>
+<rect x="370" y="230" width="250" height="124" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="382" y="261.75" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>CoBRAC agent (LLM)</tspan></text>
+<text x="382" y="280.15" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>An OpenAI model run by Codex</tspan></text>
+<text x="382" y="297.54999999999995" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Reads papers; judges circuits</tspan></text>
+<text x="382" y="314.94999999999993" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Edits files in the workspace</tspan></text>
+<text x="382" y="332.3499999999999" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>One conversation per project</tspan></text>
+<path d="M270 268 L370 268" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M370 318 L270 318" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="320" y="260" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Request</tspan></text>
+<text x="320" y="310" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>End JSON</tspan></text>
+<rect x="470" y="372" width="150" height="56" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="482" y="395.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>lit (MCP)</tspan></text>
+<text x="482" y="414.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Search, source text</tspan></text>
+<path d="M545 354 L545 372" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="30" y="448" width="590" height="96" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="42" y="474.45" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>Workspace (on the worker's disk): where work is handed over</tspan></text>
+<text x="42" y="492.84999999999997" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Agent writes: data JSON, report.md, decision_log.md</tspan></text>
+<text x="42" y="510.24999999999994" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Worker writes: check-result JSON, CSV, xlsx, graphs</tspan></text>
+<text x="42" y="527.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Worker places: AGENTS.md, schemas, sources, Canon (read-only)</tspan></text>
+<path d="M120 354 L120 448" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M160 448 L160 354" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="170" y="405" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>Reads, writes</tspan></text>
+<path d="M400 354 L400 448" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<path d="M440 448 L440 354" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="392" y="405" font-size="10.5" font-weight="400" fill="#475569" text-anchor="end"><tspan>Writes, reads</tspan></text>
+<rect x="660" y="230" width="190" height="76" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="672" y="255.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>OpenAI API</tspan></text>
+<text x="672" y="273.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Where the model reasons</tspan></text>
+<text x="672" y="290.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>(outside the container)</tspan></text>
+<path d="M620 268 L660 268" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="660" y="322" width="190" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="672" y="347.85" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>RCS (external)</tspan></text>
+<text x="672" y="366.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Region → SABRA units</tspan></text>
+<path d="M620 336 L650 336 L650 352 L660 352" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="660" y="398" width="190" height="60" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="672" y="423.85" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Literature databases</tspan></text>
+<text x="672" y="442.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>PubMed, Europe PMC</tspan></text>
+<path d="M620 400 L650 400 L650 428 L660 428" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<path d="M215 544 L215 582" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<rect x="10" y="582" width="410" height="62" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="22" y="608.8499999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Stored in S3</tspan></text>
+<text x="22" y="627.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Workspace, conversation, results, versions</tspan></text>
+<rect x="440" y="582" width="410" height="62" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+<text x="452" y="608.8499999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>Progress and questions on screen</tspan></text>
+<text x="452" y="627.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Worker → DynamoDB → WebSocket → screen</tspan></text>
+<rect x="10" y="664" width="840" height="80" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
+<text x="22" y="691.15" font-size="13" font-weight="700" fill="#92400e" text-anchor="start"><tspan>When an answer is needed: the agent asks; the worker saves and resumes</tspan></text>
+<text x="22" y="709.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Question JSON → save workspace and conversation to S3 → the worker exits</tspan></text>
+<text x="22" y="726.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>User's answer → API / SQS → a new worker restores them and resumes the same conversation</tspan></text>
 </svg>
