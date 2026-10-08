@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-08
+
+### Added
+- CoBRAC Orchestrator list: a live view of the plans instead of a list of cards next to a form. "Your turn" comes first and gathers, from every plan, what waits on you (rows with a question, awaiting approval, needing a decision or attention, re-plan proposals, plans stopped for a reason other than you, drafts to confirm). Running, paused and drafting plans are shown wide, with the rows done, the current wave, time so far and estimate, cost, a progress bar by wave (the rows being built flow, the current wave is outlined), the rows being built with their stage and time, and the last 4 events. Drafts are cards and finished plans a folded list. While a plan is live the list updates itself every 15 s (5 s while drafting), and "Live" shows by the title
+- `GET /plans` returns a `pulse` for running and paused plans (the newest 12): rows by wave and state, the rows being built and waiting, the newest events with their rows, open proposals, the estimate and what was spent
+- Plan page: the rows being built show the stage strip of their project (research → HCD ⇄ FRG → CSV → xlsx), and a running plan shows a beating dot by its status
+
+### Changed
+- CoBRAC Orchestrator list: "New plan" opens the form in a panel from the right (Esc or the backdrop closes it); with no plan yet the form stays on the screen
+- Plan page: the progress bar is split by wave, the rows being built flow, its widths and the counts animate as rows move on (no motion with "reduce motion")
+
 ## [0.37.3] - 2026-10-08
 
 ### Changed
