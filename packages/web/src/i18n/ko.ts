@@ -36,7 +36,6 @@ export const ko: Record<MessageKey, string> = {
   "nav.settings": "설정",
   "nav.docs": "문서",
   "nav.manual": "사용 설명서",
-  "nav.releases": "릴리스 노트",
   "nav.admin": "관리",
   "nav.signOut": "로그아웃",
   "nav.openMenu": "메뉴 열기",

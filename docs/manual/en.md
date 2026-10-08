@@ -308,7 +308,7 @@ When an agent asks a question, only that row stops and the question appears in t
 - **Default Canon for new projects**
 - **Change password**
 
-The display language and the theme (light or dark) are at the bottom of the sidebar. "Release notes" lists what changed in the app.
+The display language and the theme (light or dark) are at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
 
 ## Troubleshooting
 

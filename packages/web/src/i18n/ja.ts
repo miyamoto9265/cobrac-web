@@ -36,7 +36,6 @@ export const ja: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.docs": "ドキュメント",
   "nav.manual": "利用マニュアル",
-  "nav.releases": "リリースノート",
   "nav.admin": "管理",
   "nav.signOut": "ログアウト",
   "nav.openMenu": "メニューを開く",

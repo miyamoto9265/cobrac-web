@@ -36,7 +36,6 @@ export const zh: Record<MessageKey, string> = {
   "nav.settings": "设置",
   "nav.docs": "文档",
   "nav.manual": "使用手册",
-  "nav.releases": "发行说明",
   "nav.admin": "管理",
   "nav.signOut": "退出登录",
   "nav.openMenu": "打开菜单",

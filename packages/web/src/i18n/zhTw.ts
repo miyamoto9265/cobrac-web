@@ -36,7 +36,6 @@ export const zhTw: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.docs": "文件",
   "nav.manual": "使用手冊",
-  "nav.releases": "發行說明",
   "nav.admin": "管理",
   "nav.signOut": "登出",
   "nav.openMenu": "開啟選單",

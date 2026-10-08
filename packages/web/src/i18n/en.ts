@@ -34,7 +34,6 @@ export const en = {
   "nav.settings": "Settings",
   "nav.docs": "Docs",
   "nav.manual": "User manual",
-  "nav.releases": "Release notes",
   "nav.admin": "Admin",
   "nav.signOut": "Sign out",
   "nav.openMenu": "Open menu",
