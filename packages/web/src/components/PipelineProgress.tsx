@@ -15,11 +15,14 @@ export function PipelineProgress({
   project,
   jobs,
   center = false,
+  help = true,
   className = "",
 }: {
   project: Pick<ProjectRecord, "status" | "stepStates" | "activeStage" | "researchMode">;
   jobs: Pick<JobRecord, "researchStep">[];
   center?: boolean;
+  /** The "?" that explains the stages (off where many strips are listed) */
+  help?: boolean;
   className?: string;
 }) {
   const t = useT();
@@ -53,7 +56,7 @@ export function PipelineProgress({
           </div>
         </li>
         {chip("csv", <Connector from={v.frg === "done" ? "done" : "pending"} to={v.csv} run={v.run} />)}
-        {chip("xlsx", <Connector from={v.csv} to={v.xlsx} run={v.run} />, <HelpTip text={t("stage.help")} label={t("stage.helpLabel")} className="ml-1" />)}
+        {chip("xlsx", <Connector from={v.csv} to={v.xlsx} run={v.run} />, help ? <HelpTip text={t("stage.help")} label={t("stage.helpLabel")} className="ml-1" /> : null)}
       </ol>
     </div>
   );

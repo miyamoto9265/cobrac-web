@@ -178,6 +178,7 @@ import {
   orderPlan,
   pausePlan,
   planDetail,
+  planPulse,
   rejectProposal,
   replaceRows,
   requestDraft,
@@ -1957,12 +1958,21 @@ app.get("/public/canons/:id", async (c) => {
 // BRA Planner (plans: rows of ROI × TLF built as projects in waves; owner only)
 // ---------------------------------------------------------------------------
 
+/** Live plans whose pulse the list reads (the newest first); older ones show their counts only. */
+const LIST_PULSE_PLANS = 12;
+
 app.get("/plans", async (c) => {
   const u = c.get("user");
-  const items = (await listOwnPlans(u.userId))
-    .filter((p) => !p.deletedAt)
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-    .map((p) => ({ ...p, rowCounts: p.rowCounts ?? countRows([]) }));
+  const plans = (await listOwnPlans(u.userId)).filter((p) => !p.deletedAt).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  // running and paused plans carry what they do now (the list is a live view of them); the rest only their counts
+  let live = 0;
+  const items = await Promise.all(
+    plans.map(async (p) => {
+      if ((p.status !== "RUNNING" && p.status !== "PAUSED") || ++live > LIST_PULSE_PLANS) return { ...p, rowCounts: p.rowCounts ?? countRows([]) };
+      const d = await planDetail(u, p);
+      return { ...p, rowCounts: d.plan.rowCounts ?? countRows([]), rowCount: d.plan.rowCount, pulse: planPulse(d) };
+    }),
+  );
   const res: ListPlansResponse = { items };
   return c.json(res);
 });

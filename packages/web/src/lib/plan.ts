@@ -1,6 +1,8 @@
-import type { CanonPullRequestRecord, PlanRowState, PlanRowView, PlanStatus } from "@cobrac/shared";
+import type { CanonPullRequestRecord, PlanPulse, PlanRowState, PlanRowView, PlanStatus } from "@cobrac/shared";
+import { useEffect, useState } from "react";
 import { PLAN_ATTACHMENT_EXTS, PLAN_MAX_WAITING_PRS, waitingPrs } from "@cobrac/shared";
-import type { TFn } from "../i18n";
+import type { MessageKey, TFn } from "../i18n";
+import { pipelineView, type StageId } from "./pipeline";
 
 export const planPath = (planId: string) => `/plans/${encodeURIComponent(planId)}`;
 
@@ -129,4 +131,49 @@ export function fmtElapsed(fromIso: string | null | undefined, now: number, t: T
 export function shownAnchors(anchors: readonly string[] | null | undefined, max = 4): { shown: string[]; more: number } {
   const all = anchors ?? [];
   return { shown: all.slice(0, max), more: Math.max(0, all.length - max) };
+}
+
+/** Time since `fromIso` as 「4 分前」 / "4 min ago" (`now` under 10 s). */
+export function fmtAgo(fromIso: string | null | undefined, now: number, t: TFn): string {
+  const from = fromIso ? Date.parse(fromIso) : NaN;
+  if (!Number.isFinite(from)) return "—";
+  if (now - from < 10_000) return t("plan.justNow");
+  return t("plan.ago", { t: fmtElapsed(fromIso, now, t) });
+}
+
+/** The current time, ticking every `ms` while `enabled` (relative times and elapsed clocks). */
+export function useNow(ms = 1000, enabled = true): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!enabled) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(id);
+  }, [ms, enabled]);
+  return now;
+}
+
+/** Rows of each wave by state, waves ascending (the progress bar of a plan). */
+export function waveCounts(rows: Pick<PlanRowView, "wave" | "state">[]): PlanPulse["waves"] {
+  const by = new Map<number, Partial<Record<PlanRowState, number>>>();
+  for (const r of rows) {
+    const c = by.get(r.wave) ?? {};
+    c[r.state] = (c[r.state] ?? 0) + 1;
+    by.set(r.wave, c);
+  }
+  return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([wave, counts]) => ({ wave, counts }));
+}
+
+const STAGE_LABEL: Record<StageId, MessageKey | string> = { research: "stage.research", hcd: "HCD", frg: "FRG", cross: "stage.cross", csv: "CSV", xlsx: "xlsx" };
+const STAGES: StageId[] = ["research", "hcd", "frg", "cross", "csv", "xlsx"];
+
+/** Name of the harness stage a row's project is in (null when none is active), e.g. 「FRG」 or 「調査」. */
+export function activeStageName(project: PlanRowView["project"], t: TFn): string | null {
+  if (!project?.stepStates) return null;
+  const v = pipelineView({ status: project.status, stepStates: project.stepStates, activeStage: project.activeStage ?? null, researchMode: project.researchMode }, []);
+  if (v.loop) return t("stage.loop");
+  const id = STAGES.find((s) => v[s] === "active");
+  if (!id) return null;
+  const l = STAGE_LABEL[id];
+  return l.startsWith("stage.") ? t(l as MessageKey) : l;
 }

@@ -378,6 +378,29 @@ describe("plans: running", () => {
     expect(d.actual.minutes).not.toBeNull();
     expect(d.events.map((e) => e.type)).toContain("confirmed");
   });
+
+  it("lists running plans with what they do now (rows building and waiting, newest events, progress by wave); drafts without", async () => {
+    await setLimits(2, 2);
+    const planId = await newPlan([{ roi: "R0", tlf: "F0" }, { roi: "R1", tlf: "F1" }, { roi: "R2", tlf: "F2", wave: 2 }]);
+    const draftId = await newPlan([{ roi: "D0", tlf: "G0" }]);
+    await json(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    projectStatus(planId, "R0", "RUNNING", { activeStage: "FRG" });
+    const items = (await json<ListPlansResponse>(call(A, "GET", "/plans"))).items;
+    const draft = items.find((p) => p.planId === draftId)!;
+    expect(draft.pulse).toBeUndefined();
+    const pulse = items.find((p) => p.planId === planId)!.pulse!;
+    expect(pulse.running.map((r) => r.roi).sort()).toEqual(["R0", "R1"]);
+    expect(pulse.running.find((r) => r.roi === "R0")!.project).toMatchObject({ status: "RUNNING", activeStage: "FRG", stepStates: expect.any(Object) });
+    expect(pulse.waiting).toEqual([]);
+    expect(pulse.waves.map((w) => w.wave)).toEqual([1, 2]);
+    expect(pulse.waves[1].counts).toEqual({ pending: 1 });
+    expect(pulse.events.length).toBeGreaterThan(0);
+    expect(pulse.events.length).toBeLessThanOrEqual(4);
+    expect(pulse.events.map((e) => e.type)).toContain("row_started");
+    expect(pulse.events.find((e) => e.type === "row_started")!.row).toMatchObject({ roi: expect.stringMatching(/^R[01]$/) });
+    expect(pulse.estimate).toMatchObject({ rows: 3 });
+    expect(pulse.openProposals).toBe(0);
+  });
 });
 
 describe("dispatcher", () => {
