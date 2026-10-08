@@ -151,6 +151,7 @@
     <tr><td><code>staging/{userId}/</code></td><td>プロジェクトを作る前にアップロードした参考資料（1 日で消える）</td></tr>
     <tr><td><code>canons/{canonId}/</code></td><td>Canon の rev のスナップショットと PR の内容（第 4 部）</td></tr>
     <tr><td><code>plans/{planId}/</code></td><td>計画の資料（<code>attachments/</code>）と、計画用のジョブの <code>input.json</code>・<code>result.json</code>（<code>jobs/{jobId}/</code>）。API キーなどの秘密は書かない</td></tr>
+    <tr><td><code>admin-docs/</code></td><td>仕様書の PDF（<code>spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf</code>）。API が同梱の PDF を版ごとに 1 回だけ置き、管理者に署名付き URL で渡す。古い版の PDF は消さない</td></tr>
   </tbody>
 </table>
 
@@ -184,7 +185,7 @@
   <thead><tr><th style="width:17%">主体</th><th>付いている権限</th><th style="width:25%">付いていないもの</th></tr></thead>
   <tbody>
     <tr><td>ワーカーのタスクロール（Fargate のプログラム。Codex を子プロセスで動かす）</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き。<code>Canons</code> の読み取り（固定した rev）。<code>Catalog</code> は <code>config</code> の区画だけの <code>GetItem</code>（既定の API キー）。成果物バケット全体の読み書き。KMS の <code>Decrypt</code>。Secrets Manager の <code>rcs/mcp-bearer-token</code> の読み取り（RCS を使うとき）</td><td>KMS の <code>Encrypt</code>。<code>Plans</code>・<code>WsConnections</code></td></tr>
-    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが確かめる）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
+    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが確かめる）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>、<code>admin-docs/*</code>（仕様書の PDF）。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
     <tr><td>dispatcher</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>WsConnections</code> の読み書き。<code>Catalog</code> の <code>config</code> の <code>GetItem</code>（同時実行数）。キューの受け取りと送信（積み直し）。ワーカーのタスク定義の <code>RunTask</code>、タグ付け、タスクロールと実行ロールの <code>PassRole</code></td><td>KMS</td></tr>
     <tr><td>janitor</td><td>上の 5 つのテーブルの読み書き。キューへの送信</td><td>KMS</td></tr>
     <tr><td>WebSocket の Lambda・broadcaster</td><td>上の 5 つのテーブルの読み書き。WebSocket の接続の管理（<code>WsDefaultFn</code> と broadcaster）</td><td>KMS</td></tr>
@@ -380,7 +381,7 @@
 <h3>管理者</h3>
 <ul>
   <li>API は要求のたびに、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code>（GitHub の Secret）に含まれるか、Cognito のグループ <code>admin</code> に属しているかを確かめ、そうなら役割を <code>admin</code> にします。初回のサインインで作る利用者も、既存の利用者も同じです。一覧からアドレスを消しても自動では一般の利用者に戻らないので、管理者画面で役割を変えます。</li>
-  <li>管理者の機能：利用者の一覧、無効化と有効化（自分自身は無効にできない）、役割の変更、既定の API キーの承認とティア、既定の API キーの登録と削除、利用者ごとの既定のキーの費用（累計と今月）、同時実行数の設定、全プロジェクトの一覧と強制停止、管理者向けの文書。</li>
+  <li>管理者の機能：利用者の一覧、無効化と有効化（自分自身は無効にできない）、役割の変更、既定の API キーの承認とティア、既定の API キーの登録と削除、利用者ごとの既定のキーの費用（累計と今月）、同時実行数の設定、全プロジェクトの一覧と強制停止、仕様書（この PDF。<code>GET /admin/spec</code> が API に同梱した PDF を S3 の <code>admin-docs/spec-&lt;ハッシュ 16 桁&gt;.pdf</code> に置き、10 分間有効の署名付き URL を返す）。</li>
   <li>無効化された利用者は、すべての API で 403 になります。</li>
 </ul>
 <h3>API の認可</h3>
