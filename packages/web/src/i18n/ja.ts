@@ -36,7 +36,6 @@ export const ja: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.docs": "ドキュメント",
   "nav.manual": "利用マニュアル",
-  "nav.releases": "リリースノート",
   "nav.admin": "管理",
   "nav.signOut": "ログアウト",
   "nav.openMenu": "メニューを開く",
@@ -130,13 +129,10 @@ export const ja: Record<MessageKey, string> = {
   "projects.frg": "FRG グラフ",
   "projects.xlsx": "xlsx ダウンロード",
   "projects.totalEst": "全プロジェクト合計（推定）",
-  "projects.unpricedN": "単価未登録のモデルを使ったプロジェクトが {n} 件あり、合計に含まれていません。",
   "projects.jobs": "ジョブ",
   "projects.input": "入力",
   "projects.output": "出力",
   "projects.estCost": "推定料金",
-  "projects.noPrice": "単価未登録",
-  "projects.priceNote": "OpenAI 公開単価 {date} 時点。実請求は OpenAI ダッシュボードを参照。",
 
   "usage.tip":
     "入力 {in}（キャッシュ {cached}）\n出力 {out}（推論 {reason}）{model}{unpriced}",
@@ -207,8 +203,6 @@ export const ja: Record<MessageKey, string> = {
   "chat.reasoning": "(推論)",
   "chat.noJobs": "ジョブがありません",
   "chat.total": "合計",
-  "chat.costNote":
-    "料金は OpenAI の標準・短コンテキスト単価（{date} 時点）に基づく推定値です。入力が 272K トークンを超えるリクエストはより高くなります。実際の請求額は OpenAI ダッシュボードで確認してください。",
   "chat.working": "エージェントが作業中…",
 
   "ws.tables": "表データ",
@@ -974,7 +968,6 @@ export const ja: Record<MessageKey, string> = {
   "plan.estimateHelp": "1 回の実行を約 48 分、「種」の行は 1 件ずつ、ほかのバッチは順番に進み、行の 20% に手直しが入るとして計算します。費用は 1 行あたり $0.18〜0.39 です（既存のプロジェクトで済む行は除きます）。質問への回答を待つ時間は含みません。「実績」は確定からの経過時間と、各行のプロジェクトと計画用のジョブ（下書き・再計画）の費用の合計です。",
   "plan.hours": "約 {h} 時間",
   "plan.minutes": "{m} 分",
-  "plan.unpriced": "単価不明 {n} 件",
   "plan.settings": "設定",
   "plan.settingsNote": "オーケストレーターのジョブ（下書き・再計画・AI レビュー）とどの行のプロジェクトも、この設定と確定した時点のハーネスルールで実行します。確定後は変更できません。",
   "plan.agentsModelHelp": "各行の BRA プロジェクトを作るエージェントのモデルと reasoning effort です。",

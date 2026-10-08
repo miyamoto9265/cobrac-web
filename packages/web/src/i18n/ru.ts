@@ -36,7 +36,6 @@ export const ru: Record<MessageKey, string> = {
   "nav.settings": "Настройки",
   "nav.docs": "Документы",
   "nav.manual": "Руководство пользователя",
-  "nav.releases": "Заметки о выпуске",
   "nav.admin": "Админ",
   "nav.signOut": "Выйти",
   "nav.openMenu": "Открыть меню",
@@ -130,13 +129,10 @@ export const ru: Record<MessageKey, string> = {
   "projects.frg": "Граф FRG",
   "projects.xlsx": "Скачать xlsx",
   "projects.totalEst": "Все проекты (оценка)",
-  "projects.unpricedN": "{n} проект(ов) использовали модель без цены и не входят в сумму.",
   "projects.jobs": "Задания",
   "projects.input": "Ввод",
   "projects.output": "Вывод",
   "projects.estCost": "Оценка стоимости",
-  "projects.noPrice": "Цена не указана",
-  "projects.priceNote": "Публичные цены OpenAI на {date}. Фактические счета смотрите в панели OpenAI.",
 
   "usage.tip":
     "Ввод {in} (кэш {cached})\nВывод {out} (рассуждение {reason}){model}{unpriced}",
@@ -207,8 +203,6 @@ export const ru: Record<MessageKey, string> = {
   "chat.reasoning": "(рассуждение)",
   "chat.noJobs": "Нет заданий",
   "chat.total": "Итого",
-  "chat.costNote":
-    "Стоимость — оценка по публичным ценам OpenAI (на {date}). Фактические счета смотрите в панели OpenAI.",
   "chat.working": "Агент работает…",
 
   "ws.tables": "Таблицы",
@@ -974,7 +968,6 @@ export const ru: Record<MessageKey, string> = {
   "plan.estimateHelp": "Около 48 минут на запуск: строки-затравки по одной, затем волны одна за другой, плюс доработка для 20 % строк; $0,18–0,39 за строку (без строк, которые покрывает существующий проект). Время ожидания ответов не учитывается. «Пока» — время с подтверждения и стоимость проектов строк и заданий планирования (черновиков и перепланирований).",
   "plan.hours": "≈{h} ч",
   "plan.minutes": "{m} мин",
-  "plan.unpriced": "без цены: {n}",
   "plan.settings": "Настройки",
   "plan.settingsNote": "Задания Orchestrator (черновик, перепланирование, ИИ-ревью) и проект каждой строки запускаются с этими настройками и правилами harness, действующими на момент подтверждения. После подтверждения их нельзя изменить.",
   "plan.agentsModelHelp": "Модель и reasoning effort агентов, которые создают BRA-проект каждой строки.",

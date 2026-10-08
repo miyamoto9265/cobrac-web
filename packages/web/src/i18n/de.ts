@@ -36,7 +36,6 @@ export const de: Record<MessageKey, string> = {
   "nav.settings": "Einstellungen",
   "nav.docs": "Dokumentation",
   "nav.manual": "Benutzerhandbuch",
-  "nav.releases": "Release Notes",
   "nav.admin": "Admin",
   "nav.signOut": "Abmelden",
   "nav.openMenu": "Menü öffnen",
@@ -130,13 +129,10 @@ export const de: Record<MessageKey, string> = {
   "projects.frg": "FRG-Graph",
   "projects.xlsx": "xlsx herunterladen",
   "projects.totalEst": "Alle Projekte (geschätzt)",
-  "projects.unpricedN": "{n} Projekt(e) verwendeten ein Modell ohne Preisangabe und sind vom Gesamtbetrag ausgeschlossen.",
   "projects.jobs": "Jobs",
   "projects.input": "Eingabe",
   "projects.output": "Ausgabe",
   "projects.estCost": "Geschätzte Kosten",
-  "projects.noPrice": "Kein Preis angegeben",
-  "projects.priceNote": "OpenAI-Listenpreise Stand {date}. Prüfen Sie das OpenAI-Dashboard für die tatsächlichen Rechnungen.",
 
   "usage.tip":
     "Eingabe {in} (Cache {cached})\nAusgabe {out} (Reasoning {reason}){model}{unpriced}",
@@ -207,8 +203,6 @@ export const de: Record<MessageKey, string> = {
   "chat.reasoning": "(Reasoning)",
   "chat.noJobs": "Keine Jobs",
   "chat.total": "Gesamt",
-  "chat.costNote":
-    "Die Kosten sind Schätzungen anhand der OpenAI-Listenpreise (Stand {date}). Prüfen Sie das OpenAI-Dashboard für die tatsächlichen Rechnungen.",
   "chat.working": "Der Agent arbeitet…",
 
   "ws.tables": "Tabellen",
@@ -974,7 +968,6 @@ export const de: Record<MessageKey, string> = {
   "plan.estimateHelp": "Etwa 48 Minuten pro Lauf: Saatzeilen einzeln, dann die Wellen nacheinander, dazu Nacharbeit für 20 % der Zeilen; 0,18–0,39 $ pro Zeile (ohne Zeilen, die ein vorhandenes Projekt abdeckt). Die Wartezeit auf Antworten ist nicht enthalten. „Bisher“ ist die Zeit seit der Bestätigung und die Kosten der Projekte der Zeilen und der Planungsaufträge (Entwürfe und Neuplanungen).",
   "plan.hours": "ca. {h} h",
   "plan.minutes": "{m} Min.",
-  "plan.unpriced": "{n} ohne Preis",
   "plan.settings": "Einstellungen",
   "plan.settingsNote": "Die Aufträge des Orchestrators (Entwurf, Neuplanung, KI-Review) und das Projekt jeder Zeile laufen mit diesen Einstellungen und den Harness-Regeln, die bei der Bestätigung gelten. Nach der Bestätigung lassen sie sich nicht mehr ändern.",
   "plan.agentsModelHelp": "Modell und Reasoning Effort der Agenten, die das BRA-Projekt jeder Zeile erstellen.",

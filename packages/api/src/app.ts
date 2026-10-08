@@ -91,7 +91,6 @@ import {
   EDGE_LINE_TYPES,
   EMPTY_USAGE,
   PRICING,
-  PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
   DEFAULT_KEY_CATALOG_KEY,
@@ -372,7 +371,6 @@ app.get("/users/me/models", async (c) => {
     orgTier: policy.tier,
     restricted: policy.allowed !== null,
     pricedModels: Object.keys(PRICING),
-    pricingAsOf: PRICING_AS_OF,
   };
   return c.json(res);
 });
@@ -381,7 +379,7 @@ app.get("/users/me/models", async (c) => {
 app.get("/users/me/usage", async (c) => {
   const u = c.get("user");
   const items = await listUserProjects(u.userId);
-  const summary: UsageSummary = { totals: EMPTY_USAGE, costUsd: null, unpricedProjects: 0, byModel: [], byProject: [], pricingAsOf: PRICING_AS_OF };
+  const summary: UsageSummary = { totals: EMPTY_USAGE, costUsd: null, byModel: [], byProject: [] };
   const byModel = new Map<string, { usage: TokenUsage; cost: number; unpriced: boolean; jobs: number }>();
   let cost = 0;
   let priced = false;
@@ -402,9 +400,7 @@ app.get("/users/me/usage", async (c) => {
       byModel.set(m, e);
     }
     if (p.usage) summary.totals = addUsage(summary.totals, p.usage);
-    if (p.costUsd === null || p.costUsd === undefined) {
-      if (p.usage && p.usage.inputTokens + p.usage.outputTokens > 0) summary.unpricedProjects++;
-    } else {
+    if (typeof p.costUsd === "number") {
       cost += p.costUsd;
       priced = true;
     }

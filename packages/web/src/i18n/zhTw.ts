@@ -36,7 +36,6 @@ export const zhTw: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.docs": "文件",
   "nav.manual": "使用手冊",
-  "nav.releases": "發行說明",
   "nav.admin": "管理",
   "nav.signOut": "登出",
   "nav.openMenu": "開啟選單",
@@ -130,13 +129,10 @@ export const zhTw: Record<MessageKey, string> = {
   "projects.frg": "FRG 圖",
   "projects.xlsx": "下載 xlsx",
   "projects.totalEst": "全部專案（估算）",
-  "projects.unpricedN": "有 {n} 個專案使用了未標價模型，未計入合計。",
   "projects.jobs": "工作",
   "projects.input": "輸入",
   "projects.output": "輸出",
   "projects.estCost": "預估費用",
-  "projects.noPrice": "未標價",
-  "projects.priceNote": "OpenAI 公開標價截至 {date}。實際帳單請查看 OpenAI 控制台。",
 
   "usage.tip":
     "輸入 {in}（快取 {cached}）\n輸出 {out}（推理 {reason}）{model}{unpriced}",
@@ -207,8 +203,6 @@ export const zhTw: Record<MessageKey, string> = {
   "chat.reasoning": "（推理）",
   "chat.noJobs": "尚無工作",
   "chat.total": "合計",
-  "chat.costNote":
-    "費用依 OpenAI 公開標價（截至 {date}）估算。實際帳單請查看 OpenAI 控制台。",
   "chat.working": "代理程式正在作業…",
 
   "ws.tables": "表格資料",
@@ -974,7 +968,6 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.estimateHelp": "以每次執行約 48 分鐘、「種子」列逐一製作、其餘各批依序進行、20% 的列需要重工來計算；每列 $0.18–0.39（已有專案可涵蓋的列除外）。不含等待回答的時間。「目前」是確認以來的時間，以及各列專案與規劃工作（草稿、重新規劃）的費用合計。",
   "plan.hours": "約 {h} 小時",
   "plan.minutes": "{m} 分鐘",
-  "plan.unpriced": "{n} 個無單價",
   "plan.settings": "設定",
   "plan.settingsNote": "Orchestrator 的工作（草稿、重新規劃、AI 審查）與每一列的專案都依此設定與確認計畫時有效的 harness 規則執行。確認後無法變更。",
   "plan.agentsModelHelp": "為每一列建立 BRA 專案的代理所用的模型與推理強度。",

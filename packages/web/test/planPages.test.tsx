@@ -55,7 +55,7 @@ function detail(status: PlanRecord["status"], rows: PlanRowView[], extra: Partia
     events: [],
     limits: { maxConcurrentJobs: 2, maxConcurrentJobsPerUser: 2, effective: 2 },
     estimate: estimatePlan({ seedRows: 0, bodyWaveSizes: [rows.length], concurrency: 2 }),
-    actual: { minutes: status === "DRAFT" ? null : 30, costUsd: status === "DRAFT" ? null : 0.18, unpricedProjects: 0 },
+    actual: { minutes: status === "DRAFT" ? null : 30, costUsd: status === "DRAFT" ? null : 0.18 },
   };
 }
 
@@ -89,7 +89,7 @@ async function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [], pricingAsOf: "" });
+  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
   for (const fn of [api.answer, api.planRowAction, api.planAction, api.savePlanRows, api.confirmPlan]) fn.mockResolvedValue({ ok: true });
 });
 afterEach(() => {
@@ -220,7 +220,7 @@ describe("plan list as a live view", () => {
       events: [{ sk: "EVT#2", type: "row_question", at: now, row: { roi: "STG", tlf: "phonology" } }],
       openProposals: 1,
       estimate: estimatePlan({ seedRows: 0, bodyWaveSizes: [2, 1], concurrency: 2 }),
-      actual: { minutes: 12, costUsd: 0.4, unpricedProjects: 0 },
+      actual: { minutes: 12, costUsd: 0.4 },
     },
   });
   const items = [

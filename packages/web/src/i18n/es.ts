@@ -36,7 +36,6 @@ export const es: Record<MessageKey, string> = {
   "nav.settings": "Configuración",
   "nav.docs": "Docs",
   "nav.manual": "Manual de uso",
-  "nav.releases": "Notas de la versión",
   "nav.admin": "Admin",
   "nav.signOut": "Cerrar sesión",
   "nav.openMenu": "Abrir menú",
@@ -130,13 +129,10 @@ export const es: Record<MessageKey, string> = {
   "projects.frg": "Gráfico FRG",
   "projects.xlsx": "Descargar xlsx",
   "projects.totalEst": "Todos los proyectos (estimado)",
-  "projects.unpricedN": "{n} proyecto(s) usaron un modelo sin precio listado y se excluyen del total.",
   "projects.jobs": "Trabajos",
   "projects.input": "Entrada",
   "projects.output": "Salida",
   "projects.estCost": "Costo est.",
-  "projects.noPrice": "Sin precio listado",
-  "projects.priceNote": "Precios de lista de OpenAI al {date}. Consulta el panel de OpenAI para las facturas reales.",
 
   "usage.tip":
     "Entrada {in} (en caché {cached})\nSalida {out} (razonamiento {reason}){model}{unpriced}",
@@ -207,8 +203,6 @@ export const es: Record<MessageKey, string> = {
   "chat.reasoning": "(razonamiento)",
   "chat.noJobs": "Sin trabajos",
   "chat.total": "Total",
-  "chat.costNote":
-    "Los costos son estimaciones según los precios de lista de OpenAI (al {date}). Consulta el panel de OpenAI para las facturas reales.",
   "chat.working": "El agente está trabajando…",
 
   "ws.tables": "Tablas",
@@ -974,7 +968,6 @@ export const es: Record<MessageKey, string> = {
   "plan.estimateHelp": "Unos 48 minutos por ejecución: las filas semilla una a una, luego las olas una tras otra, más retrabajo para el 20 % de las filas; 0,18–0,39 $ por fila (sin contar las filas que cubre un proyecto existente). No incluye el tiempo de espera de respuestas. «Hasta ahora» es el tiempo desde la confirmación y el costo de los proyectos de las filas y de los trabajos de planificación (borradores y replanificaciones).",
   "plan.hours": "~{h} h",
   "plan.minutes": "{m} min",
-  "plan.unpriced": "{n} sin precio",
   "plan.settings": "Configuración",
   "plan.settingsNote": "Los trabajos del Orchestrator (borrador, replanificación, revisión con IA) y el proyecto de cada fila se ejecutan con esta configuración y las reglas del harness vigentes al confirmar el plan. No se pueden cambiar después de confirmar.",
   "plan.agentsModelHelp": "Modelo y esfuerzo de razonamiento de los agentes que construyen el proyecto BRA de cada fila.",

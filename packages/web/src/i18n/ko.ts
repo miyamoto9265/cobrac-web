@@ -36,7 +36,6 @@ export const ko: Record<MessageKey, string> = {
   "nav.settings": "설정",
   "nav.docs": "문서",
   "nav.manual": "사용 설명서",
-  "nav.releases": "릴리스 노트",
   "nav.admin": "관리",
   "nav.signOut": "로그아웃",
   "nav.openMenu": "메뉴 열기",
@@ -130,13 +129,10 @@ export const ko: Record<MessageKey, string> = {
   "projects.frg": "FRG 그래프",
   "projects.xlsx": "xlsx 다운로드",
   "projects.totalEst": "전체 프로젝트 (추정)",
-  "projects.unpricedN": "가격 미등록 모델을 사용한 프로젝트 {n}건은 합계에서 제외되었습니다.",
   "projects.jobs": "작업",
   "projects.input": "입력",
   "projects.output": "출력",
   "projects.estCost": "추정 요금",
-  "projects.noPrice": "가격 미등록",
-  "projects.priceNote": "OpenAI 공개 단가 {date} 기준. 실제 청구는 OpenAI 대시보드를 확인하세요.",
 
   "usage.tip":
     "입력 {in} (캐시 {cached})\n출력 {out} (추론 {reason}){model}{unpriced}",
@@ -207,8 +203,6 @@ export const ko: Record<MessageKey, string> = {
   "chat.reasoning": "(추론)",
   "chat.noJobs": "작업 없음",
   "chat.total": "합계",
-  "chat.costNote":
-    "요금은 OpenAI 공개 단가({date} 기준)로 추정한 값입니다. 실제 청구는 OpenAI 대시보드를 확인하세요.",
   "chat.working": "에이전트가 작업 중…",
 
   "ws.tables": "표 데이터",
@@ -974,7 +968,6 @@ export const ko: Record<MessageKey, string> = {
   "plan.estimateHelp": "실행 한 번에 약 48분, ‘씨앗’ 행은 하나씩, 그 밖의 웨이브는 차례로 진행되며 행의 20%에 재작업이 생긴다고 보고 계산합니다. 비용은 행당 $0.18–0.39입니다(기존 프로젝트로 충분한 행은 제외). 질문의 답을 기다리는 시간은 포함하지 않습니다. ‘지금까지’는 확정 후 경과 시간과 각 행 프로젝트 및 계획 작업(초안·재계획)의 비용 합계입니다.",
   "plan.hours": "약 {h}시간",
   "plan.minutes": "{m}분",
-  "plan.unpriced": "단가 없음 {n}개",
   "plan.settings": "설정",
   "plan.settingsNote": "Orchestrator의 작업(초안, 재계획, AI 리뷰)과 모든 행의 프로젝트는 이 설정과 계획을 확정한 시점의 하네스 규칙으로 실행합니다. 확정 후에는 바꿀 수 없습니다.",
   "plan.agentsModelHelp": "각 행의 BRA 프로젝트를 만드는 에이전트의 모델과 reasoning effort입니다.",

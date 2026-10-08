@@ -787,7 +787,6 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
   const overlaps = overlapsOf(live);
   let cost = 0;
   let priced = false;
-  let unpricedProjects = 0;
   const views: PlanRowView[] = rows.sort(byWaveAndOrder).map((r) => {
     const shared = r.state === "skipped" ? {} : { hub: hub.get(r.rowId) ?? 0, overlaps: overlaps.get(r.rowId) ?? [] };
     const p = r.projectId ? byId.get(r.projectId) : undefined;
@@ -796,7 +795,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     if (typeof p.costUsd === "number") {
       cost += p.costUsd;
       priced = true;
-    } else if (p.usage && p.usage.inputTokens + p.usage.outputTokens > 0) unpricedProjects++;
+    }
     return { ...r, ...shared, project: projectView(p) };
   });
   let jobsCost = 0;
@@ -832,7 +831,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     events: events.sort((a, b) => (a.sk < b.sk ? 1 : -1)).slice(0, 100),
     limits,
     estimate: planEstimate(rows, limits.effective),
-    actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null, unpricedProjects },
+    actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null },
     proposals: proposals.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.sk < b.sk ? 1 : -1)),
     planJobsCostUsd: jobsPriced ? round6(jobsCost) : null,
     canon: canonView,

@@ -214,7 +214,6 @@ function Summary({ d }: { d: PlanDetailResponse }) {
         </div>
         <div>
           <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
-          {actual.unpricedProjects > 0 && <span className="ml-1 text-xs text-slate-500">({t("plan.unpriced", { n: actual.unpricedProjects })})</span>}
         </div>
         {typeof d.planJobsCostUsd === "number" && (
           <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
