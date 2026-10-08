@@ -1,34 +1,86 @@
 # CoBRAC harness v2: current specification
 
-The CoBRAC harness runs an agent that builds a BRA from a brain region (ROI) and a function (TLF). **The agent researches the literature and builds the HCD and FRG; the worker drives the phases, validates the files, and converts them into deliverables.** When building the FRG reveals a gap in the HCD, the agent can return to the HCD and revise it with evidence.
+The CoBRAC harness builds a BRA from a brain region (ROI) and a function (TLF) by running an LLM agent through a fixed procedure and checking and converting its output with ordinary code. **Only the CoBRAC agent (an LLM) reasons.** The **worker** is a program with no LLM: it runs a loop that sends a request, checks the files that come back, and decides the next request.
 
-This article describes **harness v2 as implemented in app 0.36.1**, including the naming rules, ROI handling, FRG construction, hypothesis mode, and saved versions added since v2 was introduced. There is no separate v2.1 release label yet. New projects use validation rules **`harnessRules: 2`**. The harness generation, app version, validation rules, and Excel format each have their own version numbers.
+Four points to take away first:
 
-We start with the overall architecture and workflow, then examine each phase. Open the **“Show details”** sections to read the full prompts, file lists, validation tables, and examples.
+1. **One actor reasons.** When a BRA is built, the only LLM that reads the literature and judges circuits and functions is the CoBRAC agent. It is an OpenAI model run through Codex, and it keeps one conversation for the whole project.
+2. **The worker is not an LLM.** It is a TypeScript program running on Fargate. Phase order, request assembly, validation, conversion, and saving are all fixed code. The same code decides whether to move to the next phase or to ask for a fix.
+3. **Work is handed over as files.** Only two things travel as conversation messages: the worker's request and the short JSON the agent returns at the end of a turn. The agent edits files in the project folder; the worker rereads those files and decides whether they pass.
+4. **Each output has one writer.** The agent writes the HCD / FRG data JSON, the report, and the decision log. The worker's code produces the check-result JSON, CSVs, xlsx files, graphs, and saved versions. The LLM never writes a CSV or xlsx file directly.
 
-## 1. Overall architecture
+This article describes **harness v2 as implemented in app 0.37.2**, including the naming rules, ROI handling, FRG construction, hypothesis mode, and saved versions added since v2 was introduced. There is no separate v2.1 release label yet. New projects use validation rules **`harnessRules: 2`**. The harness generation, app version, validation rules, and Excel format each have their own version numbers.
 
-### 1.1 From the user to the worker
+Section 1 introduces the actors, section 2 what passes between the worker and the agent, and section 3 how one BRA is completed; later sections cover the rules of each phase. Open the **“Show details”** sections to read the full prompts, file lists, validation tables, and examples.
 
-The user submits an ROI, TLF, instructions, and reference materials through the interface. The API records a project and a job, then requests execution through an SQS queue. The dispatcher checks concurrency limits and starts a Fargate worker for each job. It normally uses Spot capacity, with On-Demand as the fallback when Spot cannot start.
+## 1. The actors
 
-The Codex agent inside the worker searches the literature, identifies brain regions, and writes data files. The worker supplies the specification and any validation problems for each phase, then checks the result in code. The agent saying “finished” is not enough to advance the workflow.
+### 1.1 The LLM that reasons: the CoBRAC agent
 
-![The API and SQS turn user input into a job, and the dispatcher starts a Fargate worker. The worker gives specifications to the Codex agent, validates JSON, and saves artifacts. The agent uses lit and RCS. A question causes the worker to save and stop; an answer resumes the work](./figures/harness-current-architecture.en.svg "Figure 1. Overall architecture of CoBRAC harness v2")
+In this article, “the agent” means the **CoBRAC agent** that builds the BRA. It is an OpenAI language model; the model and reasoning effort are chosen per project. The model runs through OpenAI's **Codex** (the Codex SDK and Codex CLI). Codex is the runtime that lets the model read and write files through a shell, call MCP tools, and search the web, and that keeps and automatically compacts the conversation history. The reasoning itself happens on the OpenAI API, outside the container.
 
-### 1.2 Scientific judgment and mechanical processing
+The agent never starts work or advances a phase on its own. When it receives a request from the worker, it works through one **turn**: it searches the literature, reads source text, and edits files, calling tools as often as it needs within that turn. At the end of the turn it returns a JSON report and stops until the next request.
 
-**The agent** handles decisions that require scientific judgment: which papers to use, how finely to divide UCs, what information means, and how to decompose a function. It edits JSON for machine processing, `report.md` for readers, and `decision_log.md` to explain its decisions.
+Every turn of a project (research, HCD, FRG, fixes, and adjustment) continues **the same conversation (Codex thread)**. Answers to questions, retries from an intermediate state, and follow-ups after delivery resume that conversation too. Only when the conversation exceeds the OpenAI request limit does the worker switch to a new conversation and tell the agent to continue by reading the project files and decision log.
 
-**The worker** handles execution order, JSON Schema validation, IDs and references, naming, reference and quote checks, output conversion, saving, and resuming. It generates CSVs from JSON in code; the agent never writes them. The same data feeds the xlsx files and graphs, avoiding discrepancies between separately rewritten tables.
+### 1.2 What is not an LLM: the worker
 
-**External tools** have distinct roles. `lit` retrieves papers and source text from PubMed / Europe PMC. RCS maps region names to SABRA units. A Canon supplies a fixed revision of circuit definitions that should agree across several BRAs. Reference materials convey the user's intent; they do not replace verified literature.
+The **worker** is a TypeScript (Node.js) program that AWS Fargate starts for each job, normally on Spot capacity with On-Demand as the fallback. It contains no LLM; all of its decisions are fixed code. At its center is this loop:
+
+1. Build the phase's request and send it to the agent
+2. Wait for the turn to end
+3. Check the files the agent wrote with the validators
+4. If there are problems, send a fix request with the list of problems; otherwise move to the next phase
+
+The **CoBRAC harness** is the name for the whole of this worker program together with the instructions given to the agent (`prompts/`), the JSON Schemas, the validators, and the output conversion. The LLM is not part of the harness; it is what the harness runs.
+
+The worker starts the agent's Codex process as a child process in the same container. That is why the agent is sometimes said to run “inside the worker”; this describes where the process runs. It does not mean that the worker reasons.
+
+### 1.3 All actors
+
+| Actor | Kind | Where it runs | What it does | What it produces |
+| ---- | ---- | ---- | ---- | ---- |
+| User | Person | The interface | Submits ROI, TLF, instructions, and reference materials; answers questions; approves Canon incorporation | Input, answers, approvals |
+| API / dispatcher / janitor | Program | AWS Lambda | The API records the project and job and requests a run through SQS; the dispatcher starts a worker within concurrency limits; the janitor recovers jobs whose heartbeat stopped | Job records, worker launches |
+| Worker | Program (no LLM) | Fargate | Controls phases, builds requests, validates, converts to CSV / xlsx / graphs, saves and resumes | Requests, check-result files, CSV / xlsx / graphs, saved versions |
+| CoBRAC agent | **LLM** | Reasoning on the OpenAI API; tools run on Fargate | Researches the literature, decides ROI, UCs, connections, and functional decomposition, and writes them to files | Data JSON, `report.md`, `decision_log.md`, the JSON that ends each turn |
+| `lit` | Program (agent tool) | MCP server inside Fargate | Searches PubMed / Europe PMC at the agent's request and returns abstracts, full text, and matching sentences | Search results and source excerpts |
+| RCS | External service (agent tool) | MCP server in another system | Returns candidate SABRA units for a region name; the worker also uses it to check names | Candidate lists |
+| Crossref / PubMed / Europe PMC | External services | The internet | Queried by the worker to check that references exist and that quotes appear in the source | Bibliographic data, abstracts, full text |
+| DynamoDB / S3 | Storage | AWS | Project and job state and messages / workspace, conversation, artifacts, saved versions | — |
+
+`lit` and RCS are **tools** the agent calls. They return candidates and source text but decide nothing. The agent decides what to use and writes it to files; the worker records the calls.
+
+The worker extracts text from the user's reference materials (PDFs and so on) into `materials/`, and the agent reads them to understand the user's intent. Reference materials do not replace verified literature. A Canon is a fixed revision of circuit definitions shared across several BRAs; the worker adds it to the requests as constraints ([9.1](#91-canon-constraints)).
+
+![Purple marks the LLM, blue a program, green files, and white people, external services and storage. The API and dispatcher start a worker on Fargate for each job. The worker sends requests to the CoBRAC agent and receives the JSON that ends each turn. The work itself is handed over as files in the workspace. The model reasons on the OpenAI API outside the container](./figures/harness-current-architecture.en.svg "Figure 1. The actors and what they hand over. Only the purple CoBRAC agent reasons; the blue worker is a program following a fixed procedure")
+
+### 1.4 Other jobs that use an LLM
+
+Besides building BRAs, the app has three kinds of job that use an LLM. The same worker program runs each of them in another mode and calls the LLM in **a new conversation, separate from the BRA's**. These LLM calls do not inherit the conversation of the agent that built the BRA; they receive only the files or JSON the worker prepares.
+
+| Job | Role of the LLM | Tools the LLM can use | What the LLM produces | Who receives the result |
+| ---- | ---- | ---- | ---- | ---- |
+| BRA building (initial run, resume after an answer, retry, follow-up) | The CoBRAC agent; the subject of this article | Shell, `lit`, RCS, web search | Data JSON, report, decision log | The worker checks and converts it |
+| Explanatory article | Reads only the finished BRA outputs and writes an article in the requested language | Shell (reading the outputs); no web search | The article in Markdown | The worker checks its format, asks for fixes, and publishes it |
+| Canon AI review | Reads a Canon incorporation request and reports findings | None | Findings as JSON | People approve or reject; AI review does not substitute for approval |
+| Orchestrator plan | Drafts plan rows (ROI × TLF), dependencies, anchors, and the granularity policy; proposes changes after each batch | RCS, reading attachments | The plan as JSON | The worker checks its shape; the plan runner (a Lambda program) computes the order and applies it |
+
+The article job follows its first turn with check-and-fix turns. The AI review and the plan job use one turn and ask once more only when the reply does not match the output schema.
 
 <details>
 <summary>Show details: terminology and version numbers</summary>
 
 | Term | Meaning in this harness |
 | ---- | ---- |
+| CoBRAC agent | The LLM that builds the BRA: an OpenAI model run by Codex. “The agent” in this article |
+| Worker | The TypeScript program that runs on Fargate for each job. It contains no LLM |
+| CoBRAC harness | The worker program, instructions, JSON Schemas, validators, and conversion together. It does not include the LLM |
+| Codex | OpenAI's agent runtime. It lets the model use tools and manages the conversation |
+| Turn | The agent's work from receiving one request to returning the end-of-turn JSON |
+| Conversation (thread) | The history of turns. One per project, continued throughout |
+| Validator | Worker code that checks files. Not an LLM |
+| Workspace | The working directory on the worker's disk: the project folder plus `AGENTS.md`, `schemas/`, `materials/`, and `canon/` placed by the worker. Work is handed over here, and it is saved to S3 |
 | BRA | Brain Reference Architecture: data describing the relationship between brain structure and function |
 | ROI / TLF | The target brain region / the top-level computational function to explain in that region |
 | HCD | A graph of brain information processing, represented by literature-supported UCs and Connections |
@@ -42,7 +94,7 @@ The Codex agent inside the worker searches the literature, identifies brain regi
 | Version number | What it identifies | Current value |
 | ---- | ---- | ---- |
 | Harness generation | The execution model, including HCD–FRG round trips | v2 |
-| App version | A release of the Web app, API, and worker | This article describes 0.36.1 |
+| App version | A release of the Web app, API, and worker | This article describes 0.37.2 |
 | `harnessRules` | Validation rules stored on a project | 2 for new projects. 0 uses the earlier rules; 1 adds ROI rules; 2 also adds GN rules |
 | BRA CSV format | BRA version in `Project.csv` | `CoBRAC-v1-1` |
 | Official xlsx | The BRA template used for output | `Template-v2-2` |
@@ -52,36 +104,40 @@ Older projects retain the `harnessRules` and SABRA boundary settings from their 
 
 </details>
 
-## 2. How one BRA is built
+## 2. What passes between the worker and the agent
 
-### 2.1 A normal run
+### 2.1 One turn
 
-For a new project, the **research step**, enabled by default, gathers candidate projections and literature. The **HCD** then defines UCs and connections, and the **FRG** describes how they realize the TLF. Disabling research mode starts the workflow at HCD; literature tools and reference checks remain available.
+Only two things travel between the worker and the agent as conversation messages: the worker's **request** and the agent's **JSON that ends the turn**. Everything else is handed over as files in the **workspace** (the working directory on the worker's disk, centered on the project folder).
 
-After FRG, the worker checks consistency between the HCD and FRG. Certain findings trigger **one adjustment turn per run**. The agent decides whether to revise the FRG decomposition or obtain evidence and revise the HCD's UCs and connections. Code then generates five CSVs, xlsx files, and graphs, and records the artifacts and generation settings as a saved version.
+![One turn in three columns: worker, workspace, and CoBRAC agent. 1 The worker builds and sends the request. 2 The agent reasons and uses tools. 3 The agent edits the data files. 4 The agent returns the JSON that ends the turn. 5 The worker rereads and checks the files and writes the check results. 6 The worker's code decides between a fix request, the next phase, and stopping](./figures/harness-current-turn.en.svg "Figure 2. What passes in one turn. The worker's checks decide whether the work passes, not the agent's report")
 
-![The workflow proceeds through research, HCD, FRG, consistency checks, adjustment when needed, CSV, xlsx and graphs, and a saved version. FRG uses candidates computed from the HCD, and an HCD changed in a later phase is validated again](./figures/harness-current-pipeline.en.svg "Figure 2. Generation and validation: data changed during a round trip is checked again")
+1. **Worker → agent: the request.** Text combining the project information and phase name, the phase specification, the problems found in the previous check, and the reply-language instruction.
+2. **The agent works.** Within the turn the agent calls `lit`, RCS, and web search and reads and writes files through the shell. Meanwhile the worker receives the tool calls and file changes as events, records literature searches and RCS calls, and streams progress to the interface. The worker adds no instructions during a turn (although a cancellation or the research time budget can cut the turn off).
+3. **Agent → workspace: files.** The agent edits the data JSON, report, and decision log.
+4. **Agent → worker: the JSON that ends the turn.** `{"status": "done" | "question", "message", "question"}`. `done` is the agent's report that it has finished the work for this turn; it does not mean the work passed.
+5. **The worker checks.** The worker rereads the files, runs the validators, and writes the results to check-result files.
+6. **The worker decides.** If problems remain it sends a fix request with the list of problems; if the phase passes it sends the next phase's request (back to 1). For `question` it saves the workspace and conversation and stops.
 
-### 2.2 Questions and follow-ups
+### 2.2 What is handed over, and how
 
-When a decision requires the user, the agent returns `status: "question"`. The worker saves the working files and Codex conversation to S3, then exits. Once an answer arrives, a new worker restores them and resumes the same conversation. Fargate does not keep running while waiting for an answer.
+| Direction | Channel | Contents | Who creates it and who reads it |
+| ---- | ---- | ---- | ---- |
+| Worker → agent | Files placed in the workspace | `AGENTS.md` (shared rules), `schemas/` (JSON Schemas), `materials/` (the original reference materials and text extracted from PDFs, Office files, and URLs; images are also attached to the first request), `canon/` (the fixed Canon revision) | The worker places them when the job starts; the agent reads them and does not change them |
+| Worker → agent | The request in the conversation | Phase request, phase specification and additional rules, problem list, FRG candidates, reply language | The worker assembles it for each turn |
+| Agent → worker | Data files in the workspace | `meta.json`, the three HCD files, `frg.json`, `research.json`, `report.md`, `decision_log.md` | The agent writes them; the worker checks and converts them |
+| Agent → worker | The reply in the conversation | The JSON that ends the turn | The worker branches on `status` and `question` only |
+| Worker → agent (next turn) | Check-result files in the workspace | `reference_check.json`, `quote_check.json`, `cross_check.json`, `frg_candidates.json`, and others | The worker writes them; the agent may read but not change them. What needs fixing also goes into the next request |
+| Worker → user | DynamoDB → WebSocket → interface; S3 through the API | Progress, questions, artifacts, saved versions | The worker writes them; the interface displays them |
 
-Follow-up instructions after delivery also start from the existing files. The worker supplies both HCD and FRG specifications again, and the agent updates the related IDs, connections, interfaces, and report together. CSVs and xlsx files are regenerated, and the artifacts become a new saved version.
+### 2.3 How requests are assembled
 
-### 2.3 When validation still finds problems
+The worker prepares the shared `AGENTS.md` rules and `schemas/` in the workspace. Each turn's request combines a short request visible to the user, an internal specification, and an instruction about the reply language, separated by delimiters. Specifications omitted from the short request shown in the interface are still sent to the agent.
 
-The HCD, FRG, and CSV phases return a list of problems for the agent to fix, with up to three fix attempts per phase by default. If problems remain, a fatal issue that makes the data unreadable fails the job. If the data can still be read, the worker records the unresolved problems as warnings and continues. Fixes after the adjustment turn have a separate allowance.
-
-**A completed job therefore does not guarantee that every check passed or that its science is correct.** Read the remaining warnings, unverified quotes, research gaps, and dependence on hypotheses alongside the artifacts.
-
-## 3. What the agent receives
-
-The worker prepares the shared `AGENTS.md` rules and `schemas/` in the workspace. For each turn, it combines a short request visible to the user, an internal specification, and an instruction about the reply language, separated by delimiters. Specifications omitted from the short request shown in the interface are still sent to the agent.
-
-The specification is assembled for the project. HCD receives ROI rules and Canon constraints; FRG receives GN rules and candidates computed from the HCD. Research mode adds instructions for using the survey; hypothesis mode adds its permitted scopes. **The base specification together with these additional rules is the effective instruction for that project.**
+The specification is assembled for the project. Depending on project settings, the worker adds ROI rules and Canon constraints to HCD, GN rules and candidates computed from the HCD to FRG, instructions for using the survey in research mode, and the permitted scopes in hypothesis mode. **The base specification together with these additional rules is the effective instruction for that project.**
 
 <details>
-<summary>Show details: how prompts are assembled for each turn</summary>
+<summary>Show details: how requests are assembled for each turn</summary>
 
 | Turn | Visible request | Internal additions |
 | ---- | ---- | ---- |
@@ -95,7 +151,7 @@ The specification is assembled for the project. HCD receives ROI rules and Canon
 | Answer to a question | The user's answer and an instruction to continue | Project information and specifications are added only when resuming in a fresh conversation |
 | Retry from an intermediate state | Read the existing files and finish the incomplete phase | The necessary specifications; completed files should not be rebuilt |
 | Follow-up | Project information, the new instruction, and any permitted hypothesis scope | Both HCD and FRG specifications, plus research-mode and hypothesis-mode rules |
-| CSV | No normal generation turn | The worker converts the data; a problem triggers a request to fix the JSON |
+| CSV | No agent turn | The worker converts the data; a problem triggers a request to fix the JSON |
 
 These examples show the format. `<...>` stands for a runtime value.
 
@@ -133,52 +189,84 @@ Each turn ends with JSON governed by a schema. `done` means that the agent has f
 {"status":"question","message":"<Current situation>","question":"<Question with evidence, options, and a recommendation>"}
 ```
 
-Artifact JSON values, the report, and the decision log are in English. `message` and `question` follow the interface language. An explanatory article about the artifacts, generated in a separate turn, uses the requested language.
+Artifact JSON values, the report, and the decision log are in English. `message` and `question` follow the interface language. The article written by the explanatory-article job ([1.4](#14-other-jobs-that-use-an-llm)) uses the requested language.
 
 </details>
 
-The complete shared rules and phase specifications appear in [section 12](#12-prompt-sources).
+The complete shared rules and phase specifications appear in [section 11](#11-prompt-sources).
 
-## 4. Data files as the source of truth
+### 2.4 Files, not the conversation, as the source of truth
 
-Even as the conversation grows, intermediate results remain in the project's files. HCD uses `references.json`, `uc.json`, and `connections.json`; FRG uses `frg.json`. `HARNESS_SCHEMAS` defines their structure, with the same definitions used for the agent's `schemas/` and the validator.
+Even when the conversation is compacted or replaced by a new one, intermediate results remain in the project's files. HCD uses `references.json`, `uc.json`, and `connections.json`; FRG uses `frg.json`. `HARNESS_SCHEMAS` defines their structure, with the same definitions used for the agent's `schemas/` and the validator.
 
-The readable explanation lives in `report.md`, covering HCD, FRG, limitations, and references. `decision_log.md` is an append-only account of why a conclusion was chosen, alternatives rejected, the user's answers, and reasons for changes. Raw search logs do not need to be copied into it.
+The agent puts the readable explanation in `report.md`, covering HCD, FRG, limitations, and references. `decision_log.md` is the agent's append-only account of why a conclusion was chosen, alternatives rejected, the user's answers, and reasons for changes. Raw search logs do not need to be copied into it; the worker records searches in separate files.
 
 <details>
-<summary>Show details: files and who writes them</summary>
+<summary>Show details: files, who writes them, and who reads them</summary>
 
 Here `{P}` is the Project ID. Paths are relative to the project folder.
 
-| File | Writer | Contents and purpose |
-| ---- | ---- | ---- |
-| `meta.json` | Agent | ROI, TLF, description, and display name; current rules also record ROI elements, side, and the source of the side setting |
-| `{P}_HCD/references.json` | Agent | Reference IDs, DOI / PMID, bibliography, and literature type |
-| `{P}_HCD/uc.json` | Agent | UCs and Collections, descriptors, ROI membership, function items, and interfaces |
-| `{P}_HCD/connections.json` | Agent | Tissue-level BIF and UC connections; one paper per connection record |
-| `{P}_FRG/frg.json` | Agent | TLF and GNs; UCs appear as references in `subnodes` |
-| `report.md` | Agent | Overview, HCD, FRG, Limitations, and References; Hypotheses when present |
-| `decision_log.md` | Agent | Dated decisions and `HCD-FRG revisions` |
-| `research.json` | Agent | Survey plan, candidates, searches, evidence, coverage, and gaps in research mode |
-| `research_queries.jsonl` / `rcs_mcp_calls.jsonl` | Worker | Literature searches and RCS calls |
-| `research_check.json` | Worker | Survey coverage and comparison with search logs |
-| `reference_check.json` / `quote_check.json` | Worker | Reference existence, quotes matched against source text, and quote-reuse warnings |
-| `frg_candidates.json` | Worker | Pathways, connected components, motifs, and connected pairs computed from the HCD |
-| `cross_check.json` | Worker | HCD / FRG consistency findings, counts, and the adjustment record |
-| `phase_baseline.json` | Worker | Hashes and remaining problems at phase validation, used to detect later changes |
-| `hypotheses.json` | Worker | Hypothesis numbers, shares, evidence-supported paths, and dependent GNs |
-| `{P}_CSV/*.csv` | Worker | Five tables: Project, References, Circuits, Connections, and FRG |
-| `{P}_CSV/bibliography.json` | Worker | Bibliographic information checked for the official template's References sheet |
+| File | Writer | Contents | Reader and use |
+| ---- | ---- | ---- | ---- |
+| `meta.json` | Agent | ROI, TLF, description, and display name; current rules also record ROI elements, side, and the source of the side setting | The worker checks it and uses it for the project display and the CSVs |
+| `{P}_HCD/references.json` | Agent | Reference IDs, DOI / PMID, bibliography, and literature type | The worker checks it against Crossref / PubMed and converts it to CSV |
+| `{P}_HCD/uc.json` | Agent | UCs and Collections, descriptors, ROI membership, function items, and interfaces | The worker checks it and uses it for FRG candidates, CSVs, and graphs |
+| `{P}_HCD/connections.json` | Agent | Tissue-level BIF and UC connections; one paper per connection record | The worker matches its quotes against the source and uses it for FRG candidates, CSVs, and graphs |
+| `{P}_FRG/frg.json` | Agent | TLF and GNs; UCs appear as references in `subnodes` | The worker checks it and uses it for cross-checks, CSVs, and graphs |
+| `report.md` | Agent | Overview, HCD, FRG, Limitations, and References; Hypotheses when present | The user reads it; it is also an input of the explanatory-article job |
+| `decision_log.md` | Agent | Dated decisions and `HCD-FRG revisions` | The user reads it; after an adjustment the worker checks for entries in the revisions section |
+| `research.json` | Agent | Survey plan, candidates, searches, evidence, coverage, and gaps in research mode | The worker matches it against the search log; the agent uses it as evidence in the HCD |
+| `research_queries.jsonl` / `rcs_mcp_calls.jsonl` | Worker | The agent's literature searches and RCS calls | The worker checks the survey against the former; the latter is a record of the calls |
+| `research_check.json` | Worker | Survey coverage and comparison with search logs | Gaps become fix requests and pass forward to the HCD |
+| `reference_check.json` / `quote_check.json` | Worker | Reference existence, quotes matched against source text, and quote-reuse warnings | Problems become fix requests; the user reads them with the artifacts |
+| `frg_candidates.json` | Worker | Pathways, connected components, motifs, and connected pairs computed from the HCD | Goes into the FRG and adjustment requests; the agent interprets it |
+| `cross_check.json` | Worker | HCD / FRG consistency findings, counts, and the adjustment record | Findings become the adjustment request; the user reads the remaining findings |
+| `phase_baseline.json` | Worker | Hashes and remaining problems at phase validation | The worker uses it to detect later changes and revalidate |
+| `hypotheses.json` | Worker | Hypothesis numbers, shares, evidence-supported paths, and dependent GNs | The user checks hypothesis scopes, shares, and dependencies |
+| `{P}_CSV/*.csv` | Worker | Five tables: Project, References, Circuits, Connections, and FRG | The worker builds the xlsx files and graphs from them; the user downloads them |
+| `{P}_CSV/bibliography.json` | Worker | Bibliographic information checked for the official template's References sheet | The worker writes it into the Template-v2-2 xlsx |
 
-`schemas/`, `materials/`, and `canon/` are supporting inputs prepared outside the project folder. The materials and worker-written files are for reference, and the instructions prohibit the agent from modifying them. The worker runs its checks against the data files.
+`schemas/`, `materials/`, and `canon/` are supporting inputs placed outside the project folder. The materials and worker-written files are for reference, and the instructions prohibit the agent from modifying them. The worker runs its checks against the data files.
 
 </details>
 
-## 5. Gathering evidence in the research step
+## 3. How one BRA is built
 
-The survey works with **candidate** projections: the ROI's main inputs, outputs, and internal projections. It starts from reviews, then searches each candidate using different region synonyms, species, and tracing methods. The agent reads abstracts or full text and records both the strength of the evidence and what its searches failed to find in `research.json`.
+### 3.1 Who does what in each phase
 
-The worker checks that the search strings recorded by the agent appear in the actual logs and that coverage marked `found` agrees with the evidence. Meeting a query count and finding the desired evidence are separate outcomes. Gaps pass forward to the HCD and report.
+For a new project, the **research step**, enabled by default, is followed by the **HCD** and **FRG** phases, and finally the worker generates the outputs. Each phase repeats “agent turn → worker check → fix turn if needed”, and it is always the worker that advances the phase. Disabling research mode starts the workflow at HCD; literature tools and reference checks remain available.
+
+![The left column shows the turns of the CoBRAC agent (the LLM), the right column the processing of the worker (a program). In the research, HCD, FRG, and adjustment turns the worker checks the files the agent wrote and requests fixes when problems remain. Only the worker computes the FRG candidates and generates and saves the CSVs, xlsx files, and graphs; no LLM takes part](./figures/harness-current-pipeline.en.svg "Figure 3. One BRA run and who writes what. LLM turns on the left, program steps on the right")
+
+| Phase | What the agent (LLM) does → writes | What the worker (program) does → writes | What passes to the next phase |
+| ---- | ---- | ---- | ---- |
+| 1 Research (on by default) | Finds and reads papers for each candidate input, output, and internal projection of the ROI → `research.json` | Records searches and checks coverage; requests fixes for gaps (up to 2) → `research_queries.jsonl`, `research_check.json` | `research.json` and remaining gaps |
+| 2 HCD | Decides ROI, UCs, connections, references, and function items → `meta.json`, `references.json`, `uc.json`, `connections.json`, the HCD section of `report.md`, `decision_log.md` | Checks schema, IDs, naming, BRA values, references, and quotes; requests fixes for problems (up to 3) → `reference_check.json`, `quote_check.json`, `rcs_mcp_calls.jsonl`, `phase_baseline.json` | The accepted HCD files |
+| FRG candidates | — | Computes pathways, connected components, motifs, and connected pairs from the HCD connections → `frg_candidates.json` | Candidates included in the FRG request |
+| 3 FRG | Decomposes the TLF, interprets the candidates, and groups them into GNs → `frg.json`, the FRG section and mapping table of `report.md` | Checks GNs, interfaces, and function items and computes consistency with the HCD; requests fixes for problems (up to 3) → `cross_check.json` | The accepted FRG and the consistency findings |
+| 4 Adjustment (when triggered, once per run) | Revises the FRG, revises the HCD with evidence, or records why a mismatch stays → changed files, revisions in `decision_log.md` | Requests the adjustment for X1, X2, X3, or X8, then revalidates changed files | Revalidated HCD and FRG |
+| 5 CSV, xlsx, graphs | None; receives a request to fix the JSON only if CSV generation finds problems | Generates five CSVs, two xlsx formats, and graphs from the JSON → `{P}_CSV/*.csv`, `bibliography.json`, xlsx, graphs | The artifacts |
+| 6 Saved version | None | Freezes the artifacts and generation settings → `<ProjectID>@vN` | The user views and downloads them |
+
+After FRG, the worker checks consistency between the HCD and FRG, and certain findings trigger **one adjustment turn per run**. The agent decides whether to revise the FRG decomposition or obtain evidence and revise the HCD's UCs and connections. From the CSVs onward, no LLM takes part.
+
+### 3.2 Questions and follow-ups
+
+When **the agent judges** that a decision requires the user, it ends its turn with `status: "question"`. **The worker** then saves the working files and Codex conversation to S3 and exits. Once an answer arrives, a new worker restores them and resumes the same conversation with the answer as the request. Fargate does not keep running while waiting for an answer.
+
+Follow-up instructions after delivery also start from the same files and conversation. The worker supplies both HCD and FRG specifications again in the request, and the agent updates the related IDs, connections, interfaces, and report together. The worker then revalidates every phase, regenerates the CSVs and xlsx files, and records the artifacts as a new saved version.
+
+### 3.3 When validation still finds problems
+
+In the HCD, FRG, and CSV phases the worker lists the problems and asks the agent to fix them, with up to three fix attempts per phase by default. If problems remain, the worker fails the job for a fatal issue that makes the data unreadable; if the data can still be read, it records the unresolved problems as warnings and continues. Fixes after the adjustment turn have a separate allowance.
+
+**A completed job therefore does not guarantee that every check passed or that its science is correct.** Read the remaining warnings, unverified quotes, research gaps, and dependence on hypotheses alongside the artifacts.
+
+## 4. Gathering evidence in the research step
+
+The survey works with **candidate** projections: the ROI's main inputs, outputs, and internal projections. The agent starts from reviews, then searches each candidate using different region synonyms, species, and tracing methods. It reads abstracts or full text and records both the strength of the evidence and what its searches failed to find in `research.json`.
+
+The worker checks that the search strings recorded by the agent appear in the actual search log and that coverage marked `found` agrees with the evidence. The search log is not the agent's own account: the worker records it from the tool-call events. Meeting a query count and finding the desired evidence are separate outcomes. Gaps pass forward to the HCD and report.
 
 <details>
 <summary>Show details: research budget and checklist</summary>
@@ -195,13 +283,15 @@ The worker checks that the search strings recorded by the agent appear in the ac
 | Reasoning | The main research turn raises the project setting to at least high; fixes use medium or lower |
 | Gaps or exhausted budget | Record warnings and continue to HCD; completion does not imply exhaustive literature coverage |
 
-`lit` searches return 8 results by default, with a configurable range of 1–25. `find_sentences` returns at most 8 sentences. It uses full text when available, otherwise the abstract. Retrieve small, relevant passages and quote from the source text.
+`lit` searches return 8 results by default, with a configurable range of 1–25. `find_sentences` returns at most 8 sentences. It uses full text when available, otherwise the abstract. The agent retrieves small, relevant passages and quotes from the source text.
 
 </details>
 
-## 6. Defining regions and information flow in the HCD
+## 5. Defining regions and information flow in the HCD
 
-### 6.1 ROI and UC granularity
+In this phase the agent makes the decisions and writes the files, and the worker checks what was written. The rules below are instructions to the agent (the specification) and also conditions that the worker's validators check.
+
+### 5.1 ROI and UC granularity
 
 The agent first checks whether the ROI can realize the TLF, what information enters the ROI, and what leaves it. If ROI or TLF is blank, research fills it in; the agent asks when a choice requires the user.
 
@@ -209,11 +299,11 @@ Current ROI rules record each region within the ROI in `roiElements` and assign 
 
 “Uniform” is a judgment at the granularity chosen for this HCD. When parts of a region have different projections or functions, the agent separates them into UCs with evidence. The original region can become a Collection where needed. Collections express membership; they are not connection senders or receivers, or leaves of the FRG.
 
-### 6.2 Names anchored to SABRA
+### 5.2 Names anchored to SABRA
 
 A UC's key is its **UC Descriptor**; its readable alias is its **Circuit ID**. Under the current SABRA boundary, only the neocortex uses BNA. Everything else uses HOMBA terms with DHBA names, including the hippocampus, entorhinal cortex, amygdala, basal ganglia, and thalamus.
 
-The anchor alone is normally sufficient. Facets such as cell type or layer are added only when distinct populations within the same unit must be identified. BNA anchors are left–right pairs; `side` identifies a unilateral population. RCS lookups and worker checks limit ad hoc interpretations of abbreviations.
+The anchor alone is normally sufficient. Facets such as cell type or layer are added only when distinct populations within the same unit must be identified. BNA anchors are left–right pairs; `side` identifies a unilateral population. The agent's RCS lookups and the worker's checks both limit ad hoc interpretations of abbreviations.
 
 <details>
 <summary>Show details: current naming examples and checks</summary>
@@ -225,6 +315,8 @@ The anchor alone is normally sufficient. Facets such as cell type or layer are a
 | Left A4ul | `BNA:57-58/side:left` | `A4ul(left)` |
 | DA population in VTA | `HOMBA:12261/nt:DA` | `VTA(DA)` |
 
+The worker's validators check the following.
+
 | Check | What it verifies |
 | ---- | ---- |
 | Anchor | BNA pair / BNAG / HOMBA within the current SABRA boundary; older projects use their stored boundary setting |
@@ -234,11 +326,11 @@ The anchor alone is normally sufficient. Facets such as cell type or layer are a
 | Correspondence | Each Circuit ID element corresponds to a descriptor facet |
 | Uniqueness and granularity | Duplicate descriptors, overlapping coarse and fine UCs, and non-uniform senders |
 
-`A4ul@L` and `NAC(shell,DRD1+)` are older forms and should not be used as current examples. If RCS is unavailable, generation continues with a note in the decision log, but external abbreviation checks remain incomplete.
+`A4ul@L` and `NAC(shell,DRD1+)` are older forms and should not be used as current examples. If RCS is unavailable, the agent notes this in the decision log and generation continues, but external abbreviation checks remain incomplete.
 
 </details>
 
-### 6.3 Connection evidence and interfaces
+### 5.3 Connection evidence and interfaces
 
 BIF describes the tissue-level projection reported in a paper; a Connection maps that evidence onto UCs. **Each connection record cites one paper.** When several papers support the same projection, each gets its own record. That record includes the species, measurement method, region names used in the paper, containment relationships with the UCs, and a source-text quote or figure reference.
 
@@ -246,6 +338,8 @@ An internal UC's interface follows its connections: inputs are senders, and outp
 
 <details>
 <summary>Show details: the eight HCD steps and recording checklist</summary>
+
+The agent follows these steps according to the specification.
 
 | Step | What to record | What to check |
 | ---- | ---- | ---- |
@@ -257,6 +351,8 @@ An internal UC's interface follows its connections: inputs are senders, and outp
 | 6 Function items | The UC's five items | Requirement states the computation for the TLF; realization maps it to the interface; Capability generalizes away the semantics; Mechanism explains how it works; Implementation contains only equations connecting inputs and outputs |
 | 7 Validation | Files and remaining questions | Paths from ROI inputs to outputs, gaps, duplication, granularity, and whether the TLF can be realized |
 | 8 Report | `report.md` | Overview, HCD, Limitations, and References; the FRG section is added in the next phase |
+
+Step 7 is the agent's own review. Separately, the worker's validators check the files after the turn.
 
 External UCs use `roi: noROI(input)` / `noROI(output)` / `noROI(input,output)`; internal UCs use `internal`. External UCs do not carry the interface or five function items required for internal UCs.
 
@@ -270,19 +366,19 @@ External UCs use `roi: noROI(input)` / `noROI(output)` / `noROI(input,output)`; 
 
 </details>
 
-## 7. Reconciling functions and circuits in the FRG
+## 6. Reconciling functions and circuits in the FRG
 
-### 7.1 Top-down decomposition and bottom-up interpretation
+### 6.1 Top-down decomposition and bottom-up interpretation
 
-FRG construction combines a logical decomposition of the TLF with an interpretation of what the HCD's circuits compute. The agent considers the top-down decomposition first, removing duplication and excessive subdivision, so the result does not simply copy the circuit graph.
+FRG construction combines a logical decomposition of the TLF with an interpretation of what the HCD's circuits compute. Both are the agent's judgments. The agent considers the top-down decomposition first, removing duplication and excessive subdivision, so the result does not simply copy the circuit graph.
 
-Meanwhile, the worker computes paths from ROI inputs to outputs, internal connected components, motifs of 3–4 UCs, and connected pairs from the HCD. The agent interprets these candidates using Output Semantics, function items, excitatory / inhibitory / modulatory signs, and the literature.
+Meanwhile, the worker's code computes paths from ROI inputs to outputs, internal connected components, motifs of 3–4 UCs, and connected pairs from the HCD connections, writes them to `frg_candidates.json`, and includes them in the FRG request. These are mechanically enumerated candidates with no meaning attached. The agent interprets each candidate using Output Semantics, function items, excitatory / inhibitory / modulatory signs, and the literature.
 
-The correspondence between the two appears in a table in the report's FRG section. Where they do not match, the agent revises the functional decomposition or returns to the HCD with evidence. It cannot add UCs or connections merely to satisfy a count constraint.
+The agent records the correspondence between the two in a table in the report's FRG section. Where they do not match, the agent revises the functional decomposition or returns to the HCD with evidence. It cannot add UCs or connections merely to satisfy a count constraint.
 
-### 7.2 What a GN represents
+### 6.2 What a GN represents
 
-A GN means more than a list of its UCs' functions. It represents **the computation realized by the UCs and their interactions through connections**. With rules 2, validation checks that a GN's UCs are connected. A GN normally holds at most 2 UCs; an indivisible motif can hold 3–4 when `motifNote` gives the reason and citations. Five or more are never accepted.
+A GN means more than a list of its UCs' functions. It represents **the computation realized by the UCs and their interactions through connections**. With rules 2, the worker checks that a GN's UCs are connected. A GN normally holds at most 2 UCs; an indivisible motif can hold 3–4 when `motifNote` gives the reason and citations. Five or more are never accepted.
 
 A GN's interface combines its children's interfaces and removes edges that close within the GN. Composing interfaces upward makes the TLF interface match the ROI's external inputs and outputs. The worker derives GN Output Semantics from the values of UCs that send outputs beyond the GN.
 
@@ -314,11 +410,11 @@ The base `FRG.md` still contains the earlier “at most 2 UCs” wording. Under 
 
 </details>
 
-## 8. Validation and the return path to the HCD
+## 7. Validation and the return path to the HCD
 
-### 8.1 What code can verify
+### 7.1 What the worker's code can verify
 
-Schemas, IDs, allowed values, quote format, and agreement between connections and interfaces are checked deterministically. References are checked through Crossref / PubMed, and quotes against retrieved source text. Quote matching uses character normalization and a similarity threshold of 0.9 by default, so a match does not necessarily mean exact character-for-character equality. Establishing correspondence with source text does not establish that the paper adequately supports the neuroscientific claim. That requires human evaluation.
+The validators are the worker's code, not an LLM grading the work. Schemas, IDs, allowed values, quote format, and agreement between connections and interfaces are checked deterministically. References are checked through Crossref / PubMed, and quotes against retrieved source text. Quote matching uses character normalization and a similarity threshold of 0.9 by default, so a match does not necessarily mean exact character-for-character equality. Establishing correspondence with source text does not establish that the paper adequately supports the neuroscientific claim. That requires human evaluation.
 
 <details>
 <summary>Show details: validation layers and how to read their results</summary>
@@ -347,9 +443,9 @@ Reusing the same quote and figure for connections between different circuits als
 
 </details>
 
-### 8.2 Consistency checks and adjustment
+### 7.2 Consistency checks and adjustment
 
-X1, X2, X3, or X8 findings trigger an adjustment request. If the HCD is sound, the agent revises the FRG. If evidence supports a finer population or a missing projection, it revises the HCD. Decisions to keep a mismatch must also be recorded with a reason.
+The worker's code produces the consistency findings; the agent decides how to resolve them. X1, X2, X3, or X8 findings make the worker send an adjustment request with the findings and candidates. If the HCD is sound, the agent revises the FRG. If evidence supports a finer population or a missing projection, it revises the HCD. Decisions to keep a mismatch must also be recorded with a reason in the decision log.
 
 The worker retains file hashes from the point of acceptance. If the HCD changes during FRG or CSV, it runs HCD validation again, distinguishing previously remaining problems from newly introduced ones. This prevents artifacts from being generated under stale validation results after the HCD has changed.
 
@@ -369,7 +465,7 @@ The worker retains file hashes from the point of acceptance. If the HCD changes 
 
 There is no X7 in the implementation. There are eight check definitions including X4; rules 2 does not compute X4. A finding's severity and whether it immediately stops the pipeline are separate matters.
 
-There is at most one adjustment turn per run, followed by up to three normal validation fix turns by default. Remaining findings are saved. The decision log uses these tags:
+There is at most one adjustment turn per run, followed by up to three normal validation fix turns by default. Remaining findings are saved. The agent uses these tags in the decision log:
 
 ```text
 ## HCD-FRG revisions
@@ -381,13 +477,13 @@ There is at most one adjustment turn per run, followed by up to three normal val
 
 </details>
 
-## 9. Allowing hypotheses
+## 8. Allowing hypotheses
 
-The default is literature-supported data only. A connection or UC property without direct evidence can be included as a hypothesis **only when the user explicitly enables “Allow hypotheses” at creation or sets a permitted scope with a follow-up instruction**. Writing “as a hypothesis” in an instruction does not expand the permitted scope.
+The default is literature-supported data only. The agent can include a connection or UC property without direct evidence as a hypothesis **only when the user explicitly enables “Allow hypotheses” at creation or sets a permitted scope with a follow-up instruction**. Writing “as a hypothesis” in an instruction does not expand the permitted scope. The worker expands the permitted scope into the requests and uses it in its checks.
 
 The relaxed requirement is that a paper directly states the claim itself. Checks still apply to premise papers, DOI / PMID, verbatim premise quotes, naming, schemas, interfaces, FRG, and Canon. A claim contradicted by the literature is not accepted.
 
-Hypotheses are identified in data and graphs, and the report's Hypotheses section gives their rationale and shares. If there is no path from input to output without hypothesis connections, Limitations must say so. This mode does not instruct the agent to propose validation experiments or future research on its own.
+Hypotheses are identified in data and graphs, and the agent gives their rationale in the report's Hypotheses section; the worker computes their numbers and shares. If there is no path from input to output without hypothesis connections, Limitations must say so. This mode does not instruct the agent to propose validation experiments or future research on its own.
 
 <details>
 <summary>Show details: hypothesis scopes and checklist</summary>
@@ -412,39 +508,48 @@ A connection's quote supports its **premise**. It should not be read as a quote 
 
 </details>
 
-## 10. Canons, saved versions, and the orchestrator
+## 9. Canons, saved versions, and the orchestrator
 
-### 10.1 Canon constraints
+### 9.1 Canon constraints
 
-A project participating in a Canon is pinned to a specific revision. The worker puts its definitions in read-only `canon/` files. Shared circuit names, Uniform / Collection status, subdivisions, connections, and references constrain generation and are checked for conflicts. The agent cannot independently split a circuit that the Canon defines as Uniform.
+A project participating in a Canon is pinned to a specific revision. The worker puts its definitions in read-only `canon/` files. The worker passes shared circuit names, Uniform / Collection status, subdivisions, connections, and references to the agent as constraints in the request and checks the agent's output for conflicts. The agent cannot independently split a circuit that the Canon defines as Uniform.
 
-The Canon shares the definition of a neural population; functions and roles that depend on a particular TLF remain with the project. Hypotheses also stay outside the shared definitions. Changing a definition requires an incorporation request and human approval. AI review produces findings; it does not substitute for approval.
+The Canon shares the definition of a neural population; functions and roles that depend on a particular TLF remain with the project. Hypotheses also stay outside the shared definitions. Changing a definition requires an incorporation request and human approval. AI review ([1.4](#14-other-jobs-that-use-an-llm)) is an LLM job that produces findings; it does not substitute for approval.
 
-### 10.2 Recording how a BRA was generated
+### 9.2 Recording how a BRA was generated
 
-A completed BRA job freezes its artifacts as a saved version. Even if the working files later change, that version's artifacts and settings remain available. The record includes the app version, prompt and schema hashes, model, reasoning effort, research mode, Canon revision, SABRA boundary, validation rules, and hypothesis settings. This preserves outputs and provenance; it does not guarantee that rerunning the model will produce identical output.
+The worker freezes the artifacts of a completed BRA job as a saved version. Even if the working files later change, that version's artifacts and settings remain available. The record includes the app version, prompt and schema hashes, model, reasoning effort, research mode, Canon revision, SABRA boundary, validation rules, and hypothesis settings. This preserves outputs and provenance; it does not guarantee that rerunning the model will produce identical output.
 
-### 10.3 Coordinating several BRAs
+### 9.3 Coordinating several BRAs
 
-The CoBRAC orchestrator puts several ROI × TLF combinations into plan rows and launches normal BRA jobs according to dependencies and concurrency limits. Each BRA uses the same harness described here.
+The **CoBRAC orchestrator** puts several ROI × TLF combinations into plan rows and launches normal BRA jobs according to dependencies and concurrency limits. It is split between an LLM and programs.
 
-In a plan using a Canon, later rows wait for approval of the preceding seed BRA's incorporation. A later row also completes only after its Canon incorporation is approved. When the Canon advances and creates conflicts, a row gets at most two update attempts; remaining conflicts require human judgment. This separates coordination across projects from HCD / FRG construction within one BRA.
+| Part | Kind | What it does |
+| ---- | ---- | ---- |
+| Plan job (draft, re-plan) | LLM ([1.4](#14-other-jobs-that-use-an-llm)) | Writes plan rows, dependencies, anchors, and the granularity policy from the goal and source lists; after a batch, proposes rows to add or remove |
+| Plan runner | Program (a Lambda that runs every minute) | Applies the plan job's result and computes the build order from anchors, dependencies, and priorities; starts rows' BRA jobs when a slot is free and keeps rows in step with their projects |
+| Each row's BRA job | Worker + CoBRAC agent | Builds one BRA exactly as described in this article |
+| User | Person | Decides on proposed row additions and removals, Canon incorporation, and remaining conflicts |
 
-## 11. Outputs and operational checks
+A plan's settings choose the model for the orchestrator's own LLM jobs (draft, re-plan, and AI review of the rows' incorporation requests) separately from the model of the agents that build each row's BRA. The LLM never orders the rows; the plan runner's code computes the order.
 
-### 11.1 Generating artifacts from the same JSON
+In a plan using a Canon, the plan runner waits for approval of the preceding seed BRA's incorporation before moving on. A later row also completes only after its Canon incorporation is approved. When the Canon advances and creates conflicts, the plan runner sends a follow-up to that row's project (at most twice per row), and the agent conforms it to the Canon; remaining conflicts require human judgment. The plan runner never approves, rejects, or answers. This separates coordination across projects from HCD / FRG construction within one BRA.
 
-`buildCsvs` creates five CSVs, and `csv_to_excel.py` creates a CoBRAC-format xlsx. The same data is also written to the official Template-v2-2 workbook, while `buildGraphs` creates HCD / FRG graphs. The report and decision log are available to read and download as written by the agent.
+## 10. Outputs and operational checks
+
+### 10.1 Generating artifacts from the same JSON
+
+From here on only the worker's code runs; no LLM takes part. `buildCsvs` creates five CSVs, and `csv_to_excel.py` creates a CoBRAC-format xlsx. The same data is also written to the official Template-v2-2 workbook, while `buildGraphs` creates HCD / FRG graphs. The report and decision log are available to read and download as written by the agent. Because the agent never writes CSVs and the same data feeds the xlsx files and graphs, separately rewritten tables cannot disagree.
 
 If only official-template generation fails, the job can still complete with the CoBRAC-format xlsx and graphs. Check the actual outputs as well as job status to confirm that the formats you need are present.
 
-### 11.2 Long jobs and cost
+### 10.2 Long jobs and cost
 
-The worker saves the workspace and conversation every five minutes and also on the SIGTERM sent for a Spot interruption. The janitor attempts recovery when a job's heartbeat stops. If a conversation is too large to resume, the agent continues in a fresh conversation by reading the existing files and decision log.
+While a job runs, the worker saves the workspace and conversation every five minutes and also on the SIGTERM sent for a Spot interruption. The janitor attempts recovery when a job's heartbeat stops. If a conversation is too large to resume, the worker asks the agent to continue in a fresh conversation by reading the existing files and decision log.
 
-Automatic conversation compaction defaults to 75,000 tokens. Small tool results, partial file edits, and lower reasoning effort for fix turns help control the context and cost. Cost is calculated from model input, cached input, and output usage at the relevant rates, without repeatedly adding the same conversation's cumulative usage for every turn. Historical speed and cost measurements appear in [article 09](./09_BRA_speed_and_cost.md); they are not a guarantee for every current job.
+Codex compacts the conversation automatically at 75,000 tokens by default. Small tool results, partial file edits, and lower reasoning effort for fix turns help control the context and cost. Cost is calculated from model input, cached input, and output usage at the relevant rates, without repeatedly adding the same conversation's cumulative usage for every turn. Historical speed and cost measurements appear in [article 09](./09_BRA_speed_and_cost.md); they are not a guarantee for every current job.
 
-API keys are stored encrypted and used inside the worker. AWS credentials are not passed to the agent's shell. This administrator documentation and the manual available to all users also have separate access scopes.
+The OpenAI API key is stored encrypted and decrypted inside the worker, which passes it to Codex. Codex uses it only to call the API; the commands the agent runs cannot see it. AWS credentials are not passed to the agent's shell either. This administrator documentation and the manual available to all users also have separate access scopes.
 
 <details>
 <summary>Show details: checklist for reading a completed BRA</summary>
@@ -463,16 +568,16 @@ API keys are stored encrypted and used inside the worker. AWS credentials are no
 
 </details>
 
-## 12. Prompt sources
+## 11. Prompt sources
 
-The following sections contain the full shared rules and specifications read by the implementation, preserving their English source text. Placeholders such as `{P}` are expanded at runtime. Read the base specifications together with the rules that override them and additions selected by project settings. [Section 3](#3-what-the-agent-receives) explains how dynamic requests, problem lists, Canon constraints, and FRG candidates are assembled.
+The following sections contain the full shared rules and specifications that the worker gives the agent, preserving their English source text. Placeholders such as `{P}` are expanded at runtime. Read the base specifications together with the rules that override them and additions selected by project settings. [Section 2.3](#23-how-requests-are-assembled) explains how dynamic requests, problem lists, Canon constraints, and FRG candidates are assembled.
 
 <!-- BEGIN HARNESS PROMPTS -->
 
 <details>
 <summary>Show details: reading the sources, rule precedence, and substituted values</summary>
 
-The sections below contain the complete English instruction files from the repository. At runtime the worker substitutes values and combines the files according to project settings. Codex reads AGENTS.md as workspace rules, separately from the phase prompt body.
+The sections below contain the complete English instruction files from the repository. At runtime the worker substitutes values and combines the files according to project settings. AGENTS.md sits in the workspace, and Codex gives it to the agent as shared rules, separately from the phase prompt body.
 
 **Read each base specification with its appended rules.** [`rawPhaseSpec() / phaseSpec()`](https://github.com/miyamoto9265/cobrac-web/blob/main/packages/worker/src/index.ts) appends the ROI rules to HCD (`harnessRules >= 1`) and the GN rules to FRG (`harnessRules >= 2`). The GN rules replace the UC-count constraints in step 5 of the base FRG specification. Under the current rules, a GN must be connected and normally has at most 2 UCs; 3–4 UCs are allowed when a cited `motifNote` explains an indivisible motif. 5 or more UCs are never accepted.
 
@@ -486,7 +591,7 @@ Research mode additionally appends `research_mode.md`; hypothesis mode appends `
 | `{BUDGET_MINUTES}` | Research time budget: 60 minutes by default, configurable with `RESEARCH_TIME_BUDGET_MIN`. |
 | `{SCOPES}` / `{MAX_SHARE}` / `{RESEARCH_MODE}` | [`hypothesisRules()`](https://github.com/miyamoto9265/cobrac-web/blob/main/packages/worker/src/hypothesisRules.ts) fills in the project's permitted scopes, hypothesis share limit, and research mode. |
 
-Update this appendix with `node scripts/docs-harness-prompts.mjs`; use `--check` to verify that it matches the source files. Instructions inside the sources address the CoBRAC runtime agent, not the reader of this article.
+Update this appendix with `node scripts/docs-harness-prompts.mjs`; use `--check` to verify that it matches the source files. Instructions inside the sources address the CoBRAC agent (the LLM), not the reader of this article.
 
 </details>
 
@@ -1032,7 +1137,7 @@ Do not propose further investigations, experiments, tests or predictions, and do
 
 <!-- END HARNESS PROMPTS -->
 
-## 13. Related reading and archives
+## 12. Related reading and archives
 
 For operation, see the [user manual](https://cobrac.site/manual). See the [design specification](./01_設計仕様.md) for the wider implementation, [circuit naming](./08_Circuit_naming.md) for naming background, and [research mode and Canons](./06_Research_mode_and_Canon.md) for those workflows. The Japanese version is [CoBRAC ハーネス v2](./04_CoBRAC_Harness_v2_ja.md).
 
@@ -1045,17 +1150,20 @@ The version-comparison articles are preserved as historical records. Use this cu
 - [v1 to v1.1](./archive/05_CoBRAC_Harness_v1_to_v1_1.md)
 - [v1.1 to v2](./archive/07_CoBRAC_Harness_v1_1_to_v2.md)
 
-This article is based on the [app 0.36.1 source](https://github.com/miyamoto9265/cobrac-web/tree/54c07823c3cc8d6649a4cba437d2c7f512ce1b49). The main implementation references are:
+This article is based on the [app 0.37.2 source](https://github.com/miyamoto9265/cobrac-web/tree/063319126d3e600ec41a4dc62956275e8af386b5). The main implementation references are:
 
 | Topic | Implementation |
 | ---- | ---- |
-| Execution and prompt assembly | `packages/worker/src/index.ts`, `pipeline.ts` |
+| Execution and prompt assembly (worker) | `packages/worker/src/index.ts`, `pipeline.ts` |
+| LLM calls (Codex) | `packages/worker/src/codex.ts` |
 | Schemas, HCD / FRG checks, and CSV | `packages/shared/src/harness.ts` |
 | Consistency and candidates | `packages/shared/src/cross.ts`, `motifs.ts` |
 | References, quotes, and research | `packages/worker/src/references.ts`, `quotes.ts`, `packages/shared/src/research.ts` |
 | Naming | `packages/shared/src/ucNaming.ts`, `packages/worker/src/rcs.ts` |
 | Hypotheses | `packages/shared/src/hypothesis.ts`, `packages/worker/src/hypothesisRules.ts` |
 | Outputs and saved versions | `packages/worker/src/finalize.ts`, `versions.ts`, `packages/shared/src/braVersion.ts` |
-| Complete instructions | `prompts/AGENTS.md`, `prompts/phases/`, `prompts/research_mode.md` |
+| LLM jobs for articles, AI review, and plans | `packages/worker/src/article.ts`, `canonReview.ts`, `planJob.ts` |
+| Plan runner | `packages/api/src/lib/planRunner.ts` |
+| Complete instructions | `prompts/AGENTS.md`, `prompts/phases/`, `prompts/research_mode.md`, `prompts/article.md`, `prompts/plan.md` |
 
 </details>

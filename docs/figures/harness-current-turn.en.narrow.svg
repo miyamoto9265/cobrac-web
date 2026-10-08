@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 686" width="430" height="686" role="img" aria-labelledby="t d" lang="en" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC harness v2: what passes in one turn</title>
+<desc id="d">What happens in one turn between the worker (a program), the workspace (files) and the CoBRAC agent (the LLM). 1. The worker builds a request from the phase specification, the list of problems and the candidates, and sends it as a conversation message. 2. The agent reasons and uses lit, RCS, web search and the shell. 3. The agent edits the data JSON and markdown files in the workspace. 4. The agent returns the JSON that ends the turn (status, message, question); done means it has finished its work, not that the work passed. 5. The worker rereads the files, runs the validators and writes the check-result JSON. 6. The worker's code decides what comes next: a fix request or the next phase's request goes back to step 1, and a question saves the state and stops.</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="430" height="686" fill="#ffffff"/>
+<rect x="10" y="10" width="410" height="30" rx="8" fill="#1e3a8a"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC harness v2: what passes in one turn</tspan></text>
+<rect x="26" y="56" width="394" height="76" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="81.14999999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>1 Worker: sends the request</tspan></text>
+<text x="38" y="99.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Spec, problems, candidates</tspan></text>
+<text x="38" y="116.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Sent as a conversation message</tspan></text>
+<path d="M223 132 L223 154" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="154" width="394" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="178.85000000000002" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>2 Agent: reasons and uses tools</tspan></text>
+<text x="38" y="197.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit, RCS, web search, shell</tspan></text>
+<path d="M223 212 L223 234" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="234" width="394" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="258.85" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>3 Agent: edits the files</tspan></text>
+<text x="38" y="277.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Data JSON, report.md, … in the workspace</tspan></text>
+<path d="M223 292 L223 314" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="314" width="394" height="76" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="339.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>4 Agent: returns the end JSON</tspan></text>
+<text x="38" y="357.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>status, message, question</tspan></text>
+<text x="38" y="374.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>done is a report, not a pass</tspan></text>
+<path d="M223 390 L223 412" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="26" y="412" width="394" height="76" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="437.15000000000003" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>5 Worker: checks the files</tspan></text>
+<text x="38" y="455.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Rereads them; runs the validators</tspan></text>
+<text x="38" y="472.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Writes the check-result JSON</tspan></text>
+<path d="M223 488 L223 510" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="510" width="394" height="94" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="535.4499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>6 Worker: decides what next (code)</tspan></text>
+<text x="38" y="553.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Problems → fix request (to 1)</tspan></text>
+<text x="38" y="571.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Passed → next phase (to 1)</tspan></text>
+<text x="38" y="588.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>question → save and stop</tspan></text>
+<path d="M26 557 L12 557 L12 94 L26 94" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<text x="10" y="632" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>Only the request and end JSON are messages</tspan></text>
+<text x="10" y="650" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>All work is handed over as files</tspan></text>
+<text x="10" y="668" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>The worker's code decides whether to move on</tspan></text>
+</svg>

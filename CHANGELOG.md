@@ -16,6 +16,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - CoBRAC Orchestrator list: "New plan" opens the form in a panel from the right (Esc or the backdrop closes it); with no plan yet the form stays on the screen
 - Plan page: the progress bar is split by wave, the rows being built flow, its widths and the counts animate as rows move on (no motion with "reduce motion")
 
+## [0.37.3] - 2026-10-08
+
+### Changed
+- Admin documentation: the CoBRAC harness v2 guide (Japanese and English) now says plainly which actor reasons and which only runs a procedure. The CoBRAC agent is the only LLM in a BRA run; the worker is a program with no LLM that sends requests, checks the files that come back and decides the next step. New opening sections list every actor with its kind (LLM, program, person, external service), what passes between the worker and the agent in one turn (the request, the end-of-turn JSON, and files), which of them writes and reads each file in each phase, and the three other jobs that use an LLM in separate conversations (explanatory articles, Canon AI review, Orchestrator plans). Three new figures show the actors, one turn, and the phases with the LLM's turns and the worker's steps in separate columns
+
 ## [0.37.2] - 2026-10-08
 
 ### Changed

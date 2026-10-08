@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 702" width="860" height="702" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC ハーネス v2：1 ターンの受け渡し</title>
+<desc id="d">ワーカー（プログラム）、作業場所（ファイル）、CoBRAC エージェント（LLM）の 3 者の間で 1 ターンに起きることを順に示す。1. ワーカーが段の仕様・問題一覧・候補から依頼文を組み立て、会話のメッセージとして送る。2. エージェントが考え、lit・RCS・Web 検索・シェルを使う。3. エージェントが作業場所のデータ JSON と md を書き換える。4. エージェントがターン終了の JSON（status・message・question）を返す。done は作業を終えたという申告で、合格の意味ではない。5. ワーカーがファイルを読み直して検証器で検査し、検査結果 JSON を書く。6. ワーカーのコードが次を決める。問題があれば修正依頼、合格なら次の段の依頼を 1 に戻って送り、question なら保存して停止する。</desc>
+<defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
+<rect width="860" height="702" fill="#ffffff"/>
+<rect x="10" y="10" width="840" height="30" rx="8" fill="#1e3a8a"/><text x="430" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：1 ターンの受け渡し</tspan></text>
+<path d="M145 112 L145 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M430 112 L430 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<path d="M715 112 L715 640" fill="none" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="4 5"/>
+<rect x="20" y="54" width="250" height="58" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="145" y="78.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>ワーカー</tspan></text>
+<text x="145" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>プログラム（LLM なし）</tspan></text>
+<rect x="305" y="54" width="250" height="58" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="430" y="78.85" font-size="13" font-weight="700" fill="#065f46" text-anchor="middle"><tspan>作業場所</tspan></text>
+<text x="430" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>プロジェクトフォルダのファイル</tspan></text>
+<rect x="590" y="54" width="250" height="58" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="715" y="78.85" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="middle"><tspan>CoBRAC エージェント</tspan></text>
+<text x="715" y="97.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>LLM（Codex + OpenAI のモデル）</tspan></text>
+<rect x="20" y="130" width="250" height="62" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="156.85000000000002" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>① 依頼文を組み立てる</tspan></text>
+<text x="32" y="175.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>段の仕様・問題一覧・候補</tspan></text>
+<path d="M270 161 L590 161" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="353.5" y="142" width="153.0" height="16" fill="#ffffff"/><text x="430" y="153" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>依頼文（会話のメッセージ）</tspan></text>
+<rect x="590" y="130" width="250" height="62" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="602" y="156.85000000000002" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>② 考えて道具を使う</tspan></text>
+<text x="602" y="175.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>lit・RCS・Web 検索・シェル</tspan></text>
+<rect x="305" y="222" width="250" height="62" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="248.85000000000002" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>データ（エージェントが書く）</tspan></text>
+<text x="317" y="267.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">uc.json</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">frg.json</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">report.md</tspan></text>
+<path d="M715 192 L715 253 L555 253" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="635" y="245" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>③ 書き換える</tspan></text>
+<path d="M715 320 L147 320" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<rect x="292.1" y="301" width="275.8" height="16" fill="#ffffff"/><text x="430" y="312" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>④ ターン終了の JSON：status・message・question</tspan></text>
+<rect x="280.8" y="327.5" width="298.3" height="15.5" fill="#ffffff"/><text x="430" y="338" font-size="10.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>done は「作業を終えた」という申告で、合格の意味ではない</tspan></text>
+<rect x="20" y="360" width="250" height="62" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="386.85" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>⑤ 検証器で検査</tspan></text>
+<text x="32" y="405.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ファイルを読み直して判定</tspan></text>
+<path d="M428 391 L270 391" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
+<text x="349" y="383" font-size="11" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>⑤ 読む</tspan></text>
+<rect x="305" y="446" width="250" height="62" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+<text x="317" y="472.85" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>検査結果（ワーカーが書く）</tspan></text>
+<text x="317" y="491.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">quote_check.json</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">cross_check.json</tspan></text>
+<path d="M270 410 L430 410 L430 446" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="438" y="432" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>書く</tspan></text>
+<path d="M145 422 L145 536" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<rect x="20" y="536" width="250" height="96" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="562.4499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>⑥ 次を決める（コード）</tspan></text>
+<text x="32" y="580.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>問題あり → 修正依頼を ① へ</tspan></text>
+<text x="32" y="598.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>合格 → 次の段の依頼を ① へ</tspan></text>
+<text x="32" y="615.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>question → 保存して停止</tspan></text>
+<path d="M20 584 L8 584 L8 161 L20 161" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<text x="10" y="666" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>会話で行き来するのは依頼文と終了 JSON だけで、作業の中身はすべてファイルで受け渡す。</tspan></text>
+<text x="10" y="686" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>次へ進むかを決めるのはワーカーのコードで、エージェントの申告ではない。</tspan></text>
+</svg>
