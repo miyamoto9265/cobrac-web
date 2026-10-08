@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Removed
+- Projects page: the warning that some projects used a model with no listed price and are left out of the total, and the "OpenAI list prices as of …" note under the per-model table. The note under the job table of a project and the unpriced count on a plan's actual cost are removed too. `UsageSummary` no longer carries `unpricedProjects` / `pricingAsOf`, plan `actual` no longer carries `unpricedProjects`, and `/users/me/models` no longer returns `pricingAsOf`
+
 ## [0.37.3] - 2026-10-08
 
 ### Changed

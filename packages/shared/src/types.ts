@@ -74,7 +74,6 @@ export interface ModelsResponse {
   /** Only `models` may be chosen (no custom model ID) */
   restricted: boolean;
   pricedModels: string[];
-  pricingAsOf: string;
 }
 
 /** Mirrors ModelReasoningEffort of @openai/codex-sdk */
@@ -630,12 +629,9 @@ export interface UsageSummary {
   totals: TokenUsage;
   /** Sum of priced projects; null when nothing is priced */
   costUsd: number | null;
-  /** Number of projects whose cost could not be estimated (unpriced model) */
-  unpricedProjects: number;
   byModel: { model: string; usage: TokenUsage; costUsd: number | null; jobs: number }[];
   /** Deleted projects stay in the totals (their cost was spent) and are flagged here */
   byProject: { projectId: string; name?: string; usage: TokenUsage; costUsd: number | null; models: string[]; deleted?: boolean }[];
-  pricingAsOf: string;
 }
 
 // WebSocket payloads -----------------------------------------------------------

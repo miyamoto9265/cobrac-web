@@ -128,13 +128,10 @@ export const en = {
   "projects.frg": "FRG graph",
   "projects.xlsx": "Download xlsx",
   "projects.totalEst": "All projects (estimated)",
-  "projects.unpricedN": "{n} project(s) used an unpriced model and are excluded from the total.",
   "projects.jobs": "Jobs",
   "projects.input": "Input",
   "projects.output": "Output",
   "projects.estCost": "Est. cost",
-  "projects.noPrice": "No price listed",
-  "projects.priceNote": "OpenAI list prices as of {date}. Check the OpenAI dashboard for actual invoices.",
 
   "usage.tip":
     "Input {in} (cached {cached})\nOutput {out} (reasoning {reason}){model}{unpriced}",
@@ -205,8 +202,6 @@ export const en = {
   "chat.reasoning": "(reasoning)",
   "chat.noJobs": "No jobs",
   "chat.total": "Total",
-  "chat.costNote":
-    "Costs are estimates from OpenAI standard short-context prices (as of {date}). Requests over 272K input tokens cost more. Check the OpenAI dashboard for actual invoices.",
   "chat.working": "The agent is working…",
 
   "ws.tables": "Tables",
@@ -972,7 +967,6 @@ export const en = {
   "plan.estimateHelp": "About 48 minutes per run: seed rows one at a time, then the waves one after another, plus rework for 20% of the rows; $0.18–0.39 per row (rows done by an existing project are left out). Time spent waiting for answers is not included. “So far” is the time since confirmation and the cost of the rows' projects and of the planning jobs (drafts and re-plans).",
   "plan.hours": "~{h} h",
   "plan.minutes": "{m} min",
-  "plan.unpriced": "{n} unpriced",
   "plan.settings": "Settings",
   "plan.settingsNote": "The Orchestrator's jobs (drafts, re-plans, AI reviews) and every row's project run with these settings and the harness rules in force when the plan is confirmed. They cannot be changed after confirmation.",
   "plan.agentsModelHelp": "Model and reasoning effort of the agents that build each row's BRA project.",

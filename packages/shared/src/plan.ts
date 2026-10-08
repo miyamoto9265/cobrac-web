@@ -448,7 +448,7 @@ export interface PlanDetailResponse {
   /** Estimate for the rows as they are now (all rows, current waves, current limits) */
   estimate: PlanEstimate;
   /** Time since confirmation (to completion, or now) and the cost of the rows' projects and the plan's own jobs so far */
-  actual: { minutes: number | null; costUsd: number | null; unpricedProjects: number };
+  actual: { minutes: number | null; costUsd: number | null };
   /** Proposals of re-plan jobs, newest first */
   proposals: PlanProposalRecord[];
   /** Cost of the plan's own jobs (drafts and re-plans) */

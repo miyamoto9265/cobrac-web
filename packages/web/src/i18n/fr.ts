@@ -130,13 +130,10 @@ export const fr: Record<MessageKey, string> = {
   "projects.frg": "Graphe FRG",
   "projects.xlsx": "Télécharger xlsx",
   "projects.totalEst": "Tous les projets (estimé)",
-  "projects.unpricedN": "{n} projet(s) ont utilisé un modèle sans tarif et sont exclus du total.",
   "projects.jobs": "Jobs",
   "projects.input": "Entrée",
   "projects.output": "Sortie",
   "projects.estCost": "Coût est.",
-  "projects.noPrice": "Aucun tarif indiqué",
-  "projects.priceNote": "Tarifs publics OpenAI au {date}. Consultez le tableau de bord OpenAI pour les factures réelles.",
 
   "usage.tip":
     "Entrée {in} (cache {cached})\nSortie {out} (raisonnement {reason}){model}{unpriced}",
@@ -207,8 +204,6 @@ export const fr: Record<MessageKey, string> = {
   "chat.reasoning": "(raisonnement)",
   "chat.noJobs": "Aucun job",
   "chat.total": "Total",
-  "chat.costNote":
-    "Les coûts sont des estimations d’après les tarifs publics OpenAI (au {date}). Consultez le tableau de bord OpenAI pour les factures réelles.",
   "chat.working": "L’agent travaille…",
 
   "ws.tables": "Tableaux",
@@ -974,7 +969,6 @@ export const fr: Record<MessageKey, string> = {
   "plan.estimateHelp": "Environ 48 minutes par exécution : les lignes d’amorce une à une, puis les vagues l’une après l’autre, plus des reprises pour 20 % des lignes ; 0,18–0,39 $ par ligne (sans les lignes couvertes par un projet existant). Le temps d’attente des réponses n’est pas compris. « Jusqu’ici » est le temps écoulé depuis la confirmation et le coût des projets des lignes et des tâches de planification (brouillons et replanifications).",
   "plan.hours": "~{h} h",
   "plan.minutes": "{m} min",
-  "plan.unpriced": "{n} sans tarif",
   "plan.settings": "Paramètres",
   "plan.settingsNote": "Les tâches de l’Orchestrator (brouillon, replanification, revue IA) et le projet de chaque ligne s’exécutent avec ces paramètres et les règles du harness en vigueur à la confirmation. Ils ne peuvent plus être modifiés ensuite.",
   "plan.agentsModelHelp": "Modèle et effort de raisonnement des agents qui construisent le projet BRA de chaque ligne.",

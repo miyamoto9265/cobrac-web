@@ -130,13 +130,10 @@ export const zh: Record<MessageKey, string> = {
   "projects.frg": "FRG 图",
   "projects.xlsx": "下载 xlsx",
   "projects.totalEst": "全部项目（估算）",
-  "projects.unpricedN": "有 {n} 个项目使用了未标价模型，未计入合计。",
   "projects.jobs": "作业",
   "projects.input": "输入",
   "projects.output": "输出",
   "projects.estCost": "预估费用",
-  "projects.noPrice": "未标价",
-  "projects.priceNote": "OpenAI 公开标价截至 {date}。实际账单请查看 OpenAI 控制台。",
 
   "usage.tip":
     "输入 {in}（缓存 {cached}）\n输出 {out}（推理 {reason}）{model}{unpriced}",
@@ -207,8 +204,6 @@ export const zh: Record<MessageKey, string> = {
   "chat.reasoning": "（推理）",
   "chat.noJobs": "暂无作业",
   "chat.total": "合计",
-  "chat.costNote":
-    "费用按 OpenAI 公开标价（截至 {date}）估算。实际账单请查看 OpenAI 控制台。",
   "chat.working": "智能体正在工作…",
 
   "ws.tables": "表格数据",
@@ -974,7 +969,6 @@ export const zh: Record<MessageKey, string> = {
   "plan.estimateHelp": "按每次运行约 48 分钟、“种子”行逐个制作、其余各批依次进行、20% 的行需要返工来计算；每行 $0.18–0.39（已有项目可覆盖的行除外）。不含等待回答的时间。“目前”是确认以来的时间，以及各行项目和规划任务（草稿、重新规划）的费用合计。",
   "plan.hours": "约 {h} 小时",
   "plan.minutes": "{m} 分钟",
-  "plan.unpriced": "{n} 个无单价",
   "plan.settings": "设置",
   "plan.settingsNote": "Orchestrator 的任务（草稿、重新规划、AI 审查）和每一行的项目都按此设置和确认计划时有效的 harness 规则运行。确认后无法更改。",
   "plan.agentsModelHelp": "为每一行构建 BRA 项目的代理所用的模型和推理强度。",

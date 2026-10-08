@@ -40,7 +40,6 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
           <div className="font-mono text-[11px] text-slate-500">
             in {formatTokens(s.totals.inputTokens)} (cache {formatTokens(s.totals.cachedInputTokens)}) / out {formatTokens(s.totals.outputTokens)} (reasoning {formatTokens(s.totals.reasoningOutputTokens)})
           </div>
-          {s.unpricedProjects > 0 && <div className="text-[11px] text-amber-700">{t("projects.unpricedN", { n: s.unpricedProjects })}</div>}
         </div>
       </div>
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
@@ -65,12 +64,11 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
                 <td className="px-2 py-1 text-right sm:px-3">
                   <Tokens n={m.usage.outputTokens} />
                 </td>
-                <td className="px-2 py-1 text-right sm:px-3">{m.costUsd === null ? <span className="text-slate-400" title={t("projects.noPrice")}>$—</span> : formatUsd(m.costUsd)}</td>
+                <td className="px-2 py-1 text-right sm:px-3">{formatUsd(m.costUsd)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="px-3 py-1 text-[10px] text-slate-400">{t("projects.priceNote", { date: s.pricingAsOf })}</div>
       </div>
     </div>
   );

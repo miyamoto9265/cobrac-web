@@ -130,13 +130,10 @@ export const pt: Record<MessageKey, string> = {
   "projects.frg": "Gráfico FRG",
   "projects.xlsx": "Baixar xlsx",
   "projects.totalEst": "Todos os projetos (estimado)",
-  "projects.unpricedN": "{n} projeto(s) usaram um modelo sem preço listado e estão excluídos do total.",
   "projects.jobs": "Trabalhos",
   "projects.input": "Entrada",
   "projects.output": "Saída",
   "projects.estCost": "Custo est.",
-  "projects.noPrice": "Sem preço listado",
-  "projects.priceNote": "Preços de lista da OpenAI em {date}. Consulte o painel da OpenAI para as faturas reais.",
 
   "usage.tip":
     "Entrada {in} (em cache {cached})\nSaída {out} (raciocínio {reason}){model}{unpriced}",
@@ -207,8 +204,6 @@ export const pt: Record<MessageKey, string> = {
   "chat.reasoning": "(raciocínio)",
   "chat.noJobs": "Nenhum trabalho",
   "chat.total": "Total",
-  "chat.costNote":
-    "Os custos são estimativas com base nos preços de lista da OpenAI (em {date}). Consulte o painel da OpenAI para as faturas reais.",
   "chat.working": "O agente está trabalhando…",
 
   "ws.tables": "Tabelas",
@@ -974,7 +969,6 @@ export const pt: Record<MessageKey, string> = {
   "plan.estimateHelp": "Cerca de 48 minutos por execução: linhas semente uma de cada vez, depois as ondas uma após a outra, mais retrabalho para 20% das linhas; US$ 0,18–0,39 por linha (sem as linhas cobertas por um projeto existente). O tempo de espera por respostas não está incluído. “Até agora” é o tempo desde a confirmação e o custo dos projetos das linhas e dos trabalhos de planejamento (rascunhos e replanejamentos).",
   "plan.hours": "~{h} h",
   "plan.minutes": "{m} min",
-  "plan.unpriced": "{n} sem preço",
   "plan.settings": "Configurações",
   "plan.settingsNote": "Os trabalhos do Orchestrator (rascunho, replanejamento, revisão por IA) e o projeto de cada linha são executados com estas configurações e as regras do harness vigentes na confirmação. Elas não podem ser alteradas depois.",
   "plan.agentsModelHelp": "Modelo e esforço de raciocínio dos agentes que constroem o projeto BRA de cada linha.",
