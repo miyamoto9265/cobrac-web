@@ -6,7 +6,6 @@ import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
 import { AdminPage } from "./pages/AdminPage";
 import { ChatPage } from "./pages/ChatPage";
-import { DocsPage } from "./pages/DocsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspacePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -21,6 +20,7 @@ import { PlanDetailPage } from "./pages/PlanDetailPage";
 import { PlansPage } from "./pages/PlansPage";
 import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SpecPage } from "./pages/SpecPage";
 
 export default function App() {
   const { ready, signedIn } = useAuth();
@@ -61,8 +61,9 @@ export default function App() {
         <Route path="/manual" element={<ManualPage />} />
         <Route path="/releases" element={<ReleaseNotesPage />} />
         <Route path="/docs/CHANGELOG" element={<Navigate to="/releases" replace />} />
-        <Route path="/docs" element={<AdminOnly fallback="/manual"><DocsPage /></AdminOnly>} />
-        <Route path="/docs/:slug" element={<AdminOnly fallback="/manual"><DocsPage /></AdminOnly>} />
+        <Route path="/docs" element={<AdminOnly fallback="/manual"><SpecPage /></AdminOnly>} />
+        {/* the Markdown documents that used to live at /docs/<slug> are all in the specification PDF now */}
+        <Route path="/docs/*" element={<Navigate to="/docs" replace />} />
         <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>

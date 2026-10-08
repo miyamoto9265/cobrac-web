@@ -1,45 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { compareDocs, docDescription, docFigureFiles, docSummary } from "../src/docs.js";
+import { SPEC_PDF_ASCII_NAME, SPEC_PDF_NAME, SPEC_URL_REFRESH_MS, SPEC_URL_TTL_SECONDS, contentDisposition } from "../src/index.js";
 
-describe("docDescription", () => {
-  it("uses the Document row of the metadata table", () => {
-    const md = "# Title\n\n| Item | Description |\n| ---- | ---- |\n| Document | Design, **features**, and [API](./x.md) |\n| Audience | x |\n\nBody.\n";
-    expect(docDescription(md)).toBe("Design, features, and API");
-    expect(docDescription("# 題\n\n| 項目 | 内容 |\n| ---- | ---- |\n| 文書 | 解説の `本文` |\n")).toBe("解説の 本文");
+describe("specification PDF", () => {
+  it("refreshes its URLs before they expire", () => {
+    expect(SPEC_URL_REFRESH_MS).toBeLessThan(SPEC_URL_TTL_SECONDS * 1000);
   });
 
-  it("falls back to the first paragraph, joined and clipped at a sentence", () => {
-    expect(docDescription("# T\n\n> note\n\nFirst line\nsecond line.\n\nNext.\n")).toBe("First line second line.");
-    expect(docDescription("# T\n\n一行目。\n二行目。\n")).toBe("一行目。二行目。");
-    const long = `${"あ".repeat(100)}。${"い".repeat(100)}。`;
-    expect(docDescription(`# T\n\n${long}\n`)).toBe(`${"あ".repeat(100)}。`);
-    expect([...docDescription(`# T\n\n${"x".repeat(300)}\n`)].length).toBe(160);
-  });
-
-  it("stops at the first section", () => {
-    expect(docDescription("# T\n\n## 1. Intro\n\nInside.\n")).toBe("");
-  });
-});
-
-describe("docSummary / compareDocs", () => {
-  it("numbers docs and keeps README / AGENTS after them", () => {
-    const items = [docSummary("AGENTS", "# AGENTS.md\n\nRules."), docSummary("README", "# R\n\nApp."), docSummary("10_B", "# B"), docSummary("02_A", "# A")].sort(compareDocs);
-    expect(items.map((d) => d.slug)).toEqual(["02_A", "10_B", "README", "AGENTS"]);
-    expect(items[0]).toMatchObject({ number: "02", title: "A", group: "docs" });
-    expect(items[2]).toMatchObject({ number: null, title: "README", group: "repo" });
-  });
-
-  it("keeps archived articles and their original slugs separate from current documents", () => {
-    const old = docSummary("04_Old", "# Old harness", true);
-    const items = [old, docSummary("README", "# README"), docSummary("07_Current", "# Current harness")].sort(compareDocs);
-    expect(old).toMatchObject({ slug: "04_Old", group: "archive", number: "04" });
-    expect(items.map((d) => d.slug)).toEqual(["07_Current", "04_Old", "README"]);
-  });
-});
-
-describe("docFigureFiles", () => {
-  it("lists referenced figures with their phone versions", () => {
-    const md = '![a](./figures/x.ja.svg "c")\n![b](figures/y.svg)\n![archived](../figures/old.svg)\n![ext](https://e/z.svg)';
-    expect(docFigureFiles(md)).toEqual(["x.ja.svg", "x.ja.narrow.svg", "y.svg", "y.narrow.svg", "old.svg", "old.narrow.svg"]);
+  it("is shown inline under its Japanese name, with an ASCII fallback", () => {
+    expect(SPEC_PDF_ASCII_NAME).toMatch(/^[\x20-\x7e]+\.pdf$/);
+    expect(contentDisposition(SPEC_PDF_ASCII_NAME, SPEC_PDF_NAME, "inline")).toBe(
+      `inline; filename="${SPEC_PDF_ASCII_NAME}"; filename*=UTF-8''${encodeURIComponent(SPEC_PDF_NAME)}`,
+    );
   });
 });

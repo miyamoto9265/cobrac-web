@@ -27,8 +27,6 @@ const FIGURES: DocFigures = Object.fromEntries(
     .map(([file, url]) => [file, { url, narrow: URLS[file.replace(/\.svg$/, ".narrow.svg")] }]),
 );
 
-const noDoc = () => null;
-
 /** The user manual, for every signed-in user: in the UI language when it exists, else in English with a note. */
 export function ManualPage() {
   const t = useT();
@@ -49,7 +47,6 @@ export function ManualPage() {
       text={text}
       lang={lang}
       figures={FIGURES}
-      docHref={noDoc}
       variants={variants}
       navTitle={t("manual.title")}
       notice={

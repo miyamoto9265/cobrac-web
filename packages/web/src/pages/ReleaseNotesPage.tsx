@@ -3,8 +3,6 @@ import { useT } from "../i18n";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import changelog from "../../../../CHANGELOG.md?raw";
 
-const noDoc = () => null;
-
 /** For readers of the app: no [Unreleased] section and no maintainer instructions, and `## v0.22.0 · 2026-10-04` headings. */
 export function releaseNotesText(md: string): string {
   return md
@@ -22,7 +20,6 @@ export function ReleaseNotesPage() {
     <DocReader
       docKey="CHANGELOG"
       text={TEXT}
-      docHref={noDoc}
       navTitle={t("releases.title")}
       navFooter={
         <div className="mt-6 px-3 text-[11px] text-slate-400">

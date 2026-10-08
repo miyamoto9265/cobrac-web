@@ -41,7 +41,6 @@ import type {
   CreateUploadRequest,
   CreateUploadResponse,
   DeleteProjectResponse,
-  DocListResponse,
   FollowupRequest,
   JobRecord,
   MeResponse,
@@ -159,6 +158,7 @@ import {
   summarizeManifest,
   versionFileKey,
   versionManifestKey,
+  SPEC_PDF_NAME,
 } from "@cobrac/shared";
 import { randomUUID } from "node:crypto";
 import { env } from "./env.js";
@@ -237,7 +237,7 @@ import {
   pushProject,
   requestAiReview,
 } from "./lib/canonOps.js";
-import { listDocs, readDoc } from "./lib/docs.js";
+import { specLinks } from "./lib/spec.js";
 import {
   findProjectByLegacyId,
   getJob,
@@ -2175,17 +2175,13 @@ app.get("/admin/projects", async (c) => {
   return c.json({ items: await correctProjects(items) });
 });
 
-app.get("/admin/docs", async (c) => {
+// The specification PDF (bundled with this function) is uploaded to S3 once per version and handed out as presigned
+// URLs: it is larger than a Lambda response may be.
+app.get("/admin/spec", async (c) => {
   requireAdmin(c.get("user"));
-  const res: DocListResponse = { items: await listDocs() };
+  const res = await specLinks();
+  if (!res) return c.json({ error: `仕様書の PDF（${SPEC_PDF_NAME}）がこの環境の API に同梱されていません` }, 404);
   return c.json(res);
-});
-
-app.get("/admin/docs/:slug", async (c) => {
-  requireAdmin(c.get("user"));
-  const doc = await readDoc(c.req.param("slug"));
-  if (!doc) throw notFound();
-  return c.json(doc);
 });
 
 app.post("/admin/projects/:userId/:id/cancel", async (c) => {

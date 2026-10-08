@@ -16,7 +16,7 @@ async function render(text: string) {
   root = createRoot(host);
   await act(async () => root!.render(
     <I18nProvider><MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <DocMarkdown text={text} headings={extractHeadings(text)} docHref={(s) => `/docs/${s}`} onAnchor={() => {}} />
+      <DocMarkdown text={text} headings={extractHeadings(text)} onAnchor={() => {}} />
     </MemoryRouter></I18nProvider>,
   ));
 }
@@ -34,8 +34,8 @@ describe("documentation disclosures", () => {
     expect(details.querySelector("table strong")!.textContent).toBe("Pass");
     expect(details.querySelector("pre code")!.textContent).toContain("{status, message, question}");
     expect(details.querySelector("h2")!.id).toBe("checks");
-    expect(details.querySelector('a[href="/docs/04_Old#checks"]')).not.toBeNull();
-    expect(details.querySelector('a[href="/docs/04_Old"]')).not.toBeNull();
+    expect(details.querySelector('a[href="./archive/04_Old.md#checks"]')).not.toBeNull();
+    expect(details.querySelector('a[href="./docs/archive/04_Old.md"]')).not.toBeNull();
   });
 
   it("does not enable raw HTML, scripts, source attributes or javascript links", async () => {

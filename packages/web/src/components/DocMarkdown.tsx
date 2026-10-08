@@ -1,7 +1,6 @@
 import { Link2 } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
-import { Link } from "react-router-dom";
 import remarkGfm from "remark-gfm";
 import { useT } from "../i18n";
 import type { DocHeading } from "../lib/docs";
@@ -9,22 +8,18 @@ import { remarkDetails } from "../lib/remarkDetails";
 
 type HastNode = { type: string; tagName?: string; value?: string; children?: HastNode[]; position?: { start: { line: number } } };
 
-const nodeText = (n: HastNode | undefined): string => (n ? (n.value ?? "") + (n.children ?? []).map(nodeText).join("") : "");
-
 /** Figure files of an explanatory article: `circuit.svg` → object URLs of the sanitized wide / phone versions. */
 export type DocFigures = Record<string, { url: string; narrow?: string }>;
 
 interface Props {
   text: string;
   headings: DocHeading[];
-  /** Resolves a relative `Foo.md` link to an in-app path, or null if it is not a document of the app. */
-  docHref: (file: string) => string | null;
   onAnchor: (id: string) => void;
-  /** Resolves `./figures/<file>` and archived documents' `../figures/<file>`; other images keep their src */
+  /** Resolves `./figures/<file>` and `../figures/<file>`; other images keep their src */
   figures?: DocFigures;
 }
 
-export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Props) {
+export function DocMarkdown({ text, headings, onAnchor, figures }: Props) {
   const t = useT();
   const components = useMemo<Components>(() => {
     const idByLine = new Map(headings.map((h) => [h.line, h.id]));
@@ -98,9 +93,6 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
             </a>
           );
         }
-        const md = href.match(/^(?:\.{1,2}\/)*(?:docs\/)?(?:archive\/)?([^/:?#]+)\.md(#.*)?$/);
-        const to = md ? docHref(decodeURIComponent(md[1])) : null;
-        if (to) return <Link to={`${to}${md?.[2] ?? ""}`}>{children}</Link>;
         return /^https?:/.test(href) ? (
           <a href={href} target="_blank" rel="noreferrer">
             {children}
@@ -116,13 +108,8 @@ export function DocMarkdown({ text, headings, docHref, onAnchor, figures }: Prop
       ),
       details: ({ children }) => <details className="docs-details">{children}</details>,
       summary: ({ children }) => <summary>{children}</summary>,
-      th: ({ node, children, style }) => {
-        const label = nodeText(node as HastNode | undefined).trim();
-        const version = label === "v0" || label === "v1" || label === "v1.1" ? label.replace(".", "-") : null;
-        return <th style={style}>{version ? <span className={`version-pill version-${version}`}>{children}</span> : children}</th>;
-      },
     };
-  }, [headings, docHref, onAnchor, t, figures]);
+  }, [headings, onAnchor, t, figures]);
 
   return (
     <div className="markdown docs">

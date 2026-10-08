@@ -1,4 +1,4 @@
-/** Heading anchors compatible with GitHub's, so `[4.4](#44-…)` links work both on GitHub and on the Docs page. */
+/** Heading anchors compatible with GitHub's, so `[4.4](#44-…)` links work both on GitHub and in the app. */
 export function headingSlug(text: string): string {
   return text
     .trim()
@@ -48,9 +48,4 @@ export function extractHeadings(markdown: string): DocHeading[] {
     out.push({ depth: m[1].length, text, id: n ? `${base}-${n}` : base, line: i + 1 });
   });
   return out;
-}
-
-/** `04_Foo_ja` → { base: "04_Foo", lang: "ja" }. Only meaningful when both `04_Foo` (English) and `04_Foo_ja` exist. */
-export function docLanguage(slug: string): { base: string; lang: "ja" | "en" } {
-  return slug.endsWith("_ja") ? { base: slug.slice(0, -3), lang: "ja" } : { base: slug, lang: "en" };
 }

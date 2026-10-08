@@ -1,4 +1,4 @@
-import { BookMarked, BookOpen, FolderKanban, Globe, Layers, ListChecks, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
+import { BookMarked, FileText, FolderKanban, Globe, Layers, ListChecks, LogOut, Menu, MessageSquarePlus, ScrollText, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProjectRecord } from "@cobrac/shared";
@@ -118,7 +118,7 @@ export function Layout() {
           {me?.role === "admin" && (
             <>
               <NavLink to="/docs" className={navCls}>
-                <BookOpen size={16} /> {t("nav.docs")}
+                <FileText size={16} /> {t("nav.spec")}
               </NavLink>
               <NavLink to="/admin" className={navCls}>
                 <Shield size={16} /> {t("nav.admin")}

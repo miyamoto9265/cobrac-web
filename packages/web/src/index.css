@@ -142,7 +142,7 @@ html {
   border-color: #3b82f6;
 }
 
-/* Full-page document rendering (Docs page) */
+/* Full-page document rendering (user manual, release notes, articles) */
 .markdown.docs {
   font-size: 0.95rem;
   line-height: 1.85;
@@ -283,24 +283,6 @@ html {
 }
 .markdown.docs tbody tr:hover td {
   background: theme("backgroundColor.slate.50");
-}
-.markdown.docs .version-pill {
-  display: inline-block;
-  min-width: 2.25rem;
-  padding: 0 0.6rem;
-  border-radius: 999px;
-  color: #ffffff;
-  text-align: center;
-  font-weight: 700;
-}
-.markdown.docs .version-v0 {
-  background: #f59e0b;
-}
-.markdown.docs .version-v1 {
-  background: #3b82f6;
-}
-.markdown.docs .version-v1-1 {
-  background: #0d9488;
 }
 .markdown.docs blockquote {
   border-left: 3px solid theme("borderColor.slate.300");
