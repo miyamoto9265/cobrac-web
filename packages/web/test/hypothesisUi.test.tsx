@@ -113,10 +113,11 @@ async function createWith(setup?: () => Promise<void>) {
 }
 
 describe("create screen: hypothesis mode", () => {
-  it("shows hypothesis mode as an unchecked box on the composer, with its help, and sends no hypothesis", async () => {
+  it("shows hypothesis mode as an unchecked chip on the composer toolbar, with its help, and sends no hypothesis", async () => {
     await render(<ChatPage />);
-    // on the composer itself, not inside the model menu
+    // on the composer's toolbar, not inside the model menu
     expect($("model-menu")).toBeNull();
+    expect($("composer")!.contains($("hypothesis-mode"))).toBe(true);
     expect($<HTMLInputElement>("hypothesis-mode-check")!.checked).toBe(false);
     expect($<HTMLInputElement>("hypothesis-mode-check")!.type).toBe("checkbox");
     expect($("hypothesis-settings")).toBeNull();
@@ -134,6 +135,8 @@ describe("create screen: hypothesis mode", () => {
   it("sends every claim, the default limit 20% and no note when only the box is checked", async () => {
     const body = await createWith(async () => {
       await click($("hypothesis-mode-check"));
+      // the settings open as a card under the composer, not inside it
+      expect($("composer")!.contains($("hypothesis-settings"))).toBe(false);
       const boxes = [...$("hypothesis-claims")!.querySelectorAll<HTMLInputElement>("input[type=checkbox]")];
       expect(boxes.length).toBe(6);
       expect(boxes.every((b) => b.checked)).toBe(true);

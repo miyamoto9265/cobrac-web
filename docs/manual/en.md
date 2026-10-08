@@ -45,7 +45,7 @@ Open "New project" in the sidebar.
    - "+": attach reference materials (PDF, images, text, Office files, URLs). Up to 10 files, 50 MB in total (20 MB per file), and 20 URLs. The agent uses them as hints but checks papers and quotes against the published literature.
    - "Canon": choose one when circuit definitions should match other projects ([using a Canon](#using-a-canon)).
    - "v": model, reasoning effort and research mode ([research mode and models](#research-mode-and-models)).
-   - The "Hypothesis mode" checkbox at the bottom of the input box; hover over its "?" for an explanation ([hypothesis mode](#hypothesis-mode)).
+   - The "Hypothesis mode" checkbox on the bottom row of the input box, next to Canon. Checking it opens its settings under the input box; hover over its "?" for an explanation ([hypothesis mode](#hypothesis-mode)).
 3. Press "Run". Enter in the ROI moves to the TLF; Enter in the TLF runs (Shift+Enter adds a line).
 
 The project gets a name automatically; you can change it on the project page. The Contributor name comes from Settings.
@@ -136,7 +136,7 @@ By default, the BRA contains only connections and UCs that the literature direct
 
 ### Choosing it
 
-- **When creating**: check "Hypothesis mode" at the bottom of the input box (its "?" explains it). Choose the claims that may be hypotheses (a connection's existence, direction and sign; a UC's cell population, transmitter and modulation, and role) and the share limit. You can add one line (up to 200 characters) on where hypotheses may be needed. The scope is the whole graph.
+- **When creating**: check "Hypothesis mode" on the bottom row of the input box, next to Canon (its "?" explains it; on phones only the "H" mark is shown). The settings open under the input box. Choose the claims that may be hypotheses (a connection's existence, direction and sign; a UC's cell population, transmitter and modulation, and role) and the share limit. You can add one line (up to 200 characters) on where hypotheses may be needed. The scope is the whole graph.
 - **With a follow-up**: switch on "Allow hypotheses with this instruction" under the input box of the Agent panel. Choose the claims, the target ("Whole HCD" or "Circuits and GNs selected in the graph") and the limit, then send. To narrow the target, first select a circuit, Collection or GN in the HCD or FRG graph. The switch turns off after sending.
 - Writing "hypotheses are fine" in an instruction does not allow hypotheses. Always use the switch.
 

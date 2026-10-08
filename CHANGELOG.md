@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-10-08
+
+### Changed
+- Create screen: the 「仮説モード」 / "Hypothesis mode" checkbox now sits on the input box's bottom row next to the Canon chip, as a chip that turns amber when on, instead of a separate strip below the Run button. Its settings (claims, share limit, note) open as a card under the input box, like the new-Canon card, instead of stretching the input box. On phones the chip shows only the "H" mark
+
 ## [0.37.1] - 2026-10-07
 
 ### Changed

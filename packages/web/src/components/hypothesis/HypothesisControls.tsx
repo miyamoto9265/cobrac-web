@@ -1,7 +1,7 @@
 /**
- * Hypothesis mode, stage 3: the controls that allow hypotheses. The create screen's hypothesis-mode checkbox (off =
- * literature-supported only, the default; on = claims, share limit and a note) and the pieces the follow-up switch
- * reuses. They build the stage 2 request types; nothing is sent while hypotheses are not allowed.
+ * Hypothesis mode, stage 3: the controls that allow hypotheses. The create screen's hypothesis-mode chip (off =
+ * literature-supported only, the default), its settings card (claims, share limit and a note) and the pieces the
+ * follow-up switch reuses. They build the stage 2 request types; nothing is sent while hypotheses are not allowed.
  */
 import { useId } from "react";
 import type { HypothesisClaim, HypothesisCreateRequest } from "@cobrac/shared";
@@ -100,30 +100,50 @@ export function LimitPicker({ value, onChange, keep }: { value: number | null; o
 }
 
 /**
- * Hypothesis mode of a new project: a checkbox on the composer (off = literature-supported only), with its help on
- * the "?" and, once on, the claims, the share limit and an optional note.
+ * Hypothesis mode of a new project, on the composer's toolbar next to the Canon chip: a checkbox chip (off =
+ * literature-supported only) with its help on the "?". Once on, `HypothesisSettingsPanel` shows the details.
  */
-export function HypothesisModeChoice({ value, onChange, disabled }: { value: HypothesisDraft | null; onChange: (v: HypothesisDraft | null) => void; disabled?: boolean }) {
+export function HypothesisModeChip({ value, onChange, disabled }: { value: HypothesisDraft | null; onChange: (v: HypothesisDraft | null) => void; disabled?: boolean }) {
   const t = useT();
+  const on = !!value;
   return (
-    <div className="border-t border-slate-100 px-3 py-1.5" data-testid="hypothesis-mode">
-      <div className="flex items-center gap-1.5">
-        <label className="flex min-w-0 cursor-pointer items-center gap-2 text-xs font-medium text-slate-700 coarse:min-h-11">
-          <input
-            type="checkbox"
-            checked={!!value}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.checked ? (value ?? defaultHypothesisDraft()) : null)}
-            className="h-3.5 w-3.5 shrink-0 rounded text-amber-600"
-            data-testid="hypothesis-mode-check"
-          />
-          <HypothesisMark size={13} />
-          <span className="truncate">{t("hyp.badge")}</span>
-        </label>
-        <HelpTip text={t("hyp.modeHelp")} />
-      </div>
-      {value && (
-        <div className="mt-1.5 space-y-2.5 rounded-lg bg-slate-50 px-2.5 py-2" data-testid="hypothesis-settings">
+    <div className="flex min-w-0 items-center gap-0.5" data-testid="hypothesis-mode">
+      <label
+        className={`flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full border py-1.5 pl-2 pr-2.5 text-xs font-medium has-[:disabled]:cursor-default has-[:disabled]:opacity-50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-blue-400 coarse:min-h-11 ${
+          on ? "border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100" : "border-slate-200 text-slate-500 hover:bg-slate-100"
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={on}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked ? (value ?? defaultHypothesisDraft()) : null)}
+          className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-amber-600"
+          data-testid="hypothesis-mode-check"
+        />
+        <HypothesisMark size={14} />
+        <span className="truncate max-sm:sr-only">{t("hyp.badge")}</span>
+      </label>
+      <HelpTip text={t("hyp.modeHelp")} className="max-sm:hidden" />
+    </div>
+  );
+}
+
+/** The details of hypothesis mode while it is on: claims, share limit and an optional note (a card under the composer). */
+export function HypothesisSettingsPanel({ value, onChange, disabled }: { value: HypothesisDraft; onChange: (v: HypothesisDraft) => void; disabled?: boolean }) {
+  const t = useT();
+  const title = useId();
+  return (
+    <section className="w-full rounded-2xl border border-amber-200 bg-white shadow-sm" data-testid="hypothesis-settings" aria-labelledby={title}>
+      <fieldset disabled={disabled} className="min-w-0">
+        <div className="flex items-center gap-2 border-b border-amber-100 px-4 py-2.5">
+          <HypothesisMark size={15} />
+          <h2 id={title} className="text-sm font-semibold text-slate-800">
+            {t("hyp.badge")}
+          </h2>
+          <HelpTip text={t("hyp.modeHelp")} />
+        </div>
+        <div className="grid gap-4 p-4">
           <ClaimPicker groups={value.groups} onChange={(groups) => onChange({ ...value, groups })} testId="hypothesis-claims" />
           <LimitPicker value={value.maxShare} onChange={(maxShare) => onChange({ ...value, maxShare: maxShare ?? DEFAULT_HYPOTHESIS_MAX_SHARE })} />
           <label className="block">
@@ -134,11 +154,11 @@ export function HypothesisModeChoice({ value, onChange, disabled }: { value: Hyp
               onChange={(e) => onChange({ ...value, note: e.target.value })}
               placeholder={t("hyp.notePh")}
               data-testid="hypothesis-note"
-              className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </label>
         </div>
-      )}
-    </div>
+      </fieldset>
+    </section>
   );
 }
