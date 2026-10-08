@@ -90,7 +90,6 @@ import {
   EDGE_LINE_TYPES,
   EMPTY_USAGE,
   PRICING,
-  PRICING_AS_OF,
   REASONING_EFFORTS,
   addUsage,
   DEFAULT_KEY_CATALOG_KEY,
@@ -179,6 +178,7 @@ import {
   orderPlan,
   pausePlan,
   planDetail,
+  planPulse,
   rejectProposal,
   replaceRows,
   requestDraft,
@@ -371,7 +371,6 @@ app.get("/users/me/models", async (c) => {
     orgTier: policy.tier,
     restricted: policy.allowed !== null,
     pricedModels: Object.keys(PRICING),
-    pricingAsOf: PRICING_AS_OF,
   };
   return c.json(res);
 });
@@ -380,7 +379,7 @@ app.get("/users/me/models", async (c) => {
 app.get("/users/me/usage", async (c) => {
   const u = c.get("user");
   const items = await listUserProjects(u.userId);
-  const summary: UsageSummary = { totals: EMPTY_USAGE, costUsd: null, unpricedProjects: 0, byModel: [], byProject: [], pricingAsOf: PRICING_AS_OF };
+  const summary: UsageSummary = { totals: EMPTY_USAGE, costUsd: null, byModel: [], byProject: [] };
   const byModel = new Map<string, { usage: TokenUsage; cost: number; unpriced: boolean; jobs: number }>();
   let cost = 0;
   let priced = false;
@@ -401,9 +400,7 @@ app.get("/users/me/usage", async (c) => {
       byModel.set(m, e);
     }
     if (p.usage) summary.totals = addUsage(summary.totals, p.usage);
-    if (p.costUsd === null || p.costUsd === undefined) {
-      if (p.usage && p.usage.inputTokens + p.usage.outputTokens > 0) summary.unpricedProjects++;
-    } else {
+    if (typeof p.costUsd === "number") {
       cost += p.costUsd;
       priced = true;
     }
@@ -1961,12 +1958,21 @@ app.get("/public/canons/:id", async (c) => {
 // BRA Planner (plans: rows of ROI × TLF built as projects in waves; owner only)
 // ---------------------------------------------------------------------------
 
+/** Live plans whose pulse the list reads (the newest first); older ones show their counts only. */
+const LIST_PULSE_PLANS = 12;
+
 app.get("/plans", async (c) => {
   const u = c.get("user");
-  const items = (await listOwnPlans(u.userId))
-    .filter((p) => !p.deletedAt)
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-    .map((p) => ({ ...p, rowCounts: p.rowCounts ?? countRows([]) }));
+  const plans = (await listOwnPlans(u.userId)).filter((p) => !p.deletedAt).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  // running and paused plans carry what they do now (the list is a live view of them); the rest only their counts
+  let live = 0;
+  const items = await Promise.all(
+    plans.map(async (p) => {
+      if ((p.status !== "RUNNING" && p.status !== "PAUSED") || ++live > LIST_PULSE_PLANS) return { ...p, rowCounts: p.rowCounts ?? countRows([]) };
+      const d = await planDetail(u, p);
+      return { ...p, rowCounts: d.plan.rowCounts ?? countRows([]), rowCount: d.plan.rowCount, pulse: planPulse(d) };
+    }),
+  );
   const res: ListPlansResponse = { items };
   return c.json(res);
 });

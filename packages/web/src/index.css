@@ -447,6 +447,75 @@ nav .docs-toc {
   }
 }
 
+/* Orchestrator: live plans (PlanBar, PlanLane, the new-plan drawer). Motion is off with prefers-reduced-motion. */
+@keyframes plan-flow {
+  to {
+    background-position: 16px 0;
+  }
+}
+@keyframes plan-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@keyframes plan-beat {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.plan-flow {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    theme("backgroundColor.blue.500") 0 6px,
+    theme("backgroundColor.blue.400") 6px 8px
+  );
+  background-size: 16px 100%;
+  animation: plan-flow 0.8s linear infinite;
+}
+.plan-beat {
+  animation: plan-beat 1.6s ease-in-out infinite;
+}
+/* an indeterminate bar (a draft being written: its length is not known) */
+.plan-sweep {
+  position: relative;
+  overflow: hidden;
+}
+.plan-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  border-radius: inherit;
+  background: theme("backgroundColor.blue.500");
+  animation: plan-sweep 1.6s ease-in-out infinite;
+}
+.plan-seg {
+  transition:
+    width 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    flex-grow 700ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .plan-flow,
+  .plan-beat,
+  .plan-sweep::after {
+    animation: none;
+  }
+  .plan-sweep::after {
+    width: 100%;
+    opacity: 0.35;
+  }
+  .plan-seg {
+    transition: none;
+  }
+}
+
 /* Agent panel ------------------------------------------------------------- */
 /* Agent answers: full-width prose instead of bubbles. */
 .markdown.agent-prose {

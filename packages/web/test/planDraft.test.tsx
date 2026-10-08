@@ -63,7 +63,7 @@ function detail(status: PlanRecord["status"], rows: PlanRowView[], extra: Partia
     events: [],
     limits: { maxConcurrentJobs: 2, maxConcurrentJobsPerUser: 2, effective: 2 },
     estimate: planEstimate(rows, 2),
-    actual: { minutes: draftLike ? null : 30, costUsd: draftLike ? null : 0.21, unpricedProjects: 0 },
+    actual: { minutes: draftLike ? null : 30, costUsd: draftLike ? null : 0.21 },
     proposals: [],
     planJobsCostUsd: null,
     ...more,
@@ -110,7 +110,7 @@ const headings = (within: ParentNode) => qa('[data-testid="plan-wave"]', within)
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", orgTier: null, restricted: false, pricedModels: [], pricingAsOf: "" });
+  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
   for (const fn of [api.savePlanRows, api.confirmPlan, api.planAction, api.updatePlan, api.requestDraft, api.cancelDraft, api.orderPlan, api.proposalAction]) fn.mockResolvedValue({ ok: true });
 });
 afterEach(() => {

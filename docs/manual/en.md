@@ -215,10 +215,19 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 ### Create a plan
 
-1. Under "CoBRAC Orchestrator" in the sidebar, enter a name and a goal (for example "Build the BRA of the language system").
+1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Build the BRA of the language system") in the panel that opens from the right (with no plan yet, the form is on the screen).
 2. Add source list files (CSV, TSV, text, xlsx or PDF; up to 10) or paste rows. One row is one project. CSV, TSV and text files are read into rows as soon as the plan is created. With a header row the columns are read by name: ROI (region), TLF (function, capability), rationale (note), wave (also read as "batch") and priority. Without one, a single column is the TLF, otherwise the columns are ROI, TLF, rationale.
 3. "Create plan" creates the plan from these rows. "Create draft" creates it and asks for a draft at the same time (it needs a goal, a file or pasted rows). xlsx and PDF files are read by the job of "Create draft" (also when you press it after creating the plan).
 4. Rows that could not be read (neither ROI nor TLF, the same ROI × TLF as another row, …) are shown with the file name, the row number and the reason. Fix them and add them with "Import CSV".
+
+
+### The list of plans (live)
+
+The list shows what your plans are doing now. While a plan runs, is paused or is being drafted, "Live" shows next to the title and the list updates by itself every 15 s (every 5 s while a draft is written; nothing is read while the tab is in the background).
+
+- **Your turn**: what waits on you, from every plan, comes first: rows with a question, awaiting approval, needing a decision or attention, re-plan proposals, plans stopped for a reason other than you, and drafts to confirm (or that failed). Each opens its plan. When nothing waits, it says so.
+- **Running plans**: running, paused and drafting plans are shown wide, with the rows done, the current wave, the time so far and the estimate, the cost (so far and estimated), a progress bar by wave (done green, rows being built flowing blue, questions and decisions amber, awaiting approval violet, attention red; the current wave is outlined), the rows being built with their stage (research, HCD, FRG…) and time, and the recent activity (last 4).
+- **Drafts** and **Finished plans**: drafts are cards; finished and cancelled plans are in a folded list.
 
 ### Create a draft
 
@@ -254,6 +263,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 - "Confirm and start" shows the estimate (time and cost) before starting. The estimate counts about 48 minutes per run, the seed rows one at a time and the other waves one after another, rework for 20% of the rows, and $0.18–0.39 per row. Rows done by an existing project are not counted, nor is time spent waiting for answers.
 - How many rows run at once is the lower of the overall limit and the per-user limit set by an admin. The OpenAI rate limit (tokens per minute) can also make rows wait.
 - A row that fails is retried automatically up to 2 times. If it still fails it "needs attention", and you can "Retry" or "Skip" it. The other rows go on.
+- In "Rows" on the plan page, the rows being built (and the rows with a question) show the stages of their project (research → HCD ⇄ FRG → CSV → xlsx). The stage in progress moves (not with "reduce motion" on in your system). The progress bar is split by wave and grows as rows move on.
 - The projects a plan creates open in the usual project page; its header links back to the plan. Costs are recorded per project, and the plan page shows the total, including the drafting and re-planning jobs, with the cost of those planning jobs on its own line.
 
 ### Re-planning after each wave and proposals
@@ -308,7 +318,7 @@ When an agent asks a question, only that row stops and the question appears in t
 - **Default Canon for new projects**
 - **Change password**
 
-The display language and the theme (light or dark) are at the bottom of the sidebar. "Release notes" lists what changed in the app.
+The display language and the theme (light or dark) are at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
 
 ## Troubleshooting
 

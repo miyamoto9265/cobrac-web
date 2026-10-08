@@ -12,7 +12,7 @@ import type { FileAttachment } from "./attachments.js";
 import { parseCsv } from "./csv.js";
 import type { UiLocale } from "./locale.js";
 import { randomCrockfordId } from "./projectId.js";
-import type { ProjectRecord, ProjectStatus, ReasoningEffort } from "./types.js";
+import type { PipelineStage, ProjectRecord, ProjectStatus, ReasoningEffort, StepState, WorkflowStep } from "./types.js";
 
 /** Random plan IDs: `n` + 7 lower-case Crockford base32 (`n4h8w2rk`). Neither a Project ID nor a Canon ID. */
 export const PLAN_ID_REGEX = /^n[0-9a-hjkmnp-tv-z]{7}$/;
@@ -426,6 +426,10 @@ export interface PlanRowView extends PlanRowRecord {
     revision: number;
     errorMessage: string | null;
     deleted: boolean;
+    /** Harness progress of the project (the stage strip of a row) */
+    stepStates?: Record<WorkflowStep, StepState>;
+    activeStage?: PipelineStage | null;
+    researchMode?: boolean;
   } | null;
   /** Other rows sharing at least one anchor with this one (computed on read) */
   hub?: number;
@@ -448,7 +452,7 @@ export interface PlanDetailResponse {
   /** Estimate for the rows as they are now (all rows, current waves, current limits) */
   estimate: PlanEstimate;
   /** Time since confirmation (to completion, or now) and the cost of the rows' projects and the plan's own jobs so far */
-  actual: { minutes: number | null; costUsd: number | null; unpricedProjects: number };
+  actual: { minutes: number | null; costUsd: number | null };
   /** Proposals of re-plan jobs, newest first */
   proposals: PlanProposalRecord[];
   /** Cost of the plan's own jobs (drafts and re-plans) */
@@ -457,8 +461,37 @@ export interface PlanDetailResponse {
   canon?: { canonId: string; name: string; headRevision: number; missing?: boolean } | null;
 }
 
+/** A row of a live plan in the list: one that runs now or waits on the owner. */
+export type PlanPulseRow = Pick<PlanRowView, "rowId" | "roi" | "tlf" | "wave" | "state" | "projectId" | "startedAt" | "decisionReason" | "attentionReason" | "prNo" | "project">;
+
+/** A recent event of a live plan, with the row it is about (the list cannot look the row up). */
+export interface PlanPulseEvent extends Pick<PlanEventRecord, "sk" | "type" | "at" | "detail"> {
+  row?: { roi: string; tlf: string } | null;
+}
+
+/** What a running or paused plan is doing now (the list of plans; read on every request, not stored). */
+export interface PlanPulse {
+  /** Rows of each wave by state, waves ascending */
+  waves: { wave: number; counts: Partial<Record<PlanRowState, number>> }[];
+  /** Rows being built (starting / running) */
+  running: PlanPulseRow[];
+  /** Rows that wait on the owner (question / review / decision / attention) */
+  waiting: PlanPulseRow[];
+  /** Newest events first (at most `PLAN_PULSE_EVENTS`) */
+  events: PlanPulseEvent[];
+  /** Re-plan proposals still to accept or reject */
+  openProposals: number;
+  estimate: PlanEstimate;
+  actual: PlanDetailResponse["actual"];
+}
+
+/** Events a pulse carries. */
+export const PLAN_PULSE_EVENTS = 4;
+
 export interface PlanSummary extends PlanRecord {
   rowCounts: PlanRowCounts;
+  /** Running and paused plans only */
+  pulse?: PlanPulse | null;
 }
 
 export interface ListPlansResponse {

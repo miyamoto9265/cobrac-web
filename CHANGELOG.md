@@ -5,16 +5,33 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
-## [0.38.0] - 2026-10-08
+## [0.39.0] - 2026-10-08
 
 ### Added
-- The specification is now one Japanese PDF, 「CoBRAC Agents 仕様書」 (185 pages): system overview, the harness (which actor is the LLM and which is the program, what they hand over, each phase), circuit naming, Canons, versions and BRA-DB, the CoBRAC Orchestrator, AWS infrastructure, security and operations, and appendices with every API route, the full prompt texts, the sources and the revision history. It replaces all earlier documents and is the single source of truth
+- The specification is now one Japanese PDF, 「CoBRAC Agents 仕様書」 (188 pages): system overview, the harness (which actor is the LLM and which is the program, what they hand over, each phase), circuit naming, Canons, versions and BRA-DB, the CoBRAC Orchestrator, AWS infrastructure, security and operations, and appendices with every API route, the full prompt texts, the sources and the revision history. It replaces all earlier documents and is the single source of truth
 
 ### Changed
 - The admin-only 「ドキュメント」 page is now 「仕様書」 / "Specification" (all 10 languages). It shows the PDF inside the page on computers, with 「新しいタブで開く」 / 「ダウンロード」 buttons; phones and tablets get the buttons only. Old `/docs/<document>` links open the new page
 
 ### Removed
 - The Markdown documents on the admin page (design specification, harness guide and archived comparisons, circuit naming, research mode and Canons, AWS and budget, security, speed and cost) and README / AGENTS.md. Their content is in the PDF
+
+## [0.38.1] - 2026-10-08
+
+### Removed
+- Sidebar: the 「リリースノート」 / "Release notes" item. The version number at the bottom of the sidebar still opens the release notes
+- Projects page: the warning that some projects used a model with no listed price and are left out of the total, and the "OpenAI list prices as of …" note under the per-model table. The note under the job table of a project and the unpriced count on a plan's actual cost are removed too. `UsageSummary` no longer carries `unpricedProjects` / `pricingAsOf`, plan `actual` no longer carries `unpricedProjects`, and `/users/me/models` no longer returns `pricingAsOf`
+
+## [0.38.0] - 2026-10-08
+
+### Added
+- CoBRAC Orchestrator list: a live view of the plans instead of a list of cards next to a form. "Your turn" comes first and gathers, from every plan, what waits on you (rows with a question, awaiting approval, needing a decision or attention, re-plan proposals, plans stopped for a reason other than you, drafts to confirm). Running, paused and drafting plans are shown wide, with the rows done, the current wave, time so far and estimate, cost, a progress bar by wave (the rows being built flow, the current wave is outlined), the rows being built with their stage and time, and the last 4 events. Drafts are cards and finished plans a folded list. While a plan is live the list updates itself every 15 s (5 s while drafting), and "Live" shows by the title
+- `GET /plans` returns a `pulse` for running and paused plans (the newest 12): rows by wave and state, the rows being built and waiting, the newest events with their rows, open proposals, the estimate and what was spent
+- Plan page: the rows being built show the stage strip of their project (research → HCD ⇄ FRG → CSV → xlsx), and a running plan shows a beating dot by its status
+
+### Changed
+- CoBRAC Orchestrator list: "New plan" opens the form in a panel from the right (Esc or the backdrop closes it); with no plan yet the form stays on the screen
+- Plan page: the progress bar is split by wave, the rows being built flow, its widths and the counts animate as rows move on (no motion with "reduce motion")
 
 ## [0.37.3] - 2026-10-08
 

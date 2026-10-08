@@ -15,6 +15,8 @@ import type {
   PlanCanonChoice,
   PlanDetailResponse,
   PlanJobState,
+  PlanPulse,
+  PlanPulseRow,
   PlanProposalRecord,
   PlanRecord,
   PlanRowInput,
@@ -33,6 +35,7 @@ import {
   HARNESS_RULES,
   PLAN_LIMITS,
   PLAN_META_SK,
+  PLAN_PULSE_EVENTS,
   PLAN_PROPOSAL_ID_REGEX,
   PLAN_ROW_ID_REGEX,
   TRACKED_ROW_STATES,
@@ -784,7 +787,6 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
   const overlaps = overlapsOf(live);
   let cost = 0;
   let priced = false;
-  let unpricedProjects = 0;
   const views: PlanRowView[] = rows.sort(byWaveAndOrder).map((r) => {
     const shared = r.state === "skipped" ? {} : { hub: hub.get(r.rowId) ?? 0, overlaps: overlaps.get(r.rowId) ?? [] };
     const p = r.projectId ? byId.get(r.projectId) : undefined;
@@ -793,7 +795,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     if (typeof p.costUsd === "number") {
       cost += p.costUsd;
       priced = true;
-    } else if (p.usage && p.usage.inputTokens + p.usage.outputTokens > 0) unpricedProjects++;
+    }
     return { ...r, ...shared, project: projectView(p) };
   });
   let jobsCost = 0;
@@ -829,10 +831,48 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     events: events.sort((a, b) => (a.sk < b.sk ? 1 : -1)).slice(0, 100),
     limits,
     estimate: planEstimate(rows, limits.effective),
-    actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null, unpricedProjects },
+    actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null },
     proposals: proposals.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.sk < b.sk ? 1 : -1)),
     planJobsCostUsd: jobsPriced ? round6(jobsCost) : null,
     canon: canonView,
+  };
+}
+
+const PULSE_WAITING: ReadonlySet<PlanRowView["state"]> = new Set(["question", "review", "decision", "attention"]);
+const pulseRow = (r: PlanRowView): PlanPulseRow => ({
+  rowId: r.rowId,
+  roi: r.roi,
+  tlf: r.tlf,
+  wave: r.wave,
+  state: r.state,
+  projectId: r.projectId,
+  startedAt: r.startedAt ?? null,
+  decisionReason: r.decisionReason ?? null,
+  attentionReason: r.attentionReason ?? null,
+  prNo: r.prNo ?? null,
+  project: r.project ?? null,
+});
+
+/** What a live plan is doing now, from its detail: rows by wave and state, the rows running and waiting, the newest events. */
+export function planPulse(d: PlanDetailResponse): PlanPulse {
+  const waves = new Map<number, Partial<Record<PlanRowView["state"], number>>>();
+  for (const r of d.rows) {
+    const c = waves.get(r.wave) ?? {};
+    c[r.state] = (c[r.state] ?? 0) + 1;
+    waves.set(r.wave, c);
+  }
+  const byId = new Map(d.rows.map((r) => [r.rowId, r]));
+  return {
+    waves: [...waves.entries()].sort((a, b) => a[0] - b[0]).map(([wave, counts]) => ({ wave, counts })),
+    running: d.rows.filter((r) => r.state === "starting" || r.state === "running").map(pulseRow),
+    waiting: d.rows.filter((r) => PULSE_WAITING.has(r.state)).map(pulseRow),
+    events: d.events.slice(0, PLAN_PULSE_EVENTS).map((e) => {
+      const row = e.rowId ? byId.get(e.rowId) : undefined;
+      return { sk: e.sk, type: e.type, at: e.at, ...(e.detail ? { detail: e.detail } : {}), row: row ? { roi: row.roi, tlf: row.tlf } : null };
+    }),
+    openProposals: d.proposals.filter((p) => p.status === "open").length,
+    estimate: d.estimate,
+    actual: d.actual,
   };
 }
 
@@ -845,5 +885,8 @@ function projectView(p: ProjectRecord): NonNullable<PlanRowView["project"]> {
     revision: p.revision ?? 0,
     errorMessage: p.errorMessage ?? null,
     deleted: isProjectDeleted(p),
+    stepStates: p.stepStates,
+    activeStage: p.activeStage ?? null,
+    researchMode: !!p.researchMode,
   };
 }

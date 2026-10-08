@@ -95,7 +95,22 @@
 </div>
 <p class="small">計画の Canon が削除された・所有者のものでなくなった場合：承認待ちの行と、完成して push するはずの行は「人の判断」（<code>push_failed</code>、「The plan's Canon was not found.」）になり、新しい行・リトライ・Canon に合わせた更新を始めようとすると、計画は自分で一時停止し（<code>canon_missing</code>）何も始めません。画面には「一時停止中: この計画の Canon が見つかりません（削除された可能性があります）。新しい行は Canon に入れられないため始めません。」と出ます。実行中の行は、ほかの一時停止と同じく続いて追われます。所有者は待っている行をスキップするか、計画を中止できます。<code>review</code> と <code>decision</code> は枠を使わず、完了にも数えません。Canon のある計画は、すべての行が <code>done</code> か <code>skipped</code> になったときに完了します。</p>
 
-<h2 id="s6-12">6.12 質問・要対応・一時停止・再開・中止</h2>
+<h2 id="s6-12">6.12 計画の一覧と、質問・要対応・一時停止・再開・中止</h2>
+<h3>計画の一覧（ライブ表示）</h3>
+<p>計画の一覧（<code>/plans</code>）は、計画がいま何をしているかを見る画面です。実行中・一時停止・下書き作成中の計画があるあいだは、見出しの横に「ライブ」が出て、画面（プログラム）が 15 秒ごと（下書き作成中は 5 秒ごと）に <code>GET /plans</code> を読み直します（タブが裏にあるあいだは読まない）。</p>
+<table>
+  <thead><tr><th style="width:18%">欄</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><b>あなたの番</b></td><td>すべての計画から、所有者（人）の操作を待っているものを先頭にまとめる。質問・承認待ち・人の判断・要対応の行、再計画の提案、所有者以外の理由で止まった計画、確定を待つ（または失敗した）下書き。押すとその計画を開く。何も無ければ「いま、あなたの操作を待っているものはありません」</td></tr>
+    <tr><td><b>動いている計画</b></td><td>実行中・一時停止・下書き作成中の計画を横長のレーンで出す。完了数、いまのバッチ、経過時間と見込み、費用（実績と見積もり）、バッチごとの進捗バー（完了は緑、作っている行は流れる青、質問・判断は黄、承認待ちは紫、要対応は赤。いまのバッチは枠で囲む）、いま作っている行とそのステップと経過時間、最近の動き（直近 4 件）</td></tr>
+    <tr><td><b>下書き・終わった計画</b></td><td>下書きはカード、完了・中止した計画は折りたたんだ一覧</td></tr>
+    <tr><td><b>新しい計画</b></td><td>右から開くパネル（Esc か背景で閉じる）。計画が 1 つも無いときは、作成のフォームが画面に出ている（6.4）</td></tr>
+  </tbody>
+</table>
+<p>レーンの中身は API（プログラム）が返す <code>pulse</code> です。<code>GET /plans</code> は、実行中・一時停止の計画のうち新しい 12 件について、計画の詳細から、バッチごと・状態ごとの行の数、作っている行（<code>starting</code> / <code>running</code>）と操作を待つ行（<code>question</code> / <code>review</code> / <code>decision</code> / <code>attention</code>）、最新の出来事 4 件とその行、未決の提案の数、見積もりと実績を計算して付けます（保存はせず、読むたびに計算）。それより古い計画は件数だけを出します。</p>
+<p>計画の画面の「行」では、作っている行（と質問中の行）に、そのプロジェクトのステップ（調査 → HCD ⇄ FRG → CSV → xlsx）が出ます。進捗バーはバッチごとに区切られ、行が進むと伸びます。動き（流れる帯、伸びるバー、実行中の点の脈動）は、OS で「視差効果を減らす」（<code>prefers-reduced-motion</code>）を選んでいると止まります。</p>
+<p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/components/PlanBar.tsx</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/app.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）</p>
+<h3>行と計画への操作</h3>
 <table>
   <thead><tr><th style="width:18%">操作</th><th>挙動</th></tr></thead>
   <tbody>

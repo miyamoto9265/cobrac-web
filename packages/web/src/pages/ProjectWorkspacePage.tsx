@@ -2,7 +2,7 @@ import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileT
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
-import { PRICING_AS_OF, PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
+import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
 import { CanonPushButton } from "../components/CanonPushButton";
@@ -491,7 +491,6 @@ function UsageTable({ project, jobs }: { project: ProjectRecord; jobs: JobRecord
           )}
         </tbody>
       </table>
-      <div className="px-2 py-1 font-sans text-[10px] text-slate-400">{t("chat.costNote", { date: PRICING_AS_OF })}</div>
     </div>
   );
 }

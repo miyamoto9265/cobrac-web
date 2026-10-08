@@ -63,7 +63,7 @@ function detail(status: PlanRecord["status"], rows: PlanRowView[], extra: Partia
     events: [],
     limits: { maxConcurrentJobs: 2, maxConcurrentJobsPerUser: 2, effective: 2 },
     estimate: estimatePlan({ seedRows: 0, bodyWaveSizes: [rows.length], concurrency: 2 }),
-    actual: { minutes: null, costUsd: null, unpricedProjects: 0 },
+    actual: { minutes: null, costUsd: null },
     proposals: [],
     planJobsCostUsd: null,
     canon,
@@ -126,7 +126,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [], pricingAsOf: "" });
+  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
   for (const fn of [api.setPlanCanon, api.resolvePlanRow, api.planRowAction, api.updatePlan, api.confirmPlan]) fn.mockResolvedValue({ ok: true });
   vi.spyOn(window, "confirm").mockReturnValue(true);
 });
