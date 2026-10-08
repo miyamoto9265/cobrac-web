@@ -25,6 +25,7 @@ import * as secretsmanager from "aws-cdk-lib/aws-secretsmanager";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as sqs from "aws-cdk-lib/aws-sqs";
 import { ContainerImageBuild } from "@cdklabs/deploy-time-build";
+import { SPEC_PDF_NAME } from "@cobrac/shared";
 import type { Construct } from "constructs";
 import { execSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -370,6 +371,7 @@ export class CobracAgentsStack extends Stack {
 
     // the API builds the Template-v2-2 workbook of older projects on demand, from the template bundled next to it
     const braTemplate = resolve(repoRoot, "prompts/templates/Template-v2-2.bra.xlsx");
+    const specPdf = resolve(repoRoot, "docs", SPEC_PDF_NAME);
     const apiFn = fn("ApiFn", "handlers/http.ts", "handler", {
       memorySize: 1024,
       bundling: {
@@ -377,14 +379,12 @@ export class CobracAgentsStack extends Stack {
         commandHooks: {
           beforeBundling: () => [],
           beforeInstall: () => [],
-          // admin-only documentation, served by GET /admin/docs instead of the public web bundle
+          // the admin-only specification PDF, kept out of the public web bundle: GET /admin/spec copies it to S3
+          // (admin-docs/spec-<hash>.pdf) and hands out presigned URLs. A missing PDF fails the build on purpose.
           afterBundling: (_input: string, outputDir: string) => [
             `cp "${braTemplate}" "${outputDir}/Template-v2-2.bra.xlsx"`,
-            `mkdir -p "${outputDir}/admin-docs/docs/figures" "${outputDir}/admin-docs/docs/archive"`,
-            `cp "${repoRoot}"/docs/*.md "${outputDir}/admin-docs/docs/"`,
-            `cp "${repoRoot}"/docs/archive/*.md "${outputDir}/admin-docs/docs/archive/"`,
-            `cp "${repoRoot}"/docs/figures/*.svg "${outputDir}/admin-docs/docs/figures/"`,
-            `cp "${repoRoot}/README.md" "${repoRoot}/AGENTS.md" "${outputDir}/admin-docs/"`,
+            `mkdir -p "${outputDir}/admin-docs"`,
+            `cp "${specPdf}" "${outputDir}/admin-docs/${SPEC_PDF_NAME}"`,
           ],
         },
       },
@@ -452,6 +452,8 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantPut(apiFn, "users/*/attachments/files/*");
     // BRA Planner attachments (capability lists) are moved from staging/ into plans/{planId}/attachments/
     artifacts.grantPut(apiFn, "plans/*");
+    // the specification PDF from the API bundle (GET /admin/spec uploads each new version once; read via grantRead above)
+    artifacts.grantPut(apiFn, "admin-docs/*");
     key.grantEncrypt(apiFn);
     // registering versions in BRA-DB (the function is in the BraDb stack; called by its fixed name)
     if (props.braDbImportFunction) {

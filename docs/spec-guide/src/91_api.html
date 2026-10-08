@@ -1,0 +1,214 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録 A</div>
+  <h1 class="part" id="pa">API 一覧</h1>
+  <p class="lead">CoBRAC Agents の HTTP API と WebSocket のメッセージを、領域ごとにすべて挙げます。HTTP API は API Gateway の HTTP API から 1 つの Lambda（<code>packages/api/src/app.ts</code>、Hono）に渡り、WebSocket は別の API Gateway と <code>handlers/ws.ts</code>・<code>broadcaster.ts</code> が扱います。どちらもプログラムで、LLM は呼びません。</p>
+</div>
+
+<h2 id="sa-1">A.1 共通の規則</h2>
+<ul>
+  <li><b>認証</b>：<code>GET /health</code> 以外のすべてのルートに、Cognito の <b>ID トークン</b>（<code>Authorization: Bearer …</code>）が要ります。API Gateway の JWT オーソライザー（発行元はユーザープール、対象はクライアント ID）が検証し、Lambda はその claims から利用者を決めます。最初のアクセスで Users の項目を作ります。無効にされた利用者は 403（<code>account disabled</code>）です。</li>
+  <li><b>CORS</b>：事前確認（OPTIONS）は JWT を通さず API Gateway が答えます（どのオリジンも可、ヘッダーは <code>Authorization</code>・<code>Content-Type</code>、メソッドは GET・POST・PUT・DELETE・OPTIONS、1 時間保持）。<code>/{proxy+}</code> のルートは GET・POST・PUT・DELETE・PATCH を受けますが、アプリに PATCH のルートはありません。</li>
+  <li><b>所有者の確認</b>：プロジェクトと計画は所有者だけが使えます。ほかの利用者のもの・削除したもの・存在しない ID は、どれも同じ 404 です。Canon は所有者・共同編集者・管理者で使える範囲が違います（第 4 部）。</li>
+  <li><b>キーとモデル</b>：ジョブを始めるルート（表の「キー」）は、実行に使えるキー（自分のキーか、承認とデフォルトの API キーの組）が無いと 400、利用者が選んだモデルがデフォルトの API キーの Tier に無いと 403 です（1.4）。</li>
+  <li><b>エラー</b>：状態コードと、短い説明の文（多くは日本語）を本文で返します。予期しないエラーは 500 と <code>{ error }</code> です。</li>
+</ul>
+<table class="compact">
+  <thead><tr><th style="width:16%">コード</th><th>主な意味</th></tr></thead>
+  <tbody>
+    <tr><td>200・201・202</td><td>成功・作成した・受け付けた（ジョブを積んだ、または積む予定にした）</td></tr>
+    <tr><td>400</td><td>入力の誤り、上限の超過、実行に使えるキーが無い、状態に合わない操作の一部</td></tr>
+    <tr><td>401</td><td>トークンが無い・無効</td></tr>
+    <tr><td>403</td><td>無効にされたアカウント、管理者だけのルート、Tier に無いモデル、PR を受け付けない Canon、コメントできない PR</td></tr>
+    <tr><td>404</td><td>存在しない・権限が無い・削除した（区別しない）、BRA-DB の無い環境での登録</td></tr>
+    <tr><td>409</td><td>状態の衝突（実行中、ほかの承認が先、同じ処理の重複、計画の更新中のリース「計画を更新中です。少し待ってからやり直してください」など）</td></tr>
+    <tr><td>502</td><td>API キーを OpenAI で確かめられなかった</td></tr>
+  </tbody>
+</table>
+<p>表の「呼べる人」は次の意味です。<b>誰でも</b>：トークン不要。<b>ログイン</b>：ログインしたすべての利用者。<b>所有者</b>：そのプロジェクト・計画・Canon の所有者。<b>共同編集者</b>：Canon の共同編集者。<b>管理者</b>：役割が <code>admin</code> の利用者。「キー」はジョブを始めるルートです。</p>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/auth.ts</code>・<code>lib/http.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+
+<h2 id="sa-2">A.2 ヘルスチェックと実行時の設定</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/health</code></td><td><code>{ ok, version, time }</code>。デプロイの後に版番号を確かめる</td><td>誰でも</td></tr>
+    <tr><td>GET</td><td><code>/config</code></td><td>いま効いている同時実行数（管理画面の設定、無ければデプロイ時の値）とデプロイの既定のモデル：<code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, codexModel }</code></td><td>ログイン</td></tr>
+  </tbody>
+</table>
+<p class="small">SPA の実行時の設定（API・WebSocket の URL、Cognito の ID）は API ではなく、CloudFront の <code>/config.json</code> から読みます（1.13）。</p>
+
+<h2 id="sa-3">A.3 認証と利用者の設定</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / null）と <code>orgTier</code></td><td>ログイン</td></tr>
+    <tr><td>PUT</td><td><code>/users/me</code></td><td><code>displayName</code>（80 字）・<code>contributorName</code>（120 字）・<code>defaultModel</code>（Tier に無ければ 403）・<code>defaultReasoningEffort</code>・<code>defaultCanonId</code>（自分の Canon だけ）を変える</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル、Tier 2 はデフォルトの API キーのモデル、Tier 1 はその 2 つ）、<code>restricted</code>、<code>keySource</code>、<code>orgTier</code>、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/usage</code></td><td>自分のプロジェクト全体のトークンと推定費用（全体・モデルごと・プロジェクトごと。削除したものは <code>deleted</code> の印）。自分の Canon と共同編集者の Canon の AI レビュー、自分の計画の <code>plan</code> のジョブも全体とモデルごとに数える</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/apikey/status</code></td><td>キーが登録済みかと末尾 4 文字</td><td>ログイン</td></tr>
+    <tr><td>PUT</td><td><code>/users/me/apikey</code></td><td><code>{ apiKey }</code> を登録・更新する。OpenAI の <code>/v1/models</code> で確かめ（拒否されたら 400、確かめられなければ 502）、KMS で暗号化し、選べるモデルを保存 → <code>{ registered, last4, models }</code></td><td>ログイン</td></tr>
+    <tr><td>DELETE</td><td><code>/users/me/apikey</code></td><td>キーを消す</td><td>ログイン</td></tr>
+  </tbody>
+</table>
+<p class="small">ログイン・サインアップ・パスワードの再設定は Cognito（Amplify Auth）が直接扱い、この API は通りません。</p>
+
+<h2 id="sa-4">A.4 プロジェクトとジョブ</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/projects</code></td><td>自分のプロジェクト（削除したものを除く、作成の新しい順）。<code>q</code>（名前・ID・旧 ID・ROI・TLF の部分一致）・<code>status</code>・<code>limit</code>（既定 100）・<code>cursor</code> → <code>{ items, nextCursor }</code></td><td>ログイン</td></tr>
+    <tr><td>POST</td><td><code>/uploads</code></td><td>参考資料 1 つの署名付き POST：<code>{ name, size }</code> → 201 <code>{ uploadId, url, fields, contentType, maxBytes, expiresIn }</code>（15 分）。形式・大きさの違反は 400</td><td>ログイン</td></tr>
+    <tr><td>POST</td><td><code>/projects</code></td><td>作成と最初のジョブ：<code>{ roi, tlf, attachments?: [{ uploadId, name }], urls?, canon?, model?, reasoningEffort?, researchMode?, locale?, hypothesis? }</code> → 201 プロジェクト。<code>canon</code> はなし・既存の Canon・種から新しい Canon（4.10）で、省くと設定の既定の Canon。<code>researchMode</code> の既定は true。<code>hypothesis</code> は 2.13。名前は仮の案、Contributor はアカウントから。ROI と TLF が両方空・アップロードが無い・上限の超過は 400、種にできないプロジェクトは 409</td><td>ログイン（キー）</td></tr>
+    <tr><td>GET</td><td><code>/projects/resolve/{id}</code></td><td>ID か移行した古い ID から <code>{ projectId }</code>（URL の転送）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}</code></td><td>詳細とジョブの一覧（作成順、利用量は補正済み）、公開していれば複製の数</td><td>所有者</td></tr>
+    <tr><td>PUT</td><td><code>/projects/{id}</code></td><td>名前の変更 <code>{ name }</code> → <code>{ project, duplicates }</code>（同じ名前の自分のプロジェクト。注意だけ）</td><td>所有者</td></tr>
+    <tr><td>DELETE</td><td><code>/projects/{id}</code></td><td>論理削除 → <code>{ projectId, deletedAt }</code>。Canon から外し、公開を止める。ジョブの実行中は 409。以後 <code>/projects/{id}/…</code> はすべて 404</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/messages</code></td><td>エージェント欄の履歴（<code>limit</code> 既定 500・<code>cursor</code>。利用量の行は補正済み）</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/cancel</code></td><td>停止（ジョブを <code>CANCELLED</code> にし、タスクを止める）。実行中でなければ 400</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/answer</code></td><td>質問に答える <code>{ answer, locale? }</code>。同じジョブを <code>resume</code> で再開する。回答待ちの質問が無ければ 400</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/followup</code></td><td>完了後の追加の指示 <code>{ instruction, locale?, hypothesis? }</code> → <code>{ ok, jobId }</code>。完了していなければ 400。<code>hypothesis</code> は仮説の範囲をジョブと一緒に足し（2.13）、その間にプロジェクトが変わっていれば 409</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/retry</code></td><td><code>FAILED</code>・<code>CANCELLED</code> から再開 <code>{ locale? }</code> → <code>{ ok, jobId }</code>（解説記事を除く最後のジョブの種類で）</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/articles</code></td><td>解説記事 <code>{ locale, model? }</code> → 202 <code>{ jobId, articleJob }</code>。<code>COMPLETED</code> で xlsx があること、知っている言語、GPT-5.6 / GPT-6 のモデルでなければ 400。記事を動かすモデル（選んだもの、無ければプロジェクトの）が Tier に無ければ 403</td><td>所有者（キー）</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/articles</code></td><td><code>{ items }</code>：<code>ArticleMeta</code> と <code>key</code>・<code>size</code>・<code>lastModified</code>・<code>stale</code>（記事の後でデータが変わった）</td><td>所有者</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/runs.ts</code>・<code>lib/hypothesisSettings.ts</code></p>
+
+<h2 id="sa-5">A.5 成果物・グラフ・版</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/projects/{id}/artifacts</code></td><td>成果物の一覧（<code>thread/</code> と <code>revisions/</code> を除く）。<code>category</code>：<code>output</code>・<code>graph</code>・<code>csv</code>・<code>hcd</code>・<code>frg</code>・<code>doc</code>（<code>workspace/*.md</code>：レポートと判断ログ）・<code>article</code>・<code>other</code></td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/artifacts/download?key=</code></td><td>署名付き URL（15 分）。xlsx は <code>{name}_{ID}.bra.xlsx</code>、テンプレートは <code>{name}_{ID}.template-v2-2.bra.xlsx</code>、記事は <code>{name}_{ID}.article.&lt;locale&gt;.md</code>、参考資料は元の名前でダウンロードさせる。<code>revisions/</code> は 404（版はダウンロードしない）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/artifacts/template-xlsx</code></td><td>Template-v2-2 の xlsx の署名付き URL。無いか CoBRAC の xlsx より古ければ、作業領域のファイルから先に作る。BRA データが無ければ 404</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/artifacts/text?key=</code></td><td>md・csv・txt・json の本文（レポート・判断ログ・表の表示）と記事の図（<code>article/&lt;locale&gt;/figures/*.svg</code>）。版の凍結ファイル（<code>revisions/{n}/files/…</code>）も表のビューアがこれで読む。<code>..</code> と <code>thread/</code> は 400</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/graph/{hcd|frg}</code></td><td>グラフ JSON</td><td>所有者</td></tr>
+    <tr><td>GET・PUT・DELETE</td><td><code>/projects/{id}/graph/{hcd|frg}/layout</code></td><td>利用者の配置とスタイル <code>{ positions, nodes: { id: { width, height, color, border } }, edges: { id: { lineType, color, width, dashed, rounded, showLabel, markerStart, markerEnd, waypoints, sourceHandle, targetHandle } } }</code>（S3 の <code>graph/{kind}.layout.json</code>）。PUT は 2,000,000 文字・ノード 5,000・エッジ 20,000・経由点 100 まで。DELETE で既定に戻す</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/versions</code></td><td><code>{ items, current, clonedFrom }</code>：版の新しい順（第 5 部）。いまの rev の写しが無いプロジェクトは、いまのデータも含める</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/versions/{n}</code></td><td><code>{ item, manifest, files, bradbBlockedReason? }</code>（いまのデータは <code>manifest</code> が null。BRA-DB に登録できない版は <code>bradbBlockedReason: "hypotheses"</code>）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/versions/{n}/diff?base=</code></td><td><code>{ head, base, diff }</code>：5 つの CSV の行の変化（<code>base</code> の既定は n−1。前の版が無ければ <code>diff</code> は null）</td><td>所有者</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/aws.ts</code>・<code>lib/versions.ts</code></p>
+
+<h2 id="sa-6">A.6 公開と複製</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>PUT</td><td><code>/projects/{id}/visibility</code></td><td><code>{ visibility }</code>（<code>private</code> / <code>public</code>）→ <code>{ visibility, publishedAt, cloneCount }</code>。公開できるのは成果物があり、いまの形の ID のプロジェクトだけ</td><td>所有者</td></tr>
+    <tr><td>PUT</td><td><code>/canons/{id}/visibility</code></td><td><code>{ visibility?, acceptPullRequests? }</code></td><td>Canon の所有者</td></tr>
+    <tr><td>GET</td><td><code>/public/projects</code></td><td>全利用者の公開プロジェクト（<code>q</code> で絞る。所有者の識別子・履歴・費用は出さず、所有者は <code>userKey</code> で示す）</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/public/projects/{id}</code></td><td>1 件と、読めるファイルの一覧</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/public/projects/{id}/text?key=</code></td><td>読めるテキスト（レポート、判断ログ、HCD・FRG の JSON、グラフ JSON、記事）</td><td>ログイン</td></tr>
+    <tr><td>POST</td><td><code>/public/projects/{id}/clone</code></td><td>呼んだ人の非公開の新しいプロジェクトに複製 → 201 <code>{ projectId, copied }</code>。元は読むだけ</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/public/canons</code></td><td>公開 Canon の一覧</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/public/canons/{id}</code></td><td>1 件と、公開された参加プロジェクト</td><td>ログイン</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>、<code>packages/shared/src/publish.ts</code></p>
+
+<h2 id="sa-7">A.7 Canon</h2>
+<p>仕組みは第 4 部で説明します。</p>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:15%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET・POST</td><td><code>/canons</code></td><td>自分の Canon（削除していないもの）と共有された Canon の一覧 / 作成 <code>{ name, description?, policy? }</code> → 201</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}</code></td><td>詳細（参加プロジェクト、自分の役割、共同編集者。メールアドレスは所有者にだけ）</td><td>所有者・共同編集者・管理者</td></tr>
+    <tr><td>PUT・DELETE</td><td><code>/canons/{id}</code></td><td>名前・説明・粒度方針の変更 / 論理削除（参加プロジェクトを解放）</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/members</code></td><td>自分のプロジェクトを加える <code>{ projectId }</code> → 201。ほかの Canon に入っていれば 409、自分のものでない・削除したものは 404</td><td>所有者</td></tr>
+    <tr><td>DELETE</td><td><code>/canons/{id}/members/{projectId}</code></td><td>プロジェクトを外す</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/editors</code></td><td>共同編集者を、登録済みのメールアドレスで加える <code>{ email }</code> → 201。その利用者がいなければ 404、すでにいれば 409</td><td>所有者</td></tr>
+    <tr><td>DELETE</td><td><code>/canons/{id}/editors/{userId}</code></td><td>共同編集者を外す・自分で抜ける</td><td>所有者・その共同編集者</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}/revisions</code>、<code>/canons/{id}/revisions/{rev}</code></td><td>承認された rev の一覧 / 1 つのスナップショット（0 は空）</td><td>所有者・共同編集者・管理者</td></tr>
+    <tr><td>POST</td><td><code>/canons/seed-preview</code></td><td><code>{ seeds, choices?, actions? }</code> → 種にできるか、種ごとの差分と結果（<code>merged</code> / <code>pending</code> / <code>excluded</code>）、件数。種から作る Canon の rev 1 のプレビュー</td><td>ログイン（自分のプロジェクト）</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/canon</code></td><td>固定した rev と最新の比較（<code>current</code> / <code>behind</code> / <code>affected</code>）、影響する項目、「Canon に合わせる」の追加の指示の文</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/canon/preview</code>、<code>/projects/{id}/canon/push</code></td><td>Canon の最新との差分 / push して PR を作る → 201（<code>COMPLETED</code> の参加プロジェクト）</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/canon/pull</code></td><td>固定を進める <code>{ revision? }</code>（既定は最新）。次のジョブから効く</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}/pulls</code></td><td>PR の一覧</td><td>所有者・共同編集者・管理者</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}/pulls/{no}</code></td><td>審査の材料：差分、検査、各項目の両側、グラフ、来歴、履歴、（審査できる人には）AI レビュー（4.8）</td><td>所有者・共同編集者・管理者・PR を送った人</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/approve</code></td><td><code>{ choices, note? }</code> → <code>{ revision }</code>。衝突が残るとき、ほかの承認が先だったときは 409（<code>blocking</code> つき）</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/approve-many</code></td><td>「まとめて承認」<code>{ prNos }</code>（1〜50 件、重複は除き順を保つ）→ <code>{ approved: [{ prNo, revision }], stopped }</code>。各 PR を直前の承認でできた最新と照らし、承認できない最初の PR で止める（理由：<code>conflicts</code>・<code>closed</code>・<code>not_found</code>・<code>approvals</code>・<code>race</code>）</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/request-changes</code></td><td><code>{ note }</code>：PR を開いたまま「変更を依頼」にする</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/reject</code></td><td><code>{ reason }</code> で却下</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/withdraw</code></td><td>取り下げ</td><td>PR を送った人</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/comments</code></td><td><code>{ text, item? }</code>：PR か差分の 1 項目へのコメント → 201</td><td>所有者・共同編集者・PR を送った人</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/ai-review</code></td><td><code>{ model?, locale }</code>：開いている PR の AI レビューのジョブ（<code>canon-review</code>、LLM）を積む → 202。1 つの PR で同時に 1 件</td><td>所有者・共同編集者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/canons/{target}/pulls/preview</code>、<code>/canons/{target}/pulls</code></td><td>Canon → Canon：<code>{ sourceCanonId }</code>（自分の Canon）の差分 / PR → 201。相手は自分か共同編集者の Canon、または PR を受け付ける公開の Canon（受け付けなければ 403）。同じ送り元の古い PR は置き換える</td><td>送り元の Canon の所有者</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}/outgoing</code></td><td>この Canon がほかの Canon に送った PR と、いまの状態</td><td>所有者・共同編集者・管理者</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>（<code>loadCanon</code>・<code>loadPrForViewer</code>・<code>loadPrTarget</code>）・<code>lib/canonOps.ts</code>・<code>lib/canons.ts</code></p>
+
+<h2 id="sa-8">A.8 BRA-DB</h2>
+<p>仕組みは第 5 部で説明します。API の Lambda が、別スタックの登録用 Lambda を呼びます。</p>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/projects/{id}/bradb</code></td><td>BRA-DB がこのプロジェクトのどの版を持っているかと登録の記録：<code>{ enabled: true, projectId, current, registrations }</code>。BRA-DB の無い環境では <code>{ enabled: false }</code></td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/versions/{n}/bradb</code></td><td>版 n を登録 <code>{ allowShrink? }</code> → <code>{ registration, code?, shrink? }</code>。保存済みで登録パッケージのある版だけ（無ければ 400）。仮説を含む版は 400。縮小は <code>allowShrink</code> で了承する。BRA-DB の無い環境では 404</td><td>所有者</td></tr>
+  </tbody>
+</table>
+<p class="small">版の凍結ファイルは <code>GET /projects/{id}/artifacts/text</code> で読みます（A.5）。版のダウンロードはありません。</p>
+
+<h2 id="sa-9">A.9 CoBRAC オーケストレーター</h2>
+<p>仕組みは第 6 部で説明します。計画のルートはすべて所有者だけが使え、ほかの利用者には 404 です。計画のリースの中で行う変更は、リースが取られている間 409「計画を更新中です。少し待ってからやり直してください」になります。</p>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET・POST</td><td><code>/plans</code></td><td>自分の計画（削除していないもの。実行中・一時停止の計画のうち新しい 12 件には、そのときの様子 <code>pulse</code>：バッチごと・状態ごとの行の数、作っている行と操作を待つ行、最新の出来事 4 件とその行、未決の提案の数、見積もりと実績。保存せず読むたびに計算）/ 作成 <code>{ name, goal?, rows?: [{ roi, tlf, rationale?, wave?, priority? }], csv?, attachments?: [{ uploadId, name }], draft?, locale? }</code> → 201 <code>{ plan, rows, rejected }</code>（<code>rejected</code>：読めなかった CSV の行の行番号・理由・ファイル）。CSV・TSV・テキストはすぐ読み、xlsx・PDF は下書きのジョブのために保存し、ほかの形式は 400。<code>draft: true</code> は下書きも依頼する（目標・ファイル・行のどれかが要る）。依頼そのものは何も積まない</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/plans/{id}</code></td><td>計画と行（プロジェクトのいまの状態・質問・費用、<code>hub</code>・<code>overlaps</code>）、履歴、提案（新しい順）、効いている上限、見積もり（<code>planEstimate</code>）、ここまでの時間と費用（計画のジョブを含み、<code>planJobsCostUsd</code> を別に）、Canon</td><td>所有者</td></tr>
+    <tr><td>PUT</td><td><code>/plans/{id}</code></td><td>名前・目標の変更。下書きの間だけ、設定 <code>{ model?, orchestratorModel?, reasoningEffort?, researchMode? }</code> と <code>canon</code>（<code>{ mode: "none" }</code> / <code>{ mode: "existing", canonId }</code>（自分の Canon。無ければ 404）/ <code>{ mode: "new", name }</code>）。粒度方針 <code>policy</code> は送ると 400（オーケストレーターが決める）</td><td>所有者</td></tr>
+    <tr><td>DELETE</td><td><code>/plans/{id}</code></td><td>論理削除（下書き・完了・中止のとき。ほかと下書き作成中は 409）。作ったプロジェクトは残る</td><td>所有者</td></tr>
+    <tr><td>PUT</td><td><code>/plans/{id}/rows</code></td><td>下書きだけ：行を置き換える <code>{ rows }</code>（順に。<code>rowId</code> を保った行は履歴・アンカー・依存・種・既存のプロジェクトを保つ。<code>rebuild: true</code> で既存のプロジェクトを外す）。<code>ordering: "manual"</code> にする。使えない最初の行を 400 で示す。確定後と下書き作成中は 409</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/rows/import</code></td><td>下書きだけ（下書き作成中は 409）：<code>{ csv }</code> の行を足す → <code>{ rows, rejected }</code>。自動の順序の下書きは並べ直す</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/draft</code></td><td><code>{ locale? }</code>：下書きの依頼（<code>DRAFT</code> → <code>DRAFTING</code>。枠が空くと計画ランナーがジョブを積む）→ 202 と計画。目標・資料・行のどれも無いと 400、下書きでなければ 409</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/draft/cancel</code></td><td>下書きのジョブ（待機中か実行中）を止めて <code>DRAFT</code> に戻す。下書き作成中でなければ 409</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/order</code></td><td>下書きだけ：アンカーと依存からバッチと種を計算する（<code>orderDraft</code>、<code>ordering: "auto"</code>。ジョブなし）→ <code>{ plan, rows }</code>。行が無いと 400、下書き作成中は 409</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/confirm</code></td><td><code>{ locale? }</code>：設定とハーネスのルールを固定し、自動の順序ならいまの同時実行数で並べ直し、既存のプロジェクトのある行を完了にして開始する。下書きでなければ（下書き作成中も）409</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/pause</code>、<code>/plans/{id}/resume</code>、<code>/plans/{id}/cancel</code></td><td>実行中の一時停止 / 一時停止中か中止した計画の再開（キーを確かめ直す）/ 実行中か一時停止中の中止（行のジョブを止める）</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/rows/{rowId}/retry</code>、<code>/plans/{id}/rows/{rowId}/skip</code></td><td>要対応の行のリトライ / 待っている行・要対応の行・人の判断の行のスキップ</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/rows/{rowId}/resolve</code></td><td><code>{ action: "done" | "push" }</code>（計画が実行中か一時停止中で、行が「人の判断」）：完了にする / 次のステップで push し直す。ほかは 409（6.11）</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/proposals/{proposalId}/accept</code>、<code>…/{proposalId}/reject</code></td><td>計画が実行中か一時停止中：再計画の提案の承認（行を足す・待っている行をスキップする・粒度方針を置き換える）/ 却下。提案が開いていない、<code>add</code> で 200 行を超える、<code>remove</code> の行が始まっている（提案は <code>stale</code> になる）と 409</td><td>所有者</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/planOps.ts</code>、<code>packages/shared/src/plan.ts</code></p>
+
+<h2 id="sa-10">A.10 管理</h2>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/admin/users</code></td><td>全利用者（暗号化したキーを除く）</td><td>管理者</td></tr>
+    <tr><td>PUT</td><td><code>/admin/users/{id}</code></td><td><code>{ disabled?, role?, orgTier? }</code>（<code>orgTier</code>：0 か null は未承認、1、2）。自分自身の無効化は 400、いない利用者は 404</td><td>管理者</td></tr>
+    <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で確かめて登録・置き換え（拒否は 400）/ 削除</td><td>管理者</td></tr>
+    <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの利用：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>（<code>month</code> は UTC の今月）</td><td>管理者</td></tr>
+    <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>（それぞれ 1〜16 の整数、null はデプロイ時の値。ほかは 400）。dispatcher と計画ランナーは 30 秒以内に読み直す</td><td>管理者</td></tr>
+    <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト（削除したものも <code>deletedAt</code>・<code>deletedBy</code> つき。利用量は補正済み）</td><td>管理者</td></tr>
+    <tr><td>POST</td><td><code>/admin/projects/{userId}/{id}/cancel</code></td><td>強制停止</td><td>管理者</td></tr>
+    <tr><td>GET</td><td><code>/admin/spec</code></td><td>この仕様書（PDF）を開く、短時間だけ有効なリンク</td><td>管理者</td></tr>
+  </tbody>
+</table>
+<p class="small">以前の <code>GET /admin/docs</code>・<code>/admin/docs/{slug}</code>（<code>docs/*.md</code> と README・AGENTS を返していた）は、この仕様書に置き換えて廃止しました。</p>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/orgKey.ts</code>・<code>lib/concurrency.ts</code></p>
+
+<h2 id="sa-11">A.11 WebSocket</h2>
+<p>接続先は <code>wss://…/prod?token={ID トークン}</code>（<code>config.json</code> の <code>wsUrl</code>）です。接続のとき、Lambda のオーソライザーが ID トークンを Cognito の鍵で検証し（<code>tokenUse: "id"</code>、クライアント ID）、通れば ws の Lambda が接続を WsConnections に <code>projectId = "_"</code> の行として記録します（<code>ttl</code> は 2 時間 10 分。API Gateway の接続は 2 時間まで）。切断（<code>$disconnect</code>）では、その接続のすべての行を消します。</p>
+<table class="compact">
+  <thead><tr><th style="width:17%">向き</th><th style="width:36%">メッセージ</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td>ブラウザ → サーバー</td><td><code>{ action: "subscribe", projectId }</code></td><td>自分の削除していないプロジェクトを購読する。成功すると <code>{ type: "subscribed", projectId }</code> と、いまのプロジェクト <code>{ type: "project", … }</code> が返る。見つからなければ <code>{ type: "error", message: "project not found" }</code></td></tr>
+    <tr><td>ブラウザ → サーバー</td><td><code>{ action: "unsubscribe", projectId }</code></td><td>購読をやめる</td></tr>
+    <tr><td>ブラウザ → サーバー</td><td><code>{ action: "ping" }</code></td><td>接続を保つ（SPA は 5 分ごとに送る）</td></tr>
+    <tr><td>サーバー → ブラウザ</td><td><code>{ type: "message", projectId, message }</code></td><td>Messages に新しい行が入った（broadcaster が送る）</td></tr>
+    <tr><td>サーバー → ブラウザ</td><td><code>{ type: "project", projectId, project }</code></td><td>Projects の項目が変わった（broadcaster が送る）</td></tr>
+    <tr><td>サーバー → ブラウザ</td><td><code>{ type: "subscribed", projectId }</code>・<code>{ type: "error", message }</code></td><td>購読への応答</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>配信は、プロジェクトの<b>所有者の</b>接続にだけ行います（古いメッセージは、そのジョブの所有者で判断する）。</li>
+  <li>もう無い接続（410 / GoneException）は、送るときに消します。</li>
+  <li>記録の無い接続からのメッセージは 401、JSON として読めないメッセージと知らない <code>action</code> は 400 です。</li>
+  <li>WebSocket を使うのはプロジェクト画面だけです。計画の画面はポーリングで読み直します（1.5）。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/handlers/ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/types.ts</code>（<code>WsClientEvent</code>・<code>WsServerEvent</code>）、<code>packages/web/src/lib/ws.ts</code></p>
+</section>

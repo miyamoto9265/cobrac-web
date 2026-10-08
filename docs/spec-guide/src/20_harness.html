@@ -1,0 +1,199 @@
+<section class="part pharness">
+<div class="opener">
+  <div class="no">第 2 部</div>
+  <h1 class="part" id="p2">ハーネス：1 件の BRA の作り方</h1>
+  <p class="lead">CoBRAC ハーネスは、ROI（対象の脳領域）と TLF（トップレベル機能）から 1 件の BRA を作るために、<b>LLM のエージェントを決まった手順で動かし、その成果物をプログラムで検査・変換する仕組み</b>です。推論するのは <b>CoBRAC エージェント（LLM）</b>だけで、<b>ワーカー</b>は LLM を含まないプログラムとして、依頼を送り、返ってきたファイルを検査し、次の依頼を決めるループを回します。この部は、ハーネスの世代 v2（新規プロジェクトの検証ルール <code>harnessRules: 2</code>）の現行の仕様です。</p>
+  <div class="map">
+    <div><b>推論する主体は 1 つ</b>文献を読み、回路や機能を判断する LLM は CoBRAC エージェントだけ。1 件のプロジェクトで 1 つの会話を続ける</div>
+    <div><b>ワーカーは LLM ではない</b>段の順序・依頼文・検査・変換・保存を決まったコードで行う。次の段に進むかを決めるのもこのコード</div>
+    <div><b>受け渡しはファイル</b>会話で渡るのは依頼文とターン終了の JSON だけ。データ JSON と説明はエージェント、検査結果と CSV・xlsx はワーカーが書く</div>
+  </div>
+</div>
+
+<h2 id="s2-1">2.1 登場する主体（LLM とプログラム）</h2>
+<h3>推論する LLM：CoBRAC エージェント</h3>
+<p>この文書で「エージェント」と書くときは、BRA を作る <b>CoBRAC エージェント</b>を指します。中身は OpenAI の言語モデルで、モデルと推論レベル（reasoning effort）はプロジェクトごとに選びます（1.8）。モデルは OpenAI の <b>Codex</b>（Codex SDK と Codex CLI）を通して動きます。Codex は、モデルにシェルでのファイルの読み書き、MCP のツール、Web 検索を使わせ、会話の履歴とその自動圧縮を管理する実行環境です。推論そのものは、コンテナの外の OpenAI API で行われます。</p>
+<p>エージェントは、自分で作業を始めたり段を進めたりしません。ワーカーから依頼文を 1 つ受け取ると、それに応える 1 回の<b>ターン</b>の中で、文献を検索し、原文を読み、ファイルを編集します。ツールはターンの中で何度でも呼べます。ターンの最後に終了報告の JSON を返して止まり、次の依頼を待ちます。</p>
+<p>1 件のプロジェクトでは、調査・HCD・FRG・修正・調整のすべてのターンが<b>同じ会話（Codex のスレッド、<code>codexThreadId</code>）</b>で続きます。質問への回答、途中からの再試行、完成後のフォローアップも、同じ会話を再開します。会話が OpenAI の 1 リクエストの上限を超えたときだけ、ワーカーが新しい会話に切り替え、プロジェクトのファイルと判断ログを読んで続けるよう指示します。</p>
+
+<h3>LLM ではないもの：ワーカー</h3>
+<p><b>ワーカー</b>は、ジョブ 1 件ごとに AWS Fargate で起動する TypeScript（Node.js）のプログラムです（<code>packages/worker</code>）。基本は Spot で起動し、起動できない場合は On-Demand を使います。ワーカーは LLM を含まず、判断はすべて決まったコードで行います。中心にあるのは次のループです（<code>runPhases</code>）。</p>
+<ol class="steps">
+  <li>段の依頼文を組み立ててエージェントに送る</li>
+  <li>ターンの終了を待つ</li>
+  <li>エージェントが書いたファイルを検証器で検査する</li>
+  <li>問題があれば問題一覧を付けて修正を依頼し、なければ次の段へ進む</li>
+</ol>
+<p><b>CoBRAC ハーネス</b>は、このワーカーのプログラムに、エージェントへ渡す指示文（<code>prompts/</code>）、JSON Schema（<code>HARNESS_SCHEMAS</code>）、検証器、出力への変換処理を合わせた全体の呼び名です。LLM はハーネスに含まれず、ハーネスが動かす対象です。</p>
+<p>エージェントの Codex プロセスは、ワーカーが同じコンテナの中で子プロセスとして起動します。そのため「ワーカーの中でエージェントが動く」と書くことがありますが、これは置き場所の話です。ワーカーが推論するという意味ではありません。</p>
+
+<h3>主体の一覧</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">主体</th><th style="width:14%">種類</th><th style="width:16%">動く場所</th><th>すること</th><th style="width:20%">出すもの</th></tr></thead>
+  <tbody>
+    <tr><td>利用者</td><td>人</td><td>画面</td><td>ROI・TLF・指示・参考資料を送る。質問に答える。Canon への取り込みを承認する</td><td>入力、回答、承認</td></tr>
+    <tr><td>API / dispatcher / janitor</td><td>プログラム</td><td>AWS Lambda</td><td>API はプロジェクトとジョブを記録して SQS に実行を依頼する。dispatcher は同時実行数を見てワーカーを起動する。janitor はハートビートが途絶えたジョブを回復する（1.6・7.4）</td><td>ジョブの記録、ワーカーの起動</td></tr>
+    <tr><td>ワーカー</td><td>プログラム（LLM なし）</td><td>Fargate</td><td>段の制御、依頼文の組み立て、検査、CSV・xlsx・グラフへの変換、保存と再開</td><td>依頼文、検査結果ファイル、CSV・xlsx・グラフ、版</td></tr>
+    <tr><td>CoBRAC エージェント</td><td><b>LLM</b></td><td>推論は OpenAI API、ツールの実行は Fargate 内</td><td>文献を調べ、ROI・UC・接続・機能分解を判断し、ファイルに書く</td><td>データ JSON、<code>report.md</code>、<code>decision_log.md</code>、ターン終了の JSON</td></tr>
+    <tr><td><code>lit</code></td><td>プログラム（エージェントの道具）</td><td>Fargate 内の MCP サーバ</td><td>エージェントの求めに応じて PubMed / Europe PMC を検索し、要旨・全文・該当する文を返す</td><td>検索結果と原文の一部</td></tr>
+    <tr><td>RCS</td><td>外部サービス（エージェントの道具）</td><td>別システムの MCP サーバ</td><td>領域名から SABRA の単位の候補を返す。ワーカーも命名の照合に使う</td><td>候補の一覧</td></tr>
+    <tr><td>Crossref / PubMed / Europe PMC ほか</td><td>外部サービス</td><td>インターネット</td><td>ワーカーが文献の実在と引用文を照合するときに問い合わせる</td><td>書誌、要旨、全文</td></tr>
+    <tr><td>DynamoDB / S3</td><td>保存先</td><td>AWS</td><td>プロジェクト・ジョブの状態とメッセージ / 作業ファイル・会話・成果物・版</td><td>—</td></tr>
+  </tbody>
+</table>
+<p><code>lit</code> と RCS は、エージェントが呼ぶ<b>道具</b>です。候補や原文を返すだけで、どれを採るかは判断しません。採否を決めてファイルに書くのはエージェントで、呼び出しを記録するのはワーカーです。利用者の参考資料は、ワーカーが PDF・Office・URL から文字を取り出して <code>materials/</code> に置き、エージェントが利用者の意図を知るために読みます。参考資料は検証済み文献の代わりにはなりません。Canon は、複数の BRA でそろえる回路定義の固定版で、ワーカーが制約として依頼文に加えます（第 4 部）。</p>
+<figure data-figure="harness-current-architecture.ja.svg"><figcaption><b>図 2.1</b>　登場する主体と受け渡し。推論するのは紫の CoBRAC エージェントだけで、青のワーカーは決まった手順のプログラム</figcaption></figure>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>（実行モード・ターン）、<code>codex.ts</code>（Codex の起動と設定）、<code>pipeline.ts</code>（段のループ）、<code>litMcp.ts</code>、<code>rcs.ts</code>、<code>materials.ts</code></p>
+
+<h2 id="s2-2">2.2 BRA の作成以外で LLM を使う仕事</h2>
+<p>アプリには、BRA を作るジョブのほかに LLM を使うジョブが 3 種類あります。どれも同じワーカーのプログラムが別の実行モードで起動し、<b>BRA の会話とは別の新しい会話</b>で LLM を呼びます。これらの LLM は BRA を作ったエージェントの会話を引き継がず、受け取るのはワーカーが用意したファイルや JSON だけです。</p>
+<table class="compact">
+  <thead><tr><th style="width:17%">ジョブ（実行モード）</th><th>LLM の役割</th><th style="width:17%">LLM が使える道具</th><th style="width:14%">LLM が出すもの</th><th style="width:22%">結果を受け取る主体</th></tr></thead>
+  <tbody>
+    <tr><td>BRA の作成（<code>initial</code>・<code>resume</code>・<code>retry</code>・<code>followup</code>）</td><td>CoBRAC エージェント。この部の主題</td><td>シェル、<code>lit</code>、RCS、Web 検索</td><td>データ JSON、レポート、判断ログ</td><td>ワーカーが検査・変換する</td></tr>
+    <tr><td>解説記事（<code>article</code>）</td><td>完成した BRA の成果物だけを読み、指定言語の解説記事を書く（2.15）</td><td>シェル（成果物の読み取り）。Web 検索・RCS・<code>lit</code> なし</td><td>記事の Markdown（図を最大 2 枚足せる）</td><td>ワーカーが形式を検査して修正を依頼し、公開する</td></tr>
+    <tr><td>Canon の AI レビュー（<code>canon-review</code>）</td><td>Canon への取り込み依頼（PR）を読み、所見を出す（第 4 部）</td><td>なし</td><td>所見の JSON</td><td>人が承認・却下を判断する。AI レビューは承認の代わりにならない</td></tr>
+    <tr><td>オーケストレーターの計画（<code>plan</code>）</td><td>計画の行（ROI × TLF）、依存関係、アンカー、粒度方針を下書きし、バッチの後に変更を提案する（第 6 部）</td><td>RCS、添付資料の読み取り</td><td>計画の JSON</td><td>ワーカーが形を検査し、計画ランナー（Lambda のプログラム）が順序を計算して適用する</td></tr>
+  </tbody>
+</table>
+<p>解説記事は 1 ターンの後に検査と修正のターンを続けます。AI レビューと計画は 1 ターンで、返答が出力スキーマの形でないときだけもう 1 回依頼します。どのジョブの使用量も、BRA のジョブと同じ単価表で費用に換算されます。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>（<code>articleMain</code>・<code>canonReviewMain</code>・<code>planJobMain</code>）、<code>article.ts</code>、<code>canonReview.ts</code>、<code>planJob.ts</code>、<code>prompts/article.md</code>、<code>prompts/plan.md</code></p>
+
+<h2 id="s2-3">2.3 1 ターンの受け渡し</h2>
+<p>ワーカーとエージェントの間で、会話のメッセージとして行き来するのは 2 つだけです。ワーカーからの<b>依頼文</b>と、エージェントからの<b>ターン終了の JSON</b> です。作業の中身は、すべて<b>作業場所</b>（ワーカーのディスク上の作業ディレクトリ <code>/work</code>。中心はプロジェクトフォルダ <code>/work/&lt;ProjectID&gt;/</code>）のファイルで受け渡します。</p>
+<figure data-figure="harness-current-turn.ja.svg"><figcaption><b>図 2.2</b>　1 ターンの受け渡し。合否を決めるのはワーカーの検査で、エージェントの申告ではない</figcaption></figure>
+<ol class="steps">
+  <li><b>ワーカー → エージェント：依頼文。</b>プロジェクト情報と段の名前、段の仕様、前回の検査で見つかった問題の一覧、返答言語の指示を連結したテキストです（2.6）。</li>
+  <li><b>エージェントの作業。</b>エージェントはターンの中で <code>lit</code>・RCS・Web 検索を呼び、シェルでファイルを読み書きします。その間ワーカーは、ツールの呼び出しとファイルの変更をイベントとして受け取り、文献検索と RCS の呼び出しを記録し、画面に進捗を流します。ターンの途中でワーカーが指示を足すことはありません（取り消しや調査の時間切れでターンを打ち切ることはあります）。</li>
+  <li><b>エージェント → 作業場所：ファイル。</b>データ JSON、レポート、判断ログを書き換えます。</li>
+  <li><b>エージェント → ワーカー：ターン終了の JSON。</b><code>{"status": "done" | "question", "message", "question"}</code> です（出力スキーマ <code>TURN_OUTPUT_SCHEMA</code>）。<code>done</code> は「このターンの作業を終えた」というエージェントの申告で、合格の意味ではありません。古い会話の <code>[QUESTION]…[/QUESTION]</code> の印も読めます。</li>
+  <li><b>ワーカーの検査。</b>ワーカーはファイルを読み直して検証器にかけ、結果を検査結果ファイルに書きます。</li>
+  <li><b>ワーカーの判定。</b>問題があれば問題一覧を付けた修正依頼を、合格なら次の段の依頼を送ります（1 に戻る）。<code>question</code> なら作業場所と会話を保存して停止します（2.7）。</li>
+</ol>
+<div class="box note">
+  <div class="h">レート制限とターンの失敗</div>
+  <p>Codex は、OpenAI のレート制限（429）に当たると自分で 5 回まで再接続します。それでも失敗したターンは、ワーカーが 30 秒〜3 分待って同じ会話で最大 3 回再開させます（「止まったところから続ける」依頼）。1 リクエストが大きすぎる失敗や、利用枠・請求の問題は待っても直らないので、再開しません。会話が大きすぎる場合だけ、新しい会話に切り替えて続けます。</p>
+</div>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>RATE_LIMIT_TURN_RETRIES</code>・<code>isRequestTooLarge</code>）、<code>packages/shared/src/harness.ts</code>（<code>TURN_OUTPUT_SCHEMA</code>）</p>
+
+<h2 id="s2-4">2.4 何をどこで渡すか</h2>
+<table class="compact">
+  <thead><tr><th style="width:15%">向き</th><th style="width:17%">経路</th><th>中身</th><th style="width:28%">作る主体と読む主体</th></tr></thead>
+  <tbody>
+    <tr><td>ワーカー → エージェント</td><td>作業場所に置く準備ファイル</td><td><code>AGENTS.md</code>（共通ルール）、<code>schemas/</code>（JSON Schema）、<code>materials/</code>（参考資料の原本と、PDF・Office・URL から取り出した文字。画像は最初の依頼文にも添付）、<code>canon/</code>（Canon の固定版）</td><td>ワーカーがジョブの開始時に置き、エージェントが読む。エージェントは変更しない</td></tr>
+    <tr><td>ワーカー → エージェント</td><td>会話の依頼文</td><td>段の依頼、段の仕様と追加規則、問題一覧、FRG 候補、返答言語</td><td>ワーカーがターンごとに組み立てる</td></tr>
+    <tr><td>エージェント → ワーカー</td><td>作業場所のデータファイル</td><td><code>meta.json</code>、HCD の 3 ファイル、<code>frg.json</code>、<code>research.json</code>、<code>report.md</code>、<code>decision_log.md</code></td><td>エージェントが書き、ワーカーが検査と変換に使う</td></tr>
+    <tr><td>エージェント → ワーカー</td><td>会話の返答</td><td>ターン終了の JSON</td><td>ワーカーは <code>status</code> と <code>question</code> だけを見て分岐する。<code>message</code> は画面に出す</td></tr>
+    <tr><td>ワーカー → エージェント（次のターン）</td><td>作業場所の検査結果ファイル</td><td><code>reference_check.json</code>、<code>quote_check.json</code>、<code>cross_check.json</code>、<code>frg_candidates.json</code> など</td><td>ワーカーが書く。エージェントは読めるが変更しない。直すべき点は次の依頼文にも入る</td></tr>
+    <tr><td>ワーカー → 利用者</td><td>DynamoDB → WebSocket → 画面、API 経由の S3</td><td>進捗、質問、成果物、版</td><td>ワーカーが書き、画面が表示する</td></tr>
+  </tbody>
+</table>
+
+<h3>会話ではなくファイルを正本にする</h3>
+<p>会話が長くなって圧縮されたり、新しい会話に切り替わったりしても、生成の途中結果はプロジェクトのファイルに残ります。構造化したデータは JSON、自由な文章は Markdown です。JSON の形は <code>HARNESS_SCHEMAS</code>（<code>packages/shared/src/harness.ts</code>）で定義し、ワーカーがエージェント用に <code>/work/schemas/*.schema.json</code> として書き出し、検証器も同じ定義を使います。成果物はすべて英語で書きます（例外は解説記事だけ、2.15）。</p>
+<p>人が読む説明は、エージェントが <code>report.md</code>（<code>## Overview</code>・<code>## HCD</code>・<code>## FRG</code>・<code>## Limitations</code>・<code>## References</code>、仮説があれば <code>## Hypotheses</code>）にまとめます。<code>decision_log.md</code> は、エージェントが結論を選んだ理由、採らなかった案、利用者の回答、変更の理由を追記する記録です。RCS や検索の生ログを判断ログに転記する必要はありません。呼び出しの記録はワーカーが別のファイルに取ります。FRG の上からの分解・最適化・下からの読みは作業の手順で、専用のファイルはありません（理由はレポートに書きます）。</p>
+<table class="compact">
+  <caption>プロジェクトフォルダのファイル（<code>{P}</code> は Project ID）</caption>
+  <thead><tr><th style="width:24%">ファイル</th><th style="width:10%">書き手</th><th>内容</th><th style="width:26%">読み手と使い道</th></tr></thead>
+  <tbody>
+    <tr><td><code>meta.json</code></td><td>エージェント（HCD 手順 1）</td><td><code>roi</code>・<code>tlf</code>・<code>description</code>・<code>name</code>。現行規則では <code>roiElements[]</code>・<code>roiSide</code>・<code>roiSideSource</code> も。利用者が空にした ROI / TLF はプロジェクトに写す</td><td>ワーカーが検査し、プロジェクトの表示と CSV に使う</td></tr>
+    <tr><td><code>{P}_HCD/references.json</code></td><td>エージェント</td><td><code>references[]</code>：<code>id</code>（<code>[Author, Year]</code>）、<code>doi</code>、<code>literatureType</code>（BRA の 11 値）、任意で <code>pmid</code>・<code>title</code>・<code>journal</code>・<code>alternativeUrl</code></td><td>ワーカーが Crossref / PubMed と照合し、CSV に変換する</td></tr>
+    <tr><td><code>{P}_HCD/uc.json</code></td><td>エージェント</td><td><code>ucs[]</code>（<code>circuitId</code>・<code>descriptor</code>・<code>names</code>・<code>roi</code>・<code>sourceOfId</code>・<code>transmitter</code>・<code>modulationType</code>・<code>comments</code>・<code>interface</code>・<code>outputSemantics</code>・5 つの機能項目、任意で <code>uniformityNote</code>・<code>hypothesis</code>）と任意の <code>collections[]</code></td><td>ワーカーが検査し、FRG 候補・CSV・グラフに使う</td></tr>
+    <tr><td><code>{P}_HCD/connections.json</code></td><td>エージェント</td><td><code>bif[]</code>（組織間の投射）と <code>connections[]</code>（UC 間：<code>sender</code>・<code>receiver</code>・<code>comment</code>・<code>referenceIds</code>（ちょうど 1 本）・<code>taxon</code>・<code>measurementMethod</code>・<code>pointersOnLiterature</code>・<code>pointersOnFigure</code>・両端の関係と論文中の名前、任意で <code>hypothesis</code>）</td><td>ワーカーが引用を原文と照合し、FRG 候補・CSV・グラフに使う</td></tr>
+    <tr><td><code>{P}_FRG/frg.json</code></td><td>エージェント</td><td><code>nodes[]</code>（TLF と GN）：<code>id</code>・<code>subnodes</code>・<code>comment</code>・<code>interface</code>・機能項目、rules 2 で 3〜4 UC の GN だけ <code>motifNote</code></td><td>ワーカーが検査し、整合チェック・CSV・グラフに使う</td></tr>
+    <tr><td><code>report.md</code> / <code>decision_log.md</code></td><td>エージェント</td><td>利用者向けのレポート / 判断の記録と <code>## HCD-FRG revisions</code></td><td>利用者が読む。解説記事ジョブの入力。調整の後、ワーカーが revisions 節を確かめる</td></tr>
+    <tr><td><code>research.json</code></td><td>エージェント</td><td>調査モードの調査計画・候補・検索・証拠・被覆・不足（2.9）</td><td>ワーカーが検索ログと照合する。エージェントが HCD の根拠に使う</td></tr>
+    <tr><td><code>research_queries.jsonl</code> / <code>rcs_mcp_calls.jsonl</code></td><td>ワーカー</td><td>エージェントの文献検索・Web 検索 / RCS 呼び出しの記録</td><td>前者はワーカーが調査の検査に使う。後者は呼び出しの記録</td></tr>
+    <tr><td><code>research_check.json</code></td><td>ワーカー</td><td>調査の被覆と検索ログの照合、終わり方（<code>passed</code>・<code>gaps</code>・<code>budget</code>）と測定値</td><td>不足点が修正依頼になる。<code>done: true</code> なら以後の実行で調査を飛ばす</td></tr>
+    <tr><td><code>reference_check.json</code> / <code>quote_check.json</code></td><td>ワーカー</td><td>文献の実在性 / 引用文の原文照合と、引用の使い回しの警告</td><td>問題が修正依頼になる。利用者が成果物と一緒に読む</td></tr>
+    <tr><td><code>frg_candidates.json</code></td><td>ワーカー</td><td>HCD から求めた経路・連結成分・モチーフ・接続ペア（HCD の検査のたびに作り直す）</td><td>FRG と調整の依頼文に入り、エージェントが解釈する</td></tr>
+    <tr><td><code>cross_check.json</code></td><td>ワーカー</td><td>HCD と FRG の整合所見と件数、統計、revisions の記録、調整の記録</td><td>所見が調整依頼になる。利用者が残った所見を読む</td></tr>
+    <tr><td><code>phase_baseline.json</code></td><td>ワーカー</td><td>段の検査時のデータファイルのハッシュと、そのとき残っていた問題</td><td>ワーカーが後段での変更を検知し、再検証に使う</td></tr>
+    <tr><td><code>hypotheses.json</code></td><td>ワーカー</td><td>仮説モードだけ。仮説の番号・比率・根拠だけの経路の有無・依存する GN</td><td>利用者が仮説の範囲・比率・依存を確認する。グラフの印にも使う</td></tr>
+    <tr><td><code>{P}_CSV/*.csv</code></td><td>ワーカー</td><td><code>Project</code>・<code>References</code>・<code>Circuits</code>・<code>Connections</code>・<code>FRG</code> の 5 表</td><td>ワーカーが xlsx とグラフを作る。利用者がダウンロードする</td></tr>
+    <tr><td><code>{P}_CSV/bibliography.json</code></td><td>ワーカー</td><td>DOI / PMID ごとの Crossref / PubMed の書誌</td><td>ワーカーが Template-v2-2 の xlsx の BibTeX に使う</td></tr>
+  </tbody>
+</table>
+<p><code>schemas/</code>・<code>materials/</code>・<code>canon/</code> はプロジェクトフォルダの外（<code>/work</code> の直下）に置く補助入力です。資料とワーカーが書くファイルは参照用で、指示ではエージェントによる変更を禁止しています。検査はワーカーがデータファイルから実行します。CSV はエージェントに書かせません。</p>
+<p class="src">典拠：<code>prompts/AGENTS.md</code>「Workspace」、<code>packages/shared/src/harness.ts</code>（<code>PROJECT_FILES</code>・<code>HCD_FILES</code>・<code>FRG_FILES</code>・<code>HARNESS_SCHEMAS</code>）、<code>packages/worker/src/steps.ts</code></p>
+
+<h2 id="s2-5">2.5 1 件の BRA ができるまで</h2>
+<p>新規作成では、既定で有効な<b>調査ステップ</b>の後に <b>HCD</b>、<b>FRG</b> の段が続き、最後にワーカーが成果物を生成します。各段は「エージェントのターン → ワーカーの検査 → 必要なら修正のターン」の繰り返しで、段を進めるのは常にワーカーです。調査を無効にした場合は HCD から始まりますが、文献ツールと文献の検証は使われます。段の並び（HCD → FRG → CSV → xlsx）と、ワーカーが段を進めて検証する方式、ターン終了の JSON は、ハーネスの骨格として変えません。</p>
+<figure data-figure="harness-current-pipeline.ja.svg"><figcaption><b>図 2.3</b>　1 件の BRA の流れと書き手。左が LLM のターン、右がプログラムの処理</figcaption></figure>
+<table class="compact">
+  <thead><tr><th style="width:12%">段</th><th>エージェント（LLM）がすること → 書くもの</th><th>ワーカー（プログラム）がすること → 書くもの</th><th style="width:15%">次の段に渡るもの</th></tr></thead>
+  <tbody>
+    <tr><td>1 調査（既定で有効）</td><td>ROI の入出力・内部投射の候補ごとに文献を探して読む → <code>research.json</code></td><td>検索を記録し、被覆を照合する。不足があれば修正依頼（最大 2 回） → <code>research_queries.jsonl</code>、<code>research_check.json</code></td><td><code>research.json</code> と残った不足</td></tr>
+    <tr><td>2 HCD</td><td>ROI・UC・接続・文献・機能項目を決める → <code>meta.json</code>、<code>references.json</code>、<code>uc.json</code>、<code>connections.json</code>、<code>report.md</code> の HCD 節、<code>decision_log.md</code></td><td>スキーマ・ID・命名・BRA の値・文献・引用を検査する。問題があれば修正依頼（最大 3 回） → <code>reference_check.json</code>、<code>quote_check.json</code>、<code>rcs_mcp_calls.jsonl</code>、<code>phase_baseline.json</code></td><td>受理された HCD のファイル</td></tr>
+    <tr><td>FRG 候補の計算</td><td>—</td><td>HCD の接続から経路・連結成分・モチーフ・接続ペアを計算する → <code>frg_candidates.json</code></td><td>FRG の依頼文に入る候補</td></tr>
+    <tr><td>3 FRG</td><td>TLF を分解し、候補を解釈して GN にまとめる → <code>frg.json</code>、<code>report.md</code> の FRG 節と対応表</td><td>GN・interface・機能項目を検査し、HCD との整合を計算する。問題があれば修正依頼（最大 3 回） → <code>cross_check.json</code></td><td>受理された FRG と整合の所見</td></tr>
+    <tr><td>4 調整（該当時、実行ごとに 1 回）</td><td>FRG を直すか、根拠を得て HCD を直すか、理由を書いて残す → 変更したファイル、<code>decision_log.md</code> の revisions</td><td>X1・X2・X3・X8 があれば調整を依頼し、その後に変更されたファイルを再検証する</td><td>再検証された HCD・FRG</td></tr>
+    <tr><td>5 CSV・xlsx・グラフ</td><td>なし。CSV の生成で問題が出たときだけ、JSON を直す依頼を受ける</td><td>JSON から CSV 5 本、xlsx 2 種、グラフを生成する（2.14）</td><td>成果物</td></tr>
+    <tr><td>6 版</td><td>なし</td><td>成果物と生成条件を凍結する → <code>&lt;ProjectID&gt;@vN</code>（第 5 部）</td><td>利用者が「版」のタブで閲覧する（版のダウンロードは無い）</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>・<code>runResearch</code>・<code>checkPhase</code>）、<code>packages/worker/src/finalize.ts</code></p>
+
+<h2 id="s2-6">2.6 依頼文の組み立て</h2>
+<p>ワーカーは作業場所に共通ルール <code>AGENTS.md</code> と <code>schemas/</code> を用意します（<code>AGENTS.md</code> は作業場所の直下に置かれ、Codex が自動で読み込みます）。ターンごとの依頼文は、利用者にも表示する短い依頼（<code>shown</code>）、内部で付ける仕様（<code>hidden</code>）、返答言語の指示を、<code>---</code> の区切りで連結したものです。仕様を画面上の短い依頼から省いていても、エージェントには渡しています。</p>
+<p>仕様は単一の長い文章に固定されていません。ワーカーはプロジェクトの設定に応じて、HCD には ROI 規則（<code>HCD_roi_rules.md</code>）と Canon の条件、FRG には GN 規則（<code>FRG_gn_rules.md</code>）と HCD から計算した候補、調査モードには調査結果を使う指示（<code>research_mode.md</code>）、仮説モードには許された範囲（<code>HYPOTHESIS.md</code>）を足します。<b>基礎仕様と追加規則を合わせたものが、そのプロジェクトの実際の指示です。</b>全文は付録 B にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:16%">ターン</th><th style="width:34%">表示する依頼</th><th>内部で加える内容</th></tr></thead>
+  <tbody>
+    <tr><td>調査</td><td>Project ID、ROI、TLF、Contributor、参考資料の場所、調査開始</td><td><code>RESEARCH.md</code> の Project ID と候補数・時間・検索数を展開</td></tr>
+    <tr><td>HCD</td><td>プロジェクト情報と <code>Run phase HCD.</code></td><td><code>HCD.md</code>、rules 1 以上なら ROI 規則、Canon 制約、必要時に RCS 利用不能の注記</td></tr>
+    <tr><td>FRG</td><td>プロジェクト情報と <code>Run phase FRG.</code></td><td><code>FRG.md</code>、rules 2 なら GN 規則、最新の <code>frg_candidates.json</code> の候補</td></tr>
+    <tr><td>調査モードの HCD・FRG</td><td>各段と同じ</td><td><code>research_mode.md</code>。調査結果の利用、追加調査、FRG の理論・計算モデルの文献調査</td></tr>
+    <tr><td>仮説モードの HCD・FRG</td><td>各段と同じ</td><td><code>HYPOTHESIS.md</code>。許可 scope、仮説率の上限、調査モードの有無を展開（調査の注記の後、FRG 候補の前）</td></tr>
+    <tr><td>検証の修正</td><td>問題数、修正回数、最大 30 件の問題、ファイルを直す指示</td><td>修正ターンの推論レベルをプロジェクト値と medium の低い方にする</td></tr>
+    <tr><td>整合の調整</td><td>X1・X2・X3・X8 の所見と意味、片方または両方を直す依頼</td><td>根拠に基づく選択と revisions 節への記録を要求。通常の推論レベルを使う</td></tr>
+    <tr><td>質問への回答</td><td>利用者の回答と継続の指示</td><td>新しい会話から再開する場合だけ、プロジェクト情報と仕様を補う</td></tr>
+    <tr><td>途中からの再試行</td><td>既存ファイルを読んで未完了の段を終える指示</td><td>必要な仕様。完成したファイルを作り直さない</td></tr>
+    <tr><td>フォローアップ</td><td>プロジェクト情報、追加指示、許可された仮説 scope の 1 行</td><td>HCD と FRG の両仕様、調査・仮説モードの追加規則</td></tr>
+    <tr><td>新しい会話への切り替え</td><td>会話が大きくなりすぎたことと、ファイルと判断ログを読んで続ける指示</td><td>HCD と FRG の両仕様と各モードの追加規則</td></tr>
+    <tr><td>CSV</td><td>エージェントのターンなし</td><td>ワーカーが変換する。問題があれば JSON 修正の依頼を送る</td></tr>
+  </tbody>
+</table>
+<p>以下は形式を示す例で、<code>&lt;...&gt;</code> は実行時の値です。</p>
+<pre><code>Project ID: &lt;ProjectID&gt;
+ROI: &lt;ROI、または (not given: determine it by research)&gt;
+TLF: &lt;TLF、または (not given: determine it by research)&gt;
+Contributor: &lt;Contributor&gt;
+Reference materials: &lt;参考資料があるとき&gt;
+
+Run phase HCD.
+
+---
+
+&lt;HCD 仕様とこのプロジェクトの追加規則&gt;
+
+---
+
+&lt;利用者への message / question の返答言語&gt;</code></pre>
+<pre><code>The validator found &lt;N&gt; problem(s) in phase HCD (fix attempt &lt;i&gt;/3):
+- &lt;ファイル名・JSON ポインタ・問題&gt;
+
+Fix them in the files and finish with status "done".</code></pre>
+<p>ターンの終わりはスキーマ付きの JSON です。</p>
+<pre><code>{"status":"done","message":"&lt;実施内容の短い説明&gt;","question":null}
+{"status":"question","message":"&lt;現状&gt;","question":"&lt;根拠・選択肢・推奨を含む質問&gt;"}</code></pre>
+<p>成果物の JSON の値、レポート、判断ログは英語です。<code>message</code> と <code>question</code> は画面の言語（ジョブの <code>locale</code>）に従います。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>（<code>header</code>・<code>phasePrompt</code>・<code>firstPrompt</code>・<code>freshThreadPrompt</code>・<code>fixPrompt</code>・<code>rawPhaseSpec</code>・<code>phaseSpec</code>）、<code>pipeline.ts</code>（<code>turnInput</code>・<code>adjustmentPrompt</code>）、<code>prompts/</code></p>
+
+<h2 id="s2-7">2.7 質問・フォローアップ・再試行</h2>
+<h3>質問</h3>
+<p>利用者の判断が必要だと<b>エージェントが判断した</b>とき、エージェントはターンの最後に <code>status: "question"</code> を返します。それを受けて<b>ワーカーが</b>作業ファイルと Codex の会話を S3 に保存し、ジョブとプロジェクトを「回答待ち」（<code>WAITING_USER_INPUT</code>）にして終了します。回答が届くと、API が同じジョブに回答を記録して待ち行列に戻し（実行モード <code>resume</code>）、新しいワーカーが作業場所と会話を復元し、回答を依頼文にして同じ会話を再開します。質問への返答を待っている間は Fargate を動かし続けません。</p>
+<h3>フォローアップ</h3>
+<p>完成後の追加指示（<code>followup</code>）も、同じファイルと同じ会話から始まります。ワーカーは HCD と FRG の両方の仕様を依頼文で再提示し、エージェントが関連する ID、接続、インターフェース、レポートをそろえて直します。フォローアップはすべての段を受理前の状態から検証し直し（前の受理を引き継がない）、CSV と xlsx を再生成して、成果物を新しい版にします。指示の文章で仮説の範囲が広がることはありません（範囲は画面の設定だけで足す、2.13）。古い形の名前（UC Descriptor・Circuit ID）を持つプロジェクトでは、次のフォローアップで現在の形への書き直しを求めます（第 3 部）。</p>
+<h3>再試行</h3>
+<p>途中で失敗したプロジェクトの再試行（<code>retry</code>）は、受理済みの段を引き継ぎ、最初の未受理の段から続けます。エージェントには既存のファイルを読んで、完成したファイルを作り直さないよう指示します。解説記事のジョブは再試行の対象になりません。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>（実行モード、<code>runAgentTurn</code>、<code>persistState</code>）、<code>packages/api/src/app.ts</code>（回答・フォローアップ・再試行の API、付録 A）</p>
+
+<h2 id="s2-8">2.8 検証に通らないとき</h2>
+<p>HCD・FRG・CSV の各段では、ワーカーが問題を列挙してエージェントに修正を依頼します。上限は各段で最大 3 回（環境変数 <code>MAX_NUDGES</code>、既定 3）です。それでも問題が残る場合、データを読み込めない致命的な問題ならワーカーがジョブを失敗にし、読み込める場合は未解決の問題を警告として残して進みます。調整のターンの後の修正には、別に 3 回の枠があります。</p>
+<div class="box note">
+  <div class="h">完了は合格の保証ではない</div>
+  <p>ジョブの完了は、すべての検査が合格したことや、科学的な正しさを保証するものではありません。残った警告、未照合の引用、調査の不足、仮説への依存は、成果物と一緒に読む必要があります。</p>
+</div>
+<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>：<code>maxNudges</code>・<code>fatal</code>・<code>onWarn</code>）、<code>packages/worker/src/env.ts</code></p>
+</section>

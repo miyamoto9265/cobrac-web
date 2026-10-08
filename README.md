@@ -1,10 +1,11 @@
 # CoBRAC Agents (repository: cobrac-web)
 
 Web application that runs the BRA (Brain Reference Architecture) data-creation workflow
-(HCD → FRG → CSV → xlsx) with the Codex SDK on the server. Design, security, and infrastructure
-docs live in `docs/` (admins can read them on the site “Documentation” page). The current harness guide is [CoBRAC Harness v2](docs/04_CoBRAC_Harness_v2.md)
-([日本語](docs/04_CoBRAC_Harness_v2_ja.md)); earlier transition articles are kept in `docs/archive/`. Change history is
-`CHANGELOG.md`. Working rules, including versioning, are in `AGENTS.md`.
+(HCD → FRG → CSV → xlsx) with the Codex SDK on the server. The specification — system, harness, circuit naming,
+Canons, versions and BRA-DB, the orchestrator, AWS, security and operations — is one Japanese PDF,
+[`docs/CoBRAC_仕様書.pdf`](docs/CoBRAC_仕様書.pdf), the single source of truth (admins read it on the site's
+“Specification” page). Change history is `CHANGELOG.md`; the user manual is `docs/manual/`. Working rules, including
+versioning, are in `AGENTS.md`.
 
 ## Versioning and release
 
@@ -121,16 +122,18 @@ npm run dev:web
 - Jobs go SQS → dispatcher Lambda → ECS Fargate **Spot** (On-Demand fallback if Spot is unavailable), one task per job.
 - The worker drives the phases (HCD → FRG). The agent writes its data as JSON files with JSON Schemas (`uc.json`, `connections.json`, `references.json`, `frg.json`); the worker validates each phase with deterministic checks and sends problems back to the agent to fix.
 - When the agent ends a turn with a question, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
-- The worker generates the five CSVs from the JSON files itself (the agent never writes CSVs), then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON, and `buildTemplateXlsx()` writes the same data into the official Template-v2-2.bra workbook (`prompts/templates/`, docs/01 §6.12). The free-text `report.md` and `decision_log.md` can be read and downloaded from the chat screen.
+- The worker generates the five CSVs from the JSON files itself (the agent never writes CSVs), then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON, and `buildTemplateXlsx()` writes the same data into the official Template-v2-2.bra workbook (`prompts/templates/`; specification 2.14). The free-text `report.md` and `decision_log.md` can be read and downloaded from the chat screen.
 - After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
 - If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption). While a turn runs, the worker saves the workspace and thread to S3 every 5 minutes; on SIGTERM (Spot interruption, 120 s stop timeout) it saves them at once and marks its heartbeat stale, so the next janitor run (every 5 minutes) resumes the job.
 - User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.
 
-## Documentation sources
+## Specification sources
 
-The harness guide embeds the full prompt sources in closed details sections. After changing a prompt, run
-`npm run docs:prompts` and verify it with `npm run docs:prompts:check`. Diagrams are generated with
-`npm run docs:figures`. Both current and archived articles stay behind the admin documentation API.
+The PDF is built from `docs/spec-guide/src/*.html` with `npm run spec:build` (Playwright's Chromium, `pdftotext` and
+Python `pypdf` are needed); commit the PDF together with `docs/spec-guide/build.json`. Appendix B quotes every prompt
+file in full, so a prompt change also needs a rebuild: `npm test` (`scripts/spec-guide.test.mjs`) fails when the sources,
+the embedded figures or the quoted prompts changed after the PDF was built. Figures are generated with
+`npm run docs:figures`. The PDF is bundled with the API Lambda and served to admins by `GET /admin/spec`.
 
 ## Operations notes
 

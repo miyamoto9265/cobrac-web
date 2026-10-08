@@ -1,4 +1,4 @@
-import { ArrowLeft, ListTree } from "lucide-react";
+import { ListTree } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useT } from "../i18n";
@@ -21,9 +21,6 @@ interface Props {
   text: string;
   lang?: string;
   figures?: DocFigures;
-  docHref: (file: string) => string | null;
-  /** Shown above the table of contents (wide screens) and in a bar above the document (phones) */
-  back?: { to: string; label: string };
   /** Language versions of the same document */
   variants?: DocVariant[];
   navTitle?: string;
@@ -33,7 +30,7 @@ interface Props {
 }
 
 /** One Markdown document with a table of contents that follows the scroll, heading anchors and a language switch. */
-export function DocReader({ docKey, text, lang, figures, docHref, back, variants = [], navTitle, navFooter, notice }: Props) {
+export function DocReader({ docKey, text, lang, figures, variants = [], navTitle, navFooter, notice }: Props) {
   const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
@@ -122,18 +119,9 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
     </ul>
   );
 
-  const backLink = (cls: string) =>
-    back && (
-      <Link to={back.to} data-testid="doc-back" className={`flex items-center gap-1.5 rounded-md text-sm text-slate-600 hover:text-blue-700 ${cls}`}>
-        <ArrowLeft size={15} className="shrink-0" /> <span className="truncate">{back.label}</span>
-      </Link>
-    );
-
   return (
     <div className="flex h-full flex-col lg:flex-row">
-      {back && <div className="flex shrink-0 items-center border-b border-slate-200 bg-white px-2 lg:hidden">{backLink("px-2 py-2.5 coarse:min-h-11")}</div>}
       <nav className="hidden w-64 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-3 lg:block" aria-label={t("docs.toc")}>
-        {backLink("mb-3 px-3 py-1.5 hover:bg-slate-100")}
         {navTitle && <div className="mb-2 px-3 text-xs font-semibold leading-snug text-slate-500">{navTitle}</div>}
         {toc.length > 0 && tocList()}
         {navFooter}
@@ -170,7 +158,7 @@ export function DocReader({ docKey, text, lang, figures, docHref, back, variants
               </div>
             )}
             {notice}
-            <DocMarkdown key={docKey} text={text} headings={headings} docHref={docHref} onAnchor={onAnchor} figures={figures} />
+            <DocMarkdown key={docKey} text={text} headings={headings} onAnchor={onAnchor} figures={figures} />
           </article>
         </div>
       </div>

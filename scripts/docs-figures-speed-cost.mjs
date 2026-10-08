@@ -1,4 +1,4 @@
-// Figures of docs/09_BRA_speed_and_cost*.md (BRA generation time and cost, v0.17.1–v0.18.2). Rendered by docs-figures.mjs.
+// Figures of the BRA speed and cost measurements (v0.17.1–v0.18.2), embedded in part 7 of the specification PDF (docs/spec-guide). Rendered by docs-figures.mjs.
 import { C, NW, arrow, box, header, svg, text, textWidth } from "./docs-figures-lib.mjs";
 
 const W = 860;

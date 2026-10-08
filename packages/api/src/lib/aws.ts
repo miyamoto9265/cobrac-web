@@ -118,6 +118,39 @@ export async function presignDownload(
   );
 }
 
+/** Admin documentation copied from the API bundle lives under `admin-docs/` of the artifacts bucket (outside every user prefix). */
+const checkAdminDocKey = (key: string) => {
+  if (!key.startsWith("admin-docs/") || !safeKeySegments(key)) throw new Error("invalid admin-docs key");
+};
+
+/** Size and time of an `admin-docs/` object, or null when it does not exist. */
+export async function headAdminDoc(key: string): Promise<{ size: number; lastModified: string | null } | null> {
+  checkAdminDocKey(key);
+  try {
+    const r = await s3.send(new HeadObjectCommand({ Bucket: env.artifactsBucket, Key: key }));
+    return { size: r.ContentLength ?? 0, lastModified: r.LastModified ? r.LastModified.toISOString() : null };
+  } catch (e) {
+    const name = (e as { name?: string }).name;
+    if (name === "NotFound" || name === "NoSuchKey") return null;
+    throw e;
+  }
+}
+
+export async function putAdminDoc(key: string, body: Uint8Array, contentType: string): Promise<void> {
+  checkAdminDocKey(key);
+  await s3.send(new PutObjectCommand({ Bucket: env.artifactsBucket, Key: key, Body: body, ContentType: contentType }));
+}
+
+/** Presigned GET of an `admin-docs/` object with the response's Content-Type and Content-Disposition. */
+export async function presignAdminDoc(key: string, response: { contentType: string; disposition: string }, expiresIn = 600): Promise<string> {
+  checkAdminDocKey(key);
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: env.artifactsBucket, Key: key, ResponseContentType: response.contentType, ResponseContentDisposition: response.disposition }),
+    { expiresIn },
+  );
+}
+
 export async function getObjectText(userId: string, projectId: string, rel: string): Promise<string | null> {
   try {
     const r = await s3.send(new GetObjectCommand({ Bucket: env.artifactsBucket, Key: projectPrefix(userId, projectId) + rel }));

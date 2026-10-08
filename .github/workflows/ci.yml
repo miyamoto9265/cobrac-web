@@ -38,7 +38,6 @@ jobs:
       # typecheck resolves @cobrac/shared from its build output, so build first
       - run: npm run build
       - run: npm run typecheck
-      - run: npm run docs:prompts:check
       # csv_to_excel.py dependencies, so the worker pipeline test also builds the xlsx
       - run: python3 -m pip install --break-system-packages -r prompts/requirements.txt
       - run: npm test

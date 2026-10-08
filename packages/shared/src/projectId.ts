@@ -157,11 +157,11 @@ export function sanitizeFileNamePart(name: string): string {
   return [...s].slice(0, FILE_NAME_MAX).join("").replace(/[_.\s]+$/u, "");
 }
 
-/** RFC 6266 / 5987 header value with an ASCII fallback and the UTF-8 name. */
-export function contentDisposition(ascii: string, utf8: string): string {
+/** RFC 6266 / 5987 header value with an ASCII fallback and the UTF-8 name (`inline` shows the file in the browser). */
+export function contentDisposition(ascii: string, utf8: string, type: "attachment" | "inline" = "attachment"): string {
   const fallback = ascii.replace(/[^\x20-\x7e]|["\\]/g, "_");
   const encoded = encodeURIComponent(utf8).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+  return `${type}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
 export type ProjectNameFields = { projectId: string; name?: string | null; nameSource?: ProjectNameSource | null; roi?: string | null; tlf?: string | null };

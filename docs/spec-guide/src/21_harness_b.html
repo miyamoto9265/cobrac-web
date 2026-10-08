@@ -1,0 +1,242 @@
+<section class="pharness">
+<h2 id="s2-9">2.9 調査ステップ（調査モード）</h2>
+<p><b>調査モード</b>は、HCD の前に文献を調べるかどうかのプロジェクトの設定です。作成画面のモデルのメニュー（「v」）のスイッチで選び、<b>既定はオン</b>です（プロジェクトの <code>researchMode</code>。各ジョブは実行時の値を記録します）。作成後は変えられず、フォローアップと再試行も同じ設定で動きます。この設定ができる前のプロジェクトは値を持たず、調査なしで動きます。オフにすると調査ステップと調査の注記がなくなりますが、<code>lit</code> の道具は使えます。プロジェクトのヘッダに「調査モード: オン／オフ」が出ます。</p>
+<p>調査ステップは新しい段ではありません（HCD → FRG → CSV → xlsx の並びは同じ）。HCD の前にエージェントの調査ターンが入り、ワーカーがその被覆を検査します。</p>
+
+<h3>エージェントがすること</h3>
+<p>調査の単位は、ROI の主な入力、出力、内部投射の<b>候補</b>です。エージェントは <code>RESEARCH.md</code> に従い、総説を入口にし、候補ごとに領域名の同義語、種、追跡法を変えて検索します。論文の要旨または全文を読み、支持の強さと、何を調べても見つからなかったかを分けて <code>research.json</code>（スキーマ <code>research.schema.json</code>）だけに書きます。内容は、計画、最大 40 件の候補の投射、候補ごとの検索文字列、証拠（Reference ID、PMID / DOI、種、測定法、層・細胞種、知見、要旨と全文のどちらを読んだか）、被覆（トレーサー研究・霊長類・齧歯類・層と細胞種ごとに <code>found</code> / <code>searched_none</code> / <code>not_applicable</code>）、状態（<code>supported</code> / <code>weak</code> / <code>not_found</code> / <code>contradicted</code>）、残った不足です。</p>
+
+<h3>ワーカーがすること</h3>
+<p>ワーカーは、イベントの流れから <code>lit</code> の呼び出しと Web 検索をすべて <code>research_queries.jsonl</code> に記録し（ジョブ ID、段、失敗時はエラー文）、ジョブに道具ごとの検索回数（<code>searches</code>）を数えます。検索ログはエージェントの申告ではなく、ワーカーが記録したものです。そのうえで <code>checkResearch</code> が次を検査します。</p>
+<ul>
+  <li>スキーマ。候補ごとに異なる検索が 2 件以上あり、少なくとも 1 件は PubMed か Europe PMC であること</li>
+  <li><code>research.json</code> に書かれた検索文字列が、検索ログに同じ道具で残っていること</li>
+  <li>被覆の値が証拠と合うこと（<code>found</code> には、追跡法・霊長類・齧歯類・層と細胞種の証拠が必要）</li>
+  <li><code>supported</code> / <code>weak</code> / <code>contradicted</code> には証拠があり、<code>not_found</code> には無いこと。すべての証拠に PMID か DOI があること。支持以外と <code>not_applicable</code> には理由があること</li>
+</ul>
+<p>問題は修正のターン（最大 2 回）でエージェントに戻します。不足が残っても実行は止めず、結果を <code>research_check.json</code>（<code>done</code>、<code>outcome</code>：<code>passed</code> / <code>gaps</code> / <code>budget</code>、要約、問題）に書いて HCD に進みます。<code>done: true</code> の作業場所では、以後の実行で調査を飛ばします。単なる検索回数の充足と、望ましい証拠が見つかったことは別です。残った不足は HCD とレポートの Limitations に引き継ぎます。</p>
+
+<table class="compact">
+  <caption>調査の予算</caption>
+  <thead><tr><th style="width:24%">項目</th><th>現行の値・規則</th></tr></thead>
+  <tbody>
+    <tr><td>候補数</td><td>最大 40（<code>RESEARCH_BUDGET.maxCandidates</code>）</td></tr>
+    <tr><td>検索</td><td>候補ごとに異なる検索を 2 件以上。少なくとも 1 件は PubMed または Europe PMC</td></tr>
+    <tr><td>修正</td><td>最初のターンの後、最大 2 回</td></tr>
+    <tr><td>時間</td><td>調査ステップ全体で 60 分（<code>RESEARCH_TIME_BUDGET_MIN</code>）。時間切れのときに走っているターンは打ち切り、それまでに書かれた内容で HCD に進む（打ち切ったターンの使用量は Codex が報告しないので、ジョブの合計から抜ける）。残り 10 分未満では新しい修正ターンを始めない</td></tr>
+    <tr><td>推論レベル</td><td>調査の本ターンはプロジェクト値と high の高い方。修正ターンはプロジェクト値と medium の低い方（<code>fixTurnEffort</code>）</td></tr>
+    <tr><td>費用の上限</td><td>金額の上限は無い。費用は時間の予算で抑え、利用量の行に出る</td></tr>
+    <tr><td>見積もり</td><td>作成画面のスイッチの横に、+10〜60 分と、入力 150 万〜600 万トークン（85〜90% がキャッシュ）・出力 4 万〜15 万トークンを選んだモデルの単価で換算した費用を出す（<code>researchModeEstimate</code>）。数件の実行からの概算で、実際の値は各ジョブの利用量</td></tr>
+  </tbody>
+</table>
+
+<h3>文献の道具 <code>lit</code></h3>
+<p><code>lit</code> は、ワーカーと同じコンテナで動く MCP サーバ（<code>packages/worker/src/litMcp.ts</code>・<code>litsearch.ts</code>）で、Codex がエージェントの道具として起動します。PMID と原文の引用にも使うので、調査モードの有無にかかわらず<b>すべての BRA の実行</b>で使えます。Web 検索もオンのままです。</p>
+<table class="compact">
+  <thead><tr><th style="width:24%">道具</th><th>返すもの</th></tr></thead>
+  <tbody>
+    <tr><td><code>search_pubmed</code> / <code>search_europepmc</code></td><td>関連順の検索結果（PMID、DOI、題、著者、年、雑誌、PMC の全文があるか）。既定 8 件、<code>max_results</code> で 1〜25 件</td></tr>
+    <tr><td><code>get_abstract</code></td><td>1 本の論文の書誌と要旨</td></tr>
+    <tr><td><code>find_sentences</code></td><td>指定した語を含む文を最大 8 文。オープンアクセスの全文があれば全文、なければ要旨から</td></tr>
+  </tbody>
+</table>
+<p>要求は文献の照合と同じ HTTP クライアント（<code>http.ts</code>：15 秒のタイムアウト、タイムアウト・ネットワークエラー・429・5xx で 1 / 2 / 4 秒おいて 3 回まで再試行、<code>Retry-After</code> に従う、3 回続けて失敗した相手は 5 分休む）を通り、エージェントが道具を並列に呼んでも相手ごとに間隔を空けます（Europe PMC 200 ミリ秒、NCBI 350 ミリ秒）。1 回の呼び出しは 65 秒まで（MCP の道具のタイムアウト 90 秒より短い）です。Europe PMC がその 45% の時間で答えないときは、<code>get_abstract</code> と <code>find_sentences</code> は PubMed から書誌と要旨を、NCBI BioC 経由で PMC から全文を取り、どのサービスが失敗したかを <code>note</code> に書きます。それでも失敗した道具は、失敗したサービスと代わりの道具（<code>search_pubmed</code> ↔ <code>search_europepmc</code>）を返します。</p>
+
+<h3>調査の後の段と測定</h3>
+<p>調査モードでは、HCD・FRG の仕様とフォローアップに <code>research_mode.md</code> が付きます。調査をもとに BIF と接続を作ること（支持された証拠とトレーサー研究を優先し、弱い証拠は明示し、根拠があれば細胞種・層の UC を作る）、実際に読んだ文から引用すること、不足を Limitations に書くこと、FRG で理論と計算モデルを調べること、フォローアップで新しい主張を調べることを指示します。HCD と FRG の検証器は、調査モードの有無で変わりません。</p>
+<p>調査ステップが終わると、ワーカーは終わり方・モデル・推論レベル・開始と終了・分・ターン数・打ち切りの有無・費用と使用量・候補数・支持された数・道具ごとの検索回数（成功 / 失敗）を <code>research_check.json</code> の <code>metrics</code> とジョブの <code>researchStep</code> に記録し、画面に要約の行を出し、CloudWatch に <code>[research] start</code> / <code>[research] end</code> を書きます。すべてのジョブは終了時に <code>[metrics]</code>（使用量、費用、分、道具ごとの検索）も書きます。</p>
+<p class="src">典拠：<code>prompts/phases/RESEARCH.md</code>、<code>prompts/research_mode.md</code>、<code>packages/shared/src/research.ts</code>（<code>checkResearch</code>・<code>RESEARCH_BUDGET</code>・<code>researchModeEstimate</code>）、<code>packages/worker/src/pipeline.ts</code>（<code>runResearch</code>）、<code>litMcp.ts</code>、<code>litsearch.ts</code>、<code>http.ts</code></p>
+
+<h2 id="s2-10">2.10 HCD：脳領域と情報の流れを定義する</h2>
+<p>この段で判断してファイルを書くのはエージェント、書かれたファイルを検査するのはワーカーです。以下の規則は、エージェントへの指示（<code>HCD.md</code> と追加規則）であり、同時にワーカーの検証器（<code>checkHcd</code>）が確かめる条件でもあります。回路の名前の規則は第 3 部、Canon による制約は第 4 部にまとめます。</p>
+
+<h3>8 つの手順</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">手順</th><th style="width:28%">記録すること</th><th>確認点</th></tr></thead>
+  <tbody>
+    <tr><td>1 ROI / TLF</td><td><code>meta.json</code> と判断ログ</td><td>ROI が TLF を実現できるか、ROI_Input / ROI_Output、各 ROI 要素と UC、左右の値と根拠。ROI や TLF が空なら調査で補い、利用者が決めるべき選択は質問する</td></tr>
+    <tr><td>2 BIF</td><td><code>references.json</code>、<code>connections.json</code> の <code>bif</code></td><td>組織間の投射を調べ、文献と文献種別を記録</td></tr>
+    <tr><td>3 UC</td><td><code>uc.json</code></td><td>内部 / 外部、名前（第 3 部）、均質性、粒度、必要時の Collection</td></tr>
+    <tr><td>4 Connection</td><td><code>connections</code> と UC の <code>interface</code></td><td>1 レコード 1 文献。すべての端点・引用・入出力をそろえる</td></tr>
+    <tr><td>5 Output Semantics</td><td>UC の <code>outputSemantics</code></td><td>自分の ID の 1 項目 <code>[&lt;Circuit ID&gt;] 内容;</code> で、自分が表現する情報を計算論的に説明。出力の無い外部 sink は空にできる</td></tr>
+    <tr><td>6 機能項目</td><td>UC の 5 項目</td><td>Requirement は TLF に対する計算、Requirement realization は interface との対応、Capability は意味を外した一般化、Mechanism は実現の機構、Implementation は入出力を結ぶ式だけ</td></tr>
+    <tr><td>7 自己点検</td><td>ファイルと残る論点</td><td>ROI の入力から出力までの経路、欠落・重複、粒度、TLF を実現できるか（エージェント自身の見直し。ワーカーの検査とは別）</td></tr>
+    <tr><td>8 レポート</td><td><code>report.md</code></td><td>Overview、HCD、Limitations、References。FRG 節は次の段で足す</td></tr>
+  </tbody>
+</table>
+<p>外部 UC の <code>roi</code> は <code>noROI(input)</code> / <code>noROI(output)</code> / <code>noROI(input,output)</code>、内部 UC は <code>internal</code> です。外部 UC には内部 UC 用のインターフェースや 5 つの機能項目を書きません。内部 UC のインターフェースは接続から決まり、入力は送り手、出力は受け手です。</p>
+
+<h3>ROI 規則（<code>harnessRules</code> 1 以上）</h3>
+<p>新規プロジェクトは 0.25.0 から <code>harnessRules: 1</code>、0.28.0 から <code>harnessRules: 2</code> です（それ以前のプロジェクトは値を持たず、従来の検査のまま。複製は元の値を写す）。rules 1 以上では HCD の仕様の後ろに <code>HCD_roi_rules.md</code> が付き、HCD の検査に次が加わります。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">規則</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>ROI 要素</td><td><code>meta.json</code> の <code>roiElements[]</code>（<code>name</code>、<code>ucs[]</code>：ROI 内部の UC かその Collection の Circuit ID）。各要素に、ほかの要素が挙げていない ROI 内部の UC が最低 1 つ必要（1 つの UC で VWFA と後部紡錘状回を兼ねない）。すべての ROI 内部の UC はどれかの要素に属する。<code>roi</code> が挙げる領域の数は要素の数を超えない（括弧の外のコンマ・セミコロン・<code>and</code>・<code>&amp;</code>・<code>+</code> で区切って数え、左右を表す語だけのものは数えない）</td></tr>
+    <tr><td>ROI の左右</td><td><code>roiSide</code>（<code>both</code> / <code>left</code> / <code>right</code>）と <code>roiSideSource</code>（利用者の ROI か指示が左右を指定していれば <code>user</code>、それ以外は <code>assumed</code>）。<code>assumed</code> は <code>both</code> でなければならず、判断ログに両側である旨（"bilateral" など）を書く。<code>both</code> では、<code>side</code> facet を持つ ROI 内部の UC には反対側の対が要る（または facet を外す）。<code>left</code> / <code>right</code> では反対側の ROI 内部の UC を置かない。機能が側性化しているだけで片側に限定しない</td></tr>
+    <tr><td>引用の使い回し（警告のみ）</td><td>同じ <code>pointersOnLiterature</code>（と同じ図、または図なし）が異なる回路の接続を支えている。エージェントには戻さず、<code>quote_check.json</code> の <code>reused</code> と画面に出す</td></tr>
+  </tbody>
+</table>
+
+<h3>UC の粒度と Collection</h3>
+<p>UC の Uniform は、その HCD が選ぶ粒度での判断です。領域内の部分が異なる投射や機能を持つなら、エージェントは根拠を示して UC を分け、分けた元の領域は必要に応じて Collection（Uniform = FALSE、<code>uc.json</code> の <code>collections[]</code>）にします。領域や名前の付いた部位の違いで十分で、層・細胞種の証拠までは要りません。分ける理由は Collection の <code>comments</code> に必ず書きます。複数の SABRA 単位にまたがる送り手を 1 つの UC のまま残すときは <code>uniformityNote</code> で理由を書きます。Collection は構成関係を表すもので、接続の送り手・受け手や FRG の葉にはしません。Collection の検査とエラーコードは 3.9・3.10 にまとめます。</p>
+
+<h3>接続の根拠とインターフェース</h3>
+<p>BIF は文献が述べる組織間の投射、Connection はその根拠を UC 同士へ対応させたものです。<b>接続レコード 1 行に文献 1 本</b>を対応させ、同じ投射を複数の論文で支える場合は論文ごとに行を作ります（同じ送り手 → 受け手 → 文献は 1 回だけ）。各行に、種、測定法、論文中の領域名、UC との包含関係、原文または図への参照を持たせます。</p>
+<table class="compact">
+  <thead><tr><th style="width:30%">接続の欄</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>senderRelation</code> / <code>receiverRelation</code></td><td><code>&lt;UC&gt; &lt;関係&gt; &lt;論文中の回路&gt;</code> と読む。UC が論文の粗い回路の一部なら <code>&lt;</code>、UC が論文の細かい回路を含むなら <code>&gt;</code>、同じなら <code>=</code>。Circuit ID と同じ表記は <code>=</code> のときだけ</td></tr>
+    <tr><td><code>senderInLiterature</code> / <code>receiverInLiterature</code></td><td>論文が実際に使う領域名。粗い領域の証拠を細かい UC に使う場合も、粒度の違いを明示する</td></tr>
+    <tr><td><code>taxon</code> / <code>measurementMethod</code></td><td>その論文の種（10 値）と測定法（21 値）を BRA の選択肢で記録</td></tr>
+    <tr><td><code>pointersOnLiterature</code></td><td>この投射を述べる原文をそのまま引用。最低 10 語（<code>minQuoteWords</code>）。要約やページ・節の番号では始めない</td></tr>
+    <tr><td><code>pointersOnFigure</code></td><td><code>Fig. 3B</code> などの図番号（CSV で <code>Figure 3b</code> → <code>Fig. 3B</code> に正規化）。原文引用と図番号の少なくとも一方が必要</td></tr>
+  </tbody>
+</table>
+
+<h3>BRA の値の規則</h3>
+<p>HCD の検査は、BRA Data Preparation Manual と Template-v2-2.bra が定める値も強制し、出力が BRA Review Tool のエラーを出さないようにします。コードは BRA の Error code List（Master）のもの、<code>cobrac:</code> は Master にコードが無い CoBRAC 独自の検査です（チェッカー <code>scripts/bra-appendix-d.mjs</code> がコードごとに判定します）。名前・Source of ID・Collection に関する規則は第 3 部にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">項目</th><th>規則</th></tr></thead>
+  <tbody>
+    <tr><td>接続の文献（252 / 253）</td><td>1 レコードに Reference ID がちょうど 1 つ。同じ送り手 → 受け手は論文ごとに繰り返し、それぞれに Taxon・測定法・Pointers を持たせる</td></tr>
+    <tr><td>Pointers（271 / 277、272、278）</td><td>2 つのうち少なくとも 1 つ。Pointers on literature は原文の逐語の引用で 10 語以上（272）、位置の表記で始めない。Pointers on figure は図番号（278）</td></tr>
+    <tr><td>列挙値</td><td>Taxon（10 値）、Measurement method（21 値）、Transmitter（6 値か空）、Modulation Type（3 値か空）、Literature type（11 値）。Template-v2-2 の AdminOnly のとおり</td></tr>
+    <tr><td>DOI（1）</td><td>DOI の無い文献には <code>alternativeUrl</code> か PMID が要る（CSV は PubMed の URL を Alternative URL に書く）</td></tr>
+    <tr><td>Output Semantics（562 / 563）</td><td>UC はちょうど 1 項目 <code>[&lt;自分の Circuit ID&gt;] 内容;</code>（<code>]</code> の後の空白は任意、末尾に <code>[Author, Year]</code> の引用可）。FRG.csv の GN の行には、GN の外へ出力する UC の項目が入る</td></tr>
+    <tr><td>Capability（<code>cobrac:capability-required</code>）</td><td>ROI 外部の UC の FRG の行は固定文 <code>No need for description due to input/output circuit</code></td></tr>
+    <tr><td>用語</td><td>機能項目・コメント・FRG の詳細の <code>[U.&lt;id&gt;]</code> / <code>[R.&lt;id&gt;]</code> は実在する UC / ノードを指す</td></tr>
+    <tr><td>ROI の行</td><td><code>Circuits.csv</code> の先頭は <code>ROI_&lt;ProjectID&gt;</code>（Source of ID <code>collection</code>、Names = ROI、Sub-Circuits = ROI 内部のすべての回路、Uniform <code>FALSE</code>）。グラフはこの行を飛ばす</td></tr>
+    <tr><td>Review End Line</td><td><code>Project.csv</code> に References・Circuits・Connections・FRG の最後のレコードのシート上の行番号（見出しが 1 行目）を書く</td></tr>
+    <tr><td>仮説の印（<code>cobrac:hypothesis-marked</code>）</td><td>仮説モードだけ（2.13）。存在の仮説の接続はちょうどそれらだけが測定法 <code>Hypothetical</code>。仮説の接続・UC の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。274（引用が接続を保証する）は前提で判断する</td></tr>
+  </tbody>
+</table>
+<p>互換性：<code>Project.csv</code> の BRA version は <code>CoBRAC-v1-1</code> です。v1-0 からの列の変更は末尾への追加だけで（References に Literature type と Alternative URL、Circuits.csv に UC Descriptor の後ろの Sub-Circuits と Uniform、Connections.csv に Pointers on figure の後ろの 2 つの関係と論文中の表記）、v1-0 のすべての列の位置は変わりません。グラフは v1-0 と v1-1 の CSV を列名で読みます。0.9 以前に書かれたファイルは、次のフォローアップで通常どおり検証され、上の問題が修正のターンとして戻ります。直るまでの間も CSV は作れます（Source of ID のリストは先頭の値、複数文献の接続は文献ごとの行、関係の無い接続は <code>=</code> と Circuit ID）。</p>
+<p class="src">典拠：<code>prompts/phases/HCD.md</code>、<code>HCD_roi_rules.md</code>、<code>packages/shared/src/harness.ts</code>（<code>checkHcd</code>・<code>HARNESS_RULES</code>・<code>buildCsvs</code>）、<code>bra.ts</code>（<code>DEFAULT_BRA_RULES</code>・<code>pointerProblems</code>・<code>relationProblems</code>）、<code>scripts/bra-appendix-d.mjs</code></p>
+
+<h2 id="s2-11">2.11 FRG：機能と回路を突き合わせる</h2>
+<h3>上からの分解と下からの解釈</h3>
+<p>FRG は、TLF を論理的に分解する作業と、HCD の回路が何を計算するかを読む作業を合わせます。どちらもエージェントが行う判断です。回路の形を写すだけにならないよう、エージェントは上からの分解を先に（UC や候補を見ずに）考え、重複や過剰な分解を整理します。</p>
+<p>一方、<b>ワーカーのコード</b>は HCD の ROI 内部の接続から候補を計算し（<code>findFrgCandidates</code>）、<code>frg_candidates.json</code> に書いて FRG の依頼文の末尾に入れます。候補は HCD の検査のたびに作り直すので、FRG の段で HCD を変えても追従します。これは機械的に列挙した候補で、意味づけはしていません。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">候補</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>経路（pathways）</td><td>外から入力を受ける ROI の UC から、外へ出力する UC までの道筋。強連結のまとまり（ループは 1 つのまとまり）の上で、できるだけ多くのまとまりを覆うように貪欲に選ぶ（最大 12）。両端に外部の入力と出力を付ける</td></tr>
+    <tr><td>連結成分（components）</td><td>ROI 内部のグラフの弱連結な部分</td></tr>
+    <tr><td>モチーフ（motifs）</td><td>ペアでは表せない 3〜4 UC の形。ループ（全員を通る有向閉路）とフィードフォワードの三角形（A → B → C かつ A → C）、最大 40。鎖・収束・発散は UC を共有するペアで表せるので除く</td></tr>
+    <tr><td>ペア（pairs）</td><td>接続のあるすべての組（<code>pair</code> / <code>reciprocal</code>）</td></tr>
+  </tbody>
+</table>
+<p>すべての接続には符号（興奮・抑制・修飾）を付けます（コメント、なければ送り手の伝達物質から、<code>classifyEdgeSign</code>）。エージェントはそれぞれの候補を、Output Semantics、機能項目、符号、文献に照らして解釈します。</p>
+
+<h3>FRG の 8 手順</h3>
+<ol class="steps">
+  <li>上からの分解：UC や候補を見ずに TLF を分解する（子の数は決めない）</li>
+  <li>最適化：重複や過剰な分解を整理する</li>
+  <li>下からの読み：各経路・モチーフが何を計算するか。すべての ROI の UC を最低 1 回読む</li>
+  <li>対応づけ：結果をレポートの <code>## FRG</code> に表（<code>sub-function (GN ID)</code> / <code>candidate (IDs and UCs)</code> / <code>outcome</code> / <code>action</code>）で残す</li>
+  <li>接地：GN の規則（下表）を守って UC に結びつける。対応が無ければ機能分解を直すか、根拠をもって HCD に戻る</li>
+  <li>インターフェース：子のインターフェースを合わせ、GN の内部で閉じる辺を除く。上へ合成し、TLF 全体では ROI の外部入力と外部出力になるようにする</li>
+  <li>機能の詳細：Requirement、Requirement realization、Capability、Mechanism</li>
+  <li>レポート</li>
+</ol>
+<table class="compact">
+  <thead><tr><th style="width:18%">対応の結果</th><th style="width:30%">意味</th><th>取る対応</th></tr></thead>
+  <tbody>
+    <tr><td><code>matched</code></td><td>下位の回路が上位の副機能を実現する</td><td>ペア / モチーフを GN にし、上へまとめる</td></tr>
+    <tr><td><code>top-down only</code></td><td>副機能に対応する候補が無い</td><td>上位 GN として残す・親へ統合、文献のある不足を HCD へ追加、ROI 外なら除外して限界へ記録</td></tr>
+    <tr><td><code>bottom-up only</code></td><td>回路の候補に対応する副機能が無い</td><td>分解で漏れた機能を加える、または別の GN で TLF に寄与する理由を書く</td></tr>
+    <tr><td><code>mismatch</code></td><td>必要な UC 同士がつながっていない</td><td>FRG の分解、または根拠のある HCD の接続を直す</td></tr>
+  </tbody>
+</table>
+<p>制約を満たすための数合わせで UC や接続を足すことはできません（仮説モードで範囲が許す場合は 2.13）。</p>
+
+<h3>GN が表すもの</h3>
+<p>GN の意味は、UC の機能を並べたものにとどまりません。<b>UC と、その間の接続による相互作用が実現する計算</b>です。GN が UC の機能に加えるものは、それらの相互作用（インターフェースが除く内部の辺）が計算するものです。GN の Output Semantics は、GN の外へ出力する UC の値からワーカーが導出します。GN の規則はプロジェクトの <code>harnessRules</code> によって異なり、既存のプロジェクトの検査は変わりません。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">規則</th><th style="width:34%">rules 0〜1（0.28.0 より前のプロジェクト）</th><th>rules 2（0.28.0 以降の新規。<code>FRG_gn_rules.md</code>）</th></tr></thead>
+  <tbody>
+    <tr><td>GN の子の UC 数</td><td>最大 2</td><td>最大 2。3〜4 は <code>motifNote</code>（ペアに分けられない理由と引用）があるときだけ。5 以上はエラー。2 以下の GN の <code>motifNote</code> もエラー</td></tr>
+    <tr><td>GN の UC の連結</td><td>X4 の警告（任意の ROI の UC を通る経路でよい）</td><td>エラー：GN の ROI 内部の UC が、それら同士の接続で（向きを無視して）連結していること</td></tr>
+    <tr><td>UC だけを子に持つ GN</td><td>ちょうど 2 UC</td><td>2 UC 以上（UC 1 つの言い換えにしない）</td></tr>
+    <tr><td>UC の親の GN</td><td>最大 2</td><td>同じ</td></tr>
+  </tbody>
+</table>
+<p>FRG の基本仕様 <code>FRG.md</code> には従来の「最大 2 UC」が残っていますが、rules 2 では後ろに付く <code>FRG_gn_rules.md</code> がこの制約を置き換えます。<code>motifNote</code> は FRG.csv の GN の Comments に <code>Motif of 3 UCs: …</code> として足します。そのほかの規則は、TLF の根が 1 つ・循環なし・すべての GN に子がある、ROI 内部の UC をすべて葉に含める（外部 UC と Collection は葉にしない）、実在する ID と構文、機能項目の記載と参照 ID です。グラフ（<code>buildGraphs</code>）は HCD のループとフィードフォワード三角形を <code>HcdGraph.motifs</code> として持ち、HCD のタブでモチーフを強調表示します。</p>
+<p class="src">典拠：<code>prompts/phases/FRG.md</code>、<code>FRG_gn_rules.md</code>、<code>packages/shared/src/motifs.ts</code>（<code>findFrgCandidates</code>・<code>formatFrgCandidates</code>・<code>classifyEdgeSign</code>）、<code>harness.ts</code>（<code>checkFrg</code>）</p>
+
+<h2 id="s2-12">2.12 検証と HCD への戻り道</h2>
+<h3>ワーカーがコードで確認できること</h3>
+<p>検証器はワーカーのコードで、LLM による採点ではありません。スキーマ、ID、列の値、引用の形式、接続とインターフェースの対応は決定的な検査です。文献は外部の書誌データベース、引用は取得した原文と照合します。原文との対応を確認できたことと、その論文がこの神経科学的な主張を十分に支えることは異なります。後者には人の評価が必要です。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">層</th><th>主な確認</th><th style="width:30%">結果の限界</th></tr></thead>
+  <tbody>
+    <tr><td>JSON Schema</td><td>必須キー、型、列挙値、余分なキー（<code>additionalProperties: false</code>）</td><td>正しい形でも内容が正しいとは限らない</td></tr>
+    <tr><td>HCD / FRG</td><td>ID、参照、内外、Collection、interface、階層、ROI 規則・GN 規則</td><td>生物学的・計算論的な妥当性を完全には判定しない</td></tr>
+    <tr><td>SABRA</td><td>記述子、略称、正式名、境界と左右（第 3 部）</td><td>RCS が使えない場合の外部照合には欠落がある</td></tr>
+    <tr><td>BRA の値</td><td>文献種別、種、測定法、式、原文・図番号、1 接続 1 文献</td><td>許された値の使用と科学的根拠の強さは別</td></tr>
+    <tr><td>文献照合</td><td>DOI / PMID を Crossref / PubMed と照合</td><td>書誌の実在はその主張の保証ではない</td></tr>
+    <tr><td>引用照合</td><td>引用が全文または要旨に存在するか</td><td>図の内容や主張の含意まで自動では保証しない</td></tr>
+    <tr><td>調査</td><td>実際の検索ログと被覆の一致</td><td>検索しなかった文献の不存在を証明しない</td></tr>
+    <tr><td>Canon</td><td>固定版との回路定義・文献の衝突（第 4 部）</td><td>Canon 自体の定義にはレビューが必要</td></tr>
+    <tr><td>仮説</td><td>許可範囲、claim、前提、比率、表示（2.13）</td><td>前提の照合は仮説の実証ではない</td></tr>
+    <tr><td>HCD / FRG の整合</td><td>X 系の所見と調整</td><td>記録・調整の仕組みで、全所見ゼロの保証ではない</td></tr>
+  </tbody>
+</table>
+
+<h3>文献の照合</h3>
+<p>HCD・FRG の検査のたびに文献も検査し、架空の論文や誤った識別子を、ほかの問題と同じ修正のループでエージェントに戻します。</p>
+<ul>
+  <li><b>引用</b>（決定的、<code>checkCitations</code>）：<code>uc.json</code>・<code>connections.json</code>・<code>frg.json</code>・<code>report.md</code> の自由な文章の <code>[Author, Year]</code> はすべて <code>references.json</code> の Reference ID であること（空白や大文字小文字だけが違う場合は正確に書くよう求める）。すべての文献がレポートの <code>## References</code> 以外のどこかで引用されていること。2 つの Reference ID が同じ DOI / PMID を持たないこと。</li>
+  <li><b>照会</b>（ネットワーク、ワーカーの <code>ReferenceVerifier</code>）：DOI は Crossref で、Crossref に無ければ doi.org の内容交渉（CSL JSON。DataCite・mEDRA・JaLC）で、PMID は PubMed（NCBI E-utilities <code>esummary</code>）で引く。記録に Reference ID の筆頭著者があること（後ろの著者ならそう報告）、出版年が ±1 年以内（オンラインと印刷）、<code>title</code> があれば題が似ていること（語の重なり）。DOI と PMID の両方があれば PubMed の DOI が同じこと。雑誌の違いは注記だけ。識別子の無い文献で、Crossref の検索が同じ論文（題・筆頭著者・年）を見つけたら、その DOI を提案する。</li>
+  <li><b>状態</b>（<code>reference_check.json</code>）：<code>verified</code>、<code>mismatch</code>、<code>not_found</code>、<code>invalid</code>（DOI / PMID の形でない）、<code>no_identifier</code>、<code>unverified</code>（照会に失敗）。<code>mismatch</code>・<code>not_found</code>・<code>invalid</code> と DOI の提案を問題として戻す。段の受理時に画面に 1 行の要約を出す。</li>
+  <li><b>範囲</b>：FRG の段は <code>frg.json</code>・レポートの <code>## FRG</code>・そこだけで引用された文献を受け持ち、それ以外は HCD の段が受け持つ（HCD の問題を FRG の段で重ねて送らない）。</li>
+  <li><b>障害時</b>：1 要求 10 秒でタイムアウト、タイムアウト・ネットワークエラー・429・5xx で 2 回まで再試行（<code>Retry-After</code> は 10 秒まで従う）。3 件続けて失敗した相手は 5 分飛ばし、1 回の検査で照会に使うのは最大 3 分。照会できなかった文献は <code>unverified</code> で、問題にしない（障害で段を止めない）。結果は実行中キャッシュし、失敗は次の検査で再試行。PubMed は毎秒 3 件（API キーがあれば 10 件）に間隔を空ける。</li>
+  <li><b>設定</b>（ワーカーの環境変数。CDK では設定しない）：<code>REFERENCE_LOOKUP=off</code> で照会を止める（引用の検査は残る）。<code>CROSSREF_MAILTO</code> は Crossref の polite pool への連絡先。<code>NCBI_API_KEY</code> は PubMed の速度を上げる（Secrets Manager に置き、ワーカーのコンテナの <code>secrets</code> に加える。ワーカーはエージェントの Codex プロセスからは隠す）。どれも無くても動く。</li>
+</ul>
+
+<h3>引用文の照合</h3>
+<p>Pointers on literature は引用した論文の逐語の引用でなければなりません（BRA の手動審査のコード 273 / 274 / 279）。HCD の検査のたびに、各接続の <code>pointersOnLiterature</code> を論文の本文と照らします（ワーカーの <code>QuoteVerifier</code>、照合は <code>packages/shared/src/quotes.ts</code>）。形式の規則（短すぎる、位置の表記）にすでに違反する引用はその問題に任せ、DOI も PMID も無い文献は照合できません。</p>
+<ul>
+  <li><b>本文の取得</b>：Europe PMC の記録（<code>search</code>、<code>resultType=core</code>）から PMID・PMCID・オープンアクセスか・要旨を得る。オープンアクセスの論文は Europe PMC の全文（JATS。要旨・本文・付録・図の説明。参考文献・引用の印・表・数式は除く）を、失敗したら NCBI BioC 経由で PMC から読む。全文が無ければ Europe PMC・PubMed（<code>efetch</code>）・Crossref（<code>abstract</code>）・Semantic Scholar の順に最初に見つかった要旨を使う。</li>
+  <li><b>照合</b>：両側を文字と数字だけにする（NFKC、アクセントと大文字小文字をそろえ、ソフトハイフン・上付きや角括弧の数字の引用・括弧の著者年の引用を除く）。部分文字列として見つかるか、最もよく重なる語の窓との編集距離が文字数の 10% 以下（類似度 0.9 以上、<code>QUOTE_MATCH_THRESHOLD</code>）なら見つかったとする。言い換えは通らない。省略（<code>…</code>・<code>[…]</code>）や編集上の挿入（<code>[the VTA]</code>）はそこで分け、3 語以上の部分がすべて見つかること。</li>
+  <li><b>上限</b>：文献の照会と同じ HTTP クライアント。1 回の検査で最大 2 分、同時に 3 本。各論文は実行ごとに 1 回だけ取得する。</li>
+  <li><b>設定</b>：<code>QUOTE_CHECK=off</code> で止める（<code>quote_check.json</code> は <code>lookup: "off"</code>）。</li>
+</ul>
+<table class="compact">
+  <thead><tr><th style="width:20%">引用の状態</th><th>意味</th><th style="width:32%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td><code>verified_fulltext</code></td><td>取得した全文で原文と一致</td><td>全文との一致として記録</td></tr>
+    <tr><td><code>verified_abstract</code></td><td>要旨で一致</td><td>要旨との一致として記録</td></tr>
+    <tr><td><code>not_found</code></td><td>全文を取得できたが引用が見つからない</td><td>全文のリンク・最良の類似度・最も近い箇所を付けて修正を依頼</td></tr>
+    <tr><td><code>unverified</code></td><td>オープンアクセスの全文が無く要旨にも無い、識別子が無い、取得できない</td><td>未検証として残す。照合済みとは扱わない（有料の論文を問題にしない）</td></tr>
+  </tbody>
+</table>
+<p>同じ引用と図を異なる回路の接続に使い回している場合は <code>reused</code> の警告も記録します。図番号だけの根拠は、図の内容まで照合したことにはなりません。</p>
+
+<h3>後の段で変わった前段の再検証</h3>
+<p>FRG の仕様は、FRG と HCD が食い違うときに関連するファイルを直すようエージェントに求めるので、HCD のファイルは HCD の段の後でも変わりえます。そこでワーカーは、各段の検査のたびに、その段のデータファイル（HCD：<code>meta.json</code>・<code>references.json</code>・<code>uc.json</code>・<code>connections.json</code>、FRG：<code>frg.json</code>。レポートと判断ログは毎段変わるので除く）の SHA-256 と、その時点で残っていた問題を <code>phase_baseline.json</code> に記録します。FRG と CSV の検査はハッシュを比べ、変わっていないファイルは検査し直しません。変わった HCD のファイルには HCD の検査をすべて（スキーマと規則、RCS、文献、引用）やり直し、変わった FRG のファイルには CSV の段で FRG の検査をやり直します。前の段の受理時にすでに残っていた問題は送り直さず、新しい問題だけを <code>HCD (changed after the HCD phase was checked):</code> を付けて同じ修正依頼で戻します。HCD を直した後も古い検査結果のまま成果物を作る、という抜け道を防ぐためです。</p>
+
+<h3>整合チェックと調整</h3>
+<p>FRG と CSV の検査のたびに、ワーカーのコード（<code>checkCross</code>）が HCD と FRG の整合を計算して <code>cross_check.json</code> に記録し、段の受理時に画面に件数を出します。所見を出すのはコードで、どう直すかを決めるのはエージェントです。</p>
+<table class="compact">
+  <thead><tr><th style="width:7%">コード</th><th>所見</th><th style="width:28%">現行の動作</th></tr></thead>
+  <tbody>
+    <tr><td>X1</td><td>GN の interface が、その ROI 内部の UC の HCD 接続にある外からの入力・外への出力を取りこぼす</td><td>調整の契機（想定 severity：error）</td></tr>
+    <tr><td>X2</td><td>接続から求めた ROI の入出力と <code>noROI(input)</code> / <code>noROI(output)</code> の印が一致しない</td><td>調整の契機（error）</td></tr>
+    <tr><td>X3</td><td>GN の interface が、その UC のどの接続も与えない入出力を挙げる、または自分の UC を挙げる</td><td>調整の契機（error）</td></tr>
+    <tr><td>X4</td><td>GN の 2 つの UC が ROI 内部の接続で連結していない</td><td>rules 0 / 1 だけ記録（warning）。rules 2 では FRG の通常の検査で確認し、X4 は算出しない</td></tr>
+    <tr><td>X5</td><td>ROI 内部の UC が、所属する GN の機能文に <code>[U.&lt;id&gt;]</code> で現れない</td><td>記録（warning）</td></tr>
+    <tr><td>X6</td><td>GN の <code>requirementRealization</code> が interface のすべての UC に触れていない</td><td>記録（warning）</td></tr>
+    <tr><td>X8</td><td>FRG が潰れている：TLF が UC だけを持つ、GN が 1 つ、ROI 内部の UC が 3 未満</td><td>調整の契機（warning）</td></tr>
+    <tr><td>X9</td><td>ROI 内部の UC が回レベルの BNA 群全体（facet の無い <code>BNAG:</code>）か複数の SABRA 単位（<code>&amp;</code>）で、粗すぎる可能性</td><td>記録（warning。調整の契機にしない）</td></tr>
+  </tbody>
+</table>
+<p>実装に X7 はありません。X1・X3・X6 は構文が解析できた GN の interface だけを見ます。所見の severity と、パイプラインを即時に止めるかどうかは別です。記録には、所見の件数（<code>summary</code>）、統計（ROI 内部の UC、GN、解析できた interface、FRG の深さ、3〜4 UC の GN とそのうち候補のループ / フィードフォワードであるもの）、判断ログの revisions の行、調整の記録、仮説モードでは仮説の情報（2.13）も入ります。<code>scripts/cross-check-artifacts.mjs</code> は、S3 から写した作業場所に同じ検査を（読み取りだけで）実行します。</p>
+<p>FRG の段が終わったとき（受理でも警告付きでも）に X1・X2・X3・X8 の所見があれば、ワーカーは<b>実行ごとに 1 回だけ</b>調整のターンを送ります（<code>adjustmentPrompt</code>）。所見と各検査の意味、FRG 候補、証拠からどちらを直すかを決める指示が入ります。エージェントは、HCD が正しければ FRG を直し、細かい集団や欠けた投射の根拠があれば HCD の UC を分ける・足す（粗い単位は Collection にし、新しい UC と接続には文献を付ける）。直さない判断も理由とともに残します。変わった HCD は上のとおり再検証され、調整のターンには別に 3 回の修正の枠があります。調整の後に revisions 節が無ければ、FRG の検査がそれを求めます。ほかの所見は記録だけです。</p>
+<pre><code>## HCD-FRG revisions
+- [FRG-&gt;HCD] &lt;HCD の変更&gt; — &lt;FRG が必要とした理由&gt; [Author, Year]
+- [HCD-&gt;FRG] &lt;FRG の変更&gt; — &lt;HCD に合わせる理由&gt;
+- [instruction] &lt;変更&gt; — &lt;利用者の指示と根拠&gt;
+- [kept] &lt;残した食い違い&gt; — &lt;変更しない理由&gt;</code></pre>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>checkCitations</code>）、<code>quotes.ts</code>、<code>cross.ts</code>（<code>checkCross</code>・<code>CROSS_RULES</code>・<code>ADJUSTMENT_CODES</code>）、<code>packages/worker/src/references.ts</code>・<code>quotes.ts</code>・<code>pipeline.ts</code>（<code>phaseDataHash</code>・<code>adjustmentPrompt</code>）</p>
+</section>

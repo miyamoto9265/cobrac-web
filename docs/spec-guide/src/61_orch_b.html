@@ -1,0 +1,134 @@
+<section class="porch">
+<h2 id="s6-6">6.6 アンカーと実行順序の計算</h2>
+<p>実行順序は、下書きが付けた<b>アンカー</b>と<b>依存</b>と<b>優先度</b>から、コードが決定的に計算します（<code>orderPlanRows</code>、<code>packages/shared/src/planOrder.ts</code>）。同じ行からは同じ順序になります。</p>
+<h3>アンカー</h3>
+<p>アンカーは、その行の ROI と、主な入力元・出力先の領域を、SABRA の単位で表した ID です（第 3 部の UC Descriptor のアンカー部分と同じ形）：<code>HOMBA:&lt;id&gt;</code>（DHBA 側）、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>（BNA の領域のペア）、<code>BNAG:&lt;L2&gt;</code>（BNA の群）。行どうしを比べるときは、BNA の群をその領域のペアに展開してから比べるので、<code>BNAG:IFG</code> の行と IFG の 1 領域の行はアンカーを共有します（HOMBA の項はそのまま比べる）。行には最初の 4 個と残りの数が表示されます。</p>
+<h3>計算の 3 段階</h3>
+<ol class="steps">
+  <li><b>ハブの値</b>：その行とアンカーを 1 個以上共有する、ほかの行の数（画面の「ハブ n」）。</li>
+  <li><b>種のバッチ</b>：ほかの行に依存しない行を（ハブ, 優先度, 行 ID）の順に並べ、いちばん上の行と、ハブがその 60%（<code>SEED_HUB_SHARE</code>）以上の行を、最大 3 行（<code>MAX_SEED_ROWS</code>）まで<b>種</b>にする。種は 1 行ずつ自分のバッチ（1, 2, 3）を持ち、ほかのバッチより先に 1 件ずつ作る。どの行もアンカーを共有しないとき、または行が 1 つのときは種を作らない。<br><span class="small">多くの行が使う回路を先に 1 回だけ組み立て、その完成したプロジェクトを後の再計画に使うため。</span></li>
+  <li><b>本体のバッチ</b>：残りの行を依存の位相順（Kahn のアルゴリズム。同順位はハブの大きい順、優先度の高い順、行 ID）に取り出し、依存する行（と種）より後で、<b>行数が同時実行数未満</b>で、<b>アンカーを 2 個以上（<code>OVERLAP_LIMIT</code>）共有する行がいない</b>、いちばん早いバッチに入れる。同じ回路を作る 2 つの行が同時に走らないようにするため。依存が循環していれば、循環の外の何にも依存しない最上位の行で切る。</li>
+</ol>
+<h3>例：言語の計画（同時実行数 3）</h3>
+<p>アンカーを領域名で略記した例です（実際は <code>HOMBA:…</code> / <code>BNA:…</code> の ID）。</p>
+<table class="compact">
+  <thead><tr><th class="c" style="width:7%">行</th><th style="width:18%">TLF</th><th>アンカー（略記）</th><th style="width:14%">依存</th><th class="c" style="width:8%">ハブ</th><th style="width:22%">結果</th></tr></thead>
+  <tbody>
+    <tr><td class="c">R1</td><td>音韻処理</td><td>STG・SMG・IFG44</td><td>—</td><td class="c">2</td><td><b>種</b>・バッチ 1</td></tr>
+    <tr><td class="c">R2</td><td>発話</td><td>IFG44・PMv・Put</td><td>—</td><td class="c">2</td><td><b>種</b>・バッチ 2</td></tr>
+    <tr><td class="c">R3</td><td>語彙意味アクセス</td><td>MTG・ATL</td><td>—</td><td class="c">1</td><td>バッチ 3</td></tr>
+    <tr><td class="c">R4</td><td>文理解</td><td>MTG・ATL・IFG45</td><td>—</td><td class="c">1</td><td>バッチ 4（R3 と 2 個共有）</td></tr>
+    <tr><td class="c">R5</td><td>復唱</td><td>STG・SMG・IFG44・PMv</td><td>R1・R2</td><td class="c">2</td><td>バッチ 3（依存があるので種にならない）</td></tr>
+    <tr><td class="c">R6</td><td>読字</td><td>FG・ITG</td><td>—</td><td class="c">1</td><td>バッチ 3</td></tr>
+    <tr><td class="c">R7</td><td>書字</td><td>FG・SPL</td><td>—</td><td class="c">1</td><td>バッチ 4（バッチ 3 が満杯）</td></tr>
+  </tbody>
+</table>
+<figure>
+<svg viewBox="0 0 680 200" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+  <g font-size="9.5" font-weight="800" fill="#be123c" text-anchor="middle">
+    <text x="78" y="18">バッチ 1（種）</text><text x="228" y="18">バッチ 2（種）</text><text x="398" y="18">バッチ 3</text><text x="580" y="18">バッチ 4</text>
+  </g>
+  <g fill="none" stroke="#e5e7eb"><rect x="8" y="26" width="140" height="136" rx="8" fill="#fdecef" stroke="#f5a3b5"/><rect x="158" y="26" width="140" height="136" rx="8" fill="#fdecef" stroke="#f5a3b5"/><rect x="308" y="26" width="180" height="136" rx="8" fill="#f8fafc" stroke="#cbd5e1"/><rect x="498" y="26" width="174" height="136" rx="8" fill="#f8fafc" stroke="#cbd5e1"/></g>
+  <g font-size="9.4" fill="#1f2937">
+    <rect x="18" y="38" width="120" height="34" rx="5" fill="#fff" stroke="#be123c" stroke-width="1.4"/><text x="28" y="53" font-weight="800">R1 音韻処理</text><text x="28" y="66" font-size="8.2" fill="#5b6474">STG・SMG・IFG44</text>
+    <rect x="168" y="38" width="120" height="34" rx="5" fill="#fff" stroke="#be123c" stroke-width="1.4"/><text x="178" y="53" font-weight="800">R2 発話</text><text x="178" y="66" font-size="8.2" fill="#5b6474">IFG44・PMv・Put</text>
+    <rect x="318" y="38" width="160" height="34" rx="5" fill="#fff" stroke="#475569"/><text x="328" y="53" font-weight="800">R5 復唱</text><text x="328" y="66" font-size="8.2" fill="#5b6474">STG・SMG・IFG44・PMv</text>
+    <rect x="318" y="78" width="160" height="34" rx="5" fill="#fff" stroke="#475569"/><text x="328" y="93" font-weight="800">R3 語彙意味アクセス</text><text x="328" y="106" font-size="8.2" fill="#5b6474">MTG・ATL</text>
+    <rect x="318" y="118" width="160" height="34" rx="5" fill="#fff" stroke="#475569"/><text x="328" y="133" font-weight="800">R6 読字</text><text x="328" y="146" font-size="8.2" fill="#5b6474">FG・ITG</text>
+    <rect x="508" y="38" width="154" height="34" rx="5" fill="#fff" stroke="#475569"/><text x="518" y="53" font-weight="800">R4 文理解</text><text x="518" y="66" font-size="8.2" fill="#5b6474">MTG・ATL・IFG45</text>
+    <rect x="508" y="78" width="154" height="34" rx="5" fill="#fff" stroke="#475569"/><text x="518" y="93" font-weight="800">R7 書字</text><text x="518" y="106" font-size="8.2" fill="#5b6474">FG・SPL</text>
+  </g>
+  <g stroke="#64748b" stroke-width="1.2" fill="none" stroke-dasharray="3 3" marker-end="url(#a9)">
+    <path d="M138 44C200 28 280 28 316 44"/><path d="M288 60C300 60 306 58 316 56"/>
+    <path d="M478 95C494 95 496 70 506 60"/>
+  </g>
+  <text x="226" y="96" font-size="8.3" fill="#475569" text-anchor="middle">R5 は R1・R2 に依存</text>
+  <text x="226" y="108" font-size="8.3" fill="#475569" text-anchor="middle">→ 種より後</text>
+  <text x="585" y="130" font-size="8.3" fill="#475569" text-anchor="middle">R4 は R3 と MTG・ATL を</text>
+  <text x="585" y="142" font-size="8.3" fill="#475569" text-anchor="middle">共有 → 同じバッチに入れない</text>
+  <text x="340" y="184" font-size="8.8" fill="#374151" text-anchor="middle">見積もり：種 2 × 48 分 ＋ 本体 2 バッチ × 48 分 ＋ 手直し 7 行 × 20% × 15 分 ÷ 3 ≒ 199 分（約 3.3 時間）、費用 $1.26〜2.73</text>
+</svg>
+<figcaption><b>図 6.3</b>　実行順序の例。ハブが最大（2）の R1・R2 が種になり、1 件ずつ先に作られる。本体は依存と重なりを守って詰める</figcaption>
+</figure>
+<h3>下書きの並べ方（<code>orderDraft</code>）</h3>
+<ul>
+  <li>作る行（スキップでも既存でもない行）を、バッチ 1 から上の 3 段階で置きます。</li>
+  <li>既存のプロジェクトで済む行は、ハブの値の計算にだけ数え、置いた最後のバッチに並べます（作らない。種の印も付けない）。スキップした行は自分のバッチを保ちます。</li>
+  <li>行の <code>order</code> は作る順に従います：バッチの順（種が先）、バッチの中はハブと優先度の順で、置かなかった行（既存・スキップ）は最後です。</li>
+  <li>画面の各行には「ハブ n」と、アンカーを 2 個以上共有する行（「重なり」）が出ます（<code>GET /plans/{id}</code> がスキップ以外の行について <code>hub</code> と <code>overlaps</code> を計算して返す）。種の行のバッチの見出しには「種」と出ます。</li>
+</ul>
+<p class="small">補足：R1〜R7 のハブは R1・R2・R5 が 2、ほかが 1 です。種の候補は依存の無い行なので、R5 はハブが 2 でも種になりません。しきい値は max(1, ⌈2 × 0.6⌉) = 2 なので、R1 と R2 が種です。本体は R5（ハブ 2）→ R3 → R4 → R6 → R7 の順に置かれ、R4 はバッチ 3 にまだ空きがあっても R3 と 2 個共有するのでバッチ 4 に、R7 はバッチ 3 が 3 行で満杯なのでバッチ 4 に入ります。</p>
+
+<h2 id="s6-7">6.7 手順 3：行とバッチを整える</h2>
+<ul>
+  <li><b>編集</b>：下書きの間は、行の追加・削除・並べ替え、ROI・TLF・理由・バッチの変更ができます。「N 件ずつのバッチに分ける」は、いまの並び順のまま、同時に実行できる数 N ずつに分けます。</li>
+  <li><b>自動と手動の順序</b>：「自動で並べる」（<code>POST /plans/{id}/order</code>、<code>DRAFT</code> のときだけ。ジョブは使わず無料）は、いまの行で 6.6 の計算（<code>orderDraft</code>）をやり直し、<code>ordering: "auto"</code> にします（イベント <code>ordered</code>）。下書きの直後も自動の順序です。行の保存（<code>PUT /plans/{id}/rows</code>）で行を足す・消す・入れ替える・バッチを変えると<b>手動の順序</b>（<code>ordering: "manual"</code>）になり、あなたのバッチがそのまま使われます（バッチ後の並べ直しと再計画もしません）。作る行の中で自分のバッチに 1 行だけでなくなった種は、種の印を失います。</li>
+  <li>同じ行を同じ順番とバッチのまま保存する場合（理由・ROI・TLF・「作り直す」だけの変更）は、順序の種類を保ちます。自動の順序のまま「作り直す」や既存のプロジェクトが変わったときは、同じリクエストの中で並べ直します。<code>rowId</code> を保った行は、アンカー・依存・種の印・既存のプロジェクト・重複の注意を保ちます。新しい行と ROI × TLF を変えた行は、所有者のプロジェクトと照合し直します。</li>
+  <li>CSV の読み込み（<code>POST /plans/{id}/rows/import</code>）は、自動の順序の下書きでは全体を並べ直して自動のまま、手動の順序の下書きでは行を末尾に足します。</li>
+  <li><b>既存のプロジェクト</b>（<code>matchExistingProject</code>）：同じ ROI × TLF（大文字小文字・空白を無視。削除したプロジェクトは数えない）の、完成して成果物のある自分のプロジェクトがあれば、行に「既存」（<code>existing = { projectId, name }</code>）とリンクが付き、最後のバッチに並び、確定すると作らずに完了になります（見積もりにも費用にも入らない）。確定までにそのプロジェクトを削除したときは、行は作られます。まだ完成していない同じ ROI × TLF のプロジェクトがあれば注意（<code>duplicateOf</code>）とリンクが出るだけで、確定すると別に作ります。</li>
+  <li><b>作り直す</b>：既存があっても作りたい行は、編集画面で「作り直す」に印を付けて保存します（<code>rebuild: true</code>）。既存のプロジェクトは外れて作られ、この選択は行に残るので、下書きを作り直しても「既存」に戻りません。印を外して保存（<code>rebuild: false</code>）すると元に戻ります。</li>
+  <li><b>設定</b>：オーケストレーターのモデル（下書き・再計画・行の PR の AI レビュー）、エージェントのモデルと推論の強さ（各行の BRA）、調査モード（既定オン）。どちらのモデルも「デフォルト」なら確定時に設定のデフォルトのモデルに決まります。v0.37.0 より前の計画はオーケストレーターのモデルを持たず、行のモデルを両方に使います（<code>orchestratorModelOf</code>）。<b>粒度方針</b>はオーケストレーターが書くもので、所有者は編集できません（<code>PUT /plans/{id}</code> で送ると 400「粒度方針はオーケストレーターが決めます」）。</li>
+  <li><b>Canon</b>：「なし」「既存の Canon」（自分が所有する Canon。共同編集者の Canon は不可）「新しい Canon」（名前の初期値は計画の名前）から選びます（6.11）。</li>
+</ul>
+
+<h2 id="s6-8">6.8 手順 4：確定する</h2>
+<p>「確定して開始」（<code>POST /plans/{id}/confirm</code>）を押すと、見積もりを確かめてから開始します。確定では次のことを行います。</p>
+<ol class="steps">
+  <li><b>確認</b>：行が 1 つ以上あること、所有者がジョブを実行できるキーを持つこと（無ければ 400）、選んだ各モデルをティアが許すこと（403）。Canon のある計画では、選んだ既存の Canon がまだ所有者のものであること（409）。</li>
+  <li><b>固定</b>：オーケストレーターのモデル、各行のエージェントのモデル（選んだもの、無ければ所有者かデプロイの既定をティアに通したもの）、推論の強さ、調査モード、返答の言語（UI の言語）、<b>ハーネスのルール <code>harnessRules</code></b>。後のデプロイでルールが上がっても、計画の行はすべて確定時のルールで作られる。</li>
+  <li><b>既存の再確認</b>：既存のプロジェクトがある <code>pending</code> の行を、まだ削除されず、成果物つきで完成しているか確かめ直す。外れていれば照合し直し、無ければ作る（<code>confirmed</code> のイベントに <code>existingGone</code> として数える）。</li>
+  <li><b>並べ直し</b>：自動の順序の計画は、その時点の実効の同時実行数でもう一度並べる（<code>orderDraft</code>）。既存で済む行は <code>done</code>（<code>projectId</code> = そのプロジェクト、<code>completedAt</code>）にする（Canon のある計画の扱いは 6.11）。</li>
+  <li><b>Canon</b>：「新しい Canon」なら、ここで計画の粒度方針を方針にして作る（非公開・空・rev 0）。</li>
+  <li><b>開始</b>：見積もり（<code>planEstimate</code>）を保存して <code>RUNNING</code> にし、ランナーを 1 回すぐに動かす（最初の行が 1 分待たずに始まる）。</li>
+</ol>
+<p class="small">確定はリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはありません（6.14）。</p>
+<div class="box">
+  <div class="h">見積もりの計算式（<code>estimatePlan</code>）</div>
+  <p>時間 ≒ 種の行 × 48 分（1 件ずつ）＋ Σ 本体のバッチ ⌈バッチの行数 ÷ 同時実行数⌉ × 48 分 ＋ 行の 20% × 15 分（手直し）÷ 同時実行数。費用 ≒ 行数 × $0.18〜0.39。既存・スキップの行は除き、質問への回答や PR の承認を待つ時間は含みません。</p>
+  <p>例：141 行（種 3 行、残りを 1 バッチ）なら、同時実行数 1 で約 120 時間、4 で約 32 時間、8 で約 18 時間、12 で約 13 時間、16 で約 10 時間。</p>
+</div>
+
+<h2 id="s6-9">6.9 手順 5：実行 ― ランナーの 1 ステップ</h2>
+<p>実行はランナー（Lambda <code>planRunner</code>）が進めます。EventBridge の <code>rate(1 minute)</code> で毎分動き、確定・再開・リトライの直後にも 1 回動きます。<code>DRAFTING</code>・<code>RUNNING</code>・<code>PAUSED</code> の計画ごとに、計画の <code>META</code> に 90 秒の<b>リース</b>（楽観的な条件付き書き込み）を取り、取れなければその計画は飛ばします。1 ステップは次の順に進みます。</p>
+<table>
+  <thead><tr><th style="width:20%">段</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><b>1. 行を追う</b>（<code>syncRow</code>）</td><td><code>starting</code> / <code>running</code> / <code>question</code> の行のプロジェクトを見る。待機・実行・仕上げ中 → <code>running</code>、回答待ち → <code>question</code>、完了 → <code>done</code>（Canon のある計画では push、6.11）、失敗 → 試行が 2 回（<code>MAX_ROW_AUTO_RETRIES</code>）未満なら同じプロジェクトのまま <code>pending</code>（自動リトライ）、それ以上なら <code>attention</code>。回答待ちのまま 7 日で失敗 → リトライせず <code>attention</code>。計画の外で止められた・削除された → <code>attention</code>。</td></tr>
+    <tr><td><b>2. バッチを進める</b></td><td>実行中の計画だけ。いまのバッチとそれより前に <code>pending</code>・<code>starting</code>・<code>running</code> の行が無くなったら、待つ行のある次のバッチへ <code>activeWave</code> を進める。<code>question</code> と <code>attention</code> の行は待たない（その行だけが止まる）。戻ることはない。</td></tr>
+    <tr><td><b>3. 行を始める</b></td><td>いまのバッチとそれより前の <code>pending</code> の行を（バッチ, 順番）の順に、<b>空き枠</b>の数だけ始める。空き枠 = min(全体の上限 − 全員の待機・実行・仕上げ中のジョブ, 1 人の上限 − 所有者のジョブ)。待機中のジョブも数えるので、始められないものは積まない。始める前に所有者を確認し、無効・キー無し・モデル不許可なら計画を一時停止する。新しい行は、Project ID を予約 → 行を確保（<code>pending</code> → <code>starting</code>、状態を条件に）→ <code>POST /projects</code> と同じ関数でプロジェクトを作る（<code>planId</code>・計画のハーネスのルールつき）→ <code>running</code>。プロジェクトのある行（自動・手動のリトライ、中止で止めた行）は、<code>POST /projects/{id}/retry</code> と同じ関数で成果物から続ける。開始の例外も試行に数え、最後は <code>attention</code>（<code>start_failed</code>）。1 行ごとに計画を読み直し、一時停止・中止なら止める。</td></tr>
+    <tr><td><b>4. 完了</b></td><td>すべての行が <code>done</code> か <code>skipped</code> なら <code>COMPLETED</code>。</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>所有者の確認</b>：行を始める前に、<code>POST /projects</code> と同じく所有者を確かめます。アカウントが無効・キーが無い・<b>選んだ</b>モデルをティアがもう許さないときは計画を一時停止します（<code>owner_disabled</code> / <code>no_key</code> / <code>model_not_allowed</code>）。所有者が選ばず既定で決まったモデルなら、ティアの既定のモデルに置き換えて続けます。</li>
+  <li><b>枠</b>：待機中のジョブも数えるので、始められないものは積みません（janitor は 24 時間待機したジョブを失敗にする）。実行中のジョブの上限は、ディスパッチャーが別に守ります。</li>
+  <li>新しいプロジェクトのチャットには「CoBRAC オーケストレーターが開始」の通知（<code>sys.planStarted</code>）が出ます。計画の中止で止めたジョブには <code>sys.planCancelled</code> が出ます。中止の途中で始まった行は、すぐに止めます。</li>
+  <li>計画が作ったプロジェクトは通常のプロジェクトと同じ画面で開け、ヘッダーに計画へのリンクが出ます。来歴として <code>Projects.planId</code>・<code>Jobs.planId</code>（行の初回とリトライのジョブ。そのプロジェクトで手で始めたリトライも含む）、版の manifest の生成条件に <code>planId</code> が残ります。オーケストレーターは BRA-DB には登録しません（登録は版ごとに所有者が行う、第 5 部）。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/lib/planRunner.ts</code>（<code>advancePlan</code>・<code>syncRow</code>）・<code>runs.ts</code>（<code>createProject</code>・<code>queueRetry</code>・<code>stopProject</code>）、<code>packages/shared/src/plan.ts</code></p>
+
+<h2 id="s6-10">6.10 バッチごとの並べ直し・再計画・提案</h2>
+<p>自動の順序（<code>ordering: "auto"</code>）の計画では、バッチが終わるたびに残りの行を見直します。手動の順序の計画では行いません。</p>
+<ol class="steps">
+  <li><b>アンカーを実物で置き換える</b>（ランナー）：完了した行（既存で済んだ行を除く）で、アンカーがまだ <code>used</code> でないものについて、そのプロジェクトの <code>users/{owner}/{projectId}/workspace/{projectId}_HCD/uc.json</code> を読み（1 ステップ 20 件まで。1 つのバッチに入る数より多い）、読めてアンカーがあれば（<code>anchorsOfUcJson</code>：すべての UC と Collection の Descriptor のアンカー）、その行のアンカーを置き換える（<code>anchorsSource: "used"</code>）。予想と違った重なりが次の並べ直しに反映される。</li>
+  <li><b>並べ直す</b>（ランナー）：いまのバッチが終わり（そのバッチとそれより前に <code>pending</code>・<code>starting</code>・<code>running</code> の行が無い）、後のバッチに動かせる行（<code>isMovableRow</code>：<code>pending</code>・プロジェクト無し・既存でない）があり、このバッチでまだ並べ直していなければ（<code>lastReplanWave</code>）、<code>replanRows(rows, activeWave, effective)</code> が動かせる行を、いまのアンカーとハブの値で次のバッチから並べ直す。まだ始まっていない種は種のまま。新しいバッチは行がまだ <code>pending</code> のときだけ書き、<code>lastReplanWave</code> をそのバッチにする（イベント <code>replanned</code>：バッチと動かした行）。始まった・実行中・回答待ち・完了・要対応・スキップ・中止の行と、リトライ（プロジェクトのある <code>pending</code>）は動かない。その後、<code>activeWave</code> を 6.9 のとおり進める。</li>
+  <li><b>再計画のジョブ</b>（LLM のジョブ）：同じステップで、LLM に変更の提案を求める（<code>replan = { kind: "replan", status: "waiting", wave, requestedBy: "runner" }</code>。待機・実行中の再計画があれば求めない）。下書きと同じく枠が空いてから積み（入力の種類は <code>replan</code>、終わったバッチ <code>wave</code> とすべての行）、このステップで行を始める前に積むので、その枠を使う。一時停止中は積まない。<b>回数を抑える</b>（<code>replanJobDue</code>）：最初のバッチ（最初の種＝主なハブ）が終わった直後に 1 回、その後は作る行（既存・スキップ・中止を除く）の 1 割（最低 1 行）が前回の後に終わるごとに 1 回で、1 つの計画で約 10 回（<code>MAX_REPLAN_JOBS</code>）まで。10 行までの計画はバッチごと。同時実行数 1 ではバッチが 1 行ずつなので、毎バッチだと行と同じ数のジョブと枠の待ちがかかるため。並べ直し（2）は毎バッチ行う。</li>
+  <li><b>提案を保存する</b>（ランナー）：ジョブが完了すると、各提案を <code>PROP#&lt;proposalId&gt;</code>（状態 <code>open</code>、ジョブとバッチつき）として保存し、再計画を <code>done</code> にする（イベント <code>proposals_received</code>）。方針の提案はこのとき反映する（下の表）。失敗したら再計画を <code>failed</code> にして（イベント <code>replan_failed</code>）、計画はそのまま進む。計画が中止・完了したときに待機・実行中の再計画は <code>cancelled</code> にし、ジョブを止める（<code>dropReplan</code>）。</li>
+</ol>
+<table>
+  <thead><tr><th style="width:16%">提案</th><th>内容</th><th style="width:30%">承認したとき</th></tr></thead>
+  <tbody>
+    <tr><td><b>行の追加</b> <code>add</code></td><td>完了した行が共有する、または土台にしている回路で、どの行もまだ扱っていないもの</td><td>行ができ（出所 <code>llm</code>）、動かせる行が並べ直される。同じ ROI × TLF の完成したプロジェクトがあれば作らずに完了。200 行に達していれば 409</td></tr>
+    <tr><td><b>行の削除</b> <code>remove</code></td><td>完了した行がすでに扱っている、まだ始まっていない行</td><td>その行をスキップ</td></tr>
+    <tr><td><b>粒度方針</b> <code>policy</code></td><td>完了した行が、方針より細かく回路を切る必要があったなど</td><td><b>承認は要らない</b>。結果を保存した時点で反映され、「オーケストレーターが反映」として残る</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>提案は、所有者が承認（<code>POST /plans/{id}/proposals/{proposalId}/accept</code>）するまで計画を変えません。却下は <code>…/reject</code> です。どちらも計画が <code>RUNNING</code> か <code>PAUSED</code>、提案が <code>open</code> のときだけで、ほかは 409 です。提案には <code>decidedAt</code> / <code>decidedBy</code> が残り、<code>accepted</code> / <code>rejected</code> になります（イベント <code>proposal_accepted</code> / <code>proposal_rejected</code>）。決定済みの提案は、画面の履歴の下にまとめて出ます。何も提案しないことも多くあります。</li>
+  <li><b>追加の承認</b>：計画が 200 行なら 409。スキップでない行に同じ ROI × TLF があれば、提案は「無効」（<code>stale</code>）になり 409。新しい行は <code>pending</code>（出所 <code>llm</code>、予想のアンカー、依存、既存・重複の照合つき。照合では計画自身のプロジェクトを除く）で、既存のプロジェクトがあればすぐに <code>done</code> です。動かせる行を <code>replanRows</code> でいまのバッチの後に並べ直します（いまのバッチで枠を待っている行はバッチを保ち、バッチの付かなかった新しい行は最後のバッチの後に置く）。</li>
+  <li><b>削除の承認</b>：行がまだ動かせる（始まっていない）ときだけで、そうでなければ提案は <code>stale</code> になり 409。行をスキップします。</li>
+  <li><b>方針の提案</b>は <code>open</code> になりません。結果を保存した時点で（<code>storeProposals</code>）<code>accepted</code>・<code>decidedBy: "runner"</code> として保存し、方針を置き換えます（イベント <code>proposal_accepted</code>、<code>by</code> = <code>runner</code>）。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/planOrder.ts</code>（<code>replanRows</code>・<code>replanJobDue</code>・<code>anchorsOfUcJson</code>）、<code>packages/api/src/lib/planRunner.ts</code>・<code>planJobs.ts</code>・<code>planOps.ts</code></p>
+</section>

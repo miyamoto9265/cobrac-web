@@ -14,7 +14,6 @@ type ArticleItem = ListArticlesResponse["items"][number];
 const SPY_OFFSET = 96;
 /** Below this article width the one-column figures are shown (also next to the Agent panel on a wide screen). */
 const NARROW_FIGURES_BELOW = 640;
-const noDoc = () => null;
 
 interface Props {
   projectId: string;
@@ -381,7 +380,7 @@ function ArticleReader({ projectId, item }: { projectId: string; item: ArticleIt
               <Loader2 size={14} className="animate-spin" /> {t("loading")}
             </div>
           ) : (
-            <DocMarkdown text={text} headings={headings} docHref={noDoc} onAnchor={onAnchor} figures={item.figures?.length ? shownFigures ?? undefined : undefined} />
+            <DocMarkdown text={text} headings={headings} onAnchor={onAnchor} figures={item.figures?.length ? shownFigures ?? undefined : undefined} />
           )}
         </article>
       </div>

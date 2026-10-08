@@ -1,0 +1,50 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録 C</div>
+  <h1 class="part" id="pc">典拠と文書の作り方</h1>
+  <p class="lead">仕様の典拠になるコードの場所と、この文書を作り直す手順をまとめます。この文書は CoBRAC の仕様の唯一の正本なので、挙動を変えたら同じ変更の中でこの文書も直します。</p>
+</div>
+
+<h2 id="sc-1">C.1 部ごとの典拠</h2>
+<p>パスはすべて <code>miyamoto9265/cobrac-web</code> のリポジトリからの相対パスです。各節の末尾の「典拠」には、より細かいファイルや関数を挙げています。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">部</th><th>主なコード</th></tr></thead>
+  <tbody>
+    <tr><td>第 1 部 システム</td><td><code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/app.ts</code>・<code>handlers/</code>・<code>lib/</code>、<code>packages/shared/src/types.ts</code>・<code>pricing.ts</code>・<code>locale.ts</code>、<code>packages/web/src/</code>、<code>packages/worker/src/index.ts</code></td></tr>
+    <tr><td>第 2 部 ハーネス</td><td><code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>codex.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>・<code>litMcp.ts</code>・<code>litsearch.ts</code>・<code>article.ts</code>・<code>finalize.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>bra.ts</code>・<code>cross.ts</code>・<code>motifs.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>braTemplate.ts</code>・<code>graph.ts</code>、<code>prompts/</code></td></tr>
+    <tr><td>第 3 部 命名</td><td><code>packages/shared/src/ucNaming.ts</code>・<code>bnaLabels.ts</code>・<code>harness.ts</code>、<code>prompts/phases/HCD.md</code>、<code>packages/worker/src/rcs.ts</code>、<code>scripts/bra-appendix-d.mjs</code></td></tr>
+    <tr><td>第 4 部 Canon</td><td><code>packages/shared/src/canon.ts</code>・<code>canonMerge.ts</code>・<code>canonConstraints.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>、<code>packages/api/src/lib/canons.ts</code>・<code>canonOps.ts</code>、<code>packages/worker/src/canonReview.ts</code></td></tr>
+    <tr><td>第 5 部 版と BRA-DB</td><td><code>packages/infra/lib/bradb-stack.ts</code>、<code>packages/infra/bradb/</code>、<code>packages/api/src/lib/bradb/</code>・<code>versions.ts</code>、<code>packages/shared/src/braVersion.ts</code>・<code>bradb.ts</code>、<code>packages/worker/src/versions.ts</code></td></tr>
+    <tr><td>第 6 部 オーケストレーター</td><td><code>packages/shared/src/plan.ts</code>・<code>planOrder.ts</code>・<code>planJob.ts</code>、<code>packages/api/src/lib/plan*.ts</code>・<code>runs.ts</code>・<code>concurrency.ts</code>、<code>packages/api/src/handlers/planRunner.ts</code>、<code>packages/worker/src/planJob.ts</code>、<code>prompts/plan.md</code></td></tr>
+    <tr><td>第 7 部 運用</td><td><code>packages/infra/lib/</code>、<code>.github/workflows/</code>、<code>scripts/release.mjs</code>・<code>retain-guard.mjs</code>、<code>AGENTS.md</code>、<code>README.md</code>、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code></td></tr>
+    <tr><td>付録 A API</td><td><code>packages/api/src/app.ts</code>、<code>packages/api/src/handlers/ws.ts</code>・<code>broadcaster.ts</code></td></tr>
+    <tr><td>付録 B プロンプト</td><td><code>prompts/AGENTS.md</code>、<code>prompts/phases/</code>、<code>prompts/research_mode.md</code>、<code>prompts/article.md</code>、<code>prompts/plan.md</code></td></tr>
+  </tbody>
+</table>
+<p>利用者向けの操作手順は利用マニュアル（<code>docs/manual/</code>）、版ごとの変更はリリースノート（<code>CHANGELOG.md</code>）にあります。どちらも仕様の正本ではありません。</p>
+
+<h2 id="sc-2">C.2 この文書の作り方</h2>
+<p>この PDF（<code>docs/CoBRAC_仕様書.pdf</code>）は、<code>docs/spec-guide/</code> の HTML から作ります。</p>
+<table class="compact">
+  <thead><tr><th style="width:30%">ファイル</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td><code>src/*.html</code></td><td>本文。ファイル名の順に連結する（<code>00_cover</code> が表紙、<code>01_intro</code> が序章、<code>10</code>〜<code>70</code> が第 1〜7 部、<code>91</code>〜<code>94</code> が付録）</td></tr>
+    <tr><td><code>src/style.css</code></td><td>A4 の版面、部ごとの色、表・囲み・図の書式</td></tr>
+    <tr><td><code>build.mjs</code></td><td>Chromium（Playwright）で PDF にする。目次のページ番号は 2 回の描画で決める。<code>&lt;figure data-figure="…"&gt;</code> に <code>docs/figures</code> の SVG を埋め込み、付録 B を <code>prompts/</code> から作る</td></tr>
+    <tr><td><code>inputs.mjs</code></td><td>入力ファイル（本文、取り込む図、プロンプト、差し込み値を読むコード）の一覧と、そのハッシュ</td></tr>
+    <tr><td><code>build.json</code></td><td>最後に作った PDF の入力のハッシュ・ページ数・バイト数</td></tr>
+    <tr><td><code>fetch-fonts.sh</code></td><td>本文のフォント（Noto Sans JP、JetBrains Mono）を npm のレジストリから <code>.fonts/</code> に取る（コミットしない）</td></tr>
+  </tbody>
+</table>
+<ol class="steps">
+  <li>挙動を変えたら、同じ変更の中で該当する節の HTML を直す。数値・上限・ファイル名はコードの定数を確かめて書く。</li>
+  <li>1 ファイルだけを確かめるときは <code>node build.mjs --preview src/&lt;ファイル&gt;.html</code>（<code>out/preview-*.pdf</code>）。</li>
+  <li>全体を作り直す：リポジトリの直下で <code>npm run spec:build</code>（<code>./fetch-fonts.sh &amp;&amp; node build.mjs</code>）。Playwright の Chromium、<code>pdftotext</code>、Python の <code>pypdf</code> が要る。目次のページ番号が本文と合わなければ失敗する。</li>
+  <li><code>docs/CoBRAC_仕様書.pdf</code> と <code>docs/spec-guide/build.json</code> をコミットする。<code>npm test</code>（<code>scripts/spec-guide.test.mjs</code>）が、本文・取り込む図・プロンプト・差し込み値のコードが PDF を作った後に変わっていないかを確かめ、変わっていれば作り直しを求める。プロンプトだけを直した場合も、付録 B が変わるので作り直す。</li>
+  <li>版を上げた変更を main にマージするとデプロイで API に同梱され、サイトの「仕様書」に出る（第 7 部）。</li>
+</ol>
+<div class="box">
+  <div class="h">書き方の約束</div>
+  <p>です・ます調で、平易で正確な完全文で書きます。列挙できる事実は表にし、識別子は等幅、画面の文言は「」にします。誰が何をするかは、LLM（CoBRAC エージェントなど）・プログラム（ワーカー、API など）・人を区別して書きます。節は <code>&lt;h2 id="s&lt;部&gt;-&lt;番号&gt;"&gt;</code> で、番号を本文に書きます（目次は h1 と h2 から作る）。新しい図は <code>scripts/docs-figures*.mjs</code> で作って <code>data-figure</code> で取り込むか、HTML に SVG を直接書きます。</p>
+</div>
+</section>

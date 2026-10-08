@@ -152,7 +152,7 @@ export interface ArticleFormat {
   gnIds: string[];
 }
 
-/** Anchor of a heading as the article reader makes it (GitHub-style, like the Docs page). */
+/** Anchor of a heading as the article reader makes it (GitHub-style, like the user manual). */
 export function articleHeadingSlug(text: string): string {
   return text
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
