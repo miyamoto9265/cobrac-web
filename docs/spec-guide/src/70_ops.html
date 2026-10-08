@@ -964,17 +964,17 @@
 <p><code>scripts/retain-guard.mjs</code> は、<code>CobracAgents</code> と <code>BraDb</code> の <code>cdk diff</code> の出力を読み、状態を持つリソースの置き換え（replace、may be replaced）・削除（destroy、orphan、取り除き）を見つけると、デプロイの前にジョブを止めます。対象は <code>AWS::DynamoDB::Table</code>・<code>AWS::DynamoDB::GlobalTable</code>・<code>AWS::S3::Bucket</code>・<code>AWS::KMS::Key</code>・<code>AWS::Cognito::UserPool</code> の全部と、BRA-DB のインスタンス <code>Db</code>（<code>AWS::EC2::Instance</code>）・データ用ボリューム <code>DataVolume</code>（<code>AWS::EC2::Volume</code>）・その取り付け（<code>AWS::EC2::VolumeAttachment</code>）です。BRA-DB の 3 つはコンストラクトのパスで見分けるので、NAT インスタンスは置き換えられます。<code>cdk diff</code> の出力を解釈できない（<code>Stack CobracAgents</code> の行が無い）ときも止まります。終了コードは 0（安全、または許可済み）、1（危険な変更あり）、2（出力を解釈できない）で、ログにはリソースの型・パス・論理 ID だけを出し、プロパティの値は出しません。</p>
 <p>差分を確かめたうえで続けるときは、<code>gh workflow run deploy.yml --ref main -f allow_retain_replacement=true</code> で実行し直します。通常の「Re-run」では入力が付かないので、再び止まります。だれがこれを決めるかは 7.15 に書きます。BRA-DB のインスタンスを置き換える手順は 5.8 にあります。</p>
 <h3>設定値</h3>
-<p>デプロイの設定の正本は、GitHub の Actions の <b>Variables</b> と <b>Secret</b>（<code>COBRAC_ADMIN_EMAILS</code>）です。手元の <code>.env</code>（リポジトリに入れない。雛形は <code>.env.example</code>）は緊急デプロイと手元の synth のための写しで、値を変えるときは両方を直します。下の既定値は、手元で変数が無いときにだけ使われます。deploy ワークフローは <code>COBRAC_CODEX_MODEL</code> 以外のすべてを必須とし、空なら失敗します。</p>
+<p>デプロイの設定の正本は、GitHub の Actions の <b>Variables</b> と <b>Secret</b>（<code>COBRAC_ADMIN_EMAILS</code>）です。手元の <code>.env</code>（リポジトリに入れない。雛形は <code>.env.example</code>）は緊急デプロイと手元の synth のための写しで、値を変えるときは両方を直します。下の表の「変数が無いとき」の値は、手元で変数を設定しなかったときに CDK のアプリ（<code>packages/infra/bin/app.ts</code>）が使う値です。deploy ワークフローは <code>COBRAC_CODEX_MODEL</code> 以外のすべてを必須とし、空なら失敗します。</p>
 <table class="compact">
-  <thead><tr><th style="width:33%">変数</th><th style="width:20%">既定</th><th>意味</th></tr></thead>
+  <thead><tr><th style="width:33%">変数</th><th style="width:20%">変数が無いとき</th><th>意味</th></tr></thead>
   <tbody>
     <tr><td><code>AWS_DEPLOY_ROLE_ARN</code>・<code>CDK_DEFAULT_ACCOUNT</code>・<code>CDK_DEFAULT_REGION</code></td><td>（必須）</td><td>デプロイのロールと、配置先のアカウントとリージョン</td></tr>
     <tr><td><code>COBRAC_ADMIN_EMAILS</code>（Secret）</td><td>（必須）</td><td>サインインで管理者にするアドレス（カンマ区切り）</td></tr>
     <tr><td><code>COBRAC_SELF_SIGNUP</code></td><td><code>true</code></td><td><code>false</code> で招待制</td></tr>
     <tr><td><code>COBRAC_MAX_CONCURRENT_JOBS</code></td><td>2</td><td>全体の Fargate タスクの同時実行数（管理者画面の 1〜16 の設定がデプロイなしで上書きする）</td></tr>
     <tr><td><code>COBRAC_MAX_CONCURRENT_JOBS_PER_USER</code></td><td>1</td><td>1 人あたり（同上）</td></tr>
-    <tr><td><code>COBRAC_CODEX_MODEL</code>（任意）</td><td>空</td><td>指定がないときのモデル（空なら <code>gpt-6-luna</code>）</td></tr>
-    <tr><td><code>COBRAC_CODEX_REASONING_EFFORT</code></td><td><code>high</code></td><td>指定がないときの推論の強さ</td></tr>
+    <tr><td><code>COBRAC_CODEX_MODEL</code>（任意）</td><td>空</td><td>プロジェクトにも利用者の設定にも指定がないときのモデル。空ならワーカーが <code>gpt-6-luna</code> を使う</td></tr>
+    <tr><td><code>COBRAC_CODEX_REASONING_EFFORT</code></td><td>空（<code>.env.example</code> の値は <code>high</code>）</td><td>プロジェクトに指定がないときの推論の強さ。空なら Codex の既定に任せる</td></tr>
   </tbody>
 </table>
 <table class="compact">

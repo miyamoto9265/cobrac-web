@@ -254,7 +254,7 @@
     <tr><td>BRA-DB の登録 Lambda</td><td>別スタック <code>BraDb</code>（<code>handlers/bradbImport.ts</code>）</td><td>API が呼ぶ</td><td>版を BRA-DB に登録する（第 5 部）</td></tr>
   </tbody>
 </table>
-<p>外のサービスは、OpenAI API（モデルの推論。利用者のキーかデフォルトの API キーで呼ぶ）、RCS MCP（rosetta-candidate-search の <code>rcs-mcp</code>。SABRA の単位を引く。トークンは Secrets Manager にある）、PubMed・Europe PMC（エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ）、Crossref・PubMed（ワーカーが文献の DOI・PMID と引用文を照合する）、SES（アカウントのメール）です。</p>
+<p>外のサービスは、OpenAI API（モデルの推論。利用者のキーかデフォルトの API キーで呼ぶ）、RCS MCP（rosetta-candidate-search の <code>rcs-mcp</code>。SABRA の単位を引く。トークンは Secrets Manager にある）、PubMed・Europe PMC（エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ）、Crossref・PubMed・Europe PMC（ワーカーが文献の DOI・PMID と引用文を照合する。2.12）、SES（アカウントのメール）です。</p>
 
 <h3>LLM が動く場所</h3>
 <p>システムの中で LLM が動くのは、ワーカーが Codex を通じて実行するジョブだけです。API・dispatcher・broadcaster・janitor・計画ランナーの Lambda はどれも LLM を呼びません。LLM のジョブは次の 4 種類で、それぞれ別の会話（スレッド）です。互いの会話を共有することはありません。</p>
