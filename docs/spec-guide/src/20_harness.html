@@ -129,7 +129,7 @@
     <tr><td>3 FRG</td><td>TLF を分解し、候補を解釈して GN にまとめる → <code>frg.json</code>、<code>report.md</code> の FRG 節と対応表</td><td>GN・interface・機能項目を検査し、HCD との整合を計算する。問題があれば修正依頼（最大 3 回） → <code>cross_check.json</code></td><td>受理された FRG と整合の所見</td></tr>
     <tr><td>4 調整（該当時、実行ごとに 1 回）</td><td>FRG を直すか、根拠を得て HCD を直すか、理由を書いて残す → 変更したファイル、<code>decision_log.md</code> の revisions</td><td>X1・X2・X3・X8 があれば調整を依頼し、その後に変更されたファイルを再検証する</td><td>再検証された HCD・FRG</td></tr>
     <tr><td>5 CSV・xlsx・グラフ</td><td>なし。CSV の生成で問題が出たときだけ、JSON を直す依頼を受ける</td><td>JSON から CSV 5 本、xlsx 2 種、グラフを生成する（2.14）</td><td>成果物</td></tr>
-    <tr><td>6 版</td><td>なし</td><td>成果物と生成条件を凍結する → <code>&lt;ProjectID&gt;@vN</code>（第 5 部）</td><td>利用者が閲覧・ダウンロードする</td></tr>
+    <tr><td>6 版</td><td>なし</td><td>成果物と生成条件を凍結する → <code>&lt;ProjectID&gt;@vN</code>（第 5 部）</td><td>利用者が「版」のタブで閲覧する（版のダウンロードは無い）</td></tr>
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>・<code>runResearch</code>・<code>checkPhase</code>）、<code>packages/worker/src/finalize.ts</code></p>

@@ -857,3 +857,158 @@
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/worker/src/env.ts</code>（圧縮のしきい値）、<code>litsearch.ts</code>・<code>litMcp.ts</code>（件数）、<code>prompts/AGENTS.md</code>（Working efficiently）、<code>packages/shared/src/types.ts</code>（<code>fixTurnEffort</code>）、<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>、<code>packages/shared/src/plan.ts</code>（<code>RUN_TOKENS_PER_MINUTE</code>・<code>ORG_TOKENS_PER_MINUTE</code>）。PR #60〜#64・#66〜#70（v0.17.0〜v0.18.2）。測定値は本番の記録とセッション記録から出したもので、コードの定数ではない</p>
+
+<h2 id="s7-14">7.14 開発・リリース・デプロイ</h2>
+<p>リポジトリは GitHub の <code>miyamoto9265/cobrac-web</code>（公開）で、npm workspaces のモノレポです。作業の規則は <code>AGENTS.md</code> にあり、人もコーディングエージェントもそれに従います。</p>
+<table class="compact">
+  <thead><tr><th style="width:26%">場所</th><th>中身</th></tr></thead>
+  <tbody>
+    <tr><td><code>package.json</code></td><td>workspaces の定義。<code>version</code> がアプリ全体の版番号の唯一の正本</td></tr>
+    <tr><td><code>CHANGELOG.md</code></td><td>リリースノート（Keep a Changelog の形式）。全員が「リリースノート」の画面で読む</td></tr>
+    <tr><td><code>scripts/</code></td><td><code>release.mjs</code>（版番号の更新と CHANGELOG の確定）、<code>retain-guard.mjs</code>（デプロイ前の RETAIN ガード）、<code>bra-appendix-d.mjs</code>（BRA の出力をエラーコードごとに判定する）、文書の図の生成</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td><code>ci.yml</code>・<code>deploy.yml</code>・<code>claude.yml</code>（下の表）</td></tr>
+    <tr><td><code>prompts/</code></td><td>エージェントへの指示（第 2 部・付録 B）、<code>csv_to_excel.py</code>、公式テンプレート</td></tr>
+    <tr><td><code>packages/shared</code>・<code>worker</code>・<code>api</code>・<code>web</code>・<code>infra</code></td><td>共有の型と検証・単価表、Fargate のワーカー、Lambda、React の SPA、AWS CDK（第 1 部）</td></tr>
+  </tbody>
+</table>
+<h3>版番号</h3>
+<ul>
+  <li>版番号はルートの <code>package.json</code> の <code>version</code> だけが正本です。ビルド時に Vite が埋め込み、サイドバーの下に <code>vX.Y.Z · &lt;git の短い SHA&gt;</code> と表示します。CDK は同じ値を Lambda の <code>APP_VERSION</code> に渡し、<code>GET /health</code> が返します。ワーカーにも同じ値と git の commit を渡し、凍結する版の生成条件に記録します（5.2）。</li>
+  <li>Semantic Versioning に従います。0.x の間の目安は、<b>patch</b>：バグの修正、文言・表示の調整、文書、単価表の更新。<b>minor</b>：画面や API の追加、データモデルの追加、ワークフロー・プロンプトの変更。<b>major</b>：既存のデータと互換性がなくなる変更（テーブルの構造、成果物の形式）。</li>
+  <li>版番号を手で編集しません（<code>release.mjs</code> を通す。workspace の <code>package.json</code> は自動でそろう）。<code>[Unreleased]</code> が空のまま <code>release</code> すると失敗するので、CHANGELOG を書かずに版を上げることはできません。</li>
+</ul>
+<h3>リリースの手順</h3>
+<ol class="steps">
+  <li>変更の内容を <code>CHANGELOG.md</code> の <code>## [Unreleased]</code> に「追加・変更・修正・削除」の見出しで書く。利用者に見える挙動を主語にし、ファイル名や関数名だけの記述にしない。</li>
+  <li>作業ブランチで <code>npm run release -- patch --no-git</code>（または <code>minor</code>・<code>major</code>・版番号）を実行する。ルートと全 workspace の <code>package.json</code>・<code>package-lock.json</code> の版を更新し、<code>[Unreleased]</code> を <code>## [X.Y.Z] - YYYY-MM-DD</code> に確定する。この変更をコミットして PR に含める（<code>--no-git</code> を付けないと main を前提にコミットとタグを作るので、PR の運用では使わない）。</li>
+  <li>PR の CI（<code>ci.yml</code>）が、AWS の認証なしで build・typecheck・test・<code>release:check</code>・<code>cdk synth</code> を行う。ジョブの要約に「マージでデプロイされるか」が出る。</li>
+  <li>人が PR を <code>main</code> にマージする。<b>版を上げた PR のマージがデプロイの承認</b>になる（7.15）。</li>
+  <li><code>deploy.yml</code> が <code>v&lt;version&gt;</code> のタグの有無を見て、<b>タグが無い版だけ</b>をデプロイし、タグを付け、<code>GET /health</code> で版を確かめる。結果は Actions の実行（<code>gh run view --log</code>）で確かめる。</li>
+</ol>
+<p>版を上げないマージ（文書だけの変更など）はデプロイされず、次のリリースにまとめて入ります。</p>
+<h3>ワークフロー</h3>
+<table class="compact">
+  <thead><tr><th style="width:15%">ファイル</th><th style="width:22%">きっかけ</th><th>すること</th></tr></thead>
+  <tbody>
+    <tr><td><code>ci.yml</code></td><td>PR、手動の実行</td><td><code>npm ci</code> → build → typecheck → <code>docs:prompts:check</code> → Python の依存の導入 → test（xlsx の生成まで）→ <code>release:check</code>（全 workspace の版がそろい、CHANGELOG にその版の節があるか）→ <code>cdk synth</code> → 「マージでデプロイされるか」。AWS の認証は使わず、<code>cdk.context.json</code> と仮の設定値で synth する。権限は <code>contents: read</code>、20 分で打ち切り、同じブランチの古い実行は取り消す</td></tr>
+    <tr><td><code>deploy.yml</code></td><td><code>main</code> への push、手動の実行（入力 <code>allow_retain_replacement</code>）</td><td>下の図と表。<code>main</code> でだけ動く</td></tr>
+    <tr><td><code>claude.yml</code></td><td>Issue・Issue のコメント・PR のコメントの <code>@claude</code>（<code>miyamoto9265</code> か <code>cursor[bot]</code> のものだけ）</td><td>Claude Code がブランチで作業し、draft の PR を出す。AWS とデプロイの権限はない（7.15）</td></tr>
+  </tbody>
+</table>
+<figure>
+<svg viewBox="0 0 680 240" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="a72" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0e7490"/></marker></defs>
+  <g font-size="8.5" fill="#1f2937" text-anchor="middle">
+    <rect x="4" y="8" width="156" height="68" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <text x="82" y="27" font-weight="800" font-size="9.8">① 作業ブランチ</text>
+    <text x="82" y="43">CHANGELOG の [Unreleased]</text>
+    <text x="82" y="58" font-family="JetBrains Mono, monospace" font-size="7.4">npm run release -- patch</text>
+    <text x="82" y="69" font-family="JetBrains Mono, monospace" font-size="7.4">--no-git</text>
+    <rect x="176" y="8" width="156" height="68" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <text x="254" y="27" font-weight="800" font-size="9.8">② PR と ci.yml</text>
+    <text x="254" y="43">build・typecheck・test</text>
+    <text x="254" y="57">release:check・cdk synth</text>
+    <text x="254" y="71" fill="#5b6474">AWS の認証なし</text>
+    <rect x="348" y="8" width="156" height="68" rx="7" fill="#e8f6f9" stroke="#0e7490" stroke-width="1.8"/>
+    <text x="426" y="27" font-weight="800" font-size="9.8" fill="#0e7490">③ main へのマージ（人）</text>
+    <text x="426" y="43">版を上げた PR のマージ</text>
+    <text x="426" y="57" font-weight="700">＝ デプロイの承認</text>
+    <text x="426" y="71" fill="#5b6474">版を上げなければデプロイしない</text>
+    <rect x="520" y="8" width="156" height="68" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <text x="598" y="27" font-weight="800" font-size="9.8">④ deploy.yml：plan</text>
+    <text x="598" y="43">タグ v&lt;version&gt; は</text>
+    <text x="598" y="57">まだ無いか</text>
+    <text x="598" y="71" fill="#5b6474">あれば何もせず終了</text>
+  </g>
+  <g stroke="#0e7490" stroke-width="1.4" fill="none" marker-end="url(#a72)"><path d="M160 42H174"/><path d="M332 42H346"/><path d="M504 42H518"/><path d="M598 76V102"/></g>
+  <text x="604" y="93" font-size="8.2" fill="#0e7490">無い</text>
+  <rect x="4" y="104" width="672" height="78" rx="8" fill="#e8f6f9" stroke="#0e7490" stroke-width="1.3"/>
+  <text x="16" y="122" font-size="9.6" font-weight="800" fill="#111827">⑤ deploy ジョブ（id-token: write。GitHub OIDC でロール gha-cobrac-web-deploy を 1 時間引き受ける）</text>
+  <g font-size="8.3" fill="#1f2937" text-anchor="middle">
+    <rect x="14" y="134" width="98" height="38" rx="5" fill="#fff" stroke="#94a3b8"/><text x="63" y="150">設定値の検査</text><text x="63" y="163" fill="#5b6474">AWS に触れる前</text>
+    <rect x="124" y="134" width="98" height="38" rx="5" fill="#fff" stroke="#94a3b8"/><text x="173" y="150">build・typecheck</text><text x="173" y="163">test・release:check</text>
+    <rect x="234" y="134" width="98" height="38" rx="5" fill="#fff" stroke="#94a3b8"/><text x="283" y="150">OIDC で</text><text x="283" y="163">ロールを引き受け</text>
+    <rect x="344" y="134" width="98" height="38" rx="5" fill="#fff" stroke="#94a3b8"/><text x="393" y="150">cdk diff</text><text x="393" y="163">CobracAgents・BraDb</text>
+    <rect x="454" y="134" width="98" height="38" rx="5" fill="#fff" stroke="#b45309" stroke-width="1.4"/><text x="503" y="150" font-weight="700" fill="#b45309">RETAIN ガード</text><text x="503" y="163">危険なら止まる</text>
+    <rect x="564" y="134" width="102" height="38" rx="5" fill="#fff" stroke="#0e7490" stroke-width="1.4"/><text x="615" y="150" font-weight="700">npm run deploy</text><text x="615" y="163">cdk deploy --all</text>
+  </g>
+  <g stroke="#0e7490" stroke-width="1.2" fill="none" marker-end="url(#a72)"><path d="M112 153H122"/><path d="M222 153H232"/><path d="M332 153H342"/><path d="M442 153H452"/><path d="M552 153H562"/><path d="M170 182V200"/><path d="M510 182V200"/></g>
+  <g font-size="8.5" fill="#1f2937">
+    <rect x="4" y="202" width="332" height="34" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <text x="16" y="223"><tspan font-weight="800">⑥ tag ジョブ</tspan>：vX.Y.Z を付けて push（contents: write）</text>
+    <rect x="344" y="202" width="332" height="34" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <text x="356" y="223"><tspan font-weight="800">⑦ health ジョブ</tspan>：/health の版と Web の 200 を確認（権限なし）</text>
+  </g>
+</svg>
+<figcaption><b>図 7.9</b>　デプロイの流れ。人の判断は ③ のマージだけで、④〜⑦ は GitHub Actions のプログラムが行う</figcaption>
+</figure>
+<table class="compact">
+  <caption>deploy.yml の設定</caption>
+  <thead><tr><th style="width:18%">項目</th><th>設定</th></tr></thead>
+  <tbody>
+    <tr><td>plan</td><td><code>package.json</code> の版を読み、<code>git ls-remote</code> でタグ <code>v&lt;version&gt;</code> を探す。あれば「nothing to deploy」で終わり、無ければ deploy に進む（5 分で打ち切り）</td></tr>
+    <tr><td>設定値の検査</td><td>AWS に触れる前に、Variables と Secret の必須の値（<code>AWS_DEPLOY_ROLE_ARN</code>・<code>CDK_DEFAULT_ACCOUNT</code>・<code>CDK_DEFAULT_REGION</code>・<code>COBRAC_SELF_SIGNUP</code>・<code>COBRAC_MAX_CONCURRENT_JOBS</code>・<code>COBRAC_MAX_CONCURRENT_JOBS_PER_USER</code>・<code>COBRAC_CODEX_REASONING_EFFORT</code>・<code>COBRAC_ADMIN_EMAILS</code>）が空でないことと形式を確かめる：アカウントは 12 桁、ロールの ARN は同じアカウント、セルフサインアップは <code>true</code> / <code>false</code>、同時実行数は正の整数、推論の強さは <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code> のどれか、管理者のアドレスはメールアドレスの形。空の値は CDK に <code>""</code> として届き、セルフサインアップを閉じたり同時実行数を 0 にしたりしてしまうので、すべて必須にしている。管理者のアドレスはログで伏せ字にする</td></tr>
+    <tr><td>IAM ロール</td><td><code>gha-cobrac-web-deploy</code>。信頼は GitHub OIDC で、<code>sub</code> が <code>main</code> ブランチのこのリポジトリのときだけ（PR のブランチ・フォーク・タグからは引き受けられない）。権限は CDK の bootstrap ロール（<code>cdk-hnb659fds-*</code>）の引き受けと <code>CobracAgents</code> の <code>DescribeStacks</code>、それに IAM・請求・秘密・個人データの読み取りを拒むガードレール（7.15）。セッション名は <code>GitHubActions-cobrac-web-&lt;run_id&gt;</code></td></tr>
+    <tr><td>長期のキー</td><td>使わない</td></tr>
+    <tr><td>ワークフローの権限</td><td>既定は無し。<code>id-token: write</code> は deploy ジョブだけ、<code>contents: write</code> は tag ジョブだけ、health ジョブは権限なし</td></tr>
+    <tr><td>RETAIN ガード</td><td>下の「RETAIN ガード」</td></tr>
+    <tr><td>デプロイ</td><td><code>npm run deploy</code>（<code>release:check</code> → build → <code>cdk deploy --all --require-approval never</code>）。60 分で打ち切り。終わったらスタックの出力から <code>ApiUrl</code> と <code>WebUrl</code> を読む</td></tr>
+    <tr><td>tag</td><td><code>github-actions[bot]</code> として注釈つきのタグ <code>vX.Y.Z</code> を、デプロイした commit に付けて push する。health の結果は待たない</td></tr>
+    <tr><td>health</td><td><code>GET {ApiUrl}/health</code> の <code>version</code> が新しい版になるまで 10 秒おきに最大 12 回確かめ、<code>WebUrl</code> が HTTP 200 を返すことも確かめる。どちらかが違えば失敗にする</td></tr>
+    <tr><td>直列化</td><td><code>concurrency: deploy-cobrac-agents</code>。デプロイ中の実行は取り消さない</td></tr>
+    <tr><td>アクション</td><td>commit の SHA で固定する</td></tr>
+  </tbody>
+</table>
+<p class="small">ワークフローに GitHub の <code>environment:</code> を付けてはいけません。OIDC の <code>sub</code> が <code>…:environment:&lt;名前&gt;</code> に変わり、ロールを引き受けられなくなります。</p>
+<h3>RETAIN ガード</h3>
+<p><code>scripts/retain-guard.mjs</code> は、<code>CobracAgents</code> と <code>BraDb</code> の <code>cdk diff</code> の出力を読み、状態を持つリソースの置き換え（replace、may be replaced）・削除（destroy、orphan、取り除き）を見つけると、デプロイの前にジョブを止めます。対象は <code>AWS::DynamoDB::Table</code>・<code>AWS::DynamoDB::GlobalTable</code>・<code>AWS::S3::Bucket</code>・<code>AWS::KMS::Key</code>・<code>AWS::Cognito::UserPool</code> の全部と、BRA-DB のインスタンス <code>Db</code>（<code>AWS::EC2::Instance</code>）・データ用ボリューム <code>DataVolume</code>（<code>AWS::EC2::Volume</code>）・その取り付け（<code>AWS::EC2::VolumeAttachment</code>）です。BRA-DB の 3 つはコンストラクトのパスで見分けるので、NAT インスタンスは置き換えられます。<code>cdk diff</code> の出力を解釈できない（<code>Stack CobracAgents</code> の行が無い）ときも止まります。終了コードは 0（安全、または許可済み）、1（危険な変更あり）、2（出力を解釈できない）で、ログにはリソースの型・パス・論理 ID だけを出し、プロパティの値は出しません。</p>
+<p>差分を確かめたうえで続けるときは、<code>gh workflow run deploy.yml --ref main -f allow_retain_replacement=true</code> で実行し直します。通常の「Re-run」では入力が付かないので、再び止まります。だれがこれを決めるかは 7.15 に書きます。BRA-DB のインスタンスを置き換える手順は 5.8 にあります。</p>
+<h3>設定値</h3>
+<p>デプロイの設定の正本は、GitHub の Actions の <b>Variables</b> と <b>Secret</b>（<code>COBRAC_ADMIN_EMAILS</code>）です。手元の <code>.env</code>（リポジトリに入れない。雛形は <code>.env.example</code>）は緊急デプロイと手元の synth のための写しで、値を変えるときは両方を直します。下の既定値は、手元で変数が無いときにだけ使われます。deploy ワークフローは <code>COBRAC_CODEX_MODEL</code> 以外のすべてを必須とし、空なら失敗します。</p>
+<table class="compact">
+  <thead><tr><th style="width:33%">変数</th><th style="width:20%">既定</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>AWS_DEPLOY_ROLE_ARN</code>・<code>CDK_DEFAULT_ACCOUNT</code>・<code>CDK_DEFAULT_REGION</code></td><td>（必須）</td><td>デプロイのロールと、配置先のアカウントとリージョン</td></tr>
+    <tr><td><code>COBRAC_ADMIN_EMAILS</code>（Secret）</td><td>（必須）</td><td>サインインで管理者にするアドレス（カンマ区切り）</td></tr>
+    <tr><td><code>COBRAC_SELF_SIGNUP</code></td><td><code>true</code></td><td><code>false</code> で招待制</td></tr>
+    <tr><td><code>COBRAC_MAX_CONCURRENT_JOBS</code></td><td>2</td><td>全体の Fargate タスクの同時実行数（管理者画面の 1〜16 の設定がデプロイなしで上書きする）</td></tr>
+    <tr><td><code>COBRAC_MAX_CONCURRENT_JOBS_PER_USER</code></td><td>1</td><td>1 人あたり（同上）</td></tr>
+    <tr><td><code>COBRAC_CODEX_MODEL</code>（任意）</td><td>空</td><td>指定がないときのモデル（空なら <code>gpt-6-luna</code>）</td></tr>
+    <tr><td><code>COBRAC_CODEX_REASONING_EFFORT</code></td><td><code>high</code></td><td>指定がないときの推論の強さ</td></tr>
+  </tbody>
+</table>
+<table class="compact">
+  <caption>Actions の Variables に置かない任意の設定（手元の環境変数。既定のままで使っている）</caption>
+  <thead><tr><th style="width:33%">変数</th><th style="width:28%">既定</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>COBRAC_RCS_MCP_URL</code></td><td>本番の <code>rcs-mcp</code> のエンドポイント</td><td>SABRA の照会に使う RCS の MCP サーバー。空なら RCS を使わない</td></tr>
+    <tr><td><code>COBRAC_RCS_MCP_SECRET_NAME</code></td><td><code>rcs/mcp-bearer-token</code></td><td>受け付ける RCS のトークンのシークレット（rosetta-candidate-search が所有）。ワーカーのタスクロールに <code>GetSecretValue</code> を付ける</td></tr>
+    <tr><td><code>COBRAC_SITE_URL</code></td><td><code>https://cobrac.site</code></td><td>アカウントのメールに書くサイトの URL</td></tr>
+    <tr><td><code>COBRAC_EMAIL_FROM</code></td><td><code>no-reply@cobrac.site</code></td><td>SES でアカウントのメールを送る差出人。ドメインはスタックのリージョンで検証済みの SES の ID であること。空なら Cognito の既定の差出人</td></tr>
+    <tr><td><code>COBRAC_EMAIL_FROM_NAME</code></td><td><code>CoBRAC Agents</code></td><td>差出人の表示名</td></tr>
+    <tr><td><code>COBRAC_ALARM_EMAIL_PARAMETER</code></td><td><code>/cobrac-web/alarm-email</code></td><td>SES の評判のアラームを受けるアドレスを入れた SSM の String パラメータ（同じアカウントとリージョン。デプロイ前に存在すること）。空ならアラームとトピックだけを作り、購読者を付けない</td></tr>
+    <tr><td><code>COBRAC_BRADB</code></td><td><code>true</code></td><td><code>false</code> で BRA-DB のスタックを作らない</td></tr>
+  </tbody>
+</table>
+<p class="small">ワーカーには、インフラで設定せずコードの既定値で動く設定もあります：圧縮のしきい値 <code>CODEX_AUTO_COMPACT_TOKENS</code>（75,000）、調査の時間予算 <code>RESEARCH_TIME_BUDGET_MIN</code>（60 分）、最長の実行時間 <code>WORKFLOW_TIMEOUT_MS</code>（6 時間）、文献の照合 <code>REFERENCE_LOOKUP</code> と引用文の照合 <code>QUOTE_CHECK</code>（どちらも有効）、引用文の一致のしきい値 <code>QUOTE_MATCH_THRESHOLD</code>（0.9）、<code>CROSSREF_MAILTO</code>・<code>NCBI_API_KEY</code>（未設定）。janitor の自動リトライの回数 <code>MAX_AUTO_RETRY</code> も既定の 2 で動いています。同時実行数を上げると Fargate の費用が比例して増え、大きいモデルを指定すると OpenAI の費用だけが増えます。</p>
+<h3>緊急時の手元からのデプロイ</h3>
+<p>GitHub Actions が使えないときだけ、手元から <code>npm run deploy</code> でデプロイします。AWS CLI のプロファイルは <code>rcs-org</code>（IAM ユーザー <code>miyamoto</code>）で、<code>.env</code> を GitHub の値とそろえておきます（PowerShell では <code>$env:COBRAC_ADMIN_EMAILS="…"</code> の形で設定）。行った後は、同じ内容を PR で <code>main</code> に戻し、タグを手元で付けて push します。タグがあれば、ワークフローが同じ版をもう一度デプロイすることはありません。cobrac-web の手元からのデプロイは所有者だけが行い、Cloud Agent は行いません（Cloud Agent の運用ロールは CloudFormation の操作を禁じられている。7.15）。</p>
+<h3>手元での開発と確認</h3>
+<ul>
+  <li>必要なもの：Node.js 22 以上、npm 10 以上。Docker は要りません。AWS の認証情報は緊急デプロイのときだけ要ります。</li>
+  <li><code>npm install</code> → <code>npm run build</code>（shared の tsc → api の型検査・worker の tsc・web の Vite）→ <code>npm run typecheck</code>（shared のビルド結果が要る）→ <code>npm test</code>（shared の単体テストと <code>scripts/*.test.mjs</code>）→ <code>npm run cdk -- synth</code>（デプロイ前の確認）。</li>
+  <li><code>csv_to_excel.py</code> だけを試すときは、<code>pip install -r prompts/requirements.txt</code> の後に <code>python prompts/csv_to_excel.py --contributor … --project-id … --base-dir … --output ….bra.xlsx</code>。</li>
+  <li>画面だけを手元で動かすときは、<code>.env.example</code> を <code>packages/web/.env.local</code> に写し、<code>VITE_API_URL</code> などをデプロイ済みの環境に向けて <code>npm run dev:web</code>。成果物バケットの CORS は <code>http://localhost:5173</code> からのアップロードを許しています。</li>
+  <li>デプロイ後は <code>WebUrl</code> を開き、サインアップし、設定画面で API キーを登録し、ROI・TLF を入れて実行すれば動作を確かめられます。</li>
+</ul>
+<h3>変更するときの約束</h3>
+<ul>
+  <li>型検査（<code>npm run typecheck</code>）とテスト（<code>npm test</code>）を通してからコミットする。<code>packages/shared</code> の型を変えたら、api・worker・web をすべてビルドして影響を確かめる。</li>
+  <li>インフラ（<code>packages/infra</code>）を変えたら <code>npm run cdk -- diff</code> で差分を確かめる。RETAIN のリソース（DynamoDB・S3・KMS・Cognito、BRA-DB のインスタンスとボリューム）を置き換える変更は、必ず人が確認する。</li>
+  <li>ワークフローの骨格（HCD → FRG → CSV → xlsx の順、ワーカーがフェーズを進めて検証する方式、ターン終了時の JSON <code>{status, message, question}</code>）は、相談せずに変えない。フェーズの指示の文言の調整はよい。エージェントが書く JSON のキーを変えるときは、JSON Schema（<code>HARNESS_SCHEMAS</code>）・検証・CSV への変換・フェーズの指示の例を同時に直す。</li>
+  <li>画面の文言は 10 の言語（ja・en・de・es・fr・ko・pt・ru・zh・zhTw）すべてに足す。</li>
+  <li>文書の図は生成スクリプト（<code>npm run docs:figures</code>）で書き出し、手で編集しない。<code>npm test</code> が生成結果とコミット済みのファイルの一致を確かめる。プロンプトを変えたら <code>npm run docs:prompts</code> で文書の原文を更新し、<code>docs:prompts:check</code> で確かめる。</li>
+  <li>挙動を変えたら、関係する文書を同じ変更の中で直す。</li>
+  <li>秘密（API キー、<code>.env</code>、トークン）はコミットしない。追跡するのは <code>.env.example</code> だけ。</li>
+</ul>
+<p class="src">典拠：<code>.github/workflows/ci.yml</code>・<code>deploy.yml</code>・<code>claude.yml</code>、<code>scripts/release.mjs</code>・<code>retain-guard.mjs</code>、<code>package.json</code>、<code>packages/infra/bin/app.ts</code>、<code>packages/worker/src/env.ts</code>、<code>AGENTS.md</code>、<code>README.md</code></p>
