@@ -5,7 +5,7 @@ import { DEFAULT_CODEX_MODEL } from "@cobrac/shared";
 import { AttachMenu, AttachmentChips, EMPTY_ATTACHMENTS, attachmentCount, attachmentRequest, attachmentsBusy, useAttachments, type AttachmentState } from "../components/AttachmentPicker";
 import { CanonChip, CanonNewPanel, canonChoiceReady, canonRequest, initialCanonChoice, useCanonSources, type CanonChoiceState } from "../components/CanonChoice";
 import { ModelMenu, type RunSettings } from "../components/create/ModelMenu";
-import { HypothesisModeChoice, createRequestOf } from "../components/hypothesis/HypothesisControls";
+import { HypothesisModeChip, HypothesisSettingsPanel, createRequestOf } from "../components/hypothesis/HypothesisControls";
 import { PairFields } from "../components/create/PairFields";
 import { Popover } from "../components/create/Popover";
 import { HelpTip } from "../components/HelpTip";
@@ -112,6 +112,7 @@ function NewProject() {
               {(close) => <AttachMenu a={files} close={close} disabled={busy} />}
             </Popover>
             <CanonChip value={canon} onChange={setCanon} sources={canonSources} defaultCanonId={me?.defaultCanonId} disabled={busy} />
+            <HypothesisModeChip value={run.hypothesis ?? null} onChange={(hypothesis) => setRun({ ...run, hypothesis })} disabled={busy} />
             <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-1.5">
               <ModelMenu value={run} onChange={setRun} fallbackModel={defaultModel || DEFAULT_CODEX_MODEL} disabled={busy} />
               <button
@@ -126,7 +127,6 @@ function NewProject() {
               </button>
             </div>
           </div>
-          <HypothesisModeChoice value={run.hypothesis ?? null} onChange={(hypothesis) => setRun({ ...run, hypothesis })} disabled={busy} />
           {files.fileInput}
           {files.drag && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-3xl bg-blue-50/80 text-sm font-medium text-blue-700">
@@ -153,6 +153,11 @@ function NewProject() {
         </div>
         {uploading && <div className="mt-2 text-xs text-slate-500">{t("attach.wait")}</div>}
         {err && <div className="mt-3 w-full max-w-2xl rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+        {run.hypothesis && (
+          <div className="mt-4 w-full max-w-2xl">
+            <HypothesisSettingsPanel value={run.hypothesis} onChange={(hypothesis) => setRun({ ...run, hypothesis })} disabled={busy} />
+          </div>
+        )}
         {canon.mode === "new" && (
           <div className="mt-4 w-full max-w-2xl">
             <CanonNewPanel value={canon} onChange={setCanon} sources={canonSources} disabled={busy} />
