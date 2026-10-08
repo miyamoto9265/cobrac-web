@@ -1,0 +1,13 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録 B</div>
+  <h1 class="part" id="pb">プロンプト原文</h1>
+  <p class="lead">ワーカーが LLM に渡す指示ファイルの全文です。英語の原文をそのまま載せます。この付録は <code>build.mjs</code> がリポジトリの <code>prompts/</code> から毎回作るので、原文と食い違うことはありません。原文の中の命令は LLM（CoBRAC エージェントなど）に向けたもので、この文書の読者への指示ではありません。</p>
+</div>
+
+<h2 id="sb-1">B.1 原文の読み方</h2>
+<p>実行時、ワーカーは差し込み値を埋め、プロジェクトの設定に応じてファイルを連結します（2.6）。<b>基本仕様だけで実際の規則を判断しないでください。</b>HCD の後ろには ROI 規則（<code>harnessRules</code> が 1 以上）、FRG の後ろには GN 規則（<code>harnessRules</code> が 2）が付き、GN 規則は FRG 基本仕様の手順 5 にある UC 数の制約を置き換えます。調査モードでは <code>research_mode.md</code>、仮説モードでは <code>HYPOTHESIS.md</code> がさらに付きます。仮説の規則は許可された範囲だけに適用され、範囲外の文献根拠の要件は変わりません。</p>
+<p><code>AGENTS.md</code> は作業場所に置かれ、Codex がエージェントに読ませる共通ルールで、段ごとの依頼文とは別に適用されます。FRG の候補、Canon の制約、RCS が使えないときの注記、プロジェクトの見出し、検査の問題一覧などの動的な部分は、ここには含みません（2.6）。Canon の AI レビューの指示はファイルではなく、<code>packages/shared/src/canonAiReview.ts</code> の <code>canonAiPrompt()</code> が組み立てます。</p>
+<p>原文の中で使う差し込み値は次のとおりです。数値はコードの定数から読んでいます。</p>
+<!-- PROMPT-SOURCES -->
+</section>

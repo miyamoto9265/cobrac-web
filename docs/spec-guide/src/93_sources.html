@@ -1,0 +1,72 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録</div>
+  <h1 class="part" id="pa">API・コード・文書の一覧</h1>
+  <p class="lead">本文で触れた HTTP API と、仕様の典拠になるコード・文書の場所をまとめます。API はすべて Cognito の ID トークンで認証され、所有者や共同編集者の確認は API の中で行います。</p>
+</div>
+
+<h2 id="sa-1">A.1 Canon の API</h2>
+<table class="compact">
+  <thead><tr><th style="width:42%">メソッドとパス</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET / POST /canons</code></td><td>自分の Canon（と共有された Canon）の一覧 / 作成</td></tr>
+    <tr><td><code>GET / PUT / DELETE /canons/{id}</code></td><td>詳細 / 名前・説明・粒度方針の変更 / 論理削除（所有者）</td></tr>
+    <tr><td><code>POST /canons/{id}/members</code>、<code>DELETE …/members/{projectId}</code></td><td>参加プロジェクトの追加・削除（所有者）</td></tr>
+    <tr><td><code>POST /canons/{id}/editors</code>、<code>DELETE …/editors/{userId}</code></td><td>共同編集者の追加（メールアドレス）・削除・自分で抜ける</td></tr>
+    <tr><td><code>PUT /canons/{id}/visibility</code></td><td>公開 / 非公開</td></tr>
+    <tr><td><code>GET /canons/{id}/revisions</code>、<code>…/revisions/{rev}</code></td><td>rev の履歴とスナップショット</td></tr>
+    <tr><td><code>POST /canons/seed-preview</code></td><td>種のプロジェクトから作る Canon の rev 1 のプレビュー</td></tr>
+    <tr><td><code>GET /projects/{id}/canon</code></td><td>プロジェクトの Canon と追従の状態（current / behind / affected）</td></tr>
+    <tr><td><code>POST /projects/{id}/canon/preview</code>、<code>…/canon/push</code></td><td>差分のプレビュー / push して PR を作る</td></tr>
+    <tr><td><code>POST /projects/{id}/canon/pull</code></td><td>固定を最新の rev に進める</td></tr>
+    <tr><td><code>GET /canons/{id}/pulls</code>、<code>…/pulls/{no}</code></td><td>PR の一覧 / 審査の材料（差分・検査・項目・グラフ・来歴・履歴・AI レビュー）</td></tr>
+    <tr><td><code>POST /canons/{target}/pulls</code>、<code>…/pulls/preview</code></td><td>Canon → Canon の PR / そのプレビュー</td></tr>
+    <tr><td><code>POST …/pulls/{no}/approve</code>・<code>reject</code>・<code>request-changes</code>・<code>withdraw</code>・<code>comments</code>・<code>ai-review</code></td><td>承認（衝突の選択・メモ）・却下・変更の依頼・取り下げ・コメント・AI レビューの依頼</td></tr>
+    <tr><td><code>POST /canons/{id}/pulls/approve-many</code></td><td>まとめて承認（1〜50 件、番号順、最初の失敗で停止）</td></tr>
+    <tr><td><code>GET /canons/{id}/outgoing</code></td><td>この Canon からほかの Canon に送った PR</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sa-2">A.2 版と BRA-DB の API</h2>
+<table class="compact">
+  <thead><tr><th style="width:42%">メソッドとパス</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET /projects/{id}/bradb</code></td><td>BRA-DB がこのプロジェクトのどの版を持っているかと登録の記録（BRA-DB の無い環境では <code>enabled: false</code>）</td></tr>
+    <tr><td><code>POST /projects/{id}/versions/{n}/bradb</code></td><td>版 n を登録（所有者。<code>allowShrink</code> で縮小を了承。仮説を含む版は不可）</td></tr>
+    <tr><td><code>GET /projects/{id}/artifacts/text</code></td><td>版の凍結ファイルを表のビューアで読む（版のダウンロードは無い）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sa-3">A.3 オーケストレーターの API</h2>
+<table class="compact">
+  <thead><tr><th style="width:42%">メソッドとパス</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td><code>GET / POST /plans</code></td><td>計画の一覧 / 作成（添付ファイル、<code>draft: true</code> で下書きも依頼）</td></tr>
+    <tr><td><code>GET / PUT / DELETE /plans/{id}</code></td><td>詳細（行・ハブ・重なり・提案・費用）/ 名前・目標・設定・Canon の変更（粒度方針は不可）/ 論理削除</td></tr>
+    <tr><td><code>PUT /plans/{id}/rows</code>、<code>POST …/rows/import</code></td><td>行の保存（編集・並べ替え・バッチ・作り直す）/ CSV の追加読み込み</td></tr>
+    <tr><td><code>POST /plans/{id}/draft</code>、<code>…/draft/cancel</code></td><td>下書きの依頼 / 取り消し</td></tr>
+    <tr><td><code>POST /plans/{id}/order</code></td><td>自動で並べる（ジョブなし）</td></tr>
+    <tr><td><code>POST /plans/{id}/confirm</code></td><td>確定して開始</td></tr>
+    <tr><td><code>POST /plans/{id}/pause</code>・<code>resume</code>・<code>cancel</code></td><td>一時停止・再開・中止</td></tr>
+    <tr><td><code>POST /plans/{id}/rows/{rowId}/retry</code>・<code>skip</code>・<code>resolve</code></td><td>要対応の行のリトライ・行のスキップ・人の判断（<code>done</code> / <code>push</code>）</td></tr>
+    <tr><td><code>POST /plans/{id}/proposals/{proposalId}/accept</code>・<code>reject</code></td><td>再計画の提案の承認・却下</td></tr>
+    <tr><td><code>PUT /admin/concurrency</code></td><td>同時実行数の上限（管理者、1〜16）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sa-4">A.4 典拠の一覧</h2>
+<table class="compact">
+  <thead><tr><th style="width:20%">部</th><th style="width:42%">コード（<code>miyamoto9265/cobrac-web</code>）</th><th>文書</th></tr></thead>
+  <tbody>
+    <tr><td>第 3 部 命名</td><td><code>packages/shared/src/ucNaming.ts</code>・<code>bnaLabels.ts</code>・<code>harness.ts</code>、<code>prompts/phases/HCD.md</code>、<code>scripts/bra-appendix-d.mjs</code></td><td><code>docs/08_Circuit_naming_ja.md</code>、設計仕様 6.9・6.10</td></tr>
+    <tr><td>第 4 部 Canon</td><td><code>packages/shared/src/canon.ts</code>・<code>canonMerge.ts</code>・<code>canonConstraints.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>、<code>packages/api/src/lib/canons.ts</code>・<code>canonOps.ts</code>、<code>packages/worker/src/canonReview.ts</code></td><td><code>docs/06_Research_mode_and_Canon_ja.md</code>、設計仕様 6.14〜6.19、利用マニュアル「Canon」</td></tr>
+    <tr><td>第 5 部 BRA-DB</td><td><code>packages/infra/lib/bradb-stack.ts</code>、<code>packages/infra/bradb/</code>、<code>packages/api/src/lib/bradb/</code>、<code>packages/shared/src/braVersion.ts</code>・<code>bradb.ts</code>、<code>packages/worker/src/versions.ts</code></td><td><code>docs/03_AWSインフラと予算.md</code> §3.5・§5.5、設計仕様 6.20・6.21</td></tr>
+    <tr><td>第 6 部 オーケストレーター</td><td><code>packages/shared/src/plan.ts</code>・<code>planOrder.ts</code>・<code>planJob.ts</code>、<code>packages/api/src/lib/plan*.ts</code>・<code>runs.ts</code>・<code>concurrency.ts</code>、<code>packages/worker/src/planJob.ts</code>、<code>prompts/plan.md</code></td><td>設計仕様 6.22・6.22.1・6.22.2、利用マニュアル「CoBRAC オーケストレーター」</td></tr>
+    <tr><td>運用（共通）</td><td><code>miyamoto9265/wbai-repos</code>：<code>AGENTS.md</code>、<code>scripts/bootstrap.sh</code></td><td><code>docs/cloud-operations.md</code>（CI/CD・AWS アクセス・緊急停止）</td></tr>
+  </tbody>
+</table>
+<div class="box">
+  <div class="h">この文書の作り方</div>
+  <p>この PDF は <code>wbai-repos/docs/spec-guide/</code> の HTML（<code>src/</code>）から生成しています。<code>./fetch-fonts.sh &amp;&amp; node build.mjs</code> で、Chromium（Playwright）が A4 の PDF にし、目次のページ番号を書き込みます。仕様が変わったときは、上の典拠を確かめて該当する節を直してください。</p>
+</div>
+</section>

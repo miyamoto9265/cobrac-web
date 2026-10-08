@@ -24,8 +24,7 @@
     "release:check": "node scripts/release.mjs --check",
     "docs:figures": "node scripts/docs-figures.mjs",
     "deploy": "npm run release:check && npm run build && npm run cdk -- deploy --all --require-approval never",
-    "docs:prompts": "node scripts/docs-harness-prompts.mjs",
-    "docs:prompts:check": "node scripts/docs-harness-prompts.mjs --check"
+    "spec:build": "cd docs/spec-guide && ./fetch-fonts.sh && node build.mjs"
   },
   "engines": {
     "node": ">=22"

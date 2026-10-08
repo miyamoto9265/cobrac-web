@@ -1,0 +1,177 @@
+<section class="part porch">
+<div class="opener">
+  <div class="no">第 6 部</div>
+  <h1 class="part" id="p6">CoBRAC オーケストレーター</h1>
+  <p class="lead">CoBRAC オーケストレーター（旧称 BRA Planner。コードでは <code>plan</code>・<code>Plans</code>・<code>planId</code>・<code>/plans</code>）は、作りたい BRA（ROI × TLF）を<b>計画</b>にまとめ、所有者が確定すると、同時実行数の上限の範囲で行を<b>バッチ</b>ごとに自動で作る仕組みです。下書きは LLM に書かせられ、実行順序はコードが計算し、バッチが終わるたびに見直します。計画に Canon を 1 つ決めると、完成した行をその Canon に取り込みながら進みます。</p>
+  <div class="map">
+    <div><b>LLM が決めること</b>行（ROI × TLF と理由）、アンカー、依存関係、優先度、粒度方針。再計画では行の追加・削除と粒度方針の提案</div>
+    <div><b>コードが決めること</b>実行順序（種のバッチ・本体のバッチ）、同時実行の枠、状態の遷移、リトライ、Canon への push と追従</div>
+    <div><b>人が決めること</b>確定、提案の承認・却下、質問への回答、要対応の行の扱い、Canon の PR の承認（自動では承認しない）</div>
+  </div>
+</div>
+
+<h2 id="s6-1">6.1 概要と段階</h2>
+<p>1 件の BRA の作成には中央値で約 48 分かかり、ある領域の機能を一通りそろえるには数十〜百件超の ROI × TLF が必要です。これを 1 件ずつ手で起動すると、どれを先に作るか、何件を同時に動かすか、同じ回路を作る行が同時に走って定義が食い違わないか、どれを Canon に取り込んだか、を人が管理することになります。オーケストレーターはこれらを計画にまとめて自動で進めます。単一の BRA の中身（調査・HCD・FRG）は通常のプロジェクトと同じで、オーケストレーターは<b>その外側の進行管理</b>だけを行います。</p>
+<table>
+  <thead><tr><th style="width:22%">段階</th><th>入ったもの</th></tr></thead>
+  <tbody>
+    <tr><td><b>段階 1</b>：計画とバッチ実行</td><td>行は能力の一覧（CSV / TSV / テキスト）か手入力。順序とバッチは所有者が手で決める。確定後、ランナーが毎分、同時実行数の範囲で行を起動し、状態を追う。Canon も LLM も使わない</td></tr>
+    <tr><td><b>段階 2</b>：LLM の下書きと実行順序</td><td>計画用のジョブ（LLM）が目標と資料から行・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算（種のバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
+    <tr><td><b>段階 3</b>：計画の Canon</td><td>計画ごとに 1 つの Canon。完成した行を自動で push し、本体の行には AI レビューを依頼し、Canon が進んだことによる衝突は更新の追加指示で直す。行は人が PR を承認して完了。「まとめて承認」</td></tr>
+    <tr><td><b>v0.37.0</b></td><td>モデルを「オーケストレーター」（計画用のジョブ・再計画・AI レビュー）と「エージェント」（各行の BRA）で別々に選ぶ。粒度方針はオーケストレーターが決める（所有者は編集しない）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s6-2">6.2 全体の流れ</h2>
+<figure>
+<svg viewBox="0 0 680 196" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#be123c"/></marker>
+  <marker id="a7g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker></defs>
+  <g font-size="8.7" fill="#1f2937" text-anchor="middle">
+    <rect x="4" y="22" width="112" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
+    <text x="60" y="40" font-weight="800" font-size="10">① 計画を作る</text>
+    <text x="60" y="56">名前・目標</text><text x="60" y="70">資料（CSV・xlsx・PDF）</text><text x="60" y="84">行の貼り付け</text>
+    <text x="60" y="104" fill="#be123c" font-weight="700">DRAFT</text>
+    <rect x="134" y="22" width="122" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
+    <text x="195" y="40" font-weight="800" font-size="10">② 下書きを作成</text>
+    <text x="195" y="56">LLM のジョブ（RCS）</text><text x="195" y="70">行・アンカー・依存</text><text x="195" y="84">粒度方針</text>
+    <text x="195" y="104" fill="#be123c" font-weight="700">DRAFTING</text>
+    <rect x="274" y="22" width="122" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
+    <text x="335" y="40" font-weight="800" font-size="10">③ 行とバッチを整える</text>
+    <text x="335" y="56">自動で並べる（種）</text><text x="335" y="70">手で編集・既存の確認</text><text x="335" y="84">設定・Canon の選択</text>
+    <text x="335" y="104" fill="#be123c" font-weight="700">DRAFT</text>
+    <rect x="414" y="22" width="112" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
+    <text x="470" y="40" font-weight="800" font-size="10">④ 確定</text>
+    <text x="470" y="56">キー・モデルの確認</text><text x="470" y="70">設定を固定</text><text x="470" y="84">見積もり（時間・費用）</text>
+    <text x="470" y="104" fill="#be123c" font-weight="700">→ RUNNING</text>
+    <rect x="544" y="22" width="132" height="92" rx="7" fill="#fdecef" stroke="#be123c" stroke-width="1.8"/>
+    <text x="610" y="40" font-weight="800" font-size="10">⑤ 実行（毎分）</text>
+    <text x="610" y="56">行の状態を追う</text><text x="610" y="70">バッチを進める</text><text x="610" y="84">空いた枠で行を起動</text>
+    <text x="610" y="104" fill="#be123c" font-weight="700">→ COMPLETED</text>
+  </g>
+  <g stroke="#be123c" stroke-width="1.4" fill="none" marker-end="url(#a7)"><path d="M116 68H132"/><path d="M256 68H272"/><path d="M396 68H412"/><path d="M526 68H542"/></g>
+  <path d="M335 114V136H195V116" stroke="#64748b" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a7g)"/>
+  <text x="265" y="150" font-size="8.4" text-anchor="middle" fill="#64748b">何度でも下書きを依頼できる（そのたびにジョブ）</text>
+  <path d="M640 114V174H580V116" stroke="#64748b" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a7g)"/>
+  <text x="570" y="170" font-size="8.4" fill="#64748b" text-anchor="end">バッチが終わるたび：アンカーを実物で更新 → 並べ直し → 再計画のジョブ → 提案</text>
+  <text x="570" y="184" font-size="8.4" fill="#64748b" text-anchor="end">Canon あり：完成した行を push → 人が PR を承認して完了</text>
+</svg>
+<figcaption><b>図 4-1</b>　計画の流れ。確定するまでプロジェクトは作られず、確定前に動くジョブは「下書きを作成」だけ</figcaption>
+</figure>
+
+<h2 id="s6-3">6.3 データと状態</h2>
+<h3>データ（DynamoDB の Plans テーブル）</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">項目</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>META</code></td><td>所有者、名前（200 字）、目標（4000 字）、状態、設定（エージェントのモデル、オーケストレーターのモデル、それぞれ所有者が選んだか、推論の強さ、調査モード、返答の言語）、<code>harnessRules</code>、<code>activeWave</code>、確定時の見積もり、状態ごとの行数、<code>pausedReason</code>、粒度方針 <code>policy</code>（2000 字）、<code>ordering</code>（<code>manual</code> / <code>auto</code>）、下書き・再計画のジョブの状態、添付ファイル、Canon（<code>canonId</code>）、ランナーのリース、各時刻、<code>deletedAt</code></td></tr>
+    <tr><td><code>ROW#&lt;rowId&gt;</code></td><td>順番、バッチ、ROI・TLF（各 300 字）、理由（1000 字）、優先度（−1000〜1000）、出所（<code>csv</code> と行番号 / <code>manual</code> / <code>llm</code>）、状態、アンカーとその出所（<code>predicted</code> / <code>used</code>）、依存 <code>dependsOn</code>、種 <code>seed</code>、既存のプロジェクト <code>existing</code>、「作り直す」<code>rebuild</code>、<code>projectId</code>、ジョブ、自動の試行回数、要対応・人の判断の理由、最後のエラー、Canon 関連（<code>prNo</code>・<code>canonRevision</code>・<code>conform</code>・<code>conformAttempts</code>・<code>aiReview</code>）、時刻</td></tr>
+    <tr><td><code>EVT#&lt;at&gt;#&lt;nonce&gt;</code></td><td>履歴（種類、時刻、<code>by</code> = 利用者か <code>runner</code>、行、プロジェクト、詳細）</td></tr>
+    <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）</td></tr>
+  </tbody>
+</table>
+<p class="small">ID：計画は <code>n</code> + 7 文字（例 <code>n4h8w2rk</code>。Project・Canon の ID と同じく予約され再利用されない）、行は <code>r</code> + 7、提案は <code>q</code> + 7。1 つの計画の行は 200 行まで。</p>
+
+<h3>計画の状態</h3>
+<figure>
+<svg viewBox="0 0 680 246" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="a8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+  <g font-family="JetBrains Mono, monospace" font-size="11" font-weight="700" text-anchor="middle">
+    <rect x="20" y="20" width="124" height="36" rx="18" fill="#f1f5f9" stroke="#64748b"/><text x="82" y="42.5">DRAFTING</text>
+    <rect x="20" y="110" width="124" height="36" rx="18" fill="#f1f5f9" stroke="#64748b"/><text x="82" y="132.5">DRAFT</text>
+    <rect x="278" y="20" width="124" height="36" rx="18" fill="#fff7ed" stroke="#d97706"/><text x="340" y="42.5">PAUSED</text>
+    <rect x="278" y="110" width="124" height="36" rx="18" fill="#fdecef" stroke="#be123c" stroke-width="1.6"/><text x="340" y="132.5">RUNNING</text>
+    <rect x="278" y="198" width="124" height="36" rx="18" fill="#f3f4f6" stroke="#6b7280"/><text x="340" y="220.5">CANCELLED</text>
+    <rect x="538" y="110" width="124" height="36" rx="18" fill="#ecfdf5" stroke="#047857"/><text x="600" y="132.5">COMPLETED</text>
+  </g>
+  <g stroke="#475569" stroke-width="1.3" fill="none" marker-end="url(#a8)">
+    <path d="M60 110V58"/><path d="M104 58V108"/>
+    <path d="M144 128H276"/>
+    <path d="M318 110V58"/><path d="M362 58V108"/>
+    <path d="M402 128H536"/>
+    <path d="M318 146V196"/><path d="M362 196V148"/>
+    <path d="M402 38C448 38 452 216 404 216"/>
+  </g>
+  <g font-size="8.6" fill="#374151">
+    <text x="54" y="88" text-anchor="end">下書きを依頼</text>
+    <text x="110" y="80">適用・失敗・</text><text x="110" y="92">取り消し</text>
+    <text x="210" y="121" text-anchor="middle">確定して開始</text>
+    <text x="312" y="80" text-anchor="end">一時停止</text><text x="312" y="92" text-anchor="end">（手動・自動）</text>
+    <text x="368" y="88">再開</text>
+    <text x="492" y="108" text-anchor="middle">全行が完了か</text><text x="492" y="121" text-anchor="middle">スキップ</text>
+    <text x="312" y="176" text-anchor="end">中止</text>
+    <text x="368" y="176">再開</text>
+    <text x="446" y="70">中止</text>
+  </g>
+  <text x="20" y="190" font-size="8.4" fill="#5b6474">削除できるのは DRAFT・COMPLETED・CANCELLED</text>
+  <text x="20" y="204" font-size="8.4" fill="#5b6474">（作られたプロジェクトは残る）</text>
+</svg>
+<figcaption><b>図 4-2</b>　計画の状態。ランナーが進めるのは DRAFTING・RUNNING・PAUSED の計画</figcaption>
+</figure>
+<p class="small">自動の一時停止の理由（<code>pausedReason</code>）：<code>no_key</code>（API キーが無い）、<code>owner_disabled</code>（アカウントが無効）、<code>model_not_allowed</code>（選んだモデルをティアが許さなくなった）、<code>canon_missing</code>（計画の Canon が見つからない）。手動は <code>user</code>。</p>
+
+<h3>行の状態</h3>
+<table class="compact">
+  <thead><tr><th style="width:15%">状態</th><th style="width:15%">画面</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>pending</code></td><td>開始待ち</td><td>まだ始まっていない（自動リトライ待ち、Canon に合わせた更新の待ちも含む）</td></tr>
+    <tr><td><code>starting</code></td><td>開始中</td><td>Project ID を予約して行を確保した。2 分以上残ると予約した ID のまま <code>pending</code> に戻す（二重に作らない）</td></tr>
+    <tr><td><code>running</code></td><td>実行中</td><td>プロジェクトのジョブが待機・実行・仕上げ中</td></tr>
+    <tr><td><code>question</code></td><td>質問中</td><td>エージェントが質問して回答を待っている（この行だけが待つ）</td></tr>
+    <tr><td><code>done</code></td><td>完了</td><td>プロジェクトが完了（Canon のある計画では、PR が人に承認された）</td></tr>
+    <tr><td><code>attention</code></td><td>要対応</td><td>自動リトライ 2 回の後も失敗、回答待ちが 7 日で時間切れ、計画の外で止められた、プロジェクトが削除された、開始に失敗した</td></tr>
+    <tr><td><code>skipped</code></td><td>スキップ</td><td>所有者が外した</td></tr>
+    <tr><td><code>cancelled</code></td><td>中止</td><td>計画の中止で止めた（再開すると続きから作る）</td></tr>
+    <tr><td><code>review</code></td><td>承認待ち</td><td>Canon のある計画：PR が開いていて人の承認を待つ</td></tr>
+    <tr><td><code>decision</code></td><td>人の判断</td><td>Canon のある計画：衝突が残る・PR が却下／取り下げ・ほかの Canon に入っている・push の失敗（6.11）</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s6-4">6.4 手順 1：計画を作る</h2>
+<ol class="steps">
+  <li>サイドバーの「CoBRAC オーケストレーター」で、名前と目標（例「言語の BRA を一通りそろえたい」）を入れる。</li>
+  <li>資料のファイル（CSV・TSV・テキスト・xlsx・PDF、10 個まで）を追加するか、行を貼り付ける。1 行が 1 プロジェクト。</li>
+  <li>「計画を作る」は読み込んだ行で計画を作る。「下書きを作成」は計画を作ると同時に下書きを依頼する（目標・ファイル・行のどれかが必要）。</li>
+  <li>読めなかった行は、ファイル名・行番号と理由が画面に出る。直して「CSV を読み込む」で追加できる。</li>
+</ol>
+<h3>一覧の読み取り規則（<code>parsePlanRowsCsv</code>）</h3>
+<ul>
+  <li><b>見出し行があるとき</b>は列名で読みます：ROI（<code>ROI</code> / <code>region</code> / 脳領域）、TLF（<code>TLF</code> / <code>function</code> / <code>capability</code> / 機能 / 能力）、理由（<code>rationale</code> / <code>note</code> / 理由 / 備考）、バッチ（<code>wave</code> / <code>batch</code> / バッチ / 波）、優先度（<code>priority</code> / 優先度）。ほかの列は無視します。</li>
+  <li><b>見出し行が無いとき</b>は、1 列なら TLF、2 列以上なら ROI・TLF・理由の順です。CSV か TSV、BOM は除き、空行は飛ばします。</li>
+  <li><b>取り込まない行</b>（行番号と理由を表示）：ROI も TLF も無い、長すぎる（ROI / TLF 300 字、理由 1000 字）、同じ ROI × TLF の行がある（大文字小文字と空白は無視。計画にある行とも比べる）、バッチが 1〜99 でない、優先度が整数でない、計画の行が 200 を超える。</li>
+  <li>CSV・TSV・テキストはすぐに行として読みます（出所 <code>csv</code>）。xlsx と PDF は保存だけして、下書きのジョブが読みます。ファイルは <code>plans/{planId}/attachments/files/NN-&lt;名前&gt;</code> に移され、名前と移動先は先にすべて検査されます（<code>..</code> などがあれば何も移さず 400）。</li>
+</ul>
+
+<h2 id="s6-5">6.5 手順 2：下書きを作成する（LLM のジョブ）</h2>
+<p>「下書きを作成」を押すと、計画用のジョブ（<code>type: "plan"</code>、1 回の Codex のタスク）が、目標・資料・いまの行を読み、行・アンカー・依存関係・優先度・粒度方針を書きます。<b>モデルはデータを出すだけで、実行順序はコードが計算します</b>（再現でき、バッチごとに安く計算し直せる）。</p>
+<h3>依頼からジョブの開始まで</h3>
+<ol class="steps">
+  <li><b>依頼</b>（<code>POST /plans/{id}/draft</code>、または作成時の <code>draft: true</code>）：所有者がジョブを実行できること（キーが無ければ 400、選んだモデルを使えなければ 403）を確かめ、計画のリースを取って <code>DRAFT</code> → <code>DRAFTING</code>（下書きは <code>waiting</code>）。依頼そのものは何も積まない。下書き中は行を編集できない。</li>
+  <li><b>枠を待つ</b>（ランナー）：全体と所有者の同時実行数に空きがあり（行のジョブと同じ枠）、所有者がまだジョブを実行できるときだけ、入力 <code>plans/{planId}/jobs/{jobId}/input.json</code> を書き、ジョブ（オーケストレーターのモデル、推論の強さ <code>medium</code>）を積む（<code>queued</code>）。キーやモデルを使えなくなっていれば下書きは失敗し、理由のコードとともに <code>DRAFT</code> に戻る。</li>
+  <li><b>入力</b>：目標、粒度方針、計画の行（優先度・依存・「作り直す」つき）、所有者のプロジェクト（新しい順、完成したものに印）、所有者の Canon と粒度方針、実効の同時実行数、API が読まなかった添付ファイル。<b>キーなどの秘密は入れない</b>（API とランナーは鍵を復号しない。ワーカーが通常のジョブと同じく復号する）。</li>
+</ol>
+<h3>ジョブの中身（ワーカー、<code>runPlanJob</code>）</h3>
+<ul>
+  <li>添付ファイルを材料フォルダに写し、xlsx と PDF の本文を抽出する（<code>plans/{planId}/attachments/derived/</code>）。</li>
+  <li>RCS の MCP（<code>search_bna_candidates</code>、<code>search_homba_candidates</code>、<code>get_homba_term</code>、<code>get_sabra_definition</code>）だけを使い、Web 検索も文献ツールも使わずに 1 ターン実行する。指示は <code>prompts/plan.md</code>。</li>
+  <li>返答は <code>PLAN_RESULT_SCHEMA</code> のオブジェクト（<code>rows</code>・<code>unread</code>・<code>policy</code>・<code>proposals</code>・<code>notes</code>）だけ。読めなければ 1 回だけ頼み直す。</li>
+  <li><b>時間の予算</b>：7 分（ワーカーの開始から）。xlsx / PDF を読む下書きか、入力の行が 20 を超える下書きは 25 分。超えたターンは打ち切られ、ジョブは失敗する（使った分の費用は記録される）。45 秒ごとにハートビートを送る。</li>
+  <li>結果は <code>result.json</code>（<code>cobrac.plan-result/1</code>）に書き、利用量・推定費用とともにジョブを完了にする。</li>
+</ul>
+<h3>LLM への主な指示（<code>prompts/plan.md</code>）</h3>
+<table class="compact">
+  <thead><tr><th style="width:20%">項目</th><th>指示</th></tr></thead>
+  <tbody>
+    <tr><td>入力の行</td><td>すべて行 ID で返し、ROI と TLF はそのまま写す。アンカー・依存・既存のプロジェクトを付ける</td></tr>
+    <tr><td>新しい行</td><td>能力の一覧からは項目ごとに 1 行（行にできない項目は <code>unread</code> に場所と理由）。広い目標（「言語の BRA を一通り」）なら主な下位機能を 8〜15 行ほど。ほぼ同じ機能に分けない、ROI × TLF を繰り返さない</td></tr>
+    <tr><td>アンカー</td><td>行の ROI と、その TLF で主な入力元・出力先になる領域の SABRA の単位を 3〜12 個（ROI を先頭に）。RCS で引き、ID を記憶から書かない。facet を付けない。同じ回路の行には同じアンカーを再利用</td></tr>
+    <tr><td>依存 <code>dependsOn</code></td><td>B の機能が A の機能を組み合わせた合成であるときだけ（例：復唱は音韻処理と発話に依存）。<b>領域を共有するだけでは依存ではない</b>（それはアンカーで分ける）。循環させない</td></tr>
+    <tr><td>優先度・既存</td><td>所有者が先にと言った行は高く、任意の行は低く（既定 0）。同じ ROI × TLF の完成したプロジェクトがあれば、その ID</td></tr>
+    <tr><td>粒度方針</td><td>計画のプロジェクトの回路をどの細かさで切るかを 1〜3 文で（後で 1 つの Canon に入れられるように）。所有者の Canon で同じ分野のものがあればその方針を採る</td></tr>
+    <tr><td>順序</td><td><b>並べない・バッチに分けない</b>（コードが計算する）</td></tr>
+  </tbody>
+</table>
+<h3>検証と適用</h3>
+<p>エージェントが書いた JSON は、そのままでは使いません（<code>parsePlanResult</code>）。入力を指すものだけを残し、ほかは除いて件数（<code>dropped</code>）に数えます。ROI・TLF・理由の長さ、ID や ROI × TLF の重複、アンカーの正規化（<code>HOMBA:&lt;id&gt;</code>、既知の BNA 領域の <code>BNA:&lt;l&gt;-&lt;r&gt;</code>。単一ラベルはペアに、facet は除く。既知の群の <code>BNAG:&lt;L2&gt;</code>。1 行 40 個まで）、依存は下書きの行だけ（自分自身は不可）、既存のプロジェクトは入力にある完成したものだけ。RCS が使えるときは、RCS が知らない HOMBA のアンカーと、SABRA が BNA で覆う領域の HOMBA のアンカーも除きます。ランナーは <code>result.json</code> を使う前に、スキーマ・種類・ジョブ ID と内容をもう一度検証します。</p>
+<p>適用では、入力の行はアンカー（<code>predicted</code>）・依存・優先度（行に無いときだけ）・理由（無いときだけ）が更新され、ROI・TLF・出所は変わりません。新しい行は <code>pending</code> の行（出所 <code>llm</code>）になります。その後、行は自動で並べられ（6.6、<code>ordering: "auto"</code>）、計画は <code>DRAFT</code> に戻ります。読めなかった項目の一覧と除いた件数が画面に出ます。「下書きを取り消す」でジョブを止められます。</p>
+</section>
