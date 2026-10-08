@@ -59,7 +59,7 @@ function readingNotes(locale, read) {
   const bra = `[\`DEFAULT_BRA_RULES\`](${sourceUrl("packages/shared/src/bra.ts")})`;
   if (locale === "ja") {
     return details("詳細を表示：原文の読み方・追加ルールの優先順位・差し込み値", [
-      "以下はリポジトリにある英語の指示ファイルの全文です。実行時には差し込み値を埋め、プロジェクトの設定に応じて連結します。`AGENTS.md` は作業場所で Codex が読む共通ルールで、フェーズごとの本文とは別に適用されます。",
+      "以下はリポジトリにある英語の指示ファイルの全文です。実行時には差し込み値を埋め、プロジェクトの設定に応じて連結します。`AGENTS.md` は作業場所に置かれ、Codex がエージェントに読ませる共通ルールで、フェーズごとの本文とは別に適用されます。",
       `**原文の基本仕様だけで実効ルールを判断しないでください。** ${worker} は HCD の後ろに ROI ルール（\`harnessRules >= 1\`）、FRG の後ろに GN ルール（\`harnessRules >= 2\`）を追加します。GN ルールは FRG 基本仕様の step 5 にある UC 数の制約を置き換えます。現在のルールでは GN 内の連結性が必要で、通常は最大 2 UC、引用を伴う \`motifNote\` で分割できないモチーフを説明した場合は 3〜4 UC を認め、5 UC 以上は認めません。`,
       "調査モードでは `research_mode.md`、仮説モードでは `HYPOTHESIS.md` をさらに追加します。仮説ルールは許可された範囲だけに適用され、範囲外の文献根拠の要件は変わりません。FRG 候補、Canon の案内、RCS が使えない場合の案内、プロジェクトのヘッダや検証結果などの動的な本文は、この静的な原文一覧には含めません。",
       [
@@ -71,11 +71,11 @@ function readingNotes(locale, read) {
         `| \`{BUDGET_MINUTES}\` | 調査の時間予算。標準 ${minutes} 分、\`RESEARCH_TIME_BUDGET_MIN\` で設定可能。 |`,
         `| \`{SCOPES}\` / \`{MAX_SHARE}\` / \`{RESEARCH_MODE}\` | ${hypothesis} がプロジェクトの許可範囲、仮説率の上限、調査モードの有無を埋めます。 |`,
       ].join("\n"),
-      "この付録は `node scripts/docs-harness-prompts.mjs` で更新し、`--check` で原文との一致を検査します。原文内の指示は CoBRAC の実行エージェントに向けたもので、この記事の閲覧者への操作指示ではありません。",
+      "この付録は `node scripts/docs-harness-prompts.mjs` で更新し、`--check` で原文との一致を検査します。原文内の指示は CoBRAC エージェント（LLM）に向けたもので、この記事の閲覧者への操作指示ではありません。",
     ].join("\n\n"));
   }
   return details("Show details: reading the sources, rule precedence, and substituted values", [
-    "The sections below contain the complete English instruction files from the repository. At runtime the worker substitutes values and combines the files according to project settings. Codex reads AGENTS.md as workspace rules, separately from the phase prompt body.",
+    "The sections below contain the complete English instruction files from the repository. At runtime the worker substitutes values and combines the files according to project settings. AGENTS.md sits in the workspace, and Codex gives it to the agent as shared rules, separately from the phase prompt body.",
     `**Read each base specification with its appended rules.** ${worker} appends the ROI rules to HCD (\`harnessRules >= 1\`) and the GN rules to FRG (\`harnessRules >= 2\`). The GN rules replace the UC-count constraints in step 5 of the base FRG specification. Under the current rules, a GN must be connected and normally has at most 2 UCs; 3–4 UCs are allowed when a cited \`motifNote\` explains an indivisible motif. 5 or more UCs are never accepted.`,
     "Research mode additionally appends `research_mode.md`; hypothesis mode appends `HYPOTHESIS.md`. Hypothesis rules apply only within the permitted scopes; literature requirements outside those scopes still apply. This static source collection does not include dynamic FRG candidates, Canon guidance, RCS-unavailable notes, project headers, or validation feedback.",
     [
@@ -87,7 +87,7 @@ function readingNotes(locale, read) {
       `| \`{BUDGET_MINUTES}\` | Research time budget: ${minutes} minutes by default, configurable with \`RESEARCH_TIME_BUDGET_MIN\`. |`,
       `| \`{SCOPES}\` / \`{MAX_SHARE}\` / \`{RESEARCH_MODE}\` | ${hypothesis} fills in the project's permitted scopes, hypothesis share limit, and research mode. |`,
     ].join("\n"),
-    "Update this appendix with `node scripts/docs-harness-prompts.mjs`; use `--check` to verify that it matches the source files. Instructions inside the sources address the CoBRAC runtime agent, not the reader of this article.",
+    "Update this appendix with `node scripts/docs-harness-prompts.mjs`; use `--check` to verify that it matches the source files. Instructions inside the sources address the CoBRAC agent (the LLM), not the reader of this article.",
   ].join("\n\n"));
 }
 

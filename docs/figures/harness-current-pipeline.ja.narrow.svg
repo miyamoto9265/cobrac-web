@@ -1,61 +1,98 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 1264" width="430" height="1264" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
-<title id="t">CoBRAC ハーネス v2：生成と検証の流れ</title>
-<desc id="d">任意の調査ステップ（既定でオン）の後、HCD を作って検証する。ワーカーが HCD から候補をコードで抽出し、FRG は TLF の分解とこのボトムアップ候補を照合して組み立てる。整合チェック X1〜X9 を記録し、X1・X2・X3・X8 があれば実行ごとに一度の調整ターンを送る。調整では FRG の修正、HCD の UC の分割・追加、理由を残して維持を選べる。変更された HCD と FRG を再検証した後、CSV、2 種類の xlsx、グラフをコードで生成する。仮説は明示的な許可、対象、主張の種類、割合の制約の下で扱う。</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 1228" width="430" height="1228" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
+<title id="t">CoBRAC ハーネス v2：1 件の BRA の流れと書き手</title>
+<desc id="d">左の列は CoBRAC エージェント（LLM）のターン、右の列はワーカー（プログラム）の処理で、矢印はファイルと依頼文の受け渡しを表す。1. 調査ターン（既定で有効）でエージェントが research.json を書き、ワーカーが検索ログと被覆を照合して research_check.json を書く。2. HCD ターンでエージェントが uc.json・connections.json などを書き、ワーカーが Schema・命名・文献・引用を検証する。ワーカーは受理した HCD から経路やモチーフを計算して frg_candidates.json を書き、FRG の依頼文に入れる。3. FRG ターンでエージェントが frg.json とレポートの対応表を書き、ワーカーが GN と interface を検査し、整合チェック X1〜X9 を cross_check.json に書く。4. X1・X2・X3・X8 があれば、ワーカーが調整依頼を 1 回送り、エージェントが FRG か HCD を直すか理由を残す。ワーカーは変更されたファイルを再検証する。5. ワーカーが JSON から CSV 5 本、xlsx 2 種、グラフを生成し、保存版にする。この段に LLM は関与しない。各段で問題が残ればワーカーが問題一覧を付けて修正を依頼する。</desc>
 <defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
-<rect width="430" height="1264" fill="#ffffff"/>
-<rect x="10" y="10" width="410" height="30" rx="8" fill="#1e3a8a"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：生成と検証の流れ</tspan></text>
-<rect x="10" y="58" width="410" height="80" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="22" y="85.14999999999999" font-size="13" font-weight="700" fill="#92400e" text-anchor="start"><tspan>仮説は明示的に許可したときだけ</tspan></text>
-<text x="22" y="103.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>対象・主張の種類・割合を検査</tspan></text>
-<text x="22" y="120.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>根拠と FRG への依存を記録</tspan></text>
-<rect x="10" y="162" width="410" height="82" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="22" y="190.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>1. 調査（任意・既定でオン）</tspan></text>
-<text x="22" y="208.54999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>文献検索 → </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">research.json</tspan></text>
-<text x="22" y="225.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>網羅性の検査と修正</tspan></text>
-<path d="M215 244 L215 272" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="272" width="410" height="86" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="22" y="302.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>2. HCD：回路・接続を作る</tspan></text>
-<text x="22" y="320.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>UC / Collection / 接続 / 文献</tspan></text>
-<text x="22" y="337.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Schema・命名・BRA・文献・引用文を検証</tspan></text>
-<path d="M215 358 L215 386" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="386" width="410" height="82" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="22" y="414.15000000000003" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>HCD から候補をコードで抽出</tspan></text>
-<text x="22" y="432.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">frg_candidates.json</tspan></text>
-<text x="22" y="449.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>モチーフ・経路・境界を FRG の材料に</tspan></text>
-<path d="M215 468 L215 496" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="496" width="410" height="86" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="22" y="526.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>3. FRG：機能を回路に対応させる</tspan></text>
-<text x="22" y="544.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>TLF の分解 × ボトムアップ候補</tspan></text>
-<text x="22" y="561.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>GN・Interface・機能の内容を検証</tspan></text>
-<path d="M215 582 L215 610" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="610" width="410" height="86" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="22" y="640.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>4. 整合チェック X1〜X9</tspan></text>
-<text x="22" y="658.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">cross_check.json</tspan><tspan> に記録</tspan></text>
-<text x="22" y="675.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>X1・X2・X3・X8 があれば調整へ</tspan></text>
-<path d="M215 696 L215 724" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="38" y="724" width="382" height="116" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6 4"/>
-<text x="50" y="760.4499999999999" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>調整ターン（実行ごとに最大 1 回）</tspan></text>
-<text x="50" y="778.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>FRG を修正 / HCD の UC を分割・追加</tspan></text>
-<text x="50" y="796.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>または維持する理由を記録</tspan></text>
-<text x="50" y="813.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>その後の検証・修正ループへ</tspan></text>
-<path d="M10 653 L3 653 L3 856 L215 856" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
-<path d="M215 840 L215 876" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
-<rect x="10" y="876" width="410" height="78" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
-<text x="22" y="902.15" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>HCD↔FRG の変更理由を残す</tspan></text>
-<text x="22" y="920.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">decision_log.md</tspan></text>
-<text x="22" y="937.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">## HCD-FRG revisions</tspan><tspan> に記録</tspan></text>
-<path d="M215 954 L215 982" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
-<rect x="10" y="982" width="410" height="98" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
-<text x="22" y="1009.4499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>5. 変更された HCD / FRG を再検証</tspan></text>
-<text x="22" y="1027.85" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">phase_baseline.json</tspan><tspan> で変更を検出</tspan></text>
-<text x="22" y="1045.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>後段でも前段の検証をやり直す</tspan></text>
-<text x="22" y="1062.65" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>仮説は対象・割合・依存関係も再確認</tspan></text>
-<path d="M215 1080 L215 1108" fill="none" stroke="#10b981" stroke-width="1.6" marker-end="url(#arrow-10b981)"/>
-<rect x="10" y="1108" width="410" height="98" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
-<text x="22" y="1135.45" font-size="13" font-weight="700" fill="#065f46" text-anchor="start"><tspan>6. コードで成果物を生成</tspan></text>
-<text x="22" y="1153.8500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>CSV 5 本 → xlsx × 2</tspan></text>
-<text x="22" y="1171.2500000000002" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>CoBRAC-v1-1 / Template-v2-2</tspan></text>
-<text x="22" y="1188.6500000000003" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>同じデータから HCD / FRG グラフ</tspan></text>
-<text x="10" y="1233" font-size="11.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>各段階：編集 → 検証 → 必要な修正</tspan></text>
-<text x="10" y="1251" font-size="11.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>質問時は保存して中断し、回答後に再開</tspan></text>
+<rect width="430" height="1228" fill="#ffffff"/>
+<rect x="10" y="10" width="410" height="30" rx="8" fill="#1e3a8a"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：1 件の BRA の流れと書き手</tspan></text>
+<rect x="10" y="51" width="16" height="14" rx="3" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="32" y="62" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>CoBRAC エージェント（LLM）：判断してファイルを書く</tspan></text>
+<rect x="10" y="71" width="16" height="14" rx="3" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="32" y="82" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>ワーカー（プログラム）：検査・計算・変換</tspan></text>
+<rect x="26" y="100" width="394" height="74" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="38" y="124.14999999999999" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>1. 調査ターン（既定で有効）</tspan></text>
+<text x="38" y="142.54999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>候補ごとに文献を探して読む</tspan></text>
+<text x="38" y="159.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">research.json</tspan></text>
+<rect x="372.2" y="108" width="39.8" height="22" rx="11" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.2"/>
+<text x="382.2" y="122.6" font-size="10" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>LLM</tspan></text>
+<path d="M223 174 L223 204" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="232" y="193" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>ファイル</tspan></text>
+<rect x="26" y="204" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="228.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>調査の検査</tspan></text>
+<text x="38" y="246.54999999999998" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>検索ログと被覆を照合</tspan></text>
+<text x="38" y="263.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">research_check.json</tspan></text>
+<rect x="342.0" y="212" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="226.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<path d="M223 278 L223 308" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="232" y="297" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>受理 → 次の段の依頼文</tspan></text>
+<path d="M26 241 L12 241 L12 137 L26 137" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="308" width="394" height="74" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="332.15000000000003" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>2. HCD ターン</tspan></text>
+<text x="38" y="350.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>ROI・UC・接続・文献を決める</tspan></text>
+<text x="38" y="367.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">uc.json</tspan><tspan>・</tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">connections.json</tspan><tspan> ほか</tspan></text>
+<rect x="372.2" y="316" width="39.8" height="22" rx="11" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.2"/>
+<text x="382.2" y="330.6" font-size="10" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>LLM</tspan></text>
+<path d="M223 382 L223 412" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="232" y="401" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>ファイル</tspan></text>
+<rect x="26" y="412" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="436.15000000000003" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>HCD の検証</tspan></text>
+<text x="38" y="454.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Schema・命名・文献・引用を照合</tspan></text>
+<text x="38" y="471.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">quote_check.json</tspan><tspan> ほか</tspan></text>
+<rect x="342.0" y="420" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="434.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<path d="M223 486 L223 516" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="232" y="505" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>受理</tspan></text>
+<path d="M26 449 L12 449 L12 345 L26 345" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="516" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="540.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>FRG 候補の計算</tspan></text>
+<text x="38" y="558.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>HCD の接続から経路・モチーフを抽出</tspan></text>
+<text x="38" y="575.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">frg_candidates.json</tspan></text>
+<rect x="342.0" y="524" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="538.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<path d="M223 590 L223 620" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="232" y="609" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>候補を FRG の依頼文に入れる</tspan></text>
+<rect x="26" y="620" width="394" height="74" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+<text x="38" y="644.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>3. FRG ターン</tspan></text>
+<text x="38" y="662.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>TLF を分解し、候補と対応づける</tspan></text>
+<text x="38" y="679.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">frg.json</tspan><tspan>・report の対応表</tspan></text>
+<rect x="372.2" y="628" width="39.8" height="22" rx="11" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.2"/>
+<text x="382.2" y="642.6" font-size="10" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>LLM</tspan></text>
+<path d="M223 694 L223 724" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="232" y="713" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>ファイル</tspan></text>
+<rect x="26" y="724" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="748.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>FRG の検証と整合チェック</tspan></text>
+<text x="38" y="766.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>GN・interface を検査、X1〜X9 を計算</tspan></text>
+<text x="38" y="783.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">cross_check.json</tspan></text>
+<rect x="342.0" y="732" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="746.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<path d="M223 798 L223 828" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="232" y="817" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>X1・X2・X3・X8 → 調整依頼</tspan></text>
+<path d="M26 761 L12 761 L12 657 L26 657" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="828" width="394" height="74" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="38" y="852.15" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>4. 調整ターン（該当時のみ・1 回）</tspan></text>
+<text x="38" y="870.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>FRG か HCD を直す、または理由を残す</tspan></text>
+<text x="38" y="887.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">decision_log.md</tspan><tspan> の revisions</tspan></text>
+<rect x="372.2" y="836" width="39.8" height="22" rx="11" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.2"/>
+<text x="382.2" y="850.6" font-size="10" font-weight="600" fill="#4c1d95" text-anchor="start"><tspan>LLM</tspan></text>
+<path d="M223 902 L223 932" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
+<text x="232" y="921" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>ファイル</tspan></text>
+<rect x="26" y="932" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="956.15" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>変更されたファイルの再検証</tspan></text>
+<text x="38" y="974.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>前段の検査もやり直す</tspan></text>
+<text x="38" y="991.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">phase_baseline.json</tspan></text>
+<rect x="342.0" y="940" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="954.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<path d="M223 1006 L223 1036" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
+<text x="232" y="1025" font-size="10.5" font-weight="400" fill="#475569" text-anchor="start"><tspan>受理</tspan></text>
+<path d="M26 969 L12 969 L12 865 L26 865" fill="none" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-3b82f6)"/>
+<rect x="26" y="1036" width="394" height="74" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+<text x="38" y="1060.1499999999999" font-size="13" font-weight="700" fill="#1e3a8a" text-anchor="start"><tspan>5. 成果物の生成と保存</tspan></text>
+<text x="38" y="1078.55" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>JSON → CSV 5 本 → xlsx 2 種・グラフ</tspan></text>
+<text x="38" y="1095.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>→ 保存版 </tspan><tspan font-family="'JetBrains Mono',Consolas,'SFMono-Regular',Menlo,'Noto Sans Mono CJK JP',monospace" font-size="11.0" fill="#1e293b">&lt;ProjectID&gt;@vN</tspan></text>
+<rect x="342.0" y="1044" width="70.0" height="22" rx="11" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.2"/>
+<text x="352" y="1058.6" font-size="10" font-weight="600" fill="#1e3a8a" text-anchor="start"><tspan>プログラム</tspan></text>
+<text x="10" y="1134" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>この段に LLM は関与しない：CSV の問題は JSON の修正依頼で戻る</tspan></text>
+<text x="10" y="1156" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>左の破線：問題が残ればワーカーが修正依頼を送る</tspan></text>
+<text x="10" y="1174" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>どのターンでもエージェントは質問できる</tspan></text>
+<text x="10" y="1192" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>保存と再開はワーカーが行う</tspan></text>
+<text x="10" y="1210" font-size="12" font-weight="400" fill="#475569" text-anchor="start"><tspan>仮説の範囲と比率はワーカーが検査する</tspan></text>
 </svg>
