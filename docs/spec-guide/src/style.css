@@ -157,7 +157,8 @@ h1.toc-title { font-size: 18pt; margin: 4mm 0 5mm; padding-bottom: 2mm; border-b
 .toc li a { display: flex; align-items: baseline; gap: 2mm; }
 .toc li.l1 { margin-top: 3.2mm; font-weight: 800; font-size: 10.4pt; }
 .toc li.l2 { padding-left: 6mm; font-size: 9pt; line-height: 1.7; color: #374151; }
-.toc .dots { flex: 1; border-bottom: 1px dotted #9ca3af; transform: translateY(-.9mm); }
+/* leaders as a background pattern: a dotted border is drawn dot by dot and Chromium repeats those dots on every page */
+.toc .dots { flex: 1; height: 1px; background-image: radial-gradient(circle, #9ca3af 0.5px, transparent 0.6px); background-size: 3px 1px; background-repeat: repeat-x; transform: translateY(-.9mm); }
 .toc .p { font-variant-numeric: tabular-nums; min-width: 6mm; text-align: right; }
 
 /* ---- cover ---- */

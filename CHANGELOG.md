@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-08
+
+### Added
+- The specification is now one Japanese PDF, 「CoBRAC Agents 仕様書」 (185 pages): system overview, the harness (which actor is the LLM and which is the program, what they hand over, each phase), circuit naming, Canons, versions and BRA-DB, the CoBRAC Orchestrator, AWS infrastructure, security and operations, and appendices with every API route, the full prompt texts, the sources and the revision history. It replaces all earlier documents and is the single source of truth
+
+### Changed
+- The admin-only 「ドキュメント」 page is now 「仕様書」 / "Specification" (all 10 languages). It shows the PDF inside the page on computers, with 「新しいタブで開く」 / 「ダウンロード」 buttons; phones and tablets get the buttons only. Old `/docs/<document>` links open the new page
+
+### Removed
+- The Markdown documents on the admin page (design specification, harness guide and archived comparisons, circuit naming, research mode and Canons, AWS and budget, security, speed and cost) and README / AGENTS.md. Their content is in the PDF
+
 ## [0.37.3] - 2026-10-08
 
 ### Changed

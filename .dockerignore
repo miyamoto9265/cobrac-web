@@ -12,3 +12,6 @@ packages/infra/**
 !packages/infra/package.json
 packages/api/**
 !packages/api/package.json
+# documentation (the specification PDF and its sources) and the v0 archive are not part of the worker image
+docs
+archive

@@ -44,7 +44,7 @@ ENV NODE_ENV=production \
     CODEX_HOME_DIR=/work/codex-home \
     CODEX_SQLITE_HOME=/work/codex-home/sqlite \
     PYTHON_BIN=python3
-# The worker, Codex and the agent's commands all run as `worker` (docs/02, section 5). So that the agent cannot read
+# The worker, Codex and the agent's commands all run as `worker` (specification 7.8). So that the agent cannot read
 # the API key or the task role's credentials URI from the other processes:
 # - node, the Codex binaries and git's ELF binaries are made execute-only. Linux makes a process started from a file
 #   it cannot read non-dumpable, and then other processes of the same user cannot read its /proc/<pid>/environ or

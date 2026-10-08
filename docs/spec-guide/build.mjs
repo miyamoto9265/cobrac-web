@@ -77,11 +77,17 @@ function assemble(files) {
 }
 
 const css = readFileSync(join(srcDir, "style.css"), "utf8");
+// Noto Sans JP は分割されていない TTF を使う（fetch-fonts.sh。Unicode の範囲で分かれた版では PDF が数倍になる）
+const notoFaces = [
+  [400, "NotoSansJP_400Regular.ttf"],
+  [700, "NotoSansJP_700Bold.ttf"],
+  [800, "NotoSansJP_800ExtraBold.ttf"],
+]
+  .map(([w, f]) => `@font-face{font-family:"Noto Sans JP";font-style:normal;font-weight:${w};src:url("../.fonts/noto-sans-jp-ttf/${f}") format("truetype");}`)
+  .join("\n");
 const page = (inner) => `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><title>${TITLE}</title>
-<link rel="stylesheet" href="../.fonts/noto-sans-jp/400.css">
-<link rel="stylesheet" href="../.fonts/noto-sans-jp/700.css">
-<link rel="stylesheet" href="../.fonts/noto-sans-jp/800.css">
+<style>${notoFaces}</style>
 <link rel="stylesheet" href="../.fonts/jetbrains-mono/400.css">
 <link rel="stylesheet" href="../.fonts/jetbrains-mono/700.css">
 <style>${css}</style></head><body>${inner}</body></html>`;
@@ -183,7 +189,7 @@ for f in sys.argv[1:3]:
     for p in PdfReader(f).pages: w.add_page(p)
 w.add_metadata({"/Title": sys.argv[4], "/Subject": "CoBRAC Agents の仕様（システム・ハーネス・命名・Canon・版と BRA-DB・オーケストレーター・運用）", "/Creator": "docs/spec-guide/build.mjs"})
 w.page_mode = "/UseOutlines"
-w.compress_identical_objects(remove_identicals=True, remove_orphans=True)
+w.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
 with open(sys.argv[3], "wb") as f: w.write(f)
 `, coverPdf, bodyPdf, pdfPath, TITLE]);
 

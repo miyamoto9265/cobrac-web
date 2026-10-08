@@ -12,7 +12,7 @@
 
 <h2 id="s2-1">2.1 登場する主体（LLM とプログラム）</h2>
 <h3>推論する LLM：CoBRAC エージェント</h3>
-<p>この文書で「エージェント」と書くときは、BRA を作る <b>CoBRAC エージェント</b>を指します。中身は OpenAI の言語モデルで、モデルと推論レベル（reasoning effort）はプロジェクトごとに選びます（第 1 部）。モデルは OpenAI の <b>Codex</b>（Codex SDK と Codex CLI）を通して動きます。Codex は、モデルにシェルでのファイルの読み書き、MCP のツール、Web 検索を使わせ、会話の履歴とその自動圧縮を管理する実行環境です。推論そのものは、コンテナの外の OpenAI API で行われます。</p>
+<p>この文書で「エージェント」と書くときは、BRA を作る <b>CoBRAC エージェント</b>を指します。中身は OpenAI の言語モデルで、モデルと推論レベル（reasoning effort）はプロジェクトごとに選びます（1.8）。モデルは OpenAI の <b>Codex</b>（Codex SDK と Codex CLI）を通して動きます。Codex は、モデルにシェルでのファイルの読み書き、MCP のツール、Web 検索を使わせ、会話の履歴とその自動圧縮を管理する実行環境です。推論そのものは、コンテナの外の OpenAI API で行われます。</p>
 <p>エージェントは、自分で作業を始めたり段を進めたりしません。ワーカーから依頼文を 1 つ受け取ると、それに応える 1 回の<b>ターン</b>の中で、文献を検索し、原文を読み、ファイルを編集します。ツールはターンの中で何度でも呼べます。ターンの最後に終了報告の JSON を返して止まり、次の依頼を待ちます。</p>
 <p>1 件のプロジェクトでは、調査・HCD・FRG・修正・調整のすべてのターンが<b>同じ会話（Codex のスレッド、<code>codexThreadId</code>）</b>で続きます。質問への回答、途中からの再試行、完成後のフォローアップも、同じ会話を再開します。会話が OpenAI の 1 リクエストの上限を超えたときだけ、ワーカーが新しい会話に切り替え、プロジェクトのファイルと判断ログを読んで続けるよう指示します。</p>
 
@@ -32,7 +32,7 @@
   <thead><tr><th style="width:17%">主体</th><th style="width:14%">種類</th><th style="width:16%">動く場所</th><th>すること</th><th style="width:20%">出すもの</th></tr></thead>
   <tbody>
     <tr><td>利用者</td><td>人</td><td>画面</td><td>ROI・TLF・指示・参考資料を送る。質問に答える。Canon への取り込みを承認する</td><td>入力、回答、承認</td></tr>
-    <tr><td>API / dispatcher / janitor</td><td>プログラム</td><td>AWS Lambda</td><td>API はプロジェクトとジョブを記録して SQS に実行を依頼する。dispatcher は同時実行数を見てワーカーを起動する。janitor はハートビートが途絶えたジョブを回復する（第 1 部・第 7 部）</td><td>ジョブの記録、ワーカーの起動</td></tr>
+    <tr><td>API / dispatcher / janitor</td><td>プログラム</td><td>AWS Lambda</td><td>API はプロジェクトとジョブを記録して SQS に実行を依頼する。dispatcher は同時実行数を見てワーカーを起動する。janitor はハートビートが途絶えたジョブを回復する（1.6・7.4）</td><td>ジョブの記録、ワーカーの起動</td></tr>
     <tr><td>ワーカー</td><td>プログラム（LLM なし）</td><td>Fargate</td><td>段の制御、依頼文の組み立て、検査、CSV・xlsx・グラフへの変換、保存と再開</td><td>依頼文、検査結果ファイル、CSV・xlsx・グラフ、版</td></tr>
     <tr><td>CoBRAC エージェント</td><td><b>LLM</b></td><td>推論は OpenAI API、ツールの実行は Fargate 内</td><td>文献を調べ、ROI・UC・接続・機能分解を判断し、ファイルに書く</td><td>データ JSON、<code>report.md</code>、<code>decision_log.md</code>、ターン終了の JSON</td></tr>
     <tr><td><code>lit</code></td><td>プログラム（エージェントの道具）</td><td>Fargate 内の MCP サーバ</td><td>エージェントの求めに応じて PubMed / Europe PMC を検索し、要旨・全文・該当する文を返す</td><td>検索結果と原文の一部</td></tr>

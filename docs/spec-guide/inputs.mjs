@@ -45,7 +45,7 @@ export function srcFiles() {
 export function referencedFigures() {
   const names = new Set();
   for (const f of srcFiles().filter((f) => f.endsWith(".html"))) {
-    for (const m of readFileSync(join(srcDir, f), "utf8").matchAll(/data-figure="([^"]+)"/g)) names.add(m[1]);
+    for (const m of readFileSync(join(srcDir, f), "utf8").matchAll(/<figure\b[^>]*\sdata-figure="([^"]+)"/g)) names.add(m[1]);
   }
   return [...names].sort();
 }

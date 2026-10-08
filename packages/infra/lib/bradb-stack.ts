@@ -16,7 +16,7 @@ import { BRADB_IMPORT_FUNCTION_NAME } from "@cobrac/shared";
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "../../..");
 
-/** Ubuntu 24.04 LTS arm64 (Canonical, 2026-09-23). Pinned: a new image would replace the instance (see docs/03). */
+/** Ubuntu 24.04 LTS arm64 (Canonical, 2026-09-23). Pinned: a new image would replace the instance (specification, part 5). */
 export const BRADB_AMI: Record<string, string> = { "ap-northeast-1": "ami-03feee0aca5e4f4f6" };
 export const BRADB_DATABASE = "bra_db_v4_6";
 

@@ -38,15 +38,14 @@ test("figures are self-contained SVG", () => {
   }
 });
 
-test("current docs, archived docs and the manual reference only figures that exist", () => {
-  for (const [, dir, set] of SETS) {
-    const docsDir = join(dir, "..");
-    const archived = dir === FIGURES_DIR ? readdirSync(join(docsDir, "archive")).filter((f) => f.endsWith(".md")).map((f) => join("archive", f)) : [];
-    for (const md of [...readdirSync(docsDir).filter((f) => f.endsWith(".md")), ...archived]) {
-      const text = readFileSync(join(docsDir, md), "utf8");
-      for (const [, ref] of text.matchAll(/\]\(\.{1,2}\/figures\/([^)\s]+)/g)) {
-        assert.ok(ref in set, `${md} references missing figure ${ref}`);
-      }
+// docs/figures is embedded by the specification PDF (`<figure data-figure="…">` in docs/spec-guide/src); that those
+// figures exist is checked in scripts/spec-guide.test.mjs.
+test("the manual references only figures that exist", () => {
+  const manualDir = join(MANUAL_FIGURES_DIR, "..");
+  for (const md of readdirSync(manualDir).filter((f) => f.endsWith(".md"))) {
+    const text = readFileSync(join(manualDir, md), "utf8");
+    for (const [, ref] of text.matchAll(/\]\(\.{1,2}\/figures\/([^)\s]+)/g)) {
+      assert.ok(ref in manual, `${md} references missing figure ${ref}`);
     }
   }
 });
