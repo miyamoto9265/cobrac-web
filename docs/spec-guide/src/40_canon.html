@@ -116,7 +116,7 @@
     <text x="446" y="253">sources：push したプロジェクト／状態</text>
   </g>
 </svg>
-<figcaption><b>図 2-1</b>　Canon のスナップショット。共有層は Canon の中で 1 つに決まり、役割層はプロジェクトごとに持つ</figcaption>
+<figcaption><b>図 4.1</b>　Canon のスナップショット。共有層は Canon の中で 1 つに決まり、役割層はプロジェクトごとに持つ</figcaption>
 </figure>
 <ul>
   <li><b>回路</b>は正規化した UC Descriptor をキーにします（第 3 部）。プロジェクトの JSON は Circuit ID で接続を書くので、push のときに Descriptor に解決します。Descriptor の無い UC は取り込まれず、一覧で示されます。</li>
@@ -197,7 +197,7 @@
     <text x="16" y="220">Canon が進んで、使っている定義が変わったら：「Canon に合わせる」で固定を進め、直す追加指示を送る（4.9）</text>
   </g>
 </svg>
-<figcaption><b>図 2-2</b>　push から rev ができるまで。Canon の中身は人の承認でだけ変わる</figcaption>
+<figcaption><b>図 4.2</b>　push から rev ができるまで。Canon の中身は人の承認でだけ変わる</figcaption>
 </figure>
 <ol class="steps">
   <li><b>push</b>（完了した参加プロジェクトの画面の「Canon に push」、<code>POST /projects/{id}/canon/push</code>。押すのは所有者、オーケストレーターの計画では計画ランナー）：API（プログラム）がワークスペースの <code>uc.json</code>・<code>connections.json</code>・<code>references.json</code>・<code>frg.json</code>・<code>meta.json</code>・<code>reference_check.json</code>・<code>quote_check.json</code> を <code>canonFromProject</code> で Canon の形に変換し、最新の rev と比べ（<code>diffCanon</code>）、PR として保存します（PR の項目と、ペイロード・差分を <code>canons/{canonId}/pr/{no}/</code> に）。同じプロジェクトの未処理の PR は置き換えられます。<code>…/canon/preview</code> は PR を作らずに同じ差分を見せます。</li>
@@ -236,26 +236,61 @@
 </ul>
 
 <h2 id="s4-8">4.8 審査：検査・AI レビュー・共同編集者・まとめて承認</h2>
-<p>PR の画面は審査のための画面です。システムと AI が補助し、承認・変更の依頼・却下は人（所有者か共同編集者）だけが行います。衝突ルール（4.7）が承認を止めるかどうかを決めます。</p>
+<p>PR の画面は審査のための画面です（v0.20.0 から）。システム（API のプログラム）と AI（LLM のジョブ）が補助し、承認・変更の依頼・却下は人（所有者か共同編集者）だけが行います。衝突ルール（4.7）が承認を止めるかどうかを決めます。</p>
+<h3>審査の材料</h3>
+<p><code>GET /canons/{id}/pulls/{no}</code> は、読むたびに材料を計算して返します（保存はしない）：差分とその基準の rev、システムの検査（<code>checks</code>）、差分の各項目の両側の値（<code>entries</code>）、図（<code>graph</code>：PR が持ち込む回路、その接続が終わる Canon の回路、変わるものの Canon での隣の回路と、その間の Canon の接続。最大 60 回路）、来歴（<code>provenance</code>：送り元、その現在の rev、まだあるか、head）、履歴、審査する人には最新の AI レビュー。</p>
 <h3>PR の画面の 4 つのタブ</h3>
 <table>
   <thead><tr><th style="width:16%">タブ</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><b>変更</b></td><td>今の Canon と承認後を同じ配置で並べた図（追加は緑、変更は青、プロジェクトで使わなくなったものは灰色の破線、衝突は赤い枠、Collection は点線）と、種類ごとの差分の一覧。行を開くと両側の値を項目ごとに比べられ、その行への検査とコメントも見られる。</td></tr>
-    <tr><td><b>検査</b></td><td>決める必要のある衝突と、グループごとのシステムの検査（承認は止めない）。各検査に重さと BRA の Error code List (Master) のコード、または <code>cobrac:</code> のコードが付く。ID（Descriptor の構文 <code>cobrac:uc-descriptor</code>、Circuit ID の文字、C4 など）／重複と衝突（別の Descriptor で同じ正式名の新しい回路など）／接続（C5、未定義の端、同じ論文での逆向きの接続、同じ送り手・受け手で興奮性と抑制性が逆）／根拠（Reference ID が無い・References に無い、引用文も図も無い、照合されていない引用文と新しい文献）／来歴（push 後に Canon が進んだ、送り元に新しい rev がある、送り元が Canon を抜けた・削除された、影響を受けるほかの参加プロジェクト）。</td></tr>
-    <tr><td><b>AI レビュー</b></td><td>モデル（使えるものだけ）と言語を選んで実行。材料（差分・衝突・検査・変更項目の両側・文献。最大 15 万文字）を 1 回の Codex のターン（Web 検索なし）で読み、要約・重さと理由つきの指摘・確かめるべき点・項目ごとのコメント案を固定のスキーマで返す。材料に無い項目・検査・論文を指す部分は除かれる。<b>承認や却下の推奨はしない</b>（プロンプトで禁止）。「使う」でコメント案がコメント欄に入る。費用は実行した人の利用量に入る。</td></tr>
+    <tr><td><b>変更</b></td><td>今の Canon と承認後を同じ配置で並べた図（追加は緑、変更は青、プロジェクトで使わなくなったものは灰色の破線、衝突は赤い枠、Collection は点線）と、種類ごとの差分の一覧（絞り込みつき）。行を開くと両側の値を項目ごとに比べられ、その行への検査とコメントも見られる。</td></tr>
+    <tr><td><b>検査</b></td><td>決める必要のある衝突と、グループごとのシステムの検査（承認は止めない）。各検査に重さと BRA の Error code List (Master) のコード、または <code>cobrac:</code> のコードが付く（下の表）。</td></tr>
+    <tr><td><b>AI レビュー</b></td><td>モデル（使えるものだけ）と言語を選んで実行する。LLM が食い違いを理由と項目・文献へのリンクつきで挙げ、確かめるべき点とコメント案を出す。<b>判断はしない</b>。「使う」でコメント案がコメント欄に入るので、直してから送る（下の「AI レビューのジョブ」）。</td></tr>
     <tr><td><b>履歴</b></td><td>push・置き換え・判定し直し・コメント・変更の依頼・承認（rev と衝突の選択）・却下・取り下げ・AI レビューの依頼を、だれがいつ行ったかの追記専用の記録。</td></tr>
   </tbody>
 </table>
+<p>判断の欄（広い画面では右の列、スマートフォンでは下のバー）には、メモと「変更を依頼」「却下」（メモ必須）「承認」（メモ任意。決めていない衝突がある間は押せない）があります。</p>
+<h3>システムの検査（グループとコード）</h3>
+<table class="compact">
+  <thead><tr><th style="width:13%">グループ</th><th>検査（コード）</th></tr></thead>
+  <tbody>
+    <tr><td>ID</td><td>UC Descriptor の構文（<code>cobrac:uc-descriptor</code>）、Circuit ID の文字（<code>cobrac:circuit-id-chars</code>）、Circuit ID と Descriptor の形の対応（<code>cobrac:circuit-id-form</code>）、Descriptor が無くて取り込まれない UC（<code>cobrac:uc-descriptor</code>）、C4（103）</td></tr>
+    <tr><td>重複と衝突</td><td>衝突 C1（<code>cobrac:canon-status</code>）・C2b / C2c（<code>cobrac:canon-decomposition</code>）・C3（<code>cobrac:canon-hierarchy</code>）・C6（<code>cobrac:canon-name</code>）・C7（<code>cobrac:canon-props</code>）・C12（<code>cobrac:canon-group</code>）・C13、別の Descriptor で既存のエントリと同じ正式名の新しい回路（<code>cobrac:canon-name</code>）、同じアンカーの既存のエントリ（情報）</td></tr>
+    <tr><td>接続</td><td>C5（送り手 203、受け手 <code>cobrac:collection-end</code>）、未定義の端（202 / 224）、同じ論文での Canon の接続の逆向き、同じ送り手・受け手で興奮性と抑制性が逆（<code>classifyEdgeSign</code>）、C9b（<code>cobrac:canon-connection</code>）</td></tr>
+    <tr><td>根拠</td><td>Reference ID が無い（252）、References に無い（253）、引用文も図も無い（271）、C9c（273）、C8（<code>cobrac:ref-id-unique</code>）、C8b（3）、C8c（<code>cobrac:ref-check</code>）、照合されていない引用文と新しい文献（情報）</td></tr>
+    <tr><td>来歴</td><td>push 後に Canon が進んだ、送り元に新しい rev がある、送り元が Canon を抜けた・削除された、影響を受けるほかの参加プロジェクト、プロジェクトで使わなくなった項目</td></tr>
+  </tbody>
+</table>
+<h3>変更の依頼・コメント・履歴</h3>
+<ul>
+  <li><b>変更を依頼</b>（<code>POST …/pulls/{no}/request-changes</code> <code>{ note }</code>）：PR は開いたまま <code>reviewState = changes_requested</code> と <code>reviewNote</code> を持ちます。送った側が新しく push すると、新しい PR が置き換えます。</li>
+  <li><b>コメント</b>（<code>POST …/pulls/{no}/comments</code> <code>{ text, item? }</code>）：所有者・共同編集者と PR を送った人が、PR 全体か差分の 1 項目（<code>&lt;種類&gt;:&lt;キー&gt;</code>）に書けます。</li>
+  <li><b>履歴</b>：Canons テーブルの追記専用の項目 <code>PEV#{prNo}#{at}#{nonce}</code> に、pushed・superseded・rebased（承認時に新しい head に対して判定し直した）・comment・changes_requested・approved（rev と衝突の選択つき）・rejected・withdrawn・ai_requested を残します。AI レビューの終わりはそのジョブから読みます。v0.20.0 より前の PR は、push と判断を <code>PR#</code> の項目から組み立て直して表示します。</li>
+</ul>
+<h3>AI レビューのジョブ（LLM、所見だけを出す）</h3>
+<ol class="steps">
+  <li><b>依頼</b>（人）：審査する人（所有者か共同編集者）が、開いている PR について <code>POST …/pulls/{no}/ai-review</code> <code>{ model?, locale }</code> を送ります。1 つの PR で同時に 1 件だけです。モデルは依頼した人のキーとティアで確かめ（<code>requireModel</code>。デフォルトの API キーの Tier 1 はそのモデルだけ）、ワーカーでも確かめます（<code>planRunKey</code>）。</li>
+  <li><b>材料</b>（API）：<code>buildCanonAiPacket</code> が差分・衝突・検査・変わった項目の両側・文献を最大 15 万文字にまとめ、<code>canons/{id}/pr/{no}/ai/{jobId}/input.json</code> に書き、ジョブ（<code>type</code> とモード <code>canon-review</code>、<code>projectId</code> = Canon ID、<code>reviewPrNo</code>、<code>reviewLocale</code>）を積みます。</li>
+  <li><b>実行</b>（ワーカーが LLM を 1 ターン動かす）：Web 検索なし・コマンドもファイルも使わずに材料だけを読み、固定の出力スキーマ（要約、重さと理由・項目・検査・Reference ID つきの指摘、確かめるべき点、項目ごとのコメント案）で返させます。その形でなければ 1 回だけ頼み直します。</li>
+  <li><b>検証</b>（ワーカー）：材料に無い項目・検査・論文を指す部分は除き、件数を数えます（<code>parseCanonAiReview</code>）。結果は <code>result.json</code> に、利用量と費用はジョブに記録し、依頼した人の利用量（デフォルトのキーならその利用量にも）に入ります。</li>
+</ol>
+<p class="small">出力に判定の欄は無く、プロンプトは承認や却下を勧めることを禁じています。ディスパッチャーと janitor はこのジョブについてプロジェクトに触れません（止まったレビューのジョブはリトライせず、もう一度実行するよう促すメッセージで失敗にする）。</p>
 <h3>共同編集者と、だれが判断したか</h3>
 <ul>
-  <li>所有者は、登録済みのメールアドレスで既存のユーザーを共同編集者に追加できます（招待メールは無く、未登録のアドレスは 404）。共同編集者はいつでも抜けられます。</li>
-  <li>共同編集者ができること：Canon・参加プロジェクトの名前と ROI / TLF・rev・PR の閲覧、コメント、AI レビュー（自分のキーかデフォルトの API キーで。費用は本人のもの）、変更の依頼・承認・却下、自分の Canon からの PR の送信（非公開でも）。<b>所有者だけ</b>：設定、参加プロジェクト（push は所有者のプロジェクトから）、公開、共同編集者の管理、削除。</li>
-  <li><b>承認は 1 人で足ります。</b>PR は <code>approvals</code> を持ち、将来 Canon に <code>requiredApprovals</code> を持たせられる構造です（未設定 = 1、まだ設定できない）。</li>
-  <li>PR には承認・却下・取り下げをした人と時刻（<code>decidedBy</code> など）、変更を依頼した人と時刻が、rev には承認者が記録され、画面に表示されます。</li>
+  <li>所有者は、Canon の画面で、相手が登録に使ったメールアドレスを入れて既存のユーザーを共同編集者に追加します（<code>POST /canons/{id}/editors</code> <code>{ email }</code>。大文字小文字は区別しない。招待メールは無く、未登録のアドレスは 404 で、先にサインアップしてもらうよう求める）。外すのは <code>DELETE /canons/{id}/editors/{userId}</code> で、共同編集者は自分で抜けることもできます。所有者には共同編集者のメールアドレスが、共同編集者には名前だけが見えます。</li>
+  <li>共同編集者は Canons テーブルの <code>EDITOR#{userId}</code> の項目で表され、本人のユーザーの <code>editorCanons</code> に並び、Canon の一覧の「共有された Canon」から開きます。</li>
+  <li>共同編集者ができること：Canon・参加プロジェクト（名前と ROI / TLF だけ。所有者のプロジェクトへのリンクは無い）・rev・PR の閲覧、コメント、AI レビュー（自分のキーかデフォルトの API キーで、自分が使えるモデルで。ジョブと費用は本人のもの）、変更の依頼・承認・却下、自分の Canon からの PR の送信（相手が非公開でも、PR を受け付けない設定でも）。<b>所有者だけ</b>：設定、参加プロジェクト（push は参加プロジェクトから行い、参加プロジェクトは所有者のもの）、公開、共同編集者の管理、削除。管理者は閲覧だけです。</li>
+  <li><b>承認は 1 人で足ります。</b>PR は <code>approvals</code>（<code>{ userId, name, at }</code>）を持ち、将来 Canon に <code>requiredApprovals</code> を持たせられる構造です（未設定 = 1、まだ設定も表示もできない）。</li>
+  <li>PR には承認・却下・取り下げをした人と時刻（<code>decidedBy</code> / <code>decidedByName</code> / <code>decidedAt</code>）、変更を依頼した人と時刻（<code>reviewedBy</code> / <code>reviewedByName</code> / <code>reviewedAt</code>）が、rev（<code>REV#</code>）には承認者（<code>approvedBy</code> / <code>approvedByName</code> / <code>approvedAt</code>）が記録されます。PR の画面には「… が承認 → rev n」「… が却下」「… が変更を依頼」（メモと時刻つき）の帯が出て、履歴には各操作の人が、Canon の rev の一覧には承認者が出ます。</li>
 </ul>
 <h3>まとめて承認</h3>
 <p>Canon の画面の PR の一覧で、エラーの衝突も要確認の項目も無く、変更を依頼していない未処理の PR にチェックを入れ（全選択も可）、「まとめて承認」を押すと、選んだ PR を<b>番号の順に 1 件ずつ</b>承認します（<code>POST /canons/{id}/pulls/approve-many</code>、1〜50 件）。1 件ごとに直前の承認でできた最新の Canon に対して判定し直し、見つからない・処理済み・新しい head に対してブロックする衝突がある・承認数が足りない・head の競合、のどれかで止まり、残りは承認しません。結果には承認した件数と、どの PR でなぜ止まったかが出ます。承認者は 1 件ずつ承認したときと同じように記録されます。</p>
+<ul>
+  <li>押せるのは 1 件ずつの承認と同じく、所有者か共同編集者です。PR 番号が 1〜50 件でなければ 400。重複は除き、順番は保ちます。1 件ずつ <code>POST …/pulls/{no}/approve</code> と同じ関数（<code>approvePullRequest</code>、衝突の選択なし）で、読み直した Canon に対して承認し、必要なら差分を取り直して rebased として記録します。</li>
+  <li>止まる理由は、見つからない（<code>not_found</code>）、開いていない（<code>closed</code>）、新しい head に対してブロックする衝突がある（<code>conflicts</code>、その数 <code>blocking</code>）、承認数が足りない（<code>approvals</code>）、head の競合（<code>race</code>）です。1 件の承認中の予期しないエラー（ペイロードが無い、AWS のエラーなど）も、その PR で <code>race</code> として止まり、途中で Canon が削除されたら <code>not_found</code> で止まります（まだ 1 件も承認していなければ 404）。どの場合も、すでに行った承認は必ず結果に返ります。</li>
+  <li>応答は <code>{ approved: [{ prNo, revision }], stopped: { prNo, reason, blocking? } | null }</code> です。画面は件数を示す確認を出してから実行します。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>、<code>packages/shared/src/canonReview.ts</code>・<code>canonAiReview.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
 
 <h2 id="s4-9">4.9 rev への追従</h2>
 <p>プロジェクトのヘッダーに、所属する Canon と従っている rev が出ます（例「rev 1（最新 2）」）。<code>GET /projects/{id}/canon</code> は、固定した rev と最新の rev を、そのプロジェクトが使う定義について比べ、次のどれかを返します。</p>
@@ -271,22 +306,46 @@
 <h2 id="s4-10">4.10 Canon の作り方と、プロジェクト作成時の選択</h2>
 <ul>
   <li><b>空の Canon を作る</b>：サイドバーの「Canon」で「新しい Canon」を作り、名前と粒度方針を書きます。既存のプロジェクトは「プロジェクトを追加」で入れられます。</li>
-  <li><b>作成画面で選ぶ</b>：入力欄の下の「Canon」ボタン（検索できるポップオーバー）で、「なし」／「既存の Canon」（最初の実行から最新の rev に従う）／「既存のプロジェクトから新しく作る」を選びます。指定しなければ設定画面で決めた既定の Canon（<code>Users.defaultCanonId</code>）が使われます。プロジェクトは最初のジョブを積む前に Canon に入るので、最初の実行から Canon に従います。</li>
+  <li><b>作成画面で選ぶ</b>：入力欄の下の「Canon」ボタン（開くと一覧が出て、数が多ければ検索できるポップオーバー）で、「なし」／「既存の Canon」（最初の実行から最新の rev に従う。選んだ Canon はボタンに名前と rev が出る）／「既存のプロジェクトから新しく作る」（入力欄の下に設定の欄が開く）を選びます。設定画面で決めた既定の Canon（<code>Users.defaultCanonId</code>）には「既定」が付き、指定しなければそれが使われます（無ければなし）。</li>
+  <li><b>API</b>：<code>POST /projects</code> は <code>canon</code>（<code>{ mode: "none" }</code> / <code>{ mode: "existing", canonId }</code> / <code>{ mode: "new", name, policy, seeds, choices, actions }</code>）を受け取ります。プロジェクトを作る前にこの指定を検証し、プロジェクトは最初のジョブを積む前に Canon に入るので、最初の実行から Canon に従います。</li>
 </ul>
 <h3>既存のプロジェクトを種にして新しく作る</h3>
 <ol class="steps">
-  <li>名前と粒度方針を書き、どの Canon にも入っていない完了済みの自分のプロジェクト（複製も可）を<b>優先する順</b>に選びます。</li>
+  <li>名前と粒度方針を書き、どの Canon にも入っていない完了済みの自分のプロジェクト（複製も可）を<b>優先する順</b>に選びます（上が優先。番号が付き、矢印で並べ替えられる）。プレビューに rev 1 の中身が出ます。</li>
   <li><code>POST /canons/seed-preview</code> が合成します（<code>composeSeeds</code>）。最初の種が rev 1 の土台になり、以降の種は衝突ルールで順に合わせます。種どうしでは、C1 / C2c を<b>先の種の定義を残して</b>解決することもできます（後の種は更新が必要と印が付き、その Collection への接続は <code>flagged</code>）。</li>
   <li>衝突を決めきれない種は、rev 1 に対する未処理の PR にする（既定）か、外します。画面には「残りを優先順で決める」「残りを PR にして保留する」があります。</li>
   <li>プロジェクトの作成が種の承認を兼ねます。rev 1 は PR なしで書かれ（<code>source: "seed"</code>）、外さなかった種と新しいプロジェクトが rev 1 に固定されたメンバーになります。</li>
 </ol>
 
 <h2 id="s4-11">4.11 公開・複製・Canon から Canon への PR</h2>
+<h3>公開</h3>
 <ul>
-  <li><b>公開</b>：成果物のあるプロジェクトと Canon は、それぞれ公開にでき、いつでも非公開に戻せます。公開ライブラリにはチャットの履歴・費用・メールアドレスは出ません。</li>
-  <li><b>複製</b>：公開プロジェクトは、自分の新しい非公開プロジェクトとして写せます（HCD・FRG・表データ・レポート・解説記事。BRA xlsx は追加指示で作り直す）。元のプロジェクトは変わりません。</li>
-  <li><b>Canon → Canon の PR</b>（<code>POST /canons/{target}/pulls</code> <code>{ sourceCanonId }</code>）：自分の Canon の最新 rev を、自分の別の Canon か、PR を受け付けるほかのユーザーの公開 Canon に送れます。ペイロードは送り元のスナップショットそのもので、エントリは元のプロジェクトの来歴を保ち、<code>via = &lt;送り元&gt;@&lt;rev&gt;</code> を記録します。受け取った側は、プロジェクトからの push と同じ衝突ルール・選択・承認で審査します。送り元の Canon には送ったことの記録（<code>OUT#…</code>）だけが残ります。</li>
+  <li>プロジェクトと Canon は <code>private</code>（既定）か <code>public</code> で、切り替えられるのは所有者だけです（<code>PUT /projects/{id}/visibility</code>、<code>PUT /canons/{id}/visibility</code>）。いつでも非公開に戻せます。</li>
+  <li>プロジェクトを公開できるのは、成果物があり、ID がランダムな形か <code>&lt;userKey&gt;-&lt;seq&gt;</code> の形のとき（旧形式の名前の ID は不可）です。</li>
+  <li>公開したものは Catalog テーブルに行（<code>kind</code> = <code>project</code> / <code>canon</code>）を持ち、非公開にするか削除すると行を消します。一覧と閲覧のたびに、プロジェクトや Canon そのものの状態を確かめ直します。</li>
+  <li><b>公開ライブラリ</b>（<code>/explore</code>）：ログインした誰でも、公開プロジェクト（概要・回路の一覧・レポート）と公開 Canon（粒度方針・rev・メンバー数・公開されたメンバー。Canon ID もここに出る）を一覧・閲覧できます。チャットの履歴・費用・メールアドレスは出ません。何を見せ何を見せないかの詳細は第 7 部です。</li>
+  <li>公開 Canon は、所有者が <code>acceptPullRequests</code> を止めない限り、ほかのユーザーの Canon からの PR を受け付けます。承認するのはいつも所有者（と共同編集者）です。</li>
 </ul>
+<h3>複製</h3>
+<p>公開プロジェクトは、「複製」（<code>POST /public/projects/{id}/clone</code>）で自分の新しい非公開プロジェクトとして写せます。元のプロジェクトは読むだけで変わりません。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">項目</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>新しいプロジェクト</td><td>新しい Project ID、名前は元の名前 + 「 (clone)」、元の Contributor、状態は COMPLETED。元の調査モード・SABRA の境界（<code>sabraBoundary</code>）・ハーネスのルール、仮説モードの設定を引き継ぐ。<code>clonedFrom</code> に元の ID・その rev・所有者の userKey・名前・時刻を残す</td></tr>
+    <tr><td>写すもの</td><td>ワークスペース（フォルダ名と、テキストファイル中の元の Project ID を語単位で新しい ID に書き換える）、グラフの JSON、解説記事とその図（HCD・FRG・表データ・レポート・解説記事）</td></tr>
+    <tr><td>写さないもの</td><td>チャットの履歴、ジョブ、メッセージ、利用量、グラフの配置、添付した参考資料、BRA xlsx（元の ID を含むので、XLSX の段を未実行にして、追加指示で作り直す）</td></tr>
+    <tr><td>複製の数</td><td>Catalog テーブルの <code>clones</code> の行に数え、元の所有者にはプロジェクトの画面と公開ライブラリで見える</td></tr>
+  </tbody>
+</table>
+<p class="small">複製の最初の版の親は、写した公開プロジェクトの版です（第 5 部）。</p>
+<h3>Canon から Canon への PR</h3>
+<ul>
+  <li>Canon の所有者は、Canon の画面の「別の Canon に PR を送る」から、自分の Canon の最新 rev を別の Canon に PR として送れます（<code>POST /canons/{target}/pulls</code> <code>{ sourceCanonId }</code>。<code>…/pulls/preview</code> で先に差分を見られる）。送り元は自分が所有する Canon で、空（rev 0）なら 409、同じ Canon には送れません。</li>
+  <li>送り先は、自分の Canon、自分が共同編集者の Canon、PR を受け付けるほかのユーザーの公開 Canon です。ほかのユーザーの非公開の Canon は 404、PR を止めた公開 Canon は 403 です。</li>
+  <li>ペイロードは送り元のスナップショットそのもの（<code>canonFromCanon</code>）で、エントリは元のプロジェクトの来歴を保ち、<code>via = &lt;送り元&gt;@&lt;rev&gt;</code> を記録します。役割層には送り元のすべての参加プロジェクトが入ります。受け取った側は、プロジェクトからの push と同じ衝突ルール・選択・承認で審査します。</li>
+  <li>送り元の Canon には、送ったことの記録（<code>OUT#{target}#{no}</code>）だけが書かれ、送った PR とその状態を一覧できます（<code>GET /canons/{id}/outgoing</code>）。送った人は PR を開いて取り下げられますが、審査はできません。同じ Canon から同じ送り先への未処理の PR は、新しい PR が置き換えます。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>（公開・複製・Canon → Canon のルート）、<code>packages/shared/src/publish.ts</code>・<code>canonMerge.ts</code></p>
 
 <h2 id="s4-12">4.12 段階的な実装と、オーケストレーターとの関係</h2>
 <table class="compact">

@@ -1,0 +1,725 @@
+<section class="part psys">
+<div class="opener">
+  <div class="no">第 1 部</div>
+  <h1 class="part" id="p1">システムの全体像</h1>
+  <p class="lead">CoBRAC Agents は、BRA（Brain Reference Architecture）のデータ作成をブラウザから依頼し、サーバーで実行する Web アプリです。この部では、何を入れて何が出てくるか、どの部品が何をするか、だれが何をできるか、画面・ジョブ・データがどう組み立てられているかを、実装に沿って説明します。1 件の BRA の中身の作り方（ハーネス）は第 2 部、回路の命名・Canon・BRA-DB・オーケストレーター・AWS の運用は第 3〜7 部で扱います。</p>
+  <div class="map">
+    <div><b>人</b>利用者はプロジェクトを作り、質問に答え、成果物を受け取る。管理者は利用者・デフォルトの API キー・同時実行数を管理する</div>
+    <div><b>プログラム</b>API・dispatcher・broadcaster・janitor・計画ランナーの Lambda と、Fargate 上のワーカー。どれも LLM を含まない</div>
+    <div><b>LLM</b>BRA を作る CoBRAC エージェント（Codex で動かす OpenAI のモデル）と、解説記事・AI レビュー・計画の各ジョブ</div>
+  </div>
+</div>
+
+<h2 id="s1-1">1.1 目的と範囲</h2>
+<p>BRA のデータは、脳のある領域の神経回路と、その回路が実現する機能を、文献の根拠付きで表した表とグラフです。以前は同じ作業を、デスクトップで Cursor のエージェントに行わせていました（旧デスクトップ版。指示書・仕様書・成果物の見本はリポジトリの <code>archive/v0/</code> に参照用として残っており、アプリでは使いません）。CoBRAC Agents では、AWS 上のワーカーが Codex SDK を通じて OpenAI のモデルを動かし、利用者はブラウザで進み具合を見て、質問に答え、成果物を受け取ります。作業はサーバーで進むので、ブラウザを閉じても止まりません。</p>
+
+<h3>入力</h3>
+<ul>
+  <li><b>ROI</b>（Region of Interest、対象の脳領域）と <b>TLF</b>（Top-Level Function、その領域が担う機能）。どちらか一方だけでも作れます。足りない側はエージェントが調べて補います。</li>
+  <li>任意で、参考資料（ファイルと URL、1.12）、Canon（第 4 部）、モデル・推論の強さ（1.8）、調査モード（2.9）、仮説モード（2.13）を指定できます。</li>
+</ul>
+
+<h3>出力</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">成果物</th><th style="width:40%">作る主体</th><th>置き場所（S3、プロジェクトの下）</th></tr></thead>
+  <tbody>
+    <tr><td>HCD・FRG のデータ（<code>uc.json</code>・<code>connections.json</code>・<code>references.json</code>・<code>frg.json</code>）</td><td>CoBRAC エージェント（LLM）が書き、ワーカー（プログラム）が JSON Schema と決定的な検査で確かめる</td><td><code>workspace/{P}_HCD/</code>・<code>{P}_FRG/</code></td></tr>
+    <tr><td>レポート <code>report.md</code> と判断ログ <code>decision_log.md</code></td><td>CoBRAC エージェント</td><td><code>workspace/</code></td></tr>
+    <tr><td>5 つの CSV（<code>Project.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code>・<code>References.csv</code>）</td><td>ワーカーが JSON から生成する（エージェントは CSV を書かない）</td><td><code>workspace/{P}_CSV/</code></td></tr>
+    <tr><td>CoBRAC の xlsx（<code>{P}.bra.xlsx</code>）</td><td>ワーカー（<code>csv_to_excel.py</code>）</td><td><code>output/</code></td></tr>
+    <tr><td>公式テンプレートの xlsx（<code>{P}.template-v2-2.bra.xlsx</code>）</td><td>ワーカー（<code>buildTemplateXlsx()</code>。2.14）</td><td><code>output/</code></td></tr>
+    <tr><td>HCD・FRG のグラフ JSON</td><td>ワーカー（<code>buildGraphs()</code>。LLM を使わない）</td><td><code>graph/hcd.json</code>・<code>graph/frg.json</code></td></tr>
+    <tr><td>版（変わらない写し）</td><td>ワーカー</td><td><code>revisions/{n}/</code>（第 5 部）</td></tr>
+    <tr><td>解説記事（任意）</td><td>記事のジョブ（LLM、2.15）</td><td><code>article/</code></td></tr>
+  </tbody>
+</table>
+<p class="small"><code>{P}</code> は Project ID です（1.10）。</p>
+
+<h3>当初の範囲外としたもの</h3>
+<p>最初の版（v1）では、プロジェクトの共有と共同編集、Web 画面での成果物の手編集、課金プラン、モバイルアプリ、独自ドメインを範囲外としました。その後、閲覧だけの公開と複製、Canon の共同編集者（第 4 部）が入り、独自ドメイン <code>cobrac.site</code> は CDK の外で CloudFront の別名として設定されています（第 7 部）。成果物の手編集はいまもできません（グラフの配置とスタイルは除く、1.13）。課金プランとモバイルアプリはありません。</p>
+
+<div class="box">
+  <div class="h">ほかの部で扱うこと</div>
+  <p>この部は全体の枠組みだけを述べます。エージェントへの指示・検証・調査・HCD・FRG・仮説モード・出力・解説記事は<b>第 2 部</b>、回路の命名規則（BRA の値の規則、Uniform と Collection）は<b>第 3 部</b>、Canon と公開・複製は<b>第 4 部</b>、版と BRA-DB は<b>第 5 部</b>、CoBRAC オーケストレーターは<b>第 6 部</b>、AWS のインフラ・予算・セキュリティ・デプロイは<b>第 7 部</b>、すべての API は<b>付録 A</b>にあります。</p>
+</div>
+<p class="src">典拠：<code>README.md</code>、<code>packages/worker/src/finalize.ts</code>、<code>packages/shared/src/harness.ts</code> ほか</p>
+
+<h2 id="s1-2">1.2 用語</h2>
+<table class="compact">
+  <thead><tr><th style="width:20%">用語</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td>HCD</td><td>Hypothetical Component Diagram。回路（UC：Uniform Circuit）をノード、回路間の接続（Connection）をエッジとするグラフ</td></tr>
+    <tr><td>FRG</td><td>Function Realization Graph。TLF → GN（<code>R.</code>、機能のグループ）→ UC（<code>U.</code>）の階層</td></tr>
+    <tr><td>プロジェクト</td><td>1 件の BRA を作る単位。<code>projectId</code> で識別する。ID はシステムが付け、全体で一意で、変えず、再利用しない。いまの形式は <code>p</code> + 7 文字（例 <code>p7m2q9xa</code>）、0.7.0 以降に作った古いものは <code>&lt;userKey&gt;-&lt;seq&gt;</code>（例 <code>u7m2q9xa-12</code>）のまま有効。ID は作成者や所有者を表さない（所有者は <code>userId</code> 属性）。<code>name</code> は変えられる表示名（どの言語でもよく、1〜200 文字、重複してよい）。1.10</td></tr>
+    <tr><td><code>userKey</code></td><td>利用者ごとの仮名のキー（<code>u</code> + 7 文字）。最初のログインで 1 回だけ発行される。公開したプロジェクトと Canon の所有者として表示され、ランダム ID より前に発行した ID の頭に付いている。古い ID の頭の <code>userKey</code> は、その時点の所有者を表すとは限らない</td></tr>
+    <tr><td>ジョブ</td><td>ワーカーの 1 回の実行の記録。種類（<code>type</code>）は <code>initial</code>・<code>followup</code>・<code>article</code>・<code>canon-review</code>・<code>plan</code>。続け方として <code>resume</code>（回答して再開）と <code>retry</code>（失敗・中止から再開）がある（1.7）</td></tr>
+    <tr><td>ワーカー</td><td>ECS Fargate のタスクで動く TypeScript のプログラム（<code>packages/worker</code>）。1 ジョブに 1 タスク。LLM を含まない。段階を進め、エージェントにターンを依頼し、ファイルを検証し、CSV・xlsx・グラフを作る</td></tr>
+    <tr><td>CoBRAC エージェント</td><td>ワーカーが Codex（OpenAI の Codex CLI を SDK から動かしたもの）を通じて動かす OpenAI のモデル。BRA のジョブの中で唯一の LLM。作業フォルダに JSON とレポートを書く</td></tr>
+    <tr><td>ターン</td><td>エージェントへの 1 回の依頼と、その返答まで。返答の最後は <code>{status, message, question}</code> の JSON（<code>status</code> は <code>done</code> か <code>question</code>）</td></tr>
+    <tr><td>スレッド</td><td>Codex の会話。BRA のジョブはプロジェクトごとに 1 本を続けて使う（<code>codexThreadId</code>、S3 の <code>thread/</code> に保存）</td></tr>
+    <tr><td>ハーネス</td><td>ワーカーがエージェントを動かし、決定的な検査で確かめ、問題を差し戻す仕組み（第 2 部）</td></tr>
+    <tr><td>応答ループ</td><td>エージェントが質問でターンを終えた後、利用者が答えるとジョブが再開すること</td></tr>
+    <tr><td>フォローアップ（追加の指示）</td><td>完了したプロジェクトに、同じスレッドで修正の指示を送り、成果物を作り直すジョブ</td></tr>
+    <tr><td>解説記事</td><td>完成したプロジェクトを、利用者が選んだ言語で読み物にしたもの（<code>article/&lt;locale&gt;.md</code>）。中心の成果物ではない（2.15）</td></tr>
+    <tr><td>計画</td><td>CoBRAC オーケストレーターの単位。行（ROI × TLF）の一覧で、所有者が確定すると、同時実行数の範囲でバッチごとにプロジェクトとして作られる。<code>planId</code>（<code>n</code> + 7 文字）で識別する（第 6 部）</td></tr>
+    <tr><td>バッチ</td><td>計画の行のまとまり。いまのバッチに開始待ち・実行中の行が無くなると、次のバッチが始まる（第 6 部）</td></tr>
+    <tr><td>種のバッチ</td><td>自動で並べた計画の最初の 1〜3 行。ほかの多くの行とアンカーを共有する行で、1 行ずつ自分のバッチを持ち、ほかのバッチより先に 1 件ずつ作る（6.6）</td></tr>
+    <tr><td>Canon・版・BRA-DB</td><td>回路の定義をそろえる単位（第 4 部）、完了ごとに凍結する BRA データの写し、版の登録先データベース（第 5 部）</td></tr>
+    <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー。管理者が承認した利用者は、自分のキーが無くてもこれでジョブを実行できる（1.4）</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>・<code>projectId.ts</code>・<code>harness.ts</code>（<code>TURN_OUTPUT_SCHEMA</code>）</p>
+
+<h2 id="s1-3">1.3 構成の全体像</h2>
+<p>CoBRAC Agents は 1 つの CDK スタック（<code>CobracAgents</code>）にまとまった AWS のサーバーレス構成です。BRA-DB だけは別のスタックにあります（第 5 部）。図 1.1 は主な部品と、プロジェクトを作ってから進み具合が画面に届くまでの流れを示します。</p>
+<figure>
+<svg viewBox="0 0 680 414" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif" style="width:92%;margin:0 auto">
+  <defs>
+    <marker id="p1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d4ed8"/></marker>
+    <marker id="p1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker>
+    <marker id="p1v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6d28d9"/></marker>
+  </defs>
+  <!-- person and browser -->
+  <rect x="10" y="6" width="98" height="26" rx="13" fill="#fff" stroke="#64748b"/>
+  <text x="59" y="23" font-size="9" text-anchor="middle" fill="#1f2937">利用者・管理者（人）</text>
+  <rect x="6" y="44" width="106" height="272" rx="8" fill="#eef4ff" stroke="#1d4ed8" stroke-width="1.4"/>
+  <g text-anchor="middle" fill="#374151" font-size="8.6">
+    <text x="59" y="64" font-size="11" font-weight="800" fill="#111827">ブラウザ</text>
+    <text x="59" y="78" font-size="9" fill="#475569">React SPA</text>
+    <text x="59" y="100">画面とグラフ</text>
+    <text x="59" y="146">ID トークンを付けて</text>
+    <text x="59" y="159">API を呼ぶ</text>
+    <text x="59" y="206">WebSocket で</text>
+    <text x="59" y="219">進み具合を受ける</text>
+    <text x="59" y="246">実行中は 20 秒</text>
+    <text x="59" y="259">ごとに読み直す</text>
+  </g>
+  <!-- column 2: entry points (AWS managed) -->
+  <g fill="#f1f5f9" stroke="#94a3b8">
+    <rect x="132" y="44" width="118" height="40" rx="6"/>
+    <rect x="132" y="102" width="118" height="40" rx="6"/>
+    <rect x="132" y="160" width="118" height="40" rx="6"/>
+    <rect x="132" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="191" y="60" font-size="9.6" font-weight="700">HTTP API</text><text x="191" y="75" font-size="8.2" fill="#475569">API Gateway・JWT を検証</text>
+    <text x="191" y="118" font-size="9.6" font-weight="700">Cognito</text><text x="191" y="133" font-size="8.2" fill="#475569">ログイン・ID トークン</text>
+    <text x="191" y="176" font-size="9.6" font-weight="700">CloudFront + S3</text><text x="191" y="191" font-size="8.2" fill="#475569">SPA と config.json</text>
+    <text x="191" y="292" font-size="9.6" font-weight="700">WebSocket API</text><text x="191" y="307" font-size="8.2" fill="#475569">API Gateway・token を検証</text>
+  </g>
+  <!-- column 3: Lambdas (programs) -->
+  <g fill="#fff" stroke="#1d4ed8" stroke-width="1.3">
+    <rect x="270" y="44" width="118" height="40" rx="6"/>
+    <rect x="270" y="102" width="118" height="40" rx="6"/>
+    <rect x="270" y="160" width="118" height="40" rx="6"/>
+    <rect x="270" y="218" width="118" height="40" rx="6"/>
+    <rect x="270" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="329" y="60" font-size="9.6" font-weight="700">API（Hono）</text><text x="329" y="75" font-size="8.2" fill="#475569">REST の全ルート</text>
+    <text x="329" y="118" font-size="9.6" font-weight="700">計画ランナー</text><text x="329" y="133" font-size="8.2" fill="#475569">毎分・計画を 1 歩進める</text>
+    <text x="329" y="176" font-size="9.6" font-weight="700">janitor</text><text x="329" y="191" font-size="8.2" fill="#475569">5 分ごと・止まったジョブ</text>
+    <text x="329" y="234" font-size="9.6" font-weight="700">broadcaster</text><text x="329" y="249" font-size="8.2" fill="#475569">変更を購読者に送る</text>
+    <text x="329" y="292" font-size="9.6" font-weight="700">ws ハンドラ</text><text x="329" y="307" font-size="8.2" fill="#475569">接続と購読を記録</text>
+  </g>
+  <!-- column 4: data -->
+  <g fill="#f1f5f9" stroke="#94a3b8">
+    <rect x="408" y="44" width="118" height="156" rx="6"/>
+    <rect x="408" y="218" width="118" height="40" rx="6"/>
+    <rect x="408" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="467" y="64" font-size="10" font-weight="700">DynamoDB</text>
+    <g font-size="8.4" fill="#374151">
+      <text x="467" y="84">Users・Projects</text>
+      <text x="467" y="98">Jobs・Messages</text>
+      <text x="467" y="112">WsConnections</text>
+      <text x="467" y="126">Catalog・Canons</text>
+      <text x="467" y="140">Plans</text>
+      <text x="467" y="164" fill="#475569">Streams：</text>
+      <text x="467" y="177" fill="#475569">Projects・Messages</text>
+    </g>
+    <text x="467" y="234" font-size="9.6" font-weight="700">S3（成果物）</text><text x="467" y="249" font-size="8.2" fill="#475569">作業領域・成果物・版</text>
+    <text x="467" y="292" font-size="9.6" font-weight="700">KMS</text><text x="467" y="307" font-size="8.2" fill="#475569">API キーの暗号化</text>
+  </g>
+  <!-- column 5: queue, dispatcher, worker -->
+  <rect x="546" y="44" width="128" height="40" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+  <rect x="546" y="102" width="128" height="40" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.3"/>
+  <rect x="546" y="160" width="128" height="156" rx="8" fill="#fff" stroke="#1d4ed8" stroke-width="1.7"/>
+  <g text-anchor="middle" fill="#111827">
+    <text x="610" y="60" font-size="9.6" font-weight="700">SQS</text><text x="610" y="75" font-size="8.2" fill="#475569">ジョブのキュー（DLQ つき）</text>
+    <text x="610" y="118" font-size="9.6" font-weight="700">dispatcher</text><text x="610" y="133" font-size="8.2" fill="#475569">同時実行数を確かめる</text>
+    <text x="610" y="175" font-size="8.2" fill="#475569">ECS Fargate（Spot）</text>
+    <text x="610" y="190" font-size="10.5" font-weight="800">ワーカー</text>
+    <text x="610" y="203" font-size="8.2" font-weight="700" fill="#1d4ed8">TypeScript・LLM なし</text>
+    <text x="610" y="218" font-size="8.4" fill="#374151">段階の進行と検証</text>
+    <text x="610" y="231" font-size="8.4" fill="#374151">CSV・xlsx・グラフ・版</text>
+  </g>
+  <rect x="556" y="240" width="108" height="68" rx="6" fill="#f4f0fe" stroke="#6d28d9" stroke-width="1.3"/>
+  <g text-anchor="middle">
+    <text x="610" y="254" font-size="8" fill="#475569">Codex CLI（子プロセス）</text>
+    <text x="610" y="269" font-size="9.4" font-weight="800" fill="#6d28d9">CoBRAC エージェント</text>
+    <text x="610" y="283" font-size="8.2" fill="#374151">LLM（OpenAI のモデル）</text>
+    <text x="610" y="298" font-size="8" fill="#475569">Web 検索・MCP の道具</text>
+  </g>
+  <!-- external services and other stacks -->
+  <g fill="#fff" stroke="#94a3b8" stroke-dasharray="4 3">
+    <rect x="6" y="340" width="106" height="38" rx="6"/>
+    <rect x="132" y="340" width="118" height="38" rx="6"/>
+    <rect x="270" y="340" width="118" height="38" rx="6"/>
+    <rect x="408" y="340" width="118" height="38" rx="6"/>
+    <rect x="546" y="340" width="128" height="38" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="59" y="355" font-size="9" font-weight="700">SES</text><text x="59" y="369" font-size="8" fill="#475569">アカウントのメール</text>
+    <text x="191" y="355" font-size="9" font-weight="700">BRA-DB（別スタック）</text><text x="191" y="369" font-size="8" fill="#475569">API が登録を依頼（第 5 部）</text>
+    <text x="329" y="355" font-size="9" font-weight="700">PubMed・Europe PMC</text><text x="329" y="369" font-size="8" fill="#475569">Crossref（文献と照合）</text>
+    <text x="467" y="355" font-size="9" font-weight="700">RCS MCP</text><text x="467" y="369" font-size="8" fill="#475569">SABRA の単位を引く</text>
+    <text x="610" y="355" font-size="9" font-weight="700">OpenAI API</text><text x="610" y="369" font-size="8" fill="#475569">モデルの推論</text>
+  </g>
+  <!-- main flow (blue) -->
+  <g stroke="#1d4ed8" stroke-width="1.4" fill="none" marker-end="url(#p1a)">
+    <path d="M112 64H130"/>
+    <path d="M250 64H268"/>
+    <path d="M388 64H406"/>
+    <path d="M329 44V28H610V42"/>
+    <path d="M610 84V100"/>
+    <path d="M610 142V158"/>
+    <path d="M546 180H528"/>
+    <path d="M546 238H528"/>
+    <path d="M418 200V209H360V216"/>
+    <path d="M270 238H191V274"/>
+    <path d="M132 296H114"/>
+  </g>
+  <text x="470" y="23" font-size="8.2" text-anchor="middle" fill="#1d4ed8">ジョブを積む</text>
+  <text x="616" y="154" font-size="7.6" fill="#1d4ed8">RunTask</text>
+  <text x="424" y="213" font-size="7.6" fill="#1d4ed8">Streams</text>
+  <!-- secondary (grey) -->
+  <g stroke="#64748b" stroke-width="1.1" fill="none" marker-end="url(#p1g)">
+    <path d="M59 32V42"/>
+    <path d="M112 122H130"/>
+    <path d="M132 180H114"/>
+    <path d="M250 296H268"/>
+    <path d="M388 122H406" stroke-dasharray="4 3"/>
+    <path d="M388 180H406" stroke-dasharray="4 3"/>
+    <path d="M546 296H528"/>
+    <path d="M566 316V328H329V338" stroke-dasharray="4 3"/>
+    <path d="M467 328V338" stroke-dasharray="4 3"/>
+  </g>
+  <path d="M610 308V338" stroke="#6d28d9" stroke-width="1.4" fill="none" marker-end="url(#p1v)"/>
+  <!-- legend -->
+  <g font-size="8.2" fill="#374151">
+    <rect x="6" y="394" width="14" height="10" rx="2" fill="#fff" stroke="#1d4ed8" stroke-width="1.3"/><text x="24" y="403">プログラム（LLM なし）</text>
+    <rect x="132" y="394" width="14" height="10" rx="2" fill="#f4f0fe" stroke="#6d28d9"/><text x="150" y="403">LLM</text>
+    <rect x="186" y="394" width="14" height="10" rx="2" fill="#f1f5f9" stroke="#94a3b8"/><text x="204" y="403">AWS のサービス（入口・認証・データ）</text>
+    <rect x="370" y="394" width="14" height="10" rx="2" fill="#fff" stroke="#94a3b8" stroke-dasharray="3 2"/><text x="388" y="403">外部のサービス・別スタック</text>
+    <path d="M520 399H548" stroke="#1d4ed8" stroke-width="1.4" marker-end="url(#p1a)"/><text x="554" y="403">主な流れ</text>
+    <path d="M598 399H622" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 3" marker-end="url(#p1g)"/><text x="626" y="403">読み書き</text>
+  </g>
+</svg>
+<figcaption><b>図 1.1</b>　システムの構成。青い流れは、プロジェクトの作成からワーカーの起動、進み具合が画面に届くまで。LLM はワーカーの中の CoBRAC エージェント（Codex の子プロセス）だけ</figcaption>
+</figure>
+
+<h3>プロジェクトを作ってから画面に届くまで</h3>
+<ol class="steps">
+  <li>利用者がブラウザでプロジェクトを作ると、SPA が Cognito の ID トークンを付けて HTTP API（<code>POST /projects</code>）を呼びます。API Gateway がトークンを検証し、API の Lambda（プログラム）がプロジェクトとジョブを DynamoDB に <code>QUEUED</code> で書き、SQS にジョブのメッセージを積みます。</li>
+  <li>dispatcher（Lambda）が SQS からメッセージを受け、同時実行数に空きがあれば ECS の RunTask で Fargate のタスクを 1 つ起動します。空きが無ければ 60 秒後に積み直します。</li>
+  <li>ワーカー（Fargate 上のプログラム）が KMS で API キーを復号し、Codex CLI を子プロセスとして起動して、CoBRAC エージェント（LLM）にターンを依頼します。エージェントは OpenAI API のモデルとして考え、Web 検索や MCP の道具で文献と SABRA を調べ、作業フォルダに JSON を書きます。</li>
+  <li>ワーカーはターンごとにファイルを検証し、状態とメッセージを DynamoDB に、作業領域と成果物を S3 に書きます。</li>
+  <li>DynamoDB Streams が Projects と Messages の変更を broadcaster（Lambda）に渡し、broadcaster が WebSocket API を通じて、そのプロジェクトを購読している<b>所有者の</b>ブラウザに送ります。</li>
+  <li>これとは別に、janitor（5 分ごと）が止まったジョブを再試行か失敗にし、計画ランナー（毎分）がオーケストレーターの計画を進めます。</li>
+</ol>
+
+<h3>主な部品</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">部品</th><th style="width:24%">実体</th><th style="width:17%">動くとき</th><th>仕事</th></tr></thead>
+  <tbody>
+    <tr><td>SPA</td><td><code>packages/web</code>（React・Vite）</td><td>ブラウザで常に</td><td>画面とグラフ、API の呼び出し、WebSocket の購読、ポーリング（1.5、1.13）</td></tr>
+    <tr><td>CloudFront + S3（Web）</td><td>CDK の <code>WebDistribution</code>・<code>WebBucket</code></td><td>ページを開くとき</td><td>SPA と <code>/config.json</code>（キャッシュしない）を配る。403・404 は <code>index.html</code> を返し、画面のパスを SPA に任せる</td></tr>
+    <tr><td>Cognito</td><td>ユーザープールとクライアント <code>WebClient</code></td><td>ログイン</td><td>メールとパスワード（10 文字以上、小文字と数字を含む）、SRP 認証、ID トークン（2 時間）、更新トークン（30 日）、グループ <code>admin</code></td></tr>
+    <tr><td>AuthMessage（Lambda）</td><td><code>handlers/authMessage.ts</code></td><td>Cognito がメールを送るとき</td><td>確認コード・再送・パスワード再設定・メールアドレス変更・招待のメールの文面を日本語と英語で書く（送信は SES）</td></tr>
+    <tr><td>HTTP API</td><td>API Gateway の HTTP API</td><td>リクエストごと</td><td><code>/health</code> 以外は JWT を検証して API の Lambda に渡す（付録 A）</td></tr>
+    <tr><td>API（Lambda）</td><td><code>handlers/http.ts</code> → <code>app.ts</code>（Hono）</td><td>リクエストごと</td><td>すべてのルート。所有者の確認、ジョブの登録、API キーの暗号化、署名付き URL。LLM は呼ばない（キーの確認で OpenAI の <code>/v1/models</code> を呼ぶだけ）</td></tr>
+    <tr><td>SQS</td><td><code>JobQueue</code> と <code>JobDlq</code></td><td>ジョブを積んだとき</td><td>1 ジョブ 1 メッセージ <code>{version, userId, projectId, jobId, mode}</code>。可視性タイムアウト 120 秒、保持 4 日、5 回受け取って処理できなければ DLQ（14 日保持）</td></tr>
+    <tr><td>dispatcher（Lambda）</td><td><code>handlers/dispatcher.ts</code></td><td>SQS のメッセージごと（1 件ずつ）</td><td>同時実行数を確かめて Fargate のタスクを起動する（1.6）</td></tr>
+    <tr><td>ワーカー</td><td><code>packages/worker</code>（Fargate、1 vCPU・2 GB、一時ストレージ 21 GB）</td><td>ジョブごとに 1 タスク</td><td>ハーネス。段階の進行、検証、CSV・xlsx・グラフ・版の作成（1.14、第 2 部）。LLM を含まない</td></tr>
+    <tr><td>Codex CLI</td><td><code>@openai/codex-sdk</code> が起動する子プロセス</td><td>ワーカーがターンを依頼したとき</td><td>CoBRAC エージェント（LLM）のターンを実行し、OpenAI API を呼ぶ。MCP サーバー（lit・RCS）を起動・接続する</td></tr>
+    <tr><td>DynamoDB</td><td>8 つのテーブル</td><td>常に</td><td>状態・メッセージ・設定（1.9）</td></tr>
+    <tr><td>S3（成果物）</td><td>バケット <code>Artifacts</code></td><td>常に</td><td>作業領域・スレッド・成果物・版・Canon・計画の資料（1.12）</td></tr>
+    <tr><td>KMS</td><td><code>ApiKeyKmsKey</code>（自動ローテーション）</td><td>キーの登録とジョブの開始</td><td>API が暗号化し、ワーカーだけが復号する（1.4）</td></tr>
+    <tr><td>broadcaster（Lambda）</td><td><code>handlers/broadcaster.ts</code></td><td>Projects・Messages の Streams</td><td>新しいメッセージとプロジェクトの変更を、所有者の接続にだけ送る</td></tr>
+    <tr><td>WebSocket API・ws（Lambda）</td><td><code>handlers/ws.ts</code>（authorizer・connect・disconnect・defaultRoute）</td><td>接続とメッセージごと</td><td>トークンの検証、接続と購読の記録（付録 A）</td></tr>
+    <tr><td>janitor（Lambda）</td><td><code>handlers/janitor.ts</code></td><td>EventBridge、5 分ごと</td><td>止まったジョブの再試行と打ち切り（1.6）</td></tr>
+    <tr><td>計画ランナー（Lambda）</td><td><code>handlers/planRunner.ts</code> → <code>lib/planRunner.ts</code></td><td>EventBridge、毎分</td><td>下書き中・実行中・一時停止中の計画を 1 歩ずつ進める。LLM のジョブ（<code>plan</code>）は積むだけ（第 6 部）</td></tr>
+    <tr><td>BRA-DB の登録 Lambda</td><td>別スタック <code>BraDb</code>（<code>handlers/bradbImport.ts</code>）</td><td>API が呼ぶ</td><td>版を BRA-DB に登録する（第 5 部）</td></tr>
+  </tbody>
+</table>
+<p>外のサービスは、OpenAI API（モデルの推論。利用者のキーかデフォルトの API キーで呼ぶ）、RCS MCP（rosetta-candidate-search の <code>rcs-mcp</code>。SABRA の単位を引く。トークンは Secrets Manager にある）、PubMed・Europe PMC（エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ）、Crossref・PubMed（ワーカーが文献の DOI・PMID と引用文を照合する）、SES（アカウントのメール）です。</p>
+
+<h3>LLM が動く場所</h3>
+<p>システムの中で LLM が動くのは、ワーカーが Codex を通じて実行するジョブだけです。API・dispatcher・broadcaster・janitor・計画ランナーの Lambda はどれも LLM を呼びません。LLM のジョブは次の 4 種類で、それぞれ別の会話（スレッド）です。互いの会話を共有することはありません。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">LLM の仕事</th><th style="width:20%">ジョブ</th><th style="width:26%">会話</th><th style="width:24%">使える道具</th><th>詳しくは</th></tr></thead>
+  <tbody>
+    <tr><td>BRA を作る（CoBRAC エージェント）</td><td><code>initial</code>・<code>followup</code>（<code>resume</code>・<code>retry</code> で続ける）</td><td>プロジェクトのスレッドを続けて使う</td><td>Web 検索（live）、<code>lit</code> MCP、RCS MCP、作業フォルダでのコマンド</td><td>第 2 部</td></tr>
+    <tr><td>解説記事を書く</td><td><code>article</code></td><td>毎回新しいスレッド</td><td>Web 検索・<code>lit</code>・RCS なし</td><td>2.15</td></tr>
+    <tr><td>Canon の PR の AI レビュー</td><td><code>canon-review</code></td><td>毎回新しいスレッド。<code>projectId</code> には Canon の ID が入る</td><td>Web 検索・MCP なし</td><td>4.8</td></tr>
+    <tr><td>計画の下書きと再計画</td><td><code>plan</code>（<code>draft</code> / <code>replan</code>）</td><td>毎回新しいスレッド。<code>projectId</code> には計画の ID が入る</td><td>RCS MCP だけ</td><td>6.5、6.10</td></tr>
+  </tbody>
+</table>
+
+<h3>パッケージ</h3>
+<table class="compact">
+  <thead><tr><th style="width:22%">パッケージ・フォルダ</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td><code>@cobrac/shared</code></td><td>型、ハーネスの JSON Schema・検証・CSV 生成、グラフ JSON（<code>buildGraphs()</code>）、Project ID と名前の規則（<code>projectId.ts</code>）、単価表（<code>pricing.ts</code>）。API・ワーカー・Web のすべてが使う</td></tr>
+    <tr><td><code>@cobrac/api</code></td><td>Hono のアプリと Lambda のハンドラ（http・dispatcher・ws・broadcaster・janitor・planRunner・authMessage・bradbImport）</td></tr>
+    <tr><td><code>@cobrac/worker</code></td><td>Codex の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>、Python 3、poppler）</td></tr>
+    <tr><td><code>@cobrac/web</code></td><td>SPA（認証、エージェント欄、グラフ、設定、管理）</td></tr>
+    <tr><td><code>@cobrac/infra</code></td><td>CDK のスタック <code>CobracAgents</code>（と <code>BraDb</code>）。Lambda は esbuild でまとめ、ワーカーのイメージはデプロイ時に CodeBuild で作る</td></tr>
+    <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-2.bra.xlsx</code>）。全文は付録 B</td></tr>
+    <tr><td><code>scripts/</code></td><td>リリース、RETAIN ガード、BRA のエラーコードの判定、ID の移行、図の生成など（第 7 部）</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/worker/Dockerfile</code></p>
+
+<h2 id="s1-4">1.4 利用者と権限</h2>
+<table>
+  <thead><tr><th style="width:12%">役割</th><th style="width:30%">付き方</th><th>できること</th></tr></thead>
+  <tbody>
+    <tr><td><code>user</code></td><td>サインアップの既定</td><td>自分のプロジェクトの作成・実行・閲覧・ダウンロード、API キーの登録、設定の変更。Canon と計画（第 4 部・第 6 部）、公開ライブラリの閲覧と複製</td></tr>
+    <tr><td><code>admin</code></td><td>Cognito のグループ <code>admin</code> に入っているか、<code>COBRAC_ADMIN_EMAILS</code> にあるメールアドレスで API にアクセスしたとき（アクセスのたびに確かめ、昇格だけする）</td><td>上のすべてに加えて、全利用者の一覧、無効化と役割の変更、デフォルトの API キーの登録・置き換え・削除、利用者の承認と Tier の設定、全プロジェクトとデフォルトの API キーの利用額の閲覧、実行中のジョブの強制停止、同時実行数の設定、仕様書の閲覧</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>アカウントはメールアドレスとパスワード（Cognito）です。自分でのサインアップは <code>COBRAC_SELF_SIGNUP</code> で切り替えます。</li>
+  <li>API に初めてアクセスしたときに Users の項目が作られます（表示名と Contributor 名はメールアドレスの @ の前、<code>userKey</code> を発行）。</li>
+  <li>無効にされた利用者は、API から 403 を受けます。管理者は自分自身を無効にできません。</li>
+  <li>管理者も、自分のジョブには自分の OpenAI API キーを登録して使えます。</li>
+</ul>
+
+<h3>デフォルトの API キー（0.19 から）</h3>
+<p>共同作業者が自分の OpenAI のキーを登録しなくても済むように、管理者は利用者を承認して、組織のキーである<b>デフォルトの API キー</b>でジョブを実行させられます。</p>
+<table class="compact">
+  <thead><tr><th style="width:15%">項目</th><th>仕様</th></tr></thead>
+  <tbody>
+    <tr><td>保存</td><td>管理画面で、どの管理者も登録・置き換え・削除できる。どの利用者にも属さない。Catalog テーブル（<code>kind: "config"</code>、<code>id: "default-api-key"</code>）に KMS の暗号文として、専用の暗号化コンテキスト <code>{ purpose: "openai-api-key", scope: "default" }</code> で保存する。このコンテキストには <code>userId</code> が無いので、個人のキーのコンテキスト（<code>{ userId, purpose: "openai-api-key" }</code>）では開けず、逆も開けない。登録時に個人のキーと同じく OpenAI の <code>/v1/models</code> で確かめ、Tier 2 用にモデルの一覧を保存する。書き込み専用で、API は <code>{ registered, last4, updatedAt }</code> しか返さない。個人のキーをここに写すことはない</td></tr>
+    <tr><td>承認と Tier</td><td><code>Users.orgAccess = { tier, approvedAt, approvedBy }</code>（管理画面で設定。無い・null は未承認）。既存の利用者も新しい利用者も未承認から始まる。<b>Tier 1</b> は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code> だけ（正確なモデル ID。<code>ORG_TIER1_MODELS</code>）、<b>Tier 2</b> はすべてのモデル</td></tr>
+    <tr><td>優先順位</td><td>利用者自身のキーが常に優先され、Tier の制限を受けない（Tier はデフォルトの API キーで実行するジョブにだけかかる）。承認済みの利用者が後で自分のキーを登録すると自分のキーで実行し、削除するとデフォルトの API キーに戻る。管理者の個人のキーは、その管理者自身のジョブにだけ使う</td></tr>
+    <tr><td>API での確認</td><td>ジョブを始めるすべての依頼（作成・フォローアップ・リトライ・回答・解説記事。記事に選んだモデルを含む）で、API がキーとモデルを決める。実行に使えるキーが無い（自分のキーも、承認と登録済みのデフォルトの API キーの組もない）と 400、利用者が明示的に選んだモデルが Tier に無いと 403「このモデル（&lt;model&gt;）は利用できません」。利用者がこのジョブに選んでいないモデル（保存した既定のモデル、デプロイの既定、複製に与える既定、以前に自分のキーや別の Tier で作ったプロジェクトのモデル）は、失敗させずに Tier の既定（<code>gpt-6-luna</code>）に置き換える。そうしたプロジェクトにフォローアップ・リトライ・回答を送ると、プロジェクトのモデルを以後も Tier の既定に移し、いつもの「Model: …」のお知らせを出す。モデルを選ばない解説記事は Tier の既定で実行し、プロジェクトのモデルは変えない。Tier に無い既定のモデルは保存できない。<code>/users/me/models</code> は Tier のモデルだけを返し（<code>restricted: true</code>、任意のモデル ID は不可）、モデルの選択欄（作成・設定の既定・記事）はそれだけを出す。Tier の外の保存済みの既定は「デフォルト」と表示し、プロジェクトのヘッダーは次のジョブで使うモデルを示す</td></tr>
+    <tr><td>言葉づかい</td><td>管理者以外には「Tier」という言葉も番号も見せない。設定画面の状態、モデル欄の注記、ツールチップ、API のエラー、ワーカーのお知らせは「デフォルトの API キー」「このモデルは利用できません」とだけ言う。Tier が出るのは管理画面だけ</td></tr>
+    <tr><td>取り消し</td><td>ワーカーは起動のたび（新しいジョブ、回答、リトライ、中断後の再開）にもう一度確かめる。承認が無い、デフォルトの API キーが無い、Tier が許さないモデル、のどれかならジョブを失敗にしてお知らせを出す（<code>sys.noApiKey</code>・<code>sys.orgKeyUnavailable</code>・<code>sys.orgKeyModel</code>）。実行中のターンは止めない。ワーカーが読めるのは Catalog の <code>config</code> パーティションだけ（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）</td></tr>
+    <tr><td>利用額</td><td>ジョブは <code>keySource</code>（<code>own</code> / <code>org</code>。<code>org</code> がデフォルトの API キー）を記録する。<code>GET /admin/org-usage</code> は <code>keySource: "org"</code> のジョブを利用者ごとに合計し（トークン、推定費用、UTC の今月の費用、単価の無いジョブの数）、管理画面が各利用者の横に出す。アプリに支出の上限は無いので、デフォルトの API キーの OpenAI プロジェクトに予算を設定する</td></tr>
+    <tr><td>漏れ</td><td>キーは API から返さず、ログに出さず、エージェントのコマンドに渡さない（<code>shell_environment_policy</code> が <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> を除く）。エージェントは自分の Fargate タスクの中で Codex のプロセスと同じ OS ユーザーとして何でもできるが、<code>node</code>・Codex・git の実行ファイルは実行専用にしてあり、そのプロセスはダンプできないので、<code>/proc/&lt;pid&gt;/environ</code> からキーを読めない（第 7 部）。それでもエージェントは自分のジョブにはキーを使うので、信頼できる共同作業者だけを承認し、予算を設定したプロジェクトのキーを使う</td></tr>
+  </tbody>
+</table>
+
+<h3>だれが何を見られるか</h3>
+<table class="compact">
+  <thead><tr><th style="width:18%">対象</th><th style="width:20%">所有者</th><th style="width:18%">共同編集者</th><th style="width:22%">ほかの利用者</th><th>管理者</th></tr></thead>
+  <tbody>
+    <tr><td>非公開のプロジェクト</td><td>すべての操作</td><td>—</td><td>存在しないものとして 404</td><td>一覧（削除済みも）と強制停止だけ</td></tr>
+    <tr><td>公開したプロジェクト</td><td>すべての操作</td><td>—</td><td>読める成果物の閲覧と複製（履歴・費用・メールは出ない）</td><td>ほかの利用者と同じ</td></tr>
+    <tr><td>Canon</td><td>すべての操作</td><td>閲覧と PR の審査（設定・削除は不可）</td><td>公開されていれば閲覧と、自分の Canon からの PR</td><td>閲覧だけ</td></tr>
+    <tr><td>計画</td><td>すべての操作</td><td>—</td><td>404</td><td>API なし</td></tr>
+  </tbody>
+</table>
+<p>所有者の確認はすべて API の中で行います。ほかの利用者のプロジェクト・削除したプロジェクト・存在しない ID は、どれも同じ 404 になります。ルートごとの呼べる人は付録 A にあります。</p>
+<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code></p>
+
+<h2 id="s1-5">1.5 画面</h2>
+<p>画面の名前はサイドバーと利用マニュアルの表記です。サイドバーには「新規プロジェクト」「履歴」（自分のプロジェクトの履歴）「プロジェクト一覧」「CoBRAC オーケストレーター」「Canon」「公開ライブラリ」「設定」「利用マニュアル」「リリースノート」、管理者にはさらに「仕様書」と「管理」が並び、最後が「ログアウト」です。サイドバーの下端には版番号（<code>vX.Y.Z · git の短い sha</code>）があり、押すとリリースノートが開きます。</p>
+<table class="compact">
+  <thead><tr><th style="width:21%">パス</th><th style="width:15%">画面</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>/login</code></td><td>ログイン</td><td>ログイン・サインアップ・確認コード・パスワードの再設定（Amplify Auth）</td></tr>
+    <tr><td><code>/chat</code></td><td>新規プロジェクト</td><td>ROI の欄と TLF の欄を上下に組にした 1 つの入力欄。空の欄には ROI × TLF の例が順に出る（欄にフォーカスか文字があると止まり、動きを減らす設定では止まったまま。「例を使う」で両方に入る）。ROI に BNA の略称か領域名を打つと Brainnetome の領域を候補に出す。ROI で Enter を押すと TLF に移り、TLF で Enter を押すと実行する（Shift+Enter は改行。タッチ画面では TLF の Enter は改行）。入力欄の下に、参考資料の「+」（ファイルと URL。チップで表示し、ファイルは入力欄に落としてもよい。1.12）、Canon のボタン（第 4 部）、「仮説モード」のチェック（2.13）、モデル・推論の強さ・調査モードの「v」メニュー（1.8、2.9）。名前と Contributor の欄は無い。プロジェクトは ROI と TLF から作った仮の名前（エージェントの名前に置き換わり、プロジェクト画面で変えられる）と、アカウントの Contributor 名（設定）で始まる</td></tr>
+    <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認つき。行はすぐ消え、依頼が失敗すると戻る）</td></tr>
+    <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。ヘッダーとタブは次の表。<code>/projects/:id</code> は最初にあるタブか、まだ何も無ければ空の状態を開く。移行前の ID の URL は新しい ID に転送する。古いチャットの URL <code>/chat/:id</code> もここに転送する（クエリは保つ）</td></tr>
+    <tr><td><code>/plans</code>・<code>/plans/:planId</code></td><td>CoBRAC オーケストレーター</td><td>計画の一覧と作成、計画の画面（下記と第 6 部）</td></tr>
+    <tr><td><code>/canons</code>・<code>/canons/:canonId</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon、Canon の画面、PR の画面（第 4 部）</td></tr>
+    <tr><td><code>/explore</code>・<code>/explore/projects/:id</code>・<code>/explore/canons/:id</code></td><td>公開ライブラリ</td><td>公開されたプロジェクトと Canon の閲覧、複製（4.11）</td></tr>
+    <tr><td><code>/settings</code></td><td>設定</td><td>OpenAI API キー（承認された利用者にはデフォルトの API キーの利用状況も）、プロフィール（表示名と Contributor 名）、既定のモデルと推論の強さ、新しいプロジェクトの既定の Canon、パスワードの変更</td></tr>
+    <tr><td><code>/manual</code></td><td>利用マニュアル</td><td><code>docs/manual/&lt;言語&gt;.md</code>（いまは ja と en）と <code>docs/manual/figures/</code> の SVG をビルド時に取り込み、ログインした全員に見せる。UI の言語で開き、無ければ英語で注記を付ける。<code>?lang=</code> と言語の切り替えで選べる。目次と見出しのアンカー付き。「?」の横の「ガイド」のリンクはその節を開く（<code>lib/help.ts</code>。アンカーがどの言語にもあることをテストが確かめる）</td></tr>
+    <tr><td><code>/releases</code></td><td>リリースノート</td><td><code>CHANGELOG.md</code> をビルド時に取り込み、版の目次を付けて全員に見せる。古い <code>/docs/CHANGELOG</code> はここに転送する</td></tr>
+    <tr><td><code>/docs</code></td><td>仕様書（管理者だけ）</td><td>この仕様書の PDF を開く。API の <code>GET /admin/spec</code> が返す短時間だけ有効なリンクを使う。管理者以外は <code>/manual</code> に送られる。以前は <code>docs/*.md</code> を表示していたが、この仕様書に置き換えた</td></tr>
+    <tr><td><code>/admin</code></td><td>管理（管理者だけ）</td><td>デフォルトの API キー（登録・置き換え・削除。末尾 4 文字と日付だけ表示）、同時実行数（全体と 1 人あたり、1〜16、空欄はデプロイ時の値。6.13）、利用者（デフォルトの API キーの Tier と利用額）、全プロジェクト（削除済みを含む、強制停止）</td></tr>
+  </tbody>
+</table>
+
+<h3>プロジェクト画面</h3>
+<p><b>ヘッダー</b>には、名前（押すと変えられる）とその下の ID、状態、ROI・TLF・モデル・利用量、参考資料（折りたたみの一覧。ファイルは元の名前でダウンロードし、URL は新しいタブで開く）、段階の進み具合、停止とリトライ、削除（確認つき。一覧に戻る）、2 つのダウンロード「BRA xlsx」（CoBRAC の xlsx）と「BRA xlsx (Template-v2-2)」（公式テンプレート。古いプロジェクトでは最初のクリックで作るので、ボタンはそれを待つ）が並びます。Canon・計画・版・公開の印もここに出ます（第 4〜6 部）。</p>
+<p><b>段階の進み具合</b>は、調査（調査モードのとき）→ HCD ⇄ FRG（整合の確認つき）→ CSV → xlsx を示します。<code>stepStates</code> と <code>activeStage</code> から描き、ジョブの実行中は動いている段階が動き、終わった段階にはチェックが付き、後の段階は灰色のままです。調整のターンの間は HCD ⇄ FRG の輪と両方のチップが動き、質問で止まります。<code>prefers-reduced-motion</code> では動きません。説明は「?」のツールチップにあり、同じ表示が空の状態にも出ます。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">タブ</th><th style="width:14%">画面の名前</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>hcd</code></td><td>HCD グラフ</td><td>React Flow。ノードとエッジの詳細。ROI の色分け。抑制性のエッジは青で四角の矢じり。Collection（3.9）は UC の後ろの破線の枠（入れ子は外側に広がり、自動の配置はメンバーを寄せる。「Collection を表示」で、ノードを動かさずに隠せる）。枠のラベルで Collection の詳細（Sub-Circuits、親の Collection）を開き、その UC を強調する。<code>?node=</code> は回路か Collection を選び、<code>?gn=</code> は FRG のグループの下の UC を強調する。ROI に 3〜4 個の UC のループかフィードフォワードの三角形があるとき（2.11）、ヘッダーの「モチーフ（n）」で 1 つを強調でき（<code>?motif=M1</code>。<code>?gn=</code> に代わる）、ちょうどその UC の上に作られた GN を FRG へのリンクとして出す。回路の詳細には、その回路が属するモチーフを出す。ノードの移動・大きさ、エッジの線の種類・色・太さ・経由点・接続点を編集して保存できる</td></tr>
+    <tr><td><code>frg</code></td><td>FRG グラフ</td><td>TLF・GN・UC を左から右に並べる。子のノードを折りたためる。HCD と相互にリンクする（UC ⇄ 回路、GN → HCD 上のその UC）。同じ編集ができる</td></tr>
+    <tr><td><code>tables</code></td><td>表データ</td><td>5 つの CSV（<code>_CSV/</code>）を表で、作業の順（Project → Circuits → Connections → FRG → References）に出す。ハーネスの JSON（<code>_HCD/</code>・<code>_FRG/</code>）はここに出さない。見出しを押すと並べ替え（昇順 → 降順 → 解除）、語で行を絞り込み、長い文を折り返すか行を押して開き、元のファイルをダウンロードする。<code>?file=</code> が選択を保つ。ジョブの実行中でも、CSV ができればすぐに出る</td></tr>
+    <tr><td><code>report</code>・<code>log</code></td><td>レポート・判断ログ</td><td><code>report.md</code> と <code>decision_log.md</code></td></tr>
+    <tr><td><code>article</code></td><td>解説記事</td><td>選んだ言語で作る・読む・ダウンロードする（2.15）</td></tr>
+    <tr><td><code>versions</code></td><td>版</td><td>版の一覧、表、差分、BRA-DB への登録（第 5 部）</td></tr>
+  </tbody>
+</table>
+<p class="small">まだ成果物が無いタブは、薄く表示して置き場所の案内を出します。</p>
+
+<h3>エージェント欄</h3>
+<p>右の欄の名前は「チャット」ではなく「エージェント」です。開かれた会話ではなく、エージェントの実行そのものであり、利用者は質問への回答と追加の指示でそれを導くからです。</p>
+<ul>
+  <li>ログはコーディングエージェントのように読めます。エージェントの返答は吹き出しもアイコンも無い全幅の Markdown、利用者の依頼は「依頼」「回答」「追加の指示」のラベルの付いた控えめな灰色の区画（<code>meta.kind</code>）、お知らせ（待機、モデル、段階の完了、ファイルの用意、利用量、エラー）はアイコンと時刻の付いた 1 行です（時刻に触れると日付まで出る）。完了した段階とファイルは緑、エラーは赤で、詳細があれば開けます。</li>
+  <li>2 つの見える返答の間の思考とツールの呼び出しは、1 行の活動の行（「思考・実行ログ」）にまとまり、ステップの数・経過時間・TODO の進み（例「8 ステップ · 2 分 18 秒 · TODO 2/5」）を出します。開くとステップの一覧が出て、各ステップは全文まで開けます。実行中のコマンドはスピナー、失敗したコマンド（終了コードが 0 でない）は赤です。エージェントが作業している間、最後の行は動いており、スピナー、光る「作業中」の文字、経過時間、最新のステップ（届くたびに滑り込む）を出します。</li>
+  <li>実行が待っている質問は、ログの最後の黄色の囲みです。番号付きの選択肢（「1. …」）はボタンになり、押すと答えの欄に入ります。囲みがある間は「エージェントからの質問に回答すると作業が再開されます。」のお知らせを隠します。</li>
+  <li>下の入力欄はプロジェクトの状態に従います。質問への回答（黄色）、追加の指示（完了）、停止ボタンつきでロック（実行中）、「続きからリトライ」つきでロック（失敗・中止）です。デスクトップでは Enter で送り Shift+Enter で改行（IME の変換中は送らない）、タッチ画面では Enter で改行し丸いボタンで送ります。欄は文字に合わせて伸び、説明は「?」にあります。</li>
+  <li>読み手がいちばん下にいる間は新しい項目に追従し、上に戻っていると「新着 N 件」のボタンで戻れます。<code>prefers-reduced-motion</code> では光る文字・滑り込み・脈動・滑らかなスクロールを止めます（スピナーは止まったアイコンになる）。</li>
+</ul>
+<p>画面のラベルは短くし、説明は「?」のヘルプ（<code>HelpTip</code>：フォーカスできるボタンで、ホバー・キーボードのフォーカス・タップで開き、Escape かほかの場所のタップで閉じ、<code>aria-describedby</code> で結ばれる）か、利用マニュアルの該当する節に置きます。作成・Canon・PR・公開ライブラリの画面は、その「ガイド」のリンクで利用マニュアルを開きます。</p>
+<p>進み具合は WebSocket の購読で届き、実行中のプロジェクトは 20 秒ごとのポーリングでも読み直します。サイドバーの履歴は 30 秒ごとに読み直します。</p>
+
+<h3>計画の画面に出るもの</h3>
+<p>計画の仕組みは第 6 部で説明します。ここでは画面の区画だけをまとめます。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">区画</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>一覧と作成（<code>/plans</code>）</td><td>自分の計画（名前、ID、完了した行の数 / 全体、状態、承認待ちと人の判断の行の数）。作成欄は名前・目標・資料（ファイル：CSV・TSV・テキストはすぐ読み、xlsx・PDF は下書きが読む。外せるチップで表示。または行の貼り付け）と、「計画を作る」「下書きを作成」（作ると同時に下書きを依頼。目標・ファイル・貼り付けた行のどれかが要る）の 2 つのボタン。どちらも計画を開く</td></tr>
+    <tr><td>見出しと操作</td><td>名前（変更可）、状態、ID、目標。下書き・一時停止（理由つき）・中止・完了のバナー。確定・一時停止・再開・中止・削除（確認つき）</td></tr>
+    <tr><td>進み具合</td><td>完了した行の数 / 全体、バーと状態ごとの数、いまのバッチと同時に動く数（OpenAI の TPM の注記つき）、時間と費用（見積もりとここまで。費用には計画用のジョブの分を別に示す）</td></tr>
+    <tr><td>質問箱・要対応</td><td>エージェントが質問した行（質問と回答の欄）。要対応の行（理由、最後のエラー、「リトライ」「スキップ」）</td></tr>
+    <tr><td>設定</td><td>オーケストレーターのモデル、エージェントのモデルと推論の強さ、調査モード（下書きの間だけ変えられる）。粒度方針は読むだけ（オーケストレーターが書く）。計画の Canon（「なし」「既存の Canon」「新しい Canon」。確定後はリンクと最新の rev、見つからなければ「Canon が見つかりません」）</td></tr>
+    <tr><td>行</td><td>下書きでは行の編集欄（ROI、TLF、理由、バッチ。移動・削除・追加、CSV の読み込み、「N 件ずつのバッチ」、保存）。それ以外はバッチごとの行と、その状態・プロジェクト・費用。各行に「種」のチップ、アンカー（4 個まで + 残りの数）、ハブの値、「重なり」、「依存」、既存のプロジェクトへの「既存」のチップ（編集欄に「作り直す」）、重複するプロジェクトへの注意。バッチの見出しには保存されたバッチの番号（種のバッチは「種」）</td></tr>
+    <tr><td>下書き中</td><td>下書きのジョブの状態（枠の空き待ち・開始待ち・実行中と、依頼からの経過時間）と「取り消す」のバナー。下書きでは「下書きを作成」（やり直し。費用は記録される）、「自動で並べる」、下書きが読めなかった項目（資料、場所、理由）、失敗した下書きのエラー</td></tr>
+    <tr><td>実行中・一時停止中</td><td>開いている提案（行の追加 / 行の削除、理由、承認 / 却下。決まった提案と、オーケストレーターが適用した粒度方針の変更は履歴の下に折りたたむ）、最新の再計画のジョブ（1 行）。Canon のある計画では「承認待ち」の行に PR へのリンクと AI レビューの状態、「人の判断」の行のカード（理由と「完了にする」「もう一度 push」「スキップ」）、「Canon に合わせた更新 n/2」、種の PR の待ちと承認待ちが 20 件の背圧のバナー</td></tr>
+    <tr><td>履歴</td><td>計画の出来事の一覧。カードはスマホでは折り返す。プロジェクトのヘッダーからは、そのプロジェクトを作った計画へリンクする</td></tr>
+  </tbody>
+</table>
+<p class="small">計画の画面は、下書き中は 5 秒ごと、実行中・一時停止中は 15 秒ごとに読み直します。</p>
+<p class="src">典拠：<code>packages/web/src/App.tsx</code>・<code>components/Layout.tsx</code>・<code>pages/*.tsx</code>・<code>lib/help.ts</code>、<code>docs/manual/ja.md</code></p>
+
+<h2 id="s1-6">1.6 処理の流れとジョブの一生</h2>
+<h3>処理の段階</h3>
+<pre>（調査）→ HCD → FRG →（HCD と FRG の整合の確認、調整のターン 1 回）→ CSV → xlsx</pre>
+<p>段階を進めるのはワーカー（プログラム）です（CoBRAC ハーネス。0.13.0 からの v2 では FRG の段階がエージェントを HCD に戻せる。2.12）。段階を「完了」にするのは、その段階の決定的な検査がファイルを受け入れたときだけで、ファイルがあるだけでは「実行中」にしかなりません。CSV と xlsx はエージェントではなくワーカーが作ります。各段階の中身は第 2 部で説明します。</p>
+
+<h3>状態</h3>
+<p>プロジェクトとジョブは同じ 7 つの状態を使います。</p>
+<table class="compact">
+  <thead><tr><th style="width:24%">状態</th><th style="width:16%">画面</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>QUEUED</code></td><td>待機中</td><td>ワーカーの起動を待っている</td></tr>
+    <tr><td><code>RUNNING</code></td><td>実行中</td><td>ワーカーのタスクが動いている（dispatcher が起動したときにプロジェクトを先に <code>RUNNING</code> にする）</td></tr>
+    <tr><td><code>WAITING_USER_INPUT</code></td><td>回答待ち</td><td>エージェントが質問した。タスクは終わっていて課金されない</td></tr>
+    <tr><td><code>FINALIZING</code></td><td>仕上げ中</td><td>xlsx・グラフ・版を作っている</td></tr>
+    <tr><td><code>COMPLETED</code></td><td>完了</td><td>BRA データができた。追加の指示・解説記事を受け付ける</td></tr>
+    <tr><td><code>FAILED</code></td><td>失敗</td><td>止まった。「続きからリトライ」で前回の成果物から再開できる</td></tr>
+    <tr><td><code>CANCELLED</code></td><td>中止</td><td>利用者・管理者・計画の中止で止めた。リトライできる</td></tr>
+  </tbody>
+</table>
+<figure>
+<svg viewBox="0 0 680 232" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="p1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+  <g font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" text-anchor="middle">
+    <rect x="16" y="92" width="120" height="32" rx="16" fill="#f1f5f9" stroke="#64748b"/><text x="76" y="112">QUEUED</text>
+    <rect x="196" y="92" width="120" height="32" rx="16" fill="#eef4ff" stroke="#1d4ed8" stroke-width="1.6"/><text x="256" y="112">RUNNING</text>
+    <rect x="376" y="92" width="120" height="32" rx="16" fill="#eef4ff" stroke="#1d4ed8"/><text x="436" y="112">FINALIZING</text>
+    <rect x="556" y="92" width="116" height="32" rx="16" fill="#ecfdf5" stroke="#047857"/><text x="614" y="112">COMPLETED</text>
+    <rect x="166" y="24" width="180" height="32" rx="16" fill="#fff7ed" stroke="#d97706"/><text x="256" y="44">WAITING_USER_INPUT</text>
+    <rect x="196" y="180" width="120" height="32" rx="16" fill="#fef2f2" stroke="#b91c1c"/><text x="256" y="200">FAILED</text>
+    <rect x="376" y="180" width="120" height="32" rx="16" fill="#f3f4f6" stroke="#6b7280"/><text x="436" y="200">CANCELLED</text>
+  </g>
+  <g stroke="#475569" stroke-width="1.3" fill="none" marker-end="url(#p1s)">
+    <path d="M136 108H194"/>
+    <path d="M316 108H374"/>
+    <path d="M496 108H554"/>
+    <path d="M246 92V58"/>
+    <path d="M166 40H76V90"/>
+    <path d="M614 92V10H56V90"/>
+    <path d="M246 124V178"/>
+    <path d="M196 196H96V126"/>
+    <path d="M268 124V150H436V178"/>
+    <path d="M436 212V222H86V126"/>
+  </g>
+  <g font-size="8.4" fill="#374151">
+    <text x="165" y="102" text-anchor="middle">起動</text>
+    <text x="345" y="102" text-anchor="middle">検証が通る</text>
+    <text x="525" y="102" text-anchor="middle">xlsx・版</text>
+    <text x="240" y="78" text-anchor="end">質問</text>
+    <text x="122" y="34" text-anchor="middle">回答（resume）</text>
+    <text x="470" y="22" text-anchor="middle">追加の指示・解説記事（新しいジョブ）</text>
+    <text x="240" y="150" text-anchor="end">失敗・6 時間</text>
+    <text x="240" y="162" text-anchor="end">応答なし</text>
+    <text x="350" y="145" text-anchor="middle">停止</text>
+    <text x="146" y="190" text-anchor="middle">リトライ</text>
+    <text x="520" y="218">リトライ</text>
+  </g>
+</svg>
+<figcaption><b>図 1.2</b>　プロジェクトとジョブの状態。停止は待機中・回答待ち・仕上げ中からもできる。解説記事のジョブが終わる・失敗するとプロジェクトは <code>COMPLETED</code> に戻る</figcaption>
+</figure>
+
+<h3>ジョブの一生</h3>
+<ol class="steps">
+  <li><b>依頼</b>：API（プログラム）がプロジェクトとジョブを <code>QUEUED</code> で書き、SQS にメッセージを積みます。</li>
+  <li><b>起動</b>：dispatcher（プログラム）は、ジョブがまだ <code>QUEUED</code> なら、実行中（<code>RUNNING</code> と <code>FINALIZING</code>）のジョブの数を全体と利用者ごとに数えます。どちらかが上限に達していれば 60 秒後に積み直します。空いていれば ECS RunTask でタスクを起動します（Fargate Spot。Spot が取れなければ通常の Fargate に切り替える）。タスクの ARN とハートビートの時刻をジョブに書き、「ワーカーを起動しました（Fargate Spot）」のお知らせを出し、プロジェクトを <code>RUNNING</code> にします。起動に失敗したら理由をお知らせに出し、60 秒後に積み直します。上限は 30 秒ごとに読み直すので、管理画面での変更はデプロイなしで効きます。回答待ちのジョブはタスクが終わっているので数えません。</li>
+  <li><b>実行</b>：ワーカーがジョブを <code>RUNNING</code> にし、ターンを繰り返します（1.7）。</li>
+  <li><b>質問</b>：エージェントがターンを <code>status: "question"</code> で終えると、ワーカーは作業領域とスレッドを S3 に保存し、ジョブとプロジェクトを <code>WAITING_USER_INPUT</code> にしてタスクを終えます（課金が止まる）。回答（<code>POST /projects/{id}/answer</code>）で同じジョブが <code>QUEUED</code> に戻り、<code>resume</code> モードで同じスレッドを再開します（<code>resumeThread</code>）。</li>
+  <li><b>仕上げ</b>：HCD と FRG が通り、CSV（JSON から生成）ができると <code>FINALIZING</code> になり、<code>csv_to_excel.py</code>・Template-v2-2 の書き出し・<code>buildGraphs()</code> の後、版を凍結して <code>COMPLETED</code> になります。</li>
+  <li><b>完了後</b>：追加の指示（<code>POST /projects/{id}/followup</code>）は同じスレッドで新しいジョブを作ります。解説記事（<code>POST /projects/{id}/articles</code>）も新しいジョブで、BRA データには触れません。</li>
+  <li><b>失敗</b>：ターンの失敗、6 時間の上限、Spot の中断などで <code>FAILED</code> になります。応答の無いジョブは janitor が自動で再開します（下記）。</li>
+</ol>
+
+<h3>止める・中断される</h3>
+<ul>
+  <li><b>停止</b>：API がジョブを <code>CANCELLED</code> にして ECS の StopTask を送ります。ワーカーは 1 分ごとにジョブの状態を見ており、中止に気づくと状態を保存して終わります。</li>
+  <li><b>Spot の中断</b>：ECS は SIGTERM を送り、停止のタイムアウト（120 秒、Fargate の最大）の後にコンテナを止めます。ワーカーは SIGTERM を受けると、実行中のターンの利用量を数え、作業領域とスレッドを S3 に保存し、お知らせを出し、ハートビートを古い時刻（1970 年）に書き換えます。次の janitor（5 分以内）がそのジョブを再開します。</li>
+  <li><b>途中の保存</b>：ターンの実行中も、ワーカーは 5 分ごとに作業領域とスレッドを S3 に保存するので、中断で失う作業はその間の分だけです。</li>
+  <li><b>6 時間の上限</b>：ワーカーは 1 分ごとに経過時間を見て、連続 6 時間（<code>WORKFLOW_TIMEOUT_MS</code>）を超えるとジョブを失敗にします（「Maximum run time (6 hours) exceeded」）。リトライで続けられます。</li>
+</ul>
+
+<h3>janitor の仕事（5 分ごと）</h3>
+<table class="compact">
+  <thead><tr><th style="width:22%">見つけるもの</th><th style="width:26%">条件</th><th>処理</th></tr></thead>
+  <tbody>
+    <tr><td><code>RUNNING</code>・<code>FINALIZING</code> のジョブ</td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA のジョブと解説記事：試行回数（<code>retryCount</code>）が 2 未満（<code>MAX_AUTO_RETRY</code>）なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>retry</code> モード（解説記事は <code>article</code> モード）で積む（「…自動で再開します（1/2）」）。2 回に達していれば <code>FAILED</code> にする。AI レビューと計画のジョブ：<code>FAILED</code> にするだけで再試行しない（PR の画面と計画ランナーがその失敗を扱う）</td></tr>
+    <tr><td><code>WAITING_USER_INPUT</code></td><td>最後の更新から 7 日（<code>WAITING_INPUT_TIMEOUT_MS</code>）</td><td><code>FAILED</code>（回答待ちの時間切れ）。リトライで続けられる</td></tr>
+    <tr><td><code>QUEUED</code></td><td>作成から 24 時間</td><td><code>FAILED</code>（24 時間以内にワーカーを起動できなかった）</td></tr>
+  </tbody>
+</table>
+<p class="small">解説記事のジョブが失敗しても、プロジェクトは <code>COMPLETED</code> のままです（BRA データは変わらないため）。手動のリトライも、前のジョブの試行回数に 1 を足した新しいジョブを作ります。したがって手動のリトライを 2 回した後のジョブは、janitor の自動の再開の対象になりません。</p>
+<p class="src">典拠：<code>packages/api/src/handlers/dispatcher.ts</code>・<code>janitor.ts</code>、<code>packages/api/src/lib/runs.ts</code>、<code>packages/worker/src/index.ts</code>・<code>interrupt.ts</code>、<code>packages/shared/src/types.ts</code></p>
+
+<h2 id="s1-7">1.7 実行モードとターンの制御</h2>
+<h3>実行モード</h3>
+<p>SQS のメッセージの <code>mode</code> が、ワーカーの動き方を決めます。</p>
+<table class="compact">
+  <thead><tr><th style="width:13%">mode</th><th style="width:27%">きっかけ</th><th>動き</th></tr></thead>
+  <tbody>
+    <tr><td><code>initial</code></td><td>新しいプロジェクト</td><td>HCD の段階の依頼（<code>prompts/phases/HCD.md</code> を含む）から始める。調査モードでは調査のステップが先（2.9）</td></tr>
+    <tr><td><code>resume</code></td><td>質問への回答</td><td>回答を渡し、いまの段階を続ける</td></tr>
+    <tr><td><code>followup</code></td><td>完了後の追加の指示</td><td>指示を適用し、HCD と FRG を検証し直し、CSV と xlsx を作り直す（どの段階も受け入れ済みにせずに始める）</td></tr>
+    <tr><td><code>retry</code></td><td>失敗・中止後の手動の再開、または janitor の自動の再開</td><td>まだ受け入れていない最初の段階から続ける。いまある成果物は残す</td></tr>
+    <tr><td><code>article</code></td><td>完成した BRA データへの <code>POST /projects/{id}/articles</code>（止まったものは janitor が同じモードで再実行）</td><td>新しいスレッド、<code>prompts/article.md</code>、Web 検索も RCS も無し、作業領域は読むだけ（2.15）</td></tr>
+    <tr><td><code>canon-review</code></td><td>Canon の PR への AI レビューの依頼。<code>projectId</code> は Canon の ID で、プロジェクトには触れない（止まったものは janitor が失敗にするだけ）</td><td>新しいスレッドで PR の材料を読み、指摘を JSON で返す（4.8）</td></tr>
+    <tr><td><code>plan</code></td><td>オーケストレーターの下書きか再計画（<code>planJobKind</code>）。計画ランナーが、枠が空いたときだけ積む。<code>projectId</code> は計画の ID（止まったものは janitor が失敗にするだけ）</td><td>新しいスレッド、<code>prompts/plan.md</code>、RCS MCP あり・Web 検索と <code>lit</code> なし、<code>PLAN_RESULT_SCHEMA</code> で返答（読めなければ 1 回だけ頼み直す）、7 分の予算（xlsx・PDF を読むか 20 行を超える下書きは 25 分）（6.5）</td></tr>
+  </tbody>
+</table>
+<p><b>返答の言語</b>：作成・回答・追加の指示・リトライの依頼は Web 画面の言語（<code>locale</code>：<code>en</code>・<code>ja</code>・<code>zh</code>・<code>zhTw</code>・<code>ko</code>・<code>de</code>・<code>fr</code>・<code>es</code>・<code>pt</code>・<code>ru</code>）を運び、ジョブに保存されます。ワーカーは毎ターンの最後に、<code>message</code> と <code>question</code> をその言語で書くよう指示する隠れた 1 行を付けます（成果物は英語のまま）。<code>locale</code> が無ければ、エージェントは利用者が書いた言語で返答します。<code>locale</code> の無いリトライは前のジョブの言語を引き継ぎます。</p>
+<p><b>古い作業領域</b>：v0.8 より前に作った作業領域（<code>3_UC.md</code> のような Markdown の表で、<code>uc.json</code> が無い）への <code>resume</code>・<code>followup</code>・<code>retry</code> は、すぐに <code>sys.legacyWorkspace</code> で失敗します。その xlsx とグラフは見られます。</p>
+
+<h3>ターンの制御</h3>
+<p>BRA のジョブでワーカーが行う 1 段階の繰り返しは次のとおりです。ループは <code>packages/worker/src/pipeline.ts</code> の <code>runPhases</code> です。詳しい受け渡しは第 2 部（2.3〜2.8）で説明します。</p>
+<ol class="steps">
+  <li>Codex の <code>runStreamed</code> で 1 ターンを実行し（<code>outputSchema</code> つき）、出来事を Messages に書きます。</li>
+  <li>最後の返答が <code>status: "question"</code> なら、状態を S3 に書いて終わります（課金が止まる）。</li>
+  <li>ターンのたびに、いまの段階を検証します（<code>packages/shared/src/harness.ts</code> の <code>checkHcd</code> / <code>checkFrg</code>）：JSON Schema、ファイルをまたぐ参照、UC の命名、インターフェース、FRG の制約、値が英語だけであること、レポートの節。文献も同じ段階で確かめます（<code>packages/shared/src/references.ts</code> の <code>checkCitations</code>、<code>packages/worker/src/references.ts</code> の <code>ReferenceVerifier</code>。2.12）。問題があれば一覧を直しの依頼として返し、1 段階につき <code>MAX_NUDGES</code>（3）回まで繰り返します。直しのターンは推論の強さを <code>min(プロジェクトの強さ, medium)</code>（<code>fixTurnEffort</code>）で実行します（挙げた問題を直すだけなので）。問題が残れば警告を出して進み、出力が使えなければジョブを失敗にします。</li>
+  <li>段階が受け入れられたら次の段階の依頼を送ります。後の段階のファイルがすでに通るとき（フォローアップの後など）は作り直しません。エージェントが FRG や CSV の段階で HCD のファイルを（CSV の段階で FRG のファイルを）変えたら、後の段階がそれを検証し直し、新しい問題を自分の問題と一緒に返します（2.12）。</li>
+  <li>CSV：<code>buildCsvs</code> が JSON から 5 つの CSV を決定的に作ります。エージェントは CSV を書きません。生成に失敗したら、その問題を JSON の直しの依頼として返します。</li>
+  <li>連続 6 時間の実行で打ち切ります。</li>
+</ol>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>RunMode</code>）・<code>locale.ts</code>、<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code></p>
+
+<h2 id="s1-8">1.8 モデルと推論の強さ</h2>
+<ul>
+  <li><b>モデルの決め方</b>：プロジェクトの設定 → 利用者の既定 → デプロイの環境変数（<code>CODEX_MODEL</code>）→ <code>DEFAULT_CODEX_MODEL</code>（<code>gpt-6-luna</code>）の順です。プロジェクトを作るとき、API は<b>必ず具体的なモデル名を決めて保存します</b>（費用を計算できるように。不明な「Codex の既定」を残さない）。デフォルトの API キーの Tier 1 の利用者では、Tier に無い既定は <code>gpt-6-luna</code> になります（1.4）。</li>
+  <li><b>推論の強さの決め方</b>：プロジェクトの設定 → 利用者の既定 → デプロイの環境変数（<code>CODEX_REASONING_EFFORT</code>）→ Codex の既定の順です。値は <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code>・<code>max</code>・<code>ultra</code>・<code>persistent</code> で、画面は <code>high</code> を推奨と示します。</li>
+  <li><b>選べるモデル</b>：キーを登録するとき、OpenAI の <code>/v1/models</code> を呼び、GPT-5.6 と GPT-6 の文章のモデル（日付付きのスナップショットと、音声・画像・検索などの派生を除く）を <code>availableModels</code> に保存します。デフォルトの API キーの利用者には、デフォルトの API キーのモデル（Tier 2）か Tier 1 のモデルを出します。作成と設定の画面で選べます。</li>
+  <li><b>引き継ぎ</b>：フォローアップとリトライはプロジェクトの設定を使います。解説記事と AI レビューは、そのときに選んだモデル（無ければプロジェクトか既定のモデル）を使います。</li>
+  <li><b>ターンごとの強さ</b>：調査モード（2.9）は、調査のターンの強さを少なくとも <code>high</code> に上げます。ほかのターンはプロジェクトの強さのままです。直しのターンは <code>medium</code> を上限にします（1.7）。</li>
+  <li><b>Codex に渡す名前</b>：<code>gpt-5.6</code> という別名は Codex のモデルの目録に無いので、ワーカーは OpenAI がそれを振り向ける <code>gpt-5.6-sol</code> を Codex に渡します。ジョブには利用者が選んだモデルを記録します（1.14）。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code></p>
+
+<h2 id="s1-9">1.9 データモデル（DynamoDB）</h2>
+<p>型の正本は <code>packages/shared/src/types.ts</code> です。テーブルはすべてオンデマンド課金で、WsConnections 以外は削除保護（RETAIN）です（第 7 部）。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">テーブル</th><th style="width:15%">PK / SK</th><th>主な属性</th></tr></thead>
+  <tbody>
+    <tr><td>Users</td><td><code>userId</code>（Cognito の sub）/ —</td><td>email、displayName（80 字）、contributorName（120 字）、role、disabled、<code>userKey</code>、<code>projectSeq</code> / <code>canonSeq</code>（ランダム ID より前に発行した <code>&lt;userKey&gt;-&lt;seq&gt;</code> / <code>&lt;userKey&gt;-c&lt;seq&gt;</code> の最後の番号。もう進めない）、<code>defaultCanonId</code>、encryptedApiKey（API は返さない）、apiKeyRegistered、apiKeyLast4、availableModels、defaultModel、defaultReasoningEffort、<code>orgAccess</code>（<code>{ tier, approvedAt, approvedBy }</code>、1.4）、<code>editorCanons</code>（共同編集者として入っているほかの利用者の Canon）、作成・更新の時刻</td></tr>
+    <tr><td>Projects</td><td><code>userId</code> / <code>projectId</code></td><td>name、nameSource（<code>provisional</code> / <code>auto</code> / <code>user</code>）、<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = いまの版の番号）、<code>latestVersion</code>（最新の凍結した版の要約、第 5 部）、<code>bradb</code>（BRA-DB に最後に登録した版）、<code>legacyId</code>（移行前の ID）、roi、tlf、contributor、<code>attachments</code>（参考資料、1.12）、model、reasoningEffort、<code>researchMode</code>（2.9）、<code>sabraBoundary</code>（0.24.0 からは <code>neocortex</code>。無ければ以前の境界）、<code>harnessRules</code>（0.25.0 からは <code>1</code>。無ければ以前の検査）、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code>（仮説モード、2.13。無ければ文献の裏付けだけで上限 20%）、status、currentStep、stepStates、<code>activeStage</code>（実行中のジョブの段階：<code>RESEARCH</code>、段階の名前、調整のターンの <code>ADJUST</code>）、activeJobId、codexThreadId、pendingQuestion、hasArtifacts、errorMessage、completedAt、<code>usage</code>・<code>costUsd</code>・<code>usedModels</code>（全ジョブの合計）、<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（第 4 部）、<code>planId</code>（作った計画）</td></tr>
+    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> は計画の ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code>。0.19 より前は無く、自分のキー）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code>）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（道具ごとの文献検索の成功・失敗の数）、<code>researchStep</code>（調査のステップの記録、2.9）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
+    <tr><td>Messages</td><td><code>projectId</code> / <code>{ISO 時刻}#{seq}</code></td><td>userId（v0.7 から）、jobId、role（<code>user</code> / <code>agent</code> / <code>system</code>）、type（<code>prompt</code>・<code>agent_message</code>・<code>reasoning</code>・<code>command</code>・<code>file_change</code>・<code>web_search</code>・<code>todo</code>・<code>question</code>・<code>status</code>・<code>error</code>・<code>artifact</code>）、content、step、meta</td></tr>
+    <tr><td>WsConnections</td><td><code>connectionId</code> / <code>projectId</code>（<code>_</code> は接続そのものの記録）</td><td>userId、<code>ttl</code>（接続から 2 時間 10 分。API Gateway の接続の上限が 2 時間のため）。削除保護なし</td></tr>
+    <tr><td>Catalog</td><td><code>kind</code> / <code>id</code></td><td><code>project</code>・<code>canon</code>：公開中の項目（ownerUserId、name、publishedAt など。第 4 部）。<code>clones</code>：複製の数。<code>id</code>：ランダムな Project・Canon・計画の ID の予約（type、ownerUserId、createdAt。消さない）。<code>config</code> / <code>default-api-key</code>：デフォルトの API キー（encryptedApiKey、last4、availableModels、updatedAt、updatedBy）。<code>config</code> / <code>concurrency</code>：管理画面で設定した同時実行数（maxConcurrentJobs、maxConcurrentJobsPerUser、updatedAt、updatedBy）</td></tr>
+    <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト、PR とその履歴、rev、送った PR、共同編集者（第 4 部）</td></tr>
+    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>計画の設定と状態、行、履歴、再計画の提案（6.3）</td></tr>
+  </tbody>
+</table>
+<h3>GSI と Streams</h3>
+<ul>
+  <li>Jobs の <code>status-index</code>（status + createdAt）：dispatcher と janitor が状態ごとにジョブを探す。</li>
+  <li>WsConnections の <code>project-index</code>（projectId）：broadcaster が送り先を探す。</li>
+  <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の確認と、<code>userKey</code> から利用者を引く（ランダム ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> の行の <code>ownerUserId</code>）。</li>
+  <li>Canons の <code>owner-index</code>（ownerUserId + createdAt。<code>META</code> だけがキーを持つ疎な索引）：所有者の Canon の一覧。</li>
+  <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）。どちらも <code>META</code> だけの疎な索引で、所有者の計画の一覧と、計画ランナーが進める下書き中・実行中・一時停止中の計画を探す。</li>
+  <li>Streams：Projects と Messages の <code>NEW_IMAGE</code> を broadcaster に渡す。</li>
+</ul>
+<h3>メッセージの役割</h3>
+<p>role が <code>user</code> のメッセージは、利用者が打った文だけです（API が <code>meta.kind</code> = <code>create</code> / <code>answer</code> / <code>followup</code> で保存する）。ワーカーがジョブの始めにエージェントに送る依頼文は、<code>system</code> / <code>status</code> のお知らせ（<code>meta.harnessPrompt</code>、本文は <code>meta.details</code>）として保存し、「HCD フェーズを開始しました。」のように表示して、開くと全文が出ます。v0.8.1 までのワーカーはこの依頼文を <code>meta.mode</code> 付きの <code>user</code> メッセージとして保存しており、エージェント欄はそれを同じお知らせとして表示します（<code>normalizeStoredMessage</code>）。</p>
+<h3>所有の確かめ方</h3>
+<p>一般の利用者に見えるのは、自分の <code>userId</code> の下の項目だけです。Project ID は全体で一意ですが、v0.7 より前の古い ID（利用者ごとの slug）は 2 人の利用者が同じ値を持ちえ、Jobs・Messages・<code>project-index</code> は <code>projectId</code> だけをキーにしています。そのため、読み出しはすべて所有者で絞ります。ジョブは <code>userId</code> で、メッセージは <code>userId</code>（古いメッセージは、そのジョブの所有者）で絞り、WebSocket の配信は所有者の接続にだけ送ります。</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/shared/src/types.ts</code>・<code>publish.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code></p>
+
+<h2 id="s1-10">1.10 プロジェクトの ID・名前・削除</h2>
+<h3>ID の形式</h3>
+<table class="compact">
+  <thead><tr><th style="width:12%">種類</th><th style="width:30%">いま発行する形（ランダム）</th><th style="width:30%">以前の形（0.7.0 から。いまも有効）</th><th>確かめる関数</th></tr></thead>
+  <tbody>
+    <tr><td>プロジェクト</td><td><code>^p[0-9a-hjkmnp-tv-z]{7}$</code>（<code>p7m2q9xa</code>）</td><td><code>^u[0-9a-hjkmnp-tv-z]{7}-[1-9][0-9]*$</code>（<code>u7m2q9xa-12</code>）</td><td><code>PROJECT_ID_REGEX</code> / <code>isValidProjectId</code></td></tr>
+    <tr><td>Canon</td><td><code>^c[0-9a-hjkmnp-tv-z]{7}$</code>（<code>c4h8w2rk</code>）</td><td><code>^u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*$</code>（<code>u7m2q9xa-c1</code>）</td><td><code>CANON_ID_REGEX</code> / <code>isCanonId</code></td></tr>
+    <tr><td>計画</td><td><code>^n[0-9a-hjkmnp-tv-z]{7}$</code>（<code>n4h8w2rk</code>）</td><td>—</td><td><code>PLAN_ID_REGEX</code> / <code>isPlanId</code></td></tr>
+  </tbody>
+</table>
+<p>7 文字は小文字の Crockford base32（<code>i l o u</code> を含まない）で、プラットフォームの暗号論的乱数から引きます（32<sup>7</sup> ≈ 3.4×10<sup>10</sup> 通り）。どの検査も両方の形を受け付けます。0.7 より前の利用者ごとの slug はこれらの形に当てはまらず、転送のためにだけ解決されます。BRA の版は、どちらの形でも <code>&lt;projectId&gt;@v&lt;n&gt;</code> です（第 5 部）。</p>
+<h3>作り方と順序</h3>
+<ul>
+  <li>API はランダムな ID を引き、Catalog に <code>kind = id</code> の行を条件付き Put（<code>attribute_not_exists(id)</code>）で書いて予約します。取られていれば引き直します（5 回まで）。予約できてから参考資料を移し、プロジェクトを <code>attribute_not_exists(projectId)</code> で Put します。Projects テーブルは <code>userId</code> がキーなので、その条件は呼んだ人のプロジェクトしか見ません。全体での一意性を保つのは予約のほうです。予約は消さないので、作成に失敗した ID や削除したプロジェクトの ID は再利用されません。Canon（<code>type = canon</code>）と計画（<code>type = plan</code>）も同じように予約します。利用者ごとの番号 <code>projectSeq</code> / <code>canonSeq</code> はもう使いません。</li>
+  <li><code>GET /projects</code> は、呼んだ人のプロジェクトを <code>createdAt</code> の新しい順（同じなら ID の順）に返します。ソートキーに番号が無くなったためです。<code>limit</code>（既定 100）と <code>cursor</code>（この順の中の位置）でページを送ります。</li>
+</ul>
+<h3>名前</h3>
+<ul>
+  <li><code>name</code> は、入力した ROI と TLF から作った仮の <code>&lt;TLF&gt; in &lt;ROI&gt;</code>（どの言語でもよい。例 <code>VOR in 小脳</code>。<code>nameSource = "provisional"</code>）で始まります。HCD の段階が受け入れられると、ワーカーはエージェントが <code>meta.json</code> に書いた英語の <code>name</code>（<code>&lt;TLF&gt; in &lt;ROI&gt;</code>）を保存し、<code>nameSource = "auto"</code> にします。そうするのは <code>nameSource</code> が <code>provisional</code> か <code>auto</code> のときだけです。</li>
+  <li><code>auto</code> の名前がまだ古い ASCII の slug（例：TLF <code>VOR</code>・ROI <code>小脳</code> の <code>VOR</code>）のままの古いプロジェクトは、画面でもダウンロードの名前でも仮の名前を使います。</li>
+  <li>作成時に打った名前と後で変えた名前は正規化し（NFC、前後の空白を除き、連続する空白を 1 つに。制御文字と改行は拒否。1〜200 字）、<code>nameSource = "user"</code> にします。エージェントはそれを上書きしません。名前を変えると、同じ名前の自分のプロジェクトを注意として返します（大文字小文字と空白の違いは無視）。</li>
+  <li>xlsx の <code>Project ID</code> の列には ID が入り、<code>Description</code> には名前が英語のときにその名前を前に付けます。</li>
+  <li>ダウンロードのファイル名は <code>{name}_{ID}.bra.xlsx</code> です。NFC にし、制御文字・<code>/ \ : * ? " &lt; &gt; |</code>・連続する空白を <code>_</code> に変え、続く <code>_</code> を 1 つにし、前後の <code>_ .</code> と空白を除き、80 文字で切ります。空になれば <code>{ID}.bra.xlsx</code> です。<code>filename*=UTF-8''…</code> で送り、ASCII の代わりとして <code>filename="{ID}.bra.xlsx"</code> を付けます。S3 のキーと作業フォルダには ID だけを使います。</li>
+</ul>
+<h3>削除（論理削除）</h3>
+<p><code>DELETE /projects/{id}</code> は、Projects の項目に <code>deletedAt</code> / <code>deletedBy</code> を書くだけです（まだ削除されておらず、<code>QUEUED</code>・<code>RUNNING</code>・<code>WAITING_USER_INPUT</code>・<code>FINALIZING</code> でないことが条件）。あわせて Canon から外し、公開中なら Catalog の行を消します。Jobs・Messages・S3 の物はそのまま残り、ID は再利用されず、索引も増やしません（API が印で絞る）。所有者にとって削除したプロジェクトは存在しないのと同じで、<code>/projects</code>、同名の注意、古い ID の転送から外れ、<code>/projects/{id}/…</code> のすべてのルートと WebSocket の購読は 404 か not found を返します。実行中のプロジェクトは先に停止します（409）。<code>/users/me/usage</code> は費用を合計に残し、<code>byProject</code> で <code>deleted</code> の印を付けます。<code>/admin/projects</code> は <code>deletedAt</code> 付きで一覧に出し、管理画面は削除済みと示します。復元の画面はありません。復元するには項目から <code>deletedAt</code> を消します（将来の管理用 API）。</p>
+<h3>古い ID の移行</h3>
+<p><code>scripts/migrate-project-ids.mjs</code>（既定は試行だけで、<code>--apply</code> で書く）は、古い ID のプロジェクトを新しい ID の下に写します（<code>legacyId</code> 付きの Projects の項目、Jobs と Messages、フォルダ名を変えた S3 の物）。古い Projects の項目は <code>users/{userId}/{legacyId}/migration-backup/project-item.json</code> に保存してから消すので、一覧には 1 回だけ出て、古い URL は転送されます。<code>--keep-old</code> は古い Jobs・Messages の項目を控えとして残します。古い S3 の物は消しません。もう一度実行すると、移した写しの隣に残った古い Projects の項目も消します。</p>
+<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>、<code>packages/api/src/app.ts</code>、<code>scripts/migrate-project-ids.mjs</code></p>
+
+<h2 id="s1-11">1.11 トークンの使用量と費用</h2>
+<ul>
+  <li><b>使用量</b>は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code> です。Codex の <code>turn.completed</code> が運ぶのは、そのターンの分ではなく<b>スレッドの累計</b>（再開しても続く）です。そこでワーカーは、ターンの前と後の累計の差をジョブに足します。累計はスレッドのセッションファイル（<code>&lt;CODEX_HOME&gt;/sessions/…/rollout-…-&lt;threadId&gt;.jsonl</code> の最後の <code>token_count</code>）から読みます（<code>packages/worker/src/codex.ts</code> の <code>runTurn</code>）。<code>turn.failed</code> で終わったターンも同じファイルで測ります。</li>
+  <li><b>戻ってこないターン</b>（停止、調査の時間予算、SIGTERM、6 時間の上限で打ち切られたもの、または失敗のターンを出さずに終わった <code>codex exec</code>）も同じ方法で測ります（<code>InFlightTurn</code>：実行中のターンが測り方を登録し、先に来た停止の経路が 1 回だけそれを使う）。そのジョブに足し、次の実行はそれを含む累計から始めるので、二重には数えません。その後、全ジョブからプロジェクトを集計し直します（<code>refreshProjectUsage</code>）。</li>
+  <li><b>古い記録の補正</b>：この修正より前に起動したワーカー（<code>USAGE_FIX_AT</code>、2026-10-01 18:33 UTC、0.17.1）が記録したジョブは、ターンごとに累計を足していたので、使用量と費用が大きすぎます（全工程で約 2〜3 倍）。保存した記録は書き換えず、API が返すときに補正します（<code>packages/shared/src/usageCorrection.ts</code>、<code>packages/api/src/lib/usageCorrection.ts</code>）。ジョブの利用量の行（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り、その増えた分だけを数え（累計が減ったら新しい会話の始まり、プロジェクトの会話を続けるジョブは前のジョブの最後の累計から始まる。記事のジョブは自分の会話を持つ）、単価をかけ直します。プロジェクト一覧、プロジェクトとそのジョブ、利用量の集計、管理の一覧、エージェント欄の利用量の行は、補正した値を出します。終わったジョブの補正は Lambda のコンテナごとに保持します。</li>
+  <li><b>モデル</b>：<code>model</code> はジョブの開始時に実際に Codex に渡したモデルです（1.8）。モデルの選択欄は GPT-5.6 と GPT-6 の文章のモデルだけを出します。</li>
+  <li><b>費用</b>：<code>costUsd</code> は <code>estimateCostUsd()</code> が <code>packages/shared/src/pricing.ts</code> の単価表（USD / 100 万トークン、<code>PRICING_AS_OF</code> の日付）から出す<b>推定値</b>です。式は <code>(input − cachedInput) × 入力の単価 + cachedInput × キャッシュの単価 + output × 出力の単価</code>（推論のトークンは output に含まれる）です。表に無いモデルは <code>null</code> になり、画面は <code>$—</code> を出します。</li>
+  <li>単価表はコードの定数です。OpenAI が値段を変えたら <code>PRICING</code> を直してデプロイします。実際の請求額の正本は OpenAI のダッシュボードです。</li>
+</ul>
+<table class="compact">
+  <caption>単価表（<code>PRICING_AS_OF</code> = 2026-09-25、USD / 100 万トークン）</caption>
+  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュ入力</th><th class="c">出力</th></tr></thead>
+  <tbody>
+    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">50</td></tr>
+    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">10</td></tr>
+    <tr><td><code>gpt-6-luna</code>（既定）</td><td class="c">0.1</td><td class="c">0.01</td><td class="c">0.5</td></tr>
+    <tr><td><code>gpt-5.6</code>・<code>gpt-5.6-sol</code>（別名は Sol に向く）</td><td class="c">4</td><td class="c">0.4</td><td class="c">20</td></tr>
+    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">12</td></tr>
+    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.2</td><td class="c">0.02</td><td class="c">1.2</td></tr>
+  </tbody>
+</table>
+<p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、自分のプロジェクトのジョブに加えて、自分の Canon（と共同編集者として入っている Canon）の AI レビューと、自分の計画の <code>plan</code> のジョブも全体とモデルごとの合計に含めます。1 件の BRA の時間と費用の実績は 2.16 にあります。</p>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>・<code>usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/api/src/app.ts</code></p>
+
+<h2 id="s1-12">1.12 S3 の成果物と参考資料</h2>
+<h3>成果物のバケット</h3>
+<pre>users/{userId}/{projectId}/
+  workspace/        /work/{projectId} の写し（json・md・csv・jsonl）
+  thread/           CODEX_HOME/sessions（一覧とダウンロードから除く）
+  output/{projectId}.bra.xlsx
+  output/{projectId}.template-v2-2.bra.xlsx   公式テンプレート（2.14）
+  graph/hcd.json, graph/frg.json
+  graph/{hcd|frg}.layout.json                 利用者が直した配置とスタイル（API が書く）
+  article/{locale}.md, article/{locale}.json  解説記事と ArticleMeta（2.15）
+  article/{locale}/figures/{name}.svg, {name}.narrow.svg   記事の図（無害化した SVG）
+  attachments/files/{NN}-{name}               作成時に添付した参考資料
+  attachments/derived/                        ワーカーが作る：抜き出した本文、取得した URL、manifest.json
+  revisions/{n}/manifest.json                 BRA データの版 n（一度だけ書き、消さない。第 5 部）
+  revisions/{n}/files/...                     凍結した写し：workspace/…、output/*.xlsx、graph/*.json
+  revisions/{n}/bradb/                        BRA-DB の登録パッケージ
+staging/{userId}/{uploadId}/{name}            プロジェクトができる前のブラウザからのアップロード（1 日で消える）
+canons/{canonId}/
+  rev/{n}/canon.json                          Canon の rev のスナップショット（一度だけ書く）
+  pr/{no}/incoming.json, pr/{no}/diff.json    push が運んだもの、基の rev との差分と衝突
+  pr/{no}/ai/{jobId}/input.json, result.json  AI レビューの材料と結果
+plans/{planId}/
+  attachments/files/{NN}-{name}               作成時に添付した資料の一覧
+  attachments/derived/                        ワーカーが作る：xlsx・PDF の本文、manifest.json
+  jobs/{jobId}/input.json                     計画のジョブの入力（鍵は入れない）
+  jobs/{jobId}/result.json                    検証した結果</pre>
+<p>グラフ JSON は、LLM を使わない <code>buildGraphs()</code> が CSV から作ります。バケットは公開を全面的に止め、SSL を強制し、<code>users/*/*/revisions/*</code> の削除をバケットポリシーで拒否します。ワーカーは S3 との同期で、MD5 が同じファイルは送りません（差分の同期）。</p>
+
+<h3>参考資料</h3>
+<p>作成画面は、ファイルを 10 個まで（PDF、PNG・JPEG・WebP・GIF、TXT・MD・CSV・TSV・JSON、DOCX・XLSX・PPTX。1 つ 20 MB、合計 50 MB）と、http(s) の URL を 20 件まで受け付けます（<code>packages/shared/src/attachments.ts</code>）。</p>
+<ol class="steps">
+  <li>ファイルはブラウザから S3 に直接送ります。<code>POST /uploads</code> が名前と大きさを確かめ、署名付き POST（staging のキー・Content-Type・大きさの範囲をポリシーで固定。15 分有効）を返します。バケットの CORS は、CloudFront のドメイン、<code>https://cobrac.site</code>、<code>http://localhost:5173</code> からの POST を許します。</li>
+  <li><code>POST /projects</code> は、アップロードがあって上限内であることを確かめてから <code>attachments/files/</code> に移し、一覧を <code>Projects.attachments</code> に保存します（<code>kind: "file"</code>：name、key、size、contentType。<code>kind: "url"</code>：url）。URL は公開されたホストの http(s) だけです。</li>
+  <li>ワーカー（プログラム）は実行のたびに <code>attachments/</code> を <code>/work/materials/</code> に写します。最初の実行で一度だけ、PDF の本文（<code>pdftotext</code>）、Office の本文（DOCX・PPTX・XLSX の共有文字列）、URL の中身（HTML は本文、PDF は本文つき、画像。10 MB・20 秒・リダイレクト 5 回まで、どの経由先も公開アドレスであること）を抜き出し、<code>manifest.json</code> とともに <code>attachments/derived/</code> に保存して、後の実行で再利用します。失敗した項目は失敗の印を付けるだけです。</li>
+  <li><code>materials/INDEX.md</code> が各項目の元・本文・状態を並べます。依頼文の頭に <code>Reference materials:</code> の行が付き、画像は新しいスレッドの最初の依頼に添付されます。<code>prompts/AGENTS.md</code> は、資料は参考にするが検証済みの文献ではないことをエージェント（LLM）に伝えます。文献はいつも公開された出典（Crossref・PubMed で照合）が必要で、引用文はその出典の原文どおりでなければなりません。</li>
+</ol>
+<p class="src">典拠：<code>packages/shared/src/attachments.ts</code>、<code>packages/api/src/app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/materials.ts</code>・<code>s3sync.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+
+<h2 id="s1-13">1.13 フロントエンド</h2>
+<h3>基本</h3>
+<ul>
+  <li>Vite + React 18 + React Router + Tailwind。認証は Amplify（Cognito の SRP）、Markdown は react-markdown と GFM。</li>
+  <li>実行時の設定は CloudFront の <code>/config.json</code>（apiUrl、wsUrl、userPoolId、userPoolClientId、region、appName）です。CDK が書くので、環境ごとにビルドし直さずに済みます。ローカルの開発では <code>VITE_*</code> を使います。</li>
+  <li>版番号：ルートの <code>package.json</code> の <code>version</code> を Vite の <code>define</code> で <code>__APP_VERSION__</code> として、<code>git rev-parse --short HEAD</code> を <code>__APP_COMMIT__</code> として埋め込みます。運用の規則は <code>AGENTS.md</code> にあります（第 7 部）。</li>
+  <li>WebSocket は、ID トークンをクエリに付けて接続し、プロジェクトを購読し、5 分ごとに <code>ping</code> を送り、切れたら待ち時間を倍にしながら（30 秒まで）つなぎ直します。API Gateway の WebSocket は 2 時間で切れるので、ポーリングも併用します（1.5）。</li>
+  <li>エージェント欄の Markdown（GFM）では、コマンド・思考・Web 検索を折りたたみます。</li>
+</ul>
+<h3>グラフの表示と編集</h3>
+<ul>
+  <li><code>@xyflow/react</code> と dagre（HCD は上から下、FRG は左から右）。HCD はノードを ROI の区分（塗りと縞）で色分けし、エッジの既定のスタイルを投射の生理（興奮性・抑制性・修飾性）で決めます。FRG は種類で色分けします。縮小するとラベルが大きくなり、自己接続はループで描きます。</li>
+  <li>閲覧：ノードを選ぶと、隣接するもの（HCD）か祖先と子孫（FRG）以外を薄くします。キャンバスの外からの選択（URL、検索、詳細のリンク）は、詳細のシートの上に来るように表示を寄せます。検索欄は ID・名前・UC Descriptor でノードを順位付けします（↑ ↓ Enter、<code>/</code> でフォーカス）。ツールバーは、検索、全体表示、元に戻す / やり直す、スタイル編集モード、メニュー（配置の向き、グリッドに合わせる、ページの設定（エッジのラベル、すべて開く / 閉じる）、PNG の書き出し、リセット）です。純粋な補助関数は <code>packages/web/src/lib/graphView.ts</code> にあり、vitest で確かめます。</li>
+  <li>スタイル編集モード（ツールバーのボタン）：スタイルのパネル、大きさの取っ手、接続の取っ手はこのモードでだけ出ます。タッチ機器では、このモードでだけノードをドラッグできます。</li>
+  <li>ノード：ドラッグで移動、角と辺から大きさの変更、スタイルのパネルで塗りと枠の色を変えます。</li>
+  <li>エッジ：（スタイル編集モードで）押すとスタイルのパネルが開きます。線の種類（曲線、直線、自動の直交、<b>経由点を編集できる直交</b>、折れ線）、色、太さ、破線、角の丸み、始点と終点の印（矢印、開いた矢印、四角、円、ひし形、棒）。直交のエッジは、経路上の「+」で経由点を足し、ドラッグで曲げ、ダブルクリックで消します。</li>
+  <li>接続の取っ手：選んだエッジの両端の円を、ノードの辺の取っ手（1 辺に 7 点）にドラッグして始点と終点を変えます。</li>
+  <li>既定の線の種類は曲線です。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあり、そのエッジは曲がりを保つために直交のままにします。</li>
+  <li>同じ 2 つのノードを結ぶエッジ（帰還ループの A→B と B→A、または複数の A→B）は、20 単位ずつ離れた別のレーンに描きます（<code>lib/parallelEdges.ts</code>）。どのエッジも自分の進む向きの右側にあり、端はノードの辺に沿ってずれ（角は越えない）、曲線は中央で離れ、直交と階段の経路は中央の区間を動かします。ラベルは各レーンの外側に置き、短い接続で端の印を隠すときは短くします（選んだときと強調したときは全文）。同じノードの自己ループは外側に重ねます。レーンは描くたびに計算して保存しません。利用者が経由点を描いたエッジは自分の経路を保ちます。</li>
+  <li>抑制性の既定は青（<code>#2563eb</code>）と四角の終点、興奮性は灰色と三角、修飾性は紫の破線と円です。分類は Connection のコメントを優先し、無ければ送り手の Transmitter / Modulation Type を使います（<code>classifyEdgeSign</code>）。同じ分類のすべてのエッジに同じスタイルを当てられます。</li>
+  <li>配置の保存：<code>useGraphLayout</code> が位置・大きさ・色・エッジのスタイル（経由点と接続点を含む）を 600 ミリ秒まとめてから <code>PUT …/layout</code> に保存します。グラフを作り直しても、同じノード ID・エッジ ID の設定は残ります。Ctrl+Z / Ctrl+Y で元に戻す / やり直す。</li>
+</ul>
+<h3>テーマ</h3>
+<p>ライトとダークがあります。既定は <code>prefers-color-scheme</code> に従います。サイドバー（とログインのカード）に「システム / ライト / ダーク」の切り替えがあり、ブラウザごとに保存し（<code>localStorage</code> の <code>cobrac-theme</code>）、<code>index.html</code> のインラインのスクリプトが最初の描画の前に当てます。Tailwind の色は CSS 変数を指し、背景・文字・枠に別の組を持つので（<code>packages/web/theme-palette.js</code>）、<code>bg-white</code> は暗い面になり、塗ったボタンの <code>text-white</code> は白のままです。サイドバーはどちらのテーマでも暗い色です（<code>theme-static</code>）。グラフの塗りと線の色はライトの値で保存し、描くときに変換します（<code>lib/graphTheme.ts</code>）。塗りは同じ色相の暗い色にしてラベルを明るくし、線は暗いキャンバスで読めるように明るくし、スタイルのパネルの見本は描いた色を示します。<code>test/theme.test.tsx</code> が、画面で使う文字と面の組、既定の塗りと見本の上のノードのラベル、キャンバスの上のエッジのコントラストを確かめます。</p>
+<h3>画面の幅への対応</h3>
+<p>区切りは <code>lg</code> = 1024px です。</p>
+<ul>
+  <li>プロジェクト画面のエージェント欄：1280px（<code>xl</code>）以上では右に固定し、左端をドラッグして幅を変えられ（300px からウィンドウの 55% まで。幅と開閉はブラウザに保存）、細い帯にたためます。1280px 未満では、タブの並びの右端の「エージェント」ボタンから、右のドロワー（タブレット）か下のシート（スマホ）として開きます。閉じても書きかけは残ります。エージェントが質問すると、成果物の上のバナーが欄へのリンクになり、固定した欄は開きます。</li>
+  <li>1024px 未満では、サイドバーは上の帯のメニューボタンから開くドロワーになります（上の帯には新規プロジェクトのボタンもある）。移動、背景のタップ、Escape で閉じます。</li>
+  <li>プロジェクト一覧は表の代わりにカードになります。1280px 未満では管理画面も利用者ごと・プロジェクトごとのカードになり（表はサイドバーの横の幅を要する）、どちらか一方だけを描きます。HCD・FRG の表示はウィンドウではなく自分の領域の幅に合わせます。900px 以上では詳細はグラフの横の列、それ未満ではグラフの下部に重なる開閉できるシートです（スタイルのパネルも同じシート）。560px 未満では元に戻す / やり直すがツールバーのメニューに入り、凡例はたたんだ状態で始まります。ミニマップは広い配置でだけ出ます。</li>
+  <li>タッチ機器（<code>pointer: coarse</code>）では、ボタンとリンクに約 44px の押せる範囲を取り、入力欄は iOS がフォーカスで拡大しないように 16px の文字にします。セーフエリアを守ります（<code>viewport-fit=cover</code>）。</li>
+</ul>
+<p class="src">典拠：<code>packages/web/package.json</code>、<code>packages/web/src/lib/ws.ts</code>・<code>config.ts</code>・<code>graphView.ts</code>・<code>parallelEdges.ts</code>・<code>useGraphLayout.ts</code>・<code>graphTheme.ts</code>・<code>theme.tsx</code>、<code>components/graph/*.tsx</code>、<code>components/GraphCanvas.tsx</code></p>
+
+<h2 id="s1-14">1.14 ワーカーの処理</h2>
+<p>ワーカーは Fargate のタスクで動く TypeScript のプログラムで、LLM を含みません。入口は <code>packages/worker/src/index.ts</code> です。dispatcher が環境変数（<code>JOB_USER_ID</code>・<code>JOB_PROJECT_ID</code>・<code>JOB_ID</code>・<code>JOB_MODE</code>）でジョブを指定します。ID の形が合わなければ起動しません（<code>canon-review</code> は Canon の ID、<code>plan</code> は計画の ID、ほかはプロジェクトの ID）。BRA のジョブの手順は次のとおりです。</p>
+<ol class="steps">
+  <li>Users・Projects・Jobs を読み、キーを選び（利用者自身のキー。無ければ、承認されていて Tier がジョブのモデルを許す間はデフォルトの API キー。1.4、<code>packages/worker/src/runKey.ts</code> の <code>planRunKey</code>）、KMS で復号します。RCS の接続先とトークン（Secrets Manager）を読みます。読めなければ RCS 無しで続けます。</li>
+  <li><code>prompts/AGENTS.md</code> を <code>/work</code> に写し（<code>{P}</code> を ID に置き換え）、JSON Schema を <code>/work/schemas/</code> に書きます。<code>resume</code>・<code>followup</code>・<code>retry</code> では作業領域とスレッドを S3 から戻します。参考資料を用意し（1.12）、Canon に入っていれば固定した rev の定義を <code>/work/canon/</code> に置きます（4.5）。<code>followup</code> では、変える前のデータを版として凍結します（第 5 部）。</li>
+  <li><code>createCodex</code> → <code>openThread</code>（<code>sandboxMode: danger-full-access</code>、承認なし、ネットワークあり、Web 検索 live、<code>lit</code> MCP と RCS MCP）。Fargate のタスク自体がサンドボックスです（コンテナの中では Landlock・seccomp を使えない）。ターンごとにそのターンの設定でスレッドを開くので、調査のターンを高い推論の強さで実行できます。</li>
+  <li>調査モードで、作業領域が調査を終えていなければ調査のステップを実行し（2.9）、続いて段階を実行します（1.7）。出来事を Messages に書き、ファイルが変わるたびに <code>stepStates</code> と <code>activeStage</code> を更新します（調査中は <code>RESEARCH</code>、調整のターンは <code>ADJUST</code>、ほかは実行中の段階）。</li>
+  <li>段階を受け入れるたびと、質問・完了・失敗で待つ直前に、作業領域とスレッドを S3 に差分で同期します（ターンの実行中も 5 分ごと）。</li>
+  <li>CSV がそろったら <code>finalize.ts</code> が xlsx・テンプレートの xlsx・グラフ JSON を作って送り、版を凍結し、ジョブとプロジェクトを <code>COMPLETED</code> にします。</li>
+</ol>
+<h3>ターンが失敗するとき</h3>
+<ul>
+  <li>ターンが失敗するのは、<code>turn.failed</code> のときか、ストリームが <code>turn.completed</code> 無しに <code>error</code> の出来事で終わったときだけです。Codex はレート制限の再試行を <code>error</code> の出来事として報告します（「Reconnecting... 2/5 (rate limit exceeded …)」）。これはお知らせとして出し、ターンは続きます。Codex が <code>error</code> の項目として報告する致命的でない注意（「Model metadata for `x` not found」「Falling back from WebSockets to HTTPS transport」など）もお知らせとして出し、本当のエラーはエラーのままにします。</li>
+  <li>OpenAI のレート制限（TPM・RPM、HTTP 429。使い切った割り当ては除く）でターンが失敗したら、間を置いて同じスレッドで再開します。待ち時間はサーバーの「try again in …」に 5 秒を足したものと、30 秒・60 秒・120 秒の大きいほう（最大 3 分）で、3 回までです。待つ間もハートビートを送ります。それでも失敗すればジョブを失敗にします。</li>
+  <li>1 回の依頼が 1 分あたりのトークンの上限より大きい（「Request too large … Limit 200000, Requested 202304」。<code>gpt-6-luna</code> は 200k）と、待っても通りません。スレッドの文脈が上限に達すると、その後のターンはすべて拒まれます。スレッドを十分小さく保つため、Codex は <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75,000、<code>model_auto_compact_token_limit</code>）で会話を圧縮します。この上限は速さのためでもあります。本番の実行では、文脈が約 80k トークンを超える依頼は小さい依頼より返答が 15〜40 秒遅く、ジョブの時間の大半がそうした依頼に使われていました。圧縮自体は数秒です。それでも大きすぎると拒まれたターンは、同じスレッドでは再試行せず、新しいスレッドを 1 回だけ始めて、プロジェクトの見出し、ファイルがここまでの作業を持っているという注記、HCD・FRG の仕様を付けて同じ依頼を送ります。失敗したターンの後、<code>codex exec</code> は終了コード 1 で終わりますが、その終了ではなくターン自身のエラーを報告します。</li>
+  <li>モデルの目録：Codex CLI（<code>@openai/codex-sdk</code> と一緒に入る）はモデルの目録の情報を必要とし、無ければ代わりの情報で動いて「Model metadata for `x` not found」と警告します。単価表のすべてのモデルは、入っている CLI の目録（<code>codex debug models --bundled</code>）に無ければなりません（<code>packages/worker/test/codexCatalog.test.ts</code> が確かめる）。<code>gpt-5.6</code> の別名は目録に無いので <code>gpt-5.6-sol</code> を渡します（1.8）。<code>model_context_window</code> はどのモデルも 272,000 です。OpenAI は gpt-5.6・gpt-6 の文脈を 1,050,000 トークンとしていますが、272K を超える入力は 2 倍の料金で、Codex の目録もすべて 272,000 です。圧縮（75,000）はそれより十分小さい値です。Codex には出力の最大トークン（これらのモデルでは 128,000）の設定はありません。</li>
+</ul>
+<h3>BRA 以外のジョブ</h3>
+<ul>
+  <li><b><code>article</code></b>（<code>index.ts</code> の <code>articleJob</code>、ループは <code>article.ts</code>）：キーを決めた後に分かれます。作業領域だけを戻し、図を描き、記事の 1 ターンと直しのターンを実行し、図と <code>article/&lt;locale&gt;.md</code> / <code>.json</code> を送り、プロジェクトを <code>COMPLETED</code> に戻します（2.15）。</li>
+  <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業領域も使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意し、RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し（Web 検索と <code>lit</code> は無し。返答が読めなければ 1 回だけ再試行。<code>PLAN_JOB_TIME_BUDGET_MS</code> で打ち切り）、RCS が知らない HOMBA のアンカーを除き、<code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.5）。</li>
+  <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、道具の無い新しいスレッドで指摘を JSON で返させ、<code>result.json</code> に書きます。45 秒ごとにハートビートを送ります（4.8）。</li>
+</ul>
+<h3>秘密の守り方</h3>
+<p>ワーカーが子プロセス（Codex、エージェントのコマンド、Python、poppler）を起動するときは、AWS の認証情報（<code>AWS_*</code> とコンテナの認証情報の URI）、<code>NCBI_API_KEY</code>、RCS のトークンを環境から除きます（<code>childEnv.ts</code>）。タスクロールの認証情報があれば誰の API キーでも復号できるからです。RCS のトークンは Codex が MCP のベアラートークンとして送り、<code>shell_environment_policy</code> がエージェントのコマンドからそれと OpenAI のキーを除きます。実行ファイルを実行専用にする仕組みなど、コンテナの守り方は第 7 部で説明します。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>childEnv.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>、<code>packages/worker/Dockerfile</code></p>
+
+<h2 id="s1-15">1.15 非機能の目標</h2>
+<table>
+  <thead><tr><th style="width:24%">項目</th><th>目標</th></tr></thead>
+  <tbody>
+    <tr><td>API</td><td>ふつうの操作は 1 秒以内</td></tr>
+    <tr><td>ジョブの開始</td><td>待機から実行まで 2 分以内（Fargate の起動を含む）</td></tr>
+    <tr><td>グラフ</td><td>約 200 ノードまで使える</td></tr>
+    <tr><td>同時実行数</td><td>全体 2、1 人あたり 1（デプロイ時の値。環境変数 <code>COBRAC_MAX_CONCURRENT_JOBS</code>・<code>COBRAC_MAX_CONCURRENT_JOBS_PER_USER</code>）。管理者は管理画面で、デプロイなしにそれぞれ 1〜16 に変えられる（6.13）</td></tr>
+    <tr><td>ログの保持</td><td>CloudWatch Logs に、ワーカーも Lambda も 2 週間</td></tr>
+  </tbody>
+</table>
+<p>セキュリティ・個人情報・費用の詳細は第 7 部で説明します。</p>
+<p class="src">典拠：<code>packages/infra/bin/app.ts</code>・<code>lib/cobrac-stack.ts</code>、<code>packages/api/src/lib/concurrency.ts</code></p>
+</section>

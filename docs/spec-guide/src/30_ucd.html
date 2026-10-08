@@ -385,7 +385,7 @@
     <tr><td><code>cobrac:hypothesis-marked</code></td><td>Measurement method が <code>Hypothetical</code> の接続で、Comments の 1 行目が仮説の行（<code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code>）でない（仮説モード、0.32.0 から。第 2 部）</td></tr>
   </tbody>
 </table>
-<p class="small">Canon の審査画面のシステムの検査は、このほかに <code>cobrac:uc-descriptor</code>（Descriptor の構文）、<code>cobrac:circuit-id-form</code>（Circuit ID と Descriptor の形の対応）、<code>cobrac:ref-check</code>、<code>cobrac:canon-…</code>（衝突の種類）を使います（4.8）。</p>
+<p class="small">このうち <code>cobrac:nested-uc</code>・<code>cobrac:collection-members</code>・<code>cobrac:collection-end</code>・<code>cobrac:collection-source</code> は、ワーカーが <code>uc.json</code> と <code>connections.json</code> の段階で（スキーマと検査で）担保する検査の名前で、BRA の出力を判定するチェッカーの表（<code>CODES</code>）には、出力から判定できる残りの 9 個が並びます。Canon の審査画面のシステムの検査は、このほかに <code>cobrac:uc-descriptor</code>（Descriptor の構文）、<code>cobrac:circuit-id-form</code>（Circuit ID と Descriptor の形の対応）、<code>cobrac:ref-check</code>、<code>cobrac:canon-…</code>（衝突の種類）を使います（4.8）。</p>
 <p class="src">チェッカー <code>scripts/bra-appendix-d.mjs</code> は BRA の出力（xlsx / CSV フォルダ）を Master のコードと <code>cobrac:</code> のコードごとに判定し、CoBRAC での担保の方法を併記します。JSON の出力では各コードに旧付録 D の番号を <code>appendixD</code> として残し、Markdown の報告にも「付録 D」の列があるので、以前の報告と照合できます。Canon の衝突コード（C1〜C13、第 4 部）と HCD↔FRG の整合チェック（X1〜X9、第 2 部）は CoBRAC 独自の体系です。</p>
 
 <h2 id="s3-11">3.11 uc.json での書き方</h2>

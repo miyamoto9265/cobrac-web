@@ -53,19 +53,20 @@
     <text x="276" y="250" text-anchor="middle">スキップ（「もう一度 push」で running に戻すこともできる）</text>
   </g>
 </svg>
-<figcaption><b>図 4-4</b>　行の状態の遷移。緑の矢印は Canon のある計画だけの遷移。計画の中止で止めた行は <code>cancelled</code> になる（図では省略）</figcaption>
+<figcaption><b>図 6.4</b>　行の状態の遷移。緑の矢印は Canon のある計画だけの遷移。計画の中止で止めた行は <code>cancelled</code> になる（図では省略）</figcaption>
 </figure>
 
 <h3>Canon の選択と確定</h3>
 <ul>
-  <li>下書きのときだけ選べます（<code>PUT /plans/{id}</code> <code>{ canon }</code>）。1 つの計画に Canon は 1 つまで。確定後は変えられず、Canon へのリンクと最新の rev が表示されます。</li>
-  <li>「新しい Canon」は確定時に、計画の粒度方針を方針にして作られます。作った直後に計画に保存されるので、確定がその後で失敗しても、もう 1 つ作ることはありません。</li>
+  <li>下書きのときだけ選べます（<code>PUT /plans/{id}</code> <code>{ canon }</code>、計画のリースの中で。下書き作成中や確定後は 409）。<code>{ mode: "none" }</code> は外す、<code>{ mode: "existing", canonId }</code> は所有者が所有する削除されていない Canon だけ（プロジェクトは所有者の Canon にしか入れないので、共同編集者の Canon は選べない。ほかは 404）で <code>META.canonId</code> に、<code>{ mode: "new", name }</code>（名前は <code>POST /canons</code> と同じく検査）は <code>META.canonNew = { name }</code> に保存します。1 つの計画に Canon は 1 つまで。</li>
+  <li>確定後は変えられず、読み取り専用で Canon へのリンクと最新の rev が表示されます。削除された Canon は「Canon が見つかりません」と出ます（<code>GET /plans/{id}</code> の <code>canon = { canonId, name, headRevision }</code>。削除された・所有者のものでなくなった Canon は <code>missing: true</code>、Canon が無ければ null）。</li>
+  <li>確定のとき（リースの中）、選んだ既存の Canon がまだ所有者のものでなければ 409「この計画の Canon が見つかりません」。「新しい Canon」は、計画の粒度方針を方針にして作られます（<code>createCanon</code>：非公開・空・<code>headRevision</code> 0）。作った直後に計画に保存されるので（<code>canonId</code>、<code>canonNew</code> は null、イベント <code>canon_created</code>）、確定がその後で失敗しても、もう 1 つ作ることはありません。<code>confirmed</code> のイベントは Canon を記録します。</li>
   <li><b>既存のプロジェクトで済む行</b>：そのプロジェクトがすでにこの Canon に入っていれば <code>done</code>。どの Canon にも入っていなければ <code>pending</code> のまま自分のバッチの番を待ち（種のゲートやバッチの順もほかの行と同じ）、番が来たら作らずに Canon に入れて push。ほかの Canon に入っていれば「人の判断」（<code>other_canon</code>）。</li>
 </ul>
 <h3>開始・push・承認待ち</h3>
 <ol class="steps">
-  <li><b>開始</b>：新しい行のプロジェクトは、最初のジョブを積む前に Canon に入り、その時点の最新の rev に固定されます（行に <code>canonRevision</code> を記録）。リトライのときは最新の rev に固定し直します。</li>
-  <li><b>push</b>：行のプロジェクトが完成すると、ランナーが push します（<code>POST /projects/{id}/canon/push</code> と同じ関数。PR には <code>planId</code> が記録される）。PR の差分の要約と「行の固定より後に Canon が進んだか」と更新の回数から、行の行き先を決めます（<code>pushOutcome</code>）。</li>
+  <li><b>開始</b>（ランナー。Canon は 1 ステップに 1 回 <code>ownedCanon</code> で読む）：新しい行のプロジェクトは、最初のジョブを積む前に Canon に入り、その時点の最新の rev に固定されます（<code>createProject</code> の <code>beforeQueue</code> → <code>addCanonMember</code>。開始の途中で止まった行を戻すときも同じ）。行には <code>canonRevision</code> を記録します。失敗したプロジェクトのリトライは、先に最新の rev に固定し直し（<code>pinProject</code>。どの Canon にも入っていなければ入れる）、新しい <code>canonRevision</code> を記録します。プロジェクトがすでに完成している <code>pending</code> の行（確定時に取り込んだ既存のプロジェクト、手で完成させたもの）は、ジョブを積まず試行も数えずに、すぐ push で始めます（どの Canon にも入っていなければ最新の rev で入れる）。</li>
+  <li><b>push</b>：<code>syncRow</code> が Canon のある計画の行を完了と判断すると（プロジェクトが COMPLETED）、ランナーが push します。プロジェクトは計画の Canon に入っていなければならず（どこにも入っていなければ最新の rev で入れる。ほかの Canon なら <code>decision</code> / <code>other_canon</code>）、<code>pushProject</code>（<code>POST /projects/{id}/canon/push</code> と同じ関数）が PR を作ります。PR には <code>planId</code> が記録されます。エラーなら <code>decision</code> / <code>push_failed</code> で、エラーを <code>lastError</code> に残します。<code>headMoved</code> は Canon の head が行の固定（<code>row.canonRevision</code>、無ければプロジェクトの固定）より後であることで、PR の差分の要約と <code>headMoved</code> と更新の回数から行の行き先を決めます（<code>pushOutcome</code>、イベント <code>row_pushed</code> / <code>row_decision</code>）。</li>
 </ol>
 <table class="compact">
   <thead><tr><th style="width:36%">push の結果</th><th>行の行き先</th></tr></thead>
@@ -78,19 +79,21 @@
   </tbody>
 </table>
 <h3>Canon に合わせた更新（conform）</h3>
-<p>更新を待つ行は、ほかの <code>pending</code> の行と同じく空き枠とバッチの順で始まります（自分のバッチを止めます）。始める直前に PR を読み直し、その間に人が決めていれば従います（承認 → <code>done</code>、却下・取り下げ → <code>decision</code>、置き換え → 新しい PR の <code>review</code>）。PR がまだ開いていれば、プロジェクトを最新の rev に固定し直し、「<b>Canon rev N に合わせて更新</b>」で始まる追加指示（古い固定から最新までに、このプロジェクトに関わって変わったこと）を送ります。行は <code>running</code> になり、完成すると再び push します（新しい PR が古い PR を置き換える）。回数・新しい固定・<code>conform: false</code> は行を確保するときに一緒に書くので、途中で止まっても 3 回目は起きません。</p>
+<p>更新を待つ行は、ほかの <code>pending</code> の行と同じく空き枠とバッチの順で始まります（自分のバッチを止めます）。始める直前に PR を読み直し、その間に人が決めていれば従います（承認 → <code>done</code>、却下・取り下げ → <code>decision</code>、置き換え → 新しい PR の <code>review</code>）。PR がまだ開いていれば、プロジェクトを最新の rev に固定し直し、追加指示のジョブ（<code>queueFollowup</code>、<code>POST /projects/{id}/followup</code> と同じ関数）を積みます。指示は固定の題「<b>Canon rev N に合わせて更新</b>」（<code>conformTitle</code>）で始まり、続けて古い固定から最新までに、このプロジェクトに関わって変わったこと（<code>canonFollowStatus</code> から <code>canonAlignInstruction</code> が作る文）です。行は <code>running</code> になり、<code>conformAttempts</code> が 1 増え、<code>canonRevision</code> が最新になります（イベント <code>row_conform</code>）。完成すると再び push します（新しい PR が開いている古い PR を置き換える）。回数・新しい固定・<code>conform: false</code> は行を確保するとき（<code>starting</code>）にジョブを積む前に一緒に書くので、途中で止まっても 3 回目は起きません。開始に失敗したら <code>conform</code> と古い固定を戻し、回数は数えたままにします。プロジェクトが計画の Canon にもう入っていない、または Canon が無くなっていれば <code>decision</code> にします。</p>
+<p class="small">画面では、更新を待つ行に開いている PR へのリンクと「Canon に合わせた更新を待っています」が、一度でも更新した行に「Canon に合わせた更新 n/2」が出ます。</p>
 <h3>PR の追跡・AI レビュー・人の判断</h3>
 <ul>
   <li><b>PR を追う</b>：毎ステップ、<code>review</code> の行、PR のある <code>decision</code> の行、更新待ちの行の PR を読みます（<code>prOutcome</code>）。承認 → <code>done</code>（「人の判断」の行の PR が Canon で承認された場合も）、却下 → <code>decision</code>（<code>pr_rejected</code>）、取り下げ → <code>decision</code>（<code>pr_withdrawn</code>）、置き換え（手で push した場合など）→ 新しい PR を <code>review</code> で追う、開いたまま → 変化なし。一時停止中も追います。</li>
-  <li><b>AI レビュー</b>（本体の行だけ）：枠が空いていれば、オーケストレーターのモデル・所有者のキー・計画の返答言語で依頼します（1 件 1 枠）。行には「AI レビュー待ち」→「AI レビュー実行中」→「AI レビュー済み」（PR の画面へのリンク）と出ます。AI レビューは指摘だけで判断はしません。費用は計画の費用に入ります。</li>
-  <li><b>人の判断</b>（<code>POST /plans/{id}/rows/{rowId}/resolve</code>）：計画の画面の「人の判断」カードに理由とともに出ます。「完了にする」（PR はそのまま Canon に残り、自動では取り込まれない）／「もう一度 push」（完成したプロジェクトの行だけ。次のステップで push）／「スキップ」。</li>
+  <li><b>AI レビュー</b>（本体の行だけ。LLM のジョブで、所見だけを出す）：実行中の計画のステップの枠の部分で、待っている再計画のジョブの後、新しい行の前に、<code>aiReview: "wanted"</code> の <code>review</code> の行ごとに、枠が空いていれば <code>requestAiReview</code>（<code>POST /canons/{id}/pulls/{no}/ai-review</code> と同じ関数）を所有者として、オーケストレーターのモデル・所有者のキーの種類・計画の返答言語で依頼します（1 件 1 枠）。行は <code>aiReview: "queued"</code> と <code>aiReviewJobId</code> を持ちます（イベント <code>row_ai_review</code>）。PR が開いていなければ <code>aiReview</code> を消し、手で依頼したレビューが待機・実行中ならそのジョブを <code>queued</code> として数えます。レビューのジョブが終わったら（完了・失敗・取り消し）、<code>aiReview</code> を消して <code>aiReviewJobId</code> を残します。行には「AI レビュー待ち」（<code>wanted</code>）→「AI レビュー実行中」（<code>queued</code>）→「AI レビュー済み」（PR の画面へのリンク。<code>decision</code> の行にも出る）と出ます。AI レビューは指摘だけで判断はしません。計画の PR の AI レビュー（その <code>planId</code> の PR について所有者が実行した <code>canon-review</code> のジョブ）の費用は、計画の費用に入ります。</li>
+  <li><b>人の判断</b>（<code>POST /plans/{id}/rows/{rowId}/resolve</code> <code>{ action }</code>。所有者、計画が <code>RUNNING</code> か <code>PAUSED</code>、行が <code>decision</code>、リースの中で。ほかは 409）：計画の画面の「人の判断」カードに理由の文とともに出ます（各操作に確認あり）。「完了にする」（<code>done</code>：行をそのまま完了に数え <code>completedAt</code> を付ける。PR はそのまま Canon に残り、自動では取り込まれない）／「もう一度 push」（<code>push</code>：プロジェクトが COMPLETED の行だけ。でなければ 409「完了したプロジェクトの行だけをもう一度 push できます」。行を <code>running</code> にして理由を消し、<code>conformAttempts</code> は保ち、次のステップで push）／「スキップ」（<code>…/rows/{rowId}/skip</code> は <code>decision</code> の行も受け付ける）。イベント <code>row_resolved</code> に操作と元の理由が残ります。</li>
+  <li><b>PR から計画へ</b>：<code>CanonPullRequestRecord.planId</code>（push したプロジェクトの <code>planId</code>、無ければ null）は、手で push したときも含めてすべての push で記録されます。Canon の PR の一覧と PR の画面には計画の ID のチップが出て、Canon の所有者には計画へのリンクになります（計画はその人のもの）。</li>
 </ul>
 <h3>種のゲートと、承認待ちの上限</h3>
 <div class="grid2">
   <div class="card"><div class="h">種のゲート</div>Canon のある計画では、種の行は<b>その PR を人が承認する</b>（または解決・スキップする）まで、後のすべてのバッチを止めます。種は同じバッチにあっても 1 件ずつ始まり、ほかの種が実行中・承認待ち・人の判断の間は始まりません。画面には「種の PR の承認を待っています」と PR へのリンク、または「種の行に人の判断が必要です」が出ます。種の PR を先に承認すると、後の行はその rev から作り始めます。</div>
   <div class="card"><div class="h">承認待ちの上限（背圧）</div>承認待ちの行が 20 件（<code>PLAN_MAX_WAITING_PRS</code>）に達すると、新しいバッチを始めません（いまのバッチの行は続く）。画面には「承認待ちの PR が 20 件あるため、次のバッチを止めています」。Canon の画面の「まとめて承認」（4.8）で、矛盾の無い PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
 </div>
-<p class="small">計画の Canon が削除された・所有者のものでなくなった場合：承認待ちの行と、完成して push するはずの行は「人の判断」（<code>push_failed</code>）になり、新しい行を始めようとすると計画は自分で一時停止します（<code>canon_missing</code>）。<code>review</code> と <code>decision</code> は枠を使わず、完了にも数えません。Canon のある計画は、すべての行が <code>done</code> か <code>skipped</code> になったときに完了します。</p>
+<p class="small">計画の Canon が削除された・所有者のものでなくなった場合：承認待ちの行と、完成して push するはずの行は「人の判断」（<code>push_failed</code>、「The plan's Canon was not found.」）になり、新しい行・リトライ・Canon に合わせた更新を始めようとすると、計画は自分で一時停止し（<code>canon_missing</code>）何も始めません。画面には「一時停止中: この計画の Canon が見つかりません（削除された可能性があります）。新しい行は Canon に入れられないため始めません。」と出ます。実行中の行は、ほかの一時停止と同じく続いて追われます。所有者は待っている行をスキップするか、計画を中止できます。<code>review</code> と <code>decision</code> は枠を使わず、完了にも数えません。Canon のある計画は、すべての行が <code>done</code> か <code>skipped</code> になったときに完了します。</p>
 
 <h2 id="s6-12">6.12 質問・要対応・一時停止・再開・中止</h2>
 <table>
@@ -107,18 +110,20 @@
 
 <h2 id="s6-13">6.13 同時実行数・モデル・費用</h2>
 <ul>
-  <li><b>同時実行数</b>：管理者画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定できます（空ならデプロイの値）。ディスパッチャーとランナーは 30 秒のキャッシュを通して読み、読めなければデプロイの値を使います。計画の実効の同時実行数は min(全体, 1 人あたり) です。1 回の実行は毎分約 14〜17 万トークンを使い、組織の gpt-6-luna の上限は毎分 20 万トークンなので、OpenAI のレート制限が実際の上限になることがあります。</li>
+  <li><b>同時実行数</b>：管理者が管理者画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定できます（空ならデプロイの値）。設定は Catalog テーブルの <code>config</code> / <code>concurrency</code> の項目（<code>maxConcurrentJobs</code>、<code>maxConcurrentJobsPerUser</code>、<code>updatedAt</code>、<code>updatedBy</code>）で、<code>PUT /admin/concurrency</code> は 1〜16 の整数か null 以外を拒みます。ディスパッチャー（Catalog の <code>config</code> を <code>GetItem</code> で読む）とランナーは 30 秒のキャッシュを通して読み、読めなければデプロイの値を使います。<code>GET /config</code> は効いている上限を返します。計画の実効の同時実行数は min(全体, 1 人あたり) です。1 回の実行は毎分約 14〜17 万トークンを使い、組織の gpt-6-luna の上限は毎分 20 万トークンなので、OpenAI のレート制限が実際の上限になることがあります。</li>
   <li><b>2 種類のモデル</b>：<b>オーケストレーターのモデル</b>は計画自身のジョブ（下書き・再計画・行の PR の AI レビュー）に、<b>エージェントのモデル</b>と推論の強さは各行の BRA に使います。どちらも確定時に固定されます。計画用のジョブは推論の強さ <code>medium</code> の短い 1 ターンなので、行に比べれば費用はわずかです。</li>
-  <li><b>費用</b>：下書き・再計画・AI レビュー・Canon に合わせた更新は、すべて通常のジョブです。同時実行数の枠を 1 つ使い、所有者のキー（またはデフォルトの API キー）で実行され、利用量と推定費用がジョブに記録されます。取り消し・時間切れのジョブも、それまでに使った分が記録されます。計画の画面には、確定からの経過時間と、行のプロジェクト・計画用のジョブ・計画の PR の AI レビューを合わせた費用（うち計画用のジョブの費用を別に）が出ます。</li>
-  <li><b>ジョブとプロジェクト</b>：計画用のジョブはどのプロジェクトにも属しません。ディスパッチャーはチャットのメッセージを出さず、janitor はハートビートが途絶えたか 24 時間待機したジョブを失敗にするだけで、リトライしません（ランナーが下書き・再計画を失敗にする）。</li>
+  <li><b>見積もりと実績</b>：見積もりは確定時に保存し（6.8）、計画の画面には「これまで」として、確定からの経過時間（完了・中止まで）と、行のプロジェクトの費用の合計を出します（既存のプロジェクトで済んだ行は数えない）。ジョブはほかのジョブと同じく記録・課金されます（承認済みの利用者はデフォルトの API キーで実行する）。</li>
+  <li><b>費用</b>：下書き・再計画・AI レビュー・Canon に合わせた更新は、すべて通常のジョブです（<code>plan</code>・<code>canon-review</code>・<code>followup</code>）。枠が空いたときだけ積み、枠より先には積みません。API とランナーは鍵を復号しません。同時実行数の枠を 1 つ使い、所有者のキー（またはデフォルトの API キー）で実行され、利用量と推定費用がジョブに記録されます。取り消し・時間切れのジョブも、それまでに使った分が記録されます。計画の画面には、確定からの経過時間と、行のプロジェクト・計画用のジョブ・計画の PR の AI レビューを合わせた費用（うち計画用のジョブの費用を別に）が出ます。</li>
+  <li><b>ジョブとプロジェクト</b>：計画用のジョブはどのプロジェクトにも属しません（<code>isProjectlessMode</code>。Canon の AI レビューと同じ。<code>projectId</code> には計画 ID を入れる）。ディスパッチャーはチャットのメッセージを出さず、プロジェクトの状態も変えません。janitor はハートビートが途絶えたか 24 時間待機したジョブを、理由をつけて失敗にするだけで、リトライせず、プロジェクトにも触れません（ランナーがその後で下書き・再計画を失敗にする）。</li>
 </ul>
 
 <h2 id="s6-14">6.14 排他制御と信頼性</h2>
 <ul>
-  <li><b>リース</b>：行の置き換え・CSV の読み込み・設定や Canon の変更・確定・下書きの依頼と取り消し・並べ替え・提案の判断は、ランナーと同じ <code>META</code> のリースを取り（250 ms 間隔で最大 6 回）、取れたら強い一貫性の読み取りで計画の状態を確かめ直します。別の変更やランナーがリースを持っていれば 409「計画を更新中です。少し待ってからやり直してください」で、何も変わりません。これにより、別のタブで行を編集しながら確定しても、確定後に行が変わることはありません。</li>
+  <li><b>リース</b>：行の置き換え・CSV の読み込み・設定や Canon の変更・確定・下書きの依頼と取り消し・並べ替え・提案の判断・人の判断は、ランナーと同じ <code>META</code> のリースを取り（<code>withPlanLease</code>：250 ms 間隔で最大 6 回やり直す）、取れたら強い一貫性の読み取りで計画の状態を確かめ直します（行も一貫して読む）。リースを返すときは自分の時刻を書くので、古いリースの読み取りを空きと取り違えることはなく、行の書き込みの前には状態とリースがまだ保たれていることを条件で確かめます。別の変更やランナーがリースを持っていれば 409「計画を更新中です。少し待ってからやり直してください」で、何も変わりません。これにより、別のタブで行を編集しながら確定しても、確定後に行が変わることはありません（段階 1 の競合の修正）。名前や目標だけの変更は、段階 1 と同じく状態を条件にした 1 回の書き込みです。</li>
   <li><b>二重に作らない</b>：行を始めるときは Project ID を予約してから状態を条件に行を確保し、確保とプロジェクトの作成の間で止まった行は、予約した ID のまま <code>pending</code> に戻します。更新（conform）の回数と新しい固定は行の確保と同時に書きます。</li>
   <li><b>結果を信用しない</b>：計画用のジョブの <code>result.json</code> は、ランナーが使う前に必ず入力と照らして検証し直します。</li>
   <li><b>共通の関数</b>：プロジェクトの作成・リトライ・停止・追加指示、Canon の作成・push・固定・AI レビュー・承認は、画面の API とランナーが同じ関数（<code>lib/runs.ts</code>・<code>lib/canonOps.ts</code>）を呼ぶので、計画から作ったプロジェクトも手で作ったものと同じ検査を通ります。</li>
 </ul>
+<p class="small">計画ランナーの AWS の権限（Plans・Users・Projects・Jobs・Messages・Canons テーブルの読み書き、Catalog の <code>config</code> の読み取りと ID の予約、S3 の <code>plans/*</code> と <code>canons/*</code> の読み書き、push と完成した行の <code>uc.json</code> のための <code>users/*/workspace/*</code> の読み取り。KMS は無く、鍵は復号できない）の詳細は第 7 部で扱います。</p>
 <p class="src">コードの場所：共有 <code>packages/shared/src/plan.ts</code>（状態・見積もり・push の結果）・<code>planOrder.ts</code>（アンカーと順序）・<code>planJob.ts</code>（入力・スキーマ・検証・プロンプト）／ API <code>packages/api/src/lib/plans.ts</code>・<code>planOps.ts</code>・<code>planRunner.ts</code>・<code>planJobs.ts</code>・<code>runs.ts</code>・<code>concurrency.ts</code>・<code>canonOps.ts</code>、<code>handlers/planRunner.ts</code> ／ ワーカー <code>packages/worker/src/planJob.ts</code> ／ 指示 <code>prompts/plan.md</code> ／ 画面 <code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code></p>
 </section>

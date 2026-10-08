@@ -49,23 +49,37 @@
   <text x="340" y="148" text-anchor="middle" font-size="9" fill="#374151">結果（registered / unchanged / rejected / failed）は <tspan font-family="JetBrains Mono, monospace">Projects.bradb</tspan> と版タブの BRA-DB 欄に表示</text>
   <text x="340" y="165" text-anchor="middle" font-size="9" fill="#374151">BRA-DB の行は、版 ID と内容のハッシュから S3 の凍結ファイルと生成条件までたどれる</text>
 </svg>
-<figcaption><b>図 3-1</b>　凍結した版から BRA-DB に登録するまで</figcaption>
+<figcaption><b>図 5.1</b>　凍結した版から BRA-DB に登録するまで</figcaption>
 </figure>
 
 <h2 id="s5-2">5.2 前提となる「版」の仕組み</h2>
-<p>完了した BRA のジョブは、結果を<b>不変の版</b>として凍結します（仕様 6.20、v0.25.0 から）。作業用のコピーは実行のたびに上書きされ、版が履歴になります。</p>
+<p>完了した BRA のジョブ（初回・追加指示・リトライ）は、結果を<b>不変の版</b>として凍結します（v0.25.0 から）。凍結するのはワーカー（LLM を含まないプログラム）で、ジョブを完了にする前に行います。作業用のコピー（<code>workspace/</code>・<code>output/</code>・<code>graph/</code>）は実行のたびに上書きされ、版が履歴になります。</p>
 <table>
   <thead><tr><th style="width:20%">項目</th><th>仕様</th></tr></thead>
   <tbody>
-    <tr><td>番号と ID</td><td>版 <code>n</code> はジョブ後のプロジェクトの <code>revision</code>。全体で一意な ID は <code>&lt;projectId&gt;@v&lt;n&gt;</code>（Project ID は再利用されない）。親は版 <code>n-1</code>（複製の最初の版は、写した公開プロジェクトの版）。</td></tr>
-    <tr><td>凍結する内容</td><td>S3 の <code>revisions/{n}/</code> に、<code>files/</code>（ワークスペース：HCD / FRG / CSV のデータ、レポート、判断ログ、検査結果）、<code>output/*.xlsx</code>、<code>graph/*.json</code>、<code>bradb/</code>（登録パッケージ）、<code>manifest.json</code>。</td></tr>
-    <tr><td>不変性</td><td>ファイルを先に、manifest を最後に条件付きの put（<code>If-None-Match: *</code>）で書くので、manifest がある版だけが存在し、置き換えられない。バケットのポリシーが <code>users/*/*/revisions/*</code> の削除をすべての主体に禁じる。凍結の失敗はジョブを失敗させない（記録だけ）。</td></tr>
-    <tr><td>manifest</td><td>版 ID、親、由来（<code>job</code> / <code>baseline</code>）、作成時刻、Contributor、ジョブ（ID・種類・指示）、<b>生成条件</b>（アプリの版と git commit、<code>prompts/</code> と JSON Schema の SHA-256、モデル、推論の強さ、調査モード、固定した Canon の rev、SABRA の境界、検証ルール <code>harnessRules</code>、CSV の形式、計画が作ったなら <code>planId</code>）、各ファイルの SHA-256 と大きさ、内容のハッシュ、親との差分の要約。</td></tr>
-    <tr><td>内容のハッシュ</td><td><code>contentSha256</code> ＝ <code>Project.csv</code>・<code>References.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code> の順に <code>&lt;CSV 名&gt;\t&lt;その SHA-256&gt;\n</code> を並べた文字列の SHA-256。BRA-DB に入るのは 5 つの CSV なので、同じデータなら名前や詰め方によらず同じハッシュになる。</td></tr>
-    <tr><td>登録パッケージ</td><td>5 つの CSV がそろうときだけ作る。BRA-DB のインポートが読む名前（<code>{P}_project.csv</code>、<code>{P}_references.csv</code>、<code>{P}_circuits.csv</code>、<code>{P}_connections.csv</code>、<code>{P}_frg.csv</code>）の CSV と <code>manifest.json</code>（<code>projectId</code>・<code>versionId</code>・<code>version</code>・<code>parentVersionId</code>・<code>contentSha256</code>・各ファイルのハッシュ・<code>braVersion</code>・<code>cobracGenerated: true</code>・<code>importType: "cobrac"</code>・Contributor・生成条件 <code>provenance</code>・<code>import.replace</code> / <code>import.allowShrink</code>）。対象は BRA-DB スキーマ v4.6、インポート v3.10 以降。</td></tr>
+    <tr><td>番号と ID</td><td>版 <code>n</code> はジョブ後のプロジェクトの <code>revision</code>。そのため、ほかの場所に保存済みの番号（複製元の <code>clonedFrom.revision</code>、Canon の <code>projectRevision</code>、解説記事の <code>sourceRevision</code>）は、そのまま版を指す。全体で一意な ID は <code>&lt;projectId&gt;@v&lt;n&gt;</code>（Project ID は再利用されない）。親は版 <code>n-1</code>（複製の最初の版は、写した公開プロジェクトの版）。</td></tr>
+    <tr><td>凍結する内容</td><td>S3 のプロジェクトの接頭辞の <code>revisions/{n}/</code> に、<code>files/</code>（ワークスペース：HCD / FRG / CSV のデータ、レポート、判断ログ、検査結果。<code>*.jsonl</code> のログは除く）、<code>output/*.xlsx</code>、<code>graph/*.json</code>、<code>bradb/</code>（登録パッケージ。BRA-DB の登録だけが読む内部のもので、ダウンロードには出さない）、<code>manifest.json</code>（<code>BraVersionManifest</code>）。</td></tr>
+    <tr><td>不変性</td><td>ファイルを先に、manifest を最後に条件付きの put（<code>If-None-Match: *</code>）で書くので、manifest がある版だけが存在し、置き換えられない。同じジョブでもう一度実行すると既存の版を返し、別のジョブが作った同じ番号の版には触れない（<code>sys.versionConflict</code> を記録）。凍結の失敗は記録するだけで（<code>sys.versionFailed</code>）、ジョブを失敗させない。バケットのポリシーが <code>users/*/*/revisions/*</code> の削除をすべての主体に禁じる。</td></tr>
+    <tr><td>manifest</td><td>版 ID、親、由来（<code>job</code> / <code>baseline</code>）、作成時刻、Contributor、ジョブ（ID・種類・指示）、<b>生成条件</b>（アプリの版と git commit、<code>prompts/</code> と <code>HARNESS_SCHEMAS</code> の SHA-256、モデル、推論の強さ、調査モード、固定した Canon の rev、HCD の検査が従った SABRA の境界（<code>neocortex</code> / <code>legacy</code>）と RCS が返した境界の版、検証ルール <code>harnessRules</code>（ルールの無いプロジェクトは 0。0.28.2 より前の版には無く、manifest は書き換えない）、Project.csv の CSV の形式、オーケストレーターの計画が作ったなら <code>planId</code>）、各ファイルの SHA-256 と大きさ、内容のハッシュ、親との差分の要約（表ごとに追加・削除・変更の行数。親にスナップショットが無ければ null）。</td></tr>
+    <tr><td>内容のハッシュ</td><td><code>contentSha256</code> ＝ <code>Project.csv</code>・<code>References.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code> の順に <code>&lt;CSV 名&gt;\t&lt;その SHA-256&gt;\n</code> を並べた文字列の SHA-256（無いファイルは <code>-</code>）。BRA-DB に入るのは 5 つの CSV なので、同じデータなら名前や詰め方によらず同じハッシュになる。</td></tr>
+    <tr><td>登録パッケージ</td><td>5 つの CSV がそろうときだけ作る。BRA-DB のインポートが読む名前（<code>{P}_project.csv</code>、<code>{P}_references.csv</code>、<code>{P}_circuits.csv</code>、<code>{P}_connections.csv</code>、<code>{P}_frg.csv</code>）の CSV と <code>manifest.json</code>（<code>BradbPackageManifest</code>：<code>projectId</code>・<code>versionId</code>・<code>version</code>・<code>parentVersionId</code>・<code>contentSha256</code>・各ファイルのハッシュ・<code>braVersion</code>＝CSV の形式・<code>cobracGenerated: true</code>・<code>importType: "cobrac"</code>・Contributor・生成条件 <code>provenance</code>・<code>import.replace</code> / <code>import.allowShrink</code>）。<code>replace</code> は親が同じプロジェクトの版のとき true、<code>allowShrink</code> は変更が Circuits か Connections の行を減らすとき true。対象は BRA-DB スキーマ v4.6、インポート v3.10 以降。</td></tr>
+    <tr><td>DynamoDB</td><td>版の要約（<code>BraVersionSummary</code>：番号、ID、親の ID、由来、作成時刻、内容のハッシュ、アプリの版、git commit、差分の要約、パッケージの有無、仮説の数（記録している版だけ））を、その版を作ったジョブ（<code>Jobs.braVersion</code>。baseline は最後に完了したジョブ）に、最新のものをプロジェクト（<code>Projects.latestVersion</code>）に持つ。既存の項目に属性を足しただけで、テーブルやインデックスは変えていない。</td></tr>
   </tbody>
 </table>
-<p class="small">版の仕組みより前に完成したプロジェクトは、現在のデータを「未保存」（由来 <code>live</code>）として表示し、次の追加指示のワーカーが変更を始める前にそれを版（由来 <code>baseline</code>）として凍結します。「版」タブでは、版の一覧・生成条件・表・ほかの版との行単位の差分（BRA-DB と同じキーで照合）・ファイルの一覧を見られます。版のファイルはダウンロードできません。</p>
+<h3>版の仕組みより前に完成したプロジェクト</h3>
+<ul>
+  <li>スナップショットが無いので、現在のデータを版 <code>revision</code>、由来 <code>live</code>（画面では「未保存」。作業用のコピーから表示）として一覧に出します。</li>
+  <li>追加指示は完了したプロジェクトでしか受け付けないので、追加指示のワーカーは変更を始める前に、そのデータを版 <code>revision</code>、由来 <code>baseline</code> として凍結します（生成条件は最後のジョブが記録したものだけ。<code>revision</code> が無ければ 1 にする）。追加指示の結果は <code>revision + 1</code> になり、baseline が親です。</li>
+  <li>失敗・中止した旧いプロジェクトのリトライは baseline を凍結しません（作業用のコピーが途中まで変わっているかもしれないため）。その結果の版の親にはスナップショットが無く、差分の要約もありません。</li>
+</ul>
+<h3>「版」タブ</h3>
+<ul>
+  <li>版の一覧（新しい順：番号、現在の版か、由来、日時、実行の種類、モデル、変わった行の数、追加指示の文）と、選んだ版の生成条件、表（凍結したファイルを表のビューアで開く）、ほかの版との行単位の差分（既定は 1 つ前の版）、ファイルの一覧を見られます。ヘッダーには現在の版と内容のハッシュの先頭が出ます。</li>
+  <li>版はダウンロードしません。タブにダウンロードは無く、<code>GET /projects/{id}/artifacts/download</code> は <code>revisions/</code> の下のキーを拒み、ヘッダーの現在のデータのダウンロードは従来どおりです。表のビューアは凍結したファイルを <code>GET /projects/{id}/artifacts/text</code> で読みます。</li>
+  <li>API：<code>GET /projects/{id}/versions</code>（一覧）、<code>…/versions/{n}</code>（manifest とファイル）、<code>…/versions/{n}/diff?base=</code>（差分）。</li>
+  <li><b>差分</b>（<code>diffBraCsvs</code>）：行は BRA-DB と同じキーで照合します。References は Reference ID、Circuits は Circuit ID、Connections は（sCID, rCID, Reference ID）（同じキーが繰り返すと順に <code>#2</code>、<code>#3</code> を付ける）、FRG は Node ID。列ごとに比べ、Project.csv はプロジェクトの行だけを比べます（Review End Lines は行数に従うため）。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>index.ts</code>、<code>packages/api/src/app.ts</code>（版のルート）</p>
 
 <h2 id="s5-3">5.3 AWS の構成</h2>
 <p>BRA-DB は専用のスタック <code>BraDb</code> と専用の VPC で動きます（AWS アカウント <code>765959262011</code>、リージョン <code>ap-northeast-1</code>）。インターネットからの通信を受けるものはありません。synth 時に <code>COBRAC_BRADB=false</code> にするとスタックを作らず、API は「この環境には BRA-DB がありません」と答えます。</p>
@@ -135,7 +149,7 @@
   <path d="M178 139C200 139 206 139 236 139" stroke="#475569" stroke-width="1.4" fill="none" marker-end="url(#a6)"/>
   <text x="207" y="132" font-size="7.4" text-anchor="middle" fill="#475569">Invoke</text>
 </svg>
-<figcaption><b>図 3-2</b>　BRA-DB の AWS 構成。データベースは VPC のプライベートサブネットにあり、5432 番は登録 Lambda からしか受けない</figcaption>
+<figcaption><b>図 5.2</b>　BRA-DB の AWS 構成。データベースは VPC のプライベートサブネットにあり、5432 番は登録 Lambda からしか受けない</figcaption>
 </figure>
 <table class="compact">
   <thead><tr><th style="width:20%">リソース</th><th>設定</th></tr></thead>
@@ -213,7 +227,7 @@
   <li>「v&lt;n&gt; を BRA-DB に登録」を押す。BRA-DB にあるものより回路か接続が少ない版は、確認を求められる（確認すると <code>allowShrink</code> で再送）。</li>
   <li>結果と、その版の登録の記録（状態・時刻・依頼者・警告・スキップした回路）が欄に出る。</li>
 </ol>
-<p class="small">登録できるのはプロジェクトの所有者だけです（<code>POST /projects/{id}/versions/{n}/bradb</code>、状態の取得は <code>GET /projects/{id}/bradb</code>）。仮説を含む版（仮説モード）は、仮説を登録する規則が決まるまで登録できません（ボタンが押せず理由が出る）。BRA-DB の無い環境では欄が出ません。</p>
+<p class="small">登録できるのはプロジェクトの所有者だけです（<code>POST /projects/{id}/versions/{n}/bradb</code>、状態の取得は <code>GET /projects/{id}/bradb</code>）。API（Lambda）は版のパッケージ（<code>revisions/{n}/bradb/</code>）を読み、BRA-DB の VPC の中の登録 Lambda を同期で呼びます。登録に成功すると、<code>Projects.bradb</code> に最後に登録した版（版 ID・番号・内容のハッシュ・時刻・登録 ID）を残します。登録の記録の依頼者は、利用者の Contributor 名（無ければ表示名）です。仮説を含む版（仮説モード）は、仮説を登録する規則が決まるまで登録できません（ボタンが押せず理由が出る）。BRA-DB の無い環境では欄が出ません。</p>
 <h3>登録 Lambda の処理（<code>registerVersion</code>）</h3>
 <ol class="steps">
   <li><b>パッケージの検証</b>：パッケージの形式、各ファイルの SHA-256 と manifest の一致、5 つの CSV がそろっていること、内容のハッシュの再計算。合わなければ <code>rejected</code>（<code>invalid</code>）。</li>
@@ -292,5 +306,5 @@ SELECT * FROM cypher('bradb_graph', $$
   </tbody>
 </table>
 <p class="small">1 年の Compute Savings Plan で 2 台のインスタンスは約 30% 下がります。夜間に止めても約 $8 しか下がらず、その間は登録できません。</p>
-<p class="src">コードの場所：スタック <code>packages/infra/lib/bradb-stack.ts</code> ／ 起動スクリプト <code>packages/infra/bradb/bootstrap.sh</code> ／ SQL <code>packages/infra/bradb/sql/</code> ／ 登録 <code>packages/api/src/lib/bradb/register.ts</code>・<code>sheets.ts</code>・<code>cypher.ts</code>、Lambda <code>packages/api/src/handlers/bradbImport.ts</code> ／ 版 <code>packages/shared/src/braVersion.ts</code>・<code>packages/worker/src/versions.ts</code> ／ 文書 <code>docs/03_AWSインフラと予算.md</code> §3.5・§5.5、設計仕様 6.20・6.21</p>
+<p class="src">コードの場所：スタック <code>packages/infra/lib/bradb-stack.ts</code> ／ 起動スクリプト <code>packages/infra/bradb/bootstrap.sh</code> ／ SQL <code>packages/infra/bradb/sql/</code> ／ 登録 <code>packages/api/src/lib/bradb/register.ts</code>・<code>sheets.ts</code>・<code>cypher.ts</code>、Lambda <code>packages/api/src/handlers/bradbImport.ts</code> ／ 版 <code>packages/shared/src/braVersion.ts</code>・<code>packages/worker/src/versions.ts</code> ／ 画面 <code>packages/web</code> の版タブ。AWS の構成と費用の全体は第 7 部</p>
 </section>
