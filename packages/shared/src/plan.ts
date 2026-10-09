@@ -90,12 +90,30 @@ export type PlanAttentionReason = "failed" | "question_timeout" | "cancelled_out
 export type PlanDecisionReason = "conflicts" | "conform_limit" | "pr_rejected" | "pr_withdrawn" | "other_canon" | "push_failed";
 
 /**
- * Why an autonomous plan (自律実行) left a row out instead of waiting for a human: the reasons a row would otherwise
- * need a human (「人の判断」 / 「要対応」), plus ai_rejected (the AI reviewer rejected its pull request), question_limit
- * (its agent kept asking after `MAX_AUTO_ANSWERS` automatic answers) and decide_failed (the AI reviewer could not decide
- * after `MAX_DECIDE_ATTEMPTS` jobs; the pull request stays open for a human).
+ * Why an autonomous plan (自律実行) left a row out: ai_rejected (the AI reviewer rejected its pull request) or ai_skipped
+ * (the Orchestrator's AI chose 「スキップ」 for a row that needed attention or a decision; `error` holds its reason).
+ * v0.40.0 also left rows out for the reasons a row needs a human, question_limit and decide_failed: kept for its records.
  */
-export type PlanAutoSkipReason = PlanDecisionReason | PlanAttentionReason | "ai_rejected" | "question_limit" | "decide_failed";
+export type PlanAutoSkipReason = PlanDecisionReason | PlanAttentionReason | "ai_rejected" | "ai_skipped" | "question_limit" | "decide_failed";
+
+/**
+ * A job the Orchestrator's AI runs for one row of an autonomous plan (a `plan` job): answer = it answers the question of
+ * the row's agent; resolve = it decides a row that needs attention (retry / skip) or a decision (done / push / skip).
+ */
+export type PlanRowJobKind = "answer" | "resolve";
+/** What the Orchestrator's AI may choose for a row (resolve): attention → retry / skip; decision → done / push / skip. */
+export type PlanRowAction = "retry" | "skip" | "done" | "push";
+
+/**
+ * The row job of a row: queued (its job ID; one job per row at a time) or ready (an answer job finished; the answer is
+ * given when a slot is free, since the resumed project job takes one). A job that failed is cleared and asked again.
+ */
+export interface PlanRowJob {
+  kind: PlanRowJobKind;
+  jobId: string;
+  status: "queued" | "ready";
+  requestedAt: string;
+}
 
 /** The Canon of a plan, chosen in a draft: none, one of the owner's Canons, or a new one created at confirmation. */
 export type PlanCanonChoice = { mode: "none" } | { mode: "existing"; canonId: string } | { mode: "new"; name: string };
@@ -118,9 +136,10 @@ export interface PlanSettings {
   /** Language of the agents' chat replies (the UI language at confirmation) */
   locale: UiLocale | null;
   /**
-   * 自律実行 (autonomous run): the plan goes from its draft to the end without waiting for a person. The draft is
-   * confirmed on its own, the rows' agents decide instead of asking, the AI reviewer decides on the plan's pull
-   * requests, rows that cannot go on are left out, and no new row starts once `maxCostUsd` is spent. Absent = off.
+   * 自律実行 (autonomous run): the Orchestrator acts for the owner, so the plan goes from its draft to the end without
+   * waiting for a person. The draft is confirmed on its own, the Orchestrator's AI answers the agents' questions, decides
+   * on the plan's pull requests and on rows that need attention or a decision, re-plan proposals are applied at once,
+   * and no new row starts once `maxCostUsd` is spent. Absent = off.
    */
   autonomous?: PlanAutonomous | null;
 }
@@ -133,10 +152,6 @@ export interface PlanAutonomous {
 /** Default cost limit of an autonomous plan, and the range the owner may set. */
 export const AUTONOMOUS_DEFAULT_MAX_COST_USD = 20;
 export const AUTONOMOUS_MAX_COST_RANGE = { min: 1, max: 1000 } as const;
-/** Automatic answers a row's agent gets before the row is left out (`question_limit`). */
-export const MAX_AUTO_ANSWERS = 3;
-/** Decision jobs per pull request before the row is left out (`decide_failed`; the pull request stays open). */
-export const MAX_DECIDE_ATTEMPTS = 3;
 /** Follow-ups a row of an autonomous plan gets for its pull request (conform, fix and the AI's requested changes together). */
 export const AUTONOMOUS_MAX_FOLLOWUPS = 3;
 
@@ -332,10 +347,14 @@ export interface PlanRowRecord {
   decisionReason?: PlanDecisionReason | null;
   /** 自律実行: the row was left out by the runner (instead of waiting for a human), with the reason */
   autoSkip?: { reason: PlanAutoSkipReason; at: string; prNo?: number | null; error?: string | null } | null;
-  /** 自律実行: questions of the row's agent the runner answered */
+  /** 自律実行: questions of the row's agent the Orchestrator's AI answered */
   autoAnswers?: number;
   /** 自律実行: decision jobs asked for the row's current pull request */
   decideAttempts?: number;
+  /** 自律実行: the Orchestrator's AI job for this row (an answer or a resolution), while it runs or waits for a slot */
+  rowJob?: PlanRowJob | null;
+  /** 自律実行: the last resolution the Orchestrator's AI made for this row (shown on the row) */
+  aiResolution?: { action: PlanRowAction; reason: string; at: string; jobId: string } | null;
   /**
    * 自律実行: the instruction of the row's next follow-up (with `conform`): fix = make the project agree with the Canon
    * (error conflicts the Canon moving on did not cause); changes = the changes the AI reviewer asked for. Absent: the
@@ -409,6 +428,7 @@ export type PlanEventType =
   | "row_ai_review"
   | "row_auto_skipped"
   | "row_auto_answered"
+  | "row_ai_resolved"
   | "row_ai_decided"
   | "cost_limit_reached"
   | "cost_limit_raised";
@@ -467,6 +487,21 @@ export interface UpdatePlanRequest {
   /** Draft only: the plan's Canon (stage 3) */
   canon?: PlanCanonChoice;
   settings?: Partial<Pick<PlanSettings, "model" | "orchestratorModel" | "reasoningEffort" | "researchMode" | "autonomous">>;
+}
+
+/**
+ * POST /plans/:id/attachments (draft only): capability lists uploaded with POST /uploads are added to the plan (up to
+ * `ATTACHMENT_LIMITS.maxFiles` in all); CSV / TSV / text are read into rows at once, as on creation.
+ */
+export interface AddPlanAttachmentsRequest {
+  attachments: { uploadId: string; name: string }[];
+}
+/** POST /plans/:id/attachments and DELETE /plans/:id/attachments/:fileId */
+export interface PlanAttachmentsResponse {
+  plan: PlanRecord;
+  /** The rows read from the added CSV / TSV / text files (already stored) */
+  rows: PlanRowRecord[];
+  rejected: PlanRowRejected[];
 }
 
 /** POST /plans/:id/draft */
