@@ -3,6 +3,7 @@
 // review of a pull request and approving one. The routes keep their own access checks and request parsing.
 import { HTTPException } from "hono/http-exception";
 import type {
+  CanonAiActor,
   CanonAiState,
   CanonApproval,
   CanonChoice,
@@ -26,6 +27,7 @@ import {
   CANON_META_SK,
   CANON_POLICY_MAX,
   FRG_FILES,
+  aiActorName,
   HCD_FILES,
   PROJECT_FILES,
   blockingConflicts,
@@ -237,7 +239,13 @@ export type AiReviewResult = { ok: true; job: JobRecord; ai: CanonAiState | null
  * Queues the AI review of an open PR on the worker (one at a time per PR), as `u` with `u`'s key; the model is checked
  * by the caller. Not queued when the PR is closed, a review of it is queued or running, or its diff cannot be read.
  */
-export async function requestAiReview(u: UserRecord, canon: CanonRecord, pr: CanonPullRequestRecord, policy: ModelPolicy & { source: KeySource }, opts: { model: string; locale: UiLocale }): Promise<AiReviewResult> {
+export async function requestAiReview(
+  u: UserRecord,
+  canon: CanonRecord,
+  pr: CanonPullRequestRecord,
+  policy: ModelPolicy & { source: KeySource },
+  opts: { model: string; locale: UiLocale; /** decide: the decision job of an autonomous plan (自律実行) */ kind?: "assist" | "decide"; planId?: string | null },
+): Promise<AiReviewResult> {
   if (pr.state !== "open") return { ok: false, reason: "closed", message: "閉じた取り込み依頼には AI レビューを実行できません" };
   const jobs = reviewJobsOf(await listJobsForCanon(canon.canonId), pr.prNo);
   const active = jobs.find(isActiveJob);
@@ -267,6 +275,8 @@ export async function requestAiReview(u: UserRecord, canon: CanonRecord, pr: Can
     pendingAnswer: null,
     reviewPrNo: pr.prNo,
     reviewLocale: opts.locale,
+    ...(opts.kind === "decide" ? { reviewKind: "decide" as const } : {}),
+    ...(opts.planId ? { planId: opts.planId } : {}),
     model: opts.model,
     reasoningEffort: null,
     ecsTaskArn: null,
@@ -279,7 +289,7 @@ export async function requestAiReview(u: UserRecord, canon: CanonRecord, pr: Can
     updatedAt: now,
   };
   await putJob(job);
-  await putPrEvent(canon.canonId, pr.prNo, { type: "ai_requested", at: now, actor: u.userId, actorName: actorName(u), jobId, model: opts.model });
+  await putPrEvent(canon.canonId, pr.prNo, { type: "ai_requested", at: now, actor: u.userId, actorName: actorName(u), jobId, model: opts.model, ...(opts.kind === "decide" ? { note: "decide" } : {}) });
   await enqueueRun({ version: 1, userId: u.userId, projectId: canon.canonId, jobId, mode: "canon-review" });
   return { ok: true, job, ai: aiState(job, null) };
 }
@@ -293,9 +303,16 @@ export type ApproveResult =
  * since the push), merged into a new revision, and the pushing project follows that revision. The caller has checked
  * that `u` may review and that the PR is open.
  */
-export async function approvePullRequest(u: UserRecord, canon: CanonRecord, pr: CanonPullRequestRecord, opts: { choices: Record<string, CanonChoice>; note?: string | null }): Promise<ApproveResult> {
-  const { choices } = opts;
+export async function approvePullRequest(
+  u: UserRecord,
+  canon: CanonRecord,
+  pr: CanonPullRequestRecord,
+  opts: { choices: Record<string, CanonChoice>; note?: string | null; /** the AI of an autonomous plan approves for the owner `u` */ via?: CanonAiActor },
+): Promise<ApproveResult> {
+  const { choices, via } = opts;
   const note = opts.note ?? null;
+  const name = via ? aiActorName(via.model) : actorName(u);
+  const viaEvent = via ? { via: "ai" as const, jobId: via.jobId, model: via.model } : {};
   const incoming = await getCanonJson<CanonIncoming>(canonPrKey(canon.canonId, pr.prNo, "incoming.json"));
   if (!incoming) throw new Error(`PR ${pr.prNo} payload is missing`);
   const head = await loadCanonHead(canon);
@@ -306,13 +323,13 @@ export async function approvePullRequest(u: UserRecord, canon: CanonRecord, pr: 
     diff = diffCanon(head, incoming);
     await putCanonJson(canonPrKey(canon.canonId, pr.prNo, "diff.json"), diff);
     await updatePullRequest(canon.canonId, pr.prNo, { baseRevision: diff.baseRevision, summary: diff.summary });
-    await putPrEvent(canon.canonId, pr.prNo, { type: "rebased", actor: u.userId, actorName: actorName(u), note: `rev ${from} → rev ${diff.baseRevision}`, revision: diff.baseRevision });
+    await putPrEvent(canon.canonId, pr.prNo, { type: "rebased", actor: u.userId, actorName: name, note: `rev ${from} → rev ${diff.baseRevision}`, revision: diff.baseRevision, ...viaEvent });
   }
   const blocking = blockingConflicts(diff, choices);
   if (blocking.length) return { ok: false, status: 409, reason: "conflicts", blocking: blocking.length, body: { error: "解決していない衝突があります", blocking, diff } };
   const now = nowIso();
-  const approval: CanonApproval = { userId: u.userId, name: actorName(u), at: now };
-  const approvals = [...(pr.approvals ?? []).filter((a) => a.userId !== u.userId), approval];
+  const approval: CanonApproval = { userId: u.userId, name, at: now, ...(via ? { via } : {}) };
+  const approvals = [...(pr.approvals ?? []).filter((a) => a.userId !== u.userId || !!a.via !== !!via), approval];
   // one approval is enough for now (requiredApprovals); the list is kept for a future setting
   if (approvals.length < requiredApprovals(canon)) return { ok: false, status: 409, reason: "approvals", body: { error: "承認がまだ足りません", approvals } };
   const next = mergeCanon(head, incoming, diff, choices, pr.prNo, now);
@@ -332,9 +349,10 @@ export async function approvePullRequest(u: UserRecord, canon: CanonRecord, pr: 
     approvedBy: u.userId,
     approvedByName: approval.name,
     approvedAt: now,
+    ...(via ? { approvedVia: via } : {}),
   });
-  await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedByName: approval.name, decidedAt: now, approvals, mergedRevision: next.revision, ...(note ? { reason: note } : {}) });
-  await putPrEvent(canon.canonId, pr.prNo, { type: "approved", at: now, actor: u.userId, actorName: actorName(u), note, revision: next.revision, choices });
+  await closePullRequest(canon.canonId, pr.prNo, { state: "approved", decidedBy: u.userId, decidedByName: approval.name, decidedAt: now, approvals, mergedRevision: next.revision, ...(note ? { reason: note } : {}), ...(via ? { decidedVia: via } : {}) });
+  await putPrEvent(canon.canonId, pr.prNo, { type: "approved", at: now, actor: u.userId, actorName: name, note, revision: next.revision, choices, ...viaEvent });
   // the pushing project follows the revision that contains its own content (Q9)
   if (pr.source.startsWith("project:")) {
     const pid = pr.source.slice("project:".length);
@@ -342,4 +360,27 @@ export async function approvePullRequest(u: UserRecord, canon: CanonRecord, pr: 
     if (p && p.canonId === canon.canonId && !isProjectDeleted(p)) await updateProject(canon.ownerUserId, pid, { canonRevision: next.revision });
   }
   return { ok: true, revision: next.revision };
+}
+
+/**
+ * Rejects an open PR as `u` (or the AI of an autonomous plan for `u`) with a reason. False when it was closed meanwhile.
+ * The caller has checked that `u` may review.
+ */
+export async function rejectPullRequest(u: UserRecord, canon: CanonRecord, pr: CanonPullRequestRecord, reason: string, via?: CanonAiActor): Promise<boolean> {
+  const at = nowIso();
+  const name = via ? aiActorName(via.model) : actorName(u);
+  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "rejected", decidedBy: u.userId, decidedByName: name, decidedAt: at, reason, ...(via ? { decidedVia: via } : {}) }))) return false;
+  await putPrEvent(canon.canonId, pr.prNo, { type: "rejected", at, actor: u.userId, actorName: name, note: reason, ...(via ? { via: "ai" as const, jobId: via.jobId, model: via.model } : {}) });
+  return true;
+}
+
+/**
+ * Asks for changes on an open PR as `u` (or the AI of an autonomous plan for `u`): it stays open until it is re-pushed
+ * (superseded), approved or rejected. The caller has checked that `u` may review and that the PR is open.
+ */
+export async function requestPrChanges(u: UserRecord, canon: CanonRecord, pr: CanonPullRequestRecord, note: string, via?: CanonAiActor): Promise<void> {
+  const at = nowIso();
+  const name = via ? aiActorName(via.model) : actorName(u);
+  await updatePullRequest(canon.canonId, pr.prNo, { reviewState: "changes_requested", reviewNote: note, reviewedBy: u.userId, reviewedByName: name, reviewedAt: at });
+  await putPrEvent(canon.canonId, pr.prNo, { type: "changes_requested", at, actor: u.userId, actorName: name, note, ...(via ? { via: "ai" as const, jobId: via.jobId, model: via.model } : {}) });
 }

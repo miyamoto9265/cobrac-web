@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
+  ResumePlanRequest,
   AdminUpdateUserRequest,
   AnswerRequest,
   ApproveManyRequest,
@@ -189,6 +190,7 @@ import {
   updatePlanFields,
 } from "./lib/planOps.js";
 import {
+  answerQuestion,
   createProject,
   deploymentDefaultModel,
   implicitModel,
@@ -235,7 +237,9 @@ import {
   prReviewMaterial,
   projectIncoming,
   pushProject,
+  rejectPullRequest,
   requestAiReview,
+  requestPrChanges,
 } from "./lib/canonOps.js";
 import { specLinks } from "./lib/spec.js";
 import {
@@ -687,13 +691,7 @@ app.post("/projects/:id/answer", async (c) => {
   const locale = readLocale(body.locale);
   const job = await getJob(p.projectId, p.activeJobId);
   if (!job) throw notFound();
-  const moved = await moveToAllowedModel(u, p, policy);
-  await updateJob(p.projectId, job.jobId, { status: "QUEUED", pendingAnswer: text, keySource: policy.source, ...(locale ? { locale } : {}) });
-  await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
-  await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
-  await noteModel(p, job.jobId, moved);
-  await putMessage(p.projectId, job.jobId, "system", "status", "Answer received. Restarting the worker…", { userId: p.userId, meta: { i18n: "sys.answered" } });
-  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId: job.jobId, mode: "resume" });
+  if (!(await answerQuestion(u, p, policy, text, { source: "user", locale }))) throw bad("回答待ちの質問はありません");
   return c.json({ ok: true });
 });
 
@@ -1501,9 +1499,7 @@ app.post("/canons/:id/pulls/:no/request-changes", async (c) => {
   if (pr.state !== "open") throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   const { note } = (await c.req.json().catch(() => ({}))) as { note?: unknown };
   const text = reviewNote(note, true, "依頼する変更を書いてください");
-  const at = nowIso();
-  await updatePullRequest(canon.canonId, pr.prNo, { reviewState: "changes_requested", reviewNote: text, reviewedBy: u.userId, reviewedByName: actorName(u), reviewedAt: at });
-  await putPrEvent(canon.canonId, pr.prNo, { type: "changes_requested", at, actor: u.userId, actorName: actorName(u), note: text });
+  await requestPrChanges(u, canon, pr, text ?? "");
   return c.json({ ok: true });
 });
 
@@ -1597,11 +1593,7 @@ app.post("/canons/:id/pulls/:no/reject", async (c) => {
   const pr = await loadPr(canon, c.req.param("no"));
   const { reason } = (await c.req.json().catch(() => ({}))) as { reason?: string };
   const text = reviewNote(reason, true, "却下の理由を書いてください");
-  const at = nowIso();
-  if (!(await closePullRequest(canon.canonId, pr.prNo, { state: "rejected", decidedBy: u.userId, decidedByName: actorName(u), decidedAt: at, reason: text }))) {
-    throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
-  }
-  await putPrEvent(canon.canonId, pr.prNo, { type: "rejected", at, actor: u.userId, actorName: actorName(u), note: text });
+  if (!(await rejectPullRequest(u, canon, pr, text ?? ""))) throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
   return c.json({ ok: true });
 });
 
@@ -2052,7 +2044,6 @@ for (const [action, run] of [
 
 for (const [action, run] of [
   ["pause", pausePlan],
-  ["resume", resumePlan],
   ["cancel", cancelPlan],
 ] as const) {
   app.post(`/plans/:id/${action}`, async (c) => {
@@ -2061,6 +2052,14 @@ for (const [action, run] of [
     return c.json({ ok: true });
   });
 }
+
+/** Resumes a paused or cancelled plan; an autonomous plan paused at its cost limit sends a higher `maxCostUsd`. */
+app.post("/plans/:id/resume", async (c) => {
+  const u = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as ResumePlanRequest;
+  await resumePlan(u, await loadOwnPlan(u, c.req.param("id")), body && typeof body === "object" ? body : {});
+  return c.json({ ok: true });
+});
 
 app.post("/plans/:id/rows/:rowId/retry", async (c) => {
   const u = c.get("user");

@@ -105,7 +105,7 @@ async function pickFiles(input: HTMLInputElement, files: File[]) {
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
 }
-/** The heading of each wave as shown (stored wave number, 「種」 label). */
+/** The heading of each wave as shown (stored wave number, 「土台」 label). */
 const headings = (within: ParentNode) => qa('[data-testid="plan-wave"]', within).map((h) => h.textContent?.trim());
 
 beforeEach(() => {
@@ -295,19 +295,19 @@ describe("a draft written by the plan job", () => {
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
     // stored wave numbers, seed waves labelled
-    expect(headings(editor)).toEqual(["Wave 1Seed", "Wave 2Seed", "Wave 3", "Wave 4"]);
+    expect(headings(editor)).toEqual(["Wave 1Foundation", "Wave 2Foundation", "Wave 3", "Wave 4"]);
     expect(editor.textContent).toContain("Automatic order.");
 
     const facts = qa('[data-testid="row-facts"]', editor);
     expect(facts).toHaveLength(5);
-    expect(facts[0].textContent).toContain("Seed");
+    expect(facts[0].textContent).toContain("Foundation");
     const anchors = q('[data-testid="row-anchors"]', facts[0])!;
     expect(qa(".font-mono", anchors).map((a) => a.textContent)).toEqual(["BNA:29-30", "BNA:31-32", "HOMBA:1001", "HOMBA:1002"]);
     expect(anchors.textContent).toContain("+1");
     expect(anchors.getAttribute("title")).toBe("Anchors: BNA:29-30, BNA:31-32, HOMBA:1001, HOMBA:1002, HOMBA:1003");
     expect(facts[0].textContent).toContain("hub 3");
     expect(facts[0].textContent).toContain("Overlaps: syntactic processing");
-    expect(facts[2].textContent).not.toContain("Seed");
+    expect(facts[2].textContent).not.toContain("Foundation");
     expect(facts[2].textContent).toContain("Depends on: speech production");
     expect(facts[3].textContent).toContain("Existing");
     expect(q<HTMLAnchorElement>('a[href="/projects/p0000009"]', facts[3])!.textContent).toBe("Reading");
@@ -396,10 +396,10 @@ describe("a draft written by the plan job", () => {
     const editor = q('[data-testid="plan-editor"]')!;
     // the second seed goes into wave 3 with r3 (and the existing project's row)
     await type(qa<HTMLInputElement>('input[aria-label="Wave"]', editor)[1], "3");
-    expect(headings(editor)).toEqual(["Wave 1Seed", "Wave 3", "Wave 4"]);
+    expect(headings(editor)).toEqual(["Wave 1Foundation", "Wave 3", "Wave 4"]);
     const facts = qa('[data-testid="row-facts"]', editor);
-    expect(facts[0].textContent).toContain("Seed");
-    expect(facts[1].textContent).not.toContain("Seed");
+    expect(facts[0].textContent).toContain("Foundation");
+    expect(facts[1].textContent).not.toContain("Foundation");
     vi.spyOn(window, "confirm").mockReturnValue(false);
     await click(button("Confirm and start"));
     // 1 seed + waves 3 and 4 (not 2 seeds + 2 waves)
@@ -569,7 +569,7 @@ describe("re-planning while running", () => {
     api.getPlan.mockResolvedValue(running());
     await render(`/plans/${PLAN}`);
     const view = q('[data-testid="plan-rows"]')!;
-    expect(headings(view)).toEqual(["Wave 1Seed", "Wave 2Seed", "Wave 4current", "Wave 5"]);
+    expect(headings(view)).toEqual(["Wave 1Foundation", "Wave 2Foundation", "Wave 4current", "Wave 5"]);
     // four waves numbered 1, 2, 4, 5: the active one keeps its number, without claiming a fifth wave
     expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Wave 4 (3 of 4)");
   });
@@ -631,10 +631,10 @@ describe("seed waves next to rows of an existing project", () => {
     row("r3", "STG", "phonological processing", "pending", 2),
   ];
 
-  it("still labels the wave 「種」 in the draft editor and in the running view", async () => {
+  it("still labels the wave 「土台」 in the draft editor and in the running view", async () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", rows("pending").map((r) => (r.rowId === "r2" ? { ...r, state: "pending" as const, projectId: null, project: null } : r)), { ordering: "auto" }));
     await render(`/plans/${PLAN}`);
-    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Seed", "Wave 2"]);
+    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Foundation", "Wave 2"]);
     // with 「作り直す」 the row is built, so the wave is no longer a seed wave
     await click(qa<HTMLInputElement>('input[type="checkbox"]', q('[data-testid="plan-editor"]')!)[0]);
     expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1", "Wave 2"]);
@@ -649,20 +649,20 @@ describe("seed waves next to rows of an existing project", () => {
     ];
     api.getPlan.mockResolvedValue(detail("DRAFT", last, { ordering: "auto" }));
     await render(`/plans/${PLAN}`);
-    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Seed", "Wave 2Seed", "Wave 3"]);
+    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Foundation", "Wave 2Foundation", "Wave 3"]);
     act(() => root?.unmount());
     host?.remove();
     // only seeds are built: the last wave is the last seed's, next to the existing project's row
     api.getPlan.mockResolvedValue(detail("DRAFT", [last[0], { ...last[3], wave: 1 }], { ordering: "auto" }));
     await render(`/plans/${PLAN}`);
-    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Seed"]);
+    expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Foundation"]);
   });
 
   it("leaves the existing project's cost out of the row in the running view", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows("running"), { ordering: "auto" }));
     await render(`/plans/${PLAN}`);
     const view = q('[data-testid="plan-rows"]')!;
-    expect(headings(view)).toEqual(["Wave 1Seedcurrent", "Wave 2"]);
+    expect(headings(view)).toEqual(["Wave 1Foundationcurrent", "Wave 2"]);
     expect(view.textContent).not.toContain("$0.27");
   });
 });

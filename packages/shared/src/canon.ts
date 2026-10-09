@@ -101,7 +101,19 @@ export interface CanonPullRequestRecord {
   reviewNote?: string | null;
   /** BRA Planner: the plan of the pushed project (shown on the PR list and page) */
   planId?: string | null;
+  /** The decision (approve, reject, request changes) was made by the AI of an autonomous plan for the owner */
+  decidedVia?: CanonAiActor | null;
 }
+
+/** The AI reviewer of an autonomous plan (自律実行), acting for the Canon's owner: its job and model. */
+export interface CanonAiActor {
+  kind: "ai";
+  jobId: string;
+  model: string;
+}
+
+/** Display name of a decision the AI made for the owner (stored as the decider's name, so every screen shows it). */
+export const aiActorName = (model: string) => `AI (${model})`;
 
 /** POST /canons/:id/pulls/approve-many: the selected pull requests, approved one after another in this order. */
 export interface ApproveManyRequest {
@@ -119,6 +131,8 @@ export interface CanonApproval {
   userId: string;
   name: string;
   at: string;
+  /** Given by the AI of an autonomous plan for the owner (`userId`) */
+  via?: CanonAiActor;
 }
 
 export const CANON_DEFAULT_REQUIRED_APPROVALS = 1;
@@ -185,6 +199,8 @@ export interface CanonPrEvent {
   model?: string | null;
   /** Conflict choices the approval was made with */
   choices?: Record<string, "canon" | "incoming"> | null;
+  /** Made by the AI of an autonomous plan for the owner (`actor`); `jobId` / `model` name the decision job */
+  via?: "ai";
 }
 
 /** `PEV#<000012>#<at>#<nonce>` item: append-only, never updated or deleted. */
@@ -220,6 +236,8 @@ export interface CanonRevisionRecord {
   approvedBy?: string;
   approvedByName?: string;
   approvedAt?: string;
+  /** Approved by the AI of an autonomous plan for the owner */
+  approvedVia?: CanonAiActor;
 }
 export const canonMemberSk = (projectId: string) => `${CANON_MEMBER_PREFIX}${projectId}`;
 

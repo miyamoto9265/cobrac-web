@@ -10,6 +10,7 @@ import type { CanonConflict, CanonDiff, CanonSnapshot, CanonIncoming } from "./c
 import { currentCanonSnapshot } from "./canonMerge.js";
 import type { ReviewCheck, ReviewEntry, ReviewGraph, ReviewProvenance, ReviewReport } from "./canonReview.js";
 import type { JobStatus } from "./types.js";
+import type { CanonAiDecision } from "./canonAiDecision.js";
 import { reviewItemId } from "./canonReview.js";
 import { uiLanguageName, type UiLocale } from "./locale.js";
 
@@ -44,6 +45,8 @@ export interface CanonAiReview {
 /** `result.json` of an AI review job. */
 export interface CanonAiReviewResult {
   review: CanonAiReview;
+  /** A decision job (自律実行): the verdict the plan runner applies */
+  decision?: CanonAiDecision;
   /** Parts the model wrote about items, checks or references that are not in the packet (removed) */
   dropped: number;
   model: string;

@@ -214,5 +214,34 @@ describe("Canon PR review page", () => {
     await click($('[data-testid="ai-use-comment"]'));
     const box = $('li[data-item="circuit:bna:29-30/side:left"] [data-testid="comment-input"]') as HTMLTextAreaElement;
     expect(box.value).toBe("Is the split needed for the TLF?");
+    expect($('[data-testid="ai-decision"]')).toBeNull();
+  });
+
+  it("shows the AI decision of an autonomous run with the requested changes", async () => {
+    const ai: CanonAiState = {
+      jobId: "job_2",
+      status: "COMPLETED",
+      model: "gpt-6-luna",
+      locale: "en",
+      requestedAt: now,
+      endedAt: now,
+      errorMessage: null,
+      costUsd: 0.01,
+      result: {
+        review: { summary: "Splits A44d(left).", flags: [], verify: [], comments: [] },
+        decision: { verdict: "request_changes", reason: "The split is not supported.", choices: [], changes: ["Keep A44d(left) uniform."] },
+        dropped: 0,
+        model: "gpt-6-luna",
+        locale: "en",
+        createdAt: now,
+      },
+    };
+    api.canonPull.mockResolvedValue(detail(ai));
+    await render();
+    await click($('[data-testid="tab-ai"]'));
+    const box = $('[data-testid="ai-decision"]')!;
+    expect(box.textContent).toContain("AI decision: Changes requested by the AI");
+    expect(box.textContent).toContain("The split is not supported.");
+    expect(box.querySelector("li")!.textContent).toBe("Keep A44d(left) uniform.");
   });
 });

@@ -8,6 +8,8 @@
 // that the plan is still a draft under this lease (`holdsPlan`). The runner is kicked after the lease is given back.
 import { HTTPException } from "hono/http-exception";
 import type {
+  PlanAutonomous,
+  ResumePlanRequest,
   CreatePlanRequest,
   CreatePlanResponse,
   FileAttachment,
@@ -30,6 +32,10 @@ import type {
   UserRecord,
 } from "@cobrac/shared";
 import {
+  AUTONOMOUS_DEFAULT_MAX_COST_USD,
+  AUTONOMOUS_MAX_COST_RANGE,
+  autonomousMaxCost,
+  isAutonomous,
   ACTIVE_PROJECT_STATUSES,
   ATTACHMENT_LIMITS,
   HARNESS_RULES,
@@ -77,6 +83,7 @@ import { currentLimits } from "./concurrency.js";
 import { getProject, listJobsForCanon, listUserProjects } from "./db.js";
 import { bad, notFound } from "./http.js";
 import { autoOrder, stopPlanJob } from "./planJobs.js";
+import { planSpendUsd } from "./planCost.js";
 import { advancePlan, dropReplan } from "./planRunner.js";
 import {
   deleteRow,
@@ -135,6 +142,17 @@ function planCanonChoice(v: unknown): PlanCanonChoice {
     return { mode: "new", name: n.name };
   }
   throw bad("canon.mode が不正です");
+}
+
+/** 自律実行 as the owner sent it: absent / null / false = off; an object = on, with its cost limit (default 20 USD). */
+function readAutonomous(v: unknown): PlanAutonomous | null {
+  if (v === undefined || v === null || v === false) return null;
+  if (typeof v !== "object") throw bad("autonomous が不正です");
+  const raw = (v as { maxCostUsd?: unknown }).maxCostUsd;
+  if (raw === undefined || raw === null) return { maxCostUsd: AUTONOMOUS_DEFAULT_MAX_COST_USD };
+  const maxCostUsd = autonomousMaxCost(raw);
+  if (maxCostUsd === null) throw bad(`費用の上限は ${AUTONOMOUS_MAX_COST_RANGE.min}〜${AUTONOMOUS_MAX_COST_RANGE.max} USD で指定してください`);
+  return { maxCostUsd };
 }
 
 function csvText(v: unknown): string {
@@ -239,6 +257,11 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   const draft = body.draft === true;
   // not in CreatePlanRequest: the reply language of the draft (absent: the language of the goal)
   const locale = readLocale(body.locale);
+  // 自律実行: the plan runs from its draft to the end on its own (it always starts with a draft)
+  const autonomous = readAutonomous(body.autonomous);
+  if (autonomous && !draft) throw bad("自律実行の計画は下書きの作成から始めます");
+  const canonChoice = body.canon !== undefined ? planCanonChoice(body.canon) : autonomous ? ({ mode: "new", name } as const) : null;
+  if (canonChoice?.mode === "existing" && !(await ownedCanon(canonChoice.canonId, u.userId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
   if (draft && !goal && !staged.length && !manual.length && !csv?.rows.length) throw bad("下書きを作成するには目標か資料が必要です");
   if (draft) await requireRunKey(u);
 
@@ -269,7 +292,16 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   ];
   const projects = typed.length ? await listUserProjects(u.userId) : [];
   const rows: PlanRowRecord[] = typed.map((t, i) => setMatch(newRow(planId, i, t.row, t.source, t.sourceRow, now), projects));
-  const settings: PlanSettings = { model: null, modelChosen: false, orchestratorModel: null, orchestratorModelChosen: false, reasoningEffort: u.defaultReasoningEffort ?? null, researchMode: true, locale: null };
+  const settings: PlanSettings = {
+    model: null,
+    modelChosen: false,
+    orchestratorModel: null,
+    orchestratorModelChosen: false,
+    reasoningEffort: u.defaultReasoningEffort ?? null,
+    researchMode: true,
+    locale: null,
+    ...(autonomous ? { autonomous } : {}),
+  };
   const plan: PlanRecord = {
     planId,
     sk: PLAN_META_SK,
@@ -279,6 +311,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     status: "DRAFT",
     settings,
     ...(attachments.length ? { attachments } : {}),
+    ...(canonChoice?.mode === "existing" ? { canonId: canonChoice.canonId, canonNew: null } : canonChoice?.mode === "new" ? { canonId: null, canonNew: { name: canonChoice.name } } : {}),
     rowCount: rows.length,
     rowCounts: countRows(rows),
     activeWave: null,
@@ -345,6 +378,7 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
         if (typeof s.researchMode !== "boolean") throw bad("researchMode は true / false で指定してください");
         settings.researchMode = s.researchMode;
       }
+      if ("autonomous" in s) settings.autonomous = readAutonomous(s.autonomous);
       values.settings = settings;
     }
     if (!(await updatePlan(plan.planId, values, { status: fresh.status }))) throw conflict(STATUS_CHANGED);
@@ -503,7 +537,7 @@ export async function cancelDraft(u: UserRecord, plan: PlanRecord): Promise<Plan
  * existing project are done, once that project is checked again (it may have been deleted or changed since the draft:
  * then the row is built). A plan ordered automatically is ordered again for the limits in force now.
  */
-export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLocale | null): Promise<PlanRecord> {
+export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLocale | null, by: string = u.userId): Promise<PlanRecord> {
   if (plan.status === "DRAFTING") throw conflict("下書きの作成中は確定できません");
   if (plan.status !== "DRAFT") throw conflict("この計画は確定済みです");
   const confirmed = await withPlanLease(plan.planId, async (fresh) => {
@@ -533,7 +567,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
       canonId = created.canonId;
       // stored at once, so a confirmation that fails after this point keeps the Canon instead of making another
       if (!(await updatePlan(plan.planId, { canonId, canonNew: null }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
-      await putPlanEvent(plan.planId, "canon_created", u.userId, { detail: { canonId, name: created.name } });
+      await putPlanEvent(plan.planId, "canon_created", by, { detail: { canonId, name: created.name } });
     }
     for (const r of rows) if (fresh.ordering === "auto" || lost.has(r.rowId)) await putRow(r);
     const owned = canonId && rows.some((r) => r.existing && r.state === "pending") ? new Map((await listUserProjects(u.userId)).map((p) => [p.projectId, p])) : null;
@@ -546,15 +580,17 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
       // the Canon pinned to its head) without building anything
       if (canonId && inCanon !== canonId) {
         values = inCanon ? { state: "decision", decisionReason: "other_canon", projectId: r.existing.projectId } : { state: "pending", projectId: r.existing.projectId };
+        // 自律実行: a project in another Canon is left alone; the row is built anew for this plan's Canon
+        if (inCanon && isAutonomous(fresh)) values = { state: "pending", existing: null, projectId: null, rebuild: true };
       }
       if (!(await updateRow(plan.planId, r.rowId, values, { state: "pending" }))) continue;
       Object.assign(r, values);
-      if (values.state === "decision") await putPlanEvent(plan.planId, "row_decision", u.userId, { rowId: r.rowId, projectId: r.existing.projectId, detail: { reason: "other_canon" } });
+      if (values.state === "decision") await putPlanEvent(plan.planId, "row_decision", by, { rowId: r.rowId, projectId: r.existing.projectId, detail: { reason: "other_canon" } });
     }
     const estimate = planEstimate(rows, limits.effective);
-    const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: u.userId, estimate, activeWave: null, pausedReason: null, rowCounts: countRows(rows) };
+    const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: by, estimate, activeWave: null, pausedReason: null, autonomousError: null, rowCounts: countRows(rows) };
     if (!(await setPlanStatus(plan.planId, "DRAFT", "RUNNING", values))) throw conflict(STATUS_CHANGED);
-    await putPlanEvent(plan.planId, "confirmed", u.userId, { detail: { rows: rows.length, model, orchestratorModel, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
+    await putPlanEvent(plan.planId, "confirmed", by, { detail: { rows: rows.length, model, orchestratorModel, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
     return { ...fresh, ...values, ...(canonId ? { canonId, canonNew: null } : {}), status: "RUNNING" as const };
   });
   await kick(plan.planId);
@@ -598,10 +634,24 @@ export async function pausePlan(u: UserRecord, plan: PlanRecord): Promise<void> 
   await putPlanEvent(plan.planId, "paused", u.userId, { detail: { reason: "user" } });
 }
 
-/** Continues a paused or cancelled plan: done rows stay done; rows stopped by the cancel continue from their artifacts. */
-export async function resumePlan(u: UserRecord, plan: PlanRecord): Promise<void> {
+/**
+ * Continues a paused or cancelled plan: done rows stay done; rows stopped by the cancel continue from their artifacts. An
+ * autonomous plan paused at its cost limit resumes only with a higher limit (`maxCostUsd`, above what it has spent).
+ */
+export async function resumePlan(u: UserRecord, plan: PlanRecord, body: ResumePlanRequest = {}): Promise<void> {
   if (plan.status !== "PAUSED" && plan.status !== "CANCELLED") throw conflict("一時停止中または中止した計画ではありません");
   await requirePlanRun(u, plan);
+  if (body.maxCostUsd !== undefined && body.maxCostUsd !== null) {
+    if (!plan.settings.autonomous) throw bad("費用の上限があるのは自律実行の計画だけです");
+    const maxCostUsd = autonomousMaxCost(body.maxCostUsd);
+    if (maxCostUsd === null) throw bad(`費用の上限は ${AUTONOMOUS_MAX_COST_RANGE.min}〜${AUTONOMOUS_MAX_COST_RANGE.max} USD で指定してください`);
+    const spent = await planSpendUsd(plan, await listRows(plan.planId, true), new Map((await listUserProjects(plan.ownerUserId)).map((p) => [p.projectId, p])));
+    if (maxCostUsd <= spent) throw bad(`費用の上限は、これまでの費用（${spent.toFixed(2)} USD）より大きくしてください`);
+    const settings: PlanSettings = { ...plan.settings, autonomous: { ...plan.settings.autonomous, maxCostUsd } };
+    if (!(await updatePlan(plan.planId, { settings, costLimitAt: null }, { status: plan.status }))) throw conflict(STATUS_CHANGED);
+    plan = { ...plan, settings, costLimitAt: null };
+    await putPlanEvent(plan.planId, "cost_limit_raised", u.userId, { detail: { maxCostUsd, spentUsd: spent } });
+  } else if (plan.pausedReason === "cost_limit") throw bad("費用の上限に達しています。上限を上げて再開してください");
   if (plan.status === "CANCELLED") {
     for (const r of await listRows(plan.planId)) if (r.state === "cancelled") await updateRow(plan.planId, r.rowId, { state: "pending", claimedAt: null }, { state: "cancelled" });
   }

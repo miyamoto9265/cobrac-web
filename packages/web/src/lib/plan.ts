@@ -83,7 +83,7 @@ type SeedFacts = { seed?: boolean; existing?: unknown; state?: string };
 const isBuilt = (r: SeedFacts) => !r.existing && r.state !== "skipped";
 
 /**
- * A seed wave (「種」): its only built row is a seed row (a seed put next to other rows by hand runs with them). Rows
+ * A seed wave (「土台」): its only built row is a seed row (a seed put next to other rows by hand runs with them). Rows
  * done by an existing project (listed in the last wave) and skipped rows are not built, so they do not count.
  */
 export function isSeedWave(rows: SeedFacts[]): boolean {

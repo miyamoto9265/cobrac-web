@@ -1,8 +1,8 @@
 import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Check, CheckCheck, FileUp, GitPullRequest, Layers, ListChecks, Loader2, Pause, Pencil, Play, Plus, RotateCcw, Save, Send, SkipForward, Sparkles, Square, Trash2, Upload, Wand2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { CanonRecord, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, UpdatePlanRequest } from "@cobrac/shared";
-import { ACTIVE_PROJECT_STATUSES, MAX_CONFORM_FOLLOWUPS, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, orchestratorModelOf, planEstimate } from "@cobrac/shared";
+import type { CanonRecord, PlanAutoSkipReason, PlanCanonChoice, PlanDecisionReason, PlanDetailResponse, PlanEventRecord, PlanJobState, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView, UpdatePlanRequest } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_AUTO_ANSWERS, MAX_CONFORM_FOLLOWUPS, MAX_DECIDE_ATTEMPTS, isAutonomous, maxFollowups, MAX_ROW_AUTO_RETRIES, MAX_SEED_ROWS, ORG_TOKENS_PER_MINUTE, OVERLAP_LIMIT, PLAN_JOB_SHORT_ROWS, PLAN_LIMITS, RUN_TOKENS_PER_MINUTE, formatUsd, isDeterministicPlanAttachment, orchestratorModelOf, planEstimate } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { LiveDot, PlanBar } from "../components/PlanBar";
@@ -12,10 +12,20 @@ import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, fmtElapsed, isSeedWave, planWaves, seedIndexes, seedsHolding, shownAnchors, splitIntoWaves, waveCounts, wavesText, waveRuns } from "../lib/plan";
 import { canonPath, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
-import { PlanStatusBadge } from "./PlansPage";
+import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
 
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 const DECISION_REASONS: PlanDecisionReason[] = ["conflicts", "conform_limit", "pr_rejected", "pr_withdrawn", "other_canon", "push_failed"];
+
+/** Why the autonomous run left a row out, as text (the reasons of 「人の判断」 / 「要対応」 keep their texts). */
+function autoSkipText(t: TFn, plan: Pick<PlanRecord, "settings">, reason: PlanAutoSkipReason): string {
+  const n = { n: maxFollowups(plan) };
+  if ((DECISION_REASONS as string[]).includes(reason)) return t(`plan.decision.${reason}` as MessageKey, n);
+  if (reason === "ai_rejected") return t("auto.reason.ai_rejected");
+  if (reason === "question_limit") return t("auto.reason.question_limit", { n: MAX_AUTO_ANSWERS });
+  if (reason === "decide_failed") return t("auto.reason.decide_failed", { n: MAX_DECIDE_ATTEMPTS });
+  return t(`plan.reason.${reason}` as MessageKey, { n: MAX_ROW_AUTO_RETRIES });
+}
 const secondaryBtn = "flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11";
 const dangerBtn = "flex items-center justify-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11";
 const iconBtn = "flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-30 coarse:h-11 coarse:w-11";
@@ -214,6 +224,11 @@ function Summary({ d }: { d: PlanDetailResponse }) {
         </div>
         <div>
           <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
+          {plan.settings.autonomous && (
+            <span className="ml-1.5 text-xs text-violet-700" data-testid="plan-cost-limit">
+              {t("auto.limit", { cost: formatUsd(plan.settings.autonomous.maxCostUsd) })}
+            </span>
+          )}
         </div>
         {typeof d.planJobsCostUsd === "number" && (
           <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
@@ -266,6 +281,7 @@ function Settings({ d, onChanged, onError }: { d: PlanDetailResponse; onChanged:
             <input type="checkbox" checked={s.researchMode} onChange={(e) => save({ researchMode: e.target.checked })} />
             {t("plan.researchMode")}
           </label>
+          <AutonomousSetting plan={plan} save={save} />
         </div>
       ) : (
         <div className="grid gap-1 text-xs text-slate-600">
@@ -284,9 +300,67 @@ function Settings({ d, onChanged, onError }: { d: PlanDetailResponse; onChanged:
             </span>
             {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
           </div>
+          {s.autonomous && <div className="text-violet-700">{t("auto.settingsRead", { cost: formatUsd(s.autonomous.maxCostUsd) })}</div>}
         </div>
       )}
     </section>
+  );
+}
+
+/** 自律実行 of a draft: on / off and the cost limit (saved when the field is left). */
+function AutonomousSetting({ plan, save }: { plan: PlanRecord; save: (b: NonNullable<UpdatePlanRequest["settings"]>) => void }) {
+  const t = useT();
+  const a = plan.settings.autonomous ?? null;
+  const [cost, setCost] = useState(String(a?.maxCostUsd ?? AUTONOMOUS_DEFAULT_MAX_COST_USD));
+  useEffect(() => setCost(String(a?.maxCostUsd ?? AUTONOMOUS_DEFAULT_MAX_COST_USD)), [a?.maxCostUsd]);
+  const ok = (v: string) => Number(v) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(v) <= AUTONOMOUS_MAX_COST_RANGE.max;
+  return (
+    <div className="grid gap-1.5" data-testid="plan-autonomous-setting">
+      <label className="flex items-center gap-2 text-sm coarse:min-h-11">
+        <input type="checkbox" checked={!!a} onChange={(e) => save({ autonomous: e.target.checked ? { maxCostUsd: ok(cost) ? Number(cost) : AUTONOMOUS_DEFAULT_MAX_COST_USD } : null })} />
+        {t("auto.label")} <HelpTip text={t("auto.help")} />
+      </label>
+      {a && (
+        <label className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+          {t("auto.cost")}
+          <input
+            type="number"
+            min={AUTONOMOUS_MAX_COST_RANGE.min}
+            max={AUTONOMOUS_MAX_COST_RANGE.max}
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            onBlur={() => ok(cost) && Number(cost) !== a.maxCostUsd && save({ autonomous: { maxCostUsd: Number(cost) } })}
+            className={`${inputCls} w-28`}
+            aria-invalid={!ok(cost)}
+          />
+        </label>
+      )}
+    </div>
+  );
+}
+
+/** A plan paused at its cost limit: resumed with a higher limit. */
+function RaiseLimit({ plan, busy, onResume }: { plan: PlanRecord; busy: boolean; onResume: (maxCostUsd: number) => void }) {
+  const t = useT();
+  const [cost, setCost] = useState(String(Math.round((plan.settings.autonomous?.maxCostUsd ?? AUTONOMOUS_DEFAULT_MAX_COST_USD) * 2)));
+  const n = Number(cost);
+  return (
+    <form
+      className="mb-3 flex flex-wrap items-end gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
+      data-testid="plan-raise-limit"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onResume(n);
+      }}
+    >
+      <label className="grid gap-1 text-xs text-amber-900">
+        {t("auto.newLimit")}
+        <input type="number" min={AUTONOMOUS_MAX_COST_RANGE.min} max={AUTONOMOUS_MAX_COST_RANGE.max} value={cost} onChange={(e) => setCost(e.target.value)} className={`${inputCls} w-32`} />
+      </label>
+      <button type="submit" disabled={busy || !(n >= AUTONOMOUS_MAX_COST_RANGE.min && n <= AUTONOMOUS_MAX_COST_RANGE.max)} className={primaryBtn}>
+        <Play size={14} aria-hidden /> {t("auto.raise")}
+      </button>
+    </form>
   );
 }
 
@@ -575,7 +649,7 @@ function PrLink({ canonId, prNo }: { canonId: string; prNo: number }) {
  * of it (待ち / 実行中, then 「AI レビュー済み」 linking to the pull request, where the review is shown), and the conform
  * follow-ups it got.
  */
-function RowCanonFacts({ row, canonId }: { row: PlanRowView; canonId: string | null }) {
+function RowCanonFacts({ row, canonId, maxConform = MAX_CONFORM_FOLLOWUPS }: { row: PlanRowView; canonId: string | null; maxConform?: number }) {
   const t = useT();
   const conformWaits = row.state === "pending" && !!row.conform;
   const pr = canonId && row.prNo && (row.state === "review" || row.state === "decision" || row.state === "done" || conformWaits) ? row.prNo : null;
@@ -603,7 +677,7 @@ function RowCanonFacts({ row, canonId }: { row: PlanRowView; canonId: string | n
       ) : null}
       {(row.conformAttempts ?? 0) > 0 && (
         <span className="text-slate-500" data-testid="row-conform">
-          {t("plan.conformAttempts", { n: row.conformAttempts ?? 0, max: MAX_CONFORM_FOLLOWUPS })}
+          {t("plan.conformAttempts", { n: row.conformAttempts ?? 0, max: maxConform })}
         </span>
       )}
     </>
@@ -792,7 +866,7 @@ function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: ReadonlyMap
   );
 }
 
-/** Heading of a wave: its stored number, 「種」 for a seed wave. */
+/** Heading of a wave: its stored number, 「土台」 for a seed wave. */
 function WaveHeading({ wave, seed, current, className = "mb-1" }: { wave: number; seed: boolean; current?: boolean; className?: string }) {
   const t = useT();
   return (
@@ -811,7 +885,7 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
   const t = useT();
   const waves = planWaves(d.rows);
   const names = useMemo(() => new Map(d.rows.map((r) => [r.rowId, rowName(r)])), [d.rows]);
-  // 「種」 on a row only while it is the seed of its wave (as the headings)
+  // 「土台」 on a row only while it is the seed of its wave (as the headings)
   const seeds = useMemo(() => new Set([...seedIndexes(d.rows)].map((i) => d.rows[i].rowId)), [d.rows]);
   const canSkip = d.plan.status === "RUNNING" || d.plan.status === "PAUSED" || d.plan.status === "CANCELLED";
   const canonId = d.plan.canonId ?? d.canon?.canonId ?? null;
@@ -837,6 +911,11 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
                       <span className="text-slate-500"> · {r.roi || "—"}</span>
                     </div>
                     {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
+                    {r.state === "skipped" && r.autoSkip && (
+                      <div className="break-words text-xs text-amber-800" data-testid="row-auto-skip">
+                        {t("auto.skipped", { reason: autoSkipText(t, d.plan, r.autoSkip.reason) })}
+                      </div>
+                    )}
                     <RowFacts row={{ ...r, seed: seeds.has(r.rowId) }} names={names} />
                     {building(r) && r.project?.stepStates && (
                       <PipelineProgress project={{ status: r.project.status, stepStates: r.project.stepStates, activeStage: r.project.activeStage ?? null, researchMode: r.project.researchMode }} jobs={[]} help={false} className="mt-1.5" />
@@ -851,7 +930,8 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
                     {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
                     {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
                     {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}
-                    <RowCanonFacts row={r} canonId={canonId} />
+                    {!!r.autoAnswers && <span className="text-violet-700">{t("auto.answers", { n: r.autoAnswers, max: MAX_AUTO_ANSWERS })}</span>}
+                    <RowCanonFacts row={r} canonId={canonId} maxConform={maxFollowups(d.plan)} />
                     <RowStateChip state={r.state} />
                     {canSkip && r.state === "pending" && (
                       <button type="button" onClick={() => act(r.rowId, "skip")} className="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 coarse:min-h-11" title={t("plan.skip")}>
@@ -1142,7 +1222,7 @@ function DecidedProposals({ d }: { d: PlanDetailResponse }) {
   );
 }
 
-function History({ events, rows, t }: { events: PlanEventRecord[]; rows: PlanRowView[]; t: TFn }) {
+function History({ events, rows, plan, t }: { events: PlanEventRecord[]; rows: PlanRowView[]; plan: PlanRecord; t: TFn }) {
   const { locale } = useI18n();
   const byId = useMemo(() => new Map(rows.map((r) => [r.rowId, r])), [rows]);
   if (!events.length) return null;
@@ -1155,9 +1235,18 @@ function History({ events, rows, t }: { events: PlanEventRecord[]; rows: PlanRow
           return (
             <li key={e.sk} className="flex flex-wrap gap-x-2">
               <span className="text-slate-500">{fmtDate(e.at, locale)}</span>
-              <span>{t(`plan.evt.${e.type}` as MessageKey, { wave: e.detail?.wave ?? "", revision: e.detail?.revision ?? "" })}</span>
+              <span>
+                {t(`plan.evt.${e.type}` as MessageKey, {
+                  wave: e.detail?.wave ?? "",
+                  revision: e.detail?.revision ?? "",
+                  spent: typeof e.detail?.spentUsd === "number" ? formatUsd(e.detail.spentUsd) : "",
+                  max: typeof e.detail?.maxCostUsd === "number" ? formatUsd(e.detail.maxCostUsd) : "",
+                })}
+              </span>
+              {e.type === "row_ai_decided" && typeof e.detail?.verdict === "string" && <span className="text-violet-700">{t(`auto.verdict.${e.detail.verdict}` as MessageKey)}</span>}
+              {e.type === "row_auto_skipped" && typeof e.detail?.reason === "string" && <span className="text-amber-800">{autoSkipText(t, plan, e.detail.reason as PlanAutoSkipReason)}</span>}
               {e.type === "row_pushed" && typeof e.detail?.prNo === "number" && <span className="font-mono text-slate-500">#{e.detail.prNo}</span>}
-              {e.type === "row_decision" && DECISION_REASONS.includes(e.detail?.reason as PlanDecisionReason) && <span className="text-amber-800">{t(`plan.decision.${e.detail?.reason}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</span>}
+              {e.type === "row_decision" && DECISION_REASONS.includes(e.detail?.reason as PlanDecisionReason) && <span className="text-amber-800">{t(`plan.decision.${e.detail?.reason}` as MessageKey, { n: maxFollowups(plan) })}</span>}
               {row && <span className="text-slate-600">{rowLabel(row)}</span>}
             </li>
           );
@@ -1235,7 +1324,7 @@ export function PlanDetailPage() {
       canon = stored;
     }
     const unsaved = saveRef.current;
-    // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「種」 headings)
+    // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「土台」 headings)
     const facts = unsaved ? seedFactsOf(unsaved.rows) : [];
     const seeds = seedIndexes(facts);
     const e = unsaved ? planEstimate(facts.map((f, i) => ({ ...f, seed: seeds.has(i) })), d.limits.effective) : d.estimate;
@@ -1271,7 +1360,11 @@ export function PlanDetailPage() {
       () => {},
     );
   const banner =
-    plan.status === "DRAFT"
+    plan.status === "DRAFT" && isAutonomous(plan) && plan.autonomousError
+      ? { cls: "bg-rose-50 text-rose-700", text: t("auto.confirmError", { error: plan.autonomousError }) }
+      : plan.status === "DRAFT" && isAutonomous(plan) && plan.draft?.status === "done" && plan.draft.autoConfirm
+        ? { cls: "bg-violet-50 text-violet-700", text: t("auto.confirmSoon") }
+        : plan.status === "DRAFT"
       ? { cls: "bg-blue-50 text-blue-700", text: t("plan.draftNote") }
       : plan.status === "PAUSED"
         ? { cls: "bg-amber-50 text-amber-800", text: t(`plan.paused.${plan.pausedReason ?? "user"}` as MessageKey) }
@@ -1318,6 +1411,7 @@ export function PlanDetailPage() {
           <span className="flex items-center gap-1.5">
             {(plan.status === "RUNNING" || plan.status === "DRAFTING" || plan.status === "PAUSED") && <LiveDot tone={plan.status === "PAUSED" ? "waiting" : "running"} />}
             <PlanStatusBadge status={plan.status} />
+            <AutonomousBadge plan={plan} />
           </span>
           <span className="font-mono text-[11px] text-slate-500" title={t("plan.planId")}>
             {plan.planId}
@@ -1329,6 +1423,7 @@ export function PlanDetailPage() {
         {plan.status === "DRAFTING" && <DraftJobBanner plan={plan} rows={rows.length} busy={busy} onCancel={cancelDraft} />}
         {banner && <div className={`mb-3 rounded-md px-3 py-2 text-sm ${banner.cls}`}>{banner.text}</div>}
         {err && <div className="mb-3 break-words rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+        {plan.status === "PAUSED" && plan.pausedReason === "cost_limit" && <RaiseLimit plan={plan} busy={busy} onResume={(maxCostUsd) => act(() => api.resumePlan(planId, { maxCostUsd }))} />}
         <CanonGates d={d} />
         {plan.status === "DRAFT" && <DraftOutcome plan={plan} />}
         <Rejected items={rejected} onClose={() => setRejected([])} />
@@ -1349,7 +1444,7 @@ export function PlanDetailPage() {
               <Pause size={14} aria-hidden /> {t("plan.pause")}
             </button>
           )}
-          {(plan.status === "PAUSED" || plan.status === "CANCELLED") && (
+          {(plan.status === "CANCELLED" || (plan.status === "PAUSED" && plan.pausedReason !== "cost_limit")) && (
             <button type="button" disabled={busy} onClick={() => act(() => api.planAction(planId, "resume"))} className={primaryBtn}>
               <Play size={14} aria-hidden /> {t("plan.resume")}
             </button>
@@ -1375,7 +1470,7 @@ export function PlanDetailPage() {
         <Policy plan={plan} />
         <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
         {plan.status === "DRAFT" ? <DraftEditor d={d} onSaved={() => void load()} onError={onError} onRejected={setRejected} saveRef={saveRef} /> : <RowsByWave d={d} act={rowAct} />}
-        <History events={d.events} rows={rows} t={t} />
+        <History events={d.events} rows={rows} plan={plan} t={t} />
         <DecidedProposals d={d} />
       </div>
     </div>

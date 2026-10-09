@@ -12,15 +12,24 @@
 // finished project instead of finishing the row (「承認待ち」 until a human approves its pull request), asks an AI review
 // of body rows' pull requests when a slot is free, sends conform follow-ups for conflicts caused by the Canon moving on,
 // and hands everything else to a human (「人の判断」). A seed row holds the later waves until its pull request is approved,
-// and no new wave starts while `PLAN_MAX_WAITING_PRS` pull requests wait. The runner never approves, rejects or answers.
-// Plans without a Canon read no Canon.
+// and no new wave starts while `PLAN_MAX_WAITING_PRS` pull requests wait. The runner never approves, rejects or answers
+// for an ordinary plan. Plans without a Canon read no Canon.
+//
+// 自律実行 (autonomous run, `settings.autonomous`): the plan runs to the end without waiting for a person. The runner
+// confirms its draft (through the Lambda handler, after the step), its rows' jobs decide instead of asking and the runner
+// answers a question they still ask (`MAX_AUTO_ANSWERS`), the AI reviewer decides on every pull request of the plan
+// (seeds included) and the runner applies the decision (approve, request changes as a follow-up, reject), rows that would
+// need a human are left out (`autoSkip`), and no new row or follow-up starts once the plan spent its cost limit.
 import type {
+  CanonAiReviewResult,
+  CanonIncoming,
   CanonRecord,
   EffectiveLimits,
   JobRecord,
   KeySource,
   ModelPolicy,
   PlanAttentionReason,
+  PlanAutoSkipReason,
   PlanDecisionReason,
   PlanEventType,
   PlanJobState,
@@ -37,6 +46,8 @@ import {
   PLAN_MAX_WAITING_PRS,
   HCD_FILES,
   IN_FLIGHT_ROW_STATES,
+  MAX_AUTO_ANSWERS,
+  MAX_DECIDE_ATTEMPTS,
   MAX_ROW_AUTO_RETRIES,
   PLAN_LEASE_MS,
   PLAN_LIMITS,
@@ -46,13 +57,20 @@ import {
   SLOT_JOB_STATUSES,
   TRACKED_ROW_STATES,
   anchorsOfUcJson,
+  canonAiReviewKey,
   canonAlignInstruction,
+  canonFixInstruction,
   canonFollowStatus,
+  canonPrKey,
   conformTitle,
   countRows,
+  decisionAction,
+  diffCanon,
   freeSlots,
+  isAutonomous,
   isMovableRow,
   isProjectDeleted,
+  maxFollowups,
   newId,
   nextActiveWave,
   nowIso,
@@ -68,15 +86,16 @@ import {
   syncRow,
   waitingPrs,
 } from "@cobrac/shared";
-import { getObjectText } from "./aws.js";
-import { loadCanonHead, loadCanonRevision, ownedCanon, pinProject, pushProject, requestAiReview } from "./canonOps.js";
+import { getCanonJson, getObjectText } from "./aws.js";
+import { approvePullRequest, loadCanonHead, loadCanonRevision, ownedCanon, pinProject, pushProject, rejectPullRequest, requestAiReview, requestPrChanges } from "./canonOps.js";
 import { addCanonMember, getPullRequest } from "./canons.js";
 import { reserveNewId } from "./catalog.js";
 import { currentLimits } from "./concurrency.js";
 import { getJob, getProject, getUser, listJobsByStatus, listUserProjects } from "./db.js";
 import { GATE_ERRORS, draftRows, isOpenPlanJob, planJobProgress, queuePlanJob, readPlanJob, readPlanResult, stopPlanJob, storeProposals } from "./planJobs.js";
+import { planSpendUsd } from "./planCost.js";
 import { acquirePlanLease, getPlan, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateRow } from "./plans.js";
-import { createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { AUTO_ANSWER, answerQuestion, createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
 export const RUNNER = "runner";
 
@@ -90,6 +109,8 @@ export interface AdvanceResult {
   pausedReason?: PlanPauseReason;
   /** A `plan` job (draft or re-plan) queued by this step */
   planJob?: string;
+  /** 自律実行: the draft was applied in this step; the caller confirms the plan once the step released its lease */
+  autoConfirm?: boolean;
 }
 
 /** The models a plan's jobs run on: the rows' (`model`) and the Orchestrator's own jobs' (`orchestratorModel`). */
@@ -123,8 +144,23 @@ async function setRow(plan: PlanRecord, row: PlanRowRecord, to: PlanRowState, va
   return true;
 }
 
-const attention = (plan: PlanRecord, row: PlanRowRecord, reason: PlanAttentionReason, error: string | null) =>
-  setRow(plan, row, "attention", { attentionReason: reason, lastError: error }, "row_attention", { reason, error });
+/**
+ * 自律実行: the row is left out instead of waiting for a human (its pull request, if any, stays as it is). The project's
+ * job is never running here: a row that waits for a human has none.
+ */
+const autoSkip = (plan: PlanRecord, row: PlanRowRecord, reason: PlanAutoSkipReason, error: string | null, extra: Partial<PlanRowRecord> = {}) =>
+  setRow(
+    plan,
+    row,
+    "skipped",
+    { ...extra, autoSkip: { reason, at: nowIso(), prNo: extra.prNo ?? row.prNo ?? null, error }, lastError: error, claimedAt: null, conform: false, followup: null, aiReview: null },
+    "row_auto_skipped",
+    { reason, error: error ? error.slice(0, 300) : null, ...((extra.prNo ?? row.prNo) ? { prNo: extra.prNo ?? row.prNo ?? null } : {}) },
+  );
+
+/** A row that needs attention (「要対応」); in an autonomous plan it is left out instead. */
+const attention = (plan: PlanRecord, row: PlanRowRecord, reason: PlanAttentionReason, error: string | null, extra: Partial<PlanRowRecord> = {}) =>
+  isAutonomous(plan) ? autoSkip(plan, row, reason, error, extra) : setRow(plan, row, "attention", { ...extra, attentionReason: reason, lastError: error }, "row_attention", { reason, error });
 
 /**
  * The plan's Canon as this step sees it (read once per step). `canon` is null for a plan without one, and for a plan
@@ -138,8 +174,20 @@ interface CanonStep {
 const CANON_MISSING = "The plan's Canon was not found.";
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 500);
 
+/**
+ * A row a human must decide on (「人の判断」). In an autonomous plan it is left out instead, except when the plan's Canon
+ * is gone: then the plan pauses (`canon_missing`) and the owner resolves it.
+ */
 const decide = (plan: PlanRecord, row: PlanRowRecord, reason: PlanDecisionReason, error: string | null, extra: Partial<PlanRowRecord> = {}) =>
-  setRow(plan, row, "decision", { ...extra, decisionReason: reason, lastError: error, claimedAt: null }, "row_decision", { reason, error, ...(extra.prNo ? { prNo: extra.prNo } : {}) });
+  isAutonomous(plan) && error !== CANON_MISSING
+    ? autoSkip(plan, row, reason, error, extra)
+    : setRow(plan, row, "decision", { ...extra, decisionReason: reason, lastError: error, claimedAt: null }, "row_decision", { reason, error, ...(extra.prNo ? { prNo: extra.prNo } : {}) });
+
+/** Whether the row's pull request gets an AI review (body rows) or, in an autonomous plan, the AI's decision (every row). */
+const reviewWanted = (plan: PlanRecord, row: PlanRowRecord): "wanted" | null => (isAutonomous(plan) || !row.seed ? "wanted" : null);
+
+/** The jobs of an autonomous plan's rows decide instead of asking. */
+const questionMode = (plan: PlanRecord): { questionMode?: "auto" } => (isAutonomous(plan) ? { questionMode: "auto" } : {});
 
 /**
  * A finished row of a plan with a Canon: its project is pushed to the plan's Canon (joining it, pinned to the head, when
@@ -165,11 +213,15 @@ async function pushRow(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord, c
   }
   const prNo = pushed.pr.prNo;
   const headMoved = canon.headRevision > (row.canonRevision ?? p.canonRevision ?? 0);
-  const o = pushOutcome(pushed.diff.summary, headMoved, row.conformAttempts ?? 0);
+  const o = pushOutcome(pushed.diff.summary, headMoved, row.conformAttempts ?? 0, { autonomous: isAutonomous(plan) });
   if (o.to === "review") {
-    return setRow(plan, row, "review", { prNo, aiReview: row.seed ? null : "wanted", aiReviewJobId: null, decisionReason: null, lastError: null, claimedAt: null }, "row_pushed", { prNo });
+    return setRow(plan, row, "review", { prNo, aiReview: reviewWanted(plan, row), aiReviewJobId: null, decideAttempts: 0, decisionReason: null, lastError: null, claimedAt: null }, "row_pushed", { prNo });
   }
-  if (o.to === "conform") return setRow(plan, row, "pending", { prNo, conform: true, lastError: null, claimedAt: null }, "row_pushed", { prNo, conform: 1 });
+  if (o.to === "conform") {
+    // 自律実行: error conflicts the Canon moving on did not cause get a follow-up that makes the project agree with the Canon
+    const followup = o.fix ? { kind: "fix" as const, note: canonFixInstruction(pushed.diff.conflicts.filter((c) => c.severity === "error")) } : null;
+    return setRow(plan, row, "pending", { prNo, conform: true, followup, lastError: null, claimedAt: null }, "row_pushed", { prNo, conform: 1 });
+  }
   return decide(plan, row, o.reason, null, { prNo });
 }
 
@@ -193,10 +245,10 @@ const readPrOutcome = async (canonId: string, row: PlanRowRecord): Promise<PrOut
  * AI review for a body row. A pending conform is dropped in every case: only a PR that is still open gets the follow-up.
  */
 async function settlePr(plan: PlanRecord, row: PlanRowRecord, o: PrOutcome): Promise<boolean> {
-  const unconform: Partial<PlanRowRecord> = row.conform ? { conform: false } : {};
+  const unconform: Partial<PlanRowRecord> = row.conform ? { conform: false, followup: null } : {};
   if (o.to === "done") return setRow(plan, row, "done", { completedAt: nowIso(), attentionReason: null, claimedAt: null, ...unconform }, "row_done", { prNo: row.prNo ?? null });
   if (o.to === "decision") return row.state === "decision" ? false : decide(plan, row, o.reason, null, unconform);
-  const values: Partial<PlanRowRecord> = { prNo: o.prNo, aiReview: row.seed ? null : "wanted", aiReviewJobId: null, decisionReason: null, lastError: null, claimedAt: null, ...unconform };
+  const values: Partial<PlanRowRecord> = { prNo: o.prNo, aiReview: reviewWanted(plan, row), aiReviewJobId: null, decideAttempts: 0, decisionReason: null, lastError: null, claimedAt: null, followup: null, ...unconform };
   if (!(await updateRow(plan.planId, row.rowId, { ...values, state: "review" }, { state: row.state, prNo: row.prNo ?? undefined }))) return false;
   Object.assign(row, values, { state: "review" });
   return true;
@@ -213,12 +265,70 @@ async function followPr(plan: PlanRecord, row: PlanRowRecord, cs: CanonStep): Pr
   if (!cs.canon) return row.state === "review" ? decide(plan, row, "push_failed", CANON_MISSING) : false;
   const o = await readPrOutcome(cs.canon.canonId, row);
   if (o) return settlePr(plan, row, o);
-  if (row.state !== "review" || row.aiReview !== "queued") return false;
+  if (row.state !== "review") return false;
+  // 自律実行: every open pull request of the plan waits for the AI's decision (also one pushed before, or followed)
+  if (isAutonomous(plan) && !row.aiReview) {
+    if (!(await updateRow(plan.planId, row.rowId, { aiReview: "wanted" }, { state: "review" }))) return false;
+    row.aiReview = "wanted";
+    return true;
+  }
+  if (row.aiReview !== "queued") return false;
   const job = row.aiReviewJobId ? await getJob(cs.canon.canonId, row.aiReviewJobId, true) : null;
   if (job && !ENDED_JOB_STATUSES.includes(job.status)) return false;
+  if (isAutonomous(plan) && cs.owner) {
+    if (job?.reviewKind === "decide" && job.status === "COMPLETED") return applyDecision(plan, row, cs.canon, cs.owner, job);
+    // a decision job that failed is asked again (up to MAX_DECIDE_ATTEMPTS); a review asked by hand is followed by a decision
+    if (job?.reviewKind === "decide" && (row.decideAttempts ?? 0) >= MAX_DECIDE_ATTEMPTS) return autoSkip(plan, row, "decide_failed", job.errorMessage ?? null);
+    if (!(await updateRow(plan.planId, row.rowId, { aiReview: "wanted" }, { state: "review", aiReview: "queued" }))) return false;
+    row.aiReview = "wanted";
+    return true;
+  }
   if (!(await updateRow(plan.planId, row.rowId, { aiReview: null }, { state: "review", aiReview: "queued" }))) return false;
   row.aiReview = null;
   return true;
+}
+
+/**
+ * 自律実行: applies the AI reviewer's decision on the row's pull request. Code has the last word (`decisionAction`):
+ * approve → merged into the Canon (as the AI, for the owner) and the row is done; an approval that error conflicts would
+ * block, or requested changes → the PR records the request and the row gets a follow-up (at most `maxFollowups`, then it
+ * is left out with its PR open); reject → the PR is closed and the row is left out. A race with another approval is
+ * applied again at the next step.
+ */
+async function applyDecision(plan: PlanRecord, row: PlanRowRecord, canon: CanonRecord, owner: UserRecord, job: JobRecord): Promise<boolean> {
+  const pr = row.prNo ? await getPullRequest(canon.canonId, row.prNo, true) : null;
+  if (!pr || pr.state !== "open") return false; // settled outside: followed at the next step
+  const result = await getCanonJson<CanonAiReviewResult>(canonAiReviewKey(canon.canonId, pr.prNo, job.jobId, "result.json"));
+  const incoming = await getCanonJson<CanonIncoming>(canonPrKey(canon.canonId, pr.prNo, "incoming.json"));
+  if (!result?.decision || !incoming) {
+    if ((row.decideAttempts ?? 0) >= MAX_DECIDE_ATTEMPTS) return autoSkip(plan, row, "decide_failed", "The decision could not be read.");
+    return setRow(plan, row, "review", { aiReview: "wanted" }, null);
+  }
+  const d = result.decision;
+  const act = decisionAction(d, diffCanon(await loadCanonHead(canon), incoming));
+  const via = { kind: "ai" as const, jobId: job.jobId, model: job.model ?? result.model };
+  const detail = { prNo: pr.prNo, verdict: d.verdict, action: act.action, jobId: job.jobId };
+  if (act.action === "approve") {
+    const r = await approvePullRequest(owner, canon, pr, { choices: act.choices, note: d.reason || null, via });
+    if (!r.ok) {
+      // another approval moved the Canon meanwhile: applied again (judged against the new head) at the next step
+      if (r.reason === "race") return false;
+      return setRow(plan, row, "review", { aiReview: "wanted" }, null);
+    }
+    canon.headRevision = r.revision;
+    await putPlanEvent(plan.planId, "row_ai_decided", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { ...detail, revision: r.revision } });
+    return setRow(plan, row, "done", { completedAt: nowIso(), aiReview: null, claimedAt: null }, "row_done", { prNo: pr.prNo });
+  }
+  if (act.action === "reject") {
+    if (!(await rejectPullRequest(owner, canon, pr, act.note.slice(0, 2000), via))) return false;
+    await putPlanEvent(plan.planId, "row_ai_decided", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail });
+    return autoSkip(plan, row, "ai_rejected", d.reason || null);
+  }
+  // fix / changes: the project changes and pushes again (its new PR supersedes this one and is decided again)
+  if ((row.conformAttempts ?? 0) >= maxFollowups(plan)) return autoSkip(plan, row, "conform_limit", null);
+  await requestPrChanges(owner, canon, pr, act.note.slice(0, 2000), via);
+  await putPlanEvent(plan.planId, "row_ai_decided", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail });
+  return setRow(plan, row, "pending", { conform: true, followup: { kind: act.action === "fix" ? "fix" : "changes", note: act.note.slice(0, 6000) }, aiReview: null, claimedAt: null }, null);
 }
 
 /** Seed row states that no longer hold another seed (as the seed gate of `nextActiveWave`), plus `pending`. */
@@ -286,7 +396,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       // a retry follows the Canon head as it is now
       if (canon && (await joinCanon(owner, existing, canon))) pin = { canonRevision: canon.headRevision };
       const moved = await moveToAllowedModel(owner, existing, gate.policy);
-      await queueRetry(owner, existing, gate.policy, { locale: plan.settings.locale, moved });
+      await queueRetry(owner, existing, gate.policy, { locale: plan.settings.locale, moved, ...questionMode(plan) });
     } catch (e) {
       await startFailed(plan, row, e);
       return false;
@@ -314,6 +424,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       projectId,
       jobId,
       recover,
+      ...questionMode(plan),
       // the new project follows the Canon head from its first job on
       beforeQueue: canon
         ? async (project) => {
@@ -374,19 +485,25 @@ async function startConform(plan: PlanRecord, row: PlanRowRecord, p: ProjectReco
   // the attempt and the new pin are written with the claim, so a step that stops after queueing the follow-up cannot
   // let another one through (a stop before queueing sends the row to a human at its next push instead: the pin is at
   // the head then). A start that fails keeps the attempt counted (the limit holds) and waits for the next slot.
-  const before: Partial<PlanRowRecord> = { conform: true, canonRevision: row.canonRevision ?? null };
-  if (!(await setRow(plan, row, "starting", { claimedAt: at, conform: false, conformAttempts: attempt, canonRevision: head }, null))) return false;
+  const followup = row.followup ?? null;
+  const before: Partial<PlanRowRecord> = { conform: true, followup, canonRevision: row.canonRevision ?? null };
+  if (!(await setRow(plan, row, "starting", { claimedAt: at, conform: false, followup: null, conformAttempts: attempt, canonRevision: head }, null))) return false;
   try {
-    const status = canonFollowStatus(await loadCanonRevision(canon, Math.min(p.canonRevision ?? 0, head)), await loadCanonHead(canon), p.projectId);
-    const instruction = `${conformTitle(head)}\n\n${canonAlignInstruction({ canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: head }, status)}`;
+    let instruction: string;
+    if (followup?.kind === "changes") instruction = `Canon PR #${row.prNo} の AI レビューの指摘に対応\n\nThe AI reviewer of the plan's Canon asked for these changes before the project's pull request can go into the Canon. Make them (with evidence), then finish as usual:\n${followup.note}`;
+    else if (followup?.kind === "fix") instruction = `${conformTitle(head)}\n\n${followup.note}`;
+    else {
+      const status = canonFollowStatus(await loadCanonRevision(canon, Math.min(p.canonRevision ?? 0, head)), await loadCanonHead(canon), p.projectId);
+      instruction = `${conformTitle(head)}\n\n${canonAlignInstruction({ canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: head }, status)}`;
+    }
     await pinProject(owner, p, canon, head);
     const moved = await moveToAllowedModel(owner, p, gate.policy);
-    await queueFollowup(owner, p, gate.policy, { instruction, locale: plan.settings.locale, moved });
+    await queueFollowup(owner, p, gate.policy, { instruction, locale: plan.settings.locale, moved, ...questionMode(plan) });
   } catch (e) {
     await startFailed(plan, row, e, before);
     return false;
   }
-  await setRow(plan, row, "running", { startedAt: at }, "row_conform", { revision: head, attempt });
+  await setRow(plan, row, "running", { startedAt: at }, "row_conform", { revision: head, attempt, ...(followup ? { kind: followup.kind } : {}) });
   return true;
 }
 
@@ -403,9 +520,10 @@ async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: Can
     await set({ aiReview: null });
     return false;
   }
+  const decideJob = isAutonomous(plan);
   let r: Awaited<ReturnType<typeof requestAiReview>>;
   try {
-    r = await requestAiReview(owner, canon, pr, gate.policy, { model: gate.orchestratorModel, locale: plan.settings.locale ?? "ja" });
+    r = await requestAiReview(owner, canon, pr, gate.policy, { model: gate.orchestratorModel, locale: plan.settings.locale ?? "ja", kind: decideJob ? "decide" : "assist", planId: plan.planId });
   } catch (e) {
     console.error(`[plan ${plan.planId}] AI review of #${pr.prNo} could not be queued`, errorText(e));
     return false;
@@ -415,7 +533,7 @@ async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: Can
     await set(r.reason === "active" ? { aiReview: "queued", aiReviewJobId: r.jobId ?? null } : { aiReview: null, ...(r.reason === "material" ? { lastError: r.message } : {}) });
     return false;
   }
-  await set({ aiReview: "queued", aiReviewJobId: r.job.jobId });
+  await set({ aiReview: "queued", aiReviewJobId: r.job.jobId, ...(decideJob ? { decideAttempts: (row.decideAttempts ?? 0) + 1 } : {}) });
   await putPlanEvent(plan.planId, "row_ai_review", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { prNo: pr.prNo, jobId: r.job.jobId } });
   return true;
 }
@@ -424,7 +542,7 @@ async function requestRowReview(plan: PlanRecord, row: PlanRowRecord, canon: Can
 async function startFailed(plan: PlanRecord, row: PlanRowRecord, e: unknown, restore: Partial<PlanRowRecord> = {}) {
   const error = (e instanceof Error ? e.message : String(e)).slice(0, 500);
   console.error(`[plan ${plan.planId}] row ${row.rowId} could not start`, error);
-  if (row.attempts >= MAX_ROW_AUTO_RETRIES) await setRow(plan, row, "attention", { ...restore, attentionReason: "start_failed", lastError: error }, "row_attention", { reason: "start_failed", error });
+  if (row.attempts >= MAX_ROW_AUTO_RETRIES) await attention(plan, row, "start_failed", error, restore);
   else await setRow(plan, row, "pending", { ...restore, attempts: row.attempts + 1, lastError: error, claimedAt: null }, "row_retry", { attempt: row.attempts + 1, max: MAX_ROW_AUTO_RETRIES, error });
 }
 
@@ -446,11 +564,20 @@ const openJob = (s: PlanJobState | null | undefined) => !!s && (s.status === "qu
 
 /** Why a plan job could not be started for the owner, for the page (`PlanJobState.errorCode`). */
 type GateCode = NonNullable<PlanJobState["errorCode"]>;
-const gateCode = (reason: PlanPauseReason): GateCode | null => (reason === "user" || reason === "canon_missing" ? null : reason);
+const gateCode = (reason: PlanPauseReason): GateCode | null => (reason === "user" || reason === "canon_missing" || reason === "cost_limit" ? null : reason);
 const gateError = (reason: PlanPauseReason) => GATE_ERRORS[reason as GateCode] ?? reason;
 
 /** The draft ended without a result: the plan is an editable draft again, with the reason (and its code when the owner could not run it). */
 async function endDraft(plan: PlanRecord, d: PlanJobState, status: "failed" | "cancelled", error: string, errorCode: GateCode | null = null) {
+  if (isAutonomous(plan) && status === "failed" && !errorCode && (d.attempt ?? 1) < 2) {
+    // 自律実行: a draft job that failed is asked once more (not when the owner cannot run jobs)
+    const again: PlanJobState = { ...d, jobId: null, status: "waiting", error, attempt: (d.attempt ?? 1) + 1 };
+    if (await updatePlan(plan.planId, { draft: again }, { status: "DRAFTING" })) {
+      plan.draft = again;
+      await putPlanEvent(plan.planId, "draft_failed", RUNNER, { detail: { error: error.slice(0, 300), status, retry: 1 } });
+    }
+    return;
+  }
   const draft: PlanJobState = { ...d, status, error, errorCode, endedAt: nowIso() };
   if (!(await setPlanStatus(plan.planId, "DRAFTING", "DRAFT", { draft }))) return;
   plan.status = "DRAFT";
@@ -502,12 +629,14 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
   const applied = draftRows(plan.planId, await listRows(plan.planId, true), parsed, projects, limits.effective, nowIso());
   for (const r of applied.rows) await putRow(r);
   const dropped = parsed.dropped + applied.dropped;
-  const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso() };
+  const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso(), ...(isAutonomous(plan) ? { autoConfirm: true } : {}) };
   const values: Partial<PlanRecord> = { draft, ordering: "auto", rowCount: applied.rows.length, rowCounts: countRows(applied.rows), ...(parsed.policy ? { policy: parsed.policy } : {}) };
   if (!(await setPlanStatus(plan.planId, "DRAFTING", "DRAFT", values))) return;
   Object.assign(plan, values, { status: "DRAFT" });
   result.changed++;
   await putPlanEvent(plan.planId, "draft_applied", RUNNER, { detail: { rows: applied.rows.length, added: applied.added, seeds: applied.seeds, unread: parsed.unread.length, dropped } });
+  // 自律実行: confirmed right after this step (the confirmation takes the plan's lease, which this step holds)
+  if (isAutonomous(plan)) result.autoConfirm = true;
 }
 
 // --- re-plan (plans ordered automatically) ---------------------------------------------------------------------------
@@ -612,6 +741,47 @@ export async function dropReplan(plan: PlanRecord, reason: string) {
   await endReplan(plan, r, "cancelled", null, false);
 }
 
+// --- 自律実行 (autonomous run) ------------------------------------------------------------------------------------
+
+/** Whether the autonomous plan has spent its cost limit (recorded once, with an event, when it is first reached). */
+async function costLimitReached(plan: PlanRecord, rows: PlanRowRecord[], projects: Map<string, ProjectRecord>): Promise<boolean> {
+  const max = plan.settings.autonomous?.maxCostUsd;
+  if (typeof max !== "number") return false;
+  const spent = await planSpendUsd(plan, rows, projects);
+  if (spent < max) return false;
+  if (!plan.costLimitAt) {
+    const at = nowIso();
+    if (await updatePlan(plan.planId, { costLimitAt: at })) {
+      plan.costLimitAt = at;
+      await putPlanEvent(plan.planId, "cost_limit_reached", RUNNER, { detail: { spentUsd: spent, maxCostUsd: max } });
+    }
+  }
+  return true;
+}
+
+/**
+ * Answers the question of a row's agent for nobody (the agent goes on with its own recommendation). After
+ * `MAX_AUTO_ANSWERS` answers the row is left out and its job stopped. True when a job was resumed (it takes a slot).
+ */
+async function answerRow(plan: PlanRecord, row: PlanRowRecord, p: ProjectRecord | null, owner: UserRecord, gate: PlanGate): Promise<boolean> {
+  if (!p || p.status !== "WAITING_USER_INPUT") return false;
+  if ((row.autoAnswers ?? 0) >= MAX_AUTO_ANSWERS) {
+    // left out first, so the stopped project is not taken for one stopped outside the plan
+    if (await autoSkip(plan, row, "question_limit", null)) await stopProject(p, "autonomous");
+    return false;
+  }
+  let answered = false;
+  try {
+    answered = await answerQuestion(owner, p, gate.policy, AUTO_ANSWER, { source: "auto", locale: plan.settings.locale });
+  } catch (e) {
+    console.error(`[plan ${plan.planId}] row ${row.rowId}: the question could not be answered`, errorText(e));
+  }
+  if (!answered) return false;
+  const n = (row.autoAnswers ?? 0) + 1;
+  await setRow(plan, row, "running", { autoAnswers: n }, "row_auto_answered", { n, max: MAX_AUTO_ANSWERS });
+  return true;
+}
+
 // --- step ------------------------------------------------------------------------------------------------------------
 
 /**
@@ -661,14 +831,23 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
         plan.activeWave = wave;
         if (wave !== null) await putPlanEvent(planId, "wave_started", RUNNER, { detail: { wave } });
       }
-      const candidates = cs ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows)) : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
-      const replanWaits = plan.replan?.status === "waiting";
+      // 自律実行: no new row, follow-up or re-plan starts once the plan spent its cost limit; running rows, their
+      // questions and the decisions on their pull requests go on, and the plan pauses once nothing is left in flight
+      const auto = isAutonomous(plan);
+      const capped = auto && (await costLimitReached(plan, rows, projects));
+      const candidates = capped ? [] : cs ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows)) : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
+      const replanWaits = !capped && plan.replan?.status === "waiting";
       const reviewsWanted = cs?.canon ? rows.filter((r) => r.state === "review" && r.aiReview === "wanted") : [];
-      if (cs && !cs.canon && candidates.length) {
+      const questions = auto ? rows.filter((r) => r.state === "question") : [];
+      const inFlight = rows.some((r) => IN_FLIGHT_ROW_STATES.includes(r.state) || r.state === "question" || (r.state === "review" && !!r.aiReview));
+      if (capped && !inFlight) {
+        await pauseFor(plan, "cost_limit");
+        result.pausedReason = "cost_limit";
+      } else if (cs && !cs.canon && candidates.length) {
         // the Canon was deleted: a new row could not join it, so nothing starts until the owner resolves it
         await pauseFor(plan, "canon_missing");
         result.pausedReason = "canon_missing";
-      } else if (candidates.length || replanWaits || reviewsWanted.length) {
+      } else if (candidates.length || replanWaits || reviewsWanted.length || questions.length) {
         const active = await slotJobs();
         let slots = freeSlots(await limits(), active, plan.ownerUserId);
         if (slots > 0) {
@@ -678,6 +857,15 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
             await pauseFor(plan, gate.reason);
             result.pausedReason = gate.reason;
           } else {
+            // 自律実行: a question of a row's agent is answered first (the resumed job takes a slot)
+            for (const row of questions) {
+              if (slots <= 0) break;
+              if ((await getPlan(planId, true))?.status !== "RUNNING") break;
+              if (await answerRow(plan, row, row.projectId ? (projects.get(row.projectId) ?? null) : null, owner!, gate)) {
+                slots--;
+                result.changed++;
+              }
+            }
             // the re-plan job takes its slot before more rows start
             if (replanWaits && (await getPlan(planId, true))?.status === "RUNNING") {
               try {

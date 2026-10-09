@@ -29,7 +29,7 @@ import {
   type CanonRunInfo,
 } from "@cobrac/shared";
 import { updateBibliography } from "../src/bibliography.js";
-import { PHASES, adjustmentPrompt, checkPhase, runPhases, turnInput, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
+import { PHASES, adjustmentPrompt, checkPhase, runPhases, turnInput, answerPreamble, writeSchemas, type CheckDeps, type Phase, type PhaseContext, type PhaseDriver, type Prompt } from "../src/pipeline.js";
 import { RcsClient } from "../src/rcs.js";
 import { QuoteVerifier } from "../src/quotes.js";
 import { ReferenceVerifier } from "../src/references.js";
@@ -576,6 +576,10 @@ describe("turn input", () => {
     expect(turnInput({ shown: "Fix these." }, lang)).toBe(`Fix these.\n\n---\n\n${lang}`);
     expect(turnInput({ shown: "Run phase HCD.", hidden: "SPEC" }, null)).toBe("Run phase HCD.\n\n---\n\nSPEC");
     expect(turnInput({ shown: "Fix these." }, replyLanguageInstruction(undefined))).toBe("Fix these.");
+    // 自律実行: every turn of an autonomous row's job carries the note, before the reply language
+    expect(turnInput({ shown: "Fix these." }, lang, "NO QUESTIONS")).toBe(`Fix these.\n\n---\n\nNO QUESTIONS\n\n---\n\n${lang}`);
+    expect(answerPreamble({ pendingAnswer: "A", pendingAnswerSource: "auto" })).toContain("Automatic answer (autonomous run; no user is available):\nA");
+    expect(answerPreamble({ pendingAnswer: "A" })).toContain("User's answer:\nA");
   });
 });
 

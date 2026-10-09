@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ChevronRight, CircleDollarSign, Clock, Fil
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
-import { ATTACHMENT_LIMITS, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, planAttachmentTypeOf } from "@cobrac/shared";
+import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous, planAttachmentTypeOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { useI18n, useT, type MessageKey } from "../i18n";
@@ -18,6 +18,17 @@ export function PlanStatusBadge({ status }: { status: PlanSummary["status"] }) {
   return <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${PLAN_STATUS_COLOR[status]}`}>{t(`plan.status.${status}` as MessageKey)}</span>;
 }
 
+/** 自律実行: the plan runs to the end without waiting for its owner. */
+export function AutonomousBadge({ plan }: { plan: Pick<PlanSummary, "settings"> }) {
+  const t = useT();
+  if (!isAutonomous(plan)) return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700" data-testid="plan-autonomous-badge">
+      <Wand2 size={12} aria-hidden /> {t("auto.label")}
+    </span>
+  );
+}
+
 function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; autoFocus?: boolean }) {
   const t = useT();
   const { locale } = useI18n();
@@ -30,6 +41,9 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<{ i: number; n: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // 自律実行: the plan runs from its draft to the end on its own, within a cost limit
+  const [autonomous, setAutonomous] = useState(false);
+  const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
   const fileRef = useRef<HTMLInputElement>(null);
 
   /** Capability lists of the accepted types, within the attachment limits; the others are named in a message. */
@@ -66,7 +80,8 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
         attachments.push({ uploadId: target.uploadId, name: f.name });
       }
       setUploading(null);
-      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}) });
+      const auto = draft && autonomous ? { autonomous: { maxCostUsd: Number(maxCost) } } : {};
+      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto });
       navigate(planPath(r.plan.planId), { state: { rejected: r.rejected } });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -76,13 +91,14 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
     }
   };
   const canDraft = !!name.trim() && (!!goal.trim() || files.length > 0 || !!pasted.trim());
+  const costOk = Number(maxCost) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(maxCost) <= AUTONOMOUS_MAX_COST_RANGE.max;
 
   return (
     <form
       className={`grid min-w-0 content-start gap-3 ${bare ? "" : "rounded-xl border border-slate-200 bg-white p-4 sm:p-5"}`}
       onSubmit={(e) => {
         e.preventDefault();
-        void submit(false);
+        void submit(autonomous);
       }}
     >
       {!bare && <h2 className="text-sm font-semibold">{t("plan.new")}</h2>}
@@ -143,15 +159,48 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
         </span>
         <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} font-mono text-xs`} />
       </div>
+      <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="plan-autonomous">
+        <label className="flex items-center gap-2 text-sm coarse:min-h-11">
+          <input type="checkbox" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} />
+          <span className="font-medium">{t("auto.label")}</span>
+          <HelpTip text={t("auto.help")} />
+        </label>
+        {autonomous && (
+          <>
+            <label className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              {t("auto.cost")}
+              <input
+                type="number"
+                min={AUTONOMOUS_MAX_COST_RANGE.min}
+                max={AUTONOMOUS_MAX_COST_RANGE.max}
+                step="1"
+                value={maxCost}
+                onChange={(e) => setMaxCost(e.target.value)}
+                className={`${inputCls} w-28`}
+                aria-invalid={!costOk}
+              />
+            </label>
+            <p className="text-xs text-slate-500">{t("auto.note")}</p>
+          </>
+        )}
+      </div>
       {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 [overflow-wrap:anywhere]">{err}</div>}
-      <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>
+      {!autonomous && <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
-          <Plus size={14} /> {t("plan.create")}
-        </button>
-        <button type="button" disabled={busy || !canDraft} onClick={() => void submit(true)} className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
-          <Sparkles size={14} aria-hidden /> {t("plan.createDraft")}
-        </button>
+        {autonomous ? (
+          <button type="button" disabled={busy || !canDraft || !costOk} onClick={() => void submit(true)} className={primaryBtn}>
+            <Sparkles size={14} aria-hidden /> {t("auto.start")}
+          </button>
+        ) : (
+          <>
+            <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
+              <Plus size={14} /> {t("plan.create")}
+            </button>
+            <button type="button" disabled={busy || !canDraft} onClick={() => void submit(true)} className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
+              <Sparkles size={14} aria-hidden /> {t("plan.createDraft")}
+            </button>
+          </>
+        )}
         {uploading && (
           <span className="text-xs text-slate-500" role="status">
             {t("plan.uploading", uploading)}
@@ -322,6 +371,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
           <span className="font-mono text-[11px] text-slate-500">{p.planId}</span>
           <span className="ml-auto">
             <PlanStatusBadge status={p.status} />
+            <AutonomousBadge plan={p} />
           </span>
         </div>
 
@@ -454,6 +504,7 @@ function FinishedList({ items, now, open }: { items: PlanSummary[]; now: number;
                 <span className="min-w-0 flex-1 break-words text-slate-700">{p.name}</span>
                 <span className="text-xs text-slate-500">{t("plan.doneOf", { done: p.rowCounts.done, n: p.rowCount })}</span>
                 <PlanStatusBadge status={p.status} />
+                <AutonomousBadge plan={p} />
                 <span className="w-24 text-right text-[11px] text-slate-500" title={fmtDate(end, locale)}>
                   {fmtAgo(end, now, t)}
                 </span>

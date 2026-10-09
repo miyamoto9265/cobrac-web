@@ -53,6 +53,7 @@ import type {
   SpecResponse,
   ConcurrencyStatus,
   CreatePlanRequest,
+  ResumePlanRequest,
   CreatePlanResponse,
   DraftPlanRequest,
   ListPlansResponse,
@@ -222,6 +223,8 @@ export const api = {
   importPlanRows: (id: string, csv: string) => request<{ rows: PlanRowRecord[]; rejected: PlanRowRejected[] }>("POST", `/plans/${encodeURIComponent(id)}/rows/import`, { csv }),
   confirmPlan: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/confirm`, { locale }),
   planAction: (id: string, action: "pause" | "resume" | "cancel") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/${action}`),
+  /** 自律実行: resumes a plan paused at its cost limit with a higher limit */
+  resumePlan: (id: string, b: ResumePlanRequest) => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/resume`, b),
   planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
   requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
   cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),

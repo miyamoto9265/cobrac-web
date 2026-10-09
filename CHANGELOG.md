@@ -5,6 +5,23 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-09
+
+### Added
+- CoBRAC Orchestrator: 「自律実行」 / "Autonomous run", a setting of a plan that makes it run to the end without waiting for a person. Switch it on in the new plan form with a cost limit (USD 1–1000, 20 by default) and press 「自律実行で開始」; it can also be switched in a draft's settings. Without a chosen Canon, a new Canon named after the plan is created
+- Autonomous run: the draft is confirmed by the plan runner as soon as it is written (a failed draft job is asked once more; a confirmation that fails is shown with its reason). A draft written before the run was switched on still waits for "Confirm and start"
+- Autonomous run: the rows' agents do not ask questions: they go on with the option they recommend and record each such decision under `## Autonomous decisions` in decision_log.md (new prompt `prompts/autonomous.md`, added on every turn; the end-of-turn JSON is unchanged). A question asked all the same is answered by the runner with a fixed answer, up to 3 times per row
+- Autonomous run: every pull request of the plan (foundation rows included) gets an AI decision job: the AI review returns a verdict (approve / request changes / reject) with its review. The runner applies it for the Canon's owner: approve merges (warnings take the side the AI chose, otherwise the Canon's), request changes sends the listed changes to the project as a follow-up and pushes again, reject closes the PR and leaves the row out. Error conflicts are never merged on the AI's word: they become a follow-up that makes the project agree with the Canon (at most 3 follow-ups per row). Other pull requests to the Canon are still decided by people
+- Autonomous run: rows that would need attention or a decision are left out instead of waiting (「自律実行で見送り」 with the reason); an existing project in another Canon is rebuilt for this Canon. The plan still pauses when its Canon is gone
+- Autonomous run, cost limit: once the plan's cost (rows' projects, plan jobs, AI review and decision jobs) reaches it, no new row, follow-up or re-plan starts; running rows finish, and the plan then pauses. "Raise the limit and resume" continues it
+- Autonomous run: PR records and history name the AI (「AI (model)」) as who approved, rejected or asked for changes; the PR page's AI review shows the AI decision (verdict, reason, requested changes). New plan events: `row_auto_skipped`, `row_auto_answered`, `row_ai_decided`, `cost_limit_reached`, `cost_limit_raised`
+- API: `POST /plans` takes `autonomous: { maxCostUsd? }` and `canon`; `PUT /plans/{id}` settings take `autonomous`; `POST /plans/{id}/resume` takes `{ maxCostUsd }`
+- Specification PDF: section 6.15 「自律実行」, the decision job in 4.8, and `prompts/autonomous.md` in appendix B
+
+### Changed
+- The Orchestrator's 「種」 is now 「土台」 (English "Foundation", and the matching word in the other languages): the chip on rows and wave headings, the waits for a foundation's pull request, the help texts, the manual and the specification. The code keeps `seed`
+- Rejecting a Canon pull request and requesting changes on it go through shared functions (`rejectPullRequest`, `requestPrChanges`) used by the routes and the plan runner; answering a question goes through `answerQuestion` (the route and the runner)
+
 ## [0.39.0] - 2026-10-08
 
 ### Added
