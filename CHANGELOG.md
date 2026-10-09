@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.40.1] - 2026-10-09
+
+### Changed
+- 「利用マニュアル」 / "User manual" (ja, en): rewritten shorter to match the current screens. Each section now gives the main steps only; the fine detail of CoBRAC Orchestrator (ordering rules, estimates, Canon and autonomous-run edge cases), hypothesis mode, versions and Canon review is left to the screens' "?" and the specification
+
 ## [0.40.0] - 2026-10-09
 
 ### Added
