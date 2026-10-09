@@ -24,6 +24,9 @@ const api = vi.hoisted(() => ({
   proposalAction: vi.fn(),
   answer: vi.fn(),
   models: vi.fn(),
+  addPlanAttachments: vi.fn(),
+  removePlanAttachment: vi.fn(),
+  listCanons: vi.fn(),
 }));
 const uploadFile = vi.hoisted(() => vi.fn());
 vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Error {} }));
@@ -107,11 +110,16 @@ async function pickFiles(input: HTMLInputElement, files: File[]) {
 }
 /** The heading of each wave as shown (stored wave number, 「基準プロジェクト」 label). */
 const headings = (within: ParentNode) => qa('[data-testid="plan-wave"]', within).map((h) => h.textContent?.trim());
+/** Opens the details of every row of the draft's table (rationale, wave, anchors, 「作り直す」). */
+async function openDetails(within: ParentNode) {
+  for (const b of qa<HTMLButtonElement>('[data-testid="row-summary"]', within)) if (b.getAttribute("aria-expanded") !== "true") await click(b);
+}
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
   api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
   for (const fn of [api.savePlanRows, api.confirmPlan, api.planAction, api.updatePlan, api.requestDraft, api.cancelDraft, api.orderPlan, api.proposalAction]) fn.mockResolvedValue({ ok: true });
+  api.listCanons.mockResolvedValue({ items: [], shared: [] });
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -199,6 +207,38 @@ describe("new plan with a draft", () => {
     expect(api.createUpload).not.toHaveBeenCalled();
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい" });
   });
+
+  it("keeps “Create plan” disabled until a goal, a file or rows are given besides the name", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    localStorage.setItem("cobrac-locale", "ja");
+    await render("/plans");
+    const create = button("計画を作る")!;
+    expect(create.disabled).toBe(true);
+    await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    // a name alone is not enough: the API answers 400 「目標・資料・行のどれかが必要です」
+    expect(create.disabled).toBe(true);
+    const hint = q('[data-testid="plan-need-input"]')!;
+    expect(hint.textContent).toBe("目標・資料・行のどれかを入れてください");
+    expect(create.getAttribute("aria-describedby")).toBe(hint.id);
+    // each of the three is enough
+    await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
+    expect(create.disabled).toBe(false);
+    expect(q('[data-testid="plan-need-input"]')).toBeNull();
+    await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "");
+    expect(create.disabled).toBe(true);
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="資料（CSV・TSV・テキスト）"]')!, "ROI,TLF\nSTG,hearing\n");
+    expect(create.disabled).toBe(false);
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="資料（CSV・TSV・テキスト）"]')!, "  ");
+    expect(create.disabled).toBe(true);
+    await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [new File(["ROI,TLF\n"], "language.csv", { type: "text/csv" })]);
+    expect(create.disabled).toBe(false);
+    // the autonomous run needs the same
+    await click(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="checkbox"]'));
+    expect(button("自律実行で開始")!.disabled).toBe(false);
+    await click(q<HTMLButtonElement>('button[aria-label="削除: language.csv"]'));
+    expect(button("自律実行で開始")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-need-input"]')).not.toBeNull();
+  });
 });
 
 describe("a draft being written", () => {
@@ -211,13 +251,26 @@ describe("a draft being written", () => {
   it("shows the job state with the time since the request, locks the rows and cancels", async () => {
     api.getPlan.mockResolvedValue(drafting("running"));
     await render(`/plans/${PLAN}`);
+    // the job's state and its cancel button are in 「1. 作るもの」, next to what the job reads
     const banner = q('[data-testid="plan-drafting"]')!;
+    expect(q('[data-testid="plan-what"]')!.contains(banner)).toBe(true);
     expect(banner.textContent).toContain("Drafting: running (1 min so far)");
-    expect(document.body.textContent).toContain("Source lists: abilities.xlsx");
-    // the rows are read-only while the job runs, and the plan cannot be confirmed or deleted
+    expect(q('[data-testid="plan-attachments"]')!.textContent).toBe("abilities.xlsx");
+    // the goal and the files are read-only while the job runs
+    expect(q('textarea[data-testid="plan-goal"]')).toBeNull();
+    expect(q('[data-testid="plan-goal"]')!.textContent).toBe("言語の BRA を一通りそろえたい");
+    expect(q('[data-testid="plan-attachments"] button')).toBeNull();
+    expect(button("Add files")).toBeUndefined();
+    // the rows are read-only too, and the plan cannot be confirmed or deleted
     expect(q('[data-testid="plan-editor"]')).toBeNull();
-    expect(q('[data-testid="plan-rows"]')).not.toBeNull();
-    expect(qa("button", q('[data-testid="plan-actions"]')!)).toHaveLength(0);
+    const view = q('[data-testid="plan-rows"]')!;
+    expect(qa("input", view)).toHaveLength(0);
+    expect(button("Add row", view)).toBeUndefined();
+    expect(button("Confirm and start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("The plan cannot be confirmed while the draft is being written");
+    expect(button("Delete plan")).toBeUndefined();
+    // a draft has no progress, waves, time or cost cards
+    expect(q('[data-testid="plan-summary"]')).toBeNull();
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
     await click(button("Cancel draft", banner));
@@ -239,7 +292,8 @@ describe("a draft being written", () => {
   it("says a draft that reads xlsx / PDF lists or many rows may take up to about half an hour", async () => {
     api.getPlan.mockResolvedValue(drafting("running"));
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("A draft that reads xlsx or PDF lists or covers more than 20 rows can take up to about half an hour.");
+    // the banner says what the job means for the rows and how long it may take
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The rows cannot be edited until the draft is ready. A draft that reads xlsx or PDF lists or covers more than 20 rows can take up to about half an hour.");
   });
 
   it("says a few minutes for a goal or a short list, and half an hour for more than 20 rows", async () => {
@@ -247,8 +301,8 @@ describe("a draft being written", () => {
     short.plan.attachments = [{ kind: "file", id: "f1", name: "language.csv", key: "attachments/files/01-language.csv", size: 10, contentType: "text/csv" }];
     api.getPlan.mockResolvedValue(short);
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("usually within a few minutes");
-    expect(q('[data-testid="plan-drafting"]')!.textContent).not.toContain("half an hour");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toContain("usually within a few minutes");
+    expect(q('[data-testid="plan-banner"]')!.textContent).not.toContain("half an hour");
     act(() => root?.unmount());
     host?.remove();
 
@@ -257,7 +311,7 @@ describe("a draft being written", () => {
     many.rows = Array.from({ length: 21 }, (_, i) => row(`r${i + 1}`, `ROI ${i + 1}`, `TLF ${i + 1}`, "pending", 1, { source: "csv" }));
     api.getPlan.mockResolvedValue(many);
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-drafting"]')!.textContent).toContain("can take up to about half an hour");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toContain("can take up to about half an hour");
   });
 
   it("does not cancel when the owner says no", async () => {
@@ -296,7 +350,17 @@ describe("a draft written by the plan job", () => {
     const editor = q('[data-testid="plan-editor"]')!;
     // stored wave numbers, seed waves labelled
     expect(headings(editor)).toEqual(["Wave 1Baseline project", "Wave 2Baseline project", "Wave 3", "Wave 4"]);
+    expect(q('[data-testid="plan-rows-summary"]', editor)!.textContent).toContain("5 rows · 4 waves · automatic order");
     expect(editor.textContent).toContain("Automatic order.");
+
+    // each row says in short what its details show in full
+    const summaries = qa('[data-testid="row-summary"]', editor).map((b) => b.textContent?.trim());
+    expect(summaries[0]).toBe("5 anchors · hub 3 · Overlaps: syntactic processing");
+    expect(summaries[2]).toBe("2 anchors · hub 2 · Overlaps: speech production · Depends on: speech production");
+    expect(summaries[3]).toBe("Existing");
+    expect(summaries[4]).toBe("Same ROI × TLF as a project");
+    expect(qa('[data-testid="row-facts"]', editor)).toHaveLength(0);
+    await openDetails(editor);
 
     const facts = qa('[data-testid="row-facts"]', editor);
     expect(facts).toHaveLength(5);
@@ -318,9 +382,14 @@ describe("a draft written by the plan job", () => {
     expect(unread.textContent).toContain("Items the draft could not read: 1");
     expect(unread.textContent).toContain("abilities.xlsx · Sheet1 row 7 — no region given");
     expect(unread.textContent).toContain("Parts of the draft not used: 2");
+    expect(q('[data-testid="plan-what"]')!.contains(unread)).toBe(true);
 
-    expect(q('[data-testid="plan-jobs-cost"]')!.textContent).toBe("incl. planning jobs $0.03");
-    expect(q('[data-testid="plan-policy"]')!.textContent).toContain("neocortex = area × projection class, subcortex = nucleus");
+    // no progress, waves, time or cost cards before confirmation (the planning jobs' cost is shown once the plan runs)
+    expect(q('[data-testid="plan-summary"]')).toBeNull();
+    expect(q('[data-testid="plan-jobs-cost"]')).toBeNull();
+    const policy = q('[data-testid="plan-policy"]')!;
+    expect(policy.textContent).toBe("Granularity policy (decided by the Orchestrator)neocortex = area × projection class, subcortex = nucleus");
+    expect(q('[data-testid="plan-what"]')!.contains(policy)).toBe(true);
   });
 
   it("shows the policy the Orchestrator wrote without a field to edit it, and chooses the two models apart", async () => {
@@ -328,18 +397,35 @@ describe("a draft written by the plan job", () => {
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
     // the Orchestrator's model has no reasoning effort; the Agents' model has one
-    expect(q('[data-testid="plan-orchestrator-model"]')!.textContent).toContain("Orchestrator model");
-    expect(q('[data-testid="plan-orchestrator-model"]')!.querySelectorAll("select")).toHaveLength(1);
-    expect(q('[data-testid="plan-agents-model"]')!.textContent).toContain("Agents model");
-    expect(q('[data-testid="plan-agents-model"]')!.querySelectorAll("select")).toHaveLength(2);
+    const orchestrator = q('[data-testid="plan-orchestrator-model"]')!;
+    expect(orchestrator.textContent).toContain("Orchestrator");
+    expect(orchestrator.textContent).toContain("Drafts, re-plans, decisions and answers");
+    expect(orchestrator.querySelectorAll("select")).toHaveLength(1);
+    const agents = q('[data-testid="plan-agents-model"]')!;
+    expect(agents.textContent).toContain("Build each row's BRA");
+    expect(agents.querySelectorAll("select")).toHaveLength(2);
+    // three equal columns: the agents' model and effort join the grid of the Orchestrator's model, with plain labels
+    expect(agents.className).toBe("contents");
+    expect(agents.parentElement).toBe(orchestrator.parentElement);
+    expect(agents.parentElement!.className).toContain("sm:grid-cols-3");
+    expect(qa("label > span:first-child", q('[data-testid="plan-models"]')!).map((s) => s.textContent)).toEqual(["Orchestrator", "Agents", "Reasoning effort (agents)"]);
+    expect(q('[data-testid="plan-models"]')!.innerHTML).not.toContain("uppercase");
+  });
+
+  it("shows one note under the models when both run with the default API key", async () => {
+    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "org", orgTier: null, restricted: false, pricedModels: [] });
+    api.getPlan.mockResolvedValue(drafted());
+    await render(`/plans/${PLAN}`);
+    expect(qa('[data-testid="default-key-note"]').map((n) => n.textContent)).toEqual(["Both run with the default API key."]);
   });
 
   it("sends rebuild for an existing project and keeps the priorities when the rows are saved", async () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
+    await openDetails(editor);
     await click(qa<HTMLInputElement>('input[type="checkbox"]', editor)[0]);
-    expect(editor.textContent).toContain("Unsaved changes");
+    expect(q('[data-testid="plan-save-bar"]', editor)!.textContent).toContain("Unsaved changes: 1");
     await click(button("Save rows", editor));
     const saved = vi.mocked(api.savePlanRows).mock.calls[0][1] as Record<string, unknown>[];
     expect(saved.map((r) => r.rowId)).toEqual(["r1", "r2", "r3", "r4", "r5"]);
@@ -353,6 +439,8 @@ describe("a draft written by the plan job", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", rebuilt, { ordering: "auto" }));
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
+    expect(qa('[data-testid="row-summary"]', editor)[3].textContent).toBe("Rebuild");
+    await openDetails(editor);
     const boxes = qa<HTMLInputElement>('input[type="checkbox"]', editor);
     expect(boxes).toHaveLength(1);
     expect(boxes[0].checked).toBe(true);
@@ -385,25 +473,30 @@ describe("a draft written by the plan job", () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     await click(button("Confirm and start"));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Rows with a finished project (1) are marked done without being built."));
-    // each seed row is a wave of its own: the dialog and the summary count the same waves
+    // each seed row is a wave of its own: the dialog and the rows' summary count the same waves
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 4 · waves: 4"));
-    expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Waves: 4");
+    expect(q('[data-testid="plan-rows-summary"]')!.textContent).toContain("5 rows · 4 waves");
+    // 「4. 確定して開始」 shows the same estimate
+    const e = planEstimate(rows, 2);
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toContain(`Estimate: ~${Math.round((e.minutes / 60) * 10) / 10} h · $${e.costUsd.min.toFixed(2)}–$${e.costUsd.max.toFixed(2)} (4 rows, up to 2 at a time)`);
   });
 
   it("counts a seed moved next to other rows as a body row in the estimate of unsaved rows, as the headings", async () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
+    await openDetails(editor);
     // the second seed goes into wave 3 with r3 (and the existing project's row)
     await type(qa<HTMLInputElement>('input[aria-label="Wave"]', editor)[1], "3");
     expect(headings(editor)).toEqual(["Wave 1Baseline project", "Wave 3", "Wave 4"]);
+    expect(q('[data-testid="plan-rows-summary"]', editor)!.textContent).toContain("5 rows · 3 waves");
     const facts = qa('[data-testid="row-facts"]', editor);
     expect(facts[0].textContent).toContain("Baseline project");
     expect(facts[1].textContent).not.toContain("Baseline project");
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    await click(button("Confirm and start"));
+    // unsaved rows are saved before the plan can be confirmed; the estimate already counts them as edited
+    expect(button("Confirm and start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before confirming");
     // 1 seed + waves 3 and 4 (not 2 seeds + 2 waves)
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 4 · waves: 3"));
     const e = planEstimate(
       [
         { wave: 1, state: "pending", existing: null, seed: true },
@@ -414,7 +507,10 @@ describe("a draft written by the plan job", () => {
       2,
     );
     expect(e.seedRows).toBe(1);
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining(`~${Math.round((e.minutes / 60) * 10) / 10} h`));
+    expect(e.waves).toBe(3);
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toContain(`Estimate: ~${Math.round((e.minutes / 60) * 10) / 10} h`);
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toContain("(4 rows, up to 2 at a time)");
+    expect(planEstimate(rows, 2).minutes).not.toBe(e.minutes);
   });
 
   it("orders the rows automatically, saving unsaved rows first", async () => {
@@ -436,9 +532,15 @@ describe("a draft written by the plan job", () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    await click(button("Create draft", q('[data-testid="plan-actions"]')!));
+    // the plan has rows: the draft is made again, and the rows stay
+    const what = q('[data-testid="plan-what"]')!;
+    expect(button("Create draft", what)).toBeUndefined();
+    expect(what.textContent).toContain("The current rows stay. It takes a few minutes, and its cost is recorded.");
+    await click(button("Draft again", what));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("billed like any other job"));
     expect(api.requestDraft).toHaveBeenCalledWith(PLAN, "en");
+    // the goal was not changed, so it is not stored again
+    expect(api.updatePlan).not.toHaveBeenCalled();
   });
 
   it("names the goal in the language of the screen when the draft could not read part of it", async () => {
@@ -482,6 +584,268 @@ describe("a draft written by the plan job", () => {
       );
     });
     expect(q('[data-testid="plan-rejected"]')!.textContent).toContain("language.csv, row 4: same ROI × TLF as another row");
+  });
+});
+
+describe("the draft page", () => {
+  const csvFile = { kind: "file" as const, id: "f1", name: "language.csv", key: "attachments/files/01-language.csv", size: 10, contentType: "text/csv" };
+  const two = () => [row("r1", "left IFG", "speech production", "pending", 1, { source: "manual" }), row("r2", "STG", "phonological processing", "pending", 2, { source: "manual" })];
+  /** The sections from the top, by their headings. */
+  const sections = () => qa("h2").map((h) => h.childNodes[0]?.textContent?.trim());
+
+  it("shows an empty draft in four steps, with what to do first and why it cannot be confirmed yet", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", [], { goal: "" }, { events: [{ planId: PLAN, sk: "EVT#1", at: now, type: "created", by: "alice" }] }));
+    localStorage.setItem("cobrac-locale", "ja");
+    await render(`/plans/${PLAN}`);
+    expect(sections()).toEqual(["1. 作るもの", "2. 行とバッチ", "3. 進め方", "4. 確定して開始"]);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("まだ何も入っていません。目標を書いて「下書きを作成」を押すか、行を追加してください。確定するまでプロジェクトは 1 件も作られません。");
+    // no progress, waves, time or cost cards, no actions at the top
+    expect(q('[data-testid="plan-summary"]')).toBeNull();
+    expect(q('[data-testid="plan-actions"]')).toBeNull();
+
+    // 1. 作るもの: nothing to draft from yet
+    const what = q('[data-testid="plan-what"]')!;
+    expect(what.textContent).toContain("資料ファイル （任意・10 個まで）");
+    expect(what.textContent).toContain("CSV・TSV・テキスト・xlsx・PDF をここにドロップ");
+    const draft = button("下書きを作成", what)!;
+    expect(draft.disabled).toBe(true);
+    expect(draft.className).toContain("bg-blue-600");
+    expect(what.textContent).toContain("目標か資料を入れると押せます。数分かかり、費用は記録されます。");
+    expect(q('[data-testid="plan-policy"]')).toBeNull();
+
+    // 2. 行とバッチ: the empty state offers both ways to add rows
+    const editor = q('[data-testid="plan-editor"]')!;
+    expect(q('[data-testid="plan-rows-summary"]', editor)!.textContent).toBe("0 行");
+    const empty = q('[data-testid="plan-rows-empty"]', editor)!;
+    expect(empty.textContent).toContain("まだ行がありません");
+    expect(qa("button", empty).map((b) => b.textContent?.trim())).toEqual(["行を追加", "CSV を読み込む"]);
+    expect(q('[data-testid="plan-rows-toolbar"]')).toBeNull();
+    expect(q('[data-testid="plan-save-bar"]')).toBeNull();
+
+    // 4. 確定して開始: no estimate and the reason next to the disabled button
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toBe("見積もり：行がないため出せません");
+    expect(button("確定して開始")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("行が 0 件のため、まだ確定できません");
+
+    // the history and 「計画を削除」 come last
+    const bottom = q('[data-testid="plan-bottom"]')!;
+    expect(bottom.textContent).toContain("履歴");
+    expect(bottom.textContent).toContain("計画を作成");
+    expect(button("計画を削除", bottom)).toBeTruthy();
+    expect(q('[data-testid="plan-confirm"]')!.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // a row added from the empty state is marked as added and waits to be saved
+    await click(button("行を追加", empty));
+    expect(q('[data-testid="plan-rows-empty"]')).toBeNull();
+    expect(headings(editor)).toEqual(["バッチ 1"]);
+    expect(q('[data-change="added"]', editor)!.textContent).toContain("追加した行");
+    expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("保存していない変更が 1 件あります");
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("行の変更を保存してから確定できます");
+  });
+
+  it("says when the draft is ready, and redrafts a plan with rows as a secondary action", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { draft: { kind: "draft", jobId: "j1", status: "done", requestedAt: now, requestedBy: "alice", endedAt: now } }));
+    localStorage.setItem("cobrac-locale", "ja");
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書きができました。行とバッチを確かめて「確定して開始」を押してください。確定するまでプロジェクトは 1 件も作られません。");
+    const what = q('[data-testid="plan-what"]')!;
+    expect(button("下書きを作り直す", what)!.className).not.toContain("bg-blue-600");
+    expect(what.textContent).toContain("今の行は残します。数分かかり、費用は記録されます。");
+    expect(q('[data-testid="plan-rows-summary"]')!.textContent).toBe("2 行・2 バッチ・手動の順序");
+    act(() => root?.unmount());
+    host?.remove();
+
+    // rows, but no finished draft: the usual note
+    api.getPlan.mockResolvedValue(detail("DRAFT", two()));
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書き: 行とバッチを整えてから確定してください。確定するまでプロジェクトは 1 件も作られません。");
+  });
+
+  it("stores the goal when the field is left, and before a draft is asked for", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", [], { goal: "" }));
+    await render(`/plans/${PLAN}`);
+    const goal = q<HTMLTextAreaElement>('textarea[data-testid="plan-goal"]')!;
+    const draft = button("Create draft", q('[data-testid="plan-what"]')!)!;
+    await type(goal, "言語の BRA を一通りそろえたい");
+    // typing does not store; the draft can be asked for with the goal alone
+    expect(api.updatePlan).not.toHaveBeenCalled();
+    expect(draft.disabled).toBe(false);
+    api.getPlan.mockResolvedValue(detail("DRAFT", [], { goal: "言語の BRA を一通りそろえたい" }));
+    await act(async () => goal.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { goal: "言語の BRA を一通りそろえたい" });
+    expect(api.getPlan).toHaveBeenCalledTimes(2);
+    // leaving it again without a change stores nothing
+    await act(async () => goal.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(api.updatePlan).toHaveBeenCalledTimes(1);
+
+    // a goal typed and not stored yet is stored before the draft job is asked for
+    await type(goal, "言語と読みの BRA");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await click(draft);
+    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { goal: "言語と読みの BRA" });
+    expect(api.requestDraft).toHaveBeenCalledWith(PLAN, "en");
+    expect(vi.mocked(api.updatePlan).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(api.requestDraft).mock.invocationCallOrder[0]);
+  });
+
+  it("adds capability lists to the draft, shows the lines it could not read, and removes a file", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { attachments: [csvFile] }));
+    api.createUpload.mockResolvedValue({ uploadId: "up_file0002", url: "https://s3.example/upload", fields: {} });
+    uploadFile.mockResolvedValue(undefined);
+    api.addPlanAttachments.mockResolvedValue({ plan: {}, rows: [], rejected: [{ file: "more.csv", row: 3, reason: "noRoiTlf", text: "only a note" }] });
+    api.removePlanAttachment.mockResolvedValue({ plan: {}, rows: [], rejected: [] });
+    await render(`/plans/${PLAN}`);
+    const what = q('[data-testid="plan-what"]')!;
+    expect(what.textContent).toContain("Source files (1 / 10)");
+    expect(q('[data-testid="plan-attachments"]')!.textContent).toBe("language.csv");
+
+    // a type the plan cannot read is named and not uploaded
+    const input = q<HTMLInputElement>('[data-testid="plan-add-files"]')!;
+    await pickFiles(input, [new File(["fake"], "notes.docx")]);
+    expect(what.textContent).toContain("notes.docx: this file type cannot be attached");
+    expect(api.createUpload).not.toHaveBeenCalled();
+    // the same file again is left out
+    await pickFiles(input, [new File(["0123456789"], "language.csv", { type: "text/csv" })]);
+    expect(api.createUpload).not.toHaveBeenCalled();
+
+    const more = new File(["ROI,TLF\nSTG,hearing\n"], "more.csv", { type: "text/csv" });
+    await pickFiles(input, [more]);
+    expect(api.createUpload).toHaveBeenCalledWith("more.csv", more.size);
+    expect(uploadFile.mock.calls[0][1]).toBe(more);
+    expect(api.addPlanAttachments).toHaveBeenCalledWith(PLAN, [{ uploadId: "up_file0002", name: "more.csv" }]);
+    expect(vi.mocked(uploadFile).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(api.addPlanAttachments).mock.invocationCallOrder[0]);
+    // lines of the file that could not be read are listed as on import, and the plan is read again
+    expect(q('[data-testid="plan-rejected"]')!.textContent).toContain("more.csv, row 3: neither ROI nor TLF");
+    expect(api.getPlan).toHaveBeenCalledTimes(2);
+
+    await click(q<HTMLButtonElement>('button[aria-label="Remove language.csv"]'));
+    expect(api.removePlanAttachment).toHaveBeenCalledWith(PLAN, "f1");
+    expect(api.getPlan).toHaveBeenCalledTimes(3);
+  });
+
+  it("saves edited rows before files are read into rows, and counts the plan's files against the limit", async () => {
+    const nine = Array.from({ length: 9 }, (_, i) => ({ ...csvFile, id: `f${i + 1}`, name: `list${i + 1}.csv`, key: `attachments/files/0${i + 1}-list.csv` }));
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { attachments: nine }));
+    api.createUpload.mockResolvedValue({ uploadId: "up_file0010", url: "https://s3.example/upload", fields: {} });
+    uploadFile.mockResolvedValue(undefined);
+    api.addPlanAttachments.mockResolvedValue({ plan: {}, rows: [], rejected: [] });
+    await render(`/plans/${PLAN}`);
+    await type(qa<HTMLInputElement>('input[aria-label="TLF"]')[1], "phonology");
+    await pickFiles(q<HTMLInputElement>('[data-testid="plan-add-files"]')!, [new File(["a"], "a.csv"), new File(["b"], "b.csv")]);
+    // nine files and two more: one fits
+    expect(q('[data-testid="plan-what"]')!.textContent).toContain("Up to 10 files can be attached");
+    expect(api.addPlanAttachments).toHaveBeenCalledWith(PLAN, [{ uploadId: "up_file0010", name: "a.csv" }]);
+    expect(api.savePlanRows).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.savePlanRows).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(api.addPlanAttachments).mock.invocationCallOrder[0]);
+  });
+
+  it("shows the save bar only while there are unsaved changes, marks the changed rows and reverts them", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", [...two(), row("r3", "angular gyrus", "reading", "pending", 2, { source: "manual" })]));
+    await render(`/plans/${PLAN}`);
+    const editor = q('[data-testid="plan-editor"]')!;
+    const bar = () => q('[data-testid="plan-save-bar"]', editor);
+    expect(bar()).toBeNull();
+    expect(button("Confirm and start")!.disabled).toBe(false);
+
+    const tlf = qa<HTMLInputElement>('input[aria-label="TLF"]', editor)[1];
+    await type(tlf, "phonology");
+    expect(bar()!.textContent).toContain("Unsaved changes: 1");
+    const changed = q('[data-change="changed"]', editor)!;
+    expect(changed.className).toContain("bg-amber-50");
+    expect(changed.textContent).toContain("Changed");
+    expect(button("Confirm and start")!.disabled).toBe(true);
+    // typed back as it was: nothing to save
+    await type(tlf, "phonological processing");
+    expect(bar()).toBeNull();
+    expect(q("[data-change]", editor)).toBeNull();
+    expect(button("Confirm and start")!.disabled).toBe(false);
+
+    // a row moved down is one change; a removed row is one more
+    await click(qa<HTMLButtonElement>('button[aria-label="Move down"]', editor)[0]);
+    expect(bar()!.textContent).toContain("Unsaved changes: 1");
+    expect(qa("[data-change]", editor)).toHaveLength(1);
+    await click(qa<HTMLButtonElement>('button[aria-label="Remove row"]', editor)[2]);
+    expect(bar()!.textContent).toContain("Unsaved changes: 2");
+
+    await click(button("Revert", bar()!));
+    expect(bar()).toBeNull();
+    expect(qa<HTMLInputElement>('input[aria-label="TLF"]', editor).map((i) => i.value)).toEqual(["speech production", "phonological processing", "reading"]);
+    expect(api.savePlanRows).not.toHaveBeenCalled();
+  });
+
+  it("splits the rows into waves of the concurrency from “More actions”", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", [...two(), row("r3", "angular gyrus", "reading", "pending", 7, { source: "manual" })]));
+    await render(`/plans/${PLAN}`);
+    const editor = q('[data-testid="plan-editor"]')!;
+    const more = q<HTMLButtonElement>('button[aria-label="More actions"]', editor)!;
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    expect(q('[role="menu"]')).toBeNull();
+    await click(more);
+    const item = q<HTMLButtonElement>('[role="menuitem"]')!;
+    expect(item.textContent?.trim()).toBe("Waves of 2");
+    await click(item);
+    expect(q('[role="menu"]')).toBeNull();
+    expect(headings(editor)).toEqual(["Wave 1", "Wave 2"]);
+    expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("Unsaved changes: 2");
+  });
+
+  it("offers the autonomous run with its cost limit, in violet only when it is on", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", two()));
+    localStorage.setItem("cobrac-locale", "ja");
+    await render(`/plans/${PLAN}`);
+    const card = q('[data-testid="plan-autonomous-setting"]')!;
+    // the first thing of 「3. 進め方」
+    expect(q('[data-testid="plan-settings"] h2')!.nextElementSibling).toBe(card);
+    expect(card.className).not.toContain("violet");
+    expect(card.textContent).toContain("オーケストレーターが人の代わりになって、最後まで進めます。");
+    const sw = q<HTMLInputElement>('input[role="switch"]', card)!;
+    expect(sw.checked).toBe(false);
+    expect(q('input[type="number"]', card)).toBeNull();
+    await click(sw);
+    expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { settings: { autonomous: { maxCostUsd: 20 } } });
+    act(() => root?.unmount());
+    host?.remove();
+
+    // on, after the draft: it is not confirmed on its own, and 「確定して開始」 hands over to the Orchestrator
+    api.getPlan.mockResolvedValue(
+      detail("DRAFT", two(), { settings: { model: null, modelChosen: false, reasoningEffort: null, researchMode: true, locale: "ja", autonomous: { maxCostUsd: 20 } }, draft: { kind: "draft", jobId: "j1", status: "done", requestedAt: now, requestedBy: "alice", endedAt: now } }),
+    );
+    await render(`/plans/${PLAN}`);
+    const on = q('[data-testid="plan-autonomous-setting"]')!;
+    expect(on.className).toContain("bg-violet-50");
+    expect(q<HTMLInputElement>('input[role="switch"]', on)!.checked).toBe(true);
+    expect(on.textContent).toContain("1〜1000。達すると新しい行を始めず、動いている行が終わったら一時停止します。");
+    expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きのあとでオンにしたので、自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
+    expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("確定すると、ここから先はオーケストレーターが人の代わりに進めます。");
+    expect(q('[data-testid="plan-autonomous-badge"]')!.textContent).toContain("自律実行");
+    const cost = q<HTMLInputElement>('input[type="number"]', on)!;
+    await type(cost, "35");
+    await act(async () => cost.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+    expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { settings: { autonomous: { maxCostUsd: 35 } } });
+  });
+
+  it("keeps the autonomous banners first and drops the note when the draft confirms itself", async () => {
+    const settings = { model: null, modelChosen: false, reasoningEffort: null, researchMode: true, locale: "en" as const, autonomous: { maxCostUsd: 20 } };
+    const done = { kind: "draft" as const, jobId: "j1", status: "done" as const, requestedAt: now, requestedBy: "alice", endedAt: now, autoConfirm: true };
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { settings, draft: done }));
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The draft is ready. The plan is confirmed and started on its own within a minute.");
+    expect(q('[data-testid="plan-auto-after-draft"]')).toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { settings, draft: done, autonomousError: "no rows" }));
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The autonomous run could not confirm the draft: no rows. Check it and press “Confirm and start”.");
+  });
+
+  it("chooses the research mode with a switch and its description", async () => {
+    api.getPlan.mockResolvedValue(detail("DRAFT", two()));
+    await render(`/plans/${PLAN}`);
+    const sw = qa<HTMLInputElement>('[data-testid="plan-settings"] input[role="switch"]').at(-1)!;
+    expect(sw.checked).toBe(true);
+    expect(document.getElementById(sw.getAttribute("aria-describedby")!)!.textContent).toBe("Researches the literature in depth before the HCD. Off is faster and cheaper, but the research is shallower.");
+    await click(sw);
+    expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { settings: { researchMode: false } });
   });
 });
 
@@ -636,6 +1000,7 @@ describe("seed waves next to rows of an existing project", () => {
     await render(`/plans/${PLAN}`);
     expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1Baseline project", "Wave 2"]);
     // with 「作り直す」 the row is built, so the wave is no longer a seed wave
+    await openDetails(q('[data-testid="plan-editor"]')!);
     await click(qa<HTMLInputElement>('input[type="checkbox"]', q('[data-testid="plan-editor"]')!)[0]);
     expect(headings(q('[data-testid="plan-editor"]')!)).toEqual(["Wave 1", "Wave 2"]);
   });
@@ -673,7 +1038,8 @@ describe("wave headings of a draft edited by hand", () => {
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
     expect(headings(editor)).toEqual(["Wave 3", "Wave 7"]);
-    // changing a row's wave moves the heading but keeps the row's inputs
+    // changing a row's wave (in its details) moves the heading but keeps the row's inputs
+    await openDetails(editor);
     const tlf = qa<HTMLInputElement>('input[aria-label="TLF"]', editor)[1];
     await type(qa<HTMLInputElement>('input[aria-label="Wave"]', editor)[1], "5");
     expect(headings(editor)).toEqual(["Wave 3", "Wave 5", "Wave 7"]);

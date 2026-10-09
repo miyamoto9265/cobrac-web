@@ -149,6 +149,10 @@ describe("the plan's Canon in a draft", () => {
     await render("/plans/n4h8w2rk");
     const section = q('[data-testid="plan-canon"]')!;
     expect(q<HTMLInputElement>('[data-testid="canon-none"]', section)!.checked).toBe(true);
+    // a segmented control of three real radio buttons in 「3. 進め方」, with a line on what the choice means
+    expect(q('[data-testid="plan-settings"]')!.contains(section)).toBe(true);
+    expect(qa<HTMLInputElement>('input[type="radio"]', section).map((r) => r.closest("label")!.textContent)).toEqual(["None", "An existing Canon", "A new Canon"]);
+    expect(section.textContent).toContain("Finished rows are not taken into a Canon.");
 
     await click(q('[data-testid="canon-existing"]', section));
     expect(api.setPlanCanon).toHaveBeenLastCalledWith("n4h8w2rk", { mode: "existing", canonId: "u7m2q9xa-c1" });
@@ -158,6 +162,9 @@ describe("the plan's Canon in a draft", () => {
     await click(q('[data-testid="canon-existing"]', section));
     const select = q<HTMLSelectElement>('[data-testid="canon-select"]')!;
     expect(qa("option", select).map((o) => o.getAttribute("value"))).toEqual([CANON]);
+    // the Canon is chosen on the same line as the control
+    expect(select.parentElement).toBe(q('[role="radiogroup"]', section)!.parentElement);
+    expect(section.textContent).toContain("Finished rows are pushed to this Canon automatically.");
 
     await click(q('[data-testid="canon-new"]', section));
     expect(api.setPlanCanon).toHaveBeenLastCalledWith("n4h8w2rk", { mode: "new", name: "Language" });
