@@ -1,16 +1,16 @@
 <section class="porch">
 <h2 id="s6-15">6.15 自律実行</h2>
-<p><b>自律実行</b>（英語の画面では Autonomous run）は、計画を<b>人の確認を待たずに最後まで進める</b>、計画の設定です（<code>PlanSettings.autonomous = { maxCostUsd }</code>）。Canon の設定ではなく、オーケストレーターの計画に付きます。目標を渡せば、下書き → 確定 → 各行のプロジェクトの作成 → Canon への push → PR の判断までが、人の操作なしに進みます。ふつうの計画で人を待つ場面（確定・質問・PR の承認・要対応・人の判断）を、下の表のように置き換えます。上限は<b>費用だけ</b>です（時間や行の数の上限はありません）。</p>
+<p><b>自律実行</b>（英語の画面では Autonomous run）は、計画の設定です（<code>PlanSettings.autonomous = { maxCostUsd }</code>）。Canon の設定ではなく、オーケストレーターの計画に付きます。基本の考え方は<b>「オーケストレーターが人間の代わりになる」</b>ことです。ふつうの計画で所有者が行う判断（確定・質問への回答・PR の承認・要対応と人の判断の行の扱い・再計画の提案の承認）を、オーケストレーター（ランナーと、オーケストレーターのモデルで動く AI のジョブ）が代わりに行います。目標を渡せば、下書きから Canon への取り込みまでが人の操作なしに進みます。止まるのは<b>費用の上限</b>に達したときだけです（時間や行の数の上限はありません）。</p>
 <table class="compact">
   <thead><tr><th style="width:20%">人を待つ場面</th><th style="width:22%">ふつうの計画</th><th>自律実行の計画</th></tr></thead>
   <tbody>
     <tr><td>下書きの確定</td><td>所有者が「確定して開始」</td><td>下書きを適用したステップの直後に、ランナーが確定する（<code>confirmedBy: "runner"</code>）</td></tr>
-    <tr><td>エージェントの質問</td><td>質問箱で回答を待つ</td><td>エージェントは質問せず、推奨する選択肢で進む。それでも質問したら、ランナーが定型の回答を返す（3 回まで）</td></tr>
+    <tr><td>エージェントの質問</td><td>質問箱で回答を待つ</td><td>エージェントはふつうに質問できる。オーケストレーターの AI が質問を読んで個別に答える（<b>回答のジョブ</b>、回数の上限なし）</td></tr>
     <tr><td>計画の PR</td><td>人が承認・却下・変更依頼</td><td>判断のジョブ（AI）が決め、ランナーが所有者の代わりに反映する</td></tr>
-    <tr><td>要対応（<code>attention</code>）</td><td>所有者がリトライかスキップ</td><td>行を見送る（<code>skipped</code>、元の理由は <code>autoSkip</code>）</td></tr>
-    <tr><td>人の判断（<code>decision</code>）</td><td>所有者が完了・push・スキップ</td><td>行を見送る（PR は開いたまま）。ただし計画の Canon が見つからないときは、ふつうの計画と同じく一時停止（<code>canon_missing</code>）</td></tr>
+    <tr><td>要対応（<code>attention</code>）</td><td>所有者がリトライかスキップ</td><td>オーケストレーターの AI がエラーを読んで「リトライ」か「スキップ」を選ぶ（<b>解決のジョブ</b>）</td></tr>
+    <tr><td>人の判断（<code>decision</code>）</td><td>所有者が完了・push・スキップ</td><td>オーケストレーターの AI が理由と PR を読んで「完了にする／もう一度 push／スキップ」を選ぶ（解決のジョブ）。ただし計画の Canon が見つからないときは、ふつうの計画と同じく一時停止（<code>canon_missing</code>）し、所有者が決める</td></tr>
     <tr><td>ほかの Canon に入っている既存のプロジェクト</td><td>人の判断（<code>other_canon</code>）</td><td>確定のとき既存のプロジェクトを外し、この Canon のために作り直す</td></tr>
-    <tr><td>再計画の提案（行の追加・削除）</td><td>承認するまで計画を変えない</td><td>同じ。計画は提案を待たずに進む（粒度方針の変更は、ふつうの計画と同じく承認なしで反映）</td></tr>
+    <tr><td>再計画の提案（行の追加・削除）</td><td>承認するまで計画を変えない</td><td>オーケストレーター自身の判断として、届いたときにすぐ反映する（決めた人は <code>runner</code>）</td></tr>
   </tbody>
 </table>
 
@@ -28,11 +28,66 @@
   <li>下書きができたあとでオンにした計画（<code>autoConfirm</code> が無い）は自動では確定しません。所有者が確定すると、そこから自律実行で進みます。</li>
 </ol>
 
-<h3>質問しない</h3>
+<h3>行のジョブ（回答と解決）</h3>
+<p>オーケストレーターの AI が 1 つの行について判断するジョブを<b>行のジョブ</b>と呼びます。種類は 2 つで、<code>answer</code>（回答）と <code>resolve</code>（解決）です。どちらも下書き・再計画と同じ <code>plan</code> のジョブで、次の性質を持ちます。</p>
 <ul>
-  <li><b>エージェントへの指示</b>：自律実行の計画の行のジョブ（作成・リトライ・追加指示）は <code>questionMode: "auto"</code> で積みます。ワーカーは毎ターンの入力に <code>prompts/autonomous.md</code>（付録 B）を足し、エージェントは <code>question</code> で終わらず、推奨する選択肢で同じ作業を続けます（ROI・TLF はそのまま、Canon の定義に合わせる、仮説は足さない）。決めたことは <code>decision_log.md</code> の <code>## Autonomous decisions</code> に 1 行ずつ、まとめをレポートの <code>## Limitations</code> に残します。ターンの終わりの JSON（<code>status</code>・<code>message</code>・<code>question</code>）は変えません。</li>
-  <li><b>自動回答</b>：それでも質問した行（<code>question</code>）には、実行中の計画のステップの枠の部分で、ほかのジョブより先に、ランナーが定型の回答（<code>AUTO_ANSWER</code>：「推奨した選択肢を採る。無ければ根拠がいちばん確かで、いちばん保守的で戻しやすいものを選び、記録して続ける。もう質問しない」）を、回答の API と同じ関数（<code>answerQuestion</code>、<code>source: "auto"</code>）で返します。再開したジョブは枠を 1 つ使います。回答はジョブの状態を条件に書くので、人の回答と二重になりません。行には「自動回答 n/3」、履歴に <code>row_auto_answered</code>、プロジェクトのチャットに「自律実行: エージェントの質問に自動で回答しました」が出ます。</li>
-  <li><b>上限</b>：3 回（<code>MAX_AUTO_ANSWERS</code>）答えたあとにまた質問した行は、見送り（<code>question_limit</code>）にしてから、そのジョブを止めます（チャットに「自律実行の計画がこの行を見送ったため、ジョブを停止しました。」）。</li>
+  <li>同時実行数の枠を 1 つ使い、オーケストレーターのモデル（推論の強さ <code>medium</code>）と所有者のキーで動きます。費用は計画の費用に入ります。</li>
+  <li><code>planJobKind</code> は <code>answer</code> / <code>resolve</code>、<code>planRowId</code> に行を持ちます。</li>
+  <li>ランナーは入力を <code>plans/{planId}/jobs/{jobId}/input.json</code> に書きます。入力は <code>PlanRowJobInput</code> で、計画の名前・目標・粒度方針、Canon の名前と方針、行（ROI・TLF・理由・バッチ・基準プロジェクトか・アンカー・依存する行）、プロジェクト（状態・質問・最後のエラー・<code>decision_log.md</code> の末尾 12,000 字）、解決では状況と選択肢を含みます。</li>
+  <li>ワーカーは道具を使わない 1 ターンで、<code>prompts/orchestrator.md</code>（付録 B）と入力を読ませ、種類ごとの固定のスキーマで答えさせます。形が違えば 1 回だけ頼み直し、5 分（<code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>）で打ち切ります。答えは <code>result.json</code> に書きます。</li>
+  <li>ランナーは結果を入力と照らして検証し直してから使います（<code>parsePlanRowResult</code>）。回答が空なら使いません。選択肢に無い行動も使いません。</li>
+  <li>1 つの行に同時に 1 件だけです（<code>row.rowJob = { kind, jobId, status, requestedAt }</code>）。</li>
+  <li>失敗した・止められた・結果が読めないジョブは <code>rowJob</code> を消すだけで、次のステップで依頼し直します。回数の上限はなく、費用の上限が止めます。</li>
+  <li>ジョブの間に行が別の状態に移ったとき（所有者が先に答えた・決めた）は、結果を使わずに捨てます。</li>
+</ul>
+
+<h3>質問への回答（回答のジョブ）</h3>
+<ul>
+  <li><b>エージェントは質問してよい</b>：自律実行でも、行のエージェントはふつうの計画と同じように質問できます。「質問しない」という指示（v0.40.0 の <code>prompts/autonomous.md</code> と <code>questionMode</code>）はやめました。</li>
+  <li><b>依頼</b>：質問中の行（<code>question</code>、プロジェクトが <code>WAITING_USER_INPUT</code>）に回答のジョブを依頼します。実行中の計画のステップの枠の部分で、ほかのジョブより先に、空き枠があるときだけ依頼します。</li>
+  <li><b>答え方</b>（<code>prompts/orchestrator.md</code>）：所有者として決めて、はっきり答えます。聞き返したり、選択肢を並べたりはしません。根拠が支えるならエージェントの推奨を採り、そうでなければ次の条件を満たすものを選びます。
+    <ul>
+      <li>ROI・TLF をそのまま保つ</li>
+      <li>Canon の定義と粒度方針に合う</li>
+      <li>最も保守的で、あとで直しやすい</li>
+    </ul>
+    行の範囲は広げず、仮説も求めません。論文・ID・値は作りません。決めたことは <code>decision_log.md</code> に残すよう伝えます。出力は <code>{ answer, reason }</code> です。</li>
+  <li><b>渡し方</b>：ジョブが終わると <code>rowJob.status</code> を <code>ready</code> にし、次の空き枠で回答を渡します（再開したプロジェクトのジョブが枠を 1 つ使うため）。渡すのは、ジョブが読んだ質問と、いまプロジェクトが待っている質問が同じときだけです。渡すときは回答の API と同じ関数（<code>answerQuestion</code>、<code>source: "auto"</code>）を使い、ジョブの状態を条件に書くので、人の回答と二重になりません。
+    <ul>
+      <li>エージェントが受け取る本文は「<code>answer</code>」と「<code>Reason: reason</code>」です。見出しは「Answer from the CoBRAC Orchestrator (it decides for the user in this autonomous run)」です（<code>answerPreamble</code>）。</li>
+      <li>行は <code>running</code> に戻り、<code>autoAnswers</code> が 1 増えます。</li>
+      <li>履歴には <code>row_auto_answered</code>（回数・ジョブ・回答と理由の冒頭）が残ります。</li>
+      <li>プロジェクトのチャットには「オーケストレーター（AI）がエージェントの質問に回答しました。」と、質問と回答が出ます。</li>
+    </ul></li>
+  <li><b>回数の上限はありません</b>。同じ行が質問を繰り返しても答え続けます。止めるのは費用の上限だけです。</li>
+</ul>
+
+<h3>要対応・人の判断の解決（解決のジョブ）</h3>
+<ul>
+  <li><b>依頼</b>：要対応（<code>attention</code>）と人の判断（<code>decision</code>）の行に解決のジョブを依頼します。計画の Canon が見つからないことによる人の判断（<code>lastError</code> が「The plan's Canon was not found.」）は除きます。それは所有者が決め、計画は一時停止します。入力の <code>situation</code> には次のものが入ります。
+    <ul>
+      <li>状態・理由・エラー</li>
+      <li>自動リトライの回数と追加指示の回数</li>
+      <li>PR の番号・状態・メモ</li>
+      <li>選択肢（<code>planRowOptions</code>）：要対応は <code>retry</code> / <code>skip</code>、人の判断は <code>done</code> / <code>push</code>（プロジェクトが完成しているときだけ）/ <code>skip</code></li>
+    </ul></li>
+  <li><b>選び方</b>（<code>prompts/orchestrator.md</code>）：
+    <ul>
+      <li><code>retry</code>：一時的な失敗のとき（時間切れ、レート制限、ワーカーの消失、形式の誤り）。</li>
+      <li><code>skip</code>：同じ失敗を繰り返す・プロジェクトが削除された・PR が Canon に合わない・費用に見合わないとき。</li>
+      <li><code>done</code>：完成していて計画に役立つが、Canon には取り込めないとき。</li>
+      <li><code>push</code>：原因がなくなったとき。</li>
+    </ul>
+    迷ったら、失敗を繰り返す行はスキップします。出力は <code>{ action, reason }</code> です。</li>
+  <li><b>反映</b>（<code>applyResolution</code>）：所有者のボタンと同じ遷移にします。
+    <ul>
+      <li><code>retry</code> → <code>pending</code>（要対応の理由を消す）</li>
+      <li><code>skip</code> → <code>skipped</code>（<code>autoSkip.reason = "ai_skipped"</code>、<code>error</code> に AI の理由）</li>
+      <li><code>done</code> → <code>done</code></li>
+      <li><code>push</code> → <code>running</code>（次のステップで push し直す。完成していなければ使わずに依頼し直す）</li>
+    </ul>
+    行には <code>aiResolution = { action, reason, at, jobId }</code> を残し、履歴には <code>row_ai_resolved</code>（行動・元の状態・理由のコード・AI の理由・ジョブ）を残します。画面には「オーケストレーター（AI）の判断: リトライ / スキップ / 完了にする / もう一度 push」と理由が出ます。</li>
+  <li>所有者は、これまでどおり要対応・人の判断の行のボタンで先に決めることもできます。そのときジョブの結果は捨てます。</li>
 </ul>
 
 <h3>PR の判断</h3>
@@ -53,17 +108,26 @@
 <ul>
   <li><b>追加指示</b>：Canon に合わせた更新（6.11）と同じ経路で、空き枠とバッチの順で始まります。プロジェクトを最新の rev に固定し直し、<code>queueFollowup</code> で積みます。題は <code>fix</code> なら「Canon rev N に合わせて更新」、<code>changes</code> なら「Canon PR #n の AI レビューの指摘に対応」で、続けて依頼の本文です。完成すると再び push し、新しい PR が古い PR を置き換えて、また判断します。</li>
   <li><b>push の時点のエラーの衝突</b>：ふつうの計画では、Canon が進んでいないのにエラーの衝突があると人の判断ですが、自律実行では <code>fix</code> の追加指示にします（<code>pushOutcome(…, { autonomous: true })</code> → <code>{ to: "conform", fix: true }</code>）。</li>
-  <li><b>回数の上限</b>：追加指示（Canon に合わせた更新を含む）は 1 行 3 回（<code>AUTONOMOUS_MAX_FOLLOWUPS</code>。ふつうの計画は 2 回）まで。超えると見送り（<code>conform_limit</code>、PR は開いたまま）。判断のジョブが失敗した・結果が読めないときは依頼し直し、3 回（<code>MAX_DECIDE_ATTEMPTS</code>）で見送り（<code>decide_failed</code>、PR は開いたまま）。</li>
+  <li><b>回数</b>：追加指示（Canon に合わせた更新を含む）は 1 行 3 回（<code>AUTONOMOUS_MAX_FOLLOWUPS</code>）までです。ふつうの計画は 2 回です。超えると、その行は人の判断（<code>conform_limit</code>）になり、解決のジョブが「完了にする／もう一度 push／スキップ」を選びます。判断のジョブが失敗したとき、または結果が読めないときは、上限なしで依頼し直します。v0.40.0 にあった「3 回で見送り」（<code>decide_failed</code>）はやめました。</li>
   <li><b>競合</b>：承認の途中で別の承認が Canon を進めた（<code>race</code>）ときは、次のステップで新しい head に対してもう一度反映します。</li>
   <li><b>範囲</b>：判断するのは、その計画が push した PR だけです。同じ Canon へのほかの PR（ほかの人・ほかの計画のもの）は、これまでどおり人が判断します。</li>
   <li><b>記録</b>：判断した人は「AI (&lt;モデル&gt;)」と、判断したジョブとモデル（<code>via</code>）が PR・承認・履歴・rev に残ります（4.8）。PR の画面の「AI レビュー」には「AI の判断」（「AI が承認」「AI が変更を依頼」「AI が却下」、理由、依頼した変更）が出ます。</li>
 </ul>
 <p class="small">コードが最後に決める線：AI はエラーの衝突を選べず（<code>incoming</code> を選んでも除く）、エラーの衝突のある PR は取り込まれません。選ばれなかった警告は Canon の値を残します。AI の判定がどうであれ、取り込みは人の承認と同じ <code>approvePullRequest</code>（同じ検査）を通ります。</p>
 
+<h3>再計画の提案</h3>
+<p>自律実行の計画では、再計画のジョブが出した「行の追加」「行の削除」の提案を、結果を保存したその場でランナーが反映します（<code>applyProposals</code>）。反映には、所有者の承認と同じ関数（<code>applyProposal</code>）を使い、決めた人は <code>runner</code> です（画面では「オーケストレーターが反映」）。反映できない提案は <code>stale</code> になります。たとえば次のときです。</p>
+<ul>
+  <li>同じ ROI × TLF の行がすでにある</li>
+  <li>外す行がもう始まっている</li>
+  <li>行が 200 行に達している</li>
+</ul>
+<p>粒度方針の変更は、ふつうの計画と同じく承認なしで反映します。</p>
+
 <h3>費用の上限</h3>
 <ul>
-  <li><b>数える費用</b>（<code>planSpendUsd</code>、推定 USD）：各行のプロジェクトの費用（既存のプロジェクトで済んだ行は数えない）、計画用のジョブ（下書き・再計画）、この計画の PR の <code>canon-review</code> のジョブ（AI レビューと判断）。</li>
-  <li><b>上限に達したら</b>：毎ステップ確かめ、初めて達したときに <code>costLimitAt</code> とイベント <code>cost_limit_reached</code>（費用と上限）を記録します。それ以降、<b>新しい行・追加指示・再計画を始めません</b>。実行中の行は最後まで進み、その質問への自動回答と PR の判断も続きます。動いているもの（開始中・実行中・質問中の行、判断を待つ PR）が無くなると、計画は一時停止します（<code>pausedReason: "cost_limit"</code>。画面には「一時停止中: 自律実行の費用の上限に達したため、新しい行を始めていません。上限を上げると再開できます。」）。実行中の行が最後まで進むので、費用は上限を少し超えることがあります。</li>
+  <li><b>数える費用</b>（<code>planSpendUsd</code>、推定 USD）：各行のプロジェクトの費用（既存のプロジェクトで済んだ行は数えない）、計画用のジョブ（下書き・再計画・行のジョブ）、この計画の PR の <code>canon-review</code> のジョブ（AI レビューと判断）。</li>
+  <li><b>上限に達したら</b>：毎ステップ確かめ、初めて達したときに <code>costLimitAt</code> とイベント <code>cost_limit_reached</code>（費用と上限）を記録します。それ以降、<b>新しい行・追加指示・解決のジョブ・再計画を始めません</b>。実行中の行は最後まで進み、その質問への回答（回答のジョブ）と PR の判断も続きます。動いているもの（開始中・実行中・質問中の行、判断を待つ PR、行のジョブ）が無くなると、計画は一時停止します（<code>pausedReason: "cost_limit"</code>。画面には「一時停止中: 自律実行の費用の上限に達したため、新しい行を始めていません。上限を上げると再開できます。」）。要対応・人の判断の行は、そのまま再開を待ちます。実行中の行が最後まで進むので、費用は上限を少し超えることがあります。</li>
   <li><b>再開</b>：<code>POST /plans/{id}/resume</code> <code>{ maxCostUsd }</code>。新しい上限は 1〜1000 USD で、これまでの費用より大きくなければ 400。設定を書き換え、<code>costLimitAt</code> を消し、イベント <code>cost_limit_raised</code> を残します。上限に達して止まった計画を上限なしで再開しようとすると 400 です。画面では一時停止の帯の下に「新しい費用の上限」と「上限を上げて再開」が出ます。</li>
 </ul>
 
@@ -71,11 +135,13 @@
 <table class="compact">
   <thead><tr><th style="width:30%">項目</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><code>row.autoSkip</code></td><td>見送りの理由 <code>reason</code>（要対応・人の判断の理由、または <code>ai_rejected</code>・<code>question_limit</code>・<code>decide_failed</code>）、時刻、PR、エラー。行には「自律実行で見送り: 理由」</td></tr>
-    <tr><td><code>row.autoAnswers</code>・<code>row.decideAttempts</code></td><td>自動回答の回数、判断のジョブの回数（新しい PR で 0 に戻る）</td></tr>
+    <tr><td><code>row.rowJob</code></td><td>オーケストレーターの AI の行のジョブ（<code>answer</code> / <code>resolve</code>、ジョブ ID、<code>queued</code> / <code>ready</code>）。画面には「オーケストレーター（AI）が回答を作っています」「回答を渡す順番を待っています」「オーケストレーター（AI）が判断しています」</td></tr>
+    <tr><td><code>row.aiResolution</code></td><td>最後の解決（行動・理由・時刻・ジョブ）</td></tr>
+    <tr><td><code>row.autoSkip</code></td><td>見送りの理由 <code>reason</code>（<code>ai_rejected</code>：AI が PR を却下、<code>ai_skipped</code>：解決のジョブがスキップを選んだ。v0.40.0 の記録には要対応・人の判断の理由、<code>question_limit</code>・<code>decide_failed</code> もある）、時刻、PR、エラー</td></tr>
+    <tr><td><code>row.autoAnswers</code>・<code>row.decideAttempts</code></td><td>AI が答えた回数（画面では「AI の回答 n 回」）、判断のジョブの回数（新しい PR で 0 に戻る）</td></tr>
     <tr><td><code>row.followup</code></td><td>次の追加指示（<code>fix</code> / <code>changes</code> と本文）。始めるときに消す。PR が人の手で決まったときも消す</td></tr>
-    <tr><td>イベント</td><td><code>row_auto_skipped</code>・<code>row_auto_answered</code>・<code>row_ai_decided</code>（判定・処理・ジョブ・rev）・<code>cost_limit_reached</code>・<code>cost_limit_raised</code>。確定は <code>confirmed</code>（<code>by: "runner"</code>）</td></tr>
+    <tr><td>イベント</td><td><code>row_auto_skipped</code>（AI の却下）・<code>row_auto_answered</code>（回答）・<code>row_ai_resolved</code>（解決）・<code>row_ai_decided</code>（PR の判定・処理・ジョブ・rev）・<code>proposal_accepted</code>（<code>by: "runner"</code>）・<code>cost_limit_reached</code>・<code>cost_limit_raised</code>。確定は <code>confirmed</code>（<code>by: "runner"</code>）</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/shared/src/plan.ts</code>（<code>PlanAutonomous</code>・<code>isAutonomous</code>・<code>pushOutcome</code>・上限の定数）・<code>canonAiDecision.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（<code>autoSkip</code>・<code>applyDecision</code>・<code>answerRow</code>・<code>costLimitReached</code>）・<code>planOps.ts</code>（<code>readAutonomous</code>・<code>confirmPlan</code>・<code>resumePlan</code>）・<code>planCost.ts</code>・<code>runs.ts</code>（<code>answerQuestion</code>・<code>AUTO_ANSWER</code>）・<code>canonOps.ts</code>、<code>packages/api/src/handlers/planRunner.ts</code>（<code>autoConfirm</code>）、<code>packages/worker/src/pipeline.ts</code>（<code>turnInput</code>）・<code>canonReview.ts</code>、<code>prompts/autonomous.md</code>、<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>・<code>components/canonReview/AiPanel.tsx</code></p>
+<p class="src">典拠：<code>packages/shared/src/plan.ts</code>（<code>PlanAutonomous</code>・<code>isAutonomous</code>・<code>pushOutcome</code>・上限の定数）・<code>canonAiDecision.ts</code>、<code>packages/shared/src/planRowJob.ts</code>（行のジョブの入力・スキーマ・検証）、<code>packages/api/src/lib/planRunner.ts</code>（<code>followRowJob</code>・<code>giveAnswer</code>・<code>applyResolution</code>・<code>applyProposals</code>・<code>applyDecision</code>・<code>costLimitReached</code>）・<code>planRowJobs.ts</code>・<code>planProposals.ts</code>・<code>planOps.ts</code>（<code>readAutonomous</code>・<code>confirmPlan</code>・<code>resumePlan</code>）・<code>planCost.ts</code>・<code>runs.ts</code>（<code>answerQuestion</code>）・<code>canonOps.ts</code>、<code>packages/api/src/handlers/planRunner.ts</code>（<code>autoConfirm</code>）、<code>packages/worker/src/planJob.ts</code>（<code>runPlanRowJob</code>）・<code>pipeline.ts</code>（<code>answerPreamble</code>）・<code>canonReview.ts</code>、<code>prompts/orchestrator.md</code>、<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>・<code>components/canonReview/AiPanel.tsx</code></p>
 </section>

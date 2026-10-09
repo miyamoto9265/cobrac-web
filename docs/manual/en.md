@@ -217,7 +217,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Build the BRA of the language system") in the panel that opens from the right (with no plan yet, the form is on the screen).
 2. Add source list files (CSV, TSV, text, xlsx or PDF; up to 10) or paste rows. One row is one project. CSV, TSV and text files are read into rows as soon as the plan is created. With a header row the columns are read by name: ROI (region), TLF (function, capability), rationale (note), wave (also read as "batch") and priority. Without one, a single column is the TLF, otherwise the columns are ROI, TLF, rationale.
-3. "Create plan" creates the plan from these rows. "Create draft" creates it and asks for a draft at the same time (it needs a goal, a file or pasted rows). xlsx and PDF files are read by the job of "Create draft" (also when you press it after creating the plan).
+3. "Create plan" creates the plan from these rows. "Create draft" creates it and asks for a draft at the same time. Both need a goal, a file or pasted rows (without any of them neither can be pressed). xlsx and PDF files are read by the job of "Create draft" (also when you press it after creating the plan).
 4. Rows that could not be read (neither ROI nor TLF, the same ROI × TLF as another row, …) are shown with the file name, the row number and the reason. Fix them and add them with "Import CSV".
 5. To have the plan run to the end without waiting for you, switch on "Autonomous run", enter a cost limit and press "Start autonomous run" (see "Autonomous run" below).
 
@@ -226,7 +226,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 The list shows what your plans are doing now. While a plan runs, is paused or is being drafted, "Live" shows next to the title and the list updates by itself every 15 s (every 5 s while a draft is written; nothing is read while the tab is in the background).
 
-- **Your turn**: what waits on you, from every plan, comes first: rows with a question, awaiting approval, needing a decision or attention, re-plan proposals, plans stopped for a reason other than you, and drafts to confirm (or that failed). Each opens its plan. When nothing waits, it says so.
+- **Your turn**: what waits on you, from every plan, comes first: rows with a question, awaiting approval, needing a decision or attention, re-plan proposals, plans stopped for a reason other than you, and drafts to confirm (or that failed). Rows of a running autonomous plan are not listed: the Orchestrator decides them. Each opens its plan. When nothing waits, it says so.
 - **Running plans**: running, paused and drafting plans are shown wide, with the rows done, the current wave, the time so far and the estimate, the cost (so far and estimated), a progress bar by wave (done green, rows being built flowing blue, questions and decisions amber, awaiting approval violet, attention red; the current wave is outlined), the rows being built with their stage (research, HCD, FRG…) and time, and the recent activity (last 4).
 - **Drafts** and **Finished plans**: drafts are cards; finished and cancelled plans are in a folded list.
 
@@ -237,6 +237,17 @@ The list shows what your plans are doing now. While a plan runs, is paused or is
 - When it is done the plan is a draft again and you can change every row. Items the draft could not read (rows of an xlsx or PDF, part of the goal, …) are listed with the file, the place and the reason; add rows by hand where needed. Parts of the draft that referred to rows, anchors or projects that do not exist are not used, and their number is shown. A draft that failed shows why.
 - The **granularity policy** says how finely the rows of this plan define circuits (for example "neocortex = area × projection class, subcortex = nucleus"). The Orchestrator decides it: the draft job writes it, and after confirmation a re-plan job may change it from the finished rows. There is no field for you to write or edit it.
 - **Cost**: the drafting job is billed like any other job: it takes one slot under the concurrency limits, runs on your API key (or the default API key) and its cost is recorded. It is one short run, so it costs little next to the rows' projects. A job you cancel or that runs out of time is still billed for what it used until then. You can press "Create draft" again at any time, but each press runs a new job.
+
+### The draft screen
+
+A draft plan's page has four parts, top to bottom; the progress and cost cards only appear once the plan is confirmed.
+
+1. **What to build**: edit the goal (saved when you leave the field), and add or remove source files (up to 10). Added CSV, TSV and text files are read into rows at once; xlsx and PDF are read by the next draft job. Removing a file keeps the rows read from it. "Create draft" (no rows yet) or "Redo draft" (the rows stay); when it cannot be pressed, the reason is shown. The granularity policy is shown here too.
+2. **Rows and waves**: rows in a table grouped by wave. Open a row for its rationale, wave, anchors and "Rebuild". Changed rows are highlighted, and "Save rows" / "Undo" appear only while there are unsaved changes. "Split into waves of N" is under "…" (more actions). With no rows, the page tells you to write a goal and press "Create draft", or to add rows.
+3. **How it runs**: autonomous run (on/off and the cost limit), Canon, models (Orchestrator, agents, reasoning effort) and research mode.
+4. **Confirm and start**: the estimate (time and cost); when the button cannot be pressed, the reason is shown next to it (no rows, unsaved changes, a draft being written).
+
+"Delete plan" is at the bottom of the page.
 
 ### Arrange rows and waves
 
@@ -293,21 +304,21 @@ When a plan has a Canon, its finished rows are taken into that Canon as the plan
 
 ### Autonomous run
 
-**Autonomous run** (自律実行) is a setting of a plan that makes it run to the end without waiting for a person. Give it a goal, and everything from the draft to taking the projects into the Canon goes on by itself.
+**Autonomous run** (自律実行) is a setting of a plan in which the Orchestrator acts for you and runs the plan to the end: it confirms the plan, answers the agents' questions, approves the PRs, decides on rows that need attention or a decision, and accepts re-plan proposals in your place. Give it a goal, and everything from the draft to taking the projects into the Canon goes on by itself.
 
 - **Starting**: in the new plan form, switch on "Autonomous run", enter the **cost limit** (USD, 1–1000; 20 by default) and press "Start autonomous run". An autonomous plan always starts with a draft. Unless you choose a Canon, a new Canon named after the plan is created (under "Canon" in the draft you can pick an existing Canon or "None" instead). The draft's "Settings" can also switch the run on or off and change the limit (switched on after the draft is written, the plan is not confirmed on its own: press "Confirm and start" and it runs autonomously from there). Autonomous plans are marked "Autonomous run" in the list and on the plan page.
 - **Draft and confirmation**: once the draft is written, the plan is confirmed and started on its own within about a minute (you do not press "Confirm and start"). A draft job that fails is asked once more. If the confirmation fails, the reason is shown: check it and press "Confirm and start".
-- **No questions**: the rows' agents do not ask; they go on with the option they recommend (keeping the ROI and TLF as given and the Canon's definitions, adding no hypotheses). What they decided this way is kept under "Autonomous decisions" in decision_log.md and under "Limitations" in the report. A question asked all the same is answered by the plan ("Auto-answered 1/3"); a row that keeps asking after 3 answers is left out.
+- **The Orchestrator answers questions**: the rows' agents may ask questions as in any plan. The Orchestrator's AI reads each question together with the row, the plan's goal and granularity policy, the Canon's policy and the project's decision log, and answers it for you: it takes the agent's recommendation when the evidence supports it, otherwise the most conservative option that keeps the ROI and TLF as given and agrees with the Canon. There is no limit on the number of answers (the row shows "AI answers: n"); the answers are kept in the project's chat and the plan's history.
 - **The AI decides on the PRs**: the plan's PRs (baseline project PRs included) are read by an AI review job that decides "Approve", "Request changes" or "Reject"; the plan applies the decision for the Canon's owner.
   - **Approve**: the PR is merged into the Canon and the row is done. Warning conflicts take the side the AI chose (the Canon's value where it chose none).
   - **Request changes**: the changes the AI listed are sent to the project as a follow-up instruction, and it is pushed again. The new PR is decided the same way.
   - **Reject**: the PR is rejected and the row is left out.
-  - Error conflicts are never merged, even when the AI approves: a follow-up instruction makes the project agree with the Canon. A row gets at most 3 follow-ups (updates to match the Canon included); after that it is left out and its PR stays open. A row whose decision job failed 3 times is left out too, with its PR open.
+  - Error conflicts are never merged, even when the AI approves: a follow-up instruction makes the project agree with the Canon. A row gets at most 3 follow-ups (updates to match the Canon included); after that it needs a decision, which the Orchestrator then takes (see below). A decision job that fails is asked again, with no limit.
   - The decision is shown on the PR page under "AI review" as "AI decision". In the PR's history the approval, request for changes or rejection is by "AI (model name)".
   - Other people's PRs to the Canon (not the plan's) are decided by people, as before.
-- **Rows that cannot go on are left out**: in an autonomous plan, a row that would need your decision or attention is skipped instead of waiting, with "Left out by the autonomous run" and the reason. An existing project that is in another Canon is not used; the row is built anew for this Canon. Only when the plan's Canon is no longer found does the plan pause, as any plan does.
-- **Cost limit**: once the plan's cost (the rows' projects, the draft and re-plan jobs, the AI review and decision jobs) reaches the limit, no new row, follow-up or re-plan starts. Running rows go on to their end, and their questions are still answered and their PRs decided. Once nothing is left running, the plan pauses with "cost limit". Enter a new limit (more than what has been spent) and press "Raise the limit and resume" to go on. The limit is on cost only, not on time or the number of rows.
-- **Re-plan proposals**: proposals to add or leave out rows after a wave change the plan only once you approve them, as in any plan. The plan does not wait for them.
+- **Attention and decisions**: when a row needs attention or a decision, the Orchestrator's AI reads the reason, the error and the PR, and picks one of your buttons: "Retry" or "Skip" for attention; "Mark done", "Push again" (finished projects only) or "Skip" for a decision. The row shows "The Orchestrator (AI) decided: …" with the reason. You can still press a button first. Only when the plan's Canon is no longer found does the plan pause, as any plan does, for you to decide. An existing project that is in another Canon is not used; the row is built anew for this Canon.
+- **Cost limit**: once the plan's cost (the rows' projects, the draft, re-plan, answer and resolution jobs, the AI review and decision jobs) reaches the limit, no new row, follow-up, resolution or re-plan starts. Running rows go on to their end, and their questions are still answered (by the Orchestrator) and their PRs decided. Once nothing is left running, the plan pauses with "cost limit". Enter a new limit (more than what has been spent) and press "Raise the limit and resume" to go on. The limit is on cost only, not on time or the number of rows.
+- **Re-plan proposals**: proposals to add or leave out rows after a wave are the Orchestrator's own decision: they are applied as soon as they arrive (decided proposals say "Applied by the Orchestrator").
 - Pause, resume and cancel work as for any plan.
 
 ### Question inbox
