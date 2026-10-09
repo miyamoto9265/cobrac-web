@@ -37,7 +37,7 @@
 
 <h3>PR の判断</h3>
 <ol class="steps">
-  <li><b>依頼</b>：自律実行の計画では、<code>review</code> のすべての行（土台の行も、手で push した PR を追う行も）が判断を待ちます（<code>aiReview: "wanted"</code>）。ランナーは空き枠で、AI レビューと同じ関数（<code>requestAiReview</code>）を <code>kind: "decide"</code>・<code>planId</code> つきで、オーケストレーターのモデルと計画の返答言語で所有者として依頼します（1 件 1 枠。<code>canon-review</code> のジョブで <code>reviewKind: "decide"</code>、行の <code>decideAttempts</code> が 1 増える）。手で依頼した AI レビュー（判定なし）が終わった PR にも、判断のジョブを依頼します。</li>
+  <li><b>依頼</b>：自律実行の計画では、<code>review</code> のすべての行（基準プロジェクトも、手で push した PR を追う行も）が判断を待ちます（<code>aiReview: "wanted"</code>）。ランナーは空き枠で、AI レビューと同じ関数（<code>requestAiReview</code>）を <code>kind: "decide"</code>・<code>planId</code> つきで、オーケストレーターのモデルと計画の返答言語で所有者として依頼します（1 件 1 枠。<code>canon-review</code> のジョブで <code>reviewKind: "decide"</code>、行の <code>decideAttempts</code> が 1 増える）。手で依頼した AI レビュー（判定なし）が終わった PR にも、判断のジョブを依頼します。</li>
   <li><b>判断</b>（ワーカー）：材料は AI レビューと同じ（<code>buildCanonAiPacket</code>）で、所見に加えて判定・理由・衝突ごとの選択・依頼する変更を返させます（4.8 の「判断のジョブ」）。材料の文字列はデータとして扱い、指示として従わないよう指示します。</li>
   <li><b>反映</b>（ランナー、<code>applyDecision</code>）：ジョブが完了したら、PR がまだ開いていることを確かめ、判断と PR の取り込み内容を読み、<b>いまの head に対して差分を取り直して</b>、コードが行き先を決めます（<code>decisionAction</code>）。PR が人の手で決まっていれば、それに従います（6.11）。</li>
 </ol>

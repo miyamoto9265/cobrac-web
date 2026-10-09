@@ -866,7 +866,7 @@ function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: ReadonlyMap
   );
 }
 
-/** Heading of a wave: its stored number, 「土台」 for a seed wave. */
+/** Heading of a wave: its stored number, 「基準プロジェクト」 for a seed wave. */
 function WaveHeading({ wave, seed, current, className = "mb-1" }: { wave: number; seed: boolean; current?: boolean; className?: string }) {
   const t = useT();
   return (
@@ -885,7 +885,7 @@ function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, ac
   const t = useT();
   const waves = planWaves(d.rows);
   const names = useMemo(() => new Map(d.rows.map((r) => [r.rowId, rowName(r)])), [d.rows]);
-  // 「土台」 on a row only while it is the seed of its wave (as the headings)
+  // 「基準プロジェクト」 on a row only while it is the seed of its wave (as the headings)
   const seeds = useMemo(() => new Set([...seedIndexes(d.rows)].map((i) => d.rows[i].rowId)), [d.rows]);
   const canSkip = d.plan.status === "RUNNING" || d.plan.status === "PAUSED" || d.plan.status === "CANCELLED";
   const canonId = d.plan.canonId ?? d.canon?.canonId ?? null;
@@ -1324,7 +1324,7 @@ export function PlanDetailPage() {
       canon = stored;
     }
     const unsaved = saveRef.current;
-    // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「土台」 headings)
+    // unsaved rows: a seed counts only while it is the only built row of its wave (as the 「基準プロジェクト」 headings)
     const facts = unsaved ? seedFactsOf(unsaved.rows) : [];
     const seeds = seedIndexes(facts);
     const e = unsaved ? planEstimate(facts.map((f, i) => ({ ...f, seed: seeds.has(i) })), d.limits.effective) : d.estimate;

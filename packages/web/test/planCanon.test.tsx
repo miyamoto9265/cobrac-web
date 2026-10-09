@@ -296,7 +296,7 @@ describe("a running plan with a Canon", () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows, { ...confirmed, activeWave: 1 }, canon));
     await render("/plans/n4h8w2rk");
     const gate = q('[data-testid="plan-seed-gate"]')!;
-    expect(gate.textContent).toContain("Waiting for the foundation pull request to be approved.");
+    expect(gate.textContent).toContain("Waiting for the baseline project’s pull request to be approved.");
     expect(q('a', gate)!.getAttribute("href")).toBe(`/canons/${CANON}/pulls/3`);
     expect(q('[data-testid="plan-back-pressure"]')).toBeNull();
   });
@@ -339,7 +339,7 @@ describe("a running plan with a Canon", () => {
     await render("/plans/n4h8w2rk");
     expect(q('[data-testid="plan-seed-gate"]')).toBeNull();
     const gate = q('[data-testid="plan-seed-decision"]')!;
-    expect(gate.textContent).toContain("A foundation row needs your decision.");
+    expect(gate.textContent).toContain("A baseline project needs your decision.");
     const link = q<HTMLAnchorElement>('[data-testid="seed-decision-link"]', gate)!;
     expect(link.getAttribute("href")).toBe("#plan-decision-r1");
     expect(link.textContent).toBe("speech production in left IFG");
