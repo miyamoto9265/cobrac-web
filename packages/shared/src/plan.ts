@@ -310,7 +310,7 @@ export interface PlanRowRecord {
   anchorsSource?: "predicted" | "used";
   /** Rows this one is built from (its function combines theirs); a row with dependencies is never a seed */
   dependsOn?: string[];
-  /** In the seed wave (種の波): built one at a time before the body waves */
+  /** In the seed wave (「基準プロジェクト」): built one at a time before the body waves */
   seed?: boolean;
   /** A COMPLETED project of the owner with the same ROI × TLF: the row is not rebuilt (it is done at confirmation) */
   existing?: { projectId: string; name: string } | null;
