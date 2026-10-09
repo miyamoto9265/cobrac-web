@@ -1,6 +1,6 @@
 <section class="porch">
 <h2 id="s6-11">6.11 Canon と組み合わせる</h2>
-<p>計画に Canon を 1 つ決めると、完成した行をその Canon に取り込みながら進みます。<b>行が「完了」になるのは、その行の PR を人が承認したとき</b>です。ランナーは承認・却下・回答をいっさい行いません。Canon の無い計画（段階 3 より前の計画と「なし」を選んだ計画）は、6.9・6.10 のとおりに動き、Canon を読みません。</p>
+<p>計画に Canon を 1 つ決めると、完成した行をその Canon に取り込みながら進みます。<b>行が「完了」になるのは、その行の PR を人が承認したとき</b>です。ランナーは承認・却下・回答をいっさい行いません（例外は<b>自律実行</b>の計画で、AI の判断をランナーが反映します。6.15）。Canon の無い計画（段階 3 より前の計画と「なし」を選んだ計画）は、6.9・6.10 のとおりに動き、Canon を読みません。</p>
 <figure>
 <svg viewBox="0 0 680 262" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
   <defs>
@@ -61,7 +61,7 @@
   <li>下書きのときだけ選べます（<code>PUT /plans/{id}</code> <code>{ canon }</code>、計画のリースの中で。下書き作成中や確定後は 409）。<code>{ mode: "none" }</code> は外す、<code>{ mode: "existing", canonId }</code> は所有者が所有する削除されていない Canon だけ（プロジェクトは所有者の Canon にしか入れないので、共同編集者の Canon は選べない。ほかは 404）で <code>META.canonId</code> に、<code>{ mode: "new", name }</code>（名前は <code>POST /canons</code> と同じく検査）は <code>META.canonNew = { name }</code> に保存します。1 つの計画に Canon は 1 つまで。</li>
   <li>確定後は変えられず、読み取り専用で Canon へのリンクと最新の rev が表示されます。削除された Canon は「Canon が見つかりません」と出ます（<code>GET /plans/{id}</code> の <code>canon = { canonId, name, headRevision }</code>。削除された・所有者のものでなくなった Canon は <code>missing: true</code>、Canon が無ければ null）。</li>
   <li>確定のとき（リースの中）、選んだ既存の Canon がまだ所有者のものでなければ 409「この計画の Canon が見つかりません」。「新しい Canon」は、計画の粒度方針を方針にして作られます（<code>createCanon</code>：非公開・空・<code>headRevision</code> 0）。作った直後に計画に保存されるので（<code>canonId</code>、<code>canonNew</code> は null、イベント <code>canon_created</code>）、確定がその後で失敗しても、もう 1 つ作ることはありません。<code>confirmed</code> のイベントは Canon を記録します。</li>
-  <li><b>既存のプロジェクトで済む行</b>：そのプロジェクトがすでにこの Canon に入っていれば <code>done</code>。どの Canon にも入っていなければ <code>pending</code> のまま自分のバッチの番を待ち（種のゲートやバッチの順もほかの行と同じ）、番が来たら作らずに Canon に入れて push。ほかの Canon に入っていれば「人の判断」（<code>other_canon</code>）。</li>
+  <li><b>既存のプロジェクトで済む行</b>：そのプロジェクトがすでにこの Canon に入っていれば <code>done</code>。どの Canon にも入っていなければ <code>pending</code> のまま自分のバッチの番を待ち（土台のゲートやバッチの順もほかの行と同じ）、番が来たら作らずに Canon に入れて push。ほかの Canon に入っていれば「人の判断」（<code>other_canon</code>）。</li>
 </ul>
 <h3>開始・push・承認待ち</h3>
 <ol class="steps">
@@ -71,7 +71,7 @@
 <table class="compact">
   <thead><tr><th style="width:36%">push の結果</th><th>行の行き先</th></tr></thead>
   <tbody>
-    <tr><td>エラーの衝突なし（警告・要確認は人に回す）</td><td><b><code>review</code>（承認待ち）</b>。本体の行は AI レビューを依頼（<code>aiReview: "wanted"</code>）。種の行は依頼しない</td></tr>
+    <tr><td>エラーの衝突なし（警告・要確認は人に回す）</td><td><b><code>review</code>（承認待ち）</b>。本体の行は AI レビューを依頼（<code>aiReview: "wanted"</code>）。土台の行は依頼しない（自律実行では土台の行も含めてすべての行が判断のジョブを依頼する）</td></tr>
     <tr><td>エラーの衝突あり、行の固定より後に Canon が進んだ、更新が 2 回（<code>MAX_CONFORM_FOLLOWUPS</code>）未満</td><td><b><code>pending</code>（<code>conform: true</code>）</b>：Canon に合わせた更新を待つ</td></tr>
     <tr><td>エラーの衝突あり、Canon は進んでいない</td><td><b><code>decision</code></b>（<code>conflicts</code>）</td></tr>
     <tr><td>2 回更新してもエラーの衝突が残る</td><td><b><code>decision</code></b>（<code>conform_limit</code>）</td></tr>
@@ -88,9 +88,9 @@
   <li><b>人の判断</b>（<code>POST /plans/{id}/rows/{rowId}/resolve</code> <code>{ action }</code>。所有者、計画が <code>RUNNING</code> か <code>PAUSED</code>、行が <code>decision</code>、リースの中で。ほかは 409）：計画の画面の「人の判断」カードに理由の文とともに出ます（各操作に確認あり）。「完了にする」（<code>done</code>：行をそのまま完了に数え <code>completedAt</code> を付ける。PR はそのまま Canon に残り、自動では取り込まれない）／「もう一度 push」（<code>push</code>：プロジェクトが COMPLETED の行だけ。でなければ 409「完了したプロジェクトの行だけをもう一度 push できます」。行を <code>running</code> にして理由を消し、<code>conformAttempts</code> は保ち、次のステップで push）／「スキップ」（<code>…/rows/{rowId}/skip</code> は <code>decision</code> の行も受け付ける）。イベント <code>row_resolved</code> に操作と元の理由が残ります。</li>
   <li><b>PR から計画へ</b>：<code>CanonPullRequestRecord.planId</code>（push したプロジェクトの <code>planId</code>、無ければ null）は、手で push したときも含めてすべての push で記録されます。Canon の PR の一覧と PR の画面には計画の ID のチップが出て、Canon の所有者には計画へのリンクになります（計画はその人のもの）。</li>
 </ul>
-<h3>種のゲートと、承認待ちの上限</h3>
+<h3>土台のゲートと、承認待ちの上限</h3>
 <div class="grid2">
-  <div class="card"><div class="h">種のゲート</div>Canon のある計画では、種の行は<b>その PR を人が承認する</b>（または解決・スキップする）まで、後のすべてのバッチを止めます。種は同じバッチにあっても 1 件ずつ始まり、ほかの種が実行中・承認待ち・人の判断の間は始まりません。画面には「種の PR の承認を待っています」と PR へのリンク、または「種の行に人の判断が必要です」が出ます。種の PR を先に承認すると、後の行はその rev から作り始めます。</div>
+  <div class="card"><div class="h">土台のゲート</div>Canon のある計画では、土台の行は<b>その PR を人が承認する</b>（または解決・スキップする）まで、後のすべてのバッチを止めます。土台は同じバッチにあっても 1 件ずつ始まり、ほかの土台が実行中・承認待ち・人の判断の間は始まりません。画面には「土台の PR の承認を待っています」と PR へのリンク、または「土台の行に人の判断が必要です」が出ます。土台の PR を先に承認すると、後の行はその rev から作り始めます。自律実行の計画では、AI の判断による承認（または見送り）でゲートが開きます。</div>
   <div class="card"><div class="h">承認待ちの上限（背圧）</div>承認待ちの行が 20 件（<code>PLAN_MAX_WAITING_PRS</code>）に達すると、新しいバッチを始めません（いまのバッチの行は続く）。画面には「承認待ちの PR が 20 件あるため、次のバッチを止めています」。Canon の画面の「まとめて承認」（4.8）で、矛盾の無い PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
 </div>
 <p class="small">計画の Canon が削除された・所有者のものでなくなった場合：承認待ちの行と、完成して push するはずの行は「人の判断」（<code>push_failed</code>、「The plan's Canon was not found.」）になり、新しい行・リトライ・Canon に合わせた更新を始めようとすると、計画は自分で一時停止し（<code>canon_missing</code>）何も始めません。画面には「一時停止中: この計画の Canon が見つかりません（削除された可能性があります）。新しい行は Canon に入れられないため始めません。」と出ます。実行中の行は、ほかの一時停止と同じく続いて追われます。所有者は待っている行をスキップするか、計画を中止できます。<code>review</code> と <code>decision</code> は枠を使わず、完了にも数えません。Canon のある計画は、すべての行が <code>done</code> か <code>skipped</code> になったときに完了します。</p>

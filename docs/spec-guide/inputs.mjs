@@ -30,6 +30,7 @@ export const PROMPT_SOURCES = [
   ["prompts/phases/HYPOTHESIS.md", "仮説モードの規則（HYPOTHESIS.md）"],
   ["prompts/article.md", "解説記事ジョブ（article.md）"],
   ["prompts/plan.md", "オーケストレーターの計画ジョブ（plan.md）"],
+  ["prompts/autonomous.md", "自律実行の追加指示（autonomous.md）"],
 ];
 
 /** 付録 B の差し込み値の説明で、実行時の値を読むコード（値が変われば PDF も作り直す） */

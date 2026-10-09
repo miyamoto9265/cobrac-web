@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CanonAiPacket } from "@cobrac/shared";
+import { CANON_AI_DECISION_SCHEMA, CANON_AI_REVIEW_SCHEMA } from "@cobrac/shared";
 import { RETRY_PROMPT, runCanonReview } from "../src/canonReview.js";
 
 const packet: CanonAiPacket = {
@@ -51,5 +52,19 @@ describe("runCanonReview", () => {
         },
       }),
     ).toMatchObject({ result: "failed", error: "rate limit" });
+  });
+
+  it("自律実行: a decision job asks for the verdict with the decision schema and returns it", async () => {
+    const schemas: object[] = [];
+    const prompts: string[] = [];
+    const decided = JSON.stringify({ ...JSON.parse(good), verdict: "request_changes", reason: "Direction unclear.", choices: [], changes: ["Check the direction in [X, 2000]."] });
+    const r = await runCanonReview({ packet, locale: "ja", decide: true, turn: async (p, schema) => (prompts.push(p), schemas.push(schema), { text: decided, usage }) });
+    expect(r).toMatchObject({ result: "completed", decision: { verdict: "request_changes", changes: ["Check the direction in [X, 2000]."] } });
+    expect(schemas[0]).toBe(CANON_AI_DECISION_SCHEMA);
+    expect(prompts[0]).toContain("acting for the Canon's owner");
+    // an assist review keeps its schema and has no verdict
+    const plain = await runCanonReview({ packet, locale: "ja", turn: async (_p, schema) => (schemas.push(schema), { text: good, usage }) });
+    expect(schemas[1]).toBe(CANON_AI_REVIEW_SCHEMA);
+    expect(plain).not.toHaveProperty("decision");
   });
 });

@@ -60,7 +60,8 @@ export const RUNNER_PLAN_STATUSES: readonly PlanStatus[] = ["DRAFTING", "RUNNING
 
 /** Why a plan is paused: by its owner, or by the runner because the owner can no longer start jobs. */
 /** canon_missing (stage 3): the plan's Canon was deleted; no row starts until it is resolved (rows could not join it). */
-export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed" | "canon_missing";
+/** cost_limit (自律実行): the plan spent its cost limit; the owner raises the limit to resume it. */
+export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed" | "canon_missing" | "cost_limit";
 
 /**
  * pending: waits for its turn (with `projectId`: a retry of that project). starting: the runner claimed it and is
@@ -88,6 +89,14 @@ export type PlanAttentionReason = "failed" | "question_timeout" | "cancelled_out
  */
 export type PlanDecisionReason = "conflicts" | "conform_limit" | "pr_rejected" | "pr_withdrawn" | "other_canon" | "push_failed";
 
+/**
+ * Why an autonomous plan (自律実行) left a row out instead of waiting for a human: the reasons a row would otherwise
+ * need a human (「人の判断」 / 「要対応」), plus ai_rejected (the AI reviewer rejected its pull request), question_limit
+ * (its agent kept asking after `MAX_AUTO_ANSWERS` automatic answers) and decide_failed (the AI reviewer could not decide
+ * after `MAX_DECIDE_ATTEMPTS` jobs; the pull request stays open for a human).
+ */
+export type PlanAutoSkipReason = PlanDecisionReason | PlanAttentionReason | "ai_rejected" | "question_limit" | "decide_failed";
+
 /** The Canon of a plan, chosen in a draft: none, one of the owner's Canons, or a new one created at confirmation. */
 export type PlanCanonChoice = { mode: "none" } | { mode: "existing"; canonId: string } | { mode: "new"; name: string };
 
@@ -108,6 +117,36 @@ export interface PlanSettings {
   researchMode: boolean;
   /** Language of the agents' chat replies (the UI language at confirmation) */
   locale: UiLocale | null;
+  /**
+   * 自律実行 (autonomous run): the plan goes from its draft to the end without waiting for a person. The draft is
+   * confirmed on its own, the rows' agents decide instead of asking, the AI reviewer decides on the plan's pull
+   * requests, rows that cannot go on are left out, and no new row starts once `maxCostUsd` is spent. Absent = off.
+   */
+  autonomous?: PlanAutonomous | null;
+}
+
+export interface PlanAutonomous {
+  /** No new row (or follow-up) starts once the plan has spent this much (USD, estimated); running rows finish */
+  maxCostUsd: number;
+}
+
+/** Default cost limit of an autonomous plan, and the range the owner may set. */
+export const AUTONOMOUS_DEFAULT_MAX_COST_USD = 20;
+export const AUTONOMOUS_MAX_COST_RANGE = { min: 1, max: 1000 } as const;
+/** Automatic answers a row's agent gets before the row is left out (`question_limit`). */
+export const MAX_AUTO_ANSWERS = 3;
+/** Decision jobs per pull request before the row is left out (`decide_failed`; the pull request stays open). */
+export const MAX_DECIDE_ATTEMPTS = 3;
+/** Follow-ups a row of an autonomous plan gets for its pull request (conform, fix and the AI's requested changes together). */
+export const AUTONOMOUS_MAX_FOLLOWUPS = 3;
+
+export const isAutonomous = (p: { settings: Pick<PlanSettings, "autonomous"> }): boolean => !!p.settings.autonomous;
+
+/** A cost limit as the owner sent it: a number within `AUTONOMOUS_MAX_COST_RANGE` (cents kept), else null. */
+export function autonomousMaxCost(v: unknown): number | null {
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  if (v < AUTONOMOUS_MAX_COST_RANGE.min || v > AUTONOMOUS_MAX_COST_RANGE.max) return null;
+  return Math.round(v * 100) / 100;
 }
 
 /** The Orchestrator's model and whether the owner picked it; plans made before it could be chosen use the rows' model. */
@@ -160,7 +199,14 @@ export interface PlanJobState {
   endedAt?: string | null;
   error?: string | null;
   /** Why the job could not be started for the owner (the error text is then English; the page shows this reason) */
-  errorCode?: Exclude<PlanPauseReason, "user" | "canon_missing"> | null;
+  errorCode?: Exclude<PlanPauseReason, "user" | "canon_missing" | "cost_limit"> | null;
+  /** 自律実行: draft jobs asked for this draft (a failed one is asked once more) */
+  attempt?: number;
+  /**
+   * 自律実行: the draft was applied while the plan was autonomous, so the runner confirms it. A draft that was not (the
+   * run was switched on afterwards) waits for the owner's confirmation as usual.
+   */
+  autoConfirm?: boolean;
   /** Rows the job could not read (draft) */
   unread?: PlanUnread[];
   /** Items of the result that pointed at rows, anchors or projects not in the input (removed) */
@@ -216,6 +262,10 @@ export interface PlanRecord {
   /** Estimate at confirmation (the screen recomputes it live) */
   estimate?: PlanEstimate | null;
   pausedReason?: PlanPauseReason | null;
+  /** 自律実行: when the plan reached its cost limit (no new row starts since then) */
+  costLimitAt?: string | null;
+  /** 自律実行: why the draft could not be confirmed on its own (the owner confirms it by hand) */
+  autonomousError?: string | null;
   confirmedAt?: string | null;
   confirmedBy?: string | null;
   completedAt?: string | null;
@@ -280,6 +330,18 @@ export interface PlanRowRecord {
   aiReview?: "wanted" | "queued" | null;
   aiReviewJobId?: string | null;
   decisionReason?: PlanDecisionReason | null;
+  /** 自律実行: the row was left out by the runner (instead of waiting for a human), with the reason */
+  autoSkip?: { reason: PlanAutoSkipReason; at: string; prNo?: number | null; error?: string | null } | null;
+  /** 自律実行: questions of the row's agent the runner answered */
+  autoAnswers?: number;
+  /** 自律実行: decision jobs asked for the row's current pull request */
+  decideAttempts?: number;
+  /**
+   * 自律実行: the instruction of the row's next follow-up (with `conform`): fix = make the project agree with the Canon
+   * (error conflicts the Canon moving on did not cause); changes = the changes the AI reviewer asked for. Absent: the
+   * usual conform follow-up (the Canon moved on).
+   */
+  followup?: { kind: "fix" | "changes"; note: string } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -344,7 +406,12 @@ export type PlanEventType =
   | "row_conform"
   | "row_decision"
   | "row_resolved"
-  | "row_ai_review";
+  | "row_ai_review"
+  | "row_auto_skipped"
+  | "row_auto_answered"
+  | "row_ai_decided"
+  | "cost_limit_reached"
+  | "cost_limit_raised";
 
 export interface PlanEventRecord {
   planId: string;
@@ -383,6 +450,15 @@ export interface CreatePlanRequest {
   draft?: boolean;
   /** Language of the draft's texts (with `draft`) */
   locale?: UiLocale | null;
+  /** 自律実行: run the plan to the end without waiting for a person (needs `draft`); absent = off */
+  autonomous?: { maxCostUsd?: number } | null;
+  /** The plan's Canon (as PUT /plans/:id); an autonomous plan without one gets a new Canon named after the plan */
+  canon?: PlanCanonChoice;
+}
+
+/** POST /plans/:id/resume: an autonomous plan paused at its cost limit resumes with a higher limit. */
+export interface ResumePlanRequest {
+  maxCostUsd?: number;
 }
 
 export interface UpdatePlanRequest {
@@ -390,7 +466,7 @@ export interface UpdatePlanRequest {
   goal?: string;
   /** Draft only: the plan's Canon (stage 3) */
   canon?: PlanCanonChoice;
-  settings?: Partial<Pick<PlanSettings, "model" | "orchestratorModel" | "reasoningEffort" | "researchMode">>;
+  settings?: Partial<Pick<PlanSettings, "model" | "orchestratorModel" | "reasoningEffort" | "researchMode" | "autonomous">>;
 }
 
 /** POST /plans/:id/draft */
@@ -769,12 +845,21 @@ export const conformTitle = (revision: number) => `Canon rev ${revision} に合�
  * row's pin (`headMoved`) get a conform follow-up (at most `MAX_CONFORM_FOLLOWUPS`), other error conflicts need a human;
  * everything else (warnings and infos included: needs-review items always go to a human) waits for approval.
  */
-export function pushOutcome(summary: { errors: number }, headMoved: boolean, conformAttempts: number): { to: "review" } | { to: "conform" } | { to: "decision"; reason: PlanDecisionReason } {
+export function pushOutcome(
+  summary: { errors: number },
+  headMoved: boolean,
+  conformAttempts: number,
+  opts: { autonomous?: boolean } = {},
+): { to: "review" } | { to: "conform"; fix: boolean } | { to: "decision"; reason: PlanDecisionReason } {
   if (summary.errors <= 0) return { to: "review" };
-  if (!headMoved) return { to: "decision", reason: "conflicts" };
-  if (conformAttempts < MAX_CONFORM_FOLLOWUPS) return { to: "conform" };
+  // 自律実行: error conflicts the Canon moving on did not cause get a follow-up that makes the project agree with the Canon
+  if (!headMoved && !opts.autonomous) return { to: "decision", reason: "conflicts" };
+  if (conformAttempts < (opts.autonomous ? AUTONOMOUS_MAX_FOLLOWUPS : MAX_CONFORM_FOLLOWUPS)) return { to: "conform", fix: !headMoved };
   return { to: "decision", reason: "conform_limit" };
 }
+
+/** Follow-ups a row may get for its pull request (conform, fix and requested changes together). */
+export const maxFollowups = (p: { settings: Pick<PlanSettings, "autonomous"> }) => (isAutonomous(p) ? AUTONOMOUS_MAX_FOLLOWUPS : MAX_CONFORM_FOLLOWUPS);
 
 /**
  * What a 「承認待ち」 row becomes given its pull request now: approved → done; rejected / withdrawn → a human decides;

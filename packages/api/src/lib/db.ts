@@ -231,6 +231,34 @@ export async function putJobIfAbsent(j: JobRecord): Promise<boolean> {
 export function updateJob(projectId: string, jobId: string, values: Partial<JobRecord>) {
   return updateItem(env.tables.jobs, { projectId, jobId }, values);
 }
+/** Updates the job only while it has `status` (false otherwise): two writers cannot both move it on. */
+export async function updateJobIfStatus(projectId: string, jobId: string, status: JobRecord["status"], values: Partial<JobRecord>): Promise<boolean> {
+  const entries = Object.entries({ ...values, updatedAt: nowIso() }).filter(([, v]) => v !== undefined);
+  const names: Record<string, string> = { "#st": "status" };
+  const vals: Record<string, unknown> = { ":st": status };
+  const sets: string[] = [];
+  entries.forEach(([k, v], i) => {
+    names[`#k${i}`] = k;
+    vals[`:v${i}`] = v;
+    sets.push(`#k${i} = :v${i}`);
+  });
+  try {
+    await ddb.send(
+      new UpdateCommand({
+        TableName: env.tables.jobs,
+        Key: { projectId, jobId },
+        UpdateExpression: `SET ${sets.join(", ")}`,
+        ConditionExpression: "#st = :st",
+        ExpressionAttributeNames: names,
+        ExpressionAttributeValues: vals,
+      }),
+    );
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
 export async function listJobsByStatus(status: JobRecord["status"]): Promise<JobRecord[]> {
   const r = await ddb.send(
     new QueryCommand({

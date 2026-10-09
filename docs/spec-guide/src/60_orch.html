@@ -5,8 +5,8 @@
   <p class="lead">CoBRAC オーケストレーター（旧称 BRA Planner。コードでは <code>plan</code>・<code>Plans</code>・<code>planId</code>・<code>/plans</code>）は、作りたい BRA（ROI × TLF）を<b>計画</b>にまとめ、所有者が確定すると、同時実行数の上限の範囲で行を<b>バッチ</b>ごとに自動で作る仕組みです。下書きは LLM に書かせられ、実行順序はコードが計算し、バッチが終わるたびに見直します。計画に Canon を 1 つ決めると、完成した行をその Canon に取り込みながら進みます。</p>
   <div class="map">
     <div><b>LLM が決めること</b>行（ROI × TLF と理由）、アンカー、依存関係、優先度、粒度方針。再計画では行の追加・削除と粒度方針の提案</div>
-    <div><b>コードが決めること</b>実行順序（種のバッチ・本体のバッチ）、同時実行の枠、状態の遷移、リトライ、Canon への push と追従</div>
-    <div><b>人が決めること</b>確定、提案の承認・却下、質問への回答、要対応の行の扱い、Canon の PR の承認（自動では承認しない）</div>
+    <div><b>コードが決めること</b>実行順序（土台のバッチ・本体のバッチ）、同時実行の枠、状態の遷移、リトライ、Canon への push と追従</div>
+    <div><b>人が決めること</b>確定、提案の承認・却下、質問への回答、要対応の行の扱い、Canon の PR の承認（自動では承認しない）。<b>自律実行</b>の計画では、確定・回答・PR の判断も人を待たない（6.15）</div>
   </div>
 </div>
 
@@ -16,9 +16,10 @@
   <thead><tr><th style="width:22%">段階</th><th>入ったもの</th></tr></thead>
   <tbody>
     <tr><td><b>段階 1</b>：計画とバッチ実行</td><td>行は資料（CSV / TSV / テキストの一覧）か手入力。順序とバッチは所有者が手で決める。確定後、ランナーが毎分、同時実行数の範囲で行を起動し、状態を追う。Canon も LLM も使わない</td></tr>
-    <tr><td><b>段階 2</b>：LLM の下書きと実行順序</td><td>計画用のジョブ（LLM）が目標と資料から行・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算（種のバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
+    <tr><td><b>段階 2</b>：LLM の下書きと実行順序</td><td>計画用のジョブ（LLM）が目標と資料から行・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算（土台のバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
     <tr><td><b>段階 3</b>：計画の Canon</td><td>計画ごとに 1 つの Canon。完成した行を自動で push し、本体の行には AI レビューを依頼し、Canon が進んだことによる衝突は更新の追加指示で直す。行は人が PR を承認して完了。「まとめて承認」</td></tr>
-    <tr><td><b>v0.37.0</b></td><td>モデルを「オーケストレーター」（下書き・バッチ後の再計画・行の PR の AI レビュー）と「エージェント」（各行の BRA）で別々に選ぶ。どちらも「デフォルト」なら確定時に決まり、確定後は両方が表示される。それ以前の計画は 1 つのモデルを両方に使い続ける。粒度方針はオーケストレーターが決める（計画の画面では読み取り専用、API も所有者からの方針を拒む。再計画の方針の変更は承認なしですぐに反映され、決定済みの提案に「オーケストレーターが反映」として残る。行の追加・削除の提案は従来どおり承認を待つ）。日本語の表記を「波」→「バッチ」（「第 1 バッチ」「種のバッチ」）、「能力リスト」→「資料」に改めた（CSV の列名「バッチ」「batch」も「波」と同じくバッチとして読む）</td></tr>
+    <tr><td><b>v0.37.0</b></td><td>モデルを「オーケストレーター」（下書き・バッチ後の再計画・行の PR の AI レビュー）と「エージェント」（各行の BRA）で別々に選ぶ。どちらも「デフォルト」なら確定時に決まり、確定後は両方が表示される。それ以前の計画は 1 つのモデルを両方に使い続ける。粒度方針はオーケストレーターが決める（計画の画面では読み取り専用、API も所有者からの方針を拒む。再計画の方針の変更は承認なしですぐに反映され、決定済みの提案に「オーケストレーターが反映」として残る。行の追加・削除の提案は従来どおり承認を待つ）。日本語の表記を「波」→「バッチ」（「第 1 バッチ」「土台のバッチ」）、「能力リスト」→「資料」に改めた（CSV の列名「バッチ」「batch」も「波」と同じくバッチとして読む）</td></tr>
+    <tr><td><b>v0.40.0</b>：自律実行</td><td>計画の設定「自律実行」（<code>settings.autonomous</code>、費用の上限つき）。下書きのあと自動で確定し、行のエージェントは質問せず推奨案で進み、計画の PR は AI が承認・変更依頼・却下を判断し、進められない行は見送る。費用の上限に達すると新しい行を始めない（6.15）。日本語の表記を「種」→「土台」（「土台のバッチ」）に改めた（コードの <code>seed</code> はそのまま）</td></tr>
   </tbody>
 </table>
 <h3>だれが何をするか</h3>
@@ -28,10 +29,10 @@
     <tr><td>所有者</td><td>人</td><td>計画を作り、下書きを依頼し、行・バッチ・設定・Canon を整えて<b>確定する</b>。提案の承認・却下、質問への回答、要対応・人の判断の行の扱い、一時停止・再開・中止を決める</td></tr>
     <tr><td>Canon の所有者・共同編集者</td><td>人</td><td>計画の行が push した PR を審査して承認する（第 4 部）。行が完了するのはこの承認のとき</td></tr>
     <tr><td>計画用のジョブ（下書き・再計画）</td><td>LLM のジョブ</td><td>目標・資料・行を読み、RCS でアンカーを引いて、行・アンカー・依存・優先度・粒度方針・提案を <b>JSON のデータとして返すだけ</b>。順序は決めず、何も実行しない</td></tr>
-    <tr><td>行の PR の AI レビュー</td><td>LLM のジョブ</td><td>本体の行の PR に所見を付ける。承認・却下はしない（4.8）</td></tr>
+    <tr><td>行の PR の AI レビュー</td><td>LLM のジョブ</td><td>本体の行の PR に所見を付ける。承認・却下はしない（4.8）。<b>自律実行</b>の計画では、計画のすべての PR（土台を含む）について所見とともに承認・変更依頼・却下を返す（判断のジョブ。反映するのはランナー、6.15）</td></tr>
     <tr><td>各行の CoBRAC エージェント</td><td>LLM</td><td>行のプロジェクトの BRA を作る。中身は通常のプロジェクトと同じ（第 2 部）</td></tr>
     <tr><td>API（Lambda）</td><td>プログラム</td><td>計画の作成・編集・確定、資料の CSV の読み取り、提案と人の判断の受け付け。プロジェクトの作成・リトライ・停止は画面の API と同じ関数を使う</td></tr>
-    <tr><td>計画ランナー（Lambda <code>planRunner</code>）</td><td>プログラム</td><td>毎分、行の状態を追い、バッチを進め、空いた枠で行・計画用のジョブ・AI レビュー・Canon に合わせた更新を起動し、完成した行を Canon に push する。実行順序を計算し（<code>planOrder.ts</code>）、ジョブの結果を検証してから使う。<b>承認・却下・回答はしない</b></td></tr>
+    <tr><td>計画ランナー（Lambda <code>planRunner</code>）</td><td>プログラム</td><td>毎分、行の状態を追い、バッチを進め、空いた枠で行・計画用のジョブ・AI レビュー・Canon に合わせた更新を起動し、完成した行を Canon に push する。実行順序を計算し（<code>planOrder.ts</code>）、ジョブの結果を検証してから使う。<b>承認・却下・回答はしない</b>（自律実行の計画だけは、下書きを確定し、質問に定型の回答をし、AI の判断を所有者の代わりに反映する。6.15）</td></tr>
     <tr><td>ワーカー（Fargate）</td><td>プログラム（LLM を含まない）</td><td>計画用のジョブでは、資料を写して本文を取り出し、LLM を 1 ターン動かし、返答の形を検証して <code>result.json</code> に書く。行のプロジェクトでは通常どおりハーネスを進める</td></tr>
     <tr><td>ディスパッチャー・janitor</td><td>プログラム</td><td>同時実行数の上限を守ってジョブを起動し、止まったジョブを失敗にする。計画用のジョブはどのプロジェクトにも属さない（6.13）</td></tr>
   </tbody>
@@ -53,7 +54,7 @@
     <text x="195" y="104" fill="#be123c" font-weight="700">DRAFTING</text>
     <rect x="274" y="22" width="122" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
     <text x="335" y="40" font-weight="800" font-size="10">③ 行とバッチを整える</text>
-    <text x="335" y="56">自動で並べる（種）</text><text x="335" y="70">手で編集・既存の確認</text><text x="335" y="84">設定・Canon の選択</text>
+    <text x="335" y="56">自動で並べる（土台）</text><text x="335" y="70">手で編集・既存の確認</text><text x="335" y="84">設定・Canon の選択</text>
     <text x="335" y="104" fill="#be123c" font-weight="700">DRAFT</text>
     <rect x="414" y="22" width="112" height="92" rx="7" fill="#fff" stroke="#be123c" stroke-width="1.3"/>
     <text x="470" y="40" font-weight="800" font-size="10">④ 確定</text>
@@ -79,9 +80,9 @@
 <table class="compact">
   <thead><tr><th style="width:17%">項目</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><code>META</code></td><td>所有者、名前（200 字）、目標（4000 字）、状態、設定（エージェントのモデル、オーケストレーターのモデル、それぞれ所有者が選んだか、推論の強さ、調査モード、返答の言語）、<code>harnessRules</code>、<code>activeWave</code>、確定時の見積もり、状態ごとの行数、<code>pausedReason</code>、粒度方針 <code>policy</code>（2000 字）、<code>ordering</code>（<code>manual</code> / <code>auto</code>）、下書き・再計画のジョブの状態、添付ファイル、Canon（<code>canonId</code>）、ランナーのリース、各時刻、<code>deletedAt</code></td></tr>
-    <tr><td><code>ROW#&lt;rowId&gt;</code></td><td>順番、バッチ、ROI・TLF（各 300 字）、理由（1000 字）、優先度（−1000〜1000）、出所（<code>csv</code> と行番号 / <code>manual</code> / <code>llm</code>）、状態、アンカーとその出所（<code>predicted</code> / <code>used</code>）、依存 <code>dependsOn</code>、種 <code>seed</code>、既存のプロジェクト <code>existing</code>、「作り直す」<code>rebuild</code>、<code>projectId</code>、ジョブ、自動の試行回数、要対応・人の判断の理由、最後のエラー、Canon 関連（<code>prNo</code>・<code>canonRevision</code>・<code>conform</code>・<code>conformAttempts</code>・<code>aiReview</code>）、時刻</td></tr>
-    <tr><td><code>EVT#&lt;at&gt;#&lt;nonce&gt;</code></td><td>履歴（種類、時刻、<code>by</code> = 利用者か <code>runner</code>、行、プロジェクト、詳細）。種類は <code>created</code>・<code>rows_changed</code>・<code>confirmed</code>・<code>wave_started</code>、行の <code>row_started</code>・<code>row_question</code>・<code>row_resumed</code>・<code>row_done</code>・<code>row_retry</code>・<code>row_attention</code>・<code>row_skipped</code>・<code>row_cancelled</code>、計画の <code>paused</code>・<code>resumed</code>・<code>cancelled</code>・<code>completed</code>、下書きの <code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>、順序と再計画の <code>ordered</code>・<code>replanned</code>・<code>replan_failed</code>・<code>proposals_received</code>・<code>proposal_accepted</code>・<code>proposal_rejected</code>、Canon の <code>canon_created</code>・<code>row_pushed</code>・<code>row_conform</code>・<code>row_decision</code>・<code>row_resolved</code>・<code>row_ai_review</code></td></tr>
+    <tr><td><code>META</code></td><td>所有者、名前（200 字）、目標（4000 字）、状態、設定（エージェントのモデル、オーケストレーターのモデル、それぞれ所有者が選んだか、推論の強さ、調査モード、返答の言語）、<code>harnessRules</code>、<code>activeWave</code>、確定時の見積もり、状態ごとの行数、<code>pausedReason</code>、粒度方針 <code>policy</code>（2000 字）、<code>ordering</code>（<code>manual</code> / <code>auto</code>）、下書き・再計画のジョブの状態、添付ファイル、Canon（<code>canonId</code>）、ランナーのリース、各時刻、<code>deletedAt</code>。自律実行の計画は <code>settings.autonomous = { maxCostUsd }</code>、費用の上限に達した時刻 <code>costLimitAt</code>、自動の確定に失敗した理由 <code>autonomousError</code> も持つ</td></tr>
+    <tr><td><code>ROW#&lt;rowId&gt;</code></td><td>順番、バッチ、ROI・TLF（各 300 字）、理由（1000 字）、優先度（−1000〜1000）、出所（<code>csv</code> と行番号 / <code>manual</code> / <code>llm</code>）、状態、アンカーとその出所（<code>predicted</code> / <code>used</code>）、依存 <code>dependsOn</code>、土台 <code>seed</code>、既存のプロジェクト <code>existing</code>、「作り直す」<code>rebuild</code>、<code>projectId</code>、ジョブ、自動の試行回数、要対応・人の判断の理由、最後のエラー、Canon 関連（<code>prNo</code>・<code>canonRevision</code>・<code>conform</code>・<code>conformAttempts</code>・<code>aiReview</code>）、時刻。自律実行では見送りの理由 <code>autoSkip</code>、自動回答の回数 <code>autoAnswers</code>、判断のジョブの回数 <code>decideAttempts</code>、次の追加指示 <code>followup</code>（<code>fix</code> / <code>changes</code> と本文）</td></tr>
+    <tr><td><code>EVT#&lt;at&gt;#&lt;nonce&gt;</code></td><td>履歴（種類、時刻、<code>by</code> = 利用者か <code>runner</code>、行、プロジェクト、詳細）。種類は <code>created</code>・<code>rows_changed</code>・<code>confirmed</code>・<code>wave_started</code>、行の <code>row_started</code>・<code>row_question</code>・<code>row_resumed</code>・<code>row_done</code>・<code>row_retry</code>・<code>row_attention</code>・<code>row_skipped</code>・<code>row_cancelled</code>、計画の <code>paused</code>・<code>resumed</code>・<code>cancelled</code>・<code>completed</code>、下書きの <code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>、順序と再計画の <code>ordered</code>・<code>replanned</code>・<code>replan_failed</code>・<code>proposals_received</code>・<code>proposal_accepted</code>・<code>proposal_rejected</code>、Canon の <code>canon_created</code>・<code>row_pushed</code>・<code>row_conform</code>・<code>row_decision</code>・<code>row_resolved</code>・<code>row_ai_review</code>、自律実行の <code>row_auto_skipped</code>・<code>row_auto_answered</code>・<code>row_ai_decided</code>・<code>cost_limit_reached</code>・<code>cost_limit_raised</code></td></tr>
     <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）</td></tr>
   </tbody>
 </table>
@@ -123,7 +124,7 @@
 </svg>
 <figcaption><b>図 6.2</b>　計画の状態。ランナーが進めるのは DRAFTING・RUNNING・PAUSED の計画</figcaption>
 </figure>
-<p class="small">自動の一時停止の理由（<code>pausedReason</code>）：<code>no_key</code>（API キーが無い）、<code>owner_disabled</code>（アカウントが無効）、<code>model_not_allowed</code>（選んだモデルをティアが許さなくなった）、<code>canon_missing</code>（計画の Canon が見つからない）。手動は <code>user</code>。</p>
+<p class="small">自動の一時停止の理由（<code>pausedReason</code>）：<code>no_key</code>（API キーが無い）、<code>owner_disabled</code>（アカウントが無効）、<code>model_not_allowed</code>（選んだモデルをティアが許さなくなった）、<code>canon_missing</code>（計画の Canon が見つからない）、<code>cost_limit</code>（自律実行の計画が費用の上限に達し、動いているものが無くなった）。手動は <code>user</code>。</p>
 
 <h3>行の状態</h3>
 <table class="compact">
@@ -133,9 +134,9 @@
     <tr><td><code>starting</code></td><td>開始中</td><td>Project ID を予約して行を確保した。2 分以上残ると予約した ID のまま <code>pending</code> に戻す（二重に作らない）</td></tr>
     <tr><td><code>running</code></td><td>実行中</td><td>プロジェクトのジョブが待機・実行・仕上げ中</td></tr>
     <tr><td><code>question</code></td><td>質問中</td><td>エージェントが質問して回答を待っている（この行だけが待つ）</td></tr>
-    <tr><td><code>done</code></td><td>完了</td><td>プロジェクトが完了（Canon のある計画では、PR が人に承認された）</td></tr>
+    <tr><td><code>done</code></td><td>完了</td><td>プロジェクトが完了（Canon のある計画では、PR が人に承認された。自律実行では AI の判断で取り込まれた）</td></tr>
     <tr><td><code>attention</code></td><td>要対応</td><td>自動リトライ 2 回の後も失敗（<code>failed</code>）、回答待ちが 7 日で時間切れ（<code>question_timeout</code>）、計画の外で止められた（<code>cancelled_outside</code>）、プロジェクトが削除された（<code>project_deleted</code>）、開始に失敗した（<code>start_failed</code>）</td></tr>
-    <tr><td><code>skipped</code></td><td>スキップ</td><td>所有者が外した</td></tr>
+    <tr><td><code>skipped</code></td><td>スキップ</td><td>所有者が外した。自律実行では、要対応・人の判断になるはずの行をランナーが見送った（「自律実行で見送り」、理由は <code>autoSkip</code>）</td></tr>
     <tr><td><code>cancelled</code></td><td>中止</td><td>計画の中止で止めた（再開すると続きから作る）</td></tr>
     <tr><td><code>review</code></td><td>承認待ち</td><td>Canon のある計画：PR が開いていて人の承認を待つ</td></tr>
     <tr><td><code>decision</code></td><td>人の判断</td><td>Canon のある計画：衝突が残る・PR が却下／取り下げ・ほかの Canon に入っている・push の失敗（6.11）</td></tr>

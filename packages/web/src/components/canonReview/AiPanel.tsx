@@ -1,6 +1,6 @@
 import { AlertTriangle, Bot, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
-import type { CanonAiFlag, CanonAiState, UiLocale } from "@cobrac/shared";
+import type { CanonAiFlag, CanonAiState, CanonAiVerdict, UiLocale } from "@cobrac/shared";
 import { formatUsd } from "@cobrac/shared";
 import { LOCALES, localeName, useI18n, useT, type MessageKey } from "../../i18n";
 import { fmtDate } from "../../lib/format";
@@ -12,6 +12,12 @@ const SEV: Record<CanonAiFlag["severity"], string> = {
   high: "border-rose-200 bg-rose-50",
   medium: "border-amber-200 bg-amber-50",
   low: "border-slate-200 bg-slate-50",
+};
+
+const VERDICT: Record<CanonAiVerdict, string> = {
+  approve: "border-emerald-200 bg-emerald-50",
+  request_changes: "border-amber-200 bg-amber-50",
+  reject: "border-rose-200 bg-rose-50",
 };
 
 export interface RefLink {
@@ -44,6 +50,7 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
   const [err, setErr] = useState<string | null>(null);
   const active = ai?.status === "QUEUED" || ai?.status === "RUNNING";
   const review = ai?.result?.review ?? null;
+  const decision = ai?.result?.decision ?? null;
   const sel = "rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11";
 
   const run = async () => {
@@ -136,6 +143,26 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
             </p>
             {ai!.result!.dropped > 0 && <p className="mt-1 text-[11px] text-slate-500">{t("rv.ai.dropped", { n: ai!.result!.dropped })}</p>}
           </section>
+          {decision && (
+            <section className={`rounded-xl border p-3 sm:p-4 ${VERDICT[decision.verdict]}`} data-testid="ai-decision">
+              <h3 className="mb-1 text-sm font-semibold">
+                {t("rv.ai.verdict")}: {t(`auto.verdict.${decision.verdict}`)}
+              </h3>
+              {decision.reason && <p className="whitespace-pre-wrap break-words text-sm text-slate-700">{decision.reason}</p>}
+              {decision.changes.length > 0 && (
+                <>
+                  <h4 className="mb-1 mt-2 text-xs font-semibold">{t("rv.ai.changes")}</h4>
+                  <ul className="list-disc space-y-0.5 pl-5 text-xs text-slate-700">
+                    {decision.changes.map((c, i) => (
+                      <li key={i} className="whitespace-pre-wrap break-words">
+                        {c}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
           <section className="rounded-xl border border-slate-200 bg-white p-3 sm:p-4">
             <h3 className="mb-2 text-sm font-semibold">
               {t("rv.ai.flags")} <span className="font-normal text-slate-400">({review.flags.length})</span>

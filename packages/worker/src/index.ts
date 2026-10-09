@@ -53,7 +53,6 @@ import {
   ATTACHMENT_DERIVED_PREFIX,
   ATTACHMENT_FILES_PREFIX,
   CANON_AGENT_DIR,
-  CANON_AI_REVIEW_SCHEMA,
   canonAiReviewKey,
   type CanonAiPacket,
   type CanonAiReviewResult,
@@ -167,6 +166,7 @@ import {
   runPhases,
   runResearch,
   turnInput,
+  answerPreamble,
   writeSchemas,
   type CheckDeps,
   type Phase,
@@ -209,6 +209,8 @@ let materials: PreparedMaterials | null = null;
 let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
+/** 自律実行: prompts/autonomous.md for a job of an autonomous plan's row (sent with every turn); null otherwise */
+let autonomousNote: string | null = null;
 /** The project's harness rule set (0: created before the ROI rules) */
 let harnessRules = 0;
 /** The project's evidence mode, hypothesis scopes and share limit (strict unless the project allows hypotheses) */
@@ -284,6 +286,7 @@ async function main() {
 
   // --- codex ----------------------------------------------------------------
   research = isResearchMode(project);
+  autonomousNote = job.questionMode === "auto" ? (await readFile(join(env.promptsDir, "autonomous.md"), "utf8")).replaceAll("{P}", projectId).trim() : null;
   harnessRules = project.harnessRules ?? 0;
   evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
@@ -339,7 +342,7 @@ async function main() {
     const thread = openThread(codex, threadId, turnSettings);
     let turn;
     try {
-      const text = turnInput(p, replyLanguage);
+      const text = turnInput(p, replyLanguage, autonomousNote);
       const input = p.images?.length ? [{ type: "text" as const, text }, ...p.images.map((path) => ({ type: "local_image" as const, path }))] : text;
       turn = await runTurn(thread, input, sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal, { inFlight });
     } catch (e) {
@@ -814,7 +817,7 @@ async function researchPrompt(project: ProjectRecord): Promise<Prompt> {
 async function researchFirstPrompt(project: ProjectRecord, job: JobRecord, freshThread: boolean): Promise<Prompt> {
   if (mode === "resume") {
     return {
-      shown: `User's answer:\n${job.pendingAnswer ?? "(no answer)"}\n\nContinue the work from where you stopped.`,
+      shown: answerPreamble(job),
       hidden: freshThread ? `${header(project)}\n\n${await researchSpec()}` : undefined,
     };
   }
@@ -1085,7 +1088,7 @@ async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase,
       return phasePrompt(project, "HCD");
     case "resume":
       return {
-        shown: `User's answer:\n${job.pendingAnswer ?? "(no answer)"}\n\nContinue the work from where you stopped.`,
+        shown: answerPreamble(job),
         hidden: freshThread ? `${header(project)}\n\n${(await spec()) ?? ""}` : undefined,
       };
     case "retry":
@@ -1493,8 +1496,9 @@ async function canonReviewJob() {
     const outcome = await runCanonReview({
       packet,
       locale: job.reviewLocale,
-      turn: async (prompt) => {
-        const t = await thread.run(prompt, { outputSchema: CANON_AI_REVIEW_SCHEMA });
+      decide: job.reviewKind === "decide",
+      turn: async (prompt, schema) => {
+        const t = await thread.run(prompt, { outputSchema: schema });
         const u = t.usage;
         return {
           text: t.finalResponse,
@@ -1507,7 +1511,7 @@ async function canonReviewJob() {
       await updateJob(projectId, jobId, { ...usage, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
       return;
     }
-    const result: CanonAiReviewResult = { review: outcome.review, dropped: outcome.dropped, model, locale: job.reviewLocale, createdAt: nowIso() };
+    const result: CanonAiReviewResult = { review: outcome.review, ...(outcome.decision ? { decision: outcome.decision } : {}), dropped: outcome.dropped, model, locale: job.reviewLocale, createdAt: nowIso() };
     await putObject(canonAiReviewKey(projectId, job.reviewPrNo, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
     await updateJob(projectId, jobId, { ...usage, status: "COMPLETED", endedAt: nowIso() });
     console.log(`[worker] canon review written (${outcome.review.flags.length} flags, ${outcome.dropped} dropped)`);

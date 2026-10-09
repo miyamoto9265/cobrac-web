@@ -275,6 +275,8 @@
   <li><b>検証</b>（ワーカー）：材料に無い項目・検査・論文を指す部分は除き、件数を数えます（<code>parseCanonAiReview</code>）。結果は <code>result.json</code> に、利用量と費用はジョブに記録し、依頼した人の利用量（デフォルトのキーならその利用量にも）に入ります。</li>
 </ol>
 <p class="small">出力に判定の欄は無く、プロンプトは承認や却下を勧めることを禁じています。ディスパッチャーと janitor はこのジョブについてプロジェクトに触れません（止まったレビューのジョブはリトライせず、もう一度実行するよう促すメッセージで失敗にする）。</p>
+<h3>判断のジョブ（自律実行の計画だけ）</h3>
+<p>オーケストレーターの<b>自律実行</b>の計画（6.15）が push した PR には、計画ランナーが所有者として同じジョブを<b>判断のジョブ</b>（<code>reviewKind: "decide"</code>、<code>planId</code> つき）で依頼します。材料は上と同じで、プロンプト（<code>canonAiDecisionPrompt</code>）とスキーマ（<code>CANON_AI_DECISION_SCHEMA</code>）は、所見に加えて<b>判定</b> <code>verdict</code>（<code>approve</code> / <code>request_changes</code> / <code>reject</code>）、その理由、警告と情報の衝突ごとの選択、依頼する変更の一覧を返させます。ワーカーは <code>parseCanonAiDecision</code> で検証し、材料に無い衝突とエラーの衝突への選択を除いて、<code>result.json</code> の <code>decision</code> に書きます。判定を反映するのは計画ランナーで、最後はコードが決めます（<code>decisionAction</code>：エラーの衝突は AI がどう判定しても取り込まず、Canon に合わせる追加指示にする。選ばれなかった警告は Canon の値）。PR の画面の「AI レビュー」には「AI の判断」（判定・理由・依頼した変更）が出ます。人が依頼する AI レビューは、これまでどおり判定を出しません。</p>
 <h3>共同編集者と、だれが判断したか</h3>
 <ul>
   <li>所有者は、Canon の画面で、相手が登録に使ったメールアドレスを入れて既存のユーザーを共同編集者に追加します（<code>POST /canons/{id}/editors</code> <code>{ email }</code>。大文字小文字は区別しない。招待メールは無く、未登録のアドレスは 404 で、先にサインアップしてもらうよう求める）。外すのは <code>DELETE /canons/{id}/editors/{userId}</code> で、共同編集者は自分で抜けることもできます。所有者には共同編集者のメールアドレスが、共同編集者には名前だけが見えます。</li>
@@ -282,6 +284,7 @@
   <li>共同編集者ができること：Canon・参加プロジェクト（名前と ROI / TLF だけ。所有者のプロジェクトへのリンクは無い）・rev・PR の閲覧、コメント、AI レビュー（自分のキーかデフォルトの API キーで、自分が使えるモデルで。ジョブと費用は本人のもの）、変更の依頼・承認・却下、自分の Canon からの PR の送信（相手が非公開でも、PR を受け付けない設定でも）。<b>所有者だけ</b>：設定、参加プロジェクト（push は参加プロジェクトから行い、参加プロジェクトは所有者のもの）、公開、共同編集者の管理、削除。管理者は閲覧だけです。</li>
   <li><b>承認は 1 人で足ります。</b>PR は <code>approvals</code>（<code>{ userId, name, at }</code>）を持ち、将来 Canon に <code>requiredApprovals</code> を持たせられる構造です（未設定 = 1、まだ設定も表示もできない）。</li>
   <li>PR には承認・却下・取り下げをした人と時刻（<code>decidedBy</code> / <code>decidedByName</code> / <code>decidedAt</code>）、変更を依頼した人と時刻（<code>reviewedBy</code> / <code>reviewedByName</code> / <code>reviewedAt</code>）が、rev（<code>REV#</code>）には承認者（<code>approvedBy</code> / <code>approvedByName</code> / <code>approvedAt</code>）が記録されます。PR の画面には「… が承認 → rev n」「… が却下」「… が変更を依頼」（メモと時刻つき）の帯が出て、履歴には各操作の人が、Canon の rev の一覧には承認者が出ます。</li>
+  <li><b>AI による判断</b>（自律実行の計画の PR だけ）：承認・却下・変更の依頼は Canon の所有者のアカウントで行い（<code>decidedBy</code> などは所有者）、名前は「AI (&lt;モデル&gt;)」（<code>aiActorName</code>）、判断したジョブとモデルを <code>via = { kind: "ai", jobId, model }</code> として PR（<code>decidedVia</code>）・承認（<code>approvals[].via</code>）・履歴（<code>via: "ai"</code>）・rev（<code>approvedVia</code>）に残します。</li>
 </ul>
 <h3>まとめて承認</h3>
 <p>Canon の画面の PR の一覧で、エラーの衝突も要確認の項目も無く、変更を依頼していない未処理の PR にチェックを入れ（全選択も可）、「まとめて承認」を押すと、選んだ PR を<b>番号の順に 1 件ずつ</b>承認します（<code>POST /canons/{id}/pulls/approve-many</code>、1〜50 件）。1 件ごとに直前の承認でできた最新の Canon に対して判定し直し、見つからない・処理済み・新しい head に対してブロックする衝突がある・承認数が足りない・head の競合、のどれかで止まり、残りは承認しません。結果には承認した件数と、どの PR でなぜ止まったかが出ます。承認者は 1 件ずつ承認したときと同じように記録されます。</p>
@@ -290,7 +293,7 @@
   <li>止まる理由は、見つからない（<code>not_found</code>）、開いていない（<code>closed</code>）、新しい head に対してブロックする衝突がある（<code>conflicts</code>、その数 <code>blocking</code>）、承認数が足りない（<code>approvals</code>）、head の競合（<code>race</code>）です。1 件の承認中の予期しないエラー（ペイロードが無い、AWS のエラーなど）も、その PR で <code>race</code> として止まり、途中で Canon が削除されたら <code>not_found</code> で止まります（まだ 1 件も承認していなければ 404）。どの場合も、すでに行った承認は必ず結果に返ります。</li>
   <li>応答は <code>{ approved: [{ prNo, revision }], stopped: { prNo, reason, blocking? } | null }</code> です。画面は件数を示す確認を出してから実行します。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>、<code>packages/shared/src/canonReview.ts</code>・<code>canonAiReview.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/app.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>、<code>packages/shared/src/canonReview.ts</code>・<code>canonAiReview.ts</code>・<code>canonAiDecision.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
 
 <h2 id="s4-9">4.9 rev への追従</h2>
 <p>プロジェクトのヘッダーに、所属する Canon と従っている rev が出ます（例「rev 1（最新 2）」）。<code>GET /projects/{id}/canon</code> は、固定した rev と最新の rev を、そのプロジェクトが使う定義について比べ、次のどれかを返します。</p>
@@ -358,7 +361,7 @@
     <tr><td>3</td><td>rev への固定と生成時の制約（<code>canon/</code>・指示・検査）、追従（behind / affected）</td></tr>
     <tr><td>3′</td><td>作成時の Canon の選択と、種からの作成、既定の Canon</td></tr>
     <tr><td>v0.20.0</td><td>審査画面（4 タブ、システムの検査、AI レビュー、履歴）、共同編集者、だれが判断したか</td></tr>
-    <tr><td>オーケストレーター段階 3</td><td>計画ごとに 1 つの Canon。完成した行の自動 push、AI レビューの自動依頼、Canon が進んだときの更新（最大 2 回）、種の PR の承認待ち、まとめて承認（6.11）</td></tr>
+    <tr><td>オーケストレーター段階 3</td><td>計画ごとに 1 つの Canon。完成した行の自動 push、AI レビューの自動依頼、Canon が進んだときの更新（最大 2 回）、土台の PR の承認待ち、まとめて承認（6.11）</td></tr>
   </tbody>
 </table>
 <p class="src">コードの場所：型 <code>packages/shared/src/canon.ts</code> ／ 変換・差分・衝突・合成 <code>canonMerge.ts</code> ／ 生成時の検査 <code>canonConstraints.ts</code> ／ 審査の材料 <code>canonReview.ts</code>・<code>canonAiReview.ts</code> ／ API <code>packages/api/src/lib/canons.ts</code>・<code>canonOps.ts</code>・<code>canonReview.ts</code> ／ AI レビューのジョブ <code>packages/worker/src/canonReview.ts</code></p>

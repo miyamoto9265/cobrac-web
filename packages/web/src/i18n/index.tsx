@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { UiLocale } from "@cobrac/shared";
 import { en, type MessageKey as BaseMessageKey } from "./en";
+import { AUTONOMOUS_CATALOG, type AutonomousKey } from "./autonomous";
 import { HYPOTHESIS_CATALOG, type HypothesisKey } from "./hypothesis";
 import { de } from "./de";
 import { es } from "./es";
@@ -13,7 +14,7 @@ import { zh } from "./zh";
 import { zhTw } from "./zhTw";
 
 /** Keys of the main catalogs and of the hypothesis-mode catalog (hypothesis.ts) */
-export type MessageKey = BaseMessageKey | HypothesisKey;
+export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey;
 
 export type Locale = UiLocale;
 
@@ -34,7 +35,7 @@ export const DEFAULT_LOCALE: Locale = "en";
 const STORAGE = "cobrac-locale";
 
 const BASE: Record<Locale, Record<BaseMessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
-const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
+const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
 
 /** Name of a UI language in the current UI language (`ja` → "日本語" / "Japanese"); unknown ids come back unchanged. */
 export function localeName(id: string, t: TFn): string {

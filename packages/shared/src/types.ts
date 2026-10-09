@@ -286,6 +286,18 @@ export interface JobRecord {
   hypothesisScopeId?: string;
   /** draft / replan (type === plan) */
   planJobKind?: "draft" | "replan";
+  /**
+   * canon-review: assist (absent) = findings for a human reviewer; decide = the reviewer's decision for an autonomous
+   * plan (自律実行), which the plan runner applies to the pull request
+   */
+  reviewKind?: "assist" | "decide";
+  /**
+   * auto: a job of an autonomous plan's row (自律実行). The agent decides with its own recommendation instead of asking;
+   * a question it still asks is answered by the plan runner. Absent = ask (the user answers).
+   */
+  questionMode?: "ask" | "auto";
+  /** Who wrote `pendingAnswer`: the user, or the plan runner of an autonomous plan */
+  pendingAnswerSource?: "user" | "auto" | null;
 }
 
 export type MessageRole = "user" | "agent" | "system";

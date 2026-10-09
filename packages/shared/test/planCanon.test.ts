@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_CONFORM_FOLLOWUPS, PLAN_MAX_WAITING_PRS, PLAN_ROW_STATES, conformTitle, countRows, nextActiveWave, planFinished, prOutcome, pushOutcome, waitingPrs, type PlanRowState } from "../src/index.js";
+import { AUTONOMOUS_MAX_FOLLOWUPS, MAX_CONFORM_FOLLOWUPS, maxFollowups, PLAN_MAX_WAITING_PRS, PLAN_ROW_STATES, conformTitle, countRows, nextActiveWave, planFinished, prOutcome, pushOutcome, waitingPrs, type PlanRowState } from "../src/index.js";
 
 const r = (wave: number, state: PlanRowState, seed = false) => ({ wave, state, seed });
 
@@ -35,11 +35,21 @@ describe("stage 3: seed gate and back-pressure", () => {
 describe("stage 3: after a push", () => {
   it("waits for approval without error conflicts, conforms when the head moved, at most twice, else asks a human", () => {
     expect(pushOutcome({ errors: 0 }, true, 0)).toEqual({ to: "review" });
-    expect(pushOutcome({ errors: 2 }, true, 0)).toEqual({ to: "conform" });
-    expect(pushOutcome({ errors: 2 }, true, 1)).toEqual({ to: "conform" });
+    expect(pushOutcome({ errors: 2 }, true, 0)).toEqual({ to: "conform", fix: false });
+    expect(pushOutcome({ errors: 2 }, true, 1)).toEqual({ to: "conform", fix: false });
     expect(pushOutcome({ errors: 2 }, true, MAX_CONFORM_FOLLOWUPS)).toEqual({ to: "decision", reason: "conform_limit" });
     expect(pushOutcome({ errors: 1 }, false, 0)).toEqual({ to: "decision", reason: "conflicts" });
     expect(conformTitle(7)).toBe("Canon rev 7 に合わせて更新");
+  });
+
+  it("自律実行: error conflicts the Canon moving on did not cause get a fix follow-up, three follow-ups in all", () => {
+    const auto = { autonomous: true };
+    expect(pushOutcome({ errors: 0 }, false, 0, auto)).toEqual({ to: "review" });
+    expect(pushOutcome({ errors: 1 }, false, 0, auto)).toEqual({ to: "conform", fix: true });
+    expect(pushOutcome({ errors: 1 }, true, 2, auto)).toEqual({ to: "conform", fix: false });
+    expect(pushOutcome({ errors: 1 }, false, AUTONOMOUS_MAX_FOLLOWUPS, auto)).toEqual({ to: "decision", reason: "conform_limit" });
+    expect(maxFollowups({ settings: { autonomous: { maxCostUsd: 5 } } })).toBe(AUTONOMOUS_MAX_FOLLOWUPS);
+    expect(maxFollowups({ settings: {} })).toBe(MAX_CONFORM_FOLLOWUPS);
   });
 
   it("follows the pull request to its end", () => {
