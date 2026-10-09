@@ -4,7 +4,7 @@
 // each wave is cheap:
 //
 //   1. hub score of a row = how many other rows share at least one anchor with it;
-//   2. seed wave (種の波): the top 1–3 rows by (hub score, priority), built one at a time, each in its own wave;
+//   2. seed wave (「基準プロジェクト」のバッチ): the top 1–3 rows by (hub score, priority), built one at a time, each in its own wave;
 //   3. body waves: the other rows in topological order of `dependsOn`, ties by (hub score desc, priority desc, row ID),
 //      each placed in the earliest wave that is after its dependencies, has fewer than `concurrency` rows, and holds no
 //      row sharing `OVERLAP_LIMIT` or more anchors with it.

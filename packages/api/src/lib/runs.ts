@@ -109,8 +109,6 @@ export interface NewProject {
   beforeQueue?: (project: ProjectRecord) => Promise<void>;
   /** "Allow hypotheses": hypothesis mode with scope S1 on the whole HCD (absent: literature-supported only, no new attributes) */
   hypothesis?: HypothesisInput;
-  /** auto: a row of an autonomous plan (自律実行): the agent decides instead of asking */
-  questionMode?: "auto";
 }
 
 /** Stores a new project and its first job, then queues the job. */
@@ -184,7 +182,6 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     errorMessage: null,
     ...(input.plan ? { planId: input.plan.planId } : {}),
     ...(input.hypothesis ? { hypothesisScopeId: "S1" } : {}),
-    ...(input.questionMode === "auto" ? { questionMode: "auto" as const } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -220,7 +217,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
 }
 
 /** Queues a retry of a FAILED / CANCELLED project from its last non-article job; `moved` is the model the project moved to, if any. */
-export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelPolicy & { source: KeySource }, opts: { locale: UiLocale | null; moved: string | null; questionMode?: "auto" }): Promise<string> {
+export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelPolicy & { source: KeySource }, opts: { locale: UiLocale | null; moved: string | null }): Promise<string> {
   const jobs = await listJobsForProject(p.projectId, u.userId);
   const last = jobs.filter((j) => j.type !== "article").sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const now = nowIso();
@@ -242,7 +239,6 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
     endedAt: null,
     errorMessage: null,
     ...(p.planId ? { planId: p.planId } : {}),
-    ...(opts.questionMode === "auto" ? { questionMode: "auto" as const } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -259,7 +255,7 @@ export async function queueFollowup(
   u: UserRecord,
   p: ProjectRecord,
   policy: ModelPolicy & { source: KeySource },
-  opts: { instruction: string; locale: UiLocale | null; moved: string | null; hypothesis?: HypothesisInput | null; questionMode?: "auto" },
+  opts: { instruction: string; locale: UiLocale | null; moved: string | null; hypothesis?: HypothesisInput | null },
 ): Promise<string> {
   const text = opts.instruction;
   const now = nowIso();
@@ -280,7 +276,6 @@ export async function queueFollowup(
     startedAt: null,
     endedAt: null,
     errorMessage: null,
-    ...(opts.questionMode === "auto" ? { questionMode: "auto" as const } : {}),
     createdAt: now,
     updatedAt: now,
   };
@@ -317,7 +312,6 @@ const STOP_NOTICE = {
   user: { reason: "cancelled by user", text: "Job cancelled by the user.", i18n: "sys.cancelled" },
   admin: { reason: "cancelled by admin", text: "Job stopped by an admin.", i18n: "sys.adminStopped" },
   plan: { reason: "plan cancelled", text: "Job cancelled because its CoBRAC Orchestrator plan was cancelled.", i18n: "sys.planCancelled" },
-  autonomous: { reason: "left out by the autonomous run", text: "Job stopped: the autonomous run of its CoBRAC Orchestrator plan left this row out.", i18n: "sys.autonomousStopped" },
 } as const;
 
 /** Stops the project's active job (and its Fargate task) and marks the project stopped. */
@@ -334,9 +328,9 @@ export async function stopProject(p: ProjectRecord, by: keyof typeof STOP_NOTICE
 
 /**
  * Answers the question a project's agent is waiting on and resumes its job. `user`: the owner's answer (shown as theirs).
- * `auto`: the plan runner of an autonomous plan (自律実行) answers for nobody: the agent is told to go on with its own
- * recommendation, the chat shows a notice (not a message of the user), and the job counts the question. False when the
- * project no longer waits on an answer (for `auto`: also when someone answered first).
+ * `auto`: the Orchestrator's AI of an autonomous plan (自律実行) answers for the owner: the chat shows the question and
+ * the answer as a notice of the Orchestrator (not a message of the user). False when the project no longer waits on an
+ * answer (for `auto`: also when someone answered first).
  */
 export async function answerQuestion(
   u: UserRecord,
@@ -357,7 +351,7 @@ export async function answerQuestion(
   await updateProject(u.userId, p.projectId, { status: "QUEUED", pendingQuestion: null });
   if (opts.source === "user") await putMessage(p.projectId, job.jobId, "user", "prompt", text, { userId: p.userId, meta: { kind: "answer" } });
   else {
-    await putMessage(p.projectId, job.jobId, "system", "status", `Autonomous run: the question was answered automatically (go on with the agent's own recommendation).`, {
+    await putMessage(p.projectId, job.jobId, "system", "status", "The Orchestrator's AI answered the agent's question.", {
       userId: p.userId,
       meta: { i18n: "sys.autoAnswered", details: `${question.slice(0, 4000)}\n\n---\n\n${text}` },
     });
@@ -367,7 +361,3 @@ export async function answerQuestion(
   await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId: job.jobId, mode: "resume" });
   return true;
 }
-
-/** The fixed answer the plan runner gives a question in an autonomous run (自律実行). */
-export const AUTO_ANSWER =
-  "No user is available (autonomous run). Adopt the option you recommended in your question; if you gave none, choose the one best supported by the evidence that is the most conservative and reversible (keep the ROI and TLF as given, keep the Canon's definitions, no hypotheses). Record the decision in decision_log.md under `## Autonomous decisions` as `- [auto] <question> — <chosen option> — <reason>`, then continue the same task. Do not ask again.";

@@ -8,6 +8,8 @@
 // that the plan is still a draft under this lease (`holdsPlan`). The runner is kicked after the lease is given back.
 import { HTTPException } from "hono/http-exception";
 import type {
+  AddPlanAttachmentsRequest,
+  PlanAttachmentsResponse,
   PlanAutonomous,
   ResumePlanRequest,
   CreatePlanRequest,
@@ -75,7 +77,7 @@ import {
   safeAttachmentName,
   stagingKey,
 } from "@cobrac/shared";
-import { getStagingText, headStaging, movePlanAttachment } from "./aws.js";
+import { deletePlanAttachment, getStagingText, headStaging, movePlanAttachment } from "./aws.js";
 import { canonFields, createCanon, ownedCanon } from "./canonOps.js";
 import { getCanon, listPullRequests } from "./canons.js";
 import { reserveNewId } from "./catalog.js";
@@ -83,6 +85,7 @@ import { currentLimits } from "./concurrency.js";
 import { getProject, listJobsForCanon, listUserProjects } from "./db.js";
 import { bad, notFound } from "./http.js";
 import { autoOrder, stopPlanJob } from "./planJobs.js";
+import { applyProposal } from "./planProposals.js";
 import { planSpendUsd } from "./planCost.js";
 import { advancePlan, dropReplan } from "./planRunner.js";
 import {
@@ -262,7 +265,8 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   if (autonomous && !draft) throw bad("自律実行の計画は下書きの作成から始めます");
   const canonChoice = body.canon !== undefined ? planCanonChoice(body.canon) : autonomous ? ({ mode: "new", name } as const) : null;
   if (canonChoice?.mode === "existing" && !(await ownedCanon(canonChoice.canonId, u.userId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
-  if (draft && !goal && !staged.length && !manual.length && !csv?.rows.length) throw bad("下書きを作成するには目標か資料が必要です");
+  // a plan starts from something to build: a goal (for a draft), capability lists or rows
+  if (!goal && !staged.length && !manual.length && !csv?.rows.length) throw bad(draft ? "下書きを作成するには目標か資料が必要です" : "目標・資料・行のどれかが必要です");
   if (draft) await requireRunKey(u);
 
   // capability lists in CSV / TSV / text are read now (before they are moved); xlsx and PDF wait for the draft job
@@ -310,7 +314,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     goal,
     status: "DRAFT",
     settings,
-    ...(attachments.length ? { attachments } : {}),
+    ...(attachments.length ? { attachments, attachmentSeq: attachments.length } : {}),
     ...(canonChoice?.mode === "existing" ? { canonId: canonChoice.canonId, canonNew: null } : canonChoice?.mode === "new" ? { canonId: null, canonNew: { name: canonChoice.name } } : {}),
     rowCount: rows.length,
     rowCounts: countRows(rows),
@@ -454,6 +458,87 @@ export async function replaceRows(u: UserRecord, plan: PlanRecord, inputs: unkno
 }
 
 /** Appends the rows of a CSV to a draft; rows that cannot be read come back with their reason. An automatic order is computed again. */
+/**
+ * Adds capability lists to a draft (up to `ATTACHMENT_LIMITS.maxFiles` with those it has). CSV / TSV / text are read
+ * into rows at once, as on creation (an automatic order is computed again); xlsx and PDF wait for the next draft job.
+ */
+export async function addPlanAttachments(u: UserRecord, plan: PlanRecord, body: unknown): Promise<PlanAttachmentsResponse> {
+  requireEditable(plan);
+  const list = (body as Partial<AddPlanAttachmentsRequest> | null)?.attachments;
+  if (!Array.isArray(list) || !list.length) throw bad("attachments が不正です");
+  const staged = await stagedPlanAttachments(u.userId, list);
+  return withPlanLease(plan.planId, async (fresh) => {
+    requireEditable(fresh);
+    const have = fresh.attachments ?? [];
+    if (have.length + staged.length > ATTACHMENT_LIMITS.maxFiles) throw bad(`添付ファイルは ${ATTACHMENT_LIMITS.maxFiles} 個までです`);
+    if (have.reduce((n, a) => n + a.size, 0) + staged.reduce((n, f) => n + f.size, 0) > ATTACHMENT_LIMITS.maxTotalBytes) {
+      throw bad(`添付ファイルの合計が上限（${ATTACHMENT_LIMITS.maxTotalBytes / 1024 / 1024} MB）を超えています`);
+    }
+    const current = await listRows(plan.planId, true);
+    const fileRows: (NormalizedPlanRow & { sourceRow: number })[] = [];
+    const rejected: PlanRowRejected[] = [];
+    for (const f of staged) {
+      if (!isDeterministicPlanAttachment(f.name)) continue;
+      const text = await getStagingText(f.staging);
+      if (text === null) throw bad(`アップロードが見つかりません（${f.name}）。もう一度添付してください`);
+      if (text.length > PLAN_LIMITS.maxCsvChars || text.includes("\u0000")) throw bad(`資料として読めないファイルです（${f.name}）`);
+      const parsed = parsePlanRowsCsv(text, { existing: [...current, ...fileRows] });
+      fileRows.push(...parsed.rows);
+      rejected.push(...parsed.rejected.map((r) => ({ file: f.name, ...r })));
+    }
+    // file IDs and keys continue after every file the plan ever had (a removed file's are never used again)
+    let next = attachmentSeq(fresh);
+    const added: FileAttachment[] = [];
+    for (const f of staged) {
+      const key = attachmentFileKey(next, f.safeName);
+      await movePlanAttachment(f.staging, plan.planId, key, f.contentType);
+      next++;
+      added.push({ kind: "file", id: `f${next}`, name: f.name, key, size: f.size, contentType: f.contentType });
+    }
+    const now = nowIso();
+    const start = current.reduce((m, r) => Math.max(m, r.order + 1), 0);
+    const projects = fileRows.length ? await listUserProjects(u.userId) : [];
+    const newRows = fileRows.map((r, i) => setMatch(newRow(plan.planId, start + i, r, "csv", r.sourceRow, now), projects));
+    const all = [...current, ...newRows];
+    const reorder = fresh.ordering === "auto" && newRows.length > 0;
+    if (reorder) autoOrder(all, (await currentLimits()).effective);
+    if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
+    for (const r of reorder ? all : newRows) await putRow(r);
+    const values: Partial<PlanRecord> = { attachments: [...have, ...added], attachmentSeq: next, rowCount: all.length, rowCounts: countRows(all) };
+    if (!(await updatePlan(plan.planId, values, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+    await dropDerivedManifest(plan.planId);
+    await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { files: added.length, added: newRows.length, rejected: rejected.length } });
+    return { plan: { ...fresh, ...values, updatedAt: now }, rows: newRows, rejected };
+  });
+}
+
+/** The attachments a plan ever had: its counter, or (plans from before it) the highest file number it has. */
+const attachmentSeq = (p: PlanRecord) => p.attachmentSeq ?? (p.attachments ?? []).reduce((m, a) => Math.max(m, Number(/^f(\d+)$/.exec(a.id)?.[1] ?? 0)), 0);
+
+/**
+ * The text extracted from a plan's capability lists is kept by attachment ID (`attachments/derived/manifest.json`);
+ * once the files change, the next draft job extracts them again.
+ */
+const dropDerivedManifest = (planId: string) =>
+  deletePlanAttachment(planId, "attachments/derived/manifest.json").catch((e) => console.warn(`[plan ${planId}] derived manifest not deleted`, e));
+
+/** Removes a capability list from a draft. Rows already read from it stay (they are the plan's rows now). */
+export async function removePlanAttachment(u: UserRecord, plan: PlanRecord, fileId: string): Promise<PlanAttachmentsResponse> {
+  requireEditable(plan);
+  return withPlanLease(plan.planId, async (fresh) => {
+    requireEditable(fresh);
+    const have = fresh.attachments ?? [];
+    const target = have.find((a) => a.id === fileId);
+    if (!target) throw notFound();
+    const attachments = have.filter((a) => a.id !== fileId);
+    if (!(await updatePlan(plan.planId, { attachments, attachmentSeq: attachmentSeq(fresh) }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+    await deletePlanAttachment(plan.planId, target.key).catch((e) => console.warn(`[plan ${plan.planId}] attachment ${target.key} not deleted`, e));
+    await dropDerivedManifest(plan.planId);
+    await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { removedFile: target.name.slice(0, 200) } });
+    return { plan: { ...fresh, attachments, updatedAt: nowIso() }, rows: [], rejected: [] };
+  });
+}
+
 export async function importRows(u: UserRecord, plan: PlanRecord, csv: unknown): Promise<{ rows: PlanRowRecord[]; rejected: PlanRowRejected[] }> {
   requireEditable(plan);
   const text = csvText(csv);
@@ -665,6 +750,11 @@ export async function cancelPlan(u: UserRecord, plan: PlanRecord): Promise<void>
   if (plan.status !== "RUNNING" && plan.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
   if (!(await setPlanStatus(plan.planId, plan.status, "CANCELLED", { cancelledAt: nowIso(), pausedReason: null }))) throw conflict(STATUS_CHANGED);
   for (const r of await listRows(plan.planId)) {
+    // 自律実行: the Orchestrator's job for the row (an answer or a resolution) is of no use any more
+    if (r.rowJob) {
+      if (r.rowJob.status === "queued") await stopPlanJob(plan.planId, r.rowJob.jobId, "plan cancelled");
+      await updateRow(plan.planId, r.rowId, { rowJob: null }, { state: r.state });
+    }
     if (!TRACKED_ROW_STATES.includes(r.state)) continue;
     const p = r.projectId ? await getProject(u.userId, r.projectId) : null;
     if (p && !isProjectDeleted(p) && ACTIVE_PROJECT_STATUSES.includes(p.status)) await stopProject(p, "plan");
@@ -741,63 +831,13 @@ async function openProposal(fresh: PlanRecord, proposalId: string): Promise<Plan
   return p;
 }
 
-/** A proposal can no longer be applied as it is: it is marked stale (409). */
-async function staleProposal(planId: string, p: PlanProposalRecord, message: string): Promise<never> {
-  await updateProposal(planId, p.proposalId, { status: "stale" }, { status: "open" });
-  throw conflict(message);
-}
-
 /** Applies an open proposal: a new row (placed by the automatic order), a row left out, or the new policy. */
 export async function acceptProposal(u: UserRecord, plan: PlanRecord, proposalId: string): Promise<{ ok: true; proposal: PlanProposalRecord }> {
   const r = await withPlanLease(plan.planId, async (fresh) => {
     const p = await openProposal(fresh, proposalId);
-    const rows = await listRows(plan.planId, true);
-    const now = nowIso();
-    const detail: Record<string, string | number | null> = { kind: p.kind, proposalId: p.proposalId };
-    if (p.kind === "add") {
-      const add = p.row;
-      if (!add) return staleProposal(plan.planId, p, "この提案は適用できません");
-      if (rows.some((r) => r.state !== "skipped" && planRowKey(r.roi, r.tlf) === planRowKey(add.roi, add.tlf))) return staleProposal(plan.planId, p, "同じ ROI × TLF の行がすでにあります");
-      if (rows.length >= PLAN_LIMITS.maxRows) throw conflict(`行は ${PLAN_LIMITS.maxRows} 行までです`);
-      const ids = new Set(rows.map((r) => r.rowId));
-      const lastWave = rows.reduce((m, r) => Math.max(m, r.wave), 0);
-      // a plan ordered by hand gets the row after its last wave
-      const row = newRow(plan.planId, rows.reduce((m, r) => Math.max(m, r.order + 1), 0), { roi: add.roi, tlf: add.tlf, rationale: add.rationale, wave: lastWave + 1, priority: null }, "llm", null, now);
-      Object.assign(row, { anchors: add.anchors, anchorsSource: "predicted", dependsOn: add.dependsOn.filter((d) => ids.has(d)) });
-      const own = new Set(rows.map((r) => r.projectId).filter((x): x is string => !!x));
-      const m = matchExistingProject(row, await listUserProjects(u.userId), own);
-      row.existing = m.existing;
-      row.duplicateOf = m.duplicateOf;
-      // done by an existing project: listed with the last wave rather than opening a wave of its own
-      if (row.existing) Object.assign(row, { state: "done", projectId: row.existing.projectId, completedAt: now, wave: Math.max(lastWave, 1) });
-      else if (fresh.ordering === "auto") row.wave = (fresh.activeWave ?? 0) + 1;
-      const all = [...rows, row];
-      if (fresh.ordering === "auto") {
-        // the rows waiting after the active wave (the new one among them) are placed again; rows of the active wave
-        // that wait for a slot keep their wave
-        for (const [rowId, wave] of replanRows(all, fresh.activeWave ?? 0, (await currentLimits()).effective)) {
-          if (rowId === row.rowId) row.wave = wave;
-          else if (await updateRow(plan.planId, rowId, { wave }, { state: "pending" })) all.find((x) => x.rowId === rowId)!.wave = wave;
-        }
-      }
-      await putRow(row);
-      await updatePlan(plan.planId, { rowCount: all.length, rowCounts: countRows(all) });
-      detail.rowId = row.rowId;
-    } else if (p.kind === "remove") {
-      const target = rows.find((r) => r.rowId === p.rowId);
-      if (!target || !isMovableRow(target)) return staleProposal(plan.planId, p, "この行はもう外せません（開始済みなど）");
-      if (!(await updateRow(plan.planId, target.rowId, { state: "skipped" }, { state: "pending" }))) return staleProposal(plan.planId, p, "この行はもう外せません（開始済みなど）");
-      target.state = "skipped";
-      await updatePlan(plan.planId, { rowCounts: countRows(rows) });
-      detail.rowId = target.rowId;
-    } else {
-      if (!p.policy) return staleProposal(plan.planId, p, "この提案は適用できません");
-      await updatePlan(plan.planId, { policy: p.policy });
-    }
-    const decided = { status: "accepted" as const, decidedAt: now, decidedBy: u.userId };
-    if (!(await updateProposal(plan.planId, p.proposalId, decided, { status: "open" }))) throw conflict("この提案はすでに処理されています");
-    await putPlanEvent(plan.planId, "proposal_accepted", u.userId, { ...(detail.rowId ? { rowId: String(detail.rowId) } : {}), detail });
-    return { proposal: { ...p, ...decided }, running: fresh.status === "RUNNING" };
+    const o = await applyProposal(fresh, p, u.userId);
+    if (!o.ok) throw conflict("stale" in o ? o.stale : "full" in o ? o.full : "この提案はすでに処理されています");
+    return { proposal: o.proposal, running: fresh.status === "RUNNING" };
   });
   if (r.running) await kick(plan.planId);
   return { ok: true, proposal: r.proposal };

@@ -1,14 +1,15 @@
 import { AlertTriangle, CheckCircle2, ChevronRight, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, PauseCircle, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
-import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous, planAttachmentTypeOf } from "@cobrac/shared";
+import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { useI18n, useT, type MessageKey } from "../i18n";
-import { api, uploadFile } from "../lib/api";
+import { api } from "../lib/api";
 import { fmtBytes, fmtDate } from "../lib/format";
-import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, ROW_STATE_ORDER, activeStageName, fmtAgo, fmtDuration, fmtElapsed, planPath, useNow, wavesText } from "../lib/plan";
+import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, ROW_STATE_ORDER, activeStageName, fmtAgo, fmtDuration, fmtElapsed, planEventText, planPath, useNow, wavesText } from "../lib/plan";
+import { checkPlanFiles, uploadPlanFiles } from "../lib/planFiles";
 import { inputCls, primaryBtn } from "./CanonsPage";
 
 const MB = 1024 * 1024;
@@ -45,26 +46,13 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
   const [autonomous, setAutonomous] = useState(false);
   const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
   const fileRef = useRef<HTMLInputElement>(null);
+  const needId = useId();
 
   /** Capability lists of the accepted types, within the attachment limits; the others are named in a message. */
   const addFiles = (list: FileList) => {
-    const problems: string[] = [];
-    const next = [...files];
-    let total = next.reduce((n, f) => n + f.size, 0);
-    for (const f of Array.from(list)) {
-      if (next.some((x) => x.name === f.name && x.size === f.size)) continue;
-      if (!planAttachmentTypeOf(f.name)) problems.push(t("attach.typeErr", { name: f.name }));
-      else if (f.size <= 0) problems.push(t("attach.emptyErr", { name: f.name }));
-      else if (f.size > ATTACHMENT_LIMITS.maxFileBytes) problems.push(t("attach.sizeErr", { name: f.name, size: ATTACHMENT_LIMITS.maxFileBytes / MB }));
-      else if (next.length >= ATTACHMENT_LIMITS.maxFiles) problems.push(t("attach.countErr", { n: ATTACHMENT_LIMITS.maxFiles }));
-      else if (total + f.size > ATTACHMENT_LIMITS.maxTotalBytes) problems.push(t("attach.totalErr", { size: ATTACHMENT_LIMITS.maxTotalBytes / MB }));
-      else {
-        next.push(f);
-        total += f.size;
-      }
-    }
-    setFiles(next);
-    setFileMsg(problems.length ? [...new Set(problems)].join("\n") : null);
+    const { files: picked, problems } = checkPlanFiles(files, Array.from(list), t);
+    setFiles([...files, ...picked]);
+    setFileMsg(problems.length ? problems.join("\n") : null);
   };
 
   // the files go to S3 only now (straight from the browser), so nothing is uploaded for a form that is never sent
@@ -72,13 +60,7 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
     setBusy(true);
     setErr(null);
     try {
-      const attachments: { uploadId: string; name: string }[] = [];
-      for (const [i, f] of files.entries()) {
-        setUploading({ i: i + 1, n: files.length });
-        const target = await api.createUpload(f.name, f.size);
-        await uploadFile(target, f);
-        attachments.push({ uploadId: target.uploadId, name: f.name });
-      }
+      const attachments = await uploadPlanFiles(files, setUploading);
       setUploading(null);
       const auto = draft && autonomous ? { autonomous: { maxCostUsd: Number(maxCost) } } : {};
       const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto });
@@ -90,7 +72,9 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
       setBusy(false);
     }
   };
-  const canDraft = !!name.trim() && (!!goal.trim() || files.length > 0 || !!pasted.trim());
+  // a plan needs something to plan from: a goal, a capability list or rows (the API answers 400 otherwise)
+  const hasInput = !!goal.trim() || files.length > 0 || !!pasted.trim();
+  const canDraft = !!name.trim() && hasInput;
   const costOk = Number(maxCost) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(maxCost) <= AUTONOMOUS_MAX_COST_RANGE.max;
 
   return (
@@ -98,7 +82,7 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
       className={`grid min-w-0 content-start gap-3 ${bare ? "" : "rounded-xl border border-slate-200 bg-white p-4 sm:p-5"}`}
       onSubmit={(e) => {
         e.preventDefault();
-        void submit(autonomous);
+        if (canDraft && !busy && (!autonomous || costOk)) void submit(autonomous);
       }}
     >
       {!bare && <h2 className="text-sm font-semibold">{t("plan.new")}</h2>}
@@ -188,15 +172,15 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
       {!autonomous && <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {autonomous ? (
-          <button type="button" disabled={busy || !canDraft || !costOk} onClick={() => void submit(true)} className={primaryBtn}>
+          <button type="button" disabled={busy || !canDraft || !costOk} onClick={() => void submit(true)} className={primaryBtn} aria-describedby={hasInput ? undefined : needId}>
             <Sparkles size={14} aria-hidden /> {t("auto.start")}
           </button>
         ) : (
           <>
-            <button type="submit" disabled={busy || !name.trim()} className={primaryBtn}>
+            <button type="submit" disabled={busy || !canDraft} className={primaryBtn} aria-describedby={hasInput ? undefined : needId}>
               <Plus size={14} /> {t("plan.create")}
             </button>
-            <button type="button" disabled={busy || !canDraft} onClick={() => void submit(true)} className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
+            <button type="button" disabled={busy || !canDraft} onClick={() => void submit(true)} className="flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11" aria-describedby={hasInput ? undefined : needId}>
               <Sparkles size={14} aria-hidden /> {t("plan.createDraft")}
             </button>
           </>
@@ -207,6 +191,11 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
           </span>
         )}
       </div>
+      {!hasInput && (
+        <p id={needId} className="text-xs font-medium text-amber-800" data-testid="plan-need-input">
+          {t("pd.create.needInput")}
+        </p>
+      )}
       <p className="text-xs text-slate-500">{t("plan.createDraftNote", { n: PLAN_JOB_SHORT_ROWS })}</p>
     </form>
   );
@@ -239,14 +228,23 @@ const TURN: Record<TurnKind, { icon: ReactNode; tone: string }> = {
 };
 const TURN_SHOWN = 8;
 
-/** What waits on the owner, across every plan: rows to answer, approve, decide or look at, proposals, stopped plans, finished drafts. */
+/**
+ * What waits on the owner, across every plan: rows to answer, approve, decide or look at, proposals, stopped plans, finished
+ * drafts. While an autonomous plan runs, its rows and proposals are the Orchestrator's, and so is a draft it confirms on its
+ * own; the plan is the owner's again when it pauses or cannot confirm its draft.
+ */
 export function turnItems(items: PlanSummary[]): TurnItem[] {
   const out: TurnItem[] = [];
   for (const p of items) {
-    for (const r of p.pulse?.waiting ?? []) out.push({ key: `${p.planId}/${r.rowId}`, kind: r.state as TurnKind, plan: p, row: r });
-    if (p.pulse?.openProposals) out.push({ key: `${p.planId}/proposals`, kind: "proposals", plan: p, n: p.pulse.openProposals });
+    const auto = isAutonomous(p);
+    const orchestratorActs = auto && p.status === "RUNNING";
+    if (!orchestratorActs) {
+      for (const r of p.pulse?.waiting ?? []) out.push({ key: `${p.planId}/${r.rowId}`, kind: r.state as TurnKind, plan: p, row: r });
+      if (p.pulse?.openProposals) out.push({ key: `${p.planId}/proposals`, kind: "proposals", plan: p, n: p.pulse.openProposals });
+    }
     if (p.status === "PAUSED" && p.pausedReason && p.pausedReason !== "user") out.push({ key: `${p.planId}/paused`, kind: "paused", plan: p });
-    if (p.status === "DRAFT" && p.draft?.status === "done") out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
+    const confirmsItself = auto && !!p.draft?.autoConfirm && !p.autonomousError;
+    if (p.status === "DRAFT" && p.draft?.status === "done" && !confirmsItself) out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
     if (p.status === "DRAFT" && p.draft?.status === "failed") out.push({ key: `${p.planId}/draft`, kind: "draftFailed", plan: p });
   }
   return out.sort((a, b) => TURN_ORDER.indexOf(a.kind) - TURN_ORDER.indexOf(b.kind));
@@ -289,6 +287,7 @@ function YourTurn({ items, anyLive }: { items: TurnItem[]; anyLive: boolean }) {
                 {it.kind === "question" && it.row?.project?.pendingQuestion && <span className="block line-clamp-1 break-words text-xs text-slate-600">{it.row.project.pendingQuestion}</span>}
                 {it.kind === "decision" && it.row?.decisionReason && <span className="block line-clamp-1 text-xs text-slate-600">{t(`plan.decision.${it.row.decisionReason}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</span>}
                 {it.kind === "paused" && it.plan.pausedReason && <span className="block line-clamp-2 text-xs text-slate-600">{t(`plan.paused.${it.plan.pausedReason}` as MessageKey)}</span>}
+                {it.kind === "draftReady" && it.plan.autonomousError && <span className="block line-clamp-2 break-words text-xs text-rose-700">{t("auto.confirmError", { error: it.plan.autonomousError })}</span>}
                 <span className="block truncate text-[11px] text-slate-500">{it.plan.name}</span>
               </span>
               <ChevronRight size={16} className="shrink-0 text-slate-400" aria-hidden />
@@ -321,6 +320,8 @@ const EVENT_DOT: Partial<Record<string, string>> = {
   row_pushed: "bg-violet-400",
   row_conform: "bg-violet-400",
   row_ai_review: "bg-violet-400",
+  row_auto_answered: "bg-violet-400",
+  row_ai_resolved: "bg-violet-400",
   replanned: "bg-indigo-400",
   proposals_received: "bg-indigo-400",
 };
@@ -444,7 +445,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
                     {pulse.events.map((e) => (
                       <li key={e.sk} className="flex min-w-0 items-center gap-2 text-xs motion-safe:animate-step-in">
                         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${EVENT_DOT[e.type] ?? "bg-slate-300"}`} aria-hidden />
-                        <span className="shrink-0 text-slate-700">{t(`plan.evt.${e.type}` as MessageKey, { wave: e.detail?.wave ?? "", revision: e.detail?.revision ?? "" })}</span>
+                        <span className="shrink-0 text-slate-700">{planEventText(e, t)}</span>
                         {e.row && <span className="min-w-0 truncate text-slate-500">{rowText(e.row)}</span>}
                         <span className="ml-auto shrink-0 whitespace-nowrap text-slate-400">{fmtAgo(e.at, now, t)}</span>
                       </li>

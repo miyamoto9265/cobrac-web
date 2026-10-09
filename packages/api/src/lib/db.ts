@@ -118,9 +118,16 @@ export async function findUserByEmail(email: string): Promise<UserRecord | null>
 }
 
 /** Every job recorded under this ID, whoever started it (a Canon's AI reviews are run by its owner and co-editors). */
+/** Every job of a projectless partition (a Canon's reviews, a plan's own jobs), all pages. */
 export async function listJobsForCanon(canonId: string): Promise<JobRecord[]> {
-  const r = await ddb.send(new QueryCommand({ TableName: env.tables.jobs, KeyConditionExpression: "projectId = :p", ExpressionAttributeValues: { ":p": canonId } }));
-  return (r.Items as JobRecord[]) ?? [];
+  const out: JobRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(new QueryCommand({ TableName: env.tables.jobs, KeyConditionExpression: "projectId = :p", ExpressionAttributeValues: { ":p": canonId }, ExclusiveStartKey: start }));
+    out.push(...((r.Items as JobRecord[]) ?? []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
 }
 
 export async function listUsers(): Promise<UserRecord[]> {

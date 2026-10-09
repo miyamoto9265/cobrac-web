@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView, PlanSummary } from "@cobrac/shared";
-import { countRows, estimatePlan } from "@cobrac/shared";
+import { countRows, estimatePlan, planEstimate } from "@cobrac/shared";
 
 const api = vi.hoisted(() => ({
   getPlan: vi.fn(),
@@ -141,8 +141,9 @@ describe("plan screen while running", () => {
 });
 
 describe("draft plan", () => {
-  it("edits rows and waves, saves them before confirming, and lists the CSV rows that could not be read", async () => {
-    api.getPlan.mockResolvedValue(detail("DRAFT", [row("r1", "left IFG", "speech production", "pending", 1), row("r2", "STG", "phonological processing", "pending", 1)]));
+  it("edits rows and waves, saves them, confirms once they are saved, and lists the CSV rows that could not be read", async () => {
+    const stored = [row("r1", "left IFG", "speech production", "pending", 1), row("r2", "STG", "phonological processing", "pending", 1)];
+    api.getPlan.mockResolvedValue(detail("DRAFT", stored));
     await render("/plans/n4h8w2rk", { rejected: [{ row: 22, reason: "noRoiTlf", text: "only a note" }] });
     expect(q('[data-testid="plan-rejected"]')!.textContent).toContain("Row 22: neither ROI nor TLF");
     const editor = q('[data-testid="plan-editor"]')!;
@@ -151,19 +152,31 @@ describe("draft plan", () => {
     expect(inputs).toHaveLength(3);
     await type(inputs[2], "arcuate fasciculus");
     await type([...editor.querySelectorAll<HTMLInputElement>('input[aria-label="TLF"]')][2], "repetition");
-    await type([...editor.querySelectorAll<HTMLInputElement>('input[aria-label="Wave"]')][2], "2");
-    expect(editor.textContent).toContain("Unsaved changes");
+    // the wave is in the row's details
+    await act(async () => [...editor.querySelectorAll<HTMLButtonElement>('[data-testid="row-summary"]')][2].click());
+    await type([...editor.querySelectorAll<HTMLInputElement>('input[aria-label="Wave"]')][0], "2");
+    expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("Unsaved changes: 1");
+    expect(editor.querySelector('[data-change="added"]')!.textContent).toContain("Added row");
 
+    // unsaved rows are saved first: the plan cannot be confirmed until then
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    await act(async () => button("Confirm and start")!.click());
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 3 · waves: 2 · up to 2 at a time"));
+    expect(button("Confirm and start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before confirming");
+    const saved = [...stored, row("r3", "arcuate fasciculus", "repetition", "pending", 2)];
+    api.getPlan.mockResolvedValue({ ...detail("DRAFT", saved), estimate: planEstimate(saved, 2) });
+    await act(async () => button("Save rows", editor)!.click());
     expect(api.savePlanRows).toHaveBeenCalledWith("n4h8w2rk", [
       { rowId: "r1", roi: "left IFG", tlf: "speech production", rationale: "", wave: 1 },
       { rowId: "r2", roi: "STG", tlf: "phonological processing", rationale: "", wave: 1 },
       { rowId: undefined, roi: "arcuate fasciculus", tlf: "repetition", rationale: "", wave: 2 },
     ]);
+    expect(q('[data-testid="plan-save-bar"]')).toBeNull();
+    expect(q('[data-testid="plan-confirm-blocked"]')).toBeNull();
+
+    await act(async () => button("Confirm and start")!.click());
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 3 · waves: 2 · up to 2 at a time"));
     expect(api.confirmPlan).toHaveBeenCalledWith("n4h8w2rk", "en");
-    expect(vi.mocked(api.savePlanRows).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(api.confirmPlan).mock.invocationCallOrder[0]);
+    expect(api.savePlanRows).toHaveBeenCalledTimes(1);
   });
 
   it("does not confirm when the owner says no", async () => {

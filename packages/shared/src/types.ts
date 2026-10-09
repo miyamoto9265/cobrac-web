@@ -284,19 +284,19 @@ export interface JobRecord {
   planId?: string | null;
   /** Hypothesis mode: the scope (S1, S2, …) this job added to the project (absent when it added none) */
   hypothesisScopeId?: string;
-  /** draft / replan (type === plan) */
-  planJobKind?: "draft" | "replan";
+  /**
+   * draft / replan (type === plan); answer / resolve: the Orchestrator's AI job for one row of an autonomous plan
+   * (`planRowId`)
+   */
+  planJobKind?: "draft" | "replan" | "answer" | "resolve";
+  /** answer / resolve: the plan row the job is for */
+  planRowId?: string;
   /**
    * canon-review: assist (absent) = findings for a human reviewer; decide = the reviewer's decision for an autonomous
    * plan (自律実行), which the plan runner applies to the pull request
    */
   reviewKind?: "assist" | "decide";
-  /**
-   * auto: a job of an autonomous plan's row (自律実行). The agent decides with its own recommendation instead of asking;
-   * a question it still asks is answered by the plan runner. Absent = ask (the user answers).
-   */
-  questionMode?: "ask" | "auto";
-  /** Who wrote `pendingAnswer`: the user, or the plan runner of an autonomous plan */
+  /** Who wrote `pendingAnswer`: the user, or the Orchestrator's AI of an autonomous plan (auto) */
   pendingAnswerSource?: "user" | "auto" | null;
 }
 

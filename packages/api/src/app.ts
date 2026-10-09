@@ -188,6 +188,8 @@ import {
   retryRow,
   skipRow,
   updatePlanFields,
+  addPlanAttachments,
+  removePlanAttachment,
 } from "./lib/planOps.js";
 import {
   answerQuestion,
@@ -1997,6 +1999,20 @@ app.put("/plans/:id/rows", async (c) => {
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as { rows?: unknown };
   return c.json({ rows: await replaceRows(u, plan, body.rows) });
+});
+
+/** Draft only: capability lists uploaded with POST /uploads are added to the plan (CSV / TSV / text become rows at once). */
+app.post("/plans/:id/attachments", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  return c.json(await addPlanAttachments(u, plan, await c.req.json().catch(() => ({}))));
+});
+
+/** Draft only: a capability list is removed from the plan (rows read from it stay). */
+app.delete("/plans/:id/attachments/:fileId", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  return c.json(await removePlanAttachment(u, plan, c.req.param("fileId")));
 });
 
 app.post("/plans/:id/rows/import", async (c) => {

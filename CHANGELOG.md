@@ -5,6 +5,22 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-09
+
+### Added
+- Autonomous run (自律実行): the Orchestrator now acts for the owner. The rows' agents may ask questions again (the instruction not to ask, `prompts/autonomous.md`, is gone); the Orchestrator's AI reads each question with the row, the plan's goal and policy, the Canon's policy and the project's decision log, and answers it (an `answer` row job, with no limit on the number of answers). Its answer reaches the agent as "Answer from the CoBRAC Orchestrator" and is shown in the project's chat and the plan's history
+- Autonomous run: rows that need attention or a decision are resolved by the Orchestrator's AI (a `resolve` row job) with the owner's choices: retry or skip; mark done, push again (finished projects only) or skip. The row shows the choice and its reason; the owner can still decide first. A decision because the plan's Canon is gone still pauses the plan for the owner
+- Autonomous run: re-plan proposals (rows to add or leave out) are applied as soon as they arrive, decided by the Orchestrator
+- Row jobs are `plan` jobs (`planJobKind` answer / resolve, `planRowId`) run in one turn without tools on `prompts/orchestrator.md`, on a slot of their own, with the orchestrator model; their cost counts toward the plan and its cost limit
+- Plan drafts: the goal can be edited and source files added or removed (`POST /plans/{id}/attachments`, `DELETE /plans/{id}/attachments/{fileId}`; CSV, TSV and text are read into rows at once)
+
+### Changed
+- Autonomous run: no row is left out because its agent kept asking or because its decision jobs failed; failed answer, resolution and decision jobs are asked again after a back-off of 1, 2, 4 … up to 60 minutes (the row shows the failures and the last error), so failures that cost nothing do not start a job every minute. The resolution job sees how often it chose to retry the row before, and is not offered "retry" for a deleted project. Cancelling the plan stops its Orchestrator jobs. A row past its follow-up limit needs a decision, which the Orchestrator then takes. Once the cost limit is reached, no resolution starts either
+- The plan's draft screen follows the agreed mockup: "1. What to build" (goal, files, draft), "2. Rows and waves" (a table by wave, details on demand, a save bar only with unsaved changes, an empty state), "3. How it runs" (autonomous run, Canon, models in three columns, research mode) and "4. Confirm and start" (estimate and why it cannot be pressed); the progress cards only show once the plan is confirmed
+- A plan needs a goal, source files or rows to be created ("Create plan" cannot be pressed otherwise; the API answers 400)
+- "Your turn" no longer lists the rows of a running autonomous plan
+- The Orchestrator's 「土台」 is now 「基準プロジェクト」 (English "Baseline project"; 基准项目, 基準專案, 기준 프로젝트, Basisprojekt, projet de référence, proyecto de referencia, projeto de referência, базовый проект), so the name says it is a project the later rows take as their baseline: the chip on rows and wave headings, the waits for its pull request, the help texts, the manual and the specification. The code keeps `seed`
+
 ## [0.40.1] - 2026-10-09
 
 ### Changed

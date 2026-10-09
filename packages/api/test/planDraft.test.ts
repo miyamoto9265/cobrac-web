@@ -1,7 +1,7 @@
 // BRA Planner stage 2: drafts written by the `plan` job, capability lists attached at creation, the automatic order,
 // existing projects, plan jobs and the limits, the janitor and the dispatcher for plan jobs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CreatePlanResponse, JobRecord, PlanDetailResponse, PlanDraftRow, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord, UsageSummary } from "@cobrac/shared";
+import type { CreatePlanResponse, PlanAttachmentsResponse, JobRecord, PlanDetailResponse, PlanDraftRow, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord, UsageSummary } from "@cobrac/shared";
 import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, sharedAnchors } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
@@ -16,6 +16,7 @@ vi.mock("../src/lib/aws.js", () => ({
     s3.set(`plans/${planId}/${rel}`, s3.get(staging)!);
     s3.delete(staging);
   }),
+  deletePlanAttachment: vi.fn(async (planId: string, rel: string) => void s3.delete(`plans/${planId}/${rel}`)),
   getPlanJson: vi.fn(async (key: string) => (s3.has(key) ? JSON.parse(s3.get(key)!) : null)),
   putPlanJson: vi.fn(async (key: string, v: unknown) => void s3.set(key, JSON.stringify(v))),
   getObjectText: vi.fn(async (u: string, p: string, rel: string) => s3.get(`users/${u}/${p}/${rel}`) ?? null),
@@ -528,6 +529,59 @@ describe("plans: capability lists attached at creation", () => {
     expect(r.rows.map((x) => x.tlf)).toEqual(["phonological processing"]);
     expect(r.plan.attachments!.map((a) => a.key)).toEqual(["attachments/files/01-capabilities..v2.csv", "attachments/files/02-list...pdf"]);
     expect(s3.get(`plans/${r.plan.planId}/attachments/files/02-list...pdf`)).toBe("%PDF-1.7");
+  });
+});
+
+describe("plans: something to build, and capability lists added to a draft", () => {
+  const staged = (uploadId: string, name: string, text: string) => s3.set(`staging/${A.sub}/${uploadId}/${name}`, text);
+
+  it("refuses a plan with neither a goal, capability lists nor rows", async () => {
+    expect(await status(call(A, "POST", "/plans", { name: "Empty" }))).toBe(400);
+    expect(await status(call(A, "POST", "/plans", { name: "Empty", goal: "  " }))).toBe(400);
+    expect(fake.items("plans")).toEqual([]);
+    expect((await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Goal only", goal: GOAL }))).rows).toEqual([]);
+  });
+
+  it("adds capability lists to a draft (CSV read at once), removes one, and refuses both once the plan is no draft", async () => {
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL }))).plan.planId;
+    staged("up_csv00003", "capabilities.csv", "ROI,TLF\nleft IFG,speech production\n,\n");
+    staged("up_pdf00003", "review.pdf", "%PDF-1.7");
+    const added = await json<PlanAttachmentsResponse>(
+      call(A, "POST", `/plans/${planId}/attachments`, { attachments: [{ uploadId: "up_csv00003", name: "capabilities.csv" }, { uploadId: "up_pdf00003", name: "review.pdf" }] }),
+    );
+    expect(added.rows.map((r) => [r.roi, r.tlf, r.source])).toEqual([["left IFG", "speech production", "csv"]]);
+    expect(added.plan.attachments!.map((a) => [a.id, a.key])).toEqual([
+      ["f1", "attachments/files/01-capabilities.csv"],
+      ["f2", "attachments/files/02-review.pdf"],
+    ]);
+    expect(rowsOf(planId)).toHaveLength(1);
+    expect(planOf(planId).attachments).toHaveLength(2);
+
+    // removing keeps the rows read from it; a file added later never reuses a removed file's ID
+    const removed = await json<PlanAttachmentsResponse>(call(A, "DELETE", `/plans/${planId}/attachments/f1`));
+    expect(removed.plan.attachments!.map((a) => a.id)).toEqual(["f2"]);
+    expect(s3.has(`plans/${planId}/attachments/files/01-capabilities.csv`)).toBe(false);
+    expect(rowsOf(planId)).toHaveLength(1);
+    staged("up_txt00003", "more.txt", "reading\n");
+    const again = await json<PlanAttachmentsResponse>(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [{ uploadId: "up_txt00003", name: "more.txt" }] }));
+    expect(again.plan.attachments!.map((a) => [a.id, a.key])).toEqual([
+      ["f2", "attachments/files/02-review.pdf"],
+      ["f3", "attachments/files/03-more.txt"],
+    ]);
+    // the highest one removed: its number is not used again, and the extracted text is made anew by the next draft
+    s3.set(`plans/${planId}/attachments/derived/manifest.json`, "{}");
+    await json(call(A, "DELETE", `/plans/${planId}/attachments/f3`));
+    expect(s3.has(`plans/${planId}/attachments/derived/manifest.json`)).toBe(false);
+    staged("up_txt00005", "other.txt", "listening\n");
+    const fourth = await json<PlanAttachmentsResponse>(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [{ uploadId: "up_txt00005", name: "other.txt" }] }));
+    expect(fourth.plan.attachments!.map((a) => a.id)).toEqual(["f2", "f4"]);
+    expect(await status(call(A, "DELETE", `/plans/${planId}/attachments/f9`))).toBe(404);
+    expect(await status(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [] }))).toBe(400);
+
+    await json(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    staged("up_txt00004", "late.txt", "writing\n");
+    expect(await status(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [{ uploadId: "up_txt00004", name: "late.txt" }] }))).toBe(409);
+    expect(await status(call(A, "DELETE", `/plans/${planId}/attachments/f2`))).toBe(409);
   });
 });
 

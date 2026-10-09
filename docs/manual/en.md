@@ -156,13 +156,13 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Cover the BRA of language").
 2. Add source files (CSV, xlsx, PDF and others) or paste rows. One row is one project.
-3. "Create plan" makes a plan from the rows read. "Create draft" has the AI write the rows from the goal and the sources (it takes a few minutes and its cost is recorded).
-4. While it is a draft, you can add, remove and reorder rows. "Settings" chooses the Orchestrator's and the agents' models and the research mode.
+3. "Create plan" makes a plan from the rows read. "Create draft" has the AI write the rows from the goal and the sources (it takes a few minutes and its cost is recorded). Neither can be pressed without a goal, files or rows.
+4. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
 ### Ordering
 
 - Each row has **anchors** for the regions it involves. Rows that would build the same circuits (sharing anchors) are not put in the same wave.
-- Rows shared with many others are **foundations**, built first, one at a time.
+- Rows shared with many others are **baseline projects**, built first, one at a time. The later rows take their circuits as their baseline.
 - "Order automatically" works out the waves again from the anchors and dependencies. If you change rows or waves by hand and save, your order is used as it is.
 - A row whose ROI × TLF already has a completed project is marked "Existing" and is done without building. Tick "Rebuild" to build it anyway.
 
@@ -180,11 +180,14 @@ With a Canon set on the plan, each completed row is pushed to the Canon automati
 
 ### Autonomous run
 
-An **autonomous run** takes a plan to the end without waiting for a person. In the new plan form, turn on "Autonomous run", enter a **cost limit** (USD) and press "Start autonomous run".
+In an **autonomous run** the Orchestrator acts for you and takes the plan to the end. In the new plan form, turn on "Autonomous run", enter a **cost limit** (USD) and press "Start autonomous run".
 
 - Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the plan is created.
-- The rows' agents do not ask questions; they go on with the option they recommend and record each decision in the decision log.
-- The AI reads each PR and approves, requests changes or rejects it. Rows that cannot go on are skipped.
+- The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the plan's goal, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
+- The AI reads each PR and approves, requests changes or rejects it.
+- When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the plan's Canon is gone does the plan pause for you.
+- Re-plan proposals (rows to add or remove) are applied as soon as they arrive.
+- A failed Orchestrator job is asked again after a short wait (at most an hour).
 - When the cost reaches the limit, nothing new starts and the plan pauses. Raise the limit to resume.
 
 ### Questions, pause and cancel

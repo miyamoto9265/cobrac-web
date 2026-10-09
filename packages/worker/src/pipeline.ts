@@ -64,17 +64,14 @@ export interface Prompt {
   effort?: ReasoningEffort;
 }
 
-/**
- * Text sent to the agent for one turn: shown part, hidden part, the autonomous-run note (自律実行: every turn of such a
- * job carries it) and the reply-language line, separated by rules.
- */
-export function turnInput(p: Prompt, replyLanguage: string | null, autonomousNote: string | null = null): string {
-  return [p.shown, p.hidden, autonomousNote, replyLanguage].filter((s): s is string => !!s).join("\n\n---\n\n");
+/** Text sent to the agent for one turn: shown part, hidden part and the reply-language line, separated by rules. */
+export function turnInput(p: Prompt, replyLanguage: string | null): string {
+  return [p.shown, p.hidden, replyLanguage].filter((s): s is string => !!s).join("\n\n---\n\n");
 }
 
-/** The first line of a resumed turn: the owner's answer, or the plan runner's automatic one (自律実行). */
+/** The first line of a resumed turn: the owner's answer, or the one the Orchestrator's AI gave for the owner (自律実行). */
 export function answerPreamble(job: { pendingAnswer: string | null; pendingAnswerSource?: "user" | "auto" | null }): string {
-  const label = job.pendingAnswerSource === "auto" ? "Automatic answer (autonomous run; no user is available)" : "User's answer";
+  const label = job.pendingAnswerSource === "auto" ? "Answer from the CoBRAC Orchestrator (it decides for the user in this autonomous run)" : "User's answer";
   return `${label}:\n${job.pendingAnswer ?? "(no answer)"}\n\nContinue the work from where you stopped.`;
 }
 
