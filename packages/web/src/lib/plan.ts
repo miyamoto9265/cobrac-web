@@ -1,6 +1,6 @@
-import type { CanonPullRequestRecord, PlanPulse, PlanRowState, PlanRowView, PlanStatus } from "@cobrac/shared";
+import type { CanonPullRequestRecord, PlanEventRecord, PlanPulse, PlanRowAction, PlanRowState, PlanRowView, PlanStatus } from "@cobrac/shared";
 import { useEffect, useState } from "react";
-import { PLAN_ATTACHMENT_EXTS, PLAN_MAX_WAITING_PRS, waitingPrs } from "@cobrac/shared";
+import { PLAN_ATTACHMENT_EXTS, PLAN_MAX_WAITING_PRS, formatUsd, waitingPrs } from "@cobrac/shared";
 import type { MessageKey, TFn } from "../i18n";
 import { pipelineView, type StageId } from "./pipeline";
 
@@ -117,6 +117,22 @@ export function waveRuns<T extends { wave: number }>(rows: T[]): { wave: number;
     else out.push({ wave: row.wave, items: [{ row, index }] });
   });
   return out;
+}
+
+/** What the Orchestrator's AI may choose for a row, named as the owner's buttons for the same action. */
+export const ROW_ACTION_LABEL: Record<PlanRowAction, MessageKey> = { retry: "plan.retry", skip: "plan.skip", done: "plan.resolveDone", push: "plan.resolvePush" };
+export const rowActionText = (action: unknown, t: TFn) => (typeof action === "string" && action in ROW_ACTION_LABEL ? t(ROW_ACTION_LABEL[action as PlanRowAction]) : "");
+
+/** The text of a plan event, with the values its detail carries (the history of a plan and the lanes of the list). */
+export function planEventText(e: Pick<PlanEventRecord, "type" | "detail">, t: TFn): string {
+  const d = e.detail ?? {};
+  return t(`plan.evt.${e.type}` as MessageKey, {
+    wave: d.wave ?? "",
+    revision: d.revision ?? "",
+    spent: typeof d.spentUsd === "number" ? formatUsd(d.spentUsd) : "",
+    max: typeof d.maxCostUsd === "number" ? formatUsd(d.maxCostUsd) : "",
+    action: rowActionText(d.action, t),
+  });
 }
 
 /** Time since `fromIso`: `12 s` under a minute, else as `fmtDuration`. */

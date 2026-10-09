@@ -69,6 +69,8 @@ import type {
   ApproveManyResponse,
   PlanCanonChoice,
   HypothesisFollowupRequest,
+  AddPlanAttachmentsRequest,
+  PlanAttachmentsResponse,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -228,6 +230,10 @@ export const api = {
   planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
   requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
   cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),
+  /** Draft only: capability lists uploaded with `createUpload` are added (CSV / TSV / text are read into rows at once) */
+  addPlanAttachments: (id: string, attachments: AddPlanAttachmentsRequest["attachments"]) =>
+    request<PlanAttachmentsResponse>("POST", `/plans/${encodeURIComponent(id)}/attachments`, { attachments } satisfies AddPlanAttachmentsRequest),
+  removePlanAttachment: (id: string, fileId: string) => request<PlanAttachmentsResponse>("DELETE", `/plans/${encodeURIComponent(id)}/attachments/${encodeURIComponent(fileId)}`),
   orderPlan: (id: string) => request<{ plan: PlanRecord; rows: PlanRowRecord[] }>("POST", `/plans/${encodeURIComponent(id)}/order`),
   setPlanCanon: (id: string, canon: PlanCanonChoice) => request<PlanRecord>("PUT", `/plans/${encodeURIComponent(id)}`, { canon } satisfies UpdatePlanRequest),
   /** A row in 「人の判断」: done (taken as it is) or push (push its project again) */
