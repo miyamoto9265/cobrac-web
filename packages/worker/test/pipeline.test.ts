@@ -576,9 +576,8 @@ describe("turn input", () => {
     expect(turnInput({ shown: "Fix these." }, lang)).toBe(`Fix these.\n\n---\n\n${lang}`);
     expect(turnInput({ shown: "Run phase HCD.", hidden: "SPEC" }, null)).toBe("Run phase HCD.\n\n---\n\nSPEC");
     expect(turnInput({ shown: "Fix these." }, replyLanguageInstruction(undefined))).toBe("Fix these.");
-    // 自律実行: every turn of an autonomous row's job carries the note, before the reply language
-    expect(turnInput({ shown: "Fix these." }, lang, "NO QUESTIONS")).toBe(`Fix these.\n\n---\n\nNO QUESTIONS\n\n---\n\n${lang}`);
-    expect(answerPreamble({ pendingAnswer: "A", pendingAnswerSource: "auto" })).toContain("Automatic answer (autonomous run; no user is available):\nA");
+    // 自律実行: the answer of the Orchestrator's AI is labelled as such
+    expect(answerPreamble({ pendingAnswer: "A", pendingAnswerSource: "auto" })).toContain("Answer from the CoBRAC Orchestrator (it decides for the user in this autonomous run):\nA");
     expect(answerPreamble({ pendingAnswer: "A" })).toContain("User's answer:\nA");
   });
 });

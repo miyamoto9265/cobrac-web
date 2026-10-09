@@ -1,10 +1,11 @@
-// 自律実行 (autonomous run): a plan goes from its draft to the end without waiting for a person — the draft is confirmed
-// on its own, the rows' questions are answered by the runner, the AI reviewer decides on every pull request (seeds
-// included) and the runner applies the decision, rows that would need a human are left out, and the cost limit stops
-// new work.
+// 自律実行 (autonomous run): the Orchestrator acts for the owner, so a plan goes from its draft to the end without waiting
+// for a person — the draft is confirmed on its own, the Orchestrator's AI answers the rows' questions (an `answer` row
+// job, no limit), decides on every pull request (seeds included) and on rows that need attention or a decision (a
+// `resolve` row job), re-plan proposals are applied at once, and the cost limit stops new work.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CanonAiReviewResult, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CreatePlanResponse, JobRecord, MessageRecord, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord } from "@cobrac/shared";
-import { MAX_AUTO_ANSWERS, PLAN_JOB_RESULT_SCHEMA, canonAiReviewKey, canonPrSk, canonRevisionSk, planJobKey } from "@cobrac/shared";
+import type { PlanRowJobInput } from "@cobrac/shared";
+import { MAX_ROW_AUTO_RETRIES, PLAN_JOB_RESULT_SCHEMA, PLAN_ROW_JOB_RESULT_SCHEMA, canonAiReviewKey, canonPrSk, canonRevisionSk, planJobKey } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -25,7 +26,7 @@ const aws = await import("../src/lib/aws.js");
 const { advancePlan } = await import("../src/lib/planRunner.js");
 const { autoConfirm } = await import("../src/handlers/planRunner.js");
 const { resetLimitsCache } = await import("../src/lib/concurrency.js");
-const { AUTO_ANSWER } = await import("../src/lib/runs.js");
+const { planJobInput } = await import("../src/lib/planJobs.js");
 
 const A = { sub: "sub-alice", email: "alice@example.com" };
 const ADMIN = { sub: "sub-admin", email: "admin@example.com" };
@@ -112,6 +113,20 @@ function decideJob(canonId: string, verdict: "approve" | "request_changes" | "re
   return j;
 }
 
+/** What the worker would do for the Orchestrator's queued job of a row: its result (completed) or a failure. */
+function rowJobDone(planId: string, roi: string, decision: Record<string, unknown> | null) {
+  const row = rowOf(planId, roi);
+  const j = jobs().find((x) => x.projectId === planId && x.planRowId === row.rowId && x.status === "QUEUED")!;
+  expect(j).toMatchObject({ type: "plan", planJobKind: row.rowJob!.kind, planId });
+  if (decision) {
+    const result = { schema: PLAN_ROW_JOB_RESULT_SCHEMA, kind: j.planJobKind, planId, jobId: j.jobId, rowId: row.rowId, model: "m", createdAt: now, decision: { kind: j.planJobKind, ...decision } };
+    s3.set(planJobKey(planId, j.jobId, "result.json"), JSON.stringify(result));
+  }
+  fake.put("jobs", { ...j, status: decision ? "COMPLETED" : "FAILED", costUsd: 0.01, ...(decision ? {} : { errorMessage: "model error" }) } as never);
+  return j;
+}
+const rowJobInputOf = (planId: string, jobId: string) => JSON.parse(s3.get(planJobKey(planId, jobId, "input.json"))!) as PlanRowJobInput;
+
 /** An autonomous plan with the given rows, drafted (the draft job keeps the rows) and confirmed on its own. */
 async function autonomousPlan(rows: string[], maxCostUsd = 50): Promise<string> {
   const created = await json<CreatePlanResponse>(
@@ -146,8 +161,7 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     const planId = await autonomousPlan(["left IFG", "STG"]);
     const canonId = planOf(planId).canonId!;
     expect(canonMeta(canonId)).toMatchObject({ name: "Language", policy: "neocortex = area" });
-    // every row's job decides instead of asking
-    for (const r of rowsOf(planId)) expect(jobsOf(r.projectId!)[0]).toMatchObject({ questionMode: "auto", planId });
+    for (const r of rowsOf(planId)) expect(jobsOf(r.projectId!)[0]).toMatchObject({ planId });
 
     // the first row finishes: pushed, and the AI decides on its pull request (no seed exception)
     finish(planId, "left IFG", coarse);
@@ -161,14 +175,21 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect(canonMeta(canonId).headRevision).toBe(1);
     expect(eventsOf(planId).some((e) => e.type === "row_ai_decided" && e.detail?.verdict === "approve")).toBe(true);
 
-    // the second row's agent asks anyway: answered by the runner, not as the user
-    ask(planId, "STG");
+    // the second row's agent asks: the Orchestrator's AI reads the question and answers it for the owner
+    s3.set(`users/${A.sub}/${rowOf(planId, "STG").projectId}/workspace/decision_log.md`, "## ROI\n- kept STG as given");
+    ask(planId, "STG", "Left STG only, or both hemispheres?");
+    await advancePlan(planId);
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "question", rowJob: { kind: "answer", status: "queued" } });
+    const asked = rowJobDone(planId, "STG", { answer: "Left STG only.", reason: "The plan's language rows are left-lateralised." });
+    expect(rowJobInputOf(planId, asked.jobId)).toMatchObject({ kind: "answer", row: { roi: "STG" }, project: { question: "Left STG only, or both hemispheres?", decisionLog: "## ROI\n- kept STG as given" }, situation: null });
+    expect(asked.model).toBeTruthy();
     vi.mocked(aws.enqueueRun).mockClear();
     await advancePlan(planId);
     const stg = rowOf(planId, "STG");
-    expect(stg).toMatchObject({ state: "running", autoAnswers: 1 });
-    expect(jobsOf(stg.projectId!)[0]).toMatchObject({ status: "QUEUED", pendingAnswer: AUTO_ANSWER, pendingAnswerSource: "auto" });
+    expect(stg).toMatchObject({ state: "running", autoAnswers: 1, rowJob: null });
+    expect(jobsOf(stg.projectId!)[0]).toMatchObject({ status: "QUEUED", pendingAnswer: "Left STG only.\n\nReason: The plan's language rows are left-lateralised.", pendingAnswerSource: "auto" });
     expect(vi.mocked(aws.enqueueRun)).toHaveBeenCalledWith(expect.objectContaining({ projectId: stg.projectId, mode: "resume" }));
+    expect(eventsOf(planId).find((e) => e.type === "row_auto_answered")?.detail).toMatchObject({ n: 1, answer: "Left STG only." });
     const notes = messagesOf(stg.projectId!);
     expect(notes.some((m) => m.role === "system" && (m.meta as { i18n?: string } | undefined)?.i18n === "sys.autoAnswered")).toBe(true);
     expect(notes.some((m) => m.role === "user" && (m.meta as { kind?: string } | undefined)?.kind === "answer")).toBe(false);
@@ -178,7 +199,7 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     await advancePlan(planId);
     expect(rowOf(planId, "STG")).toMatchObject({ state: "running", conformAttempts: 1 });
     const followup = jobsOf(stg.projectId!).at(-1)!;
-    expect(followup).toMatchObject({ type: "followup", questionMode: "auto" });
+    expect(followup).toMatchObject({ type: "followup" });
 
     // after the follow-up it agrees; the AI rejects it anyway: the PR is closed and the row is left out
     finish(planId, "STG", own(3));
@@ -204,7 +225,7 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect(prOf(canonId, 1)).toMatchObject({ state: "open", reviewState: "changes_requested", reviewedByName: expect.stringMatching(/^AI \(/) });
     // the follow-up carries the AI's changes
     const f = jobsOf(P).at(-1)!;
-    expect(f).toMatchObject({ type: "followup", questionMode: "auto" });
+    expect(f).toMatchObject({ type: "followup" });
     expect(f.instruction).toContain("AI レビューの指摘に対応");
     expect(f.instruction).toContain("Cite a tracer study for the A44d output.");
     expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", conformAttempts: 1, followup: null });
@@ -219,28 +240,120 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect(planOf(planId).status).toBe("COMPLETED");
   });
 
-  it("stops after too many questions, and leaves out a row whose decision jobs keep failing", async () => {
+  it("answers every question with no limit, and asks again after a job fails (answers and pull request decisions alike)", async () => {
     await setLimits(8, 8);
     const planId = await autonomousPlan(["left IFG", "STG"]);
     const canonId = planOf(planId).canonId!;
-    fake.put("plans", { ...rowOf(planId, "left IFG"), autoAnswers: MAX_AUTO_ANSWERS } as never);
+    // far past v0.40.0's three automatic answers: still answered
+    fake.put("plans", { ...rowOf(planId, "left IFG"), autoAnswers: 5 } as never);
     ask(planId, "left IFG");
     await advancePlan(planId);
-    const ifg = rowOf(planId, "left IFG");
-    expect(ifg).toMatchObject({ state: "skipped", autoSkip: { reason: "question_limit" } });
-    expect(projectOf(ifg.projectId!).status).toBe("CANCELLED");
+    rowJobDone(planId, "left IFG", null);
+    await advancePlan(planId);
+    // the failed job is dropped and asked again
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "question", rowJob: { kind: "answer", status: "queued" } });
+    expect(jobs().filter((j) => j.projectId === planId && j.planJobKind === "answer")).toHaveLength(2);
+    rowJobDone(planId, "left IFG", { answer: "Take BA44 only.", reason: "r" });
+    await advancePlan(planId);
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", autoAnswers: 6 });
 
+    // a pull request whose decision jobs keep failing is never left out: the decision is asked again
     finish(planId, "STG", coarse);
     await advancePlan(planId);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const j = jobs().find((x) => x.projectId === canonId && x.type === "canon-review" && x.status === "QUEUED")!;
       fake.put("jobs", { ...j, status: "FAILED", errorMessage: "model error" } as never);
       await advancePlan(planId);
       await advancePlan(planId);
     }
-    expect(rowOf(planId, "STG")).toMatchObject({ state: "skipped", autoSkip: { reason: "decide_failed" } });
-    // the PR stays open for a person
-    expect(prOf(canonId, 1).state).toBe("open");
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "review", aiReview: "queued" });
+    decideJob(canonId, "approve");
+    await advancePlan(planId);
+    expect(rowOf(planId, "STG").state).toBe("done");
+  });
+
+  it("resolves rows that need attention or a decision as the owner would: retry, skip, push", async () => {
+    await setLimits(8, 8);
+    const planId = await autonomousPlan(["left IFG", "STG"]);
+    // the project fails after its automatic retries: 「要対応」, and the Orchestrator's AI decides
+    const fail = (roi: string) => {
+      const row = rowOf(planId, roi);
+      fake.put("plans", { ...row, attempts: MAX_ROW_AUTO_RETRIES } as never);
+      const p = projectOf(row.projectId!);
+      fake.put("projects", { ...p, status: "FAILED", errorMessage: "Rate limit reached", activeJobId: null } as never);
+      for (const j of jobs().filter((x) => x.projectId === p.projectId && ["QUEUED", "RUNNING"].includes(x.status))) fake.put("jobs", { ...j, status: "FAILED" } as never);
+    };
+    fail("left IFG");
+    await advancePlan(planId);
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "attention", attentionReason: "failed", rowJob: { kind: "resolve", status: "queued" } });
+    const first = rowJobDone(planId, "left IFG", { action: "retry", reason: "A rate limit passes." });
+    expect(rowJobInputOf(planId, first.jobId).situation).toMatchObject({ state: "attention", reason: "failed", options: ["retry", "skip"], attempts: MAX_ROW_AUTO_RETRIES });
+    await advancePlan(planId);
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", aiResolution: { action: "retry", reason: "A rate limit passes." }, rowJob: null });
+    expect(eventsOf(planId).find((e) => e.type === "row_ai_resolved")?.detail).toMatchObject({ action: "retry", from: "attention", cause: "failed" });
+
+    // it fails again: this time the AI leaves it out
+    fail("left IFG");
+    await advancePlan(planId);
+    rowJobDone(planId, "left IFG", { action: "skip", reason: "It keeps failing the same way." });
+    await advancePlan(planId);
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "skipped", autoSkip: { reason: "ai_skipped", error: "It keeps failing the same way." }, aiResolution: { action: "skip" } });
+
+    // a finished row whose push failed (「人の判断」): the AI pushes it again
+    finish(planId, "STG", coarse);
+    fake.put("plans", { ...rowOf(planId, "STG"), state: "decision", decisionReason: "push_failed", lastError: "S3 was down" } as never);
+    await advancePlan(planId);
+    const resolve = rowJobDone(planId, "STG", { action: "push", reason: "The push failed for a passing reason." });
+    expect(rowJobInputOf(planId, resolve.jobId).situation).toMatchObject({ state: "decision", reason: "push_failed", options: ["done", "push", "skip"] });
+    await advancePlan(planId);
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "running", aiResolution: { action: "push" } });
+    await advancePlan(planId);
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "review", prNo: 1 });
+    // an action the situation does not offer is not taken: the job counts as unreadable and is asked again
+    fake.put("plans", { ...rowOf(planId, "STG"), state: "decision", decisionReason: "pr_rejected" } as never);
+    vi.mocked(aws.enqueueRun).mockClear();
+    await advancePlan(planId);
+    rowJobDone(planId, "STG", { action: "retry", reason: "?" });
+    await advancePlan(planId);
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "decision", rowJob: { kind: "resolve", status: "queued" } });
+  });
+
+  it("applies re-plan proposals at once, as the Orchestrator's own decision", async () => {
+    await setLimits(1, 1);
+    const planId = await autonomousPlan(["left IFG", "STG", "MTG"]);
+    const pending = rowsOf(planId).filter((r) => r.state === "pending");
+    expect(pending).toHaveLength(2);
+    const jobId = "job_replan01";
+    const plan = planOf(planId);
+    const input = planJobInput(plan, { kind: "replan", jobId, rows: rowsOf(planId), projects: [], canons: [], concurrency: 1, wave: 1, locale: "ja" });
+    s3.set(planJobKey(planId, jobId, "input.json"), JSON.stringify(input));
+    const result: PlanJobResult = {
+      schema: PLAN_JOB_RESULT_SCHEMA,
+      kind: "replan",
+      planId,
+      jobId,
+      model: "m",
+      locale: "ja",
+      createdAt: now,
+      rows: [],
+      unread: [],
+      policy: "",
+      proposals: [
+        { kind: "add", rowId: "", policy: "", reason: "Shared by finished rows", row: { roi: "Thalamus", tlf: "relay", rationale: "r", anchors: [], dependsOn: [] } },
+        { kind: "remove", rowId: pending[0].rowId, policy: "", reason: "Covered already", row: null },
+      ],
+      notes: "",
+      dropped: 0,
+    } as unknown as PlanJobResult;
+    s3.set(planJobKey(planId, jobId, "result.json"), JSON.stringify(result));
+    fake.put("jobs", { projectId: planId, jobId, userId: A.sub, type: "plan", planJobKind: "replan", planId, status: "COMPLETED", createdAt: now, updatedAt: now } as never);
+    fake.put("plans", { ...plan, replan: { kind: "replan", jobId, status: "queued", requestedAt: now, requestedBy: "runner", wave: 1, locale: "ja" } } as never);
+    await advancePlan(planId);
+    expect(rowOf(planId, "Thalamus")).toMatchObject({ state: "pending", source: "llm" });
+    expect(rowOf(planId, pending[0].roi).state).toBe("skipped");
+    const proposals = fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("PROP#")) as unknown as { status: string; decidedBy: string }[];
+    expect(proposals).toHaveLength(2);
+    expect(proposals.every((p) => p.status === "accepted" && p.decidedBy === "runner")).toBe(true);
   });
 
   it("starts nothing new at its cost limit, pauses once nothing is in flight, and resumes with a higher limit", async () => {

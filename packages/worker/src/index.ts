@@ -68,12 +68,17 @@ import {
   type FrgCandidates,
   LIT_MCP_SERVER,
   PLAN_JOB_INPUT_SCHEMA,
+  PLAN_ROW_JOB_INPUT_SCHEMA,
+  PLAN_ROW_JOB_RESULT_SCHEMA,
+  PLAN_ROW_JOB_TIME_BUDGET_MS,
   PLAN_JOB_REASONING_EFFORT,
   PLAN_JOB_RESULT_SCHEMA,
   planJobBudgetMs,
   PLAN_RESULT_SCHEMA,
   type PlanJobInput,
   type PlanJobResult,
+  type PlanRowJobInput,
+  type PlanRowJobResult,
   ADJUSTMENT_CODES,
   CROSS_CODES,
   PROJECT_FILES,
@@ -149,7 +154,7 @@ import { finalizeProject } from "./finalize.js";
 import { followupScopeNote, hypothesisRules, returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type PreparedMaterials } from "./materials.js";
-import { planMaterialsIndex, runPlanJob } from "./planJob.js";
+import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { planRunKey } from "./runKey.js";
 import { LiteratureHttp } from "./http.js";
@@ -209,8 +214,6 @@ let materials: PreparedMaterials | null = null;
 let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
-/** 自律実行: prompts/autonomous.md for a job of an autonomous plan's row (sent with every turn); null otherwise */
-let autonomousNote: string | null = null;
 /** The project's harness rule set (0: created before the ROI rules) */
 let harnessRules = 0;
 /** The project's evidence mode, hypothesis scopes and share limit (strict unless the project allows hypotheses) */
@@ -286,7 +289,6 @@ async function main() {
 
   // --- codex ----------------------------------------------------------------
   research = isResearchMode(project);
-  autonomousNote = job.questionMode === "auto" ? (await readFile(join(env.promptsDir, "autonomous.md"), "utf8")).replaceAll("{P}", projectId).trim() : null;
   harnessRules = project.harnessRules ?? 0;
   evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
@@ -342,7 +344,7 @@ async function main() {
     const thread = openThread(codex, threadId, turnSettings);
     let turn;
     try {
-      const text = turnInput(p, replyLanguage, autonomousNote);
+      const text = turnInput(p, replyLanguage);
       const input = p.images?.length ? [{ type: "text" as const, text }, ...p.images.map((path) => ({ type: "local_image" as const, path }))] : text;
       turn = await runTurn(thread, input, sink, o.budget ? AbortSignal.any([abort.signal, o.budget]) : abort.signal, { inFlight });
     } catch (e) {
@@ -1553,6 +1555,10 @@ async function planJobMain() {
   // after SIGTERM the job is left to the janitor (its heartbeat is marked stale), so no beat may follow
   const heartbeat = setInterval(() => void (stopping ? undefined : updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined)), 45_000);
   try {
+    if (job.planJobKind === "answer" || job.planJobKind === "resolve") {
+      await planRowJob(job, apiKey, model, reasoningEffort);
+      return;
+    }
     const input = await getJsonObject<PlanJobInput>(planJobKey(projectId, jobId, "input.json"));
     if (!input || input.schema !== PLAN_JOB_INPUT_SCHEMA || input.planId !== projectId || input.jobId !== jobId || input.kind !== job.planJobKind) {
       await fail("The input of the plan job could not be read.");
@@ -1639,6 +1645,62 @@ async function planJobMain() {
     clearInterval(heartbeat);
     planJobOnStop = null;
   }
+}
+
+/**
+ * A row job of an autonomous plan (自律実行): the Orchestrator's AI answers the question of the row's agent or resolves a
+ * row that needs attention or a decision, in one turn without tools (prompts/orchestrator.md). The plan runner applies
+ * the result after checking it against the input again.
+ */
+async function planRowJob(job: JobRecord, apiKey: string, model: string, reasoningEffort: NonNullable<JobRecord["reasoningEffort"]>): Promise<void> {
+  const input = await getJsonObject<PlanRowJobInput>(planJobKey(projectId, jobId, "input.json"));
+  if (!input || input.schema !== PLAN_ROW_JOB_INPUT_SCHEMA || input.planId !== projectId || input.jobId !== jobId || input.kind !== job.planJobKind || input.rowId !== job.planRowId) {
+    await fail("The input of the plan job could not be read.");
+    return;
+  }
+  const spec = await readFile(join(env.promptsDir, "orchestrator.md"), "utf8");
+  const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
+  const thread = openThread(createCodex(apiKey, null), null, settings, { webSearch: false });
+  let total: TurnUsage | null = null;
+  const toTokens = (u: TurnUsage): TokenUsage => ({ inputTokens: u.input, cachedInputTokens: u.cachedInput, outputTokens: u.output, reasoningOutputTokens: u.reasoningOutput });
+  planJobOnStop = async () => {
+    const u = thread.id ? sessionTotalUsage(thread.id) : null;
+    if (!u) return;
+    const stopped = toTokens(u);
+    await updateJob(projectId, jobId, { usage: stopped, costUsd: estimateCostUsd(model, stopped), model, reasoningEffort });
+  };
+  const outcome = await runPlanRowJob({
+    input,
+    spec,
+    turn: async (prompt, schema, signal) => {
+      const t = await thread.run(prompt, { outputSchema: schema, signal });
+      const after = t.usage
+        ? { input: t.usage.input_tokens, cachedInput: t.usage.cached_input_tokens, output: t.usage.output_tokens, reasoningOutput: t.usage.reasoning_output_tokens }
+        : null;
+      const usage = turnUsage(after, total);
+      if (after) total = after;
+      return { text: t.finalResponse, usage: toTokens(usage) };
+    },
+    deadlineMs: startedAt + PLAN_ROW_JOB_TIME_BUDGET_MS,
+  });
+  let usage = outcome.usage;
+  if (outcome.result === "failed" && thread.id) usage = addUsage(usage, toTokens(turnUsage(sessionTotalUsage(thread.id), total)));
+  const cost = { usage, costUsd: estimateCostUsd(model, usage), model, reasoningEffort };
+  if (outcome.result === "failed") {
+    console.log(`[worker] plan ${input.kind} job failed: ${outcome.error}`);
+    await endPlanJob({ ...cost, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
+    return;
+  }
+  const result: PlanRowJobResult = { schema: PLAN_ROW_JOB_RESULT_SCHEMA, kind: input.kind, planId: projectId, jobId, rowId: input.rowId, model, createdAt: nowIso(), decision: outcome.decision };
+  try {
+    await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
+    await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
+  } catch (e) {
+    console.error("[worker] plan row result could not be stored", e);
+    await endPlanJob({ ...cost, status: "FAILED", errorMessage: "The result of the plan job could not be stored.", endedAt: nowIso() });
+    return;
+  }
+  console.log(`[worker] plan ${input.kind} written for row ${input.rowId} (${outcome.attempts} turn(s))`);
 }
 
 /**

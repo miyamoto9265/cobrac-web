@@ -1,11 +1,12 @@
 /**
- * The `plan` job of the BRA Planner (draft or re-plan), free of AWS / Codex so it can be tested with a mock model:
+ * The `plan` jobs of the CoBRAC Orchestrator (draft, re-plan, and an autonomous plan's row jobs), free of AWS / Codex
+ * so they can be tested with a mock model:
  * one turn on the input the plan runner wrote, one more when the reply is not the schema's object, all within the
  * job's time budget. Only what refers to the input is kept (`parsePlanResult`); HOMBA anchors RCS does not know, or
  * that SABRA covers with BNA, are removed as well.
  */
-import type { ParsedPlanResult, PlanJobInput, SabraLookup, TokenUsage } from "@cobrac/shared";
-import { EMPTY_USAGE, PLAN_RETRY_PROMPT, addUsage, parsePlanResult, planJobPrompt } from "@cobrac/shared";
+import type { ParsedPlanResult, PlanJobInput, PlanRowJobDecision, PlanRowJobInput, SabraLookup, TokenUsage } from "@cobrac/shared";
+import { EMPTY_USAGE, PLAN_RETRY_PROMPT, PLAN_ROW_RETRY_PROMPT, addUsage, parsePlanResult, parsePlanRowResult, planJobPrompt, planRowJobPrompt, planRowJobSchema } from "@cobrac/shared";
 import type { MaterialEntry } from "./materials.js";
 
 export interface PlanTurn {
@@ -47,22 +48,77 @@ function errorText(e: unknown): string {
 }
 
 export async function runPlanJob(d: PlanJobDriver): Promise<PlanJobOutcome> {
-  const attempts = d.maxAttempts ?? 2;
-  const now = d.now ?? Date.now;
-  if (d.deadlineMs <= now()) return { result: "failed", error: PLAN_TIME_BUDGET_ERROR, usage: EMPTY_USAGE };
+  const o = await runTurns({
+    first: planJobPrompt(d.spec, d.input, d.materialsIndex),
+    retry: PLAN_RETRY_PROMPT,
+    turn: d.turn,
+    parse: (text) => parsePlanResult(text, d.input),
+    after: d.lookupHomba ? (parsed, timedOut) => dropUnknownHomba(parsed, d.lookupHomba!, timedOut) : undefined,
+    deadlineMs: d.deadlineMs,
+    now: d.now,
+    maxAttempts: d.maxAttempts,
+  });
+  return o.result === "completed" ? { result: "completed", parsed: o.value, usage: o.usage, attempts: o.attempts } : o;
+}
+
+/** A row job of an autonomous plan (自律実行): the Orchestrator's AI answers a question or resolves a row (prompts/orchestrator.md). */
+export interface PlanRowJobDriver {
+  input: PlanRowJobInput;
+  /** The instructions (prompts/orchestrator.md) */
+  spec: string;
+  /** One model turn with the kind's output schema; throws when the turn fails or `signal` aborts it */
+  turn: (prompt: string, schema: object, signal: AbortSignal) => Promise<PlanTurn>;
+  deadlineMs: number;
+  now?: () => number;
+  maxAttempts?: number;
+}
+
+export type PlanRowJobOutcome = { result: "completed"; decision: PlanRowJobDecision; usage: TokenUsage; attempts: number } | { result: "failed"; error: string; usage: TokenUsage };
+
+export async function runPlanRowJob(d: PlanRowJobDriver): Promise<PlanRowJobOutcome> {
+  const schema = planRowJobSchema(d.input.kind);
+  const o = await runTurns({
+    first: planRowJobPrompt(d.spec, d.input),
+    retry: PLAN_ROW_RETRY_PROMPT,
+    turn: (prompt, signal) => d.turn(prompt, schema, signal),
+    parse: (text) => parsePlanRowResult(text, d.input),
+    deadlineMs: d.deadlineMs,
+    now: d.now,
+    maxAttempts: d.maxAttempts,
+  });
+  return o.result === "completed" ? { result: "completed", decision: o.value, usage: o.usage, attempts: o.attempts } : o;
+}
+
+/**
+ * The turns of a one-shot job: the first prompt, then the retry prompt while the reply cannot be parsed (at most
+ * `maxAttempts` turns), all within the deadline (a turn that ignores the abort signal cannot hold the job past it).
+ */
+async function runTurns<T>(o: {
+  first: string;
+  retry: string;
+  turn: (prompt: string, signal: AbortSignal) => Promise<PlanTurn>;
+  parse: (text: string) => T | null;
+  after?: (value: T, timedOut: Promise<unknown>) => Promise<void>;
+  deadlineMs: number;
+  now?: () => number;
+  maxAttempts?: number;
+}): Promise<{ result: "completed"; value: T; usage: TokenUsage; attempts: number } | { result: "failed"; error: string; usage: TokenUsage }> {
+  const attempts = o.maxAttempts ?? 2;
+  const now = o.now ?? Date.now;
+  if (o.deadlineMs <= now()) return { result: "failed", error: PLAN_TIME_BUDGET_ERROR, usage: EMPTY_USAGE };
   const controller = new AbortController();
   const { signal } = controller;
   // resolves when the deadline passes, so a turn that ignores the signal cannot hold the job past its budget
   const timedOut = new Promise<"timeout">((resolve) => signal.addEventListener("abort", () => resolve("timeout"), { once: true }));
-  const timer = setTimeout(() => controller.abort(new Error(PLAN_TIME_BUDGET_ERROR)), d.deadlineMs - now());
+  const timer = setTimeout(() => controller.abort(new Error(PLAN_TIME_BUDGET_ERROR)), o.deadlineMs - now());
   let usage: TokenUsage = EMPTY_USAGE;
-  let prompt = planJobPrompt(d.spec, d.input, d.materialsIndex);
+  let prompt = o.first;
   try {
     for (let i = 0; i < attempts; i++) {
       if (signal.aborted) return { result: "failed", error: PLAN_TIME_BUDGET_ERROR, usage };
       let t: PlanTurn | "timeout";
       try {
-        const running = d.turn(prompt, signal);
+        const running = o.turn(prompt, signal);
         running.catch(() => undefined);
         t = await Promise.race([running, timedOut]);
       } catch (e) {
@@ -71,12 +127,12 @@ export async function runPlanJob(d: PlanJobDriver): Promise<PlanJobOutcome> {
       }
       if (t === "timeout") return { result: "failed", error: PLAN_TIME_BUDGET_ERROR, usage };
       usage = addUsage(usage, t.usage);
-      const parsed = parsePlanResult(t.text, d.input);
-      if (parsed) {
-        if (d.lookupHomba) await dropUnknownHomba(parsed, d.lookupHomba, timedOut);
-        return { result: "completed", parsed, usage, attempts: i + 1 };
+      const value = o.parse(t.text);
+      if (value) {
+        if (o.after) await o.after(value, timedOut);
+        return { result: "completed", value, usage, attempts: i + 1 };
       }
-      prompt = PLAN_RETRY_PROMPT;
+      prompt = o.retry;
     }
     return { result: "failed", error: PLAN_FORMAT_ERROR, usage };
   } finally {

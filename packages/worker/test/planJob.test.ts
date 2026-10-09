@@ -5,9 +5,9 @@
 import { readFileSync } from "node:fs";
 import { afterAll, describe, expect, it, vi } from "vitest";
 import type { HombaSabraInfo, PlanJobInput, SabraLookup } from "@cobrac/shared";
-import { PLAN_RESULT_SCHEMA, PLAN_RETRY_PROMPT, buildPlanJobInput } from "@cobrac/shared";
+import { PLAN_RESULT_SCHEMA, PLAN_RETRY_PROMPT, PLAN_ROW_ANSWER_SCHEMA, PLAN_ROW_RESOLVE_SCHEMA, PLAN_ROW_RETRY_PROMPT, buildPlanJobInput, buildPlanRowJobInput } from "@cobrac/shared";
 import type { MaterialEntry } from "../src/materials.js";
-import { PLAN_FORMAT_ERROR, PLAN_TIME_BUDGET_ERROR, planMaterialsIndex, runPlanJob, type PlanTurn } from "../src/planJob.js";
+import { PLAN_FORMAT_ERROR, PLAN_TIME_BUDGET_ERROR, planMaterialsIndex, runPlanJob, runPlanRowJob, type PlanTurn } from "../src/planJob.js";
 import { RCS_TOOLS, RcsClient } from "../src/rcs.js";
 import { startMockRcs } from "./mockRcsServer.js";
 
@@ -261,6 +261,63 @@ describe("prompts/plan.md", () => {
       ...Object.keys(s.properties.proposals.items.properties),
     ];
     for (const f of new Set(fields)) expect(spec, f).toContain(`\`${f}\``);
+  });
+});
+
+describe("runPlanRowJob (自律実行: the Orchestrator's AI for one row)", () => {
+  const rowInput = (kind: "answer" | "resolve") =>
+    buildPlanRowJobInput({
+      kind,
+      planId: "n4h8w2rk",
+      jobId: "job_1",
+      rowId: "r1",
+      createdAt: "2026-10-09T00:00:00.000Z",
+      locale: "ja",
+      plan: { name: "Language", goal: "言語の BRA", policy: "neocortex = area" },
+      canon: null,
+      row: { roi: "STG", tlf: "hearing", rationale: "", wave: 1, seed: false, anchors: [], dependsOn: [] },
+      project: { projectId: "p0000001", status: kind === "answer" ? "WAITING_USER_INPUT" : "FAILED", question: kind === "answer" ? "Left or both?" : null, error: null, decisionLog: "x".repeat(20_000) },
+      situation: kind === "resolve" ? { state: "attention", reason: "failed", error: "Rate limit", attempts: 2, followups: 0, pr: null, options: ["retry", "skip"] } : null,
+    });
+
+  it("answers with the answer schema, in the plan's language, from the end of the decision log", async () => {
+    const schemas: object[] = [];
+    const prompts: string[] = [];
+    const input = rowInput("answer");
+    expect(input.project!.decisionLog.length).toBeLessThan(13_000);
+    const o = await runPlanRowJob({
+      input,
+      spec: "ORCH SPEC",
+      turn: async (prompt, schema) => {
+        prompts.push(prompt);
+        schemas.push(schema);
+        return { text: JSON.stringify({ answer: "左だけ", reason: "計画の方針" }), usage };
+      },
+      deadlineMs: deadline(),
+    });
+    expect(o).toMatchObject({ result: "completed", decision: { kind: "answer", answer: "左だけ", reason: "計画の方針" }, attempts: 1 });
+    expect(schemas).toEqual([PLAN_ROW_ANSWER_SCHEMA]);
+    expect(prompts[0]).toContain("ORCH SPEC");
+    expect(prompts[0]).toContain("Task of this job: `answer`.");
+    expect(prompts[0]).toContain("Japanese");
+    expect(prompts[0]).toContain("Left or both?");
+  });
+
+  it("asks once more when the action is not among the options, then fails", async () => {
+    const s = scripted([JSON.stringify({ action: "push", reason: "?" }), JSON.stringify({ action: "skip", reason: "keeps failing" })]);
+    const o = await runPlanRowJob({ input: rowInput("resolve"), spec: "ORCH SPEC", turn: (p, schema, signal) => (expect(schema).toBe(PLAN_ROW_RESOLVE_SCHEMA), s.turn(p, signal)), deadlineMs: deadline() });
+    expect(o).toMatchObject({ result: "completed", decision: { kind: "resolve", action: "skip" }, attempts: 2 });
+    expect(s.prompts[1]).toBe(PLAN_ROW_RETRY_PROMPT);
+    const bad = scripted(["not json", JSON.stringify({ action: "done", reason: "" })]);
+    expect(await runPlanRowJob({ input: rowInput("resolve"), spec: "S", turn: (p, _s, signal) => bad.turn(p, signal), deadlineMs: deadline() })).toMatchObject({ result: "failed", error: PLAN_FORMAT_ERROR });
+  });
+});
+
+describe("prompts/orchestrator.md", () => {
+  const spec = readFileSync(new URL("../../../prompts/orchestrator.md", import.meta.url), "utf8");
+
+  it("describes every field and action of the output schemas", () => {
+    for (const f of [...Object.keys(PLAN_ROW_ANSWER_SCHEMA.properties), ...Object.keys(PLAN_ROW_RESOLVE_SCHEMA.properties), ...PLAN_ROW_RESOLVE_SCHEMA.properties.action.enum]) expect(spec, f).toContain(`\`${f}\``);
   });
 });
 
