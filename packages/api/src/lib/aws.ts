@@ -242,9 +242,13 @@ export async function movePlanAttachment(stagingKey: string, planId: string, rel
   await s3.send(new DeleteObjectCommand({ Bucket: env.artifactsBucket, Key: stagingKey }));
 }
 
-/** Removes a capability list from a draft plan's files (its derived text, if any, is left: nothing reads it then). */
+/**
+ * Removes a file of a draft plan: a capability list (`attachments/files/…`), or the manifest of the text extracted from
+ * them (`attachments/derived/manifest.json`), so the next draft job extracts the lists it is given again.
+ */
 export async function deletePlanAttachment(planId: string, rel: string): Promise<void> {
-  if (!isPlanId(planId) || !rel.startsWith("attachments/files/") || !safeKeySegments(rel)) throw new Error("invalid plan attachment key");
+  const ok = rel === "attachments/derived/manifest.json" || rel.startsWith("attachments/files/");
+  if (!isPlanId(planId) || !ok || !safeKeySegments(rel)) throw new Error("invalid plan attachment key");
   await s3.send(new DeleteObjectCommand({ Bucket: env.artifactsBucket, Key: planPrefix(planId) + rel }));
 }
 

@@ -568,6 +568,13 @@ describe("plans: something to build, and capability lists added to a draft", () 
       ["f2", "attachments/files/02-review.pdf"],
       ["f3", "attachments/files/03-more.txt"],
     ]);
+    // the highest one removed: its number is not used again, and the extracted text is made anew by the next draft
+    s3.set(`plans/${planId}/attachments/derived/manifest.json`, "{}");
+    await json(call(A, "DELETE", `/plans/${planId}/attachments/f3`));
+    expect(s3.has(`plans/${planId}/attachments/derived/manifest.json`)).toBe(false);
+    staged("up_txt00005", "other.txt", "listening\n");
+    const fourth = await json<PlanAttachmentsResponse>(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [{ uploadId: "up_txt00005", name: "other.txt" }] }));
+    expect(fourth.plan.attachments!.map((a) => a.id)).toEqual(["f2", "f4"]);
     expect(await status(call(A, "DELETE", `/plans/${planId}/attachments/f9`))).toBe(404);
     expect(await status(call(A, "POST", `/plans/${planId}/attachments`, { attachments: [] }))).toBe(400);
 

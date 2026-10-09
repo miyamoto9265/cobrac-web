@@ -19,7 +19,7 @@ Answer as the owner would, so that the agent can go on at once.
 
 Choose one of `situation.options` as `action`, and give the reason in one to three sentences in `reason`.
 
-- `retry` (attention): start the row's project again from where it stopped. Choose it when the error looks temporary or may pass on another run (a timeout, a rate limit, a lost worker, a reply in the wrong format) and the row has not failed the same way again and again (`situation.attempts`).
+- `retry` (attention): start the row's project again from where it stopped. Choose it when the error looks temporary or may pass on another run (a timeout, a rate limit, a lost worker, a reply in the wrong format) and the row has not failed the same way again and again (`situation.attempts`, and `situation.orchestratorRetries`: how often you already chose to retry it; `situation.previous` is your last choice for this row).
 - `skip`: leave the row out of the plan. Choose it when going on would not give a usable BRA for this plan: the same failure keeps coming back, the project was deleted, the pull request does not belong in the Canon, or more runs are not worth their cost.
 - `done` (decision): count the row as done as it is. Its pull request, if any, stays in the Canon without being merged. Choose it when the project is finished and useful for the plan, although it is not taken into the Canon (for example it disagrees with the Canon in a way this row cannot fix).
 - `push` (decision, a finished project only): push the project to the Canon again. Choose it when the cause of the decision is gone (the Canon moved on, the conflicting definition was fixed).

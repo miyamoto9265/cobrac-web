@@ -106,7 +106,7 @@ async function queryPrefix<T>(planId: string, prefix: string, consistent = false
 /** The plan's rows; `consistent` under the lease (see `getPlan`). */
 export const listRows = (planId: string, consistent = false) => queryPrefix<PlanRowRecord>(planId, PLAN_ROW_PREFIX, consistent);
 export const listPlanEvents = (planId: string) => queryPrefix<PlanEventRecord>(planId, PLAN_EVENT_PREFIX);
-export const listProposals = (planId: string) => queryPrefix<PlanProposalRecord>(planId, PLAN_PROPOSAL_PREFIX);
+export const listProposals = (planId: string, consistent = false) => queryPrefix<PlanProposalRecord>(planId, PLAN_PROPOSAL_PREFIX, consistent);
 
 export async function getProposal(planId: string, proposalId: string, consistent = false): Promise<PlanProposalRecord | null> {
   const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: planProposalSk(proposalId) }, ConsistentRead: consistent }));

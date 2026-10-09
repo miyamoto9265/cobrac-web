@@ -76,6 +76,7 @@ import {
   nextActiveWave,
   nowIso,
   orchestratorAnswerText,
+  orchestratorRetryDelayMs,
   orchestratorModelOf,
   planFinished,
   policyAllows,
@@ -97,7 +98,7 @@ import { getJob, getProject, getUser, listJobsByStatus, listUserProjects } from 
 import { GATE_ERRORS, draftRows, isOpenPlanJob, planJobProgress, queuePlanJob, readPlanJob, readPlanResult, stopPlanJob, storeProposals } from "./planJobs.js";
 import { planSpendUsd } from "./planCost.js";
 import { applyProposal } from "./planProposals.js";
-import { newRowJobId, queueRowJob, readRowJobResult, rowJobInput, rowJobWanted } from "./planRowJobs.js";
+import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
 import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
@@ -279,9 +280,10 @@ async function followPr(plan: PlanRecord, row: PlanRowRecord, cs: CanonStep): Pr
   if (job && !ENDED_JOB_STATUSES.includes(job.status)) return false;
   if (isAutonomous(plan) && cs.owner) {
     if (job?.reviewKind === "decide" && job.status === "COMPLETED") return applyDecision(plan, row, cs.canon, cs.owner, job);
-    // a decision job that failed is asked again (the cost limit bounds it); a review asked by hand is followed by a decision
-    if (!(await updateRow(plan.planId, row.rowId, { aiReview: "wanted" }, { state: "review", aiReview: "queued" }))) return false;
-    row.aiReview = "wanted";
+    // a decision job that failed is asked again after a back-off (no limit); a review asked by hand is followed by a decision
+    const failed = job?.reviewKind === "decide" ? { orchestratorRetry: nextRetry(row, job.errorMessage ?? "The decision job did not complete.") } : {};
+    if (!(await updateRow(plan.planId, row.rowId, { aiReview: "wanted", ...failed }, { state: "review", aiReview: "queued" }))) return false;
+    Object.assign(row, { aiReview: "wanted", ...failed });
     return true;
   }
   if (!(await updateRow(plan.planId, row.rowId, { aiReview: null }, { state: "review", aiReview: "queued" }))) return false;
@@ -301,8 +303,8 @@ async function applyDecision(plan: PlanRecord, row: PlanRowRecord, canon: CanonR
   if (!pr || pr.state !== "open") return false; // settled outside: followed at the next step
   const result = await getCanonJson<CanonAiReviewResult>(canonAiReviewKey(canon.canonId, pr.prNo, job.jobId, "result.json"));
   const incoming = await getCanonJson<CanonIncoming>(canonPrKey(canon.canonId, pr.prNo, "incoming.json"));
-  // unreadable: the decision is asked again
-  if (!result?.decision || !incoming) return setRow(plan, row, "review", { aiReview: "wanted" }, null);
+  // unreadable: the decision is asked again after a back-off
+  if (!result?.decision || !incoming) return setRow(plan, row, "review", { aiReview: "wanted", orchestratorRetry: nextRetry(row, "The decision could not be read.") }, null);
   const d = result.decision;
   const act = decisionAction(d, diffCanon(await loadCanonHead(canon), incoming));
   const via = { kind: "ai" as const, jobId: job.jobId, model: job.model ?? result.model };
@@ -316,7 +318,7 @@ async function applyDecision(plan: PlanRecord, row: PlanRowRecord, canon: CanonR
     }
     canon.headRevision = r.revision;
     await putPlanEvent(plan.planId, "row_ai_decided", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { ...detail, revision: r.revision } });
-    return setRow(plan, row, "done", { completedAt: nowIso(), aiReview: null, claimedAt: null }, "row_done", { prNo: pr.prNo });
+    return setRow(plan, row, "done", { completedAt: nowIso(), aiReview: null, claimedAt: null, orchestratorRetry: null }, "row_done", { prNo: pr.prNo });
   }
   if (act.action === "reject") {
     if (!(await rejectPullRequest(owner, canon, pr, act.note.slice(0, 2000), via))) return false;
@@ -325,10 +327,10 @@ async function applyDecision(plan: PlanRecord, row: PlanRowRecord, canon: CanonR
   }
   // fix / changes: the project changes and pushes again (its new PR supersedes this one and is decided again); past the
   // follow-up limit the row needs a decision, which the Orchestrator's AI then takes (done / push / skip)
-  if ((row.conformAttempts ?? 0) >= maxFollowups(plan)) return decide(plan, row, "conform_limit", null, { aiReview: null });
+  if ((row.conformAttempts ?? 0) >= maxFollowups(plan)) return decide(plan, row, "conform_limit", null, { aiReview: null, orchestratorRetry: null });
   await requestPrChanges(owner, canon, pr, act.note.slice(0, 2000), via);
   await putPlanEvent(plan.planId, "row_ai_decided", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail });
-  return setRow(plan, row, "pending", { conform: true, followup: { kind: act.action === "fix" ? "fix" : "changes", note: act.note.slice(0, 6000) }, aiReview: null, claimedAt: null }, null);
+  return setRow(plan, row, "pending", { conform: true, followup: { kind: act.action === "fix" ? "fix" : "changes", note: act.note.slice(0, 6000) }, aiReview: null, claimedAt: null, orchestratorRetry: null }, null);
 }
 
 /** Seed row states that no longer hold another seed (as the seed gate of `nextActiveWave`), plus `pending`. */
@@ -710,28 +712,39 @@ async function endReplan(plan: PlanRecord, r: PlanJobState, status: "failed" | "
   if (event) await putPlanEvent(plan.planId, "replan_failed", RUNNER, { detail: { error: (error ?? "").slice(0, 300), status } });
 }
 
-/** Follows a queued or running re-plan job; its proposals are stored when it completes (also while paused). */
-async function followReplan(plan: PlanRecord, result: AdvanceResult) {
+/**
+ * Follows a queued or running re-plan job; its proposals are stored when it completes (also while paused). True when
+ * an autonomous plan applied proposals (its rows changed).
+ */
+async function followReplan(plan: PlanRecord, result: AdvanceResult): Promise<boolean> {
   const r = plan.replan!;
   const p = planJobProgress(await readPlanJob(plan.planId, r.jobId));
-  if (p.to === "queued") return;
+  if (p.to === "queued") return false;
   if (p.to === "running") {
     if (r.status !== "running") {
       plan.replan = { ...r, status: "running" };
       await updatePlan(plan.planId, { replan: plan.replan });
     }
-    return;
+    return false;
   }
   result.changed++;
-  if (p.to !== "completed") return endReplan(plan, r, p.to, p.error);
+  if (p.to !== "completed") {
+    await endReplan(plan, r, p.to, p.error);
+    return false;
+  }
   const parsed = await readPlanResult(plan.planId, "replan", r.jobId!);
-  if (!parsed) return endReplan(plan, r, "failed", "The result of the re-plan job could not be read.");
+  if (!parsed) {
+    await endReplan(plan, r, "failed", "The result of the re-plan job could not be read.");
+    return false;
+  }
   const n = await storeProposals(plan.planId, r.jobId!, r.wave ?? null, parsed, RUNNER);
+  // 自律実行: the Orchestrator applies its own proposals (rows added or left out) at once, before the job is marked
+  // done, so a step that stops in between stores (the same IDs) and applies them again at the next step
+  const applied = n && isAutonomous(plan) ? await applyProposals(plan, r.jobId!) : 0;
   plan.replan = { ...r, status: "done", error: null, dropped: parsed.dropped, endedAt: nowIso() };
   await updatePlan(plan.planId, { replan: plan.replan });
   await putPlanEvent(plan.planId, "proposals_received", RUNNER, { detail: { n, wave: r.wave ?? null } });
-  // 自律実行: the Orchestrator applies its own proposals (rows added or left out) at once
-  if (n && isAutonomous(plan)) await applyProposals(plan, r.jobId!);
+  return applied > 0;
 }
 
 /** A re-plan that has not ended is of no use once the plan is over: its job is stopped. */
@@ -760,13 +773,24 @@ async function costLimitReached(plan: PlanRecord, rows: PlanRowRecord[], project
   return true;
 }
 
-/** The row job of a row is dropped (it failed, or its row moved on); a row that still needs one asks again later. */
-async function clearRowJob(plan: PlanRecord, row: PlanRowRecord, why: string | null): Promise<boolean> {
-  if (why) console.warn(`[plan ${plan.planId}] row ${row.rowId}: the Orchestrator's ${row.rowJob?.kind} job is dropped: ${why.slice(0, 300)}`);
-  if (!(await updateRow(plan.planId, row.rowId, { rowJob: null }, { state: row.state }))) return false;
-  row.rowJob = null;
+/**
+ * The row job of a row is dropped: its row moved on (`failed` null), or the job failed (its error): then the next one
+ * is asked after a back-off (`orchestratorRetry`), so a job that keeps failing at once (a key out of quota) is not
+ * queued again every minute.
+ */
+async function clearRowJob(plan: PlanRecord, row: PlanRowRecord, failed: string | null): Promise<boolean> {
+  const values: Partial<PlanRowRecord> = { rowJob: null, ...(failed ? { orchestratorRetry: nextRetry(row, failed) } : {}) };
+  if (failed) console.warn(`[plan ${plan.planId}] row ${row.rowId}: the Orchestrator's ${row.rowJob?.kind} job failed: ${failed.slice(0, 300)}`);
+  if (!(await updateRow(plan.planId, row.rowId, values, { state: row.state }))) return false;
+  Object.assign(row, values);
   return true;
 }
+
+/** One more failed Orchestrator job for the row: counted, with the time from which the next one is asked. */
+const nextRetry = (row: PlanRowRecord, error: string | null): NonNullable<PlanRowRecord["orchestratorRetry"]> => {
+  const n = (row.orchestratorRetry?.n ?? 0) + 1;
+  return { n, at: new Date(Date.now() + orchestratorRetryDelayMs(n)).toISOString(), error: error ? error.slice(0, 500) : null };
+};
 
 /**
  * 自律実行: follows the Orchestrator's AI job of a row (also while the plan is paused). A job that failed or was stopped
@@ -785,9 +809,9 @@ async function followRowJob(plan: PlanRecord, row: PlanRowRecord, p: ProjectReco
   const r = await readRowJobResult(plan.planId, rj.jobId, rj.kind, row.rowId);
   if (!r) return clearRowJob(plan, row, "The result of the job could not be read.");
   if (r.decision.kind === "resolve") return applyResolution(plan, row, p, r.decision, rj.jobId);
-  const ready = { ...rj, status: "ready" as const };
-  if (!(await updateRow(plan.planId, row.rowId, { rowJob: ready }, { state: row.state }))) return false;
-  row.rowJob = ready;
+  const ready = { rowJob: { ...rj, status: "ready" as const }, orchestratorRetry: null };
+  if (!(await updateRow(plan.planId, row.rowId, ready, { state: row.state }))) return false;
+  Object.assign(row, ready);
   return true;
 }
 
@@ -829,18 +853,18 @@ async function applyResolution(plan: PlanRecord, row: PlanRowRecord, p: ProjectR
   const from = row.state as "attention" | "decision";
   const cause = from === "attention" ? (row.attentionReason ?? null) : (row.decisionReason ?? null);
   const at = nowIso();
-  const base: Partial<PlanRowRecord> = { rowJob: null, aiResolution: { action: d.action, reason: d.reason.slice(0, 600), at, jobId } };
+  const base: Partial<PlanRowRecord> = { rowJob: null, orchestratorRetry: null, aiResolution: { action: d.action, reason: d.reason.slice(0, 600), at, jobId } };
   let ok: boolean;
   if (d.action === "skip") {
     ok = await setRow(plan, row, "skipped", { ...base, autoSkip: { reason: "ai_skipped", at, prNo: row.prNo ?? null, error: d.reason.slice(0, 600) }, claimedAt: null, conform: false, followup: null, aiReview: null }, null);
   } else if (d.action === "retry" && from === "attention") {
-    ok = await setRow(plan, row, "pending", { ...base, attentionReason: null, claimedAt: null }, null);
+    ok = await setRow(plan, row, "pending", { ...base, attentionReason: null, claimedAt: null, aiRetries: (row.aiRetries ?? 0) + 1 }, null);
   } else if (d.action === "done" && from === "decision") {
     ok = await setRow(plan, row, "done", { ...base, completedAt: at, lastError: null }, null);
   } else if (d.action === "push" && from === "decision" && p && !isProjectDeleted(p) && p.status === "COMPLETED") {
     // pushed again on the next step, as the owner's 「もう一度 push」
     ok = await setRow(plan, row, "running", { ...base, decisionReason: null, lastError: null, claimedAt: null }, null);
-  } else return clearRowJob(plan, row, `the choice "${d.action}" no longer applies`);
+  } else return clearRowJob(plan, row, null);
   if (ok) await putPlanEvent(plan.planId, "row_ai_resolved", RUNNER, { rowId: row.rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { action: d.action, from, cause, reason: d.reason.slice(0, 300), jobId } });
   return ok;
 }
@@ -848,7 +872,8 @@ async function applyResolution(plan: PlanRecord, row: PlanRowRecord, p: ProjectR
 /** 自律実行: the re-plan proposals of a job are applied at once (the Orchestrator decides for the owner). */
 async function applyProposals(plan: PlanRecord, jobId: string): Promise<number> {
   let applied = 0;
-  for (const p of (await listProposals(plan.planId)).filter((x) => x.status === "open" && x.jobId === jobId)) {
+  // read strongly consistent: the proposals were stored a moment ago
+  for (const p of (await listProposals(plan.planId, true)).filter((x) => x.status === "open" && x.jobId === jobId)) {
     const o = await applyProposal(plan, p, RUNNER);
     if (o.ok) applied++;
     else if ("full" in o) await updateProposal(plan.planId, p.proposalId, { status: "stale" }, { status: "open" });
@@ -893,7 +918,8 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
     for (const row of rows.filter((r) => r.rowJob?.status === "queued")) {
       if (await followRowJob(plan, row, row.projectId ? (projects.get(row.projectId) ?? null) : null)) result.changed++;
     }
-    if (openJob(plan.replan)) await followReplan(plan, result);
+    // proposals the Orchestrator applied change the rows: the step goes on with them
+    if (openJob(plan.replan) && (await followReplan(plan, result))) rows.splice(0, rows.length, ...(await listRows(planId, true)));
 
     if (plan.status === "RUNNING") {
       if (plan.ordering === "auto") {
@@ -915,13 +941,14 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
       const capped = auto && (await costLimitReached(plan, rows, projects));
       const candidates = capped ? [] : cs ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows)) : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
       const replanWaits = !capped && plan.replan?.status === "waiting";
-      const reviewsWanted = cs?.canon ? rows.filter((r) => r.state === "review" && r.aiReview === "wanted") : [];
+      // a decision job that failed waits for its back-off before it is asked again
+      const reviewsWanted = cs?.canon ? rows.filter((r) => r.state === "review" && r.aiReview === "wanted" && retryDue(r, now)) : [];
       const projectOf = (r: PlanRowRecord) => (r.projectId ? (projects.get(r.projectId) ?? null) : null);
       // 自律実行: answers ready to be given, then the row jobs to ask for (answers first)
       const answers = auto ? rows.filter((r) => r.rowJob?.kind === "answer" && r.rowJob.status === "ready") : [];
       const rowJobs = auto
         ? rows
-            .map((r) => ({ row: r, kind: rowJobWanted(r, projectOf(r), canonMissing) }))
+            .map((r) => ({ row: r, kind: rowJobWanted(r, projectOf(r), canonMissing, now) }))
             .filter((x): x is { row: PlanRowRecord; kind: PlanRowJobKind } => !!x.kind && !(capped && x.kind === "resolve"))
             .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "answer" ? -1 : 1))
         : [];
@@ -961,6 +988,8 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
                 if (!(await queueRowJob(plan, row, input, owner!, gate))) continue;
                 slots--;
                 result.changed++;
+                // cancelled while the job was being stored (the cancel found no job to stop yet): stop it now
+                if ((await getPlan(planId, true))?.status === "CANCELLED") await stopPlanJob(planId, input.jobId, "plan cancelled");
               } catch (e) {
                 console.error(`[plan ${planId}] row ${row.rowId}: the Orchestrator's ${kind} job could not be queued`, errorText(e));
                 await clearRowJob(plan, row, null);

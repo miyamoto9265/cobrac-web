@@ -37,7 +37,7 @@
   <li>ワーカーは道具を使わない 1 ターンで、<code>prompts/orchestrator.md</code>（付録 B）と入力を読ませ、種類ごとの固定のスキーマで答えさせます。形が違えば 1 回だけ頼み直し、5 分（<code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>）で打ち切ります。答えは <code>result.json</code> に書きます。</li>
   <li>ランナーは結果を入力と照らして検証し直してから使います（<code>parsePlanRowResult</code>）。回答が空なら使いません。選択肢に無い行動も使いません。</li>
   <li>1 つの行に同時に 1 件だけです（<code>row.rowJob = { kind, jobId, status, requestedAt }</code>）。</li>
-  <li>失敗した・止められた・結果が読めないジョブは <code>rowJob</code> を消すだけで、次のステップで依頼し直します。回数の上限はなく、費用の上限が止めます。</li>
+  <li>失敗した・止められた・結果が読めないジョブは <code>rowJob</code> を消し、間をおいて依頼し直します。続けて失敗した回数・最後のエラー・次に依頼できる時刻を <code>row.orchestratorRetry</code> に記録し、待つ時間は 1・2・4…分（最大 60 分、<code>orchestratorRetryDelayMs</code>）です。キーの残高切れのように費用のかからない失敗が続いても、毎分ジョブを起こすことはありません。回数の上限はなく、成功すると記録を消します。行には失敗の回数とエラーが出ます。</li>
   <li>ジョブの間に行が別の状態に移ったとき（所有者が先に答えた・決めた）は、結果を使わずに捨てます。</li>
 </ul>
 
@@ -67,9 +67,9 @@
   <li><b>依頼</b>：要対応（<code>attention</code>）と人の判断（<code>decision</code>）の行に解決のジョブを依頼します。計画の Canon が見つからないことによる人の判断（<code>lastError</code> が「The plan's Canon was not found.」）は除きます。それは所有者が決め、計画は一時停止します。入力の <code>situation</code> には次のものが入ります。
     <ul>
       <li>状態・理由・エラー</li>
-      <li>自動リトライの回数と追加指示の回数</li>
+      <li>自動リトライの回数、オーケストレーターがこれまでにリトライを選んだ回数（<code>orchestratorRetries</code>）、前回の解決（<code>previous</code>）、追加指示の回数</li>
       <li>PR の番号・状態・メモ</li>
-      <li>選択肢（<code>planRowOptions</code>）：要対応は <code>retry</code> / <code>skip</code>、人の判断は <code>done</code> / <code>push</code>（プロジェクトが完成しているときだけ）/ <code>skip</code></li>
+      <li>選択肢（<code>planRowOptions</code>）：要対応は <code>retry</code>（プロジェクトが削除されていれば無し）/ <code>skip</code>、人の判断は <code>done</code> / <code>push</code>（プロジェクトが完成しているときだけ）/ <code>skip</code></li>
     </ul></li>
   <li><b>選び方</b>（<code>prompts/orchestrator.md</code>）：
     <ul>
@@ -81,13 +81,14 @@
     迷ったら、失敗を繰り返す行はスキップします。出力は <code>{ action, reason }</code> です。</li>
   <li><b>反映</b>（<code>applyResolution</code>）：所有者のボタンと同じ遷移にします。
     <ul>
-      <li><code>retry</code> → <code>pending</code>（要対応の理由を消す）</li>
+      <li><code>retry</code> → <code>pending</code>（要対応の理由を消し、<code>aiRetries</code> を 1 増やす）</li>
       <li><code>skip</code> → <code>skipped</code>（<code>autoSkip.reason = "ai_skipped"</code>、<code>error</code> に AI の理由）</li>
       <li><code>done</code> → <code>done</code></li>
       <li><code>push</code> → <code>running</code>（次のステップで push し直す。完成していなければ使わずに依頼し直す）</li>
     </ul>
     行には <code>aiResolution = { action, reason, at, jobId }</code> を残し、履歴には <code>row_ai_resolved</code>（行動・元の状態・理由のコード・AI の理由・ジョブ）を残します。画面には「オーケストレーター（AI）の判断: リトライ / スキップ / 完了にする / もう一度 push」と理由が出ます。</li>
   <li>所有者は、これまでどおり要対応・人の判断の行のボタンで先に決めることもできます。そのときジョブの結果は捨てます。</li>
+  <li>計画を中止すると、待機中・実行中の行のジョブも止めます（<code>stopPlanJob</code>）。</li>
 </ul>
 
 <h3>PR の判断</h3>
@@ -108,7 +109,7 @@
 <ul>
   <li><b>追加指示</b>：Canon に合わせた更新（6.11）と同じ経路で、空き枠とバッチの順で始まります。プロジェクトを最新の rev に固定し直し、<code>queueFollowup</code> で積みます。題は <code>fix</code> なら「Canon rev N に合わせて更新」、<code>changes</code> なら「Canon PR #n の AI レビューの指摘に対応」で、続けて依頼の本文です。完成すると再び push し、新しい PR が古い PR を置き換えて、また判断します。</li>
   <li><b>push の時点のエラーの衝突</b>：ふつうの計画では、Canon が進んでいないのにエラーの衝突があると人の判断ですが、自律実行では <code>fix</code> の追加指示にします（<code>pushOutcome(…, { autonomous: true })</code> → <code>{ to: "conform", fix: true }</code>）。</li>
-  <li><b>回数</b>：追加指示（Canon に合わせた更新を含む）は 1 行 3 回（<code>AUTONOMOUS_MAX_FOLLOWUPS</code>）までです。ふつうの計画は 2 回です。超えると、その行は人の判断（<code>conform_limit</code>）になり、解決のジョブが「完了にする／もう一度 push／スキップ」を選びます。判断のジョブが失敗したとき、または結果が読めないときは、上限なしで依頼し直します。v0.40.0 にあった「3 回で見送り」（<code>decide_failed</code>）はやめました。</li>
+  <li><b>回数</b>：追加指示（Canon に合わせた更新を含む）は 1 行 3 回（<code>AUTONOMOUS_MAX_FOLLOWUPS</code>）までです。ふつうの計画は 2 回です。超えると、その行は人の判断（<code>conform_limit</code>）になり、解決のジョブが「完了にする／もう一度 push／スキップ」を選びます。判断のジョブが失敗したとき、または結果が読めないときは、行のジョブと同じ間隔（<code>orchestratorRetry</code>）をおいて、上限なしで依頼し直します。v0.40.0 にあった「3 回で見送り」（<code>decide_failed</code>）はやめました。</li>
   <li><b>競合</b>：承認の途中で別の承認が Canon を進めた（<code>race</code>）ときは、次のステップで新しい head に対してもう一度反映します。</li>
   <li><b>範囲</b>：判断するのは、その計画が push した PR だけです。同じ Canon へのほかの PR（ほかの人・ほかの計画のもの）は、これまでどおり人が判断します。</li>
   <li><b>記録</b>：判断した人は「AI (&lt;モデル&gt;)」と、判断したジョブとモデル（<code>via</code>）が PR・承認・履歴・rev に残ります（4.8）。PR の画面の「AI レビュー」には「AI の判断」（「AI が承認」「AI が変更を依頼」「AI が却下」、理由、依頼した変更）が出ます。</li>
@@ -116,7 +117,7 @@
 <p class="small">コードが最後に決める線：AI はエラーの衝突を選べず（<code>incoming</code> を選んでも除く）、エラーの衝突のある PR は取り込まれません。選ばれなかった警告は Canon の値を残します。AI の判定がどうであれ、取り込みは人の承認と同じ <code>approvePullRequest</code>（同じ検査）を通ります。</p>
 
 <h3>再計画の提案</h3>
-<p>自律実行の計画では、再計画のジョブが出した「行の追加」「行の削除」の提案を、結果を保存したその場でランナーが反映します（<code>applyProposals</code>）。反映には、所有者の承認と同じ関数（<code>applyProposal</code>）を使い、決めた人は <code>runner</code> です（画面では「オーケストレーターが反映」）。反映できない提案は <code>stale</code> になります。たとえば次のときです。</p>
+<p>自律実行の計画では、再計画のジョブが出した「行の追加」「行の削除」の提案を、結果を保存したその場でランナーが反映します（<code>applyProposals</code>）。提案は強い一貫性で読み直してから反映し、ジョブを「済み」にするのは反映のあとです。途中で止まったステップは、次のステップで同じ提案（同じ ID）を保存し直して反映します。反映には、所有者の承認と同じ関数（<code>applyProposal</code>）を使い、決めた人は <code>runner</code> です（画面では「オーケストレーターが反映」）。反映できない提案は <code>stale</code> になります。たとえば次のときです。</p>
 <ul>
   <li>同じ ROI × TLF の行がすでにある</li>
   <li>外す行がもう始まっている</li>

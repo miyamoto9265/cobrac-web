@@ -314,7 +314,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     goal,
     status: "DRAFT",
     settings,
-    ...(attachments.length ? { attachments } : {}),
+    ...(attachments.length ? { attachments, attachmentSeq: attachments.length } : {}),
     ...(canonChoice?.mode === "existing" ? { canonId: canonChoice.canonId, canonNew: null } : canonChoice?.mode === "new" ? { canonId: null, canonNew: { name: canonChoice.name } } : {}),
     rowCount: rows.length,
     rowCounts: countRows(rows),
@@ -486,8 +486,8 @@ export async function addPlanAttachments(u: UserRecord, plan: PlanRecord, body: 
       fileRows.push(...parsed.rows);
       rejected.push(...parsed.rejected.map((r) => ({ file: f.name, ...r })));
     }
-    // file IDs and keys continue after the highest the plan has (a removed file's are never reused)
-    let next = have.reduce((m, a) => Math.max(m, Number(/^f(\d+)$/.exec(a.id)?.[1] ?? 0)), 0);
+    // file IDs and keys continue after every file the plan ever had (a removed file's are never used again)
+    let next = attachmentSeq(fresh);
     const added: FileAttachment[] = [];
     for (const f of staged) {
       const key = attachmentFileKey(next, f.safeName);
@@ -504,12 +504,23 @@ export async function addPlanAttachments(u: UserRecord, plan: PlanRecord, body: 
     if (reorder) autoOrder(all, (await currentLimits()).effective);
     if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
     for (const r of reorder ? all : newRows) await putRow(r);
-    const values: Partial<PlanRecord> = { attachments: [...have, ...added], rowCount: all.length, rowCounts: countRows(all) };
+    const values: Partial<PlanRecord> = { attachments: [...have, ...added], attachmentSeq: next, rowCount: all.length, rowCounts: countRows(all) };
     if (!(await updatePlan(plan.planId, values, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+    await dropDerivedManifest(plan.planId);
     await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { files: added.length, added: newRows.length, rejected: rejected.length } });
     return { plan: { ...fresh, ...values, updatedAt: now }, rows: newRows, rejected };
   });
 }
+
+/** The attachments a plan ever had: its counter, or (plans from before it) the highest file number it has. */
+const attachmentSeq = (p: PlanRecord) => p.attachmentSeq ?? (p.attachments ?? []).reduce((m, a) => Math.max(m, Number(/^f(\d+)$/.exec(a.id)?.[1] ?? 0)), 0);
+
+/**
+ * The text extracted from a plan's capability lists is kept by attachment ID (`attachments/derived/manifest.json`);
+ * once the files change, the next draft job extracts them again.
+ */
+const dropDerivedManifest = (planId: string) =>
+  deletePlanAttachment(planId, "attachments/derived/manifest.json").catch((e) => console.warn(`[plan ${planId}] derived manifest not deleted`, e));
 
 /** Removes a capability list from a draft. Rows already read from it stay (they are the plan's rows now). */
 export async function removePlanAttachment(u: UserRecord, plan: PlanRecord, fileId: string): Promise<PlanAttachmentsResponse> {
@@ -520,8 +531,9 @@ export async function removePlanAttachment(u: UserRecord, plan: PlanRecord, file
     const target = have.find((a) => a.id === fileId);
     if (!target) throw notFound();
     const attachments = have.filter((a) => a.id !== fileId);
-    if (!(await updatePlan(plan.planId, { attachments }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
+    if (!(await updatePlan(plan.planId, { attachments, attachmentSeq: attachmentSeq(fresh) }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);
     await deletePlanAttachment(plan.planId, target.key).catch((e) => console.warn(`[plan ${plan.planId}] attachment ${target.key} not deleted`, e));
+    await dropDerivedManifest(plan.planId);
     await putPlanEvent(plan.planId, "rows_changed", u.userId, { detail: { removedFile: target.name.slice(0, 200) } });
     return { plan: { ...fresh, attachments, updatedAt: nowIso() }, rows: [], rejected: [] };
   });
@@ -738,6 +750,11 @@ export async function cancelPlan(u: UserRecord, plan: PlanRecord): Promise<void>
   if (plan.status !== "RUNNING" && plan.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
   if (!(await setPlanStatus(plan.planId, plan.status, "CANCELLED", { cancelledAt: nowIso(), pausedReason: null }))) throw conflict(STATUS_CHANGED);
   for (const r of await listRows(plan.planId)) {
+    // 自律実行: the Orchestrator's job for the row (an answer or a resolution) is of no use any more
+    if (r.rowJob) {
+      if (r.rowJob.status === "queued") await stopPlanJob(plan.planId, r.rowJob.jobId, "plan cancelled");
+      await updateRow(plan.planId, r.rowId, { rowJob: null }, { state: r.state });
+    }
     if (!TRACKED_ROW_STATES.includes(r.state)) continue;
     const p = r.projectId ? await getProject(u.userId, r.projectId) : null;
     if (p && !isProjectDeleted(p) && ACTIVE_PROJECT_STATUSES.includes(p.status)) await stopProject(p, "plan");

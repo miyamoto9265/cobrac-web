@@ -23,15 +23,21 @@ import { getPullRequest } from "./canons.js";
 import { putJob, updateJob } from "./db.js";
 import { updateRow } from "./plans.js";
 
-/** The job a row needs from the Orchestrator's AI now (none while it has one). */
-export function rowJobWanted(row: PlanRowRecord, project: ProjectRecord | null, canonMissing: (row: PlanRowRecord) => boolean): PlanRowJobKind | null {
-  if (row.rowJob) return null;
+/**
+ * The job a row needs from the Orchestrator's AI now: none while it has one, nor before `orchestratorRetry.at` after
+ * failed jobs.
+ */
+export function rowJobWanted(row: PlanRowRecord, project: ProjectRecord | null, canonMissing: (row: PlanRowRecord) => boolean, now: number): PlanRowJobKind | null {
+  if (row.rowJob || !retryDue(row, now)) return null;
   if (row.state === "question") return project?.status === "WAITING_USER_INPUT" && !!project.pendingQuestion ? "answer" : null;
   if (row.state === "attention") return "resolve";
   // a decision because the plan's Canon is gone is the owner's: the plan pauses for it
   if (row.state === "decision") return canonMissing(row) ? null : "resolve";
   return null;
 }
+
+/** Whether the Orchestrator may ask its next job for the row (no failed one waits for its back-off). */
+export const retryDue = (row: Pick<PlanRowRecord, "orchestratorRetry">, now: number) => !row.orchestratorRetry || Date.parse(row.orchestratorRetry.at) <= now;
 
 /** The end of the project's decision log (what the agent decided so far); empty when it has none yet. */
 async function decisionLog(p: ProjectRecord): Promise<string> {
@@ -54,6 +60,7 @@ export async function rowJobInput(
 ): Promise<PlanRowJobInput> {
   const byId = new Map(rows.map((r) => [r.rowId, r]));
   const completed = !!project && project.status === "COMPLETED" && !!project.hasArtifacts && !project.deletedAt;
+  const deleted = !!project?.deletedAt || row.attentionReason === "project_deleted";
   let situation: PlanRowJobInput["situation"] = null;
   if (kind === "resolve" && (row.state === "attention" || row.state === "decision")) {
     const pr = row.prNo && plan.canonId ? await getPullRequest(plan.canonId, row.prNo, true).catch(() => null) : null;
@@ -62,9 +69,12 @@ export async function rowJobInput(
       reason: row.state === "attention" ? (row.attentionReason ?? null) : (row.decisionReason ?? null),
       error: row.lastError ?? project?.errorMessage ?? null,
       attempts: row.attempts ?? 0,
+      orchestratorRetries: row.aiRetries ?? 0,
       followups: row.conformAttempts ?? 0,
+      previous: row.aiResolution ? { action: row.aiResolution.action, reason: row.aiResolution.reason } : null,
       pr: pr ? { prNo: pr.prNo, state: pr.state, note: pr.reason ?? pr.reviewNote ?? null } : null,
-      options: planRowOptions(row.state, completed),
+      // a deleted project cannot be retried (attention), a decision row without its project can still be done or skipped
+      options: planRowOptions(row.state, { completed, deleted }),
     };
   }
   return buildPlanRowJobInput({

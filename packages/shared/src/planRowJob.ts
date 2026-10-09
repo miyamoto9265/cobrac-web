@@ -46,9 +46,12 @@ export interface PlanRowJobInput {
     state: "attention" | "decision";
     reason: PlanAttentionReason | PlanDecisionReason | null;
     error: string | null;
-    /** Automatic restarts of the row so far, and follow-ups sent for its pull request */
+    /** Automatic restarts of the row so far, restarts the Orchestrator chose before, and follow-ups sent for its pull request */
     attempts: number;
+    orchestratorRetries: number;
     followups: number;
+    /** The Orchestrator's previous resolution of this row, if any */
+    previous: { action: PlanRowAction; reason: string } | null;
     pr: { prNo: number; state: string; note: string | null } | null;
     options: PlanRowAction[];
   } | null;
@@ -83,11 +86,17 @@ export const PLAN_ROW_RESOLVE_SCHEMA = {
 
 export const planRowJobSchema = (kind: PlanRowJobKind) => (kind === "answer" ? PLAN_ROW_ANSWER_SCHEMA : PLAN_ROW_RESOLVE_SCHEMA);
 
-/** What may be chosen for a row: attention → retry / skip; decision → done, push (a finished project only), skip. */
-export function planRowOptions(state: "attention" | "decision", projectCompleted: boolean): PlanRowAction[] {
-  if (state === "attention") return ["retry", "skip"];
-  return projectCompleted ? ["done", "push", "skip"] : ["done", "skip"];
+/**
+ * What may be chosen for a row: attention → retry (not for a deleted project) / skip; decision → done, push (a finished
+ * project only), skip.
+ */
+export function planRowOptions(state: "attention" | "decision", project: { completed: boolean; deleted: boolean }): PlanRowAction[] {
+  if (state === "attention") return project.deleted ? ["skip"] : ["retry", "skip"];
+  return project.completed && !project.deleted ? ["done", "push", "skip"] : ["done", "skip"];
 }
+
+/** The wait before the Orchestrator's next job for a row after `n` failed in a row: 1, 2, 4 … minutes, at most 60. */
+export const orchestratorRetryDelayMs = (n: number) => Math.min(60, 2 ** Math.max(0, n - 1)) * 60_000;
 
 const clip = (s: string | null | undefined, n: number) => {
   const t = (s ?? "").trim();

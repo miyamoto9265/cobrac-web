@@ -250,12 +250,16 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     await advancePlan(planId);
     rowJobDone(planId, "left IFG", null);
     await advancePlan(planId);
-    // the failed job is dropped and asked again
+    // the failed job is dropped, and asked again after a back-off (not every minute)
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "question", rowJob: null, orchestratorRetry: { n: 1, error: "model error" } });
+    await advancePlan(planId);
+    expect(jobs().filter((j) => j.projectId === planId && j.planJobKind === "answer")).toHaveLength(1);
+    await advancePlan(planId, Date.now() + 2 * 60_000);
     expect(rowOf(planId, "left IFG")).toMatchObject({ state: "question", rowJob: { kind: "answer", status: "queued" } });
     expect(jobs().filter((j) => j.projectId === planId && j.planJobKind === "answer")).toHaveLength(2);
     rowJobDone(planId, "left IFG", { answer: "Take BA44 only.", reason: "r" });
     await advancePlan(planId);
-    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", autoAnswers: 6 });
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", autoAnswers: 6, orchestratorRetry: null });
 
     // a pull request whose decision jobs keep failing is never left out: the decision is asked again
     finish(planId, "STG", coarse);
@@ -264,12 +268,13 @@ describe("自律実行: from the draft to the Canon without a person", () => {
       const j = jobs().find((x) => x.projectId === canonId && x.type === "canon-review" && x.status === "QUEUED")!;
       fake.put("jobs", { ...j, status: "FAILED", errorMessage: "model error" } as never);
       await advancePlan(planId);
-      await advancePlan(planId);
+      expect(rowOf(planId, "STG")).toMatchObject({ state: "review", aiReview: "wanted", orchestratorRetry: { n: i + 1 } });
+      await advancePlan(planId, Date.now() + 61 * 60_000);
     }
     expect(rowOf(planId, "STG")).toMatchObject({ state: "review", aiReview: "queued" });
     decideJob(canonId, "approve");
     await advancePlan(planId);
-    expect(rowOf(planId, "STG").state).toBe("done");
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "done", orchestratorRetry: null });
   });
 
   it("resolves rows that need attention or a decision as the owner would: retry, skip, push", async () => {
@@ -289,13 +294,15 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     const first = rowJobDone(planId, "left IFG", { action: "retry", reason: "A rate limit passes." });
     expect(rowJobInputOf(planId, first.jobId).situation).toMatchObject({ state: "attention", reason: "failed", options: ["retry", "skip"], attempts: MAX_ROW_AUTO_RETRIES });
     await advancePlan(planId);
-    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", aiResolution: { action: "retry", reason: "A rate limit passes." }, rowJob: null });
+    expect(rowOf(planId, "left IFG")).toMatchObject({ state: "running", aiResolution: { action: "retry", reason: "A rate limit passes." }, rowJob: null, aiRetries: 1 });
     expect(eventsOf(planId).find((e) => e.type === "row_ai_resolved")?.detail).toMatchObject({ action: "retry", from: "attention", cause: "failed" });
 
     // it fails again: this time the AI leaves it out
     fail("left IFG");
     await advancePlan(planId);
-    rowJobDone(planId, "left IFG", { action: "skip", reason: "It keeps failing the same way." });
+    const second = rowJobDone(planId, "left IFG", { action: "skip", reason: "It keeps failing the same way." });
+    // the AI sees what it chose before
+    expect(rowJobInputOf(planId, second.jobId).situation).toMatchObject({ orchestratorRetries: 1, previous: { action: "retry", reason: "A rate limit passes." } });
     await advancePlan(planId);
     expect(rowOf(planId, "left IFG")).toMatchObject({ state: "skipped", autoSkip: { reason: "ai_skipped", error: "It keeps failing the same way." }, aiResolution: { action: "skip" } });
 
@@ -315,7 +322,15 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     await advancePlan(planId);
     rowJobDone(planId, "STG", { action: "retry", reason: "?" });
     await advancePlan(planId);
+    expect(rowOf(planId, "STG")).toMatchObject({ state: "decision", rowJob: null, orchestratorRetry: { n: 1 } });
+    await advancePlan(planId, Date.now() + 2 * 60_000);
     expect(rowOf(planId, "STG")).toMatchObject({ state: "decision", rowJob: { kind: "resolve", status: "queued" } });
+
+    // cancelling the plan stops the Orchestrator's job for the row
+    const pending = jobs().find((j) => j.projectId === planId && j.planJobKind === "resolve" && j.status === "QUEUED")!;
+    await json(call(A, "POST", `/plans/${planId}/cancel`));
+    expect(jobs().find((j) => j.jobId === pending.jobId)!.status).toBe("CANCELLED");
+    expect(rowOf(planId, "STG").rowJob).toBeNull();
   });
 
   it("applies re-plan proposals at once, as the Orchestrator's own decision", async () => {

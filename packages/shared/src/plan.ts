@@ -256,8 +256,10 @@ export interface PlanRecord {
   policy?: string;
   /** Absent on stage-1 plans = manual */
   ordering?: PlanOrdering;
-  /** Capability lists attached at creation, under `plans/{planId}/attachments/files/` (read by the `plan` job) */
+  /** Capability lists (attached at creation or added to the draft), under `plans/{planId}/attachments/files/` (read by the `plan` job) */
   attachments?: FileAttachment[];
+  /** Attachments ever added (the next file is `f<n+1>`): a removed file's ID and key are never used again */
+  attachmentSeq?: number;
   /** The latest draft job */
   draft?: PlanJobState | null;
   /** The latest re-plan job */
@@ -355,6 +357,13 @@ export interface PlanRowRecord {
   rowJob?: PlanRowJob | null;
   /** 自律実行: the last resolution the Orchestrator's AI made for this row (shown on the row) */
   aiResolution?: { action: PlanRowAction; reason: string; at: string; jobId: string } | null;
+  /** 自律実行: how often the Orchestrator's AI chose to retry this row (it sees the count before choosing again) */
+  aiRetries?: number;
+  /**
+   * 自律実行: the Orchestrator's jobs for this row (a row job or a pull request decision) that failed in a row, with the
+   * last error; the next one is asked from `at` on (1, 2, 4 … up to 60 minutes later). Cleared when one succeeds.
+   */
+  orchestratorRetry?: { n: number; at: string; error: string | null } | null;
   /**
    * 自律実行: the instruction of the row's next follow-up (with `conform`): fix = make the project agree with the Canon
    * (error conflicts the Canon moving on did not cause); changes = the changes the AI reviewer asked for. Absent: the
