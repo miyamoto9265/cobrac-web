@@ -21,6 +21,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - "Your turn" no longer lists the rows of a running autonomous plan
 - The Orchestrator's 「土台」 is now 「基準プロジェクト」 (English "Baseline project"; 基准项目, 基準專案, 기준 프로젝트, Basisprojekt, projet de référence, proyecto de referencia, projeto de referência, базовый проект), so the name says it is a project the later rows take as their baseline: the chip on rows and wave headings, the waits for its pull request, the help texts, the manual and the specification. The code keeps `seed`
 
+## [0.40.1] - 2026-10-09
+
+### Changed
+- 「利用マニュアル」 / "User manual" (ja, en): rewritten shorter to match the current screens. Each section now gives the main steps only; the fine detail of CoBRAC Orchestrator (ordering rules, estimates, Canon and autonomous-run edge cases), hypothesis mode, versions and Canon review is left to the screens' "?" and the specification
+
 ## [0.40.0] - 2026-10-09
 
 ### Added
