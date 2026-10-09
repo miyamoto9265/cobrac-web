@@ -59,7 +59,8 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
               value={cost}
               onChange={(e) => setCost(e.target.value)}
               onBlur={() => ok(cost) && Number(cost) !== a.maxCostUsd && save({ autonomous: { maxCostUsd: Number(cost) } })}
-              className={`${inputCls} w-28 bg-white`}
+              // inputCls is full width: the limit is a short number field
+              className={`${inputCls.replace("w-full", "w-28")} bg-white`}
               aria-invalid={!ok(cost)}
               aria-describedby={`${id}-cost-hint`}
             />

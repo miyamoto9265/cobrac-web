@@ -85,6 +85,7 @@ describe("rows of an autonomous plan", () => {
     row("r5", "left out by the AI", "skipped", { autoSkip: { reason: "ai_skipped", at: now, error: "Another row covers it." }, aiResolution: { action: "skip", reason: "Another row covers it.", at: now, jobId: "j5" } }),
     row("r6", "left out in v0.40.0", "skipped", { autoSkip: { reason: "question_limit", at: now } }),
     row("r7", "decide failed in v0.40.0", "skipped", { autoSkip: { reason: "decide_failed", at: now } }),
+    row("r8", "job failed", "attention", { projectId: "p0000008", attentionReason: "failed", orchestratorRetry: { n: 2, at: now, error: "insufficient_quota" } }),
   ];
 
   it("shows what the Orchestrator's AI does for each row and what it decided", async () => {
@@ -102,6 +103,7 @@ describe("rows of an autonomous plan", () => {
     expect(q('[data-testid="row-auto-skip"]', rowEl("left out in v0.40.0"))!.textContent).toBe("Left out by the autonomous run: The agent kept asking after 3 automatic answers.");
     expect(q('[data-testid="row-auto-skip"]', rowEl("decide failed in v0.40.0"))!.textContent).toBe("Left out by the autonomous run: The AI reviewer could not decide (3 jobs failed); the pull request stays open.");
     expect(qa('[data-testid="row-ai-job"]', rowEl("retried"))).toHaveLength(0);
+    expect(q('[data-testid="row-ai-retry"]', rowEl("job failed"))!.textContent).toContain("The Orchestrator's job failed (2 in a row)");
   });
 
   it("says it in Japanese as written", async () => {
@@ -112,7 +114,9 @@ describe("rows of an autonomous plan", () => {
     expect(q('[data-testid="row-ai-job"]', rowEl("answer ready"))!.textContent).toBe("回答を渡す順番を待っています");
     expect(q('[data-testid="row-ai-job"]', rowEl("being decided"))!.textContent).toBe("オーケストレーター（AI）が判断しています");
     expect(q('[data-testid="row-ai-resolution"]', rowEl("retried"))!.textContent).toBe("オーケストレーター（AI）の判断: リトライ — The failure was a timeout.");
-    expect(q('[data-testid="row-ai-resolution"]', rowEl("left out by the AI"))!.textContent).toContain("オーケストレーター（AI）の判断: スキップ");
+    // a row the AI skipped says it once, in its 「見送り」 line
+    expect(qa('[data-testid="row-ai-resolution"]', rowEl("left out by the AI"))).toHaveLength(0);
+    expect(q('[data-testid="row-ai-retry"]', rowEl("job failed"))!.textContent).toMatch(/^オーケストレーターのジョブが失敗しました（続けて 2 回）。.* 以降にもう一度依頼します — insufficient_quota$/);
     expect(q('[data-testid="row-ai-answers"]', rowEl("retried"))!.textContent).toBe("AI の回答 4 回");
     expect(q('[data-testid="row-auto-skip"]', rowEl("left out by the AI"))!.textContent).toBe("オーケストレーター（AI）が見送りました: Another row covers it.");
   });
@@ -126,7 +130,7 @@ describe("rows of an autonomous plan", () => {
   });
 
   it("keeps the owner's buttons on rows the Orchestrator is answering or deciding", async () => {
-    const decision = row("r8", "conflicting", "decision", { prNo: 7, decisionReason: "conflicts", projectId: "p0000008", project: project("COMPLETED"), rowJob: { kind: "resolve", jobId: "j8", status: "queued", requestedAt: now } });
+    const decision = row("r9", "conflicting", "decision", { prNo: 7, decisionReason: "conflicts", projectId: "p0000008", project: project("COMPLETED"), rowJob: { kind: "resolve", jobId: "j8", status: "queued", requestedAt: now } });
     api.getPlan.mockResolvedValue(detail("RUNNING", [...rows, decision], { canonId: CANON }, { canon: { canonId: CANON, name: "Language", headRevision: 3 } }));
     await render(`/plans/${PLAN}`);
     const inbox = q('[data-testid="plan-inbox"]')!;
@@ -142,7 +146,7 @@ describe("rows of an autonomous plan", () => {
     const d = q('[data-testid="plan-decision"]')!;
     expect(d.textContent).toContain("The Orchestrator's AI is deciding");
     await act(async () => button("Mark done", d)!.click());
-    expect(api.resolvePlanRow).toHaveBeenCalledWith(PLAN, "r8", "done");
+    expect(api.resolvePlanRow).toHaveBeenCalledWith(PLAN, "r9", "done");
   });
 });
 
@@ -209,7 +213,8 @@ describe("the texts of the autonomous run", () => {
     expect(AUTONOMOUS_CATALOG.ja["sys.autoAnswered"]).toBe("オーケストレーター（AI）がエージェントの質問に回答しました。");
     expect(AUTONOMOUS_CATALOG.en["sys.autoAnswered"]).toBe("The Orchestrator's AI answered the agent's question.");
     for (const catalog of Object.values(AUTONOMOUS_CATALOG)) {
-      expect(catalog).not.toHaveProperty(["sys.autonomousStopped"]);
+      // kept for the stop notices v0.40.0 left in projects' chats
+      expect(catalog).toHaveProperty(["sys.autonomousStopped"]);
       expect(catalog).not.toHaveProperty(["auto.answers"]);
       expect(catalog).toHaveProperty(["auto.aiAnswers"]);
     }

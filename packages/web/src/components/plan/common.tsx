@@ -2,7 +2,8 @@ import { AlertTriangle, Loader2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { PlanAutoSkipReason, PlanDecisionReason, PlanJobState, PlanRecord, PlanRowRejected, PlanRowView } from "@cobrac/shared";
 import { MAX_ROW_AUTO_RETRIES, OVERLAP_LIMIT, PLAN_LIMITS, maxFollowups } from "@cobrac/shared";
-import { useT, type MessageKey, type TFn } from "../../i18n";
+import { useI18n, useT, type MessageKey, type TFn } from "../../i18n";
+import { fmtDate } from "../../lib/format";
 import { rowActionText, shownAnchors } from "../../lib/plan";
 
 // Pieces of the plan page shared by a draft (components/plan/PlanDraft.tsx) and a confirmed plan (pages/PlanDetailPage.tsx).
@@ -141,18 +142,27 @@ export function RowFacts({ row, names, rebuild }: { row: RowFactsOf; names: Read
  * 自律実行: what the Orchestrator's AI does for a row now (its row job: an answer being written or waiting to be given, a
  * decision being made) and what it last decided, with its reason. The owner's own buttons stay next to it.
  */
-export function RowAiNotes({ row }: { row: Pick<PlanRowView, "rowJob" | "aiResolution"> }) {
+export function RowAiNotes({ row }: { row: Pick<PlanRowView, "rowJob" | "aiResolution" | "autoSkip" | "orchestratorRetry"> }) {
   const t = useT();
+  const { locale } = useI18n();
   const j = row.rowJob;
   const job: MessageKey | null = !j ? null : j.kind === "answer" ? (j.status === "ready" ? "auto.rowJob.answerReady" : "auto.rowJob.answerQueued") : "auto.rowJob.resolveQueued";
-  const r = row.aiResolution;
-  if (!job && !r) return null;
+  // a row the AI skipped already says so (with the reason) in its 「見送り」 line
+  const r = row.aiResolution && !(row.aiResolution.action === "skip" && row.autoSkip?.reason === "ai_skipped") ? row.aiResolution : null;
+  const retry = row.orchestratorRetry;
+  if (!job && !r && !retry) return null;
   return (
     <div className="grid gap-0.5 text-xs">
       {job && (
         <div className="flex items-center gap-1 text-violet-700" data-testid="row-ai-job">
           {j!.status === "queued" && <Loader2 size={12} className="shrink-0 motion-safe:animate-spin" aria-hidden />}
           {t(job)}
+        </div>
+      )}
+      {retry && !job && (
+        <div className="break-words text-amber-800" data-testid="row-ai-retry">
+          {t("auto.retry", { n: retry.n, at: fmtDate(retry.at, locale) })}
+          {retry.error && <span className="text-slate-600"> — {retry.error}</span>}
         </div>
       )}
       {r && (
