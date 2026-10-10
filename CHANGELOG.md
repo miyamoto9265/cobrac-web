@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- BRA-DB: traffic from the BRA-DB network to the internet now leaves from one fixed address (an Elastic IP on its NAT instance, shown as the `BraDb` stack output `NatPublicIp`), so an outside database can allow CoBRAC by IP. The address stays when the NAT instance is replaced or the stack is removed, and the deploy guard stops any change that would replace or drop it
+
 ## [0.45.1] - 2026-10-10
 
 ### Changed

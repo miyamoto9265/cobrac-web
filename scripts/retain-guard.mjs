@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * RETAIN guard for CI deploys: reads the text output of `cdk diff` and fails when a stateful
- * resource (DynamoDB / S3 / KMS / Cognito User Pool; the BRA-DB instance, its data volume and its attachment) would
+ * resource (DynamoDB / S3 / KMS / Cognito User Pool; the BRA-DB instance, its data volume and its attachment, and the
+ * NAT's Elastic IP that outside databases allow) would
  * be replaced, removed, or orphaned.
  *
  *   node scripts/retain-guard.mjs cdk-diff.txt
@@ -23,13 +24,15 @@ export const GUARDED_TYPES = [
 
 /**
  * BraDb stack: the BRA-DB instance, its data volume and the attachment (the cluster lives on the volume; replacing
- * the instance or the attachment needs a manual detach). Matched by construct path, so stateless EC2 resources such
- * as the NAT instance can be replaced.
+ * the instance or the attachment needs a manual detach), and the NAT's Elastic IP (outside databases allow that address;
+ * a new one breaks their allowlists). Matched by construct path, so stateless EC2 resources such as the NAT instance
+ * and the EIP association can be replaced.
  */
 export const GUARDED_PATHS = [
   { type: "AWS::EC2::Instance", path: /^Db / },
   { type: "AWS::EC2::Volume", path: /^DataVolume / },
   { type: "AWS::EC2::VolumeAttachment", path: /^DataVolumeAttachment / },
+  { type: "AWS::EC2::EIP", path: /^NatEip / },
 ];
 const isGuarded = (type, resource) => GUARDED_TYPES.includes(type) || GUARDED_PATHS.some((g) => g.type === type && g.path.test(resource));
 

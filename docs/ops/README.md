@@ -113,7 +113,7 @@ flowchart LR
 `scripts/retain-guard.mjs` は、`CobracAgents` と `BraDb` の `cdk diff` の出力を読み、状態を持つリソースの置き換え（replace、may be replaced）や削除（destroy、orphan、取り除き）を見つけると、デプロイの前にジョブを止めます。
 
 - 対象は、`AWS::DynamoDB::Table`・`AWS::DynamoDB::GlobalTable`・`AWS::S3::Bucket`・`AWS::KMS::Key`・`AWS::Cognito::UserPool` のすべてです。
-- BRA-DB のインスタンス `Db`（`AWS::EC2::Instance`）、データ用ボリューム `DataVolume`（`AWS::EC2::Volume`）、その取り付け（`AWS::EC2::VolumeAttachment`）も対象です。この 3 つはコンストラクトのパスで見分けるので、NAT インスタンスは置き換えられます。
+- BRA-DB のインスタンス `Db`（`AWS::EC2::Instance`）、データ用ボリューム `DataVolume`（`AWS::EC2::Volume`）、その取り付け（`AWS::EC2::VolumeAttachment`）、NAT の Elastic IP `NatEip`（`AWS::EC2::EIP`。外部の DB がこのアドレスを許可しているため）も対象です。これらはコンストラクトのパスで見分けるので、NAT インスタンスと EIP の関連付けは置き換えられます。
 - `cdk diff` の出力を解釈できない（`Stack CobracAgents` の行がない）ときも止まります。
 - 終了コードは 0（安全、または許可済み）、1（危険な変更あり）、2（出力を解釈できない）です。ログには、リソースの型・パス・論理 ID だけを出し、プロパティの値は出しません。
 
@@ -271,6 +271,7 @@ BRA-DB の構成は仕様書 7.6 にあります。インスタンスには SSH 
 | シェル | `aws ssm start-session --target <InstanceId>` の後、`sudo -u postgres psql -d bra_db_v4_6` |
 | ローカルから接続 | `aws ssm start-session --target <InstanceId> --document-name AWS-StartPortForwardingSession --parameters portNumber=5432,localPortNumber=15432` の後、`127.0.0.1:15432` に `bra` か `cobrac_read` で接続する（パスワードは Secrets Manager）。BRA-DB の保守担当の利用を想定 |
 | 復元 | 同じ AZ でスナップショットからボリュームを作り、インスタンスを止め、データ用ボリュームを外して、復元したものを `/dev/sdf` に付けて起動する。その後、スタックの定義（`DataVolume`）を PR で合わせる |
+| 外部 DB への出口 IP | VPC から外への通信は、NAT インスタンスの Elastic IP（スタックの出力 `NatPublicIp`）から出る。外部の DB の許可 IP にはこのアドレスを伝える。EIP は RETAIN で、NAT インスタンスを置き換えても同じアドレスを引き継ぐ |
 | インスタンスの置き換え | AMI の更新などで `AWS::EC2::Instance` / `VolumeAttachment` が置き換わると、CI の RETAIN ガードがデプロイを止める（[5](#5-retain-ガード)）。先にデータ用ボリュームを外し、`allow_retain_replacement=true` で再実行する。新しいインスタンスが、起動時にクラスタを登録し直す |
 
 ## 12. 撤去と残る費用
@@ -282,6 +283,7 @@ BRA-DB の構成は仕様書 7.6 にあります。インスタンスには SSH 
 - DynamoDB の `Users`・`Projects`・`Jobs`・`Messages`・`Canons`・`Catalog`・`Plans`（`WsConnections` だけは消える）
 - S3 の成果物バケット（オブジェクトが残っている間は消せない。版の削除を禁じるバケットポリシーがあるので、空にする前にその文 `DenyDeleteBraVersions` を外す）
 - `BraDb` のデータ用ボリュームとそのスナップショット（仕様書 第 7 部）
+- `BraDb` の NAT の Elastic IP（関連付けがないと時間あたりの料金がかかる。不要なら解放する）
 
 おおまかな撤去の順序は次のとおりです。
 

@@ -24,6 +24,8 @@ export const BRADB_DATABASE = "bra_db_v4_6";
  * BRA-DB (PostgreSQL 17 + Apache AGE 1.7, schema v4.6) inside AWS, reachable from nowhere outside its VPC.
  * - VPC with one private subnet (instance, registration Lambda) and one public subnet that holds only a NAT instance
  *   for outbound traffic (package updates, Secrets Manager, SSM). Nothing accepts inbound traffic from the internet.
+ *   The NAT instance holds an Elastic IP, so traffic from the VPC leaves from one fixed address that outside
+ *   databases can allow (output NatPublicIp).
  * - EC2 t4g.small; the cluster lives on a separate encrypted gp3 volume (RETAIN) with daily snapshots (7 kept).
  *   Administration through SSM Session Manager (no SSH).
  * - Role passwords in Secrets Manager (owner `bra`, `cobrac_import`, `cobrac_read`); bootstrap.sh sets them at boot.
@@ -67,6 +69,10 @@ export class BraDbStack extends Stack {
     // a NAT instance runs its user data only once: a new logical ID replaces it whenever its setup changes
     const natInstance = vpc.publicSubnets[0].node.findChild("NatInstance").node.defaultChild as ec2.CfnInstance;
     natInstance.overrideLogicalId("NatInstanceMicro");
+    // a fixed outbound address for outside allowlists; RETAIN keeps it when the stack goes, and a replaced NAT instance takes it over
+    const natEip = new ec2.CfnEIP(this, "NatEip", { domain: "vpc", tags: [{ key: "Name", value: "cobrac-bradb-nat" }] });
+    natEip.applyRemovalPolicy(RemovalPolicy.RETAIN);
+    new ec2.CfnEIPAssociation(this, "NatEipAssociation", { allocationId: natEip.attrAllocationId, instanceId: natInstance.ref });
 
     const secret = (name: string, username: string) =>
       new secretsmanager.Secret(this, name, {
@@ -182,6 +188,7 @@ export class BraDbStack extends Stack {
     new CfnOutput(this, "ImportFunctionName", { value: fn.functionName });
     new CfnOutput(this, "OwnerSecretArn", { value: ownerSecret.secretArn });
     new CfnOutput(this, "ReadSecretArn", { value: readSecret.secretArn });
+    new CfnOutput(this, "NatPublicIp", { value: natEip.ref, description: "Fixed outbound IPv4 of the BRA-DB VPC (for outside allowlists)" });
     cdk.Tags.of(this).add("cobrac:component", "bradb");
   }
 }

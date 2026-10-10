@@ -239,7 +239,7 @@ SELECT * FROM cypher('bradb_graph', $$
   <rect x="228" y="254" width="200" height="46" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
   <text x="238" y="269" font-size="8.6" fill="#374151">パブリックサブネット</text>
   <text x="238" y="285" font-size="8.6" font-weight="700">NAT インスタンス t4g.micro</text>
-  <text x="238" y="296" font-size="7.8" fill="#5b6474">外向きのみ（更新・Secrets・SSM）</text>
+  <text x="238" y="296" font-size="7.8" fill="#5b6474">外向きのみ・固定 IP（Elastic IP）</text>
   <rect x="436" y="254" width="102" height="46" rx="6" fill="#f1f5f9" stroke="#cbd5e1"/>
   <text x="446" y="272" font-size="8.4" font-weight="700">S3 ゲートウェイ</text>
   <text x="446" y="287" font-size="8.4">エンドポイント</text>
@@ -267,7 +267,7 @@ SELECT * FROM cypher('bradb_graph', $$
   <thead><tr><th style="width:20%">リソース</th><th>設定</th></tr></thead>
   <tbody>
     <tr><td>VPC</td><td><code>10.42.0.0/24</code>、1 AZ。プライベートサブネット（インスタンスと登録 Lambda）と、NAT インスタンスだけを置くパブリックサブネット。S3 ゲートウェイエンドポイント（無料）</td></tr>
-    <tr><td>NAT インスタンス</td><td>t4g.micro、Amazon Linux 2023。外向きの通信だけ（パッケージの更新、Secrets Manager、SSM）。VPC からの通信だけを受ける。NAT Gateway より月に約 $40 安い</td></tr>
+    <tr><td>NAT インスタンス</td><td>t4g.micro、Amazon Linux 2023。外向きの通信だけ（パッケージの更新、Secrets Manager、SSM）。VPC からの通信だけを受ける。NAT Gateway より月に約 $40 安い。Elastic IP（<code>NatEip</code>、RETAIN）を付けているので、VPC から外への通信は 1 つの固定のアドレス（スタックの出力 <code>NatPublicIp</code>）から出る。外部の DB に許可してもらうのはこのアドレスで、NAT インスタンスを置き換えても変わらない</td></tr>
     <tr><td>EC2 <code>Db</code></td><td>t4g.small、Ubuntu 24.04 arm64（AMI は固定）、ルートは gp3 16 GB で暗号化、IMDSv2、終了保護、SSH なし（SSM Session Manager で接続）。セキュリティグループは 5432 番を登録 Lambda からだけ許可</td></tr>
     <tr><td>データ用ボリューム</td><td>gp3 20 GB、暗号化、<b>RETAIN</b>（スタックを消しても残る）。<code>/dev/sdf</code> として付け、<code>/srv/bradb</code>（クラスタのデータディレクトリ）にマウント</td></tr>
     <tr><td>スナップショット</td><td>Data Lifecycle Manager で毎日 18:00 UTC に取り、7 世代を残す（タグ <code>bradb-backup=daily</code>）</td></tr>
@@ -295,7 +295,7 @@ SELECT * FROM cypher('bradb_graph', $$
   <tbody>
     <tr><td>EC2 t4g.small（730 h × $0.0216）</td><td class="c">15.8</td></tr>
     <tr><td>NAT インスタンス t4g.micro（730 h × $0.0108）</td><td class="c">7.9</td></tr>
-    <tr><td>NAT インスタンスのパブリック IPv4（730 h × $0.005）</td><td class="c">3.7</td></tr>
+    <tr><td>NAT インスタンスの Elastic IP（730 h × $0.005）</td><td class="c">3.7</td></tr>
     <tr><td>EBS gp3：ルート 16 GB + データ 20 GB + NAT 8 GB（$0.096/GB）</td><td class="c">4.2</td></tr>
     <tr><td>スナップショット（7 世代、増分）／ Secrets Manager（3 個）</td><td class="c">0.3 ／ 1.2</td></tr>
     <tr><td>Lambda・CloudWatch Logs・データ転送</td><td class="c">&lt; 0.5</td></tr>
