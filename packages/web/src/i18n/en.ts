@@ -29,6 +29,7 @@ export const en = {
 
   "nav.newProject": "New project",
   "nav.history": "History",
+  "nav.seeAll": "See all",
   "nav.noProjects": "No projects yet",
   "nav.projects": "Projects",
   "nav.settings": "Settings",

@@ -31,6 +31,7 @@ export const ru: Record<MessageKey, string> = {
 
   "nav.newProject": "Новый проект",
   "nav.history": "История",
+  "nav.seeAll": "Показать все",
   "nav.noProjects": "Проектов пока нет",
   "nav.projects": "Проекты",
   "nav.settings": "Настройки",

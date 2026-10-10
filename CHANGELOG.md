@@ -7,6 +7,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - The sidebar history is easier to read: project names wrap to two lines instead of being cut short, and the status shows only when a project is not completed (a small coloured dot with "Running", "Waiting for answer", "Failed" and so on) instead of a "Completed" badge on every row. The sidebar links are slightly tighter, leaving more room for the history
+- Projects made by an Orchestrator plan no longer fill the sidebar history one by one: each plan is one row (its name and the number of projects, with the status of any project that is running, waiting or failed) that opens the plan
+- "Projects" is no longer a sidebar link: the project list opens from "See all" next to the History heading
+- Admins: the specification is no longer a sidebar link; it opens from the "Specification" button at the top of the admin page
 
 ## [0.42.0] - 2026-10-10
 

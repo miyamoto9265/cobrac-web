@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpecResponse } from "@cobrac/shared";
 
-const api = vi.hoisted(() => ({ adminSpec: vi.fn(), listProjects: vi.fn() }));
+const api = vi.hoisted(() => ({ adminSpec: vi.fn(), listProjects: vi.fn(), listPlans: vi.fn() }));
 const auth = vi.hoisted(() => ({ ready: true, signedIn: true, me: { role: "admin", email: "admin@example.com" } as { role: string; email: string } | null, doSignOut: () => undefined }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => auth }));
@@ -76,6 +76,7 @@ beforeEach(() => {
   let n = 0;
   api.adminSpec.mockImplementation(async () => spec(++n));
   api.listProjects.mockResolvedValue({ items: [] });
+  api.listPlans.mockResolvedValue({ items: [] });
   clock = Date.parse("2026-10-08T00:00:00.000Z");
   vi.spyOn(Date, "now").mockImplementation(() => clock);
   screen({});
@@ -181,10 +182,10 @@ describe("SpecPage", () => {
 });
 
 describe("the /docs route", () => {
-  it("is the 仕様書 entry of the admin's sidebar", async () => {
+  it("opens from the admin page, not the sidebar, and keeps 管理 highlighted", async () => {
     await render("/docs", true);
-    const link = $('aside a[href="/docs"]')!;
-    expect(link.textContent).toContain("仕様書");
+    expect($('aside a[href="/docs"]')).toBeNull();
+    expect($('aside a[href="/admin"]')!.className).toContain("bg-slate-800 text-white");
     expect($('[data-testid="where"]')!.textContent).toBe("/docs");
     expect($('[data-testid="spec-viewer"]')).not.toBeNull();
   });

@@ -31,6 +31,7 @@ export const es: Record<MessageKey, string> = {
 
   "nav.newProject": "Nuevo proyecto",
   "nav.history": "Historial",
+  "nav.seeAll": "Ver todo",
   "nav.noProjects": "Aún no hay proyectos",
   "nav.projects": "Proyectos",
   "nav.settings": "Configuración",

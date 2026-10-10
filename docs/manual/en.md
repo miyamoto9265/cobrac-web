@@ -54,7 +54,7 @@ The project gets a name automatically; you can change it on the project page.
 
 ## The project page and the agent
 
-After "Run" you are on the project page. You can also open it from "History" and "Projects" in the sidebar.
+After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per plan in the history.
 
 ![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 
