@@ -27,6 +27,7 @@ import type {
   PlanRowRecord,
   PlanRowRejected,
   PlanRowView,
+  PlanRowWait,
   PlanSettings,
   ProjectRecord,
   UiLocale,
@@ -70,8 +71,14 @@ import {
   overlapsOf,
   parsePlanRowsCsv,
   planAttachmentTypeOf,
+  PLAN_MAX_WAITING_PRS,
+  flowPlan,
+  isFlowPlan,
   planEstimate,
+  planEstimateFor,
+  planLanes,
   planRowKey,
+  waitingPrs,
   planRowSk,
   replanRows,
   safeAttachmentName,
@@ -672,8 +679,11 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
       Object.assign(r, values);
       if (values.state === "decision") await putPlanEvent(plan.planId, "row_decision", by, { rowId: r.rowId, projectId: r.existing.projectId, detail: { reason: "other_canon" } });
     }
-    const estimate = planEstimate(rows, limits.effective);
-    const values: Partial<PlanRecord> = { settings, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: by, estimate, activeWave: null, pausedReason: null, autonomousError: null, rowCounts: countRows(rows) };
+    // plans ordered automatically run as a flow (waves only set the order); the owner's waves are kept as barriers
+    // (a draft that already carries one keeps it)
+    const scheduling = fresh.scheduling ?? (fresh.ordering === "auto" ? ("flow" as const) : ("waves" as const));
+    const estimate = planEstimateFor({ ...fresh, scheduling }, rows, limits.effective);
+    const values: Partial<PlanRecord> = { settings, scheduling, harnessRules: HARNESS_RULES, confirmedAt: at, confirmedBy: by, estimate, activeWave: null, pausedReason: null, autonomousError: null, rowCounts: countRows(rows) };
     if (!(await setPlanStatus(plan.planId, "DRAFT", "RUNNING", values))) throw conflict(STATUS_CHANGED);
     await putPlanEvent(plan.planId, "confirmed", by, { detail: { rows: rows.length, model, orchestratorModel, harnessRules: HARNESS_RULES, ...(lost.size ? { existingGone: lost.size } : {}), ...(canonId ? { canonId } : {}) } });
     return { ...fresh, ...values, ...(canonId ? { canonId, canonNew: null } : {}), status: "RUNNING" as const };
@@ -875,10 +885,11 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
   const live = rows.filter((r) => r.state !== "skipped");
   const hub = hubScores(live);
   const overlaps = overlapsOf(live);
+  const flow = flowFacts(plan, rows, limits.effective);
   let cost = 0;
   let priced = false;
   const views: PlanRowView[] = rows.sort(byWaveAndOrder).map((r) => {
-    const shared = r.state === "skipped" ? {} : { hub: hub.get(r.rowId) ?? 0, overlaps: overlaps.get(r.rowId) ?? [] };
+    const shared = r.state === "skipped" ? {} : { hub: hub.get(r.rowId) ?? 0, overlaps: overlaps.get(r.rowId) ?? [], ...(flow ? { lane: flow.lanes.get(r.rowId), wait: flow.waits.get(r.rowId) ?? null } : {}) };
     const p = r.projectId ? byId.get(r.projectId) : undefined;
     // a row done by an existing project did not spend anything for this plan
     if (!p || r.existing) return { ...r, ...shared, project: p ? projectView(p) : null };
@@ -920,12 +931,34 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     rows: views,
     events: events.sort((a, b) => (a.sk < b.sk ? 1 : -1)).slice(0, 100),
     limits,
-    estimate: planEstimate(rows, limits.effective),
+    estimate: planEstimateFor(plan, rows, limits.effective),
     actual: { minutes, costUsd: priced || jobsPriced ? round6(cost + jobsCost) : null },
+    slots: flow?.slots ?? null,
     proposals: proposals.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.sk < b.sk ? 1 : -1)),
     planJobsCostUsd: jobsPriced ? round6(jobsCost) : null,
     canon: canonView,
   };
+}
+
+/**
+ * Flow plans (and drafts ordered automatically, which will run as one): the lane of every row, why each waiting row has
+ * not started, and the slots in use (from the plan's own records: rows being built and the Orchestrator's jobs).
+ */
+function flowFacts(plan: PlanRecord, rows: PlanRowRecord[], effective: number) {
+  const draft = plan.ordering === "auto" && (plan.status === "DRAFT" || plan.status === "DRAFTING");
+  if (!isFlowPlan(plan) && !draft) return null;
+  const live = rows.filter((r) => r.state !== "skipped");
+  const lanes = planLanes(live);
+  if (draft) return { lanes, waits: new Map<string, PlanRowWait>(), slots: null };
+  const f = flowPlan(rows);
+  const building = rows.filter((r) => r.state === "starting" || r.state === "running").length;
+  const orchestrator = rows.filter((r) => r.rowJob?.status === "queued" || r.aiReview === "queued").length + (plan.replan?.status === "queued" || plan.replan?.status === "running" ? 1 : 0);
+  const used = building + orchestrator;
+  const held = !!plan.canonId && waitingPrs(rows) >= PLAN_MAX_WAITING_PRS;
+  const waits = new Map<string, PlanRowWait>(f.waits);
+  // ready rows that have not started wait for a slot, or for the plan's pull requests to be approved
+  if (plan.status === "RUNNING") for (const id of f.ready) if (!rows.find((r) => r.rowId === id)?.projectId) waits.set(id, { kind: held ? "prs" : "slot", rowIds: [] });
+  return { lanes, waits, slots: { used, orchestrator, limit: effective } };
 }
 
 const PULSE_WAITING: ReadonlySet<PlanRowView["state"]> = new Set(["question", "review", "decision", "attention"]);
@@ -951,9 +984,17 @@ export function planPulse(d: PlanDetailResponse): PlanPulse {
     c[r.state] = (c[r.state] ?? 0) + 1;
     waves.set(r.wave, c);
   }
+  const lanes = new Map<number, Partial<Record<PlanRowView["state"], number>>>();
+  for (const r of d.rows) {
+    if (r.lane === undefined) continue;
+    const c = lanes.get(r.lane) ?? {};
+    c[r.state] = (c[r.state] ?? 0) + 1;
+    lanes.set(r.lane, c);
+  }
   const byId = new Map(d.rows.map((r) => [r.rowId, r]));
   return {
     waves: [...waves.entries()].sort((a, b) => a[0] - b[0]).map(([wave, counts]) => ({ wave, counts })),
+    ...(lanes.size ? { lanes: [...lanes.entries()].sort((a, b) => a[0] - b[0]).map(([lane, counts]) => ({ lane, counts })) } : {}),
     running: d.rows.filter((r) => r.state === "starting" || r.state === "running").map(pulseRow),
     waiting: d.rows.filter((r) => PULSE_WAITING.has(r.state)).map(pulseRow),
     events: d.events.slice(0, PLAN_PULSE_EVENTS).map((e) => {

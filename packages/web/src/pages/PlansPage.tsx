@@ -403,7 +403,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
           <>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
               <span className="font-medium text-slate-800">{t("plan.doneOf", { done: p.rowCounts.done, n: p.rowCount })}</span>
-              <Meta icon={<ListChecks size={13} />}>{wavesText(waves.map((w) => w.wave), p.activeWave, t)}</Meta>
+              <Meta icon={<ListChecks size={13} />}>{pulse?.lanes?.length ? `${t("flow.lanes")} ${pulse.lanes.length}` : wavesText(waves.map((w) => w.wave), p.activeWave, t)}</Meta>
               <Meta icon={<Clock size={13} />}>
                 {t("plan.lane.elapsed", { t: fmtElapsed(p.confirmedAt, now, t) })}
                 {pulse && <span className="text-slate-400"> / {t("plan.lane.eta", { t: fmtDuration(pulse.estimate.minutes, t) })}</span>}
@@ -418,7 +418,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
                 </Meta>
               )}
             </div>
-            <PlanBar waves={waves} activeWave={p.activeWave} live={p.status === "RUNNING"} className="mt-3" />
+            <PlanBar waves={waves} lanes={pulse?.lanes} activeWave={p.activeWave} live={p.status === "RUNNING"} className="mt-3" />
             <div className="mt-2">
               <StateCounts counts={p.rowCounts} />
             </div>

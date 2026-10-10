@@ -2,18 +2,19 @@ import { ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, Rota
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
-import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, orchestratorModelOf } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, isFlowPlan, orchestratorModelOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { CanonSection, type CanonFlush } from "../components/plan/CanonSection";
+import { FlowMap, SlotPips, WaitChip, flowRowAnchor, rowsByLane } from "../components/plan/FlowMap";
 import { RowAiNotes, RowFacts, autoSkipLine, dangerBtn, iconBtn, jobError, projectPath, rowLabel, rowName, secondaryBtn, seedChip } from "../components/plan/common";
 import { PlanDraft } from "../components/plan/PlanDraft";
 import { PlanHistory } from "../components/plan/PlanHistory";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
+import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
 import { canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
 
@@ -48,11 +49,23 @@ function Summary({ d }: { d: PlanDetailResponse }) {
   // plans counted before stage 3 have no review / decision counts
   const n = (s: PlanRowState) => (s === "running" ? counts.running + counts.starting : (counts[s] ?? 0));
   const shown = ROW_STATE_ORDER.filter((s) => n(s) > 0);
+  const flow = isFlowPlan(plan);
+  const concurrency = (
+    <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+      {t("plan.concurrency", { n: limits.effective })}
+      <HelpTip
+        text={t("plan.concurrencyHelp", {
+          global: limits.maxConcurrentJobs,
+          perUser: limits.maxConcurrentJobsPerUser,
+        })}
+      />
+    </div>
+  );
   return (
     <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="plan-summary">
       <Stat label={t("plan.progress")}>
         <div className="font-medium">{t("plan.doneOf", { done: counts.done, n: rows.length })}</div>
-        <PlanBar waves={waveCounts(rows)} activeWave={plan.activeWave} live={plan.status === "RUNNING"} className="mt-1.5" />
+        <PlanBar waves={waveCounts(rows)} lanes={flow ? laneCounts(rows) : undefined} activeWave={plan.activeWave} live={plan.status === "RUNNING"} className="mt-1.5" />
         <div className="mt-1.5 flex flex-wrap gap-1">
           {shown.map((s) => (
             <span key={s} className={`rounded-full px-1.5 py-0.5 text-[11px] ${ROW_STATE_COLOR[s]}`}>
@@ -64,19 +77,18 @@ function Summary({ d }: { d: PlanDetailResponse }) {
           ))}
         </div>
       </Stat>
-      <Stat label={t("plan.waves")}>
-        <div className="font-medium">{wavesText(waves, plan.activeWave, t)}</div>
-        <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
-          {t("plan.concurrency", { n: limits.effective })}
-          <HelpTip
-            text={t("plan.concurrencyHelp", {
-              global: limits.maxConcurrentJobs,
-              perUser: limits.maxConcurrentJobsPerUser,
-            })}
-          />
-        </div>
-      </Stat>
-      <Stat label={t("plan.time")} help={t("plan.estimateHelp")}>
+      {flow && d.slots ? (
+        <Stat label={t("flow.slots")} help={t("flow.slotsHelp")}>
+          <SlotPips slots={d.slots} live={plan.status === "RUNNING"} />
+          {concurrency}
+        </Stat>
+      ) : (
+        <Stat label={flow ? t("flow.lanes") : t("plan.waves")}>
+          <div className="font-medium">{flow ? new Set(rows.map((r) => r.lane ?? 0)).size : wavesText(waves, plan.activeWave, t)}</div>
+          {concurrency}
+        </Stat>
+      )}
+      <Stat label={t("plan.time")} help={t(flow ? "flow.estimateHelp" : "plan.estimateHelp")}>
         <div>
           <span className="text-slate-500">{t("plan.estimate")}</span> <span className="font-medium">{fmtDuration(estimate.minutes, t)}</span>
         </div>
@@ -406,11 +418,13 @@ function CanonGates({ d }: { d: PlanDetailResponse }) {
   const { plan, rows } = d;
   const canonId = plan.canonId ?? d.canon?.canonId ?? null;
   if (!canonId || (plan.status !== "RUNNING" && plan.status !== "PAUSED")) return null;
-  const seeds = seedsHolding(rows, plan.activeWave);
+  // a flow plan shows on each row what it waits for; only back-pressure holds the whole plan
+  const flow = isFlowPlan(plan);
+  const seeds = flow ? [] : seedsHolding(rows, plan.activeWave);
   const inReview = seeds.filter((r) => r.state === "review");
   const toDecide = seeds.filter((r) => r.state === "decision");
   // back-pressure only holds rows of later waves; nothing to explain once none is waiting
-  const held = backPressure(rows) && rows.some((r) => r.state === "pending" && r.wave > (plan.activeWave ?? 0));
+  const held = flow ? rows.some((r) => r.wait?.kind === "prs") : backPressure(rows) && rows.some((r) => r.state === "pending" && r.wave > (plan.activeWave ?? 0));
   if (!seeds.length && !held) return null;
   return (
     <div className="mb-3 grid gap-2">
@@ -452,75 +466,103 @@ function WaveHeading({ wave, seed, current, className = "mb-1" }: { wave: number
 /** A row whose project is being built now (the stage strip and the accent of the row). */
 const building = (r: PlanRowView) => (r.state === "starting" || r.state === "running" || r.state === "question") && !!r.project && ACTIVE_PROJECT_STATUSES.includes(r.project.status);
 
+/** A row of a confirmed plan in the list (by wave, or by lane for a flow plan). */
+function RowItem({ r, d, flow, seed, names, canSkip, canonId, act }: { r: PlanRowView; d: PlanDetailResponse; flow: boolean; seed: boolean; names: ReadonlyMap<string, string>; canSkip: boolean; canonId: string | null; act: (rowId: string, action: "retry" | "skip") => void }) {
+  const t = useT();
+  return (
+    // min-w-0: a grid item is as wide as its widest unbreakable content otherwise (the truncated project name of 「既存」)
+    <li
+      id={flowRowAnchor(r.rowId)}
+      data-state={r.state}
+      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors scroll-mt-4 sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="break-words text-sm">
+          <span className="font-medium">{r.tlf || "—"}</span>
+          <span className="text-slate-500"> · {r.roi || "—"}</span>
+        </div>
+        {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
+        {r.state === "skipped" && r.autoSkip && (
+          <div className="break-words text-xs text-amber-800" data-testid="row-auto-skip">
+            {autoSkipLine(t, d.plan, r.autoSkip)}
+          </div>
+        )}
+        <RowAiNotes row={r} />
+        <RowFacts row={{ ...r, seed: flow ? r.seed : seed }} names={names} />
+        {building(r) && r.project?.stepStates && (
+          <PipelineProgress project={{ status: r.project.status, stepStates: r.project.stepStates, activeStage: r.project.activeStage ?? null, researchMode: r.project.researchMode }} jobs={[]} help={false} className="mt-1.5" />
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {r.projectId && (
+          <Link to={projectPath(r.projectId)} className="max-w-[16rem] truncate text-blue-700 hover:underline">
+            {r.project?.name ?? r.projectId}
+          </Link>
+        )}
+        {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
+        {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
+        {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}
+        {!!r.autoAnswers && (
+          <span className="text-violet-700" data-testid="row-ai-answers">
+            {t("auto.aiAnswers", { n: r.autoAnswers })}
+          </span>
+        )}
+        <RowCanonFacts row={r} canonId={canonId} maxConform={maxFollowups(d.plan)} />
+        {flow && r.state === "pending" && r.wait ? <WaitChip row={r} names={names} /> : <RowStateChip state={r.state} />}
+        {canSkip && r.state === "pending" && (
+          <button type="button" onClick={() => act(r.rowId, "skip")} className="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 coarse:min-h-11" title={t("plan.skip")}>
+            <SkipForward size={13} aria-label={t("plan.skip")} />
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** Heading of a lane of a flow plan: its number and how many of its rows are done. */
+function LaneHeading({ lane, rows }: { lane: number; rows: PlanRowView[] }) {
+  const t = useT();
+  const done = rows.filter((r) => r.state === "done").length;
+  return (
+    <h3 className="mb-1 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500" data-testid="plan-lane-heading">
+      {lane ? t("flow.lane", { n: lane }) : "—"}
+      <span className="font-normal normal-case tracking-normal tabular-nums">
+        {done}/{rows.length}
+      </span>
+    </h3>
+  );
+}
+
 function RowsByWave({ d, act }: { d: PlanDetailResponse; act: (rowId: string, action: "retry" | "skip") => void }) {
   const t = useT();
+  const flow = isFlowPlan(d.plan);
   const waves = planWaves(d.rows);
   const names = useMemo(() => new Map(d.rows.map((r) => [r.rowId, rowName(r)])), [d.rows]);
   // 「基準プロジェクト」 on a row only while it is the seed of its wave (as the headings)
   const seeds = useMemo(() => new Set([...seedIndexes(d.rows)].map((i) => d.rows[i].rowId)), [d.rows]);
   const canSkip = d.plan.status === "RUNNING" || d.plan.status === "PAUSED" || d.plan.status === "CANCELLED";
   const canonId = d.plan.canonId ?? d.canon?.canonId ?? null;
+  const item = (r: PlanRowView) => <RowItem key={r.rowId} r={r} d={d} flow={flow} seed={seeds.has(r.rowId)} names={names} canSkip={canSkip} canonId={canonId} act={act} />;
   return (
     <section className="mb-5" data-testid="plan-rows">
       <h2 className="mb-2 text-sm font-semibold">{t("plan.rows", { n: d.rows.length })}</h2>
-      {waves.map((w) => {
-        const rows = d.rows.filter((r) => r.wave === w);
-        return (
-          <div key={w} className="mb-3">
-            <WaveHeading wave={w} seed={isSeedWave(rows)} current={d.plan.activeWave === w && d.plan.status === "RUNNING"} />
-            <ul className="grid gap-1.5">
-              {rows.map((r) => (
-                // min-w-0: a grid item is as wide as its widest unbreakable content otherwise (the truncated project name of 「既存」)
-                <li
-                  key={r.rowId}
-                  data-state={r.state}
-                  className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="break-words text-sm">
-                      <span className="font-medium">{r.tlf || "—"}</span>
-                      <span className="text-slate-500"> · {r.roi || "—"}</span>
-                    </div>
-                    {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
-                    {r.state === "skipped" && r.autoSkip && (
-                      <div className="break-words text-xs text-amber-800" data-testid="row-auto-skip">
-                        {autoSkipLine(t, d.plan, r.autoSkip)}
-                      </div>
-                    )}
-                    <RowAiNotes row={r} />
-                    <RowFacts row={{ ...r, seed: seeds.has(r.rowId) }} names={names} />
-                    {building(r) && r.project?.stepStates && (
-                      <PipelineProgress project={{ status: r.project.status, stepStates: r.project.stepStates, activeStage: r.project.activeStage ?? null, researchMode: r.project.researchMode }} jobs={[]} help={false} className="mt-1.5" />
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    {r.projectId && (
-                      <Link to={projectPath(r.projectId)} className="max-w-[16rem] truncate text-blue-700 hover:underline">
-                        {r.project?.name ?? r.projectId}
-                      </Link>
-                    )}
-                    {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
-                    {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
-                    {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}
-                    {!!r.autoAnswers && (
-                      <span className="text-violet-700" data-testid="row-ai-answers">
-                        {t("auto.aiAnswers", { n: r.autoAnswers })}
-                      </span>
-                    )}
-                    <RowCanonFacts row={r} canonId={canonId} maxConform={maxFollowups(d.plan)} />
-                    <RowStateChip state={r.state} />
-                    {canSkip && r.state === "pending" && (
-                      <button type="button" onClick={() => act(r.rowId, "skip")} className="rounded px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 coarse:min-h-11" title={t("plan.skip")}>
-                        <SkipForward size={13} aria-label={t("plan.skip")} />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
+      {flow
+        ? rowsByLane(d.rows).map(({ lane, rows }) => (
+            <div key={lane} className="mb-3">
+              <LaneHeading lane={lane} rows={rows} />
+              {/* the list keeps the plan's order: the map shows where each row is */}
+              <ul className="grid gap-1.5">{d.rows.filter((r) => (r.lane ?? 0) === lane).map(item)}</ul>
+            </div>
+          ))
+        : waves.map((w) => {
+            const rows = d.rows.filter((r) => r.wave === w);
+            return (
+              <div key={w} className="mb-3">
+                <WaveHeading wave={w} seed={isSeedWave(rows)} current={d.plan.activeWave === w && d.plan.status === "RUNNING"} />
+                <ul className="grid gap-1.5">{rows.map(item)}</ul>
+              </div>
+            );
+          })}
     </section>
   );
 }
@@ -793,6 +835,7 @@ export function PlanDetailPage() {
             </div>
 
             <Summary d={d} />
+            {isFlowPlan(plan) && <FlowMap rows={rows} live={plan.status === "RUNNING"} />}
             <Inbox rows={rows.filter((r) => r.state === "question")} onDone={() => void load()} onError={onError} />
             <Decisions rows={rows.filter((r) => r.state === "decision")} canonId={plan.canonId ?? d.canon?.canonId ?? null} busy={busy} canResolve={plan.status === "RUNNING" || plan.status === "PAUSED"} canSkip={plan.status === "RUNNING" || plan.status === "PAUSED" || plan.status === "CANCELLED"} resolve={resolveRow} skip={(rowId) => rowAct(rowId, "skip")} />
             <Attention rows={rows.filter((r) => r.state === "attention")} act={rowAct} />

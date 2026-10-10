@@ -97,10 +97,11 @@ const LANGUAGE: { tlf: string; roi: string; anchors: string[]; deps?: string[] }
 ];
 
 /**
- * A confirmed language plan ordered automatically (seeds: speech production, then phonological processing). The rows
+ * A confirmed language plan ordered automatically (seeds: speech production, then phonological processing), run in
+ * waves unless `scheduling` says flow. The rows
  * get fixed IDs in LANGUAGE order, so ties of the order (broken by row ID) are the same in every run.
  */
-async function runningLanguagePlan(): Promise<string> {
+async function runningLanguagePlan(scheduling: "waves" | "flow" = "waves"): Promise<string> {
   const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", rows: LANGUAGE.map((r) => ({ roi: r.roi, tlf: r.tlf })) }))).plan.planId;
   const fixedId = (tlf: string) => `r${String(LANGUAGE.findIndex((l) => l.tlf === tlf) + 1).padStart(7, "0")}`;
   const typed = rowsOf(planId);
@@ -111,6 +112,8 @@ async function runningLanguagePlan(): Promise<string> {
     fake.put("plans", { ...typed.find((r) => r.tlf === l.tlf)!, rowId, sk: `ROW#${rowId}`, anchors: l.anchors, anchorsSource: "predicted", dependsOn: (l.deps ?? []).map(fixedId) } as never);
   }
   await json(call(A, "POST", `/plans/${planId}/order`));
+  // waves: as a plan confirmed before flow scheduling (one wave after another, re-ordered after each wave)
+  fake.put("plans", { ...planOf(planId), scheduling } as never);
   await json(call(A, "POST", `/plans/${planId}/confirm`, { locale: "en" }));
   return planId;
 }
@@ -414,5 +417,50 @@ describe("plans: re-planning after each wave", () => {
     expect(planJobs(planId)).toEqual([]);
     expect(planOf(planId).lastReplanWave).toBeUndefined();
     expect(proposalsOf(planId)).toEqual([]);
+  });
+});
+
+describe("plans: flow scheduling (plans ordered automatically)", () => {
+  const running = (planId: string) => rowsOf(planId).filter((r) => r.state === "running").map((r) => r.tlf);
+  const sharesWith = (a: string[] | undefined, b: string[] | undefined) => (a ?? []).some((x) => (b ?? []).includes(x));
+
+  it("starts rows of any wave on a free slot, keeping dependencies, seeds and strong overlaps", async () => {
+    await setLimits(4, 4);
+    const planId = await runningLanguagePlan("flow");
+    expect(planOf(planId)).toMatchObject({ scheduling: "flow", activeWave: 1 });
+    // the first seed, and the only row that shares no anchor with a seed (it is in a later wave)
+    expect(running(planId)).toEqual(["speech production", "writing"]);
+    expect(rowOf(planId, "writing").wave).toBeGreaterThan(1);
+    const d = await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`));
+    expect(d.rows.find((r) => r.tlf === "phonological processing")!.wait).toMatchObject({ kind: "seed", rowIds: [rowOf(planId, "speech production").rowId] });
+    expect(d.rows.find((r) => r.tlf === "repetition")!.wait).toMatchObject({ kind: "dependency" });
+    expect(d.slots).toEqual({ used: 2, orchestrator: 0, limit: 4 });
+
+    // the first seed is done: the second seed starts, a re-plan job is asked, and rows clear of the seeds fill the rest
+    projectStatus(planId, "speech production", "COMPLETED");
+    await advancePlan(planId);
+    expect(running(planId)).toContain("phonological processing");
+    expect(planOf(planId).replan).toMatchObject({ kind: "replan", status: "queued" });
+    expect(running(planId).length + 1).toBe(4);
+    const phon = rowOf(planId, "phonological processing");
+    for (const tlf of running(planId)) if (tlf !== "phonological processing") expect(sharesWith(rowOf(planId, tlf).anchors, phon.anchors)).toBe(false);
+    // repetition depends on both seeds: it waits until the second one is done too
+    expect(rowOf(planId, "repetition").state).toBe("pending");
+    projectStatus(planId, "phonological processing", "COMPLETED");
+    for (const tlf of running(planId)) projectStatus(planId, tlf, "COMPLETED");
+    await advancePlan(planId);
+    expect(running(planId)).toContain("repetition");
+  });
+
+  it("estimates the flow by simulation, faster than the same rows run wave after wave", async () => {
+    await setLimits(4, 4);
+    const flow = await runningLanguagePlan("flow");
+    const waves = await runningLanguagePlan("waves");
+    const f = await json<PlanDetailResponse>(call(A, "GET", `/plans/${flow}`));
+    const w = await json<PlanDetailResponse>(call(A, "GET", `/plans/${waves}`));
+    expect(f.estimate.lanes).toBeGreaterThan(0);
+    expect(w.estimate.lanes).toBeUndefined();
+    expect(f.estimate.minutes).toBeLessThan(w.estimate.minutes);
+    expect(w.slots).toBeNull();
   });
 });

@@ -130,7 +130,12 @@ export function PlanDraft({
           </h2>
           <div className="flex flex-wrap items-center gap-1 text-sm text-slate-700" data-testid="plan-estimate">
             {editor.rows.length ? t("pd.confirm.estimate", { time: fmtDuration(e.minutes, t), cost: costRange(e, t), n: e.rows, c: e.concurrency }) : t("pd.confirm.noEstimate")}
-            {editor.rows.length > 0 && <HelpTip text={t("plan.estimateHelp")} />}
+            {editor.rows.length > 0 && !!e.lanes && (
+              <span className="text-slate-500" data-testid="plan-estimate-lanes">
+                · {t("flow.lanes")} {e.lanes}
+              </span>
+            )}
+            {editor.rows.length > 0 && <HelpTip text={t(e.lanes ? "flow.estimateHelp" : "plan.estimateHelp")} />}
           </div>
           {auto && <p className="text-xs text-violet-700">{t("auto.confirmNote")}</p>}
         </div>

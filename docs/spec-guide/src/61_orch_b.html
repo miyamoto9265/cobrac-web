@@ -60,6 +60,22 @@
 </ul>
 <p class="small">補足：R1〜R7 のハブは R1・R2・R5 が 2、ほかが 1 です。基準プロジェクトの候補は依存の無い行なので、R5 はハブが 2 でも基準プロジェクトになりません。しきい値は max(1, ⌈2 × 0.6⌉) = 2 なので、R1 と R2 が基準プロジェクトです。本体は R5（ハブ 2）→ R3 → R4 → R6 → R7 の順に置かれ、R4 はバッチ 3 にまだ空きがあっても R3 と 2 個共有するのでバッチ 4 に、R7 はバッチ 3 が 3 行で満杯なのでバッチ 4 に入ります。</p>
 
+<h3>フロー実行（<code>planFlow.ts</code>）</h3>
+<p>自動の順序（<code>ordering: "auto"</code>）で確定した計画は<b>フロー実行</b>（<code>scheduling: "flow"</code>）になります。バッチは区切りではなく優先度の目安になり、行は次の 3 つを満たした時点で始まります（<code>flowPlan</code>）。どの行の枠が空いても、すぐ次の行で埋めます。手動の順序の計画と、この変更より前に確定した計画は、これまでどおりバッチごとに進みます（<code>scheduling: "waves"</code>）。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">条件</th><th>内容</th><th style="width:22%">画面の待ち理由</th></tr></thead>
+  <tbody>
+    <tr><td><b>依存</b></td><td>依存する行がすべて <code>done</code>（Canon のある計画では PR が承認され Canon に入った）。依存が循環していれば、自分を含む循環の依存は無視する</td><td>「○○ の後」</td></tr>
+    <tr><td><b>基準プロジェクト</b></td><td>アンカーを共有する基準プロジェクトがすべて完了・スキップ・中止。アンカーを共有しない基準プロジェクトどうしは並行して作る</td><td>「基準 ○○ の後」</td></tr>
+    <tr><td><b>重なり</b></td><td>まだ仕事が入っていない行（開始中・実行中・質問中・承認待ち、またはプロジェクトのある待ち行）との重なりの強さが 3（<code>STRONG_OVERLAP</code>）未満。強さは共有するアンカー 1 個につき 1（どちらかの ROI＝最初のアンカーなら 2）、完了した行がすでに作った回路は 0.3 倍</td><td>「○○ の後」</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>始める順</b>：Canon に合わせた更新 → リトライ → 基準プロジェクト → 後ろに依存する行の多い順（クリティカルパス）→ ハブ → 優先度 → バッチ → 順番。条件を満たし枠を待つ行は「次に開始」、承認待ちが 20 件で止まった行は「承認待ちが多いため待機」と出ます。</li>
+  <li><b>レーン</b>（<code>planLanes</code>）：依存と、ハブでないアンカー（行の 25% 以上かつ 3 行以上が持つアンカーはハブとして除く）でつながる行のまとまりです。行数の多い順にレーン 1, 2, … と番号を付けます。レーンは表示用で、実行の条件にはなりません。</li>
+  <li><b>見積もり</b>（<code>simulateFlowMinutes</code>）：上の条件で 1 行 48 分として枠に詰めるシミュレーションに、手直しを足します。図 6.3 の例（同時実行数 6）では、R1・R3・R6・R7 が最初に並行して始まり（R2 は R1 と IFG44 を共有、R4 は R3 と強く重なる、R5 は R1・R2 に依存）、3 回分 × 48 分で終わります（バッチごとなら 4 回分）。</li>
+</ul>
+
 <h2 id="s6-7">6.7 手順 3：行とバッチを整える</h2>
 <p>下書きの計画の画面は、上から次の 4 つの区切りに分かれます。進捗・バッチ・時間・費用のカードは、確定したあとだけ出ます。「計画を削除」は一番下にあります。</p>
 <ol class="steps">
@@ -112,7 +128,7 @@
   <li><b>既存の再確認</b>：既存のプロジェクトがある <code>pending</code> の行を、まだ削除されず、成果物つきで完成しているか確かめ直す。外れていれば照合し直し、無ければ作る（<code>confirmed</code> のイベントに <code>existingGone</code> として数える）。</li>
   <li><b>並べ直し</b>：自動の順序の計画は、その時点の実効の同時実行数でもう一度並べる（<code>orderDraft</code>）。既存で済む行は <code>done</code>（<code>projectId</code> = そのプロジェクト、<code>completedAt</code>）にする（Canon のある計画の扱いは 6.11）。</li>
   <li><b>Canon</b>：「新しい Canon」なら、ここで計画の粒度方針を方針にして作る（非公開・空・rev 0）。</li>
-  <li><b>開始</b>：見積もり（<code>planEstimate</code>）を保存して <code>RUNNING</code> にし、ランナーを 1 回すぐに動かす（最初の行が 1 分待たずに始まる）。</li>
+  <li><b>開始</b>：実行の仕方（<code>scheduling</code>：自動の順序なら <code>flow</code>、手動なら <code>waves</code>。すでに決まっていればそのまま）と見積もり（<code>planEstimateFor</code>：フロー実行はシミュレーション、6.6）を保存して <code>RUNNING</code> にし、ランナーを 1 回すぐに動かす（最初の行が 1 分待たずに始まる）。</li>
 </ol>
 <p class="small">確定はリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはありません（6.14）。自律実行の計画は、下書きを適用した直後にランナーが同じ関数で確定します（6.15）。</p>
 <div class="box">
@@ -138,10 +154,11 @@
   <li>新しいプロジェクトのチャットには「CoBRAC オーケストレーターが開始」の通知（<code>sys.planStarted</code>）が出ます。計画の中止で止めたジョブには <code>sys.planCancelled</code> が出ます。中止の途中で始まった行は、すぐに止めます。</li>
   <li>計画が作ったプロジェクトは通常のプロジェクトと同じ画面で開け、ヘッダーに計画へのリンクが出ます。来歴として <code>Projects.planId</code>・<code>Jobs.planId</code>（行の初回とリトライのジョブ。そのプロジェクトで手で始めたリトライも含む）、版の manifest の生成条件に <code>planId</code> が残ります。オーケストレーターは BRA-DB には登録しません（登録は版ごとに所有者が行う、第 5 部）。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/planRunner.ts</code>（<code>advancePlan</code>・<code>syncRow</code>）・<code>runs.ts</code>（<code>createProject</code>・<code>queueRetry</code>・<code>stopProject</code>）、<code>packages/shared/src/plan.ts</code></p>
+<p><b>フロー実行の計画</b>では、2 段で <code>activeWave</code> を「未完了の行のあるいちばん早いバッチ」にするだけで（表示用、<code>flowActiveWave</code>）、3 段では 6.6 の条件を満たす行を始める順に始めます。オーケストレーター自身の AI のジョブ（行のジョブ・再計画・PR の AI レビューと判断）は、始められる行があるあいだ実効の同時実行数の 3 分の 1（切り上げ、6 なら 2。<code>controlSlotCap</code>）までしか枠を使いません。質問への回答は止めません。</p>
+<p class="src">典拠：<code>packages/api/src/lib/planRunner.ts</code>（<code>advancePlan</code>・<code>syncRow</code>・<code>flowCandidates</code>）、<code>packages/shared/src/planFlow.ts</code>・<code>runs.ts</code>（<code>createProject</code>・<code>queueRetry</code>・<code>stopProject</code>）、<code>packages/shared/src/plan.ts</code></p>
 
 <h2 id="s6-10">6.10 バッチごとの並べ直し・再計画・提案</h2>
-<p>自動の順序（<code>ordering: "auto"</code>）の計画では、バッチが終わるたびに残りの行を見直します。手動の順序の計画では行いません。</p>
+<p>自動の順序（<code>ordering: "auto"</code>）の計画では、バッチが終わるたびに残りの行を見直します。手動の順序の計画では行いません。<b>フロー実行の計画</b>は並べ直さず（始める順は毎ステップ、実物のアンカーで計算し直す）、再計画のジョブを最初の行の完了後に 1 回、その後は作る行の 1 割が終わるごとに 1 回求めます（<code>flowReplanDue</code>、<code>replanDone</code>）。</p>
 <ol class="steps">
   <li><b>アンカーを実物で置き換える</b>（ランナー）：完了した行（既存で済んだ行を除く）で、アンカーがまだ <code>used</code> でないものについて、そのプロジェクトの <code>users/{owner}/{projectId}/workspace/{projectId}_HCD/uc.json</code> を読み（1 ステップ 20 件まで。1 つのバッチに入る数より多い）、読めてアンカーがあれば（<code>anchorsOfUcJson</code>：すべての UC と Collection の Descriptor のアンカー）、その行のアンカーを置き換える（<code>anchorsSource: "used"</code>）。予想と違った重なりが次の並べ直しに反映される。</li>
   <li><b>並べ直す</b>（ランナー）：いまのバッチが終わり（そのバッチとそれより前に <code>pending</code>・<code>starting</code>・<code>running</code> の行が無い）、後のバッチに動かせる行（<code>isMovableRow</code>：<code>pending</code>・プロジェクト無し・既存でない）があり、このバッチでまだ並べ直していなければ（<code>lastReplanWave</code>）、<code>replanRows(rows, activeWave, effective)</code> が動かせる行を、いまのアンカーとハブの値で次のバッチから並べ直す。まだ始まっていない基準プロジェクトは基準プロジェクトのまま。新しいバッチは行がまだ <code>pending</code> のときだけ書き、<code>lastReplanWave</code> をそのバッチにする（イベント <code>replanned</code>：バッチと動かした行）。始まった・実行中・回答待ち・完了・要対応・スキップ・中止の行と、リトライ（プロジェクトのある <code>pending</code>）は動かない。その後、<code>activeWave</code> を 6.9 のとおり進める。</li>

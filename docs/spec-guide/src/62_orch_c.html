@@ -90,8 +90,8 @@
 </ul>
 <h3>基準プロジェクトのゲートと、承認待ちの上限</h3>
 <div class="grid2">
-  <div class="card"><div class="h">基準プロジェクトのゲート</div>Canon のある計画では、基準プロジェクトは<b>その PR を人が承認する</b>（または解決・スキップする）まで、後のすべてのバッチを止めます。基準プロジェクトは同じバッチにあっても 1 件ずつ始まり、ほかの基準プロジェクトが実行中・承認待ち・人の判断の間は始まりません。画面には「基準プロジェクトの PR の承認を待っています」と PR へのリンク、または「基準プロジェクトに人の判断が必要です」が出ます。基準プロジェクトの PR を先に承認すると、後の行はその rev から作り始めます。自律実行の計画では、AI の判断による承認（または見送り）でゲートが開きます。</div>
-  <div class="card"><div class="h">承認待ちの上限（背圧）</div>承認待ちの行が 20 件（<code>PLAN_MAX_WAITING_PRS</code>）に達すると、新しいバッチを始めません（いまのバッチの行は続く）。画面には「承認待ちの PR が 20 件あるため、次のバッチを止めています」。Canon の画面の「まとめて承認」（4.8）で、矛盾の無い PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
+  <div class="card"><div class="h">基準プロジェクトのゲート</div>Canon のある計画では、基準プロジェクトは<b>その PR を人が承認する</b>（または解決・スキップする）まで、後のすべてのバッチを止めます。基準プロジェクトは同じバッチにあっても 1 件ずつ始まり、ほかの基準プロジェクトが実行中・承認待ち・人の判断の間は始まりません。画面には「基準プロジェクトの PR の承認を待っています」と PR へのリンク、または「基準プロジェクトに人の判断が必要です」が出ます。基準プロジェクトの PR を先に承認すると、後の行はその rev から作り始めます。自律実行の計画では、AI の判断による承認（または見送り）でゲートが開きます。フロー実行の計画では、基準プロジェクトが止めるのはアンカーを共有する行だけです（6.6）。</div>
+  <div class="card"><div class="h">承認待ちの上限（背圧）</div>承認待ちの行が 20 件（<code>PLAN_MAX_WAITING_PRS</code>）に達すると、新しいバッチを始めません（いまのバッチの行は続く。フロー実行では、プロジェクトのある行だけを続ける）。画面には「承認待ちの PR が 20 件あるため、次のバッチを止めています」。Canon の画面の「まとめて承認」（4.8）で、矛盾の無い PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
 </div>
 <p class="small">計画の Canon が削除された・所有者のものでなくなった場合：承認待ちの行と、完成して push するはずの行は「人の判断」（<code>push_failed</code>、「The plan's Canon was not found.」）になり、新しい行・リトライ・Canon に合わせた更新を始めようとすると、計画は自分で一時停止し（<code>canon_missing</code>）何も始めません。画面には「一時停止中: この計画の Canon が見つかりません（削除された可能性があります）。新しい行は Canon に入れられないため始めません。」と出ます。実行中の行は、ほかの一時停止と同じく続いて追われます。所有者は待っている行をスキップするか、計画を中止できます。<code>review</code> と <code>decision</code> は枠を使わず、完了にも数えません。Canon のある計画は、すべての行が <code>done</code> か <code>skipped</code> になったときに完了します。</p>
 
@@ -108,6 +108,7 @@
   </tbody>
 </table>
 <p>レーンの中身は API（プログラム）が返す <code>pulse</code> です。<code>GET /plans</code> は、実行中・一時停止の計画のうち新しい 12 件について、計画の詳細から、バッチごと・状態ごとの行の数、作っている行（<code>starting</code> / <code>running</code>）と操作を待つ行（<code>question</code> / <code>review</code> / <code>decision</code> / <code>attention</code>）、最新の出来事 4 件とその行、未決の提案の数、見積もりと実績を計算して付けます（保存はせず、読むたびに計算）。それより古い計画は件数だけを出します。</p>
+<p>フロー実行の計画では、一覧の進捗バーはレーンごとに区切られます。計画の画面には<b>レーンの図</b>（レーンごとに 1 行 1 マス。完了は緑、実行中は流れる青、承認待ちは紫、要対応・質問は脈打つ黄、次に始める行は青の点線、待ちは灰。押すとその行へ移る）と、<b>同時実行</b>の枠（使用中の行は青、オーケストレーターの AI は紫。<code>GET /plans/{id}</code> の <code>slots</code>）が出て、行はレーンごとに並び、待っている行には待ち理由（6.6、<code>wait</code>）が出ます。</p>
 <p>計画の画面の「行」では、作っている行（と質問中の行）に、そのプロジェクトのステップ（調査 → HCD ⇄ FRG → CSV → xlsx）が出ます。進捗バーはバッチごとに区切られ、行が進むと伸びます。動き（流れる帯、伸びるバー、実行中の点の脈動）は、OS で「視差効果を減らす」（<code>prefers-reduced-motion</code>）を選んでいると止まります。</p>
 <p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/components/PlanBar.tsx</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/app.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）</p>
 <h3>行と計画への操作</h3>
@@ -125,7 +126,7 @@
 
 <h2 id="s6-13">6.13 同時実行数・モデル・費用</h2>
 <ul>
-  <li><b>同時実行数</b>：管理者が管理者画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定できます（空ならデプロイの値）。設定は Catalog テーブルの <code>config</code> / <code>concurrency</code> の項目（<code>maxConcurrentJobs</code>、<code>maxConcurrentJobsPerUser</code>、<code>updatedAt</code>、<code>updatedBy</code>）で、<code>PUT /admin/concurrency</code> は 1〜16 の整数か null 以外を拒みます。ディスパッチャー（Catalog の <code>config</code> を <code>GetItem</code> で読む）とランナーは 30 秒のキャッシュを通して読み、読めなければデプロイの値を使います。<code>GET /config</code> は効いている上限を返します。計画の実効の同時実行数は min(全体, 1 人あたり) です。1 回の実行は毎分約 14〜17 万トークンを使い、既定の API キーの組織の gpt-6-luna の上限は毎分 200 万トークン（2026-10 初めまでは 20 万）なので、約 10 本までは OpenAI のレート制限に当たりません。</li>
+  <li><b>同時実行数</b>：管理者が管理者画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定できます（空ならデプロイの値）。設定は Catalog テーブルの <code>config</code> / <code>concurrency</code> の項目（<code>maxConcurrentJobs</code>、<code>maxConcurrentJobsPerUser</code>、<code>updatedAt</code>、<code>updatedBy</code>）で、<code>PUT /admin/concurrency</code> は 1〜16 の整数か null 以外を拒みます。ディスパッチャー（Catalog の <code>config</code> を <code>GetItem</code> で読む）とランナーは 30 秒のキャッシュを通して読み、読めなければデプロイの値を使います。<code>GET /config</code> は効いている上限を返します。計画の実効の同時実行数は min(全体, 1 人あたり) です。フロー実行の計画では、オーケストレーター自身の AI のジョブはその 3 分の 1 まで（6.9）。1 回の実行は毎分約 14〜17 万トークンを使い、既定の API キーの組織の gpt-6-luna の上限は毎分 200 万トークン（2026-10 初めまでは 20 万）なので、約 10 本までは OpenAI のレート制限に当たりません。</li>
   <li><b>2 種類のモデル</b>：<b>オーケストレーターのモデル</b>は計画自身のジョブ（下書き・再計画・行の PR の AI レビュー）に、<b>エージェントのモデル</b>と推論の強さは各行の BRA に使います。どちらも確定時に固定されます。計画用のジョブは推論の強さ <code>medium</code> の短い 1 ターンなので、行に比べれば費用はわずかです。</li>
   <li><b>見積もりと実績</b>：見積もりは確定時に保存し（6.8）、計画の画面には「これまで」として、確定からの経過時間（完了・中止まで）と、行のプロジェクトの費用の合計を出します（既存のプロジェクトで済んだ行は数えない）。ジョブはほかのジョブと同じく記録・課金されます（承認済みの利用者はデフォルトの API キーで実行する）。</li>
   <li><b>費用</b>：下書き・再計画・AI レビュー・Canon に合わせた更新は、すべて通常のジョブです（<code>plan</code>・<code>canon-review</code>・<code>followup</code>）。枠が空いたときだけ積み、枠より先には積みません。API とランナーは鍵を復号しません。同時実行数の枠を 1 つ使い、所有者のキー（またはデフォルトの API キー）で実行され、利用量と推定費用がジョブに記録されます。取り消し・時間切れのジョブも、それまでに使った分が記録されます。計画の画面には、確定からの経過時間と、行のプロジェクト・計画用のジョブ・計画の PR の AI レビューを合わせた費用（うち計画用のジョブの費用を別に）が出ます。</li>
