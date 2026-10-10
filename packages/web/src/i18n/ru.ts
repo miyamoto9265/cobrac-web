@@ -991,7 +991,7 @@ export const ru: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "Проект был остановлен вне плана.",
   "plan.reason.project_deleted": "Проект был удалён.",
   "plan.reason.start_failed": "Не удалось запустить проект.",
-  "plan.rows": "Строки ({n})",
+  "plan.rows": "Проекты ({n})",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "Обоснование",
