@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- Plan screen: the list heading reads "Projects (n)" instead of "Rows (n)", and clicking a row's card (or its title) opens its project
+
 ## [0.45.1] - 2026-10-10
 
 ### Changed

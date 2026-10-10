@@ -72,6 +72,7 @@ async function render(path: string, state?: unknown) {
           <Routes>
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/projects/:projectId" element={<div data-testid="project-page" />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -130,6 +131,19 @@ describe("plan screen while running", () => {
     expect([...actions.querySelectorAll("button")].map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel plan"]);
     await act(async () => button("Pause", actions)!.click());
     expect(api.planAction).toHaveBeenCalledWith("n4h8w2rk", "pause");
+  });
+
+  it("opens a row's project from anywhere on its card", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows));
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-rows"] h2')!.textContent).toBe("Projects (4)");
+    const li = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("speech production"))!;
+    expect(li.querySelector('[data-testid="plan-row-link"]')!.getAttribute("href")).toBe("/projects/p0000001");
+    // a row without a project yet is not a link
+    const pending = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("writing"))!;
+    expect(pending.querySelector('[data-testid="plan-row-link"]')).toBeNull();
+    await act(async () => li.click());
+    expect(q('[data-testid="project-page"]')).not.toBeNull();
   });
 
   it("explains why a plan paused itself", async () => {

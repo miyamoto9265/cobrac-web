@@ -469,17 +469,37 @@ const building = (r: PlanRowView) => (r.state === "starting" || r.state === "run
 /** A row of a confirmed plan in the list (by wave, or by lane for a flow plan). */
 function RowItem({ r, d, flow, seed, names, canSkip, canonId, act }: { r: PlanRowView; d: PlanDetailResponse; flow: boolean; seed: boolean; names: ReadonlyMap<string, string>; canSkip: boolean; canonId: string | null; act: (rowId: string, action: "retry" | "skip") => void }) {
   const t = useT();
+  const navigate = useNavigate();
+  const to = r.projectId ? projectPath(r.projectId) : null;
+  // the whole card opens its project; links, buttons and a text selection inside it keep their own behavior
+  const open = (e: React.MouseEvent) => {
+    if (!to || (e.target as Element).closest("a,button,input,select,textarea,summary,label") || window.getSelection()?.toString()) return;
+    if (e.metaKey || e.ctrlKey) window.open(to, "_blank", "noopener");
+    else navigate(to);
+  };
+  const title = (
+    <>
+      <span className="font-medium">{r.tlf || "—"}</span>
+      <span className="text-slate-500"> · {r.roi || "—"}</span>
+    </>
+  );
   return (
-    // min-w-0: a grid item is as wide as its widest unbreakable content otherwise (the truncated project name of 「既存」)
+    // min-w-0: a grid item is as wide as its widest unbreakable content otherwise
     <li
       id={flowRowAnchor(r.rowId)}
       data-state={r.state}
-      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors scroll-mt-4 sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"}`}
+      onClick={open}
+      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors scroll-mt-4 sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"} ${to ? "cursor-pointer hover:border-blue-400 hover:bg-blue-50/40" : ""}`}
     >
       <div className="min-w-0 flex-1">
         <div className="break-words text-sm">
-          <span className="font-medium">{r.tlf || "—"}</span>
-          <span className="text-slate-500"> · {r.roi || "—"}</span>
+          {to ? (
+            <Link to={to} className="hover:underline" data-testid="plan-row-link">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
         </div>
         {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
         {r.state === "skipped" && r.autoSkip && (
@@ -494,11 +514,6 @@ function RowItem({ r, d, flow, seed, names, canSkip, canonId, act }: { r: PlanRo
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        {r.projectId && (
-          <Link to={projectPath(r.projectId)} className="max-w-[16rem] truncate text-blue-700 hover:underline">
-            {r.project?.name ?? r.projectId}
-          </Link>
-        )}
         {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
         {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
         {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}

@@ -989,7 +989,7 @@ export const ko: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "프로젝트가 계획 밖에서 중지되었습니다.",
   "plan.reason.project_deleted": "프로젝트가 삭제되었습니다.",
   "plan.reason.start_failed": "프로젝트를 시작하지 못했습니다.",
-  "plan.rows": "행({n})",
+  "plan.rows": "프로젝트({n})",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "근거",
