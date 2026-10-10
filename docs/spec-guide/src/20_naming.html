@@ -11,7 +11,7 @@
 </div>
 
 <h2 id="s2-1">2.1 なぜ名前の規則が必要か</h2>
-<p>以前の CoBRAC では、エージェントがプロジェクトごとに自由な Circuit ID を付けていました。当時のサンプルには <code>PC</code>、<code>GrC</code>、<code>MF_VN</code>、<code>CA3-Pyr</code>、<code>L-DLPFC</code>、<code>FG-math</code> といった名前が並び、ワーカーが検査していたのは「Circuit ID に空白がないこと」だけでした。この方法には、次の 2 つの問題がありました。</p>
+<p>命名の規則ができる前は、エージェントがプロジェクトごとに自由な Circuit ID（<code>PC</code>、<code>GrC</code>、<code>CA3-Pyr</code>、<code>L-DLPFC</code> など）を付けていました（経緯は付録 D）。自由な名前には、次の 2 つの問題があります。</p>
 <div class="grid2">
   <div class="card"><div class="h">① 同じ集団に別の名前が付くこと</div>側坐核 shell の DRD1 陽性の集団を、あるプロジェクトは <code>NAc_shell_D1</code>、別のプロジェクトは <code>NACs-DRD1</code> と書くことがありえます。反対に、同じ文字列が別の集団を指すこともありえます。これでは、プロジェクトをまたいで回路を集計したり、定義をそろえたりできません。</div>
   <div class="card"><div class="h">② アトラスとの対応が名前から分からないこと</div>名前がどの領域を指すかはエージェントの説明文にしか書かれておらず、SABRA のどの単位に当たるかを機械的に検査できません。層・細胞種・投射先で切り出したサブ集団では、とくに書き方の揺れが大きくなります。</div>
@@ -25,7 +25,7 @@
   <tbody>
     <tr><td>UC</td><td>Uniform Circuit。均質な情報を符号化する最小のメゾスコピックな神経集団（その HCD がそうみなすもの）。HCD のノードになる</td></tr>
     <tr><td>Collection</td><td>その HCD がより細かい UC に分けた回路（Uniform = FALSE）。Sub-Circuits に分解され、接続の端にはならない（2.9）</td></tr>
-    <tr><td>SABRA</td><td>WBAI の組織の混合アトラス。新皮質は BNA（Brainnetome）、それ以外の皮質下核、海馬体などの不等皮質、脳幹、小脳などは DHBA で表す（2026-10-04 からの境界、2.3）。SABRA 自体は独自の ID を持たない</td></tr>
+    <tr><td>SABRA</td><td>WBAI の組織の混合アトラス。新皮質は BNA（Brainnetome）で表し、それ以外（皮質下核、海馬体などの不等皮質、脳幹、小脳など）は DHBA で表す（2.3）。SABRA 自体は独自の ID を持たない</td></tr>
     <tr><td>HOMBA / DHBA / BNA</td><td>HOMBA はヒトの脳のオントロジー。DHBA 側の単位は、DHBA 名を持つ HOMBA の項。BNA 側の単位は BNA のラベル（左が奇数、右が偶数）</td></tr>
     <tr><td>RCS</td><td>ROSETTA Candidate Search。名前から HOMBA と BNA の候補を返す MCP サーバー。エージェントはこれを使ってアンカーを検索する</td></tr>
     <tr><td>アンカー</td><td>UC が結びつく SABRA の単位。<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;左&gt;-&lt;右&gt;</code>、<code>BNAG:&lt;L2 略称&gt;</code>、またはそれらを <code>&amp;</code> でつないだもの</td></tr>
@@ -83,7 +83,7 @@
 <p class="small">BNA の領域を 1 つに決める目安は、上位の候補の <code>p_raw</code> が 0.5 以上で、<code>k_papers</code> が 2 以上であることです。</p>
 
 <h3>BNA と DHBA の境界</h3>
-<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは<b>新皮質だけ</b>になりました。BNA にはラベルがあっても、新皮質でない領域は DHBA の項で表します。対象は、扁桃体 <code>Amyg</code>、海馬 <code>Hipp</code>、大脳基底核 <code>BG</code>、視床 <code>Tha</code> の皮質下の 36 ラベルと、海馬体・嗅内皮質などの不等皮質です。領域ごとの表し方は次のとおりです。</p>
+<p>SABRA の仕様（2026-10-04）では、BNA を使うのは<b>新皮質だけ</b>です。BNA にはラベルがあっても、新皮質でない領域は DHBA の項で表します。対象は、扁桃体 <code>Amyg</code>、海馬 <code>Hipp</code>、大脳基底核 <code>BG</code>、視床 <code>Tha</code> の皮質下の 36 ラベルと、海馬体・嗅内皮質などの不等皮質です。領域ごとの表し方は次のとおりです。</p>
 <table class="compact">
   <thead><tr><th>領域</th><th>SABRA での単位</th></tr></thead>
   <tbody>
@@ -101,7 +101,7 @@
   <li>新皮質でない BNA の領域（ラベル 211–246、<code>BNA:115-116</code>、<code>BNA:117-118</code>）と、<code>BNAG:Amyg</code>・<code>BNAG:Hipp</code>・<code>BNAG:BG</code>・<code>BNAG:Tha</code> は、アンカーにも、<code>in</code> / <code>out</code> などの facet の値にも使えません。ワーカーの検査は、その領域を含む DHBA の項を示して直させます。たとえば <code>BNA:223-224</code> なら <code>HOMBA:10339 NAC</code>、<code>BNAG:BG</code> なら <code>Ca</code>・<code>Pu</code>・<code>NAC</code>・<code>GP</code> を示します。</li>
   <li>海馬全体は <code>HOMBA:12170</code>（<code>HiF</code>）で表します。文献が CA1、CA3、DG、海馬台などの特定の領域を挙げていれば、<code>HiF</code> ではなく、その DHBA の項を使います。</li>
   <li><code>BNAG:PhG</code>（海馬傍回）は、新皮質の A35/36r・A35/36c・TL・TH と、DHBA で表す A28/34・TI の両方を含むので、回全体のアンカーにはできません。検査は、亜領域（<code>BNA:109-110</code>、<code>BNA:111-112</code>、<code>BNA:113-114</code>、<code>BNA:119-120</code>）か、DHBA の <code>EC</code>（<code>HOMBA:10317</code>）・<code>TI</code>（<code>HOMBA:10330</code>）を使うよう求めます。</li>
-  <li>Canon に従うプロジェクトは、Canon にすでにある Descriptor を、この境界に合わなくてもそのまま使えます。その Descriptor は境界の検査の対象から外れます。境界の変更より前に作ったプロジェクトと、保存済みの Canon の扱いは付録 C にまとめます。</li>
+  <li>Canon に従うプロジェクトは、Canon にすでにある Descriptor を、この境界に合わなくてもそのまま使えます。その Descriptor は境界の検査の対象から外れます。この境界より前に作ったプロジェクトと、保存済みの Canon の扱いは付録 C（C.2）にまとめます。</li>
 </ul>
 <h3>実装</h3>
 <p>境界の正本は RCS の <code>rcs/sabra.py</code> です。RCS の <code>get_homba_term</code> と <code>search_homba_candidates</code> は新しい境界で <code>sabra.atlas</code> を返し、<code>search_bna_candidates</code> は新皮質でない領域に <code>sabra.atlas: DHBA</code>・<code>sabra_unit: false</code> を付けます。CoBRAC 側の対応表は <code>BNA_DHBA_COUNTERPARTS</code> です。新しいプロジェクトは作成時に <code>sabraBoundary: "neocortex"</code> を持ちます。</p>
@@ -204,7 +204,7 @@
   <li>アンカーの SABRA の正式略称を、大文字小文字も含めてそのまま使います。BNA 側は BNA の新皮質の領域の略称（<code>A4ul</code>、<code>A44d</code>、<code>A9/46d</code>）、DHBA 側は DHBA の略称です。たとえば弓状核は、HOMBA の <code>ArH</code> ではなく DHBA の <code>Arc</code> を使います。</li>
   <li>略称に加える変換は、空白を <code>_</code> にすることだけです。該当するのは、BNA の <code>TE1.0 and TE1.2</code> を <code>TE1.0_and_TE1.2</code> にする 1 例だけです。<code>/</code> と <code>+</code> は 2026-08-19 の合意で使える文字に入ったので、<code>A9/46d</code>、<code>A1/2/3ll</code>、<code>V5/MT+</code> はそのまま使います。</li>
   <li>複数の SABRA の単位にまたがる回路（<code>BNAG:</code> や <code>A&amp;B</code> のアンカー）では、暫定的に、共通する BNA の L2 の略称（例：<code>MFG</code>）を使います。共通の L2 がなければ、最初のアンカーの略称を使います。</li>
-  <li>独自の略称や慣用の略称（<code>NAc</code>、<code>LC</code>）と、SABRA の単位でない細分の略称（片葉の <code>CH10</code> など）は前半に置きません。これらは括弧の中の <code>part</code> の項目にします。</li>
+  <li>独自の略称や慣用の略称（<code>NAc</code>、<code>LC</code>）と、SABRA の単位でない細分の略称（片葉の <code>CH10</code> など）は前半に置きません。これらは括弧の中に <code>part</code> の項目として書きます。</li>
 </ul>
 <h3>括弧の中：項目</h3>
 <ul>
@@ -272,7 +272,7 @@
   <li>1 つの HCD に、同じ集団の左と右を別の回路として置けます。<code>A4ul(left)</code> と <code>A4ul(right)</code> は、Descriptor も ID も違うからです。</li>
   <li>両側の回路（<code>A4ul</code>）と片側の回路（<code>A4ul(left)</code>）を並べると、ほかの細分と同じく、両側の方を Collection にするよう求められます（<code>cobrac:nested-uc</code>、2.9）。</li>
 </ul>
-<p>以前は左右をアンカーの側で表していました。そのころ作られたプロジェクトと Canon には古い形の Descriptor と Circuit ID が残っていますが、保存済みのデータは書き換えず、読むときに現在の形へ直してから比べます。古い形と読み替えの規則は付録 C にまとめます。</p>
+<p>古いプロジェクトと Canon には、左右をアンカーの側で表した古い形の Descriptor と Circuit ID が残っています。その読み替えの規則は付録 C（C.2）にまとめます。</p>
 <p class="src">典拠：<code>packages/shared/src/ucNaming.ts</code>、<code>packages/shared/test/ucNaming.test.ts</code></p>
 
 <h2 id="s2-9">2.9 Uniform と Collection</h2>
@@ -311,7 +311,7 @@
   <li><b>いつ分けるか</b>：選んだ粒度で、解剖学的または機能的に不均質なときに分けます。たとえば、いくつもの別の領域を含む回や群、投射元や投射先として別々に報告される部分、文献で役割が異なる部分です。領域や名前の付いた部位の違いで十分で、層や細胞種の証拠までは要りません。</li>
   <li><b>分けた部分の名前と理由</b>：分けた部分は命名規則で名付けます。分けた理由は、Collection の <code>comments</code> に必ず書きます。</li>
   <li><b>上位のまとまり</b>：分けた領域の親を Collection にすることは推奨ですが、必須ではありません。さらに上のまとまり（名前のあるネットワークなど）は、読み手の助けになるときだけ作ります。</li>
-  <li><b>入れ子の禁止</b>：ある回路と、その中のより細かい回路を、両方とも UC にはできません（<code>cobrac:nested-uc</code>）。対象になるのは、同じアンカーで facet の値が部分集合になる 2 つの回路と、アンカーだけの UC とその中の UC です。後者には、同じ側の <code>BNAG</code> 群とその中の BNA の領域、左右のペアとその片側、<code>&amp;</code> でつないだアンカーとその 1 つ、が含まれます。この場合は、粗い方を <code>collections</code> に移します。</li>
+  <li><b>入れ子の禁止</b>：ある回路と、その中のより細かい回路を、両方とも UC にはできません（<code>cobrac:nested-uc</code>）。対象になるのは、同じアンカーで facet の値が部分集合になる 2 つの回路と、アンカーだけの UC とその中の UC です。後者には、同じ側の <code>BNAG</code> 群とそれに含まれる BNA 領域、左右のペアとその片側、<code>&amp;</code> でつないだアンカーとその 1 つ、が含まれます。この場合は、粗い方を <code>collections</code> に移します。</li>
   <li><b>送り手は Uniform</b>：複数の SABRA の単位にまたがる送り手（<code>BNAG</code> 群や、facet のない複数のアンカー）を 1 つの UC のまま残すには、<code>uniformityNote</code> にその理由を書く必要があります。書かれていなければ、部分への分割か、理由の記入を求められます（コード 203）。分割するときも層や細胞種の証拠は要らず、領域の全体だけを報告する論文は、relation <code>&lt;</code> で各部分を支えます。単一の領域、左右のペア、facet 付きの UC、受け手にしかならない回路は、この検査の対象になりません。</li>
 </ul>
 <h3>uc.json での表し方</h3>
@@ -328,7 +328,7 @@
   <tbody>
     <tr><td><code>subCircuits</code> が 1 つ以上あり（スキーマ）、それぞれが <code>uc.json</code> の UC か Collection であること。自分自身を含まない、Collection を通じて循環しない、構成要素がすべて <code>makeshift</code> ではない</td><td>120（1 つ以上）、121（定義済み）、<code>cobrac:collection-members</code>（自分自身・循環・すべて makeshift）</td></tr>
     <tr><td>UC は Sub-Circuits を持たない。<code>subCircuits</code> のキーは <code>collections</code> にしかないので、ファイルの作りの上で保証される</td><td><code>cobrac:uc-no-sub-circuits</code></td></tr>
-    <tr><td>Collection は、この HCD の接続の送り手にも受け手にもならない。フィードバックは、その中の UC を挙げる。オントロジーは受け手が Collection であることを許すが、CoBRAC はインターフェースを UC どうしに保つため、より厳しくしている。単位の全体について報告された証拠は、UC の接続に relation <code>&lt;</code> と論文の表記で引用する</td><td>203（送り手）、<code>cobrac:collection-end</code>（受け手。Master より厳しい）</td></tr>
+    <tr><td>Collection は、この HCD で接続の送り手にも受け手にもならない。フィードバックは、その中の UC を挙げる。オントロジーは受け手が Collection であることを許すが、CoBRAC はインターフェースを UC どうしに保つため、より厳しくしている。単位の全体について報告された証拠は、UC の接続に relation <code>&lt;</code> と論文の表記で引用する</td><td>203（送り手）、<code>cobrac:collection-end</code>（受け手。Master より厳しい）</td></tr>
     <tr><td>ある回路とその中のより細かい回路を、両方とも UC にしない（上の「入れ子の禁止」）</td><td><code>cobrac:nested-uc</code></td></tr>
     <tr><td>複数の SABRA の単位にまたがる送り手には <code>uniformityNote</code> が要る</td><td>203</td></tr>
     <tr><td>Collection の ID は UC と同じ ID の空間を使い、<code>ROI_</code> で始めない（ROI の行はワーカーが書く）。Descriptor があれば、UC と同じ命名規則に従う。Descriptor は UC と Collection を通じて一意</td><td>—</td></tr>
@@ -371,22 +371,7 @@
 <p>このほか、Circuit ID が UC と Collection を通じて重ならないこと、facet のない UC の <code>names</code> が SABRA の正式名で始まることも検査します。</p>
 <h3>エラーコードの体系</h3>
 <p>検査のコードは、WBAI の <b>BRA data: Error code List (Master)</b> に合わせています。Master は、BRA のテンプレート（Template-v2-2 / v2-3）が参照する表です。Master にコードのない CoBRAC の検査には、<b><code>cobrac:</code> で始まるローカルコード</b>を付けます。番号ではなく名前にしているのは、Master の番号と衝突させないためです。</p>
-<p>以前の CoBRAC の検査メッセージとチェッカーは、オントロジー報告書の付録 D の番号を使っていました。その番号には、Master にない番号や、Master では別の意味の番号が含まれていました。コードを Master に合わせたときに変えたのは番号と文言だけで、判定の内容は変えていません。オントロジー報告書の付録 D の番号と、現在のコードの対応は次のとおりです。</p>
-<table class="compact">
-  <thead><tr><th style="width:40%">検査</th><th style="width:22%">報告書の付録 D の番号</th><th>現在のコード</th></tr></thead>
-  <tbody>
-    <tr><td>Circuit ID の許容文字</td><td>104</td><td><code>cobrac:circuit-id-chars</code>（Master の 104 は「意味的な重複の疑い」）</td></tr>
-    <tr><td>ある回路とその中のより細かい回路が両方 UC（両側と片側を含む）</td><td>127</td><td><code>cobrac:nested-uc</code>（Master の 127 は「Uniform の未記載」）</td></tr>
-    <tr><td>送り手が Uniform でない（Collection の送り手、facet のない複数単位の送り手）</td><td>205（Master にない）</td><td><b>203</b></td></tr>
-    <tr><td>Collection の Sub-Circuits が未記載</td><td>128（Master では別の意味）</td><td><b>120</b></td></tr>
-    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>128 に含めていた</td><td><b>121</b></td></tr>
-    <tr><td>UC に Sub-Circuits がある</td><td>129（Master にない）</td><td><code>cobrac:uc-no-sub-circuits</code></td></tr>
-    <tr><td>Collection の Source of ID が <code>collection</code> でない</td><td>108</td><td><code>cobrac:collection-source</code></td></tr>
-    <tr><td>Collection が接続の受け手</td><td>—</td><td><code>cobrac:collection-end</code>（Master より厳しい）</td></tr>
-    <tr><td>U. ノードの ID が「U. + 定義済みの Circuit ID」でない</td><td>415</td><td><code>cobrac:u-node-circuit</code></td></tr>
-    <tr><td>U. ノードで Circuit ID が未記載</td><td>420</td><td><b>424</b></td></tr>
-  </tbody>
-</table>
+<p>オントロジー報告書の付録 D の番号には、Master にない番号や、Master では別の意味の番号が含まれます。CoBRAC の検査は Master のコードと <code>cobrac:</code> のコードを使います。付録 D の番号との対応は付録 C（C.3）にあります。</p>
 <h3>CoBRAC 独自のコードの一覧</h3>
 <table class="compact">
   <thead><tr><th style="width:32%">コード</th><th>内容</th></tr></thead>
@@ -406,9 +391,9 @@
     <tr><td><code>cobrac:hypothesis-marked</code></td><td>Measurement method が <code>Hypothetical</code> の接続で、Comments の 1 行目が仮説の行（<code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code>）でない。仮説モードだけの検査（3.12）</td></tr>
   </tbody>
 </table>
-<p class="small">このうち <code>cobrac:nested-uc</code>・<code>cobrac:collection-members</code>・<code>cobrac:collection-end</code>・<code>cobrac:collection-source</code> の 4 つは、ワーカーが <code>uc.json</code> と <code>connections.json</code> を受け取った時点で、スキーマと検査によって担保します。BRA の出力を判定するチェッカーの表には、出力から判定できる残りの 9 個が並びます。Canon の審査画面のシステムの検査は、このほかに <code>cobrac:uc-descriptor</code>（Descriptor の構文）、<code>cobrac:circuit-id-form</code>（Circuit ID と Descriptor の形の対応）、<code>cobrac:ref-check</code>、<code>cobrac:canon-…</code>（衝突の種類）を使います（5.8）。Canon の衝突コード（C1〜C13、5.7）と、HCD と FRG の整合チェック（X1〜X9、3.11）は、CoBRAC 独自の体系です。</p>
+<p class="small">このうち <code>cobrac:nested-uc</code>・<code>cobrac:collection-members</code>・<code>cobrac:collection-end</code>・<code>cobrac:collection-source</code> の 4 つは、ワーカーが <code>uc.json</code> と <code>connections.json</code> を受け取った時点で、スキーマと検査によって担保します。BRA の出力を判定するチェッカーの表には、出力から判定できる残りの 9 個が並びます。Canon の審査画面に出るシステムの検査は、このほかに <code>cobrac:uc-descriptor</code>（Descriptor の構文）、<code>cobrac:circuit-id-form</code>（Circuit ID と Descriptor の形の対応）、<code>cobrac:ref-check</code>、<code>cobrac:canon-…</code>（衝突の種類）を使います（5.8）。Canon の衝突コード（C1〜C13、5.7）と、HCD と FRG の整合チェック（X1〜X9、3.11）は、CoBRAC 独自の体系です。</p>
 <h3>実装</h3>
-<p>名前の検査は <code>checkUcNaming</code> が行います。チェッカー <code>scripts/bra-appendix-d.mjs</code> は、BRA の出力（xlsx か CSV のフォルダ）を、Master のコードと <code>cobrac:</code> のコードごとに判定し、CoBRAC での担保の方法を併記します。チェッカーの表は <code>CODES</code> です。JSON の出力では各コードにオントロジー報告書の付録 D の番号を <code>appendixD</code> として残し、Markdown の報告にも「付録 D」の列があるので、以前の報告と照合できます。</p>
+<p>名前の検査は <code>checkUcNaming</code> が行います。チェッカー <code>scripts/bra-appendix-d.mjs</code> は、BRA の出力（xlsx か CSV のフォルダ）を、Master のコードと <code>cobrac:</code> のコードごとに判定し、CoBRAC での担保の方法を併記します。チェッカーの表は <code>CODES</code> です。JSON の出力では各コードにオントロジー報告書の付録 D の番号を <code>appendixD</code> として残し、Markdown の報告にも「付録 D」の列があるので、付録 D の番号による報告と照合できます（C.3）。</p>
 <p class="src">典拠：<code>packages/shared/src/ucNaming.ts</code>（<code>checkUcNaming</code>）、<code>packages/shared/src/harness.ts</code>、<code>scripts/bra-appendix-d.mjs</code></p>
 
 <h2 id="s2-11">2.11 uc.json での書き方</h2>

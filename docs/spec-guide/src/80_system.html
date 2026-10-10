@@ -5,7 +5,7 @@
   <p class="lead">この部は開発者向けです。CoBRAC Agents を動かしている AWS の構成、部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、S3 の成果物、フロントエンド、非機能の目標、開発の約束を、実装に沿って説明します。BRA の作り方そのものは第 3 部、権限・秘密情報・費用は第 9 部で扱います。リリースとデプロイの手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
   <div class="map">
     <div><b>プログラムの部品</b>API、dispatcher、broadcaster、janitor、計画ランナーの Lambda と、Fargate 上のワーカーです。どれも LLM を呼ばず、決まったコードで判断します。</div>
-    <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画のジョブも同じ仕組みで動きます（8.4）。</div>
+    <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画用のジョブも同じ仕組みで動きます（8.4）。</div>
     <div><b>人</b>利用者はプロジェクトを作り、質問に答え、成果物を受け取ります。管理者は利用者、デフォルトの API キー、同時実行数を管理します（4.1）。</div>
   </div>
 </div>
@@ -192,7 +192,7 @@
   <tbody>
     <tr><td>SPA</td><td><code>packages/web</code>（React・Vite）</td><td>ブラウザで常に</td><td>画面とグラフ、API の呼び出し、WebSocket の購読、ポーリング（4.4、8.7）</td></tr>
     <tr><td>CloudFront + S3（Web）</td><td>CDK の <code>WebDistribution</code>・<code>WebBucket</code></td><td>ページを開くとき</td><td>SPA と <code>/config.json</code>（キャッシュしない）を配る。403・404 には <code>index.html</code> を返し、画面のパスの解釈を SPA に任せる</td></tr>
-    <tr><td>Cognito</td><td>ユーザープールとクライアント <code>WebClient</code></td><td>ログインのとき</td><td>メールアドレスとパスワード（10 文字以上、小文字と数字を含む）、SRP 認証、ID トークン（2 時間）、更新トークン（30 日）、グループ <code>admin</code></td></tr>
+    <tr><td>Cognito</td><td>ユーザープールとクライアント <code>WebClient</code></td><td>ログインのとき</td><td>メールアドレスとパスワード（10 文字以上、小文字と数字を含む）、SRP 認証、ID トークン（2 時間）、リフレッシュトークン（30 日）、グループ <code>admin</code></td></tr>
     <tr><td>AuthMessage（Lambda）</td><td><code>handlers/authMessage.ts</code></td><td>Cognito がメールを送るとき</td><td>確認コード・再送・パスワード再設定・メールアドレス変更・招待のメールの文面を、日本語と英語で作る。送信は SES</td></tr>
     <tr><td>HTTP API</td><td>API Gateway の HTTP API</td><td>リクエストごと</td><td><code>/health</code> 以外は JWT を検証して API の Lambda に渡す（付録 A）</td></tr>
     <tr><td>API（Lambda）</td><td><code>handlers/http.ts</code> → <code>app.ts</code>（Hono）</td><td>リクエストごと</td><td>すべてのルート。所有者の確認、ジョブの登録、API キーの暗号化、署名付き URL の発行。LLM は呼ばない</td></tr>
@@ -300,7 +300,7 @@
 <table class="compact">
   <thead><tr><th style="width:17%">リソース</th><th>仕様</th><th style="width:26%">動くとき</th></tr></thead>
   <tbody>
-    <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトの Template-v2-2 のブックをその場で作るため）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
+    <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトのために Template-v2-2 のブックをその場で作るため。C.5）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
     <tr><td>ECS クラスター</td><td>Fargate と Fargate Spot のキャパシティプロバイダー。Container Insights は無効</td><td>常時（クラスター自体はほぼ無料）</td></tr>
     <tr><td>Fargate タスク（ワーカー）</td><td>1 vCPU・2 GB・一時ストレージ 21 GB、x86_64。停止の猶予（<code>stopTimeout</code>）は Fargate の上限の 120 秒</td><td>1 ジョブにつき 1 タスク</td></tr>
     <tr><td>CodeBuild</td><td>ワーカーのイメージをデプロイ時にビルドする。土台のイメージ <code>node:22-bookworm-slim</code> は、Docker Hub ではなく ECR Public のミラー（<code>public.ecr.aws/docker/library/</code>）から取得する。CodeBuild の共有 IP からの匿名の取得は Docker Hub のレート制限に当たり、デプロイが失敗するため</td><td><code>cdk deploy</code> でイメージが変わるとき</td></tr>
@@ -323,7 +323,7 @@
     <tr><td>WebSocket API（<code>cobrac-agents-ws</code>）</td><td>ステージ <code>prod</code>。接続時に Lambda オーソライザーが、クエリの <code>token</code>（ID トークン）を検査する。1 つの接続は最長 2 時間（API Gateway の上限）</td></tr>
     <tr><td>Cognito ユーザープール</td><td>メールアドレスでサインイン、SRP、ID トークンとアクセストークンは 2 時間、リフレッシュトークンは 30 日、グループ <code>admin</code>、RETAIN（9.4）</td></tr>
     <tr><td>アカウントのメール</td><td>確認コード・再送・パスワードの再設定・メールアドレスの変更・管理者による招待のメールは、カスタムメッセージのトリガー <code>authMessage</code> が文面を作る。UI の言語に合わせて日本語か英語にし、分からなければ両方を書く。SES から <code>CoBRAC Agents &lt;no-reply@cobrac.site&gt;</code> で送る。SES のドメイン ID は <code>cobrac.site</code>（ap-northeast-1、Easy DKIM）。DKIM の CNAME と <code>_dmarc</code> の TXT は、別の AWS アカウントの Route 53 のゾーンにある。Cognito はサービスリンクロール <code>AWSServiceRoleForAmazonCognitoIdpEmailService</code> で送る</td></tr>
-    <tr><td>SES の評判のアラーム</td><td>アカウント単位の <code>AWS/SES</code> の <code>Reputation.BounceRate</code> が 5% 以上、または <code>Reputation.ComplaintRate</code> が 0.1% 以上（1 時間の最大値。データがないときは正常とみなす）で、SNS トピック <code>SesAlarmTopic</code> に通知する。復旧も通知する。購読者は SSM の String パラメータ <code>/cobrac-web/alarm-email</code> に入れたアドレス 1 つで、CloudFormation がデプロイ時に値を解決する。アドレスはリポジトリにもテンプレートにも入らない。初回のデプロイの後に一度、購読の確認メールに応じる必要がある。トピックは暗号化しない。CloudWatch は AWS 管理の SNS キーで暗号化したトピックに送れないためで、アラームに個人情報は入らない</td></tr>
+    <tr><td>SES の評判のアラーム</td><td>アカウント単位の <code>AWS/SES</code> の <code>Reputation.BounceRate</code> が 5% 以上、または <code>Reputation.ComplaintRate</code> が 0.1% 以上（1 時間の最大値。データがないときは正常とみなす）で、SNS トピック <code>SesAlarmTopic</code> に通知する。復旧も通知する。購読者は SSM の String パラメータ <code>/cobrac-web/alarm-email</code> に入れたアドレス 1 つで、CloudFormation がデプロイ時に値を解決する。アドレスはリポジトリにもテンプレートにも入らない。初回のデプロイの後に一度、購読の確認メールに応じる必要がある。トピックは暗号化しない。CloudWatch は AWS 管理の SNS キーで暗号化したトピックに送れないため。アラームに個人情報は入らない</td></tr>
     <tr><td>KMS（CMK）</td><td>利用者の OpenAI API キーを暗号化する鍵。年に 1 回の自動ローテーション、RETAIN</td></tr>
   </tbody>
 </table>
@@ -435,7 +435,7 @@
   <li>起動できたら、タスクの ARN とハートビートの時刻をジョブに書き、プロジェクトを <code>RUNNING</code> にして、エージェント欄に「ワーカーを起動しました（Fargate Spot）。」を出します。On-Demand で起動したときは、その旨を括弧の中に書きます。</li>
   <li>起動そのものに失敗したら、理由を付けて「ワーカー起動を再試行します（…）。」と出し、60 秒後に積み直します。</li>
 </ol>
-<p>プロジェクトを持たないジョブ（Canon の AI レビュー、計画のジョブ）では、エージェント欄に何も出しません。</p>
+<p>プロジェクトを持たないジョブ（Canon の AI レビュー、計画用のジョブ）では、エージェント欄に何も出しません。</p>
 
 <h3>同時実行数</h3>
 <p>同時に動かせるワーカーのタスクの数には、全体と 1 人あたりの 2 つの上限があります。</p>
@@ -449,16 +449,16 @@
 <ul>
   <li>管理画面の設定は、<code>Catalog</code> の <code>config</code> / <code>concurrency</code> に、変えた人と時刻とともに保存されます。0 や 17 以上の値は API が拒みます。</li>
   <li>dispatcher と計画ランナーは、設定を 30 秒のキャッシュを通して読みます。そのため、変更にデプロイは要りません。設定を読めないときはデプロイの値を使います。</li>
-  <li>オーケストレーターは、両方の上限に空きがあるときだけ、行や計画のジョブをキューに入れます。このときは待機中のジョブも数えます。計画の待ちは SQS ではなく DynamoDB の中にあるので、キューの 24 時間の時間切れに当たりません。計画のジョブも、待機中と実行中は両方の上限に数えます（6.11）。</li>
+  <li>オーケストレーターは、両方の上限に空きがあるときだけ、行や計画用のジョブをキューに入れます。このときは待機中のジョブも数えます。計画の待ちは SQS ではなく DynamoDB の中にあるので、待機中のジョブの 24 時間の時間切れ（後述の janitor）に当たりません。計画用のジョブも、待機中と実行中は両方の上限に数えます（6.11）。</li>
   <li>上限を上げると、Fargate の費用はほぼ比例して増えます（9.9）。</li>
-  <li>1 回の実行は、OpenAI のトークンを毎分約 14〜17 万使います（測定は付録 D）。デプロイの API キーの組織の上限（TPM）は、<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code> で毎分 200 万です（OpenAI の Build tier の値）。約 10 本を並べても、計画のジョブの分を残して上限に収まります。</li>
+  <li>1 回の実行は、OpenAI のトークンを毎分約 14〜17 万使います（測定は付録 D）。デフォルトの API キーを持つ組織の TPM の上限は、<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code> で毎分 200 万です（OpenAI の Build tier の値）。約 10 本を並べても、計画用のジョブの分を残して上限に収まります。</li>
 </ul>
 
 <h3>実行中の監視と保存</h3>
 <table class="compact">
   <thead><tr><th style="width:20%">仕組み</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>ハートビート</td><td>BRA と解説記事のジョブでは 60 秒ごとにジョブの <code>lastHeartbeat</code> を書く。そのついでにジョブが <code>CANCELLED</code> になっていないかを調べ、なっていれば状態を保存して終了する。AI レビューと計画のジョブは 45 秒ごとに書く</td></tr>
+    <tr><td>ハートビート</td><td>BRA と解説記事のジョブでは 60 秒ごとにジョブの <code>lastHeartbeat</code> を書く。そのついでにジョブが <code>CANCELLED</code> になっていないかを調べ、なっていれば状態を保存して終了する。AI レビューと計画用のジョブは 45 秒ごとに書く</td></tr>
     <tr><td>途中の保存</td><td>BRA のジョブでは、ハートビートのついでに、前回の保存から 5 分たっていれば作業ディレクトリと会話を S3 に上げる（<code>PERIODIC_PERSIST_MS</code>）。中断で失う作業は、その間の分だけになる。解説記事のジョブは作業ディレクトリを書き戻さないので対象外。ハートビート、段階の受理、SIGTERM のときの保存は、重ならないように 1 本ずつ実行する</td></tr>
     <tr><td>最長の実行時間</td><td>連続 6 時間（<code>WORKFLOW_TIMEOUT_MS</code>）。ワーカーは 1 分ごとに経過時間を調べ、超えたら打ち切ったターンの使用量を数えて、ジョブを失敗にする（「最大実行時間（6時間）を超過しました。リトライで続きから再開できます。」）</td></tr>
     <tr><td>質問</td><td>作業ディレクトリと <code>CODEX_HOME</code> を S3 に保存してタスクを終了する。その間 Fargate の費用はかからない。回答が届くと、新しいタスクが会話を再開する</td></tr>
@@ -486,7 +486,7 @@
 <table class="compact">
   <thead><tr><th style="width:20%">対象の状態</th><th style="width:22%">条件</th><th>処理</th></tr></thead>
   <tbody>
-    <tr><td><code>RUNNING</code>・<code>FINALIZING</code></td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA と解説記事のジョブ：試行回数（<code>retryCount</code>）が 2（<code>MAX_AUTO_RETRY</code>）未満なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>QUEUED</code> で作ってキューに入れる。モードは <code>retry</code>、解説記事は <code>article</code>。エージェント欄には「ワーカーからの応答が途絶えたため、自動で再開します（n/2）。」と出す。2 回に達していれば <code>FAILED</code> にし、「続きからリトライ」で再開するよう案内する。AI レビューと計画のジョブ：<code>FAILED</code> にするだけで再開しない。その失敗は PR の画面と計画ランナーが扱う</td></tr>
+    <tr><td><code>RUNNING</code>・<code>FINALIZING</code></td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA と解説記事のジョブ：試行回数（<code>retryCount</code>）が 2（<code>MAX_AUTO_RETRY</code>）未満なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>QUEUED</code> で作ってキューに入れる。モードは <code>retry</code>、解説記事は <code>article</code>。エージェント欄には「ワーカーからの応答が途絶えたため、自動で再開します（n/2）。」と出す。2 回に達していれば <code>FAILED</code> にし、「続きからリトライ」で再開するよう案内する。AI レビューと計画用のジョブ：<code>FAILED</code> にするだけで再開しない。その失敗は PR の画面と計画ランナーが扱う</td></tr>
     <tr><td><code>WAITING_USER_INPUT</code></td><td>最後の更新から 7 日（<code>WAITING_INPUT_TIMEOUT_MS</code>）</td><td><code>FAILED</code>（回答待ちの時間切れ）。成果物は S3 に残り、「続きからリトライ」で再開できる</td></tr>
     <tr><td><code>QUEUED</code></td><td>作成から 24 時間</td><td><code>FAILED</code>（24 時間以内にワーカーを起動できなかった）</td></tr>
   </tbody>
@@ -504,7 +504,7 @@
 <h3>BRA のジョブの手順</h3>
 <ol class="steps">
   <li>Users・Projects・Jobs を読み、使う API キーを選び（<code>runKey.ts</code> の <code>planRunKey</code>）、KMS で復号します。利用者自身のキーがあればそれを使い、なければ、利用承認があって Tier がジョブのモデルを許す間だけデフォルトの API キーを使います（4.1）。RCS の接続先とトークンを Secrets Manager から読みます。読めなければ RCS なしで続けます。</li>
-  <li><code>prompts/AGENTS.md</code> を <code>/work</code> にコピーし（<code>&lt;ProjectID&gt;</code> の箇所を ID に置き換える）、JSON Schema を <code>/work/schemas/</code> に書きます。<code>resume</code>・<code>followup</code>・<code>retry</code> では、作業ディレクトリと会話を S3 から戻します。参考資料を用意し（4.2）、Canon に入っていれば、固定した rev の定義を <code>/work/canon/</code> に置きます（5.5）。<code>followup</code> では、いまのデータにまだ版がなければ、変える前にそれを版として凍結します（4.5、付録 C）。</li>
+  <li><code>prompts/AGENTS.md</code> を <code>/work</code> にコピーし（<code>&lt;ProjectID&gt;</code> の箇所を ID に置き換える）、JSON Schema を <code>/work/schemas/</code> に書きます。<code>resume</code>・<code>followup</code>・<code>retry</code> では、作業ディレクトリと会話を S3 から戻します。参考資料を用意し（4.2）、Canon に入っていれば、固定した rev の定義を <code>/work/canon/</code> に置きます（5.5）。版のないデータへの <code>followup</code> の扱いは C.5 にあります。</li>
   <li><code>createCodex</code> → <code>openThread</code> で会話を開きます。設定は、<code>sandboxMode: danger-full-access</code>、承認なし、ネットワークあり、Web 検索 live、<code>lit</code> MCP と RCS MCP です。Fargate のタスク自体がサンドボックスで、コンテナの中では Landlock も seccomp も使えません（9.5）。ターンごとにそのターンの設定で会話を開くので、調査のターンだけを高い推論の強さで実行できます。</li>
   <li>調査モードで、作業ディレクトリの調査が終わっていなければ、調査ステップを実行します（3.7）。続いて段階を実行します（次の「ターンの制御」）。出来事を Messages に書き、ファイルが変わるたびにプロジェクトの <code>stepStates</code> と <code>activeStage</code> を更新します。<code>activeStage</code> は、調査中は <code>RESEARCH</code>、調整のターンは <code>ADJUST</code>、それ以外は実行中の段階の名前です。</li>
   <li>段階を受理するたびと、質問・完了・失敗で終わる直前に、作業ディレクトリと会話を S3 に差分で同期します。ターンの実行中も 5 分ごとに保存します（8.3）。</li>
@@ -528,7 +528,7 @@
 
 <h3>ターンの失敗と再試行</h3>
 <ul>
-  <li><b>失敗とみなす条件：</b>ターンが失敗するのは、<code>turn.failed</code> のときか、ストリームが <code>turn.completed</code> なしに <code>error</code> の出来事で終わったときだけです。Codex はレート制限の再試行を <code>error</code> の出来事として報告します（「Reconnecting... 2/5 (rate limit exceeded …)」）。これはお知らせとして出し、ターンは続きます。Codex が <code>error</code> の項目として報告する致命的でない注意（「Model metadata for `x` not found」「Falling back from WebSockets to HTTPS transport」など）もお知らせとして出し、本当のエラーだけをエラーとして扱います。失敗したターンの後、<code>codex exec</code> は終了コード 1 で終わりますが、ワーカーはその終了ではなく、ターン自身のエラーを報告します。</li>
+  <li><b>失敗とみなす条件：</b>ターンが失敗するのは、<code>turn.failed</code> のときか、ストリームが <code>turn.completed</code> なしに <code>error</code> の出来事で終わったときだけです。Codex はレート制限の再試行を <code>error</code> の出来事として報告します（「Reconnecting... 2/5 (rate limit exceeded …)」）。これはお知らせとして出し、ターンは続きます。Codex は致命的でない注意も <code>error</code> の項目として報告します（「Model metadata for `x` not found」「Falling back from WebSockets to HTTPS transport」など）。これもお知らせとして出し、本当のエラーだけをエラーとして扱います。失敗したターンの後、<code>codex exec</code> は終了コード 1 で終わりますが、ワーカーはその終了ではなく、ターン自身のエラーを報告します。</li>
   <li><b>レート制限：</b>OpenAI のレート制限（TPM・RPM、HTTP 429）に当たると、まず Codex 自身が最大 5 回まで再接続を試みます。それでもターンが失敗したら、ワーカーが間を置いて同じ会話で続きを依頼します。待ち時間は 30 秒〜3 分で、サーバーの「try again in …」に 5 秒を足した値と、30 秒・60 秒・120 秒（回ごとに倍）の大きいほうです。この再試行は 3 回まで（<code>codex.ts</code> の <code>RATE_LIMIT_TURN_RETRIES</code>）で、待つ間もハートビートを送ります。それでも失敗すればジョブを失敗にします。</li>
   <li><b>再試行しない失敗：</b>利用枠（quota）を使い切ったとき、請求の問題、1 回の依頼が大きすぎるときは、待っても直らないので再試行しません。</li>
   <li><b>依頼が大きすぎるとき：</b>1 回の依頼が 1 分あたりのトークンの上限より大きいと（「Request too large … Limit …, Requested …」）、待っても通りません。会話の文脈が上限に達すると、その会話のターンはすべて拒まれます。そのため、大きすぎるとして拒まれたターンは同じ会話では再試行せず、ワーカーが新しい会話に切り替えます。新しい会話は 1 回だけ始め、プロジェクトの見出し、ここまでの作業はファイルにあるという注記、HCD と FRG の仕様を付けて、同じ依頼を送ります。</li>
@@ -577,6 +577,6 @@
   <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業ディレクトリも使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意します。RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し、返答が読めなければ 1 回だけ再試行します。時間予算（<code>PLAN_JOB_TIME_BUDGET_MS</code>）は 7 分で、xlsx・PDF を読む下書きと 20 行を超える下書きは 25 分です。RCS が知らない HOMBA のアンカーを除いてから <code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.4）。</li>
   <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、ツールのない新しい会話で指摘を JSON で返させ、<code>result.json</code> に書きます。自律実行の計画の判断のジョブ（<code>reviewKind: "decide"</code>）は、判定も返します（5.8、6.8）。</li>
 </ul>
-<p>AI レビューと計画のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 で説明します。</p>
+<p>AI レビューと計画用のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 で説明します。</p>
 <p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>・<code>article.ts</code>・<code>planJob.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>references.ts</code>・<code>types.ts</code>（<code>fixTurnEffort</code>）・<code>planJob.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/Dockerfile</code></p>
 </section>

@@ -1,7 +1,7 @@
 <section class="pharness">
 <h2 id="s3-7">3.7 調査ステップ</h2>
 <p><b>調査モード</b>は、HCD を作る前に文献を調べるかどうかを決めるプロジェクトの設定です。作成画面のモデルのメニューにあるスイッチで選び、<b>既定はオン</b>です。設定はプロジェクトに保存され、各ジョブは実行したときの値を記録します。作成後は変えられず、フォローアップとリトライも同じ設定で動きます。プロジェクトのヘッダーには「調査モード: オン／オフ」と表示されます。</p>
-<p>調査モードがオンのとき、HCD 段階の前にエージェントの調査のターンが入り、ワーカーがその結果を検査します。これを<b>調査ステップ</b>と呼びます。ジョブの段階の状態としては数えないので、画面に出る段階の並び（HCD → FRG → CSV → xlsx）は変わりません。オフにすると、調査ステップと調査モード用の指示書（後述）はなくなりますが、文献のツール（後述）はそのまま使えます。</p>
+<p>調査モードがオンのとき、HCD 段階の前に、エージェントが調査するターンが入り、ワーカーがその結果を検査します。これを<b>調査ステップ</b>と呼びます。ジョブの段階としては数えないので、画面に出る段階の並び（HCD → FRG → CSV → xlsx）は変わりません。オフにすると、調査ステップと調査モード用の指示書（後述）はなくなりますが、文献のツール（後述）はそのまま使えます。</p>
 
 <h3>エージェントの作業</h3>
 <p>調査の単位は、ROI の主な入力・出力・内部投射の<b>候補</b>です。エージェントは調査の指示書に従って総説を入口にし、候補ごとに領域名の同義語、種、追跡法を変えて検索します。論文の要旨か全文を読み、支持の強さを判断し、調べても見つからなかったものを区別します。結果は <code>research.json</code> だけに書きます。書く内容は次のとおりです。</p>
@@ -110,7 +110,7 @@
 <p>UC の粒度と、領域を分けたときの Collection の扱いは 2.9 にまとめます。</p>
 
 <h3>ROI の規則</h3>
-<p>新しいプロジェクトは、検査の規則の世代（<code>harnessRules</code>）として 2 を持ちます。複製したプロジェクトは元の値を引き継ぎます。この規則のもとでは、HCD の依頼文の後ろに ROI の規則の指示書が付き、HCD の検査に次の規則が加わります。値を持たない古いプロジェクトの扱いは付録 C にまとめます。</p>
+<p>新しいプロジェクトは、検査規則の水準（<code>harnessRules</code>）として 2 を持ちます。複製したプロジェクトは元の値を引き継ぎます。この規則のもとでは、HCD の依頼文の後ろに ROI の規則の指示書が付き、HCD の検査に次の規則が加わります。値を持たない古いプロジェクトの扱いは付録 C にまとめます。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">規則</th><th>内容</th></tr></thead>
   <tbody>
@@ -148,14 +148,14 @@
     <tr><td>Capability（<code>cobrac:capability-required</code>）</td><td>ROI 外部の UC の FRG の行は、固定文 <code>No need for description due to input/output circuit</code></td></tr>
     <tr><td>用語</td><td>機能項目・コメント・FRG の詳細に書く <code>[U.&lt;id&gt;]</code> / <code>[R.&lt;id&gt;]</code> は、実在する UC / ノードを指す</td></tr>
     <tr><td>ROI の行</td><td><code>Circuits.csv</code> の先頭は <code>ROI_&lt;ProjectID&gt;</code>。Source of ID は <code>collection</code>、Names は ROI、Sub-Circuits は ROI 内部のすべての回路、Uniform は <code>FALSE</code>。グラフはこの行を飛ばす</td></tr>
-    <tr><td>Review End Line</td><td><code>Project.csv</code> に、References・Circuits・Connections・FRG の最後のレコードのシート上の行番号を書く（見出しが 1 行目）</td></tr>
+    <tr><td>Review End Line</td><td><code>Project.csv</code> に、References・Circuits・Connections・FRG のそれぞれで、最後のレコードがあるシート上の行番号を書く（見出しが 1 行目）</td></tr>
     <tr><td>仮説の印（<code>cobrac:hypothesis-marked</code>）</td><td>仮説モードだけ（3.12）。存在の仮説の接続は、ちょうどそれらだけが測定法 <code>Hypothetical</code>。仮説の接続と UC の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。274（引用が接続を保証する）は前提で判断する</td></tr>
   </tbody>
 </table>
 <p>CSV の形式と列の構成は 3.13 にまとめます。</p>
 
 <h3>実装</h3>
-<p>HCD の検査は <code>checkHcd</code>、規則の世代の現行の値は <code>HARNESS_RULES</code>、BRA の値の規則は <code>bra.ts</code>（<code>DEFAULT_BRA_RULES</code> の <code>minQuoteWords</code>、<code>pointerProblems</code>、<code>relationProblems</code>）です。ROI の規則の指示書は <code>prompts/phases/HCD_roi_rules.md</code> です。BRA のエラーコードごとの判定は、チェッカー <code>scripts/bra-appendix-d.mjs</code> で確認できます。</p>
+<p>HCD の検査は <code>checkHcd</code>、現行の規則の世代は <code>HARNESS_RULES</code>、BRA の値の規則は <code>bra.ts</code>（<code>DEFAULT_BRA_RULES</code> の <code>minQuoteWords</code>、<code>pointerProblems</code>、<code>relationProblems</code>）です。ROI の規則の指示書は <code>prompts/phases/HCD_roi_rules.md</code> です。BRA のエラーコードごとの判定は、チェッカー <code>scripts/bra-appendix-d.mjs</code> で確認できます。</p>
 <p class="src">典拠：<code>prompts/phases/HCD.md</code>、<code>HCD_roi_rules.md</code>、<code>packages/shared/src/harness.ts</code>（<code>checkHcd</code>・<code>HARNESS_RULES</code>・<code>buildCsvs</code>）、<code>bra.ts</code>（<code>DEFAULT_BRA_RULES</code>・<code>pointerProblems</code>・<code>relationProblems</code>）、<code>scripts/bra-appendix-d.mjs</code></p>
 
 <h2 id="s3-9">3.9 FRG</h2>
@@ -197,7 +197,7 @@
 
 <h3>GN が表すもの</h3>
 <p>GN の意味は、UC の機能を並べたものにとどまりません。GN は、<b>UC と、その間の接続による相互作用が実現する計算</b>を表します。GN が UC の機能に加えるのは、それらの相互作用、つまりインターフェースから除いた内部の辺が計算するものです。GN の Output Semantics は、GN の外へ出力する UC の値からワーカーが導きます。</p>
-<p>新しいプロジェクト（検査の規則の世代 2）では、GN に次の規則が適用されます。既存のプロジェクトの検査は、作成時の世代のまま変わりません。世代 1 以下のプロジェクトの GN の規則は付録 C にまとめます。</p>
+<p>新しいプロジェクト（検査規則の水準 2）では、GN に次の規則が適用されます。既存のプロジェクトの検査は、作成時の世代のまま変わりません。世代 1 以下のプロジェクトの GN の規則は付録 C にまとめます。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">規則</th><th>内容</th></tr></thead>
   <tbody>
@@ -255,7 +255,7 @@
 </ul>
 
 <h3>引用文の照合</h3>
-<p>Pointers on literature は、引用した論文の逐語の引用でなければなりません（BRA の手動審査のコード 273 / 274 / 279）。HCD の検査のたびに、各接続の原文の引用を論文の本文と照らし合わせます。短すぎる、位置の表記で始まるなど、形式の規則にすでに違反している引用はその問題として扱い、ここでは照合しません。DOI も PMID もない文献は照合できません。</p>
+<p>Pointers on literature は、引用した論文の逐語の引用でなければなりません（BRA の手動審査のコード 273 / 274 / 279）。HCD の検査のたびに、各接続に書いた原文の引用を、論文の本文と照合します。短すぎる、位置の表記で始まるなど、形式の規則にすでに違反している引用はその問題として扱い、ここでは照合しません。DOI も PMID もない文献は照合できません。</p>
 <ul>
   <li><b>本文の取得</b>：Europe PMC の記録から、PMID・PMCID・オープンアクセスかどうか・要旨を得ます。オープンアクセスの論文は、Europe PMC の全文（JATS）を読み、失敗したら NCBI BioC 経由で PMC から読みます。全文には要旨・本文・付録・図の説明を含め、参考文献・引用の印・表・数式は除きます。全文がなければ、Europe PMC・PubMed・Crossref・Semantic Scholar の順に、最初に見つかった要旨を使います。</li>
   <li><b>正規化</b>：引用と本文の両方を、文字と数字だけにそろえます。NFKC で正規化し、アクセントと大文字・小文字をそろえ、ソフトハイフン、上付きや角括弧の数字の引用、括弧の著者・年の引用を除きます。</li>
@@ -293,7 +293,7 @@
 <p>HCD と FRG は別々の段階で作りますが、両者は同じ回路を別の側から記述したものなので、食い違いが生じえます。FRG の指示書は、FRG と HCD が食い違うときに関連するファイルを直すようエージェントに求めます。そのため HCD のファイルは、HCD 段階が終わった後でも変わることがあります。ワーカーは、変わったファイルを検査し直す仕組みと、両者の整合を計算して 1 回だけ調整を依頼する仕組みを持ちます。</p>
 
 <h3>後の段階で変わったファイルの再検査</h3>
-<p>ワーカーは各段階の検査のたびに、その段階のデータファイルのハッシュと、その時点で残っていた問題を記録します。対象のファイルは、HCD では <code>meta.json</code>・<code>references.json</code>・<code>uc.json</code>・<code>connections.json</code>、FRG では <code>frg.json</code> です。レポートと判断ログは毎段階変わるので対象にしません。</p>
+<p>ワーカーは各段階の検査のたびに、その段階で検査したデータファイルのハッシュと、その時点で残っていた問題を記録します。対象のファイルは、HCD では <code>meta.json</code>・<code>references.json</code>・<code>uc.json</code>・<code>connections.json</code>、FRG では <code>frg.json</code> です。レポートと判断ログは毎段階変わるので対象にしません。</p>
 <ul>
   <li>FRG と CSV の検査ではハッシュを比べ、変わっていないファイルは検査し直しません。</li>
   <li>HCD のファイルが変わっていれば、HCD の検査をすべてやり直します。スキーマと規則、RCS、文献、引用が対象です。</li>

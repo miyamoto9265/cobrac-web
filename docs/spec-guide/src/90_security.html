@@ -71,7 +71,7 @@
   <tbody>
     <tr><td>ブラウザ</td><td>Amplify が保持する ID・アクセス・リフレッシュトークン</td></tr>
     <tr><td>Cognito ユーザープール</td><td>メールアドレス、パスワードのハッシュ、確認の状態、グループ</td></tr>
-    <tr><td>DynamoDB</td><td><code>Users</code>（プロフィールと API キーの暗号文）、<code>Projects</code>（メタデータと質問文）、<code>Jobs</code>（実行の状態とトークンの使用量）、<code>Messages</code>（チャットの全文。1 件 60,000 字で切る）、<code>Plans</code>（計画の名前・目標・行・履歴）、<code>Canons</code>・<code>Catalog</code>、<code>WsConnections</code>（接続 ID。約 2 時間で消える）</td></tr>
+    <tr><td>DynamoDB</td><td><code>Users</code>（プロフィールと API キーの暗号文）、<code>Projects</code>（メタデータと質問文）、<code>Jobs</code>（実行の状態とトークンの使用量）、<code>Messages</code>（チャットの全文。1 件 60,000 字で切る）、<code>Plans</code>（計画の名前・目標・行・履歴）、<code>Canons</code>・<code>Catalog</code>、<code>WsConnections</code>（接続 ID。約 2 時間 10 分で消える）</td></tr>
     <tr><td>S3 成果物バケット</td><td><code>users/{userId}/{projectId}/</code> の <code>workspace</code>・<code>thread</code>・<code>output</code>・<code>graph</code>・<code>article</code>・<code>attachments</code>。版の <code>revisions/{n}/</code>（削除しない）。作成前の参考資料の <code>staging/{userId}/</code>（1 日で消える）</td></tr>
     <tr><td>BRA-DB（<code>BraDb</code> の VPC の EC2。暗号化した EBS）</td><td>登録した版：5 つの CSV の内容、Contributor 名、Project ID、ROI・TLF。登録ごとに版 ID、内容のハッシュ、生成条件、登録した人の名前</td></tr>
     <tr><td>CloudWatch Logs（14 日）</td><td>Lambda の標準出力（エラーのメッセージ。キーは出力しない実装）、ワーカーのログ（コマンドの出力の一部は <code>Messages</code> にも残る）</td></tr>
@@ -121,7 +121,7 @@
   <li>暗号化は API の Lambda だけが行います。暗号化コンテキストは <code>{ userId, purpose: "openai-api-key" }</code> です。</li>
   <li>復号はワーカーだけが行い、同じコンテキストを必要とします。ほかの利用者の暗号文は、コンテキストが合わないので復号に失敗します。</li>
   <li>デフォルトの API キーは、userId を含まない別のコンテキスト <code>{ purpose: "openai-api-key", scope: "default" }</code> を使います。そのため、個人のキーとデフォルトの API キーを、互いのコンテキストで復号することはできません。</li>
-  <li>平文があるのは、登録時の確認の要求の間の API の Lambda のメモリと、実行時のワーカーのプロセスのメモリだけです。ワーカーは平文を Codex のプロセスに渡します。ディスク・ログ・S3 には書きません。</li>
+  <li>平文がメモリにあるのは、キーの登録時に API の Lambda が確認の要求をしている間と、ジョブの実行中のワーカーのプロセスだけです。ワーカーは平文を Codex のプロセスに渡します。ディスク・ログ・S3 には書きません。</li>
   <li>登録時には <code>GET https://api.openai.com/v1/models</code> を呼び、401・403 なら登録を拒みます。返ってきたモデルの一覧を、使えるモデルとして保存します。</li>
   <li><b>ブラウザからキーを取り出す API はありません。</b>忘れたら OpenAI 側で発行し直し、登録を上書きします。</li>
 </ul>
@@ -163,7 +163,7 @@
   <li>Hono がクレームから userId・メールアドレス・グループを読み、<code>Users</code> を読み込みます（初回は作ります）。</li>
   <li>プロジェクトの操作は、自分の userId を使った <code>getProject(自分の userId, id)</code> でだけ読みます。ほかの利用者の ID や削除済みのプロジェクトは 404 になります。</li>
   <li>S3 のキーは <code>users/{自分}/{projectId}/</code> に固定し、<code>..</code>、<code>thread/</code>、絶対パスを拒みます。</li>
-  <li>参考資料のアップロードでは、API が呼び出した人の userId と乱数のアップロード ID からステージングのキーを作り、署名付き POST のポリシーでキー・Content-Type・大きさ（20 MB）を固定します（有効期限 15 分）。プロジェクトの作成時に、各アップロードの存在と大きさ、合計が 50 MB 以内であることを検査し直してから、プロジェクトに移します。</li>
+  <li>参考資料のアップロードでは、API が呼び出した人の userId と乱数のアップロード ID からステージングのキーを作り、署名付き POST のポリシーでキー・Content-Type・大きさ（20 MB）を固定します。有効期限は 15 分です。プロジェクトの作成時に、各アップロードの存在と大きさ、合計が 50 MB 以内であることを検査し直してから、プロジェクトに移します。</li>
   <li>管理者の経路は <code>role === "admin"</code> を要求します。</li>
 </ol>
 <h3>共有</h3>
@@ -320,7 +320,7 @@
     <tr><td>チャットの購読</td><td>WebSocket の接続時間とメッセージ、Streams の Lambda</td></tr>
     <tr><td>ジョブの実行</td><td><b>Fargate の CPU とメモリの時間</b>、ENI とパブリック IP、ワーカーの CloudWatch、S3 の PUT、DynamoDB の書き込み</td></tr>
     <tr><td>質問への回答待ち</td><td>Fargate は止まる。S3 と DynamoDB の保存だけ</td></tr>
-    <tr><td>オーケストレーターの下書き・再計画</td><td>短い Codex の実行のための Fargate タスク 1 つ（1 ターン。返答が読めなければもう 1 ターン。最長 7 分、長い資料の下書きは 25 分なので、Spot でせいぜい 1 セント程度）、小さな S3 のオブジェクト、DynamoDB の書き込み</td></tr>
+    <tr><td>オーケストレーターの下書き・再計画</td><td>短い Codex の実行のための Fargate タスク 1 つ、小さな S3 のオブジェクト、DynamoDB の書き込み。タスクは 1 ターンで、返答が読めなければもう 1 ターン動く。最長 7 分（長い資料の下書きは 25 分）なので、Spot でせいぜい 1 セント程度</td></tr>
     <tr><td>Canon のある計画</td><td>新しい種類のジョブはない。本体の行の PR ごとに通常の AI レビューのジョブ（<code>canon-review</code>）が 1 つ、Canon が先に進んで衝突した行には Canon に合わせるフォローアップのジョブが最大 2 つ。push は小さな S3 のオブジェクトと計画ランナーの DynamoDB の書き込み</td></tr>
     <tr><td><code>cdk deploy</code></td><td>CodeBuild（イメージを作り直すとき）、ECR への push、CloudFront の無効化、Lambda の更新</td></tr>
   </tbody>
@@ -346,7 +346,7 @@
     <tr><td>同、On-Demand に切り替わった分</td><td>Spot のおよそ 2.5〜3 倍</td><td class="c">混ざれば +$1〜3</td></tr>
     <tr><td>CloudFront と Web の S3</td><td>少ないアクセス</td><td class="c">$1</td></tr>
     <tr><td>API Gateway（HTTP と WebSocket）</td><td>数十万リクエスト未満</td><td class="c">$1〜2</td></tr>
-    <tr><td>Lambda</td><td>arm64、短い実行。計画ランナーは毎分動く（月に約 43,800 回。計画が動いていなければ Query が 1〜2 回で、無料枠に十分収まる）</td><td class="c">$0〜1</td></tr>
+    <tr><td>Lambda</td><td>arm64、短い実行。計画ランナーは毎分動く（月に約 43,800 回）。計画が動いていなければ、1 回の実行は Query 1〜2 回で終わり、無料枠に十分収まる</td><td class="c">$0〜1</td></tr>
     <tr><td>DynamoDB オンデマンド</td><td>主にメッセージの書き込み</td><td class="c">$1〜2</td></tr>
     <tr><td>S3 の成果物（数 GB、PUT が多い）</td><td>作業ディレクトリの同期を含む</td><td class="c">$0.5〜1.5</td></tr>
     <tr><td>CloudWatch Logs</td><td>14 日、ワーカーの出力</td><td class="c">$0.5〜2</td></tr>
@@ -383,7 +383,7 @@
 <h3>費用を抑える実装</h3>
 <ul>
   <li>Fargate Spot を優先し、容量がないときだけ On-Demand にします。</li>
-  <li>質問（<code>[QUESTION]</code>）でタスクを終了します。回答までの計算の費用は 0 です。</li>
+  <li>エージェントが質問したら（<code>status: "question"</code>）、タスクを終了します。回答までの計算の費用は 0 です。</li>
   <li>NAT・独自ドメイン（CDK 内）・Container Insights・PITR を使いません。CloudFront は Price Class 200 です。</li>
   <li>ログは 14 日で消し、未完了のマルチパートアップロードは 3 日で消します。</li>
   <li>同時実行数の上限で、気づかないうちに Spot のタスクが積み上がるのを防ぎます。管理者の設定は 1 つの上限につき 1〜16 で、17 以上は拒みます（8.3）。</li>
@@ -395,7 +395,7 @@
   <li>失敗した行の自動リトライは 2 回までで、その後は「要対応」になります。自律実行の計画では判断のジョブが対処を決め、人が対応する計画では人を待ちます（6.8・6.9）。</li>
   <li>所有者がジョブを動かせなくなった計画は、行を次々に失敗させずに自分で一時停止します。キーがない、アカウントが無効、選んだモデルが許されなくなった、の場合です。</li>
   <li>自律実行の計画は、計画の費用の上限に達すると新しい行を始めません（6.8）。</li>
-  <li>下書きと再計画の計画用のジョブも、行と同じく空きがあるときだけ積み、両方の上限に数えます。再計画はバッチごとに最大 1 回、計画あたり約 10 回まで（<code>MAX_REPLAN_JOBS</code>）です。最初は最初のバッチが終わった後、以降は前回から行の 10 分の 1 が終わるごとに行い、自動の順序の計画だけで、一時停止中は動かしません。</li>
+  <li>下書きと再計画の計画用のジョブも、行と同じく空きがあるときだけ積み、両方の上限に数えます。再計画はバッチごとに最大 1 回、計画あたり約 10 回まで（<code>MAX_REPLAN_JOBS</code>）です。1 回目は最初のバッチが終わった後、以降は前回から行の 10 分の 1 が終わるごとに行います。再計画するのは自動の順序の計画だけで、一時停止中は動かしません。</li>
   <li>ワーカーは計画用のジョブを 7 分（長い資料の下書きは 25 分）で打ち切ります。janitor は、ハートビートが途絶えたものと 24 時間キューにあるものを失敗にし、リトライしません。計画ランナーが 1 ステップで読む <code>uc.json</code> は 20 件までです。</li>
   <li>Canon のある計画では、本体の行の PR の AI レビューと Canon に合わせるフォローアップ（行あたり最大 2 回、<code>MAX_CONFORM_FOLLOWUPS</code>）は、所有者のキーかデフォルトの API キーで動く通常のジョブです。行と同じ空きの判定を通り、両方の上限に数え、ほかのジョブと同じく課金されます。基準プロジェクトは AI レビューを受けません。</li>
   <li>Canon に合わせるフォローアップは、PR がまだ開いているときだけ送ります（計画ランナーが直前に読み直します）。そのため、すでに承認・却下された PR に有料のフォローアップを使うことはありません。</li>
@@ -417,7 +417,7 @@
 
 <h2 id="s9-10">9.10 OpenAI の費用と記録</h2>
 <h3>だれが払うか</h3>
-<p>OpenAI の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はそのキーの OpenAI の請求に載ります。Tier 1 の利用者は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code>（下の単価表で最も安い 2 行）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行の計画の費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクトに、月の予算を設定してください。</p>
+<p>OpenAI の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はこのキーを持つ組織に請求されます。Tier 1 の利用者は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code>（下の単価表で最も安い 2 行）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行の計画の費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクトに、月の予算を設定してください。</p>
 <h3>単価表</h3>
 <table class="compact avoid">
   <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-09-25</code>、OpenAI の標準の短いコンテキストの単価）</caption>
@@ -455,13 +455,13 @@
 <p>ジョブの使用量を足した後、ワーカーは全ジョブからプロジェクトの合計を集計し直します（<code>refreshProjectUsage</code>）。この数え方を決めた経緯は付録 D にあり、それより前に記録したジョブの扱いは付録 C にあります。</p>
 <h3>使用量と費用の記録</h3>
 <p>ワーカーは各ジョブについて、使ったモデル、入力・キャッシュされた入力・出力・推論のトークン数、推定費用を記録します（<code>Jobs.usage</code>・<code>Jobs.costUsd</code>。プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>）。ジョブには、どちらのキーで実行したか（<code>keySource</code>：<code>own</code> か、デフォルトの API キーの <code>org</code>）も記録します。画面での見え方は 4.7 にあります。</p>
-<p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、自分のプロジェクトのジョブに加えて、自分の Canon と、共同編集者として入っている Canon の AI レビュー、自分の計画の計画用のジョブ（<code>plan</code>）も、全体とモデルごとの合計に含めます。</p>
+<p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、全体とモデルごとの合計に、自分のプロジェクトのジョブのほか、次のものも含めます。自分の Canon と共同編集者として入っている Canon の AI レビューと、自分の計画の計画用のジョブ（<code>plan</code>）です。</p>
 <p>推定は単価表で計算するので、OpenAI の請求書と一致しないことがあります。とくに単価表にないモデルでは一致しません。この記録は AWS の費用とは別のもので、OpenAI の請求と突き合わせるために使います。</p>
 <h3>BRA 1 件あたりの目安</h3>
 <ul>
   <li><b>gpt-6-luna・推論の強さ high・調査モード オン</b>で BRA を 1 件作ると、実費で約 $0.13〜0.18 でした（付録 D の測定）。オーケストレーターの見積もりは、1 行あたり $0.18〜0.39、中央値 48 分で計算します（<code>PLAN_ESTIMATE</code>。6.9）。</li>
   <li>単価の高いモデルで推論を強くした長い HCD → FRG → CSV の実行は、1 件で<b>数ドルから数十ドル</b>になりえます。これは約 $10 のインフラの月額（9.9）よりはるかに大きいので、作成画面でモデルと推論の強さを下げることが、費用を抑える近道です。</li>
-  <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間で約 10〜60 分（1 vCPU / 2 GB の Spot で約 $0.01〜0.05）、OpenAI 側で入力 150 万〜600 万トークン（大部分はキャッシュ）と出力 4 万〜15 万トークン（推論の強さ high 以上）が増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
+  <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間は約 10〜60 分増えます（1 vCPU / 2 GB の Spot で約 $0.01〜0.05）。OpenAI 側では、入力が 150 万〜600 万トークン（大部分はキャッシュ）、出力が 4 万〜15 万トークン（推論の強さ high 以上）増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
   <li><b>オーケストレーターの下書き・再計画</b>は、推論の強さ <code>medium</code> で RCS の照会をする短い Codex の 1 ターンです（返答が読めなければ 1 回やり直します）。時間の予算は 7 分で、xlsx・PDF の資料を読むか 20 行を超える下書きは 25 分です。BRA の実行に比べれば小さな費用です。ほかのジョブと同じく所有者のキーかデフォルトの API キーで課金され、ジョブに記録され、計画の画面に計画自身のジョブの費用として出ます。計画の PR の AI レビューの費用も、計画の費用に含めます。</li>
 </ul>
 <p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>

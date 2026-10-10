@@ -4,9 +4,9 @@
   <h1 class="part" id="pc">古いプロジェクトの扱い</h1>
   <p class="lead">本文には現行の仕様だけを書いています。この付録では、以前のバージョンのアプリで作られたプロジェクト・Canon・計画・ジョブの記録を、いまのアプリがどう扱うかをまとめます。新しく作るものには関係しません。古いデータを読む開発者と、古いプロジェクトについて問い合わせを受けた運用者に向けた付録です。変化の理由と経緯は付録 D にあります。</p>
   <div class="map">
-    <div class="card"><b>作られたときの規則</b>既存のプロジェクトは、作成時に保存した印に従って検査し続けます。フォローアップでも複製でも変わりません。</div>
-    <div class="card"><b>保存データは書き換えない</b>古い形の名前や記録は、DynamoDB と S3 の上ではそのまま残します。</div>
-    <div class="card"><b>読むときに直す</b>比べるときや表示するときに、現在の形へ読み替えたり、値を補正したりします。</div>
+    <div><b>作られたときの規則</b>既存のプロジェクトは、作成時に保存した印に従って検査し続けます。フォローアップでも複製でも変わりません。</div>
+    <div><b>保存データは書き換えない</b>古い形の名前や記録は、DynamoDB と S3 の上ではそのまま残します。</div>
+    <div><b>読むときに直す</b>比べるときや表示するときに、現在の形へ読み替えたり、値を補正したりします。</div>
   </div>
 </div>
 
@@ -15,7 +15,7 @@
 <ul>
   <li><b>印を持ち続ける</b>：プロジェクトは作成時に、検査規則の水準（<code>harnessRules</code>）、SABRA の境界（<code>sabraBoundary</code>）、調査モードなどの設定を保存します。後のフォローアップとリトライも、その設定に従います。</li>
   <li><b>複製は元の印を引き継ぐ</b>：公開プロジェクトの複製は、元の調査モード、SABRA の境界、<code>harnessRules</code>、仮説モードの設定をそのままコピーします（4.6）。</li>
-  <li><b>計画は確定時の規則で作る</b>：オーケストレーターの計画は、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、その計画の行はすべて確定時の規則で作られます（6.12）。</li>
+  <li><b>計画は確定時の規則で作る</b>：オーケストレーターの計画は、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、その計画の行はすべて確定時の規則で作られます（6.9）。</li>
   <li><b>保存したデータは書き換えない</b>：古い形の名前、古い境界のアンカー、多く数えすぎた使用量は、保存先の上ではそのままです。読むときに現在の形へ直すか、補正して表示します。</li>
 </ul>
 <p>主な変化と、それより前に作られたものの扱いを次の表にまとめます。詳しい扱いは右の列の節にあります。</p>
@@ -23,7 +23,7 @@
   <thead><tr><th style="width:30%">変化</th><th style="width:10%">導入</th><th style="width:22%">印</th><th>それより前のものの扱い</th><th style="width:7%">節</th></tr></thead>
   <tbody>
     <tr><td>作業ディレクトリのデータを Markdown の表から JSON に</td><td>v0.8.0</td><td>ファイルの形</td><td>続きの実行はできない。xlsx とグラフは見られる</td><td>C.6</td></tr>
-    <tr><td>BRA の値の規則</td><td>v0.10.0</td><td>CSV 形式 <code>CoBRAC-v1-0</code> → <code>CoBRAC-v1-1</code></td><td>次のフォローアップで新しい規則で検査し、エージェントに直させる</td><td>C.3</td></tr>
+    <tr><td>BRA の値の規則</td><td>v0.10.0</td><td>CSV 形式 <code>CoBRAC-v1-0</code> → <code>CoBRAC-v1-1</code></td><td>次のフォローアップのときに新しい規則で検査し、エージェントに直させる</td><td>C.3</td></tr>
     <tr><td>エラーコードを WBAI の Master に合わせる</td><td>v0.17.0</td><td>Master のコードと <code>cobrac:</code> のコード</td><td>チェッカーが古い番号を <code>appendixD</code> として残す</td><td>C.3</td></tr>
     <tr><td>Circuit ID と Descriptor の形（左右を <code>side</code> に、区切りを <code>.</code> に）</td><td>v0.17.0</td><td>—</td><td>古い形も読み、次のフォローアップで書き直しを求める</td><td>C.2</td></tr>
     <tr><td>使用量の数え方の修正</td><td>v0.17.1</td><td>ジョブの開始時刻</td><td>読むときに補正して表示する</td><td>C.7</td></tr>
@@ -58,7 +58,7 @@
   <li><b>検査</b>：古いプロジェクトの次のフォローアップでは、ワーカーの検査が現在の形への書き直しを求めます。対象には、接続、Sub-Circuits、Output Semantics、<code>[U.…]</code> の参照も含みます。書き直すのはエージェントです。</li>
   <li><b>正規化</b>：Descriptor を比べるときの正規化（2.5）は、最初に古い形を現在の形に直してから、<code>mol</code> の値の並べ替えと小文字化を行います。</li>
   <li><b>出力</b>：ビューアと CSV / xlsx は、保存された ID をそのまま出します。<code>,</code> を含む古い ID は、CSV の書き出しが自動でクォートします。</li>
-  <li><b>Canon</b>：古い形と現在の形を、同じ回路・同じ ID として比べます（<code>currentCanonSnapshot</code>、2.12）。<code>bna:29</code> と <code>bna:29-30/side:left</code> は同じ回路で、<code>A44d@L</code> と <code>A44d(left)</code> は同じ Circuit ID なので、衝突ルール C4（Circuit ID と Descriptor の 1 対 1、5.7）にはなりません。プロジェクトが現在の形を持ち込むと PR には改名として表示され、マージ後の Canon は現在の形になります。</li>
+  <li><b>Canon</b>：古い形と現在の形を、同じ回路・同じ ID として比べます（<code>currentCanonSnapshot</code>、2.12）。<code>bna:29</code> と <code>bna:29-30/side:left</code> は同じ回路で、<code>A44d@L</code> と <code>A44d(left)</code> は同じ Circuit ID です。そのため、衝突ルール C4（Circuit ID と Descriptor の 1 対 1、5.7）にはなりません。プロジェクトが現在の形を持ち込むと PR には改名として表示され、マージ後の Canon は現在の形になります。</li>
   <li>片側の単一ラベルと逆側の <code>side</code> が混ざった Descriptor（<code>BNA:57/side:right</code>）は、読み替えずにエラーにします。</li>
 </ul>
 
@@ -135,7 +135,7 @@
 
 <h2 id="sc-4">C.4 ID と名前</h2>
 <h3>以前の形の ID</h3>
-<p>いまのプロジェクト・Canon・計画の ID はランダムな 7 文字です（4.3）。v0.7.0 から v0.28.x までは、利用者ごとの番号を使った別の形で ID を発行していました。この形の ID は<b>いまも有効</b>で、どの検査も両方の形を受け付けます。BRA の版は、どちらの形でも <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です。</p>
+<p>いまのプロジェクト・Canon・計画の ID は、1 文字の接頭辞（プロジェクトは <code>p</code>、Canon は <code>c</code>、計画は <code>n</code>）とランダムな 7 文字です（4.3）。v0.7.0 から v0.28.x までは、利用者ごとの番号を使った別の形で ID を発行していました。この形の ID は<b>いまも有効</b>で、どの検査も両方の形を受け付けます。BRA の版は、どちらの形でも <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です。</p>
 <table class="compact">
   <thead><tr><th style="width:14%">種類</th><th style="width:44%">以前の形（v0.7.0 から）</th><th>例</th></tr></thead>
   <tbody>
@@ -221,14 +221,14 @@
 </ul>
 
 <h3>以前の既定で保存したグラフの配置</h3>
-<p>グラフのエッジの既定の線の種類はいま曲線です（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
+<p>いまの既定では、グラフのエッジを曲線で描きます（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
 
 <h3>v0.20.0 より前の PR</h3>
 <p>Canon の PR の履歴は、追記専用の項目 <code>PEV#…</code> に残します（5.8）。この項目がない v0.20.0 より前の PR は、push と判断を <code>PR#</code> の項目から組み立て直して表示します。</p>
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>QUESTION_REGEX</code>）・<code>systemMessage.ts</code>・<code>plan.ts</code>（<code>orchestratorModelOf</code>、列名の別名）、<code>packages/worker/src/index.ts</code>・<code>codex.ts</code>、<code>packages/web/src/components/MessageItem.tsx</code>、<code>packages/api/src/lib/ownership.ts</code>、<code>packages/api/src/lib/canonReview.ts</code>、<code>packages/shared/src/hypothesis.ts</code>、<code>packages/web/src/</code>（グラフの編集）</p>
 
 <h2 id="sc-7">C.7 使用量</h2>
-<p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す会話（Codex のスレッド）の累計を、ターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
+<p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
 <ul>
   <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブ。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
   <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の行（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
@@ -237,7 +237,7 @@
 <p>この補正には、次の限界があります。</p>
 <ul>
   <li><b>記録されなかった分は戻せません。</b>v0.17.1 より前は、失敗で終わったターンを 0 として記録していました。その分は復元できないので、補正後の値は実費より低くなることがあります。</li>
-  <li><b>打ち切られたターンの分も戻せません。</b>v0.24.1 より前は、時間切れ・取消・SIGTERM・理由を返さない異常終了で打ち切られたターンの使用量を記録していませんでした。</li>
+  <li><b>打ち切られたターンの分も戻せません。</b>v0.24.1 より前は、時間切れ・停止・SIGTERM・理由を返さない異常終了で打ち切られたターンの使用量を記録していませんでした。</li>
   <li><b>WebSocket で届く更新は補正しません。</b>古いプロジェクトで新しいジョブが終わった直後は、画面を読み込み直すまで補正前の合計が見えます。</li>
   <li><b>調査ステップの指標</b>（<code>researchStep.usage</code>）は補正しません。</li>
 </ul>

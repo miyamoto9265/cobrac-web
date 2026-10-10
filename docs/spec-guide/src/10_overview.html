@@ -4,7 +4,7 @@
   <h1 class="part" id="p1">CoBRAC の概要</h1>
   <p class="lead">この部では、CoBRAC Agents が何を作り、どのような流れで作り、複数の BRA をどうそろえるかを、仕組みの細部に入らずに説明します。あわせて、BRA を 1 つ作るのにかかる時間と費用の目安と、入力したデータがどこに保存され、どこへ送られるかをまとめます。詳しい仕様は、各節で示す後の部を参照してください。</p>
   <div class="map">
-    <div><b>作るもの</b>脳の領域の神経回路（HCD）と、その回路が実現する機能（FRG）を、文献の根拠付きで表した BRA のデータです。</div>
+    <div><b>作るもの</b>脳領域の神経回路（HCD）と、その回路が実現する機能（FRG）を、文献の根拠付きで表した BRA のデータです。</div>
     <div><b>作り方</b>エージェントが文献を調べてデータを書き、ワーカーが規則に照らして検査します。問題があれば直させ、検査に通るまで次に進みません。</div>
     <div><b>まとめ方</b>回路の名前と定義をプロジェクトの間でそろえ、多数の BRA をまとめて作り、完成したものをデータベースに登録します。</div>
   </div>
@@ -50,7 +50,7 @@
 <p>Web 画面で成果物を手で編集することはできません。ただし、グラフの配置とスタイルは画面で変えられます（8.7）。課金プランとモバイルアプリはありません。プロジェクトの公開と複製、Canon の共同編集はできます（4.6、5.11）。</p>
 
 <h3>実装</h3>
-<p>HCD と FRG のデータは <code>uc.json</code>・<code>connections.json</code>・<code>references.json</code>・<code>frg.json</code>、レポートと判断ログは <code>report.md</code>・<code>decision_log.md</code> です。5 つの CSV は <code>Project.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code>・<code>References.csv</code> です。保存先はプロジェクトの S3 の接頭辞の下で、次のとおりです。</p>
+<p>HCD と FRG のデータは <code>uc.json</code>・<code>connections.json</code>・<code>references.json</code>・<code>frg.json</code>、レポートと判断ログは <code>report.md</code>・<code>decision_log.md</code> です。5 つの CSV は <code>Project.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code>・<code>References.csv</code> です。保存先は S3 にあるプロジェクトの接頭辞の下で、次のとおりです。</p>
 <table class="compact">
   <thead><tr><th style="width:38%">成果物</th><th>保存先</th></tr></thead>
   <tbody>

@@ -133,7 +133,7 @@
   </li>
   <li><b>トランザクションの開始</b>：プロジェクトごとの advisory lock を取ります。そのプロジェクトの行が BRA-DB にあれば置き換え（<code>replace</code>）、なければ新規（<code>create</code>）として進めます。</li>
   <li><b>同じ内容の判定</b>：BRA-DB が持つ版と内容のハッシュが同じなら、<code>unchanged</code> を記録して終わります。</li>
-  <li><b>回路の分類と検査</b>：回路を BIF と Local に分類し、インポート v3.10 の検査を行います。Collection は接続を送れない（203）、relation は <code>=</code> <code>&lt;</code> <code>&gt;</code> のどれか、という検査です。</li>
+  <li><b>回路の分類と検査</b>：回路を BIF と Local に分類し、インポート v3.10 の検査を行います。Collection は接続を送れない（エラー 203）、relation は <code>=</code> <code>&lt;</code> <code>&gt;</code> のどれか、という検査です。</li>
   <li><b>置き換えの条件</b>：BRA-DB でレビューコメントが付いたプロジェクトは置き換えません（理由 <code>review_comments</code>）。回路か接続が減る場合は、所有者の確認がない限り拒否します（理由 <code>shrink</code>。前後の件数を付ける）。</li>
   <li><b>書き込み</b>：プロジェクトの行、回路、文献、プロジェクトと文献の対応、FRG のノードと履歴、接続、グラフを書きます。置き換えでは、プロジェクトの行とその連番のキーを保ち、<code>version</code> を上げます。回路は、自分が定義したものと所有者のいないものを upsert します。ほかのプロジェクトが定義した回路は共有の語彙として残し、スキップとして報告します。自分が定義しなくなった回路は削除します。</li>
   <li><b>整合性の検査</b>：書いた辺の数とグラフを照合します。端が BRA-DB にない辺は、エラーではなく警告にします。食い違えば <code>rejected</code>（理由 <code>integrity</code>）にします。</li>
@@ -156,7 +156,7 @@
   <div class="card"><div class="h">置き換えで作り直すもの</div><ul>
     <li>そのプロジェクトの接続、FRG のノード、文献との対応</li>
     <li>グラフの、そのプロジェクトのノードと接続の辺</li>
-    <li>ノードの履歴は続く。新しいノードは版 1（import）、変わったノードは版 n+1（update）になり、変わらないノードは版を保つ（行を足さない）</li>
+    <li>ノードの履歴は続く。新しいノードは <code>current_version</code> が 1（import）、変わったノードは n+1（update）になり、変わらないノードは番号を保つ（履歴の行を足さない）</li>
   </ul></div>
 </div>
 <table>
