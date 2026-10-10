@@ -190,6 +190,9 @@ function ApiKeyCard({ provider, source, approved, run, busy }: { provider: Model
   const [workspaceId, setWorkspaceId] = useState("");
   const [keyStatus, setKeyStatus] = useState<{ registered: boolean; last4: string | null } | null>(null);
   const c = KEY_CARD[provider];
+  // An approved user's own key is optional while the organisation's key covers the provider. There is no default
+  // Anthropic key yet, so Claude then needs the user's own key: the card asks for it with the form open.
+  const optional = approved && (provider === "openai" || source === "org" || !!keyStatus?.registered);
 
   useEffect(() => {
     api.apiKeyStatus(provider).then(setKeyStatus).catch(() => undefined);
@@ -253,7 +256,7 @@ function ApiKeyCard({ provider, source, approved, run, busy }: { provider: Model
   return (
     <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5" data-testid={`${c.id}api-key-card`}>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <KeyRound size={16} /> {approved ? t(c.ownTitle) : t(c.title)} <HelpTip text={approved ? t(c.ownHelp) : t(c.help)} />
+        <KeyRound size={16} /> {optional ? t(c.ownTitle) : t(c.title)} <HelpTip text={optional ? t(c.ownHelp) : t(c.help)} />
       </h2>
       {approved ? (
         <div className="mb-2 text-xs" data-testid={`${c.id}key-status`}>
@@ -271,7 +274,7 @@ function ApiKeyCard({ provider, source, approved, run, busy }: { provider: Model
           {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
         </div>
       )}
-      {approved && !keyStatus?.registered ? (
+      {optional && !keyStatus?.registered ? (
         <details className="text-sm" data-testid={`${c.id}own-key-form`}>
           <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-800">{t("settings.useOwnKey")}</summary>
           <div className="mt-2">{keyForm}</div>

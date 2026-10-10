@@ -13,7 +13,7 @@ export const claudeEn = {
     "You can use the Claude models without registering a key. Register your own key only if you want the Claude jobs to run on and be billed to your Anthropic account. The key is stored encrypted with KMS and decrypted only while a job runs. Deleting it switches back.",
   "claude.ownKeyActive": "Claude jobs run with your own key (…{last4}). Usage is billed to your Anthropic account.",
   "claude.ready": "No key needed. You can choose the Claude models as they are.",
-  "claude.unavailable": "The Claude models are not available right now. Please contact an admin.",
+  "claude.unavailable": "Register your own Anthropic API key to use the Claude models.",
   "claude.keySaved": "API key registered (checked with Anthropic)",
   "claude.defaultKey": "Default Anthropic API key",
   "claude.defaultKeyHelp":
@@ -37,7 +37,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "キーを登録しなくても Claude のモデルを使えます。自分の Anthropic アカウントで実行・請求したい場合だけ、自分のキーを登録してください。キーは KMS で暗号化して保存され、ジョブ実行時にのみ復号されます。削除すると元に戻ります。",
     "claude.ownKeyActive": "Claude のジョブは自分のキー（末尾 …{last4}）で実行しています。利用料金はあなたの Anthropic アカウントに請求されます。",
     "claude.ready": "登録は不要です。Claude のモデルもそのまま選べます。",
-    "claude.unavailable": "Claude のモデルはいまは使えません。管理者に連絡してください。",
+    "claude.unavailable": "自分の Anthropic API キーを登録すると、Claude のモデルを使えます。",
     "claude.keySaved": "API キーを登録しました（Anthropic への疎通確認済み）",
     "claude.defaultKey": "デフォルトの Anthropic API キー",
     "claude.defaultKeyHelp":
@@ -55,7 +55,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.ownKeyHelp": "无需登记密钥即可使用 Claude 模型。只有希望以自己的 Anthropic 账户运行并计费时，才需登记自己的密钥。密钥经 KMS 加密保存，仅在任务运行时解密。删除后恢复原状。",
     "claude.ownKeyActive": "Claude 任务正在使用您自己的密钥（末尾 …{last4}）运行。费用计入您的 Anthropic 账户。",
     "claude.ready": "无需登记。可直接选择 Claude 模型。",
-    "claude.unavailable": "目前无法使用 Claude 模型。请联系管理员。",
+    "claude.unavailable": "登记您自己的 Anthropic API 密钥后即可使用 Claude 模型。",
     "claude.keySaved": "已登记 API 密钥（已与 Anthropic 确认连通）",
     "claude.defaultKey": "默认 Anthropic API 密钥",
     "claude.defaultKeyHelp":
@@ -73,7 +73,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.ownKeyHelp": "不登錄金鑰也能使用 Claude 模型。只有想以自己的 Anthropic 帳戶執行並計費時，才需登錄自己的金鑰。金鑰經 KMS 加密儲存，僅在工作執行時解密。刪除後即恢復原狀。",
     "claude.ownKeyActive": "Claude 工作正以您自己的金鑰（末尾 …{last4}）執行。費用計入您的 Anthropic 帳戶。",
     "claude.ready": "無需登錄。可直接選擇 Claude 模型。",
-    "claude.unavailable": "目前無法使用 Claude 模型。請聯絡管理員。",
+    "claude.unavailable": "登錄您自己的 Anthropic API 金鑰後即可使用 Claude 模型。",
     "claude.keySaved": "已登錄 API 金鑰（已與 Anthropic 確認連線）",
     "claude.defaultKey": "預設 Anthropic API 金鑰",
     "claude.defaultKeyHelp":
@@ -91,7 +91,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.ownKeyHelp": "키를 등록하지 않아도 Claude 모델을 사용할 수 있습니다. 내 Anthropic 계정으로 실행·청구하려는 경우에만 내 키를 등록하세요. 키는 KMS로 암호화해 저장되며 작업 실행 중에만 복호화됩니다. 삭제하면 원래대로 돌아갑니다.",
     "claude.ownKeyActive": "Claude 작업은 내 키(끝자리 …{last4})로 실행 중입니다. 요금은 사용자의 Anthropic 계정에 청구됩니다.",
     "claude.ready": "등록할 필요가 없습니다. Claude 모델도 그대로 선택할 수 있습니다.",
-    "claude.unavailable": "지금은 Claude 모델을 사용할 수 없습니다. 관리자에게 문의하세요.",
+    "claude.unavailable": "자신의 Anthropic API 키를 등록하면 Claude 모델을 사용할 수 있습니다.",
     "claude.keySaved": "API 키를 등록했습니다 (Anthropic 연결 확인 완료)",
     "claude.defaultKey": "기본 Anthropic API 키",
     "claude.defaultKeyHelp":
@@ -111,7 +111,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "Sie können die Claude-Modelle ohne eigenen Schlüssel nutzen. Hinterlegen Sie Ihren Schlüssel nur, wenn Claude-Jobs über Ihr Anthropic-Konto laufen und abgerechnet werden sollen. Der Schlüssel wird mit KMS verschlüsselt gespeichert und nur während eines Jobs entschlüsselt. Nach dem Löschen gilt wieder die vorherige Einstellung.",
     "claude.ownKeyActive": "Claude-Jobs laufen mit Ihrem eigenen Schlüssel (…{last4}). Die Kosten werden Ihrem Anthropic-Konto berechnet.",
     "claude.ready": "Kein Schlüssel nötig. Sie können die Claude-Modelle direkt wählen.",
-    "claude.unavailable": "Die Claude-Modelle sind derzeit nicht verfügbar. Bitte wenden Sie sich an einen Admin.",
+    "claude.unavailable": "Registrieren Sie Ihren eigenen Anthropic-API-Schlüssel, um die Claude-Modelle zu nutzen.",
     "claude.keySaved": "API-Schlüssel gespeichert (bei Anthropic geprüft)",
     "claude.defaultKey": "Standard-Anthropic-API-Schlüssel",
     "claude.defaultKeyHelp":
@@ -131,7 +131,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "Vous pouvez utiliser les modèles Claude sans enregistrer de clé. N'enregistrez votre clé que si vous voulez que les tâches Claude s'exécutent et soient facturées sur votre compte Anthropic. La clé est chiffrée avec KMS et n'est déchiffrée que pendant l'exécution d'une tâche. La supprimer rétablit le fonctionnement précédent.",
     "claude.ownKeyActive": "Les tâches Claude s'exécutent avec votre propre clé (…{last4}). Les frais sont facturés à votre compte Anthropic.",
     "claude.ready": "Aucune clé nécessaire. Vous pouvez choisir directement les modèles Claude.",
-    "claude.unavailable": "Les modèles Claude ne sont pas disponibles pour le moment. Veuillez contacter un administrateur.",
+    "claude.unavailable": "Enregistrez votre propre clé API Anthropic pour utiliser les modèles Claude.",
     "claude.keySaved": "Clé API enregistrée (vérifiée auprès d'Anthropic)",
     "claude.defaultKey": "Clé API Anthropic par défaut",
     "claude.defaultKeyHelp":
@@ -151,7 +151,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "Puede usar los modelos Claude sin registrar una clave. Registre la suya solo si quiere que los trabajos de Claude se ejecuten y se facturen en su cuenta de Anthropic. La clave se guarda cifrada con KMS y solo se descifra mientras se ejecuta un trabajo. Si la elimina, todo vuelve a como estaba.",
     "claude.ownKeyActive": "Los trabajos de Claude se ejecutan con su propia clave (…{last4}). El uso se factura a su cuenta de Anthropic.",
     "claude.ready": "No hace falta registrar nada. Puede elegir los modelos Claude directamente.",
-    "claude.unavailable": "Los modelos Claude no están disponibles por ahora. Póngase en contacto con un administrador.",
+    "claude.unavailable": "Registre su propia clave de API de Anthropic para usar los modelos Claude.",
     "claude.keySaved": "Clave de API registrada (verificada con Anthropic)",
     "claude.defaultKey": "Clave de API de Anthropic predeterminada",
     "claude.defaultKeyHelp":
@@ -171,7 +171,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "Você pode usar os modelos Claude sem registrar uma chave. Registre a sua apenas se quiser que os trabalhos do Claude sejam executados e cobrados na sua conta da Anthropic. A chave é guardada criptografada com KMS e só é descriptografada durante a execução de um trabalho. Ao excluí-la, tudo volta ao que era.",
     "claude.ownKeyActive": "Os trabalhos do Claude são executados com sua própria chave (…{last4}). O uso é cobrado na sua conta da Anthropic.",
     "claude.ready": "Não é preciso registrar nada. Você pode escolher os modelos Claude diretamente.",
-    "claude.unavailable": "Os modelos Claude não estão disponíveis no momento. Entre em contato com um administrador.",
+    "claude.unavailable": "Registre sua própria chave de API da Anthropic para usar os modelos Claude.",
     "claude.keySaved": "Chave de API registrada (verificada com a Anthropic)",
     "claude.defaultKey": "Chave de API da Anthropic padrão",
     "claude.defaultKeyHelp":
@@ -191,7 +191,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
       "Модели Claude можно использовать без регистрации ключа. Добавьте свой ключ, только если хотите, чтобы задания Claude выполнялись и оплачивались через ваш аккаунт Anthropic. Ключ хранится в зашифрованном виде (KMS) и расшифровывается только во время выполнения задания. После удаления всё вернётся как было.",
     "claude.ownKeyActive": "Задания Claude выполняются с вашим ключом (…{last4}). Оплата списывается с вашего аккаунта Anthropic.",
     "claude.ready": "Регистрировать ничего не нужно. Модели Claude можно выбирать сразу.",
-    "claude.unavailable": "Модели Claude сейчас недоступны. Обратитесь к администратору.",
+    "claude.unavailable": "Зарегистрируйте собственный API-ключ Anthropic, чтобы использовать модели Claude.",
     "claude.keySaved": "API-ключ сохранён (проверен в Anthropic)",
     "claude.defaultKey": "API-ключ Anthropic по умолчанию",
     "claude.defaultKeyHelp":

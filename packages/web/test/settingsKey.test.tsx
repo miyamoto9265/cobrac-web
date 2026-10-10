@@ -103,12 +103,16 @@ describe("the API key card of the settings page", () => {
     expect(card.textContent).not.toContain("未登録");
   });
 
-  it("tells an approved user when the Claude models are not available", async () => {
+  it("asks an approved user for their own Anthropic key while there is no default Anthropic key", async () => {
     auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", claudeKeySource: null, apiKeyRegistered: false };
     api.apiKeyStatus.mockResolvedValue({ registered: false, last4: null });
     await render(<SettingsPage />);
-    expect($("anthropic-key-status")!.textContent).toBe("Claude のモデルはいまは使えません。管理者に連絡してください。");
-    expect(($("anthropic-own-key-form") as HTMLDetailsElement).open).toBe(false);
+    const card = $("anthropic-api-key-card")!;
+    expect($("anthropic-key-status")!.textContent).toBe("自分の Anthropic API キーを登録すると、Claude のモデルを使えます。");
+    expect($("anthropic-own-key-form")).toBeNull();
+    expect(card.querySelector('input[type="password"]')).not.toBeNull();
+    expect(card.textContent).not.toContain("任意");
+    expect(card.textContent).not.toContain("未登録");
   });
 });
 
