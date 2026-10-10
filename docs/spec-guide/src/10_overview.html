@@ -1,0 +1,248 @@
+<section class="part intro">
+<div class="opener">
+  <div class="no">第 1 部</div>
+  <h1 class="part" id="p1">CoBRAC の概要</h1>
+  <p class="lead">この部では、CoBRAC Agents が何を作り、どのような流れで作り、複数の BRA をどうそろえるかを、仕組みの細部に入らずに説明します。あわせて、BRA を 1 つ作るのにかかる時間と費用の目安と、入力したデータがどこに保存され、どこへ送られるかをまとめます。詳しい仕様は、各節で示す後の部を参照してください。</p>
+  <div class="map">
+    <div><b>作るもの</b>脳の領域の神経回路（HCD）と、その回路が実現する機能（FRG）を、文献の根拠付きで表した BRA のデータです。</div>
+    <div><b>作り方</b>エージェントが文献を調べてデータを書き、ワーカーが規則に照らして検査します。問題があれば直させ、検査に通るまで次に進みません。</div>
+    <div><b>まとめ方</b>回路の名前と定義をプロジェクトの間でそろえ、多数の BRA をまとめて作り、完成したものをデータベースに登録します。</div>
+  </div>
+</div>
+
+<h2 id="s1-1">1.1 CoBRAC がすること</h2>
+<p>BRA（Brain Reference Architecture）のデータは、脳のある領域の神経回路と、その回路が実現する機能を、文献の根拠付きで表した表とグラフです。CoBRAC Agents は、このデータの作成をブラウザから依頼し、サーバーで実行する Web アプリです。</p>
+<p>利用者は対象の脳領域と機能を入力します。すると、CoBRAC エージェント（以下、エージェント）が文献を調べ、BRA のデータを書きます。エージェントは OpenAI のモデルを Codex で動かす LLM です。ワーカーと呼ぶプログラムが、書かれたデータを規則に照らして検査し、問題があればエージェントに返して直させます。作業はすべてサーバーで進むので、ブラウザを閉じても止まりません。利用者はブラウザで進捗を見て、エージェントの質問に答え、完成した成果物を受け取ります。</p>
+<p>CoBRAC では、1 つのプロジェクトで 1 つの BRA を作ります。BRA は次の 2 つのグラフからなります。</p>
+<div class="grid2">
+  <div class="card"><div class="h">HCD（Hypothetical Component Diagram）</div>回路をノード、回路の間の接続をエッジとするグラフです。どの脳領域のどの神経集団が、どこから入力を受け、どこへ出力するかを、文献の根拠付きで表します。ノードになる回路を UC（Uniform Circuit）と呼びます。</div>
+  <div class="card"><div class="h">FRG（Function Realization Graph）</div>対象の機能を部分的な機能に分解し、最下層で HCD の UC に結びつける木です。どの回路の組み合わせがどの機能を実現するかを表します。</div>
+</div>
+<p>HCD と FRG の考え方は 3.1 で、回路の名前の付け方は第 2 部で説明します。</p>
+
+<h3>入力</h3>
+<table class="compact">
+  <thead><tr><th style="width:26%">項目</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>ROI（Region of Interest）</td><td>対象の脳領域</td></tr>
+    <tr><td>TLF（Top-Level Function）</td><td>その領域が担う機能。ROI と TLF はどちらか一方だけでもよい。足りない側はエージェントが調べて補う</td></tr>
+    <tr><td>任意の項目</td><td>参考資料（ファイルと URL）、Canon、モデルと推論の強さ（4.2）、調査モード（3.7）、仮説モード（3.12）</td></tr>
+  </tbody>
+</table>
+
+<h3>出力</h3>
+<p>エージェントが書くのは、HCD と FRG のデータと、説明の文章だけです。表計算の形式への変換とグラフの作成は、ワーカーがプログラムで行います。</p>
+<table class="compact">
+  <thead><tr><th style="width:34%">成果物</th><th style="width:40%">作るもの</th><th>詳しくは</th></tr></thead>
+  <tbody>
+    <tr><td>HCD と FRG のデータ（JSON の 4 つのファイル）</td><td>エージェントが書き、ワーカーが検査する</td><td>3.8・3.9・3.10</td></tr>
+    <tr><td>レポートと判断ログ（Markdown）</td><td>エージェント</td><td>3.13</td></tr>
+    <tr><td>5 つの CSV</td><td>ワーカーが JSON から作る。エージェントは CSV を書かない</td><td>3.13</td></tr>
+    <tr><td>xlsx（CoBRAC の形式と、公式テンプレート Template-v2-2 の形式の 2 つ）</td><td>ワーカー</td><td>3.13</td></tr>
+    <tr><td>HCD と FRG のグラフ</td><td>ワーカー。LLM を使わない</td><td>3.13・8.7</td></tr>
+    <tr><td>版（変わらないコピー）</td><td>ワーカーがジョブの完了時に凍結する</td><td>4.5</td></tr>
+    <tr><td>解説記事（任意）</td><td>記事を書く別のジョブ（LLM）</td><td>3.14</td></tr>
+  </tbody>
+</table>
+<p>成果物はすべて S3 のプロジェクトの下に保存されます（8.6）。</p>
+
+<h3>扱わないもの</h3>
+<p>Web 画面で成果物を手で編集することはできません。ただし、グラフの配置とスタイルは画面で変えられます（8.7）。課金プランとモバイルアプリはありません。プロジェクトの公開と複製、Canon の共同編集はできます（4.6、5.11）。</p>
+
+<h3>実装</h3>
+<p>HCD と FRG のデータは <code>uc.json</code>・<code>connections.json</code>・<code>references.json</code>・<code>frg.json</code>、レポートと判断ログは <code>report.md</code>・<code>decision_log.md</code> です。5 つの CSV は <code>Project.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code>・<code>References.csv</code> です。保存先はプロジェクトの S3 の接頭辞の下で、次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th style="width:38%">成果物</th><th>保存先</th></tr></thead>
+  <tbody>
+    <tr><td>HCD・FRG のデータ</td><td><code>workspace/&lt;ProjectID&gt;_HCD/</code>・<code>workspace/&lt;ProjectID&gt;_FRG/</code></td></tr>
+    <tr><td>レポートと判断ログ</td><td><code>workspace/</code></td></tr>
+    <tr><td>5 つの CSV</td><td><code>workspace/&lt;ProjectID&gt;_CSV/</code></td></tr>
+    <tr><td>CoBRAC の xlsx（<code>csv_to_excel.py</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.bra.xlsx</code></td></tr>
+    <tr><td>公式テンプレートの xlsx（<code>buildTemplateXlsx()</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.template-v2-2.bra.xlsx</code></td></tr>
+    <tr><td>グラフの JSON（<code>buildGraphs()</code> が作る）</td><td><code>graph/hcd.json</code>・<code>graph/frg.json</code></td></tr>
+    <tr><td>版</td><td><code>revisions/&lt;n&gt;/</code></td></tr>
+    <tr><td>解説記事</td><td><code>article/</code></td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>README.md</code>、<code>packages/worker/src/finalize.ts</code>、<code>packages/shared/src/harness.ts</code> ほか</p>
+
+<h2 id="s1-2">1.2 BRA ができるまでの流れ</h2>
+<p>プロジェクトを作ると、ワーカーのジョブが 1 つ登録されます。ジョブは、ワーカーの 1 回の実行のことです。利用者から見ると、BRA は次の順に作られます。</p>
+<ol class="steps">
+  <li><b>作成</b>：利用者が作成画面で ROI と TLF を入力し、プロジェクトを作ります。ジョブは「待機中」になります。</li>
+  <li><b>起動</b>：同時に動かせるジョブの数に空きがあれば、サーバーがワーカーを起動し、プロジェクトは「実行中」になります。空きがなければ、空くまで待ちます。</li>
+  <li><b>作成の段階</b>：ワーカーはエージェントに作業を依頼し、段階を 1 つずつ進めます。段階は、調査（既定で有効）、HCD、FRG、CSV、xlsx の順です。FRG の後で HCD と FRG が食い違っていないかを検査し、必要なら両方を調整します。</li>
+  <li><b>検査と修正</b>：ワーカーは段階ごとにエージェントが書いたファイルを検査します。問題があれば一覧にしてエージェントに返し、直させます。段階が完了になるのは、検査に通ったときだけです。</li>
+  <li><b>質問</b>：エージェントが利用者に確認したいことがあると、プロジェクトは「回答待ち」になります。この間ワーカーは止まっていて、費用はかかりません。回答すると、同じ会話の続きから再開します。</li>
+  <li><b>仕上げ</b>：CSV ができると「仕上げ中」になり、ワーカーが xlsx とグラフを作り、結果を版として凍結します。その後、プロジェクトは「完了」になります。</li>
+</ol>
+<p>作業の進捗、エージェントの文章、検査の結果は、所有者のブラウザにその都度届きます。</p>
+<p>完了したプロジェクトには、修正を指示するフォローアップ（画面では「追加の指示」）や、解説記事の作成を依頼できます。どちらも新しいジョブとして動きます。ジョブが「失敗」や「中止」で止まったときは、「続きからリトライ」で前回の成果物から再開できます。ワーカーの応答が途絶えたジョブは、サーバーが自動で再開します。1 つのジョブが連続して動けるのは 6 時間までです。</p>
+<p>段階の中身とエージェントとワーカーの受け渡しは 3.2〜3.6 で、ジョブの状態遷移と自動の再開は 8.3 で説明します。</p>
+<p class="src">典拠：<code>packages/api/src/handlers/dispatcher.ts</code>・<code>janitor.ts</code>、<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>、<code>packages/shared/src/types.ts</code></p>
+
+<h2 id="s1-3">1.3 複数の BRA をそろえる仕組み</h2>
+<p>第 3 部のハーネスは、プロジェクトごとに BRA を 1 つ作ります。第 2・5・6・7 部の仕組みは、その外側で、多数の BRA を矛盾なく作り、蓄積するためのものです。第 8 部と第 9 部は、これらすべてを動かすシステムと AWS の基盤を説明します。図 1.1 は、それぞれの仕組みの関係を示します。</p>
+<figure>
+<svg viewBox="0 0 680 300" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs>
+    <marker id="a0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker>
+  </defs>
+  <!-- orchestrator -->
+  <rect x="6" y="24" width="150" height="252" rx="8" fill="#fdecef" stroke="#be123c" stroke-width="1.6"/>
+  <text x="81" y="46" text-anchor="middle" font-size="9.5" font-weight="700" fill="#be123c">第 6 部</text>
+  <text x="81" y="64" text-anchor="middle" font-size="12.5" font-weight="800" fill="#111827">CoBRAC</text>
+  <text x="81" y="80" text-anchor="middle" font-size="12.5" font-weight="800" fill="#111827">オーケストレーター</text>
+  <g font-size="10" fill="#374151" text-anchor="middle">
+    <text x="81" y="112">計画 = ROI × TLF の行</text>
+    <text x="81" y="134">アンカーと依存から</text>
+    <text x="81" y="150">実行順序を計算</text>
+    <text x="81" y="172">基準プロジェクト → 本体</text>
+    <text x="81" y="194">同時実行数の範囲で</text>
+    <text x="81" y="210">プロジェクトを起動</text>
+    <text x="81" y="232">バッチごとに再計画</text>
+    <text x="81" y="254">Canon へ自動で push</text>
+  </g>
+  <!-- projects -->
+  <text x="318" y="16" text-anchor="middle" font-size="8.8" font-weight="700" fill="#6d28d9">第 3 部：各プロジェクトの中のハーネス（エージェント + ワーカー）</text>
+  <g>
+    <rect x="200" y="24" width="236" height="74" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <rect x="200" y="113" width="236" height="74" rx="7" fill="#fff" stroke="#94a3b8"/>
+    <rect x="200" y="202" width="236" height="74" rx="7" fill="#fff" stroke="#94a3b8"/>
+  </g>
+  <g font-size="10.5" font-weight="700" fill="#111827">
+    <text x="210" y="41">プロジェクト A（ROI × TLF）</text>
+    <text x="210" y="130">プロジェクト B</text>
+    <text x="210" y="219">プロジェクト C …</text>
+  </g>
+  <g font-size="9" fill="#1f2937" text-anchor="middle">
+    <g transform="translate(0,0)">
+      <rect x="210" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="229" y="62.5">調査</text>
+      <rect x="256" y="50" width="38" height="18" rx="3" fill="#eef0fd" stroke="#4338ca"/><text x="275" y="62.5" fill="#4338ca" font-weight="700">HCD</text>
+      <rect x="302" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="321" y="62.5">FRG</text>
+      <rect x="348" y="50" width="78" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="387" y="62.5">CSV・xlsx・版</text>
+    </g>
+    <g transform="translate(0,89)">
+      <rect x="210" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="229" y="62.5">調査</text>
+      <rect x="256" y="50" width="38" height="18" rx="3" fill="#eef0fd" stroke="#4338ca"/><text x="275" y="62.5" fill="#4338ca" font-weight="700">HCD</text>
+      <rect x="302" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="321" y="62.5">FRG</text>
+      <rect x="348" y="50" width="78" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="387" y="62.5">CSV・xlsx・版</text>
+    </g>
+    <g transform="translate(0,178)">
+      <rect x="210" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="229" y="62.5">調査</text>
+      <rect x="256" y="50" width="38" height="18" rx="3" fill="#eef0fd" stroke="#4338ca"/><text x="275" y="62.5" fill="#4338ca" font-weight="700">HCD</text>
+      <rect x="302" y="50" width="38" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="321" y="62.5">FRG</text>
+      <rect x="348" y="50" width="78" height="18" rx="3" fill="#f1f5f9" stroke="#cbd5e1"/><text x="387" y="62.5">CSV・xlsx・版</text>
+    </g>
+  </g>
+  <g font-size="8.6" fill="#4338ca">
+    <text x="210" y="86">第 2 部：回路の名前 = UC Descriptor（アンカー + facet）</text>
+    <text x="210" y="175">同じ神経集団には、どの BRA でも同じ名前</text>
+    <text x="210" y="264">名前をキーに、定義が同じかを判定</text>
+  </g>
+  <g stroke="#475569" stroke-width="1.4" fill="none" marker-end="url(#a0)">
+    <path d="M156 61H198"/><path d="M156 150H198"/><path d="M156 239H198"/>
+  </g>
+  <text x="177" y="55" font-size="8.6" fill="#475569" text-anchor="middle">起動</text>
+  <!-- canon -->
+  <rect x="510" y="24" width="164" height="150" rx="8" fill="#e9f6f4" stroke="#0f766e" stroke-width="1.6"/>
+  <text x="592" y="44" text-anchor="middle" font-size="9.5" font-weight="700" fill="#0f766e">第 5 部</text>
+  <text x="592" y="62" text-anchor="middle" font-size="12.5" font-weight="800" fill="#111827">Canon（整合単位）</text>
+  <g font-size="9.6" fill="#374151" text-anchor="middle">
+    <text x="592" y="86">rev 0 → 1 → 2 …</text>
+    <text x="592" y="101">（PR の承認でだけ進む）</text>
+    <text x="592" y="123">共有層：回路・接続・文献</text>
+    <text x="592" y="140">役割層：各 BRA の機能</text>
+    <text x="592" y="161">粒度の方針は Canon ごと</text>
+  </g>
+  <!-- bradb -->
+  <rect x="510" y="196" width="164" height="80" rx="8" fill="#fdf3e7" stroke="#b45309" stroke-width="1.6"/>
+  <text x="592" y="215" text-anchor="middle" font-size="9.5" font-weight="700" fill="#b45309">第 7 部</text>
+  <text x="592" y="233" text-anchor="middle" font-size="12.5" font-weight="800" fill="#111827">BRA-DB</text>
+  <text x="592" y="251" text-anchor="middle" font-size="9.4" fill="#374151">PostgreSQL 17 + AGE（AWS）</text>
+  <text x="592" y="267" text-anchor="middle" font-size="9.4" fill="#374151">凍結した版を来歴付きで登録</text>
+  <!-- arrows right -->
+  <g stroke="#0f766e" stroke-width="1.4" fill="none">
+    <path d="M436 52C470 52 474 62 508 62" marker-end="url(#a0)"/>
+    <path d="M508 128C472 128 470 150 438 150" stroke-dasharray="4 3" marker-end="url(#a0)"/>
+  </g>
+  <g stroke="#b45309" stroke-width="1.4" fill="none"><path d="M436 239H508" marker-end="url(#a0)"/></g>
+  <g font-size="8.4" text-anchor="middle">
+    <text x="473" y="38" fill="#0f766e">push → PR</text>
+    <text x="473" y="49" fill="#0f766e">→ 承認</text>
+    <text x="473" y="108" fill="#0f766e">rev に固定</text>
+    <text x="473" y="119" fill="#0f766e">して制約</text>
+    <text x="473" y="232" fill="#b45309">版を登録</text>
+  </g>
+</svg>
+<figcaption><b>図 1.1</b>　仕組みの関係。各プロジェクトの中では、ハーネス（第 3 部）が BRA を作る。オーケストレーター（第 6 部）は多数のプロジェクトを起動する。各プロジェクトは UC Descriptor（第 2 部）で回路に名前を付け、Canon（第 5 部）で定義をそろえ、凍結した版を BRA-DB（第 7 部）に登録する。全体を支えるシステムは第 8 部、セキュリティと費用は第 9 部</figcaption>
+</figure>
+<table>
+  <thead><tr><th style="width:24%">仕組み</th><th style="width:26%">ひとことで</th><th>何を解決するか</th></tr></thead>
+  <tbody>
+    <tr><td><b>ハーネス</b>（第 3 部）</td><td>BRA の作り方</td><td>LLM に自由に書かせると、形式の誤り、架空の文献、HCD と FRG の食い違いが残る。LLM の判断とプログラムの検査を分け、検査に通るまで直させる。</td></tr>
+    <tr><td><b>UC Descriptor と facet</b>（第 2 部）</td><td>回路の名前の規則</td><td>自由な名前では、同じ神経集団がプロジェクトごとに別の名前になり、照合も集計もできない。SABRA の単位と明示的な属性だけから名前を組み立て、どこでも同じキーにする。</td></tr>
+    <tr><td><b>Canon</b>（第 5 部）</td><td>回路の定義をそろえる単位</td><td>同じ名前の回路でも、BRA ごとに粒度（Uniform か Collection か）や分け方が違うと統合できない。そろえる範囲を決め、その中では定義を 1 つにし、変更は審査を通す。</td></tr>
+    <tr><td><b>BRA-DB</b>（第 7 部）</td><td>完成した BRA の登録先</td><td>成果物を WBAI の BRA-DB と同じスキーマで蓄積する。どの版が、どの条件で作られ、だれがいつ登録したかを失わずにたどれるようにする。</td></tr>
+    <tr><td><b>オーケストレーター</b>（第 6 部）</td><td>BRA をまとめて作る段取り</td><td>数十から百を超える ROI × TLF を 1 つずつ手で起動すると、順序、同時実行数、回路の重複、Canon への取り込みを管理しきれない。計画にまとめ、順序をプログラムで計算し、自動で進める。</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：各部の典拠を参照</p>
+
+<h2 id="s1-4">1.4 時間と費用の目安</h2>
+<div class="box note">
+  <div class="h">数値の読み方</div>
+  <p>この節の数値は、2026-10 の本番の記録と比較のための実行から出した<b>目安</b>で、保証する値ではありません。モデル、アプリのバージョン、指示書、OpenAI 側の状態によって変わります。</p>
+</div>
+<h3>時間</h3>
+<ul>
+  <li>既定のモデル（<code>gpt-6-luna</code>）、推論の強さ（reasoning effort）high、調査モードありの条件で、BRA を 1 つ作るのにかかった時間は平均 31 分でした（3 件で 28.6〜35.5 分）。オーケストレーターは、1 行あたり中央値 48 分として所要時間を見積もります（6.9）。</li>
+  <li>時間のほとんどは、モデルの応答を待つ時間です。応答の待ち時間は、それまでの会話の長さでほぼ決まり、会話が長いほど遅くなります。そのため、ワーカーは会話を短く保つように作られています（3.15）。</li>
+  <li>調査・HCD・FRG の段階は、前の段階の結果を入力にするので、並列にして縮められる時間は小さくなります。</li>
+  <li>調査モードは、HCD の前に文献の調査を加えます。時間は 10〜60 分ほど増えます（3.7）。</li>
+  <li>エージェントの質問に回答するまでの時間は含みません。</li>
+</ul>
+<h3>費用</h3>
+<ul>
+  <li>費用の大部分は OpenAI の利用料です。上と同じ条件の測定では、BRA 1 つで約 $0.13〜0.18 でした。オーケストレーターの見積もりは、1 行あたり $0.18〜0.39 です。</li>
+  <li>単価の高いモデルで推論を強くし、長く実行すると、1 つで数ドルから数十ドルになることがあります。費用を抑えるには、作成画面でモデルと推論の強さを下げるのが近道です。作成画面には、調査モードで増える費用の見積もりが出ます。</li>
+  <li>OpenAI の利用料は、利用者自身の API キーか、利用承認を受けた利用者ならデフォルトの API キーに請求されます（4.1）。アプリ自体には支出の上限がありません。</li>
+  <li>AWS の費用は、ジョブ 1 つで普通は数十セントを大きく下回ります。月 50 ジョブでインフラが月 $20 未満を目標にしています。BRA-DB は常時動いていて、別に月約 $34 かかります（7.6）。</li>
+</ul>
+<p>単価表と費用の記録の仕方は 9.10 に、AWS の予算は 9.9 に、測定の詳細は付録 D にあります。</p>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>（<code>DEFAULT_CODEX_MODEL</code>）、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）。測定値は本番の記録と Codex のセッション記録から出したもので、コードの定数ではない</p>
+
+<h2 id="s1-5">1.5 データの扱い</h2>
+<div class="box def">
+  <div class="h">利用者向けの短い説明</div>
+  <ul>
+    <li>メールアドレスとパスワードは AWS の Cognito が保持します。</li>
+    <li>OpenAI の API キーは AWS KMS で暗号化し、ジョブの実行中にだけ復号します。画面に再表示はしません。</li>
+    <li>作った BRA のデータは自分のアカウントだけに結び付きます。公開しない限り、ほかの利用者には見えません。</li>
+    <li>OpenAI の費用は、自分の API キーか、利用承認を受けていればデフォルトの API キーにかかります。</li>
+    <li>プロジェクトを削除すると画面からは消えますが、データは消去されず、管理者は見られます。</li>
+    <li>エージェントは文献を調べるために、インターネットと OpenAI にデータを送ります。</li>
+    <li>このサイトはプロジェクトの関係者のための作業環境で、公開の SNS ではありません。</li>
+  </ul>
+</div>
+<h3>保存するもの</h3>
+<ul>
+  <li>CoBRAC は、招待かセルフサインアップで参加する少人数の利用者を想定しています。集める個人の情報は、メールアドレス、表示名、成果物の作成者欄に載る Contributor 名、OpenAI の API キーです。支払いの情報、住所、電話番号、生年月日は集めません。</li>
+  <li>プロジェクトのデータには、ROI と TLF、参考資料、チャットの全文、HCD と FRG のデータ、レポート、成果物が含まれます。個人情報ではありませんが、未発表の仮説や文献のメモを含むことがあるので、所有者のほかには見えないようにしています。管理者はプロジェクトの一覧を見て、ジョブを強制停止できます。成果物の本体を読めるのは所有者だけです。</li>
+  <li>データは東京リージョンの AWS に保存します。チャットの全文と成果物には保存の期限がありません。版は削除できないように守られています（4.5）。</li>
+  <li>BRA-DB には、所有者が登録した版だけが入ります。メールアドレスと API キーは入りません（第 7 部）。</li>
+</ul>
+<h3>外部に送るもの</h3>
+<table class="compact">
+  <thead><tr><th style="width:26%">送信先</th><th>送るもの</th></tr></thead>
+  <tbody>
+    <tr><td>OpenAI</td><td>ROI・TLF などのプロジェクトの情報、指示の全文、エージェントが読んだファイル（参考資料を含む）、利用者の回答とフォローアップの指示。保持と学習の扱いは OpenAI との契約と組織の設定に従う。データを保持しない設定をアプリは強制しない</td></tr>
+    <tr><td>検索の提供元</td><td>エージェントの Web 検索の語句</td></tr>
+    <tr><td>文献のデータベース（PubMed、Europe PMC、Crossref など）</td><td>検索の語句と、文献の DOI・PMID・タイトル。プロジェクトのほかの内容と利用者の識別子は送らない</td></tr>
+    <tr><td>SABRA の検索サービス（RCS）</td><td>領域名と短い文脈。利用者の識別子と API キーは送らない</td></tr>
+    <tr><td>参考資料の URL の先</td><td>利用者が指定した URL への取得の要求</td></tr>
+  </tbody>
+</table>
+<p>機微な文献を扱うときは、OpenAI の組織の設定を確認してください。保存場所と保持の詳細は 9.2、外部への送信は 9.6、ログと脅威への対策は 9.7 にあります。</p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/app.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>rcs.ts</code>・<code>references.ts</code>・<code>litsearch.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+</section>
