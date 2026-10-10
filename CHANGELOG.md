@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-10
+
 ### Changed
 - The sidebar history is easier to read: project names wrap to two lines instead of being cut short, and the status shows only when a project is not completed (a small coloured dot with "Running", "Waiting for answer", "Failed" and so on) instead of a "Completed" badge on every row. The sidebar links are slightly tighter, leaving more room for the history
 - Projects made by an Orchestrator plan no longer fill the sidebar history one by one: each plan is one row (its name and the number of projects, with the status of any project that is running, waiting or failed) that opens the plan
