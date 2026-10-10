@@ -15,8 +15,9 @@ const switchCls =
   "relative mt-0.5 h-[26px] w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors after:absolute after:left-[3px] after:top-[3px] after:h-5 after:w-5 after:rounded-full after:bg-[#fff] after:shadow after:transition-transform after:content-[''] checked:after:translate-x-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * 自律実行 of a draft: on / off and the cost limit (saved when the field is left). Switched on after the draft was
- * applied, the draft is not confirmed on its own: the note says that 「確定して開始」 starts the autonomous run.
+ * 自律実行 of a draft, the default, and the cost limit (saved when the field is left). The switch is the opt-in to
+ * handle the pull requests, conflicts and questions yourself (it turns 自律実行 off). Switched back to 自律実行 after the
+ * draft was applied, the draft is not confirmed on its own: the note says that 「確定して開始」 starts the autonomous run.
  */
 function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }) {
   const t = useT();
@@ -32,18 +33,19 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
         id={id}
         type="checkbox"
         role="switch"
-        checked={!!a}
-        onChange={(e) => save({ autonomous: e.target.checked ? { maxCostUsd: ok(cost) ? Number(cost) : AUTONOMOUS_DEFAULT_MAX_COST_USD } : null })}
+        checked={!a}
+        onChange={(e) => save({ autonomous: e.target.checked ? null : { maxCostUsd: ok(cost) ? Number(cost) : AUTONOMOUS_DEFAULT_MAX_COST_USD } })}
         aria-describedby={`${id}-help`}
-        className={`${switchCls} checked:bg-violet-600`}
+        className={`${switchCls} checked:bg-blue-600`}
+        data-testid="plan-manual-switch"
       />
       <div className="grid min-w-0 flex-1 gap-2.5">
         <div className="grid gap-0.5">
           <label htmlFor={id} className={`cursor-pointer font-semibold ${a ? "text-violet-800" : ""}`}>
-            {t("auto.label")}
+            {t("auto.manual.label")}
           </label>
           <p id={`${id}-help`} className={`text-sm ${a ? "text-violet-700" : "text-slate-600"}`}>
-            {t("auto.help")}
+            {a ? `${t("auto.default")} ${t("auto.help")}` : t("auto.manual.help")}
           </p>
         </div>
         {a && (

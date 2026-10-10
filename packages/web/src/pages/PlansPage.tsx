@@ -44,8 +44,10 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<{ i: number; n: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // 自律実行: the plan runs from its draft to the end on its own, within a cost limit
-  const [autonomous, setAutonomous] = useState(false);
+  // 自律実行 is the default: the plan runs from its draft to the end on its own, within a cost limit. The owner opts in
+  // to handling the pull requests, conflicts and questions themselves (manual).
+  const [manual, setManual] = useState(false);
+  const autonomous = !manual;
   const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
   const fileRef = useRef<HTMLInputElement>(null);
   const needId = useId();
@@ -149,12 +151,15 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
       </div>
       <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="plan-autonomous">
         <label className="flex items-center gap-2 text-sm coarse:min-h-11">
-          <input type="checkbox" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} />
-          <span className="font-medium">{t("auto.label")}</span>
-          <HelpTip text={t("auto.help")} />
+          <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} data-testid="plan-manual" />
+          <span className="font-medium">{t("auto.manual.label")}</span>
+          <HelpTip text={t("auto.manual.help")} />
         </label>
         {autonomous && (
           <>
+            <p className="flex items-center gap-1 text-xs text-slate-600">
+              {t("auto.default")} <HelpTip text={t("auto.help")} />
+            </p>
             <label className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
               {t("auto.cost")}
               <input
