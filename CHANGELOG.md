@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- Projects list (desktop): rows are no longer several lines tall. A long project name now shows on at most two lines (the full name appears on hover), the Project ID stays on one line, and the "Status" heading, status badges and the hypothesis-mode badge no longer break into vertical text. Before, the ROI and TLF columns took their full width and squeezed the name column
+
 ## [0.42.0] - 2026-10-10
 
 ### Changed
