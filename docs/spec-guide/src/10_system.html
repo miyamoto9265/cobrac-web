@@ -244,6 +244,7 @@
     <tr><td>dispatcher（Lambda）</td><td><code>handlers/dispatcher.ts</code></td><td>SQS のメッセージごと（1 件ずつ）</td><td>同時実行数を確かめて Fargate のタスクを起動する（1.6）</td></tr>
     <tr><td>ワーカー</td><td><code>packages/worker</code>（Fargate、1 vCPU・2 GB、一時ストレージ 21 GB）</td><td>ジョブごとに 1 タスク</td><td>ハーネス。段階の進行、検証、CSV・xlsx・グラフ・版の作成（1.14、第 2 部）。LLM を含まない</td></tr>
     <tr><td>Codex CLI</td><td><code>@openai/codex-sdk</code> が起動する子プロセス</td><td>ワーカーがターンを依頼したとき</td><td>CoBRAC エージェント（LLM）のターンを実行し、OpenAI API を呼ぶ。MCP サーバー（lit・RCS）を起動・接続する</td></tr>
+    <tr><td>Claude Code</td><td><code>@anthropic-ai/claude-agent-sdk</code> が起動する子プロセス</td><td>Claude のモデルのジョブでワーカーがターンを依頼したとき</td><td>Codex CLI と同じ役目で、Anthropic API をワーカーの中の中継を通して呼ぶ（1.4「Claude のモデル」）</td></tr>
     <tr><td>DynamoDB</td><td>8 つのテーブル</td><td>常に</td><td>状態・メッセージ・設定（1.9）</td></tr>
     <tr><td>S3（成果物）</td><td>バケット <code>Artifacts</code></td><td>常に</td><td>作業領域・スレッド・成果物・版・Canon・計画の資料（1.12）</td></tr>
     <tr><td>KMS</td><td><code>ApiKeyKmsKey</code>（自動ローテーション）</td><td>キーの登録とジョブの開始</td><td>API が暗号化し、ワーカーだけが復号する（1.4）</td></tr>
@@ -254,10 +255,10 @@
     <tr><td>BRA-DB の登録 Lambda</td><td>別スタック <code>BraDb</code>（<code>handlers/bradbImport.ts</code>）</td><td>API が呼ぶ</td><td>版を BRA-DB に登録する（第 5 部）</td></tr>
   </tbody>
 </table>
-<p>外のサービスは、OpenAI API（モデルの推論。利用者のキーかデフォルトの API キーで呼ぶ）、RCS MCP（rosetta-candidate-search の <code>rcs-mcp</code>。SABRA の単位を引く。トークンは Secrets Manager にある）、PubMed・Europe PMC（エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ）、Crossref・PubMed・Europe PMC（ワーカーが文献の DOI・PMID と引用文を照合する。2.12）、SES（アカウントのメール）です。</p>
+<p>外のサービスは、OpenAI API と Anthropic API（モデルの推論。利用者のキーかデフォルトの API キーで呼ぶ）、RCS MCP（rosetta-candidate-search の <code>rcs-mcp</code>。SABRA の単位を引く。トークンは Secrets Manager にある）、PubMed・Europe PMC（エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ）、Crossref・PubMed・Europe PMC（ワーカーが文献の DOI・PMID と引用文を照合する。2.12）、SES（アカウントのメール）です。</p>
 
 <h3>LLM が動く場所</h3>
-<p>システムの中で LLM が動くのは、ワーカーが Codex を通じて実行するジョブだけです。API・dispatcher・broadcaster・janitor・計画ランナーの Lambda はどれも LLM を呼びません。LLM のジョブは次の 4 種類で、それぞれ別の会話（スレッド）です。互いの会話を共有することはありません。</p>
+<p>システムの中で LLM が動くのは、ワーカーが Codex（Claude のモデルでは Claude Agent SDK）を通じて実行するジョブだけです。API・dispatcher・broadcaster・janitor・計画ランナーの Lambda はどれも LLM を呼びません。LLM のジョブは次の 4 種類で、それぞれ別の会話（スレッド）です。互いの会話を共有することはありません。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">LLM の仕事</th><th style="width:20%">ジョブ</th><th style="width:26%">会話</th><th style="width:24%">使える道具</th><th>詳しくは</th></tr></thead>
   <tbody>
@@ -274,7 +275,7 @@
   <tbody>
     <tr><td><code>@cobrac/shared</code></td><td>型、ハーネスの JSON Schema・検証・CSV 生成、グラフ JSON（<code>buildGraphs()</code>）、Project ID と名前の規則（<code>projectId.ts</code>）、単価表（<code>pricing.ts</code>）。API・ワーカー・Web のすべてが使う</td></tr>
     <tr><td><code>@cobrac/api</code></td><td>Hono のアプリと Lambda のハンドラ（http・dispatcher・ws・broadcaster・janitor・planRunner・authMessage・bradbImport）</td></tr>
-    <tr><td><code>@cobrac/worker</code></td><td>Codex の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>、Python 3、poppler）</td></tr>
+    <tr><td><code>@cobrac/worker</code></td><td>Codex と Claude Agent SDK の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>・<code>@anthropic-ai/claude-agent-sdk</code>、Python 3、poppler）</td></tr>
     <tr><td><code>@cobrac/web</code></td><td>SPA（認証、エージェント欄、グラフ、設定、管理）</td></tr>
     <tr><td><code>@cobrac/infra</code></td><td>CDK のスタック <code>CobracAgents</code>（と <code>BraDb</code>）。Lambda は esbuild でまとめ、ワーカーのイメージはデプロイ時に CodeBuild で作る</td></tr>
     <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-2.bra.xlsx</code>）。全文は付録 B</td></tr>
@@ -314,6 +315,19 @@
   </tbody>
 </table>
 
+<h3>Claude のモデル（0.44 から）</h3>
+<p>OpenAI のモデルに加えて、Anthropic の Claude のモデルでもジョブを実行できます。選べるのは <code>claude-fable-5-1</code>・<code>claude-opus-5-5</code>・<code>claude-sonnet-5-5</code>・<code>claude-haiku-5-5</code> の 4 つ（<code>CLAUDE_MODELS</code>。正確なモデル ID）で、ハーネス・プロンプト・ターンの制御・成果物は OpenAI のモデルと同じです。モデル ID が <code>claude-</code> で始まるかで提供元を決めます（<code>providerOf</code>）。</p>
+<table class="compact">
+  <thead><tr><th style="width:15%">項目</th><th>仕様</th></tr></thead>
+  <tbody>
+    <tr><td>キー</td><td>OpenAI と Anthropic のキーは別々です。利用者は設定画面の「Anthropic API キー」（承認済みの利用者には「自分の Anthropic API キー（任意）」）で自分のキーを登録でき（<code>PUT /users/me/apikey?provider=anthropic</code>）、管理者は管理画面で「デフォルトの Anthropic API キー」を登録します（<code>PUT /admin/default-api-key?provider=anthropic</code>）。登録時に Anthropic の <code>/v1/models</code> で確かめます。ワークスペースに紐づかないキー（ユーザーキー）には、任意の欄でワークスペース ID（<code>wrkspc_…</code>）を添えます。保存はキーの後に改行とワークスペース ID を続けた 1 つの文字列（<code>joinAnthropicCredential</code>）を暗号化したもので、ワーカーの中継がそれを分けて <code>anthropic-workspace-id</code> ヘッダーを付けます。個人のキーは <code>Users.encryptedAnthropicKey</code>（暗号化コンテキスト <code>{ userId, purpose: "anthropic-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-anthropic-key"</code>（<code>{ purpose: "anthropic-api-key", scope: "default" }</code>）です</td></tr>
+    <tr><td>どのキーで動くか</td><td>モデルの提供元ごとに、OpenAI のキーと同じ規則で決めます（<code>ModelPolicy.claude</code>）。自分の Anthropic キーが優先し、無ければ承認とデフォルトの Anthropic キーの組で実行します。Tier 1 で使える Claude のモデルは <code>claude-haiku-5-5</code> だけ（<code>ORG_TIER1_MODELS</code>）、Tier 2 は 4 つすべてです。<code>/users/me/models</code> は使えるキーがある提供元のモデルだけを返し、Claude のキーしか無い利用者の既定のモデルは <code>claude-haiku-5-5</code> です。Claude のキーが無い利用者が Claude のモデルを選ぶと 403「Claude のモデルを使うには Anthropic API キーの登録が必要です」になります。ジョブの <code>keySource</code> はそのジョブのモデルの提供元のキーを示します</td></tr>
+    <tr><td>実行</td><td>ワーカーは Claude のモデルのジョブを Claude Agent SDK（<code>@anthropic-ai/claude-agent-sdk</code>。Claude Code を子プロセスとして動かす）で実行します（<code>packages/worker/src/claude.ts</code>）。SDK の出来事を Codex と同じ形（<code>item.*</code>・<code>turn.*</code>）に直すので、ターンの制御・お知らせ・使用量の数え方は 1.7・1.11 のままです。エージェントの道具は Bash・Read・Write・Edit・Glob・Grep・TodoWrite と MCP（<code>lit</code>・RCS）、Web 検索が有効なら WebSearch・WebFetch です。AGENTS.md はシステムプロンプトに追記し、利用者やプロジェクトの Claude Code の設定は読みません。ターンの出力は同じ JSON スキーマ（<code>outputFormat</code>）で受けます。推論の強さは <code>minimal</code> を <code>low</code> に、<code>ultra</code>・<code>persistent</code> を <code>max</code> に読み替えます。会話は Claude Code のセッションで、スレッド ID は <code>claude-&lt;セッション ID&gt;</code> です。セッションは <code>CODEX_HOME/sessions/claude</code> に置き、Codex のセッションと一緒に S3 に保存します。プロジェクトのモデルの提供元が変わると、ワーカーは新しいスレッドで続けます（お知らせ <code>sys.newThreadProvider</code>）</td></tr>
+    <tr><td>キーを渡さない</td><td>エージェントのコマンドは Claude Code の環境を受け継ぐので、Claude Code に本物のキーを渡しません。ワーカーは自分のプロセスの中で 127.0.0.1 に中継（<code>claudeGateway.ts</code>）を開き、Claude Code には中継の URL（<code>ANTHROPIC_BASE_URL</code>）と実行ごとの乱数のトークン（<code>ANTHROPIC_API_KEY</code>）だけを渡します。中継はトークンを確かめてから本物のキー（と RCS のベアラートークン）に差し替え、Messages と Models の API だけを通し、Messages はそのジョブのモデルと <code>claude-haiku-5-5</code>（Claude Code の小さな裏方の呼び出し用）以外を 403 で拒みます。ワーカーの環境にある <code>CLAUDE*</code>・<code>ANTHROPIC*</code> の変数は Claude Code に渡しません</td></tr>
+    <tr><td>使用量</td><td>ターンの使用量は SDK の結果（<code>result.usage</code>）から取り、キャッシュの読み込み（<code>cachedInputTokens</code>）と書き込み（<code>cacheWriteTokens</code>）を分けて記録します。累計は Codex のセッションファイルと同じ形で <code>CODEX_HOME/sessions/claude-usage/rollout-claude-&lt;id&gt;.jsonl</code> に書くので、測り方は 1.11 と同じです。Claude Code は文脈が <code>CLAUDE_AUTO_COMPACT_WINDOW</code>（既定 100,000 トークン）を超えると会話を要約します。Haiku 5.5 の単価が上がる長い文脈に入らないためです</td></tr>
+  </tbody>
+</table>
+
 <h3>だれが何を見られるか</h3>
 <table class="compact">
   <thead><tr><th style="width:18%">対象</th><th style="width:20%">所有者</th><th style="width:18%">共同編集者</th><th style="width:22%">ほかの利用者</th><th>管理者</th></tr></thead>
@@ -325,7 +339,7 @@
   </tbody>
 </table>
 <p>所有者の確認はすべて API の中で行います。ほかの利用者のプロジェクト・削除したプロジェクト・存在しない ID は、どれも同じ 404 になります。ルートごとの呼べる人は付録 A にあります。</p>
-<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>・<code>claude.ts</code>・<code>claudeGateway.ts</code></p>
 
 <h2 id="s1-5">1.5 画面</h2>
 <p>画面の名前はサイドバーと利用マニュアルの表記です。サイドバーには「新規プロジェクト」「履歴」（自分のプロジェクトの履歴。見出しの横の「すべて表示」でプロジェクト一覧が開く）「CoBRAC オーケストレーター」「Canon」「公開ライブラリ」「利用マニュアル」、管理者にはさらに「管理」が並びます（「仕様書」は管理の画面の上の「仕様書」のボタンから開き、そのあいだサイドバーでは「管理」が選ばれた表示になります）。「設定」と「ログアウト」は項目ではなく、その下のメールアドレスの横のアイコン（歯車と出口の印）です。サイドバーの下端には版番号（<code>vX.Y.Z · git の短い sha</code>）があり、押すとリリースノートが開きます（リリースノートの項目はサイドバーに無い）。</p>
@@ -522,6 +536,7 @@
   <li><b>選べるモデル</b>：キーを登録するとき、OpenAI の <code>/v1/models</code> を呼び、GPT-5.6 と GPT-6 の文章のモデル（日付付きのスナップショットと、音声・画像・検索などの派生を除く）を <code>availableModels</code> に保存します。デフォルトの API キーの利用者には、デフォルトの API キーのモデル（Tier 2）か Tier 1 のモデルを出します。作成と設定の画面で選べます。</li>
   <li><b>引き継ぎ</b>：フォローアップとリトライはプロジェクトの設定を使います。解説記事と AI レビューは、そのときに選んだモデル（無ければプロジェクトか既定のモデル）を使います。</li>
   <li><b>ターンごとの強さ</b>：調査モード（2.9）は、調査のターンの強さを少なくとも <code>high</code> に上げます。ほかのターンはプロジェクトの強さのままです。直しのターンは <code>medium</code> を上限にします（1.7）。</li>
+  <li><b>Claude のモデル</b>：<code>claude-</code> で始まるモデルは Claude Agent SDK で実行します（1.4「Claude のモデル」）。選択欄には、使えるキーがある提供元のモデルだけが出ます。</li>
   <li><b>Codex に渡す名前</b>：<code>gpt-5.6</code> という別名は Codex のモデルの目録に無いので、ワーカーは OpenAI がそれを振り向ける <code>gpt-5.6-sol</code> を Codex に渡します。ジョブには利用者が選んだモデルを記録します（1.14）。</li>
 </ul>
 <p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code></p>
@@ -592,19 +607,23 @@
   <li><b>戻ってこないターン</b>（停止、調査の時間予算、SIGTERM、6 時間の上限で打ち切られたもの、または失敗のターンを出さずに終わった <code>codex exec</code>）も同じ方法で測ります（<code>InFlightTurn</code>：実行中のターンが測り方を登録し、先に来た停止の経路が 1 回だけそれを使う）。そのジョブに足し、次の実行はそれを含む累計から始めるので、二重には数えません。その後、全ジョブからプロジェクトを集計し直します（<code>refreshProjectUsage</code>）。</li>
   <li><b>古い記録の補正</b>：この修正より前に起動したワーカー（<code>USAGE_FIX_AT</code>、2026-10-01 18:33 UTC、0.17.1）が記録したジョブは、ターンごとに累計を足していたので、使用量と費用が大きすぎます（全工程で約 2〜3 倍）。保存した記録は書き換えず、API が返すときに補正します（<code>packages/shared/src/usageCorrection.ts</code>、<code>packages/api/src/lib/usageCorrection.ts</code>）。ジョブの利用量の行（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り、その増えた分だけを数え（累計が減ったら新しい会話の始まり、プロジェクトの会話を続けるジョブは前のジョブの最後の累計から始まる。記事のジョブは自分の会話を持つ）、単価をかけ直します。プロジェクト一覧、プロジェクトとそのジョブ、利用量の集計、管理の一覧、エージェント欄の利用量の行は、補正した値を出します。終わったジョブの補正は Lambda のコンテナごとに保持します。</li>
   <li><b>モデル</b>：<code>model</code> はジョブの開始時に実際に Codex に渡したモデルです（1.8）。モデルの選択欄は GPT-5.6 と GPT-6 の文章のモデルだけを出します。</li>
-  <li><b>費用</b>：<code>costUsd</code> は <code>estimateCostUsd()</code> が <code>packages/shared/src/pricing.ts</code> の単価表（USD / 100 万トークン、<code>PRICING_AS_OF</code> の日付）から出す<b>推定値</b>です。式は <code>(input − cachedInput) × 入力の単価 + cachedInput × キャッシュの単価 + output × 出力の単価</code>（推論のトークンは output に含まれる）です。表に無いモデルは <code>null</code> になり、画面は <code>$—</code> を出します。</li>
-  <li>単価表はコードの定数です。OpenAI が値段を変えたら <code>PRICING</code> を直してデプロイします。実際の請求額の正本は OpenAI のダッシュボードです。</li>
+  <li><b>費用</b>：<code>costUsd</code> は <code>estimateCostUsd()</code> が <code>packages/shared/src/pricing.ts</code> の単価表（USD / 100 万トークン、<code>PRICING_AS_OF</code> の日付）から出す<b>推定値</b>です。式は <code>(input − cachedInput − cacheWrite) × 入力の単価 + cachedInput × キャッシュの単価 + cacheWrite × キャッシュ書き込みの単価 + output × 出力の単価</code>（推論のトークンは output に含まれる。<code>cacheWrite</code> は Claude のモデルだけで、書き込みの単価が無ければ入力の単価）です。表に無いモデルは <code>null</code> になり、画面は <code>$—</code> を出します。</li>
+  <li>単価表はコードの定数です。OpenAI か Anthropic が値段を変えたら <code>PRICING</code> を直してデプロイします。実際の請求額の正本は OpenAI と Anthropic のダッシュボードです。</li>
 </ul>
 <table class="compact">
-  <caption>単価表（<code>PRICING_AS_OF</code> = 2026-09-25、USD / 100 万トークン）</caption>
-  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュ入力</th><th class="c">出力</th></tr></thead>
+  <caption>単価表（<code>PRICING_AS_OF</code> = 2026-10-10、USD / 100 万トークン。キャッシュ書き込みは Claude のモデルだけ）</caption>
+  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュ入力</th><th class="c">キャッシュ書き込み</th><th class="c">出力</th></tr></thead>
   <tbody>
-    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">50</td></tr>
-    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">10</td></tr>
-    <tr><td><code>gpt-6-luna</code>（既定）</td><td class="c">0.1</td><td class="c">0.01</td><td class="c">0.5</td></tr>
-    <tr><td><code>gpt-5.6</code>・<code>gpt-5.6-sol</code>（別名は Sol に向く）</td><td class="c">4</td><td class="c">0.4</td><td class="c">20</td></tr>
-    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">12</td></tr>
-    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.2</td><td class="c">0.02</td><td class="c">1.2</td></tr>
+    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">—</td><td class="c">50</td></tr>
+    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">—</td><td class="c">10</td></tr>
+    <tr><td><code>gpt-6-luna</code>（既定）</td><td class="c">0.1</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.5</td></tr>
+    <tr><td><code>gpt-5.6</code>・<code>gpt-5.6-sol</code>（別名は Sol に向く）</td><td class="c">4</td><td class="c">0.4</td><td class="c">—</td><td class="c">20</td></tr>
+    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">—</td><td class="c">12</td></tr>
+    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.2</td><td class="c">0.02</td><td class="c">—</td><td class="c">1.2</td></tr>
+    <tr><td><code>claude-fable-5-1</code></td><td class="c">10</td><td class="c">0.25</td><td class="c">12.5</td><td class="c">50</td></tr>
+    <tr><td><code>claude-opus-5-5</code></td><td class="c">4</td><td class="c">0.2</td><td class="c">5</td><td class="c">20</td></tr>
+    <tr><td><code>claude-sonnet-5-5</code></td><td class="c">2</td><td class="c">0.2</td><td class="c">2.5</td><td class="c">10</td></tr>
+    <tr><td><code>claude-haiku-5-5</code></td><td class="c">0.1</td><td class="c">0.01</td><td class="c">0.125</td><td class="c">0.5</td></tr>
   </tbody>
 </table>
 <p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、自分のプロジェクトのジョブに加えて、自分の Canon（と共同編集者として入っている Canon）の AI レビューと、自分の計画の <code>plan</code> のジョブも全体とモデルごとの合計に含めます。1 件の BRA の時間と費用の実績は 2.16 にあります。</p>
@@ -706,7 +725,7 @@ plans/{planId}/
   <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、道具の無い新しいスレッドで指摘を JSON で返させ、<code>result.json</code> に書きます。45 秒ごとにハートビートを送ります（4.8）。</li>
 </ul>
 <h3>秘密の守り方</h3>
-<p>ワーカーが子プロセス（Codex、エージェントのコマンド、Python、poppler）を起動するときは、AWS の認証情報（<code>AWS_*</code> とコンテナの認証情報の URI）、<code>NCBI_API_KEY</code>、RCS のトークンを環境から除きます（<code>childEnv.ts</code>）。タスクロールの認証情報があれば誰の API キーでも復号できるからです。RCS のトークンは Codex が MCP のベアラートークンとして送り、<code>shell_environment_policy</code> がエージェントのコマンドからそれと OpenAI のキーを除きます。実行ファイルを実行専用にする仕組みなど、コンテナの守り方は第 7 部で説明します。</p>
+<p>ワーカーが子プロセス（Codex、エージェントのコマンド、Python、poppler）を起動するときは、AWS の認証情報（<code>AWS_*</code> とコンテナの認証情報の URI）、<code>NCBI_API_KEY</code>、RCS のトークンを環境から除きます（<code>childEnv.ts</code>）。タスクロールの認証情報があれば誰の API キーでも復号できるからです。RCS のトークンは Codex が MCP のベアラートークンとして送り、<code>shell_environment_policy</code> がエージェントのコマンドからそれと OpenAI のキーを除きます。Claude のモデルでは、Anthropic のキーと RCS のトークンはワーカーの中の中継にだけあり、Claude Code とエージェントのコマンドが持つのは実行ごとのトークンだけです（1.4「Claude のモデル」）。実行ファイルを実行専用にする仕組みなど、コンテナの守り方は第 7 部で説明します。</p>
 <p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>childEnv.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>、<code>packages/worker/Dockerfile</code></p>
 
 <h2 id="s1-15">1.15 非機能の目標</h2>

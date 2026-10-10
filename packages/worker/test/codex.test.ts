@@ -83,7 +83,7 @@ describe("runTurn", () => {
     expect(inputs).toHaveLength(2);
     expect(inputs[1]).toMatch(/rate limit/);
     expect(waits.reduce((a, b) => a + b, 0)).toBe(30_000);
-    expect(messages.some((m) => m.type === "status" && /OpenAI rate limit: resuming the turn in 30 s \(retry 1\/3\)/.test(m.content))).toBe(true);
+    expect(messages.some((m) => m.type === "status" && /Rate limit: resuming the turn in 30 s \(retry 1\/3\)/.test(m.content))).toBe(true);
     expect(r.usage).toEqual({ input: 10, cachedInput: 5, output: 2, reasoningOutput: 1 });
   });
 
@@ -290,6 +290,14 @@ describe("rate limit helpers", () => {
     expect(codex.isRateLimitError("You exceeded your current quota, please check your plan and billing details. (429)")).toBe(false);
     expect(codex.isRateLimitError("invalid_request_error")).toBe(false);
     expect(codex.isRateLimitError(null)).toBe(false);
+  });
+
+  it("recognises Anthropic's rate limit and overload, but not a too long prompt or a low credit balance", () => {
+    expect(codex.isRateLimitError('API Error: 429 {"type":"error","error":{"type":"rate_limit_error","message":"This request would exceed your rate limit"}}')).toBe(true);
+    expect(codex.isRateLimitError('API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}')).toBe(true);
+    expect(codex.isRateLimitError("Your credit balance is too low to access the Anthropic API.")).toBe(false);
+    expect(codex.isRequestTooLarge("Prompt is too long")).toBe(true);
+    expect(codex.isRateLimitError("Prompt is too long")).toBe(false);
   });
 
   it("tells a request larger than the limit from a rate limit that passes", () => {

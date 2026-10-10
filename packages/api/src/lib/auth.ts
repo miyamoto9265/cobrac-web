@@ -62,6 +62,6 @@ export async function ensureUser(auth: AuthContext): Promise<UserRecord> {
 }
 
 export function toPublicUser(u: UserRecord) {
-  const { encryptedApiKey: _omit, ...rest } = u;
+  const { encryptedApiKey: _omit, encryptedAnthropicKey: _omitAnthropic, ...rest } = u;
   return rest;
 }

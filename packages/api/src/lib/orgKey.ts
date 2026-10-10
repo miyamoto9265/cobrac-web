@@ -1,11 +1,13 @@
 import { DeleteCommand, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
-import { DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, modelPolicyOf } from "@cobrac/shared";
+import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, ModelProvider, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
+import { DEFAULT_ANTHROPIC_KEY_CATALOG_KEY, DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, modelPolicyOf } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
 
-export async function getDefaultKey(): Promise<DefaultApiKeyRecord | null> {
-  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { ...DEFAULT_KEY_CATALOG_KEY } }));
+const catalogKey = (provider: ModelProvider) => (provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_CATALOG_KEY : DEFAULT_KEY_CATALOG_KEY);
+
+export async function getDefaultKey(provider: ModelProvider = "openai"): Promise<DefaultApiKeyRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { ...catalogKey(provider) } }));
   const item = (r.Item as DefaultApiKeyRecord | undefined) ?? null;
   return item?.encryptedApiKey ? item : null;
 }
@@ -14,16 +16,19 @@ export async function putDefaultKey(item: DefaultApiKeyRecord): Promise<void> {
   await ddb.send(new PutCommand({ TableName: env.tables.catalog, Item: item }));
 }
 
-export async function deleteDefaultKey(): Promise<void> {
-  await ddb.send(new DeleteCommand({ TableName: env.tables.catalog, Key: { ...DEFAULT_KEY_CATALOG_KEY } }));
+export async function deleteDefaultKey(provider: ModelProvider = "openai"): Promise<void> {
+  await ddb.send(new DeleteCommand({ TableName: env.tables.catalog, Key: { ...catalogKey(provider) } }));
 }
 
 export const defaultKeyStatus = (k: DefaultApiKeyRecord | null): DefaultKeyStatus => ({ registered: !!k, last4: k?.last4 ?? null, updatedAt: k?.updatedAt ?? null });
 
-/** The caller's key and model policy (the default key is read only when it could apply). */
+/** The caller's key and model policy (each default key is read only when it could apply); `defaultKey` is the OpenAI one. */
 export async function modelPolicy(u: UserRecord): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
-  const defaultKey = !u.apiKeyRegistered && u.orgAccess ? await getDefaultKey() : null;
-  return { policy: modelPolicyOf(u, !!defaultKey), defaultKey };
+  const [defaultKey, claudeKey] = await Promise.all([
+    !u.apiKeyRegistered && u.orgAccess ? getDefaultKey("openai") : null,
+    !u.anthropicKeyRegistered && u.orgAccess ? getDefaultKey("anthropic") : null,
+  ]);
+  return { policy: modelPolicyOf(u, !!defaultKey, !!claudeKey), defaultKey };
 }
 
 /** Default-API-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */

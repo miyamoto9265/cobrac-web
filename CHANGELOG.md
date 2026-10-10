@@ -5,6 +5,14 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Claude models: jobs can run on Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5 (`claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`) as well as the OpenAI models, with the same harness, turns and outputs. The worker runs them on the Claude Agent SDK; a project whose model changes provider continues in a new conversation
+- Anthropic API keys: Settings has an "Anthropic API key" card (for approved users, "Your own Anthropic API key (optional)"), and the admin page has a "Default Anthropic API key". Keys are checked with Anthropic and encrypted as the OpenAI keys are. A key that is not tied to one workspace can be registered with its workspace ID. Approved Tier 1 users can use Claude Haiku 5.5 through the default Anthropic key, Tier 2 users all four Claude models; a user's own key always wins
+- Prices of the Claude models, including prompt-cache writes, so their jobs show estimated costs
+
+### Changed
+- The rate-limit notice of a turn no longer names OpenAI ("Rate limit: resuming the turn…"), since it also covers Anthropic
+
 ## [0.43.0] - 2026-10-10
 
 ### Changed

@@ -108,6 +108,8 @@ import {
   isUiLocale,
   nowIso,
   planAttachmentTypeOf,
+  providerOf,
+  isClaudeModel,
   planJobKey,
   planPrefix,
   projectDisplayName,
@@ -121,7 +123,9 @@ import {
 import { articlePrompt, prepareArticleFigures, readReferences, runArticle } from "./article.js";
 import { runCanonReview } from "./canonReview.js";
 import {
-  createCodex,
+  createEngine,
+  fromCodexUsage,
+  tokenUsageOf,
   InFlightTurn,
   isRequestTooLarge,
   openThread,
@@ -156,7 +160,8 @@ import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type PreparedMaterials } from "./materials.js";
 import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
-import { planRunKey } from "./runKey.js";
+import { ownKeyOf, planRunKey } from "./runKey.js";
+import { isClaudeThreadId } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
@@ -243,7 +248,7 @@ async function main() {
     return;
   }
   const runModel = resolveModelSettings(mode === "article" ? { model: job.model || project.model } : project).model!;
-  const key = planRunKey(user, user.encryptedApiKey ? null : await getDefaultApiKey(), runModel);
+  const key = planRunKey(user, ownKeyOf(user, runModel) ? null : await getDefaultApiKey(providerOf(runModel)), runModel);
   if ("error" in key) {
     await fail(key.error, key.meta);
     return;
@@ -292,12 +297,17 @@ async function main() {
   harnessRules = project.harnessRules ?? 0;
   evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
-  const codex = createCodex(apiKey, rcsConn, { lit: true });
+  const codex = createEngine(resolveModelSettings(project).model, apiKey, rcsConn, { lit: true });
   jobUsage = job.usage ?? EMPTY_USAGE;
   jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
+    threadId = null;
+  }
+  if (threadId && isClaudeThreadId(threadId) !== isClaudeModel(resolveModelSettings(project).model)) {
+    // the project moved between an OpenAI and a Claude model: one provider cannot resume the other's thread
+    await log("The model now runs on another provider; continuing on a new thread.", { i18n: "sys.newThreadProvider" });
     threadId = null;
   }
   const freshThread = !threadId;
@@ -605,7 +615,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
   resolvedModel = settings.model;
   resolvedEffort = settings.reasoningEffort;
   await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
-  const thread = openThread(createCodex(apiKey, null), null, settings, { webSearch: false });
+  const thread = openThread(createEngine(settings.model, apiKey, null), null, settings, { webSearch: false });
   const abort = new AbortController();
   const heartbeat = startHeartbeat(abort);
   const sink: TurnSink = {
@@ -1393,22 +1403,19 @@ let jobUsage: TokenUsage = EMPTY_USAGE;
 let jobCostUsd: number | null = 0;
 
 function subtractUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
+  const cacheWrite = (a.cacheWriteTokens ?? 0) - (b.cacheWriteTokens ?? 0);
   return {
     inputTokens: a.inputTokens - b.inputTokens,
     cachedInputTokens: a.cachedInputTokens - b.cachedInputTokens,
     outputTokens: a.outputTokens - b.outputTokens,
     reasoningOutputTokens: a.reasoningOutputTokens - b.reasoningOutputTokens,
+    ...(cacheWrite ? { cacheWriteTokens: cacheWrite } : {}),
   };
 }
 
-async function accumulateUsage(u: { input: number; cachedInput: number; output: number; reasoningOutput: number }) {
+async function accumulateUsage(u: TurnUsage) {
   const j = await getJob(projectId, jobId);
-  const usage = addUsage(j?.usage, {
-    inputTokens: u.input,
-    cachedInputTokens: u.cachedInput,
-    outputTokens: u.output,
-    reasoningOutputTokens: u.reasoningOutput,
-  });
+  const usage = addUsage(j?.usage, tokenUsageOf(u));
   const costUsd = estimateCostUsd(resolvedModel, usage);
   jobUsage = usage;
   jobCostUsd = costUsd;
@@ -1479,7 +1486,7 @@ async function canonReviewJob() {
     return;
   }
   const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
-  const key = planRunKey(user, user.encryptedApiKey ? null : await getDefaultApiKey(), model);
+  const key = planRunKey(user, ownKeyOf(user, model) ? null : await getDefaultApiKey(providerOf(model)), model);
   if ("error" in key) {
     await fail(key.error);
     return;
@@ -1492,7 +1499,7 @@ async function canonReviewJob() {
     return;
   }
   const settings: ModelSettings = { model, reasoningEffort: (env.codexReasoningEffort as ModelSettings["reasoningEffort"]) ?? null };
-  const thread = openThread(createCodex(apiKey), null, settings, { webSearch: false });
+  const thread = openThread(createEngine(settings.model, apiKey), null, settings, { webSearch: false });
   const heartbeat = setInterval(() => void updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined), 45_000);
   try {
     const outcome = await runCanonReview({
@@ -1501,11 +1508,7 @@ async function canonReviewJob() {
       decide: job.reviewKind === "decide",
       turn: async (prompt, schema) => {
         const t = await thread.run(prompt, { outputSchema: schema });
-        const u = t.usage;
-        return {
-          text: t.finalResponse,
-          usage: { inputTokens: u?.input_tokens ?? 0, cachedInputTokens: u?.cached_input_tokens ?? 0, outputTokens: u?.output_tokens ?? 0, reasoningOutputTokens: u?.reasoning_output_tokens ?? 0 },
-        };
+        return { text: t.finalResponse, usage: t.usage ? tokenUsageOf(fromCodexUsage(t.usage)) : { ...EMPTY_USAGE } };
       },
     });
     const usage = { usage: outcome.usage, costUsd: estimateCostUsd(model, outcome.usage), model };
@@ -1539,7 +1542,7 @@ async function planJobMain() {
     return;
   }
   const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
-  const key = planRunKey(user, user.encryptedApiKey ? null : await getDefaultApiKey(), model);
+  const key = planRunKey(user, ownKeyOf(user, model) ? null : await getDefaultApiKey(providerOf(model)), model);
   if ("error" in key) {
     await fail(key.error);
     return;
@@ -1578,11 +1581,11 @@ async function planJobMain() {
     const materialsIndex = await planMaterials(input);
 
     const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
-    const thread = openThread(createCodex(apiKey, rcsConn), null, settings, { webSearch: false });
+    const thread = openThread(createEngine(settings.model, apiKey, rcsConn), null, settings, { webSearch: false });
     const rcsClient = rcsConn ? new RcsClient(rcsConn) : null;
     // Codex reports the thread's running total with each turn; a retry turn counts only what it added
     let total: TurnUsage | null = null;
-    const toTokens = (u: TurnUsage): TokenUsage => ({ inputTokens: u.input, cachedInputTokens: u.cachedInput, outputTokens: u.output, reasoningOutputTokens: u.reasoningOutput });
+    const toTokens = tokenUsageOf;
     // SIGTERM (the StopTask of a cancelled draft, a Spot interruption) ends the process before the job ends; what the
     // turns used is billed all the same: the thread is this job's own, so its running total is the job's usage
     planJobOnStop = async () => {
@@ -1597,9 +1600,7 @@ async function planJobMain() {
       materialsIndex,
       turn: async (prompt, signal) => {
         const t = await thread.run(prompt, { outputSchema: PLAN_RESULT_SCHEMA, signal });
-        const after = t.usage
-          ? { input: t.usage.input_tokens, cachedInput: t.usage.cached_input_tokens, output: t.usage.output_tokens, reasoningOutput: t.usage.reasoning_output_tokens }
-          : null;
+        const after = t.usage ? fromCodexUsage(t.usage) : null;
         const usage = turnUsage(after, total);
         if (after) total = after;
         return { text: t.finalResponse, usage: toTokens(usage) };
@@ -1660,9 +1661,9 @@ async function planRowJob(job: JobRecord, apiKey: string, model: string, reasoni
   }
   const spec = await readFile(join(env.promptsDir, "orchestrator.md"), "utf8");
   const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
-  const thread = openThread(createCodex(apiKey, null), null, settings, { webSearch: false });
+  const thread = openThread(createEngine(settings.model, apiKey, null), null, settings, { webSearch: false });
   let total: TurnUsage | null = null;
-  const toTokens = (u: TurnUsage): TokenUsage => ({ inputTokens: u.input, cachedInputTokens: u.cachedInput, outputTokens: u.output, reasoningOutputTokens: u.reasoningOutput });
+  const toTokens = tokenUsageOf;
   planJobOnStop = async () => {
     const u = thread.id ? sessionTotalUsage(thread.id) : null;
     if (!u) return;
@@ -1674,9 +1675,7 @@ async function planRowJob(job: JobRecord, apiKey: string, model: string, reasoni
     spec,
     turn: async (prompt, schema, signal) => {
       const t = await thread.run(prompt, { outputSchema: schema, signal });
-      const after = t.usage
-        ? { input: t.usage.input_tokens, cachedInput: t.usage.cached_input_tokens, output: t.usage.output_tokens, reasoningOutput: t.usage.reasoning_output_tokens }
-        : null;
+      const after = t.usage ? fromCodexUsage(t.usage) : null;
       const usage = turnUsage(after, total);
       if (after) total = after;
       return { text: t.finalResponse, usage: toTokens(usage) };

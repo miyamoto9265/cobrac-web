@@ -43,6 +43,7 @@ import { enqueueRun, getPlanJson, putPlanJson, stopEcsTask } from "./aws.js";
 import { listOwnCanons } from "./canons.js";
 import { compareProjectsByCreation, getJob, listUserProjects, putJob, updateJob } from "./db.js";
 import { putPlanEvent, putProposal, updatePlan } from "./plans.js";
+import { jobKeySource } from "./runs.js";
 
 /** A plan job that has not ended: the plan waits for it (draft) or will receive its proposals (re-plan). */
 export const isOpenPlanJob = (s: PlanJobState | null | undefined): s is PlanJobState => !!s && (s.status === "waiting" || s.status === "queued" || s.status === "running");
@@ -113,7 +114,7 @@ export async function queuePlanJob(
   state: PlanJobState,
   rows: PlanRowRecord[],
   owner: UserRecord,
-  gate: { policy: ModelPolicy & { source: KeySource }; orchestratorModel: string },
+  gate: { policy: ModelPolicy; orchestratorModel: string },
   concurrency: number,
 ): Promise<PlanJobState | null> {
   const jobId = newId("job_");
@@ -132,7 +133,7 @@ export async function queuePlanJob(
     planJobKind: kind,
     planId: plan.planId,
     status: "QUEUED",
-    keySource: gate.policy.source,
+    keySource: jobKeySource(gate.policy, gate.orchestratorModel),
     instruction: null,
     pendingAnswer: null,
     locale: input.locale,

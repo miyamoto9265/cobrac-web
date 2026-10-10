@@ -79,6 +79,7 @@ import {
   orchestratorRetryDelayMs,
   orchestratorModelOf,
   planFinished,
+  canRunJobs,
   policyAllows,
   prOutcome,
   pushOutcome,
@@ -100,7 +101,7 @@ import { planSpendUsd } from "./planCost.js";
 import { applyProposal } from "./planProposals.js";
 import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
-import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
 export const RUNNER = "runner";
 
@@ -119,7 +120,7 @@ export interface AdvanceResult {
 }
 
 /** The models a plan's jobs run on: the rows' (`model`) and the Orchestrator's own jobs' (`orchestratorModel`). */
-export type PlanGate = { policy: ModelPolicy & { source: KeySource }; model: string; orchestratorModel: string };
+export type PlanGate = { policy: ModelPolicy; model: string; orchestratorModel: string };
 
 /**
  * Whether the owner may start a job now, and on which models (each the plan's, or the tier default for one the owner did
@@ -128,7 +129,7 @@ export type PlanGate = { policy: ModelPolicy & { source: KeySource }; model: str
 export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
   const policy = await runPolicy(owner);
-  if (!policy.source) return { ok: false, reason: "no_key" };
+  if (!canRunJobs(policy)) return { ok: false, reason: "no_key" };
   const resolve = (chosen: string | null, picked: boolean): string | null => {
     const model = chosen || deploymentDefaultModel();
     if (policyAllows(policy, model)) return model;
@@ -138,7 +139,7 @@ export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promi
   const model = resolve(plan.settings.model, plan.settings.modelChosen);
   const orchestratorModel = resolve(o.model, o.chosen);
   if (!model || !orchestratorModel) return { ok: false, reason: "model_not_allowed" };
-  return { ok: true, policy: { ...policy, source: policy.source }, model, orchestratorModel };
+  return { ok: true, policy, model, orchestratorModel };
 }
 
 async function setRow(plan: PlanRecord, row: PlanRowRecord, to: PlanRowState, values: Partial<PlanRowRecord>, event: PlanEventType | null, detail?: Record<string, string | number | null>): Promise<boolean> {
@@ -420,7 +421,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       reasoningEffort: plan.settings.reasoningEffort,
       researchMode: plan.settings.researchMode,
       locale: plan.settings.locale,
-      keySource: gate.policy.source,
+      keySource: jobKeySource(gate.policy, gate.model),
       harnessRules: plan.harnessRules ?? HARNESS_RULES,
       plan: { planId: plan.planId, name: plan.name },
       projectId,

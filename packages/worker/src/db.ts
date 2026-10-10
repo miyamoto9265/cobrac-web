@@ -1,6 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import type {
+  ModelProvider,
   CanonRecord,
   DefaultApiKeyRecord,
   JobRecord,
@@ -12,7 +13,7 @@ import type {
   UserRecord,
   WorkflowStep,
 } from "@cobrac/shared";
-import { CANON_META_SK, DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, newId, nowIso } from "@cobrac/shared";
+import { CANON_META_SK, DEFAULT_ANTHROPIC_KEY_CATALOG_KEY, DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, newId, nowIso } from "@cobrac/shared";
 import { env } from "./env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region }), {
@@ -25,9 +26,11 @@ export async function getUser(userId: string): Promise<UserRecord | null> {
 }
 
 /** The default API key record (null when none is registered or the catalog table is not configured). */
-export async function getDefaultApiKey(): Promise<DefaultApiKeyRecord | null> {
+/** The default API key of a provider (OpenAI, or Anthropic for the Claude models). */
+export async function getDefaultApiKey(provider: ModelProvider = "openai"): Promise<DefaultApiKeyRecord | null> {
   if (!env.tables.catalog) return null;
-  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { ...DEFAULT_KEY_CATALOG_KEY } }));
+  const Key = { ...(provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_CATALOG_KEY : DEFAULT_KEY_CATALOG_KEY) };
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key }));
   const item = (r.Item as DefaultApiKeyRecord | undefined) ?? null;
   return item?.encryptedApiKey ? item : null;
 }
