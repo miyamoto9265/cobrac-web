@@ -156,7 +156,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Cover the BRA of language").
 2. Add source files (CSV, xlsx, PDF and others) or paste rows. One row is one project.
-3. "Create plan" makes a plan from the rows read. "Create draft" has the AI write the rows from the goal and the sources (it takes a few minutes and its cost is recorded). Neither can be pressed without a goal, files or rows.
+3. "Start autonomous run" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the plan to the end on its own (the default). Turn on "Handle pull requests and conflicts yourself" to get "Create plan" (a plan from the rows read) and "Create draft" instead. None of them can be pressed without a goal, files or rows.
 4. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
 ### Ordering
@@ -180,7 +180,9 @@ With a Canon set on the plan, each completed row is pushed to the Canon automati
 
 ### Autonomous run
 
-In an **autonomous run** the Orchestrator acts for you and takes the plan to the end. In the new plan form, turn on "Autonomous run", enter a **cost limit** (USD) and press "Start autonomous run".
+In an **autonomous run** the Orchestrator acts for you and takes the plan to the end. It is the default for a new plan: enter a **cost limit** (USD) in the new plan form and press "Start autonomous run".
+
+To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the form or under "3. How it runs" of the draft. In such a plan you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
 - Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the plan is created.
 - The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the plan's goal, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").

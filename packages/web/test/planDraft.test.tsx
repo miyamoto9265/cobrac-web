@@ -138,6 +138,8 @@ describe("new plan with a draft", () => {
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFTING", [], { draft: { kind: "draft", jobId: null, status: "waiting", requestedAt: new Date().toISOString(), requestedBy: "alice" } }));
     await render("/plans");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     const draftBtn = button("Create draft")!;
@@ -188,6 +190,8 @@ describe("new plan with a draft", () => {
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv]);
@@ -200,6 +204,8 @@ describe("new plan with a draft", () => {
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
     expect(button("Create draft")!.disabled).toBe(false);
@@ -212,6 +218,8 @@ describe("new plan with a draft", () => {
     api.listPlans.mockResolvedValue({ items: [] });
     localStorage.setItem("cobrac-locale", "ja");
     await render("/plans");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     const create = button("計画を作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
@@ -233,7 +241,7 @@ describe("new plan with a draft", () => {
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [new File(["ROI,TLF\n"], "language.csv", { type: "text/csv" })]);
     expect(create.disabled).toBe(false);
     // the autonomous run needs the same
-    await click(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="checkbox"]'));
+    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     expect(button("自律実行で開始")!.disabled).toBe(false);
     await click(q<HTMLButtonElement>('button[aria-label="削除: language.csv"]'));
     expect(button("自律実行で開始")!.disabled).toBe(true);
@@ -788,7 +796,7 @@ describe("the draft page", () => {
     expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("Unsaved changes: 2");
   });
 
-  it("offers the autonomous run with its cost limit, in violet only when it is on", async () => {
+  it("offers handling the plan yourself as the opt-out of the autonomous run, in violet only when the run is on", async () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", two()));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
@@ -796,9 +804,11 @@ describe("the draft page", () => {
     // the first thing of 「3. 進め方」
     expect(q('[data-testid="plan-settings"] h2')!.nextElementSibling).toBe(card);
     expect(card.className).not.toContain("violet");
-    expect(card.textContent).toContain("オーケストレーターが人の代わりになって、最後まで進めます。");
+    expect(card.textContent).toContain("PR の承認や衝突にご自身で対応する");
+    expect(card.textContent).toContain("下書きも、内容を確認してから確定します。");
     const sw = q<HTMLInputElement>('input[role="switch"]', card)!;
-    expect(sw.checked).toBe(false);
+    // a plan without 自律実行 is one the owner handles: the switch is on
+    expect(sw.checked).toBe(true);
     expect(q('input[type="number"]', card)).toBeNull();
     await click(sw);
     expect(api.updatePlan).toHaveBeenCalledWith(PLAN, { settings: { autonomous: { maxCostUsd: 20 } } });
@@ -812,9 +822,10 @@ describe("the draft page", () => {
     await render(`/plans/${PLAN}`);
     const on = q('[data-testid="plan-autonomous-setting"]')!;
     expect(on.className).toContain("bg-violet-50");
-    expect(q<HTMLInputElement>('input[role="switch"]', on)!.checked).toBe(true);
+    expect(q<HTMLInputElement>('input[role="switch"]', on)!.checked).toBe(false);
+    expect(on.textContent).toContain("オーケストレーターが自律実行で最後まで進めます（既定）。 オーケストレーターが人の代わりになって、最後まで進めます。");
     expect(on.textContent).toContain("1〜1000。達すると新しい行を始めず、動いている行が終わったら一時停止します。");
-    expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きのあとでオンにしたので、自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
+    expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きができたあとで自律実行に切り替えたため、下書きは自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
     expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("確定すると、ここから先はオーケストレーターが人の代わりに進めます。");
     expect(q('[data-testid="plan-autonomous-badge"]')!.textContent).toContain("自律実行");
     const cost = q<HTMLInputElement>('input[type="number"]', on)!;
