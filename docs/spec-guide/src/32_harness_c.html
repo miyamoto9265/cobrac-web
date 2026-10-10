@@ -30,7 +30,7 @@
   <li><b>文献だけへの復帰</b>：仮説モードのプロジェクトで、ジョブが CSV まで完了し、最後の検査で仮説が 0 件なら、ワーカーはプロジェクトを文献だけのモードに戻します。許可範囲と上限は記録として残ります。</li>
   <li><b>複製</b>：仮説モードかどうか、許可範囲、比率の上限をコピーします。</li>
 </ul>
-<p>API の要求の形式とエラーは付録 A.12 にまとめます。</p>
+<p>API の要求の形式とエラーは付録 A.12 に記載しています。</p>
 
 <h3>仮説の記録の形式</h3>
 <p>仮説は、<code>uc.json</code> の UC と <code>connections.json</code> の接続に、任意の <code>hypothesis</code> キーとして書きます。Collection と BIF には付けません。このキーは仮説モードのプロジェクトに見せるスキーマにだけあり、仮説モードでないプロジェクトのスキーマにはありません。</p>
@@ -47,7 +47,7 @@
 </table>
 
 <h3>ワーカーの検査</h3>
-<p>仮説の検査で見つかった問題は、すべてエラーとして修正ターンで返します。メッセージは、欄を直す、論文を証拠として引用する、仮説を外す、のどれをすればよいかを示します。仮説の検査は HCD 段階の外のファイルにも依存します（GN の対象を決める <code>frg.json</code>、候補の <code>research.json</code>、レポート）。そのため HCD のファイルが変わっていなくても、FRG と CSV の検査でやり直します。表で「安全側」としたものは、仕様の要求より厳しくしてある検査です。</p>
+<p>仮説の検査で見つかった問題は、すべてエラーとして修正ターンで返します。メッセージは、欄を直す、論文を証拠として引用する、仮説を外す、のどれをすればよいかを示します。仮説の検査は HCD 段階の外のファイルにも依存します（GN の対象を決める <code>frg.json</code>、候補の <code>research.json</code>、レポート）。そのため HCD のファイルが変わっていなくても、FRG と CSV の検査でやり直します。表中の「安全側」は、仕様の要求より厳しくしてある検査を表します。</p>
 <table class="compact">
   <thead><tr><th>検査</th><th style="width:34%">メッセージが求めること</th></tr></thead>
   <tbody>
@@ -90,7 +90,7 @@
     <tr><td>整合の記録</td><td>仮説の件数、根拠だけの経路の有無、仮説を含めた経路の有無、GN の依存（記録だけ）</td></tr>
     <tr><td>グラフ</td><td>仮説の接続・UC と、仮説に依存する GN に「H」の印を付ける。向きだけの仮説は矢じりの形で区別する。「仮説を隠す」で根拠だけのグラフを表示する。ROI の印と接続の符号は、仮説の行を除いた Comments から読む</td></tr>
     <tr><td>版</td><td>生成条件に、根拠のモード・許可範囲・上限・仮説の件数を記録する（4.5）</td></tr>
-    <tr><td>BRA-DB</td><td>仮説を含む版は、いまは登録できない（第 7 部）</td></tr>
+    <tr><td>BRA-DB</td><td>仮説を含む版は、現在は登録できない（第 7 部）</td></tr>
     <tr><td>Canon</td><td>仮説は Canon の共有層に入れず、プロジェクトの役割層だけに置く。PR の画面に、共有層に入れない仮説の件数を出す（第 5 部）</td></tr>
     <tr><td>BRA の 274</td><td>引用が接続を保証するかは<b>前提</b>で判断する。仮説の接続に書いた引用文が支えるのは前提であり、その接続そのものを確認した引用としては読まない</td></tr>
   </tbody>
@@ -119,7 +119,7 @@
     <tr><td>レポートと判断ログ</td><td>エージェントが書いた文章を、そのまま閲覧・ダウンロードできるようにする</td></tr>
   </tbody>
 </table>
-<p>公式テンプレートの生成だけが失敗した場合、CoBRAC 形式の xlsx とグラフがそろった状態でジョブが完了することがあります。必要な形式がそろっているかは、ジョブの状態だけでなく出力で確認してください。完了した結果は、ワーカーが生成条件と一緒に凍結して版にします（4.5）。公式テンプレートの出力ができる前に完了したプロジェクトの扱いは、付録 C にまとめます。</p>
+<p>公式テンプレートの生成だけが失敗した場合、CoBRAC 形式の xlsx とグラフがそろった状態でジョブが完了することがあります。必要な形式がそろっているかは、ジョブの状態だけでなく出力で確認してください。完了した結果は、ワーカーが生成条件と一緒に凍結して版にします（4.5）。公式テンプレートの出力ができる前に完了したプロジェクトの扱いは、付録 C に記載しています。</p>
 
 <h3>CSV の形式</h3>
 <p><code>Project.csv</code> に書く BRA version は <code>CoBRAC-v1-1</code> です。v1-0 からの列の変更は末尾への追加だけで、v1-0 のすべての列の位置は変わりません。追加した列は次のとおりです。グラフは v1-0 と v1-1 の CSV を列名で読みます。</p>
@@ -137,7 +137,7 @@
   <li><b>BibTeX</b>：テンプレートの正規表現に合わせ、1 行に 1 項目、<code>=</code> の前後に空白を置きます。ジョブの最後に、ワーカーが DOI を Crossref で、PMID だけの文献を PubMed で照会し、結果を書誌の記録に残します。記録がなければ、<code>references.json</code> と文献の照合の結果から作ります。</li>
   <li><b>DHBA の列</b>：テンプレート自身が持つ WholeBIF の Circuits の行（Source of ID が <code>DHBA</code>）を、DHBA のオントロジーとして使います。これは HOMBA の <code>graph_order</code> とは別の番号です。1 つの DHBA 項にアンカーした UC はその行の値を、DHBA 項より細かい UC はその項の graph_order に小数を足した値を書きます。BNA にアンカーした回路、ROI の行、UC Descriptor のない回路は空にします。</li>
 </ul>
-<p>テンプレートに書く場所のないもの（UC Descriptor、facet、<code>BNA</code>、CoBRAC の文献の検査など）と、テンプレートの上流に依頼する追加は、別のメモで管理しています。</p>
+<p>テンプレートに書く場所のないもの（UC Descriptor、facet、<code>BNA</code>、CoBRAC の文献の検査など）と、テンプレートの上流に依頼する追加は、別のメモで管理されています。</p>
 
 <h3>実装</h3>
 <ul>
@@ -183,7 +183,7 @@
 </ul>
 
 <h3>実装</h3>
-<p>記事のジョブの実行モードは <code>article</code> で、作れる条件は <code>stepStates.XLSX = done</code> です。プロジェクトの状態は <code>QUEUED → RUNNING → COMPLETED</code> と進み、<code>revision</code> は変えません。図は <code>buildArticleFigures</code> が描き、名前は <code>circuit</code>・<code>frg</code>・<code>function-map</code> です。指示書は <code>prompts/article.md</code>、検査は <code>checkArticle</code>、無害化は <code>sanitizeSvg</code> です。記事は <code>&lt;ProjectID&gt;/article/&lt;locale&gt;.md</code> と <code>.json</code>、図は <code>article/&lt;locale&gt;/figures/</code> に保存し、ブラウザはオブジェクト URL の <code>&lt;img&gt;</code> で図を表示します。英語の規則の例外は <code>AGENTS.md</code> に明記してあります。</p>
+<p>記事のジョブの実行モードは <code>article</code> で、作れる条件は <code>stepStates.XLSX = done</code> です。プロジェクトの状態は <code>QUEUED → RUNNING → COMPLETED</code> と進み、<code>revision</code> は変えません。図は <code>buildArticleFigures</code> が描き、名前は <code>circuit</code>・<code>frg</code>・<code>function-map</code> です。指示書は <code>prompts/article.md</code>、検査は <code>checkArticle</code>、無害化は <code>sanitizeSvg</code> です。記事は <code>&lt;ProjectID&gt;/article/&lt;locale&gt;.md</code> と <code>.json</code>、図は <code>article/&lt;locale&gt;/figures/</code> に保存し、ブラウザはオブジェクト URL の <code>&lt;img&gt;</code> で図を表示します。英語の規則の例外は <code>AGENTS.md</code> に明記されています。</p>
 <p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code></p>
 
 <h2 id="s3-15">3.15 長いジョブと保存</h2>
@@ -194,7 +194,7 @@
   <li><b>大きすぎる会話</b>：会話が大きすぎて再開できない場合は、新しい会話で既存のファイルと判断ログを読んで続けます（3.5）。</li>
   <li><b>コンテキストと費用の節約</b>：ツールの結果を小さくし、ファイルを部分的に編集し、修正ターンだけ推論の強さを下げます。</li>
 </ul>
-<p>使用量と費用の計算は 9.10、API キーなどの秘密情報の守り方は 9.5 にまとめます。</p>
+<p>使用量と費用の計算は 9.10 に、API キーなどの秘密情報の守り方は 9.5 に記載しています。</p>
 
 <h3>実装</h3>
 <p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は定数 <code>CODEX_CONTEXT_WINDOW</code>（272000）です。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>

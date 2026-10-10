@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">第 7 部</div>
   <h1 class="part" id="p7">BRA-DB への登録</h1>
-  <p class="lead">CoBRAC の AWS アカウントには、WBAI の BRA-DB と同じスキーマ（v4.6、PostgreSQL 17 + Apache AGE 1.7）のデータベースがあります。この文書では、このデータベースを単に BRA-DB と呼びます。CoBRAC は、完了したジョブの結果を凍結した<b>版</b>を、このデータベースに来歴付きで<b>登録</b>します。アプリ自身のデータは DynamoDB と S3 にあり、BRA-DB はアプリのデータベースではなく、成果物の<b>登録先</b>です。</p>
+  <p class="lead">CoBRAC の AWS アカウントには、WBAI の BRA-DB と同じスキーマ（v4.6、PostgreSQL 17 + Apache AGE 1.7）のデータベースがあります。本書では、このデータベースを単に BRA-DB と呼びます。CoBRAC は、完了したジョブの結果を凍結した<b>版</b>を、このデータベースに来歴付きで<b>登録</b>します。アプリ自身のデータは DynamoDB と S3 にあり、BRA-DB はアプリのデータベースではなく、成果物の<b>登録先</b>です。</p>
   <div class="map">
     <div><b>登録するもの</b>凍結した版の 5 つの CSV（Project・References・Circuits・Connections・FRG）を、BRA-DB のテーブルとグラフに入れます。</div>
     <div><b>登録の方法</b>BRA-DB のインポート（v3.10）に対応する処理を 1 つのトランザクションで行います。整合性を検査し、失敗すれば元に戻します。</div>
@@ -11,7 +11,7 @@
 </div>
 
 <h2 id="s7-1">7.1 位置づけ</h2>
-<p>BRA-DB への登録は、必ず<b>凍結した版</b>から行います。実行のたびに上書きされる作業中のデータは登録しません。版の仕組み（番号、凍結する内容、変わらないことの保証）は 4.5 で説明します。</p>
+<p>BRA-DB への登録は、必ず<b>凍結した版</b>から行います。実行のたびに上書きされる作業中のデータは登録しません。版の仕組み（番号、凍結する内容、変わらないことの保証）は 4.5 に記載しています。</p>
 <p>ワーカーは版を凍結するとき、5 つの CSV がそろっていれば、BRA-DB のインポートが読む形の<b>登録パッケージ</b>も版の中に作ります。登録パッケージには、BRA-DB が読む名前の CSV と、版 ID・内容のハッシュ・生成条件を書いた manifest が入ります（4.5）。登録の流れは図 7.1 のとおりです。</p>
 <figure>
 <svg viewBox="0 0 680 182" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
@@ -93,7 +93,7 @@
 <p>CoBRAC 独自の記録は、スキーマ <code>cobrac</code> にあります。</p>
 <ul>
   <li><b>登録の記録</b>（<code>cobrac.registrations</code>）：登録の試み 1 回につき 1 行を足す、<b>追記だけ</b>の表です。Project ID、<code>project_key</code>、版 ID、版の番号、親の版 ID、内容のハッシュを持ちます。さらに、状態（<code>registered</code> / <code>unchanged</code> / <code>rejected</code> / <code>failed</code>）、モード（<code>create</code> / <code>replace</code> / <code>none</code>）、理由、件数、ノードの変化、スキップした回路、警告を持ちます。生成条件（<code>provenance</code>）、パッケージの manifest の全体、依頼者、時刻も記録します。UPDATE と DELETE はトリガーが拒否します。</li>
-  <li><b>いまの版</b>（ビュー <code>cobrac.current_versions</code>）：各プロジェクトについて、最後に成功した登録の版、つまり BRA-DB がいま持っている版を示します。</li>
+  <li><b>現在の版</b>（ビュー <code>cobrac.current_versions</code>）：各プロジェクトについて、最後に成功した登録の版、つまり BRA-DB が現在持っている版を示します。</li>
 </ul>
 <table class="compact">
   <thead><tr><th style="width:20%">ロール</th><th>用途と権限</th></tr></thead>
