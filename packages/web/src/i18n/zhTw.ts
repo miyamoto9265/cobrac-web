@@ -989,7 +989,7 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "專案在計畫之外被停止。",
   "plan.reason.project_deleted": "專案已被刪除。",
   "plan.reason.start_failed": "無法啟動專案。",
-  "plan.rows": "列（{n}）",
+  "plan.rows": "專案（{n}）",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "理由",

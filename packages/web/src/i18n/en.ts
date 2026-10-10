@@ -987,7 +987,7 @@ export const en = {
   "plan.reason.cancelled_outside": "Its project was stopped outside the plan.",
   "plan.reason.project_deleted": "Its project was deleted.",
   "plan.reason.start_failed": "Its project could not be started.",
-  "plan.rows": "Rows ({n})",
+  "plan.rows": "Projects ({n})",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "Rationale",

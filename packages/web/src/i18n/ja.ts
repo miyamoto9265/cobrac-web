@@ -989,7 +989,7 @@ export const ja: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "プロジェクトが計画の外で停止されました。",
   "plan.reason.project_deleted": "プロジェクトが削除されました。",
   "plan.reason.start_failed": "プロジェクトを開始できませんでした。",
-  "plan.rows": "行（{n}）",
+  "plan.rows": "プロジェクト（{n}）",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "理由",
