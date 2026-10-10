@@ -801,6 +801,8 @@ export const ko: Record<MessageKey, string> = {
   "cc3.leaveOut": "제외하기",
   "settings.defaultCanon": "새 프로젝트의 기본 Canon",
   "help.tip": "도움말",
+  "app.alpha": "알파 버전",
+  "app.alphaTip": "개발 중인 알파 버전입니다. 기능과 화면은 예고 없이 바뀔 수 있습니다.",
   "help.guide": "사용법",
   "cc3.help": "Canon에 넣으면 같은 Canon의 프로젝트와 회로 정의를 맞춰 만듭니다. 충돌은 에이전트가 고치게 합니다.",
   "cc3.newShort": "새 Canon",
