@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The default API key's OpenAI organisation moved up a usage tier: the admin page and the plan's concurrency help now give its limit as 2,000k tokens per minute (was 200k), so about 10 runs at once fit within it. The specification says the same
+
 ## [0.41.0] - 2026-10-09
 
 ### Added
