@@ -106,9 +106,6 @@ export function Layout() {
           <NavLink to="/explore" className={navCls}>
             <Globe size={16} /> {t("nav.explore")}
           </NavLink>
-          <NavLink to="/settings" className={navCls}>
-            <Settings size={16} /> {t("nav.settings")}
-          </NavLink>
           <NavLink to="/manual" className={navCls}>
             <BookMarked size={16} /> {t("nav.manual")}
           </NavLink>
@@ -129,7 +126,24 @@ export function Layout() {
             <LanguageSelect />
             <ThemeToggle onDark />
           </div>
-          <div className="truncate px-3 pt-1 text-xs text-slate-500">{me?.email}</div>
+          <div className="flex items-center gap-1 pl-3 pt-1">
+            <span className="min-w-0 flex-1 truncate text-xs text-slate-500" title={me?.email}>
+              {me?.email}
+            </span>
+            <NavLink
+              to="/settings"
+              data-testid="nav-settings"
+              aria-label={t("nav.settings")}
+              title={t("nav.settings")}
+              className={({ isActive }) =>
+                `flex h-7 w-7 shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:h-11 coarse:w-11 ${
+                  isActive ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"
+                }`
+              }
+            >
+              <Settings size={16} aria-hidden />
+            </NavLink>
+          </div>
           <Link to="/releases" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
             {APP_VERSION_LABEL}
           </Link>

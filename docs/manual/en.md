@@ -206,7 +206,7 @@ In an **autonomous run** the Orchestrator acts for you and takes the plan to the
 
 ## Settings
 
-"Settings" in the sidebar has:
+Settings, the gear icon next to your email address at the bottom of the sidebar, has:
 
 - **OpenAI API key**: register, update or delete it, and the status of the default API key
 - **Profile**: display name and Contributor name (written to Project.csv and the xlsx; English is recommended)

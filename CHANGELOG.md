@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- Settings is no longer an item in the sidebar list: it opens from a gear icon next to your email address at the bottom of the sidebar, which leaves more room for the list
+
 ## [0.41.0] - 2026-10-09
 
 ### Added
