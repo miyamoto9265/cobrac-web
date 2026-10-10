@@ -1033,7 +1033,7 @@ export const ko: Record<MessageKey, string> = {
   "plan.createDraft": "초안 만들기",
   "plan.createDraftNote": "‘초안 만들기’는 목표와 능력 목록으로 행·앵커·의존 관계·세분도 방침의 초안을 쓰고 순서를 자동으로 정합니다. 계획 작업을 1건 실행하며 그 비용은 기록됩니다. 보통 몇 분이면 끝나지만, xlsx나 PDF 목록을 읽거나 {n}행이 넘으면 최대 30분 정도 걸립니다.",
   "plan.redraftQ": "초안을 만들까요? 계획 작업이 목표, 능력 목록, 현재 행을 읽고 행·앵커·의존 관계·세분도 방침을 쓴 뒤 순서를 자동으로 정합니다. 현재 행은 그대로 남습니다. 작업 비용은 다른 작업과 마찬가지로 기록됩니다.",
-  "plan.drafting": "초안 작성 중: {state}({time} 경과)",
+  "plan.drafting": "초안 작성 중: {state}",
   "plan.draftingNote": "초안이 완성될 때까지 행을 편집할 수 없습니다. 보통 몇 분이면 끝납니다.",
   "plan.draftingNoteLong": "초안이 완성될 때까지 행을 편집할 수 없습니다. xlsx나 PDF 목록을 읽거나 {n}행이 넘는 초안은 최대 30분 정도 걸릴 수 있습니다.",
   "plan.cancelDraft": "초안 취소",

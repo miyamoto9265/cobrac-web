@@ -1,3 +1,4 @@
+import { Wand2 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { PlanDetailResponse, PlanRecord, UpdatePlanRequest } from "@cobrac/shared";
 import { AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, orchestratorModelOf } from "@cobrac/shared";
@@ -15,9 +16,10 @@ const switchCls =
   "relative mt-0.5 h-[26px] w-11 shrink-0 cursor-pointer appearance-none rounded-full bg-slate-300 transition-colors after:absolute after:left-[3px] after:top-[3px] after:h-5 after:w-5 after:rounded-full after:bg-[#fff] after:shadow after:transition-transform after:content-[''] checked:after:translate-x-[18px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * 自律実行 of a draft, the default, and the cost limit (saved when the field is left). The switch is the opt-in to
- * handle the pull requests, conflicts and questions yourself (it turns 自律実行 off). Switched back to 自律実行 after the
- * draft was applied, the draft is not confirmed on its own: the note says that 「確定して開始」 starts the autonomous run.
+ * 自律実行 of a draft, the default: its title, what it does and the cost limit (saved when the field is left) come first.
+ * Below them, a secondary checkbox is the opt-in to handle the pull requests, conflicts and questions yourself (it turns
+ * 自律実行 off). Switched back to 自律実行 after the draft was applied, the draft is not confirmed on its own: the note says
+ * that 「確定して開始」 starts the autonomous run.
  */
 function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }) {
   const t = useT();
@@ -28,55 +30,48 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
   const ok = (v: string) => Number(v) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(v) <= AUTONOMOUS_MAX_COST_RANGE.max;
   const afterDraft = !!a && plan.draft?.status === "done" && !plan.draft.autoConfirm;
   return (
-    <div className={`flex gap-3.5 rounded-xl border p-4 ${a ? "border-violet-200 bg-violet-50" : "border-slate-200"}`} data-testid="plan-autonomous-setting">
-      <input
-        id={id}
-        type="checkbox"
-        role="switch"
-        checked={!a}
-        onChange={(e) => save({ autonomous: e.target.checked ? null : { maxCostUsd: ok(cost) ? Number(cost) : AUTONOMOUS_DEFAULT_MAX_COST_USD } })}
-        aria-describedby={`${id}-help`}
-        className={`${switchCls} checked:bg-blue-600`}
-        data-testid="plan-manual-switch"
-      />
-      <div className="grid min-w-0 flex-1 gap-2.5">
-        <div className="grid gap-0.5">
-          <label htmlFor={id} className={`cursor-pointer font-semibold ${a ? "text-violet-800" : ""}`}>
-            {t("auto.manual.label")}
-          </label>
-          <p id={`${id}-help`} className={`text-sm ${a ? "text-violet-700" : "text-slate-600"}`}>
-            {a ? `${t("auto.default")} ${t("auto.help")}` : t("auto.manual.help")}
-          </p>
-        </div>
-        {a && (
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <label htmlFor={`${id}-cost`} className="text-sm font-semibold text-violet-800">
-              {t("auto.cost")}
-            </label>
-            <input
-              id={`${id}-cost`}
-              type="number"
-              min={AUTONOMOUS_MAX_COST_RANGE.min}
-              max={AUTONOMOUS_MAX_COST_RANGE.max}
-              value={cost}
-              onChange={(e) => setCost(e.target.value)}
-              onBlur={() => ok(cost) && Number(cost) !== a.maxCostUsd && save({ autonomous: { maxCostUsd: Number(cost) } })}
-              // inputCls is full width: the limit is a short number field
-              className={`${inputCls.replace("w-full", "w-28")} bg-white`}
-              aria-invalid={!ok(cost)}
-              aria-describedby={`${id}-cost-hint`}
-            />
-            <span id={`${id}-cost-hint`} className="text-xs text-violet-700">
-              {t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })}
-            </span>
-          </div>
-        )}
-        {afterDraft && (
-          <p className="text-xs text-violet-700" data-testid="plan-auto-after-draft">
-            {t("auto.afterDraft")}
-          </p>
-        )}
+    <div className={`grid gap-3 rounded-xl border p-4 ${a ? "border-violet-200 bg-violet-50" : "border-slate-200"}`} data-testid="plan-autonomous-setting">
+      <div className="grid gap-0.5">
+        <h3 className={`flex items-center gap-1.5 font-semibold ${a ? "text-violet-800" : "text-slate-500"}`}>
+          <Wand2 size={16} aria-hidden /> {t("auto.label")} <HelpTip text={t("auto.help")} />
+        </h3>
+        {!a && <p className="text-sm text-slate-600">{t("auto.off")}</p>}
       </div>
+      {a && (
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+          <label htmlFor={`${id}-cost`} className="text-sm font-semibold text-violet-800">
+            {t("auto.cost")}
+          </label>
+          <HelpTip text={t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })} />
+          <input
+            id={`${id}-cost`}
+            type="number"
+            min={AUTONOMOUS_MAX_COST_RANGE.min}
+            max={AUTONOMOUS_MAX_COST_RANGE.max}
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            onBlur={() => ok(cost) && Number(cost) !== a.maxCostUsd && save({ autonomous: { maxCostUsd: Number(cost) } })}
+            // inputCls is full width: the limit is a short number field
+            className={`${inputCls.replace("w-full", "w-28")} bg-white`}
+            aria-invalid={!ok(cost)}
+          />
+        </div>
+      )}
+      {afterDraft && (
+        <p className="text-xs text-violet-700" data-testid="plan-auto-after-draft">
+          {t("auto.afterDraft")}
+        </p>
+      )}
+      <label className={`flex items-center gap-2 border-t pt-3 text-sm text-slate-700 coarse:min-h-11 ${a ? "border-violet-200" : "border-slate-200"}`}>
+        <input
+          type="checkbox"
+          checked={!a}
+          onChange={(e) => save({ autonomous: e.target.checked ? null : { maxCostUsd: ok(cost) ? Number(cost) : AUTONOMOUS_DEFAULT_MAX_COST_USD } })}
+          data-testid="plan-manual-switch"
+        />
+        {t("auto.manual.label")}
+        <HelpTip text={t("auto.manual.help")} />
+      </label>
     </div>
   );
 }
@@ -96,9 +91,10 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
     timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort, orchestratorModel: v.orchestratorModel }), 600);
   };
   return (
-    <div className="grid gap-2.5" data-testid="plan-models">
-      <h3 className="font-semibold">{t("model.label")}</h3>
-      <div className="grid gap-4 sm:grid-cols-3">
+    // compact: three small pickers in one row, not wider than they need to be
+    <div className="grid gap-1.5" data-testid="plan-models">
+      <h3 className="text-sm font-semibold">{t("model.label")}</h3>
+      <div className="grid max-w-3xl gap-x-3 gap-y-2 sm:grid-cols-3">
         <div data-testid="plan-orchestrator-model">
           <ModelSelect
             model={choice.orchestratorModel}
@@ -107,6 +103,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             hideEffort
             labels={{ model: t("pd.models.orchestrator") }}
             modelHint={t("pd.models.orchestratorHint")}
+            dense
           />
         </div>
         <div className="contents" data-testid="plan-agents-model">
@@ -117,6 +114,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             labels={{ model: t("pd.models.agents"), effort: t("pd.models.effort") }}
             modelHint={t("pd.models.agentsHint")}
             contents
+            dense
           />
         </div>
       </div>

@@ -260,13 +260,14 @@ describe("a draft being written", () => {
       attachments: [{ kind: "file", id: "f1", name: "abilities.xlsx", key: "attachments/files/01-abilities.xlsx", size: 10, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }],
     });
 
-  it("shows the job state with the time since the request, locks the rows and cancels", async () => {
+  it("shows the job state without the elapsed time, locks the rows and cancels", async () => {
     api.getPlan.mockResolvedValue(drafting("running"));
     await render(`/plans/${PLAN}`);
     // the job's state and its cancel button are in 「1. 作るもの」, next to what the job reads
     const banner = q('[data-testid="plan-drafting"]')!;
     expect(q('[data-testid="plan-what"]')!.contains(banner)).toBe(true);
-    expect(banner.textContent).toContain("Drafting: running (1 min so far)");
+    expect(banner.textContent).toContain("Drafting: running");
+    expect(banner.textContent).not.toContain("so far");
     expect(q('[data-testid="plan-attachments"]')!.textContent).toBe("abilities.xlsx");
     // the goal and the files are read-only while the job runs
     expect(q('textarea[data-testid="plan-goal"]')).toBeNull();
@@ -801,7 +802,7 @@ describe("the draft page", () => {
     expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("Unsaved changes: 2");
   });
 
-  it("offers handling the plan yourself as the opt-out of the autonomous run, in violet only when the run is on", async () => {
+  it("leads with the autonomous run and its cost limit, with handling the plan yourself as a secondary checkbox", async () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", two()));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
@@ -809,10 +810,13 @@ describe("the draft page", () => {
     // the first thing of 「3. 進め方」
     expect(q('[data-testid="plan-settings"] h2')!.nextElementSibling).toBe(card);
     expect(card.className).not.toContain("violet");
-    expect(card.textContent).toContain("PR の承認や衝突にご自身で対応する");
-    expect(card.textContent).toContain("下書きも、内容を確認してから確定します。");
-    const sw = q<HTMLInputElement>('input[role="switch"]', card)!;
-    // a plan without 自律実行 is one the owner handles: the switch is on
+    // the title is 自律実行; it is off, and the checkbox under it says the owner handles the plan
+    expect(q("h3", card)!.textContent).toMatch(/^ 自律実行/);
+    // what it does is behind the (?) next to the title, not a paragraph
+    expect(q("h3 [data-helptip]", card)).not.toBeNull();
+    expect(card.textContent).toContain("オフ: PR の承認や衝突、質問にはご自身で対応します。");
+    const sw = q<HTMLInputElement>('[data-testid="plan-manual-switch"]', card)!;
+    expect(sw.closest("label")!.textContent).toContain("PR の承認や衝突にご自身で対応する");
     expect(sw.checked).toBe(true);
     expect(q('input[type="number"]', card)).toBeNull();
     await click(sw);
@@ -827,8 +831,11 @@ describe("the draft page", () => {
     await render(`/plans/${PLAN}`);
     const on = q('[data-testid="plan-autonomous-setting"]')!;
     expect(on.className).toContain("bg-violet-50");
-    expect(q<HTMLInputElement>('input[role="switch"]', on)!.checked).toBe(false);
-    expect(on.textContent).toContain("オーケストレーターが自律実行で最後まで進めます（既定）。 オーケストレーターが人の代わりになって、最後まで進めます。");
+    expect(q<HTMLInputElement>('[data-testid="plan-manual-switch"]', on)!.checked).toBe(false);
+    expect(on.textContent).toContain("オーケストレーターが人の代わりになって、最後まで進めます。");
+    expect(qa("p", on).some((p) => p.textContent?.includes("オーケストレーターが人の代わりになって"))).toBe(false);
+    // the cost limit comes before the secondary checkbox
+    expect(q('input[type="number"]', on)!.compareDocumentPosition(q('[data-testid="plan-manual-switch"]', on)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(on.textContent).toContain("1〜1000。達すると新しい行を始めず、動いている行が終わったら一時停止します。");
     expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きができたあとで自律実行に切り替えたため、下書きは自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
     expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("確定すると、ここから先はオーケストレーターが人の代わりに進めます。");

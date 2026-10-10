@@ -51,16 +51,18 @@ interface Props {
   modelHint?: string;
   /** The pickers join the caller's grid (`display: contents`) instead of a grid of their own */
   contents?: boolean;
+  /** Small labels and low pickers, for a settings row that should not take much room */
+  dense?: boolean;
 }
 
 /** Model + reasoning-effort picker. Model list comes from the user's registered OpenAI key. */
-export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false, hideEffort = false, labels, modelHint, contents = false }: Props) {
+export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false, hideEffort = false, labels, modelHint, contents = false, dense = false }: Props) {
   const t = useT();
   const fallbackLabel = defaultLabel ?? t("model.default");
   const { models, priced, envDefault, restricted, custom, setCustom } = useModelList(model);
 
-  const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
-  const lbl = labels ? "mb-1 block text-sm font-semibold text-slate-700" : "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
+  const sel = `w-full rounded-lg border border-slate-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5 ${dense ? "px-2 py-1" : "px-3 py-2"}`;
+  const lbl = dense ? "mb-0.5 block text-xs font-medium text-slate-600" : labels ? "mb-1 block text-sm font-semibold text-slate-700" : "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
 
   return (
     <div className={contents ? "contents" : `grid gap-4 ${compact || hideEffort ? "" : "md:grid-cols-2"}`}>
@@ -91,7 +93,7 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
           ))}
           {!restricted && <option value={CUSTOM}>{t("model.custom")}</option>}
         </select>
-        {modelHint && <span className="mt-1 block text-xs text-slate-500">{modelHint}</span>}
+        {modelHint && <span className={`block text-slate-500 ${dense ? "mt-0.5 text-[11px]" : "mt-1 text-xs"}`}>{modelHint}</span>}
         {custom && (
           <input
             value={model ?? ""}

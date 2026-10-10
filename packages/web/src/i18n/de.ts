@@ -1033,7 +1033,7 @@ export const de: Record<MessageKey, string> = {
   "plan.createDraft": "Entwurf erstellen",
   "plan.createDraftNote": "„Entwurf erstellen“ schreibt aus dem Ziel und den Fähigkeitslisten Zeilen, Anker, Abhängigkeiten und die Granularitätsrichtlinie und ordnet die Zeilen automatisch. Dafür läuft ein Planungsauftrag, dessen Kosten erfasst werden: meist einige Minuten, bei xlsx- oder PDF-Listen oder mehr als {n} Zeilen bis zu etwa einer halben Stunde.",
   "plan.redraftQ": "Einen Entwurf erstellen? Ein Planungsauftrag liest das Ziel, die Fähigkeitslisten und die aktuellen Zeilen, schreibt Zeilen, Anker, Abhängigkeiten und die Granularitätsrichtlinie und ordnet die Zeilen automatisch. Die aktuellen Zeilen bleiben erhalten. Der Auftrag wird wie jeder andere Auftrag abgerechnet.",
-  "plan.drafting": "Entwurf entsteht: {state} (seit {time})",
+  "plan.drafting": "Entwurf entsteht: {state}",
   "plan.draftingNote": "Bis der Entwurf fertig ist, lassen sich die Zeilen nicht bearbeiten; meist dauert das wenige Minuten.",
   "plan.draftingNoteLong": "Bis der Entwurf fertig ist, lassen sich die Zeilen nicht bearbeiten. Ein Entwurf, der xlsx- oder PDF-Listen liest oder mehr als {n} Zeilen umfasst, kann bis zu etwa einer halben Stunde dauern.",
   "plan.cancelDraft": "Entwurf abbrechen",

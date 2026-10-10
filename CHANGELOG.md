@@ -8,6 +8,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Fixed
 - Projects list (desktop): rows are no longer several lines tall. A long project name now shows on at most two lines (the full name appears on hover), the Project ID stays on one line, and the "Status" heading, status badges and the hypothesis-mode badge no longer break into vertical text. Before, the ROI and TLF columns took their full width and squeezed the name column
 - The first column of the Projects list and the admin page's project table is headed "Project name" (「プロジェクト名」, all languages) instead of "Project ID": it shows the name, with the ID below it
+- CoBRAC Orchestrator: the autonomous-run setting of the new plan form and of a draft's "3. How it runs" now leads with "Autonomous run", what it does and its cost limit; "Handle pull requests and conflicts yourself" is a secondary checkbox below them. Before, that checkbox was the heading, so the autonomous run and its cost limit sat under an unticked box. The cost limit field is a short number field again, and the explanations of the autonomous run and of the cost limit are in their (?) tips instead of paragraphs
+- CoBRAC Orchestrator: the model pickers of a draft's "3. How it runs" (the Orchestrator's model, the agents' model and their reasoning effort) are compact: smaller labels and lower pickers in one row of limited width
+- CoBRAC Orchestrator: the drafting banner and the plan list show only the state of the draft job (for example 「下書きを作成中: 開始を待っています」), without the elapsed time
 
 ## [0.42.0] - 2026-10-10
 
