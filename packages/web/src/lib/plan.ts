@@ -180,6 +180,11 @@ export function waveCounts(rows: Pick<PlanRowView, "wave" | "state">[]): PlanPul
   return [...by.entries()].sort((a, b) => a[0] - b[0]).map(([wave, counts]) => ({ wave, counts }));
 }
 
+/** Rows of each lane by state, lanes ascending (the progress bar of a flow plan; rows without a lane count as lane 0). */
+export function laneCounts(rows: Pick<PlanRowView, "lane" | "state">[]): NonNullable<PlanPulse["lanes"]> {
+  return waveCounts(rows.map((r) => ({ wave: r.lane ?? 0, state: r.state }))).map(({ wave, counts }) => ({ lane: wave, counts }));
+}
+
 const STAGE_LABEL: Record<StageId, MessageKey | string> = { research: "stage.research", hcd: "HCD", frg: "FRG", cross: "stage.cross", csv: "CSV", xlsx: "xlsx" };
 const STAGES: StageId[] = ["research", "hcd", "frg", "cross", "csv", "xlsx"];
 

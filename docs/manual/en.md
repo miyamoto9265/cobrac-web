@@ -180,7 +180,8 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 - "Confirm and start" shows the estimate (time and cost) before starting.
 - A failed row is retried automatically up to 2 times; after that it "Needs attention" (choose "Retry" or "Skip").
-- In an automatically ordered plan, the remaining rows are reordered after each wave, and rows may be proposed for adding or removing. A proposal changes nothing until you approve it.
+- An automatically ordered plan does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the plan page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
+- In an automatically ordered plan, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
 - "Your turn" in the list of plans gathers what is waiting for you, such as questions and approvals.
 - The projects a plan creates open on the usual project page.
 
