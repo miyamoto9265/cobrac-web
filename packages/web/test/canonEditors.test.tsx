@@ -38,16 +38,16 @@ function detail(role: CanonDetailResponse["role"]): CanonDetailResponse {
 
 let root: Root | undefined;
 let host: HTMLDivElement | undefined;
-async function render() {
+async function render(path = "/canons/u7m2q9xa-c1/settings") {
   host = document.createElement("div");
   document.body.appendChild(host);
   const r = (root = createRoot(host));
   await act(async () => {
     r.render(
       <I18nProvider>
-        <MemoryRouter initialEntries={["/canons/u7m2q9xa-c1"]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons/:canonId" element={<CanonDetailPage />} />
+            <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -88,7 +88,8 @@ describe("Canon co-editors", () => {
     });
     await act(async () => $('[data-testid="editor-add"]')!.click());
     expect(api.addCanonEditor).toHaveBeenCalledWith("u7m2q9xa-c1", "carol@example.com");
-    expect(document.body.textContent).toContain("approved by Bob");
+    await act(async () => $('[data-testid="canon-tab-history"]')!.click());
+    expect($('[data-testid="canon-history"]')!.textContent).toContain("approved by Bob");
   });
 
   it("a co-editor sees their role and no owner-only controls", async () => {

@@ -1,5 +1,5 @@
 import { ArrowLeft, GitFork, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { EdgeSign, FrgGraph, HcdCollection, HcdEdge, HcdGraph, HcdMotif, HcdNode, RoiClass } from "@cobrac/shared";
 import { classifyEdgeSign, evidenceOnlyHcd, graphHypothesisCount, isDirectionOnly } from "@cobrac/shared";
@@ -12,7 +12,7 @@ import { HypothesisDetail, markTitle } from "../components/hypothesis/Hypothesis
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { circuitsUnderGroup, frgIdForCircuit, parentGroupsOfCircuit } from "../lib/graphView";
-import { useGraphLayout } from "../lib/useGraphLayout";
+import { useGraphLayout, type GraphLayoutController } from "../lib/useGraphLayout";
 import { useProjectName } from "../lib/useProjectName";
 
 /** Soft fill + saturated stripe per ROI class; the stripe keeps classes apart when zoomed out. */
@@ -30,20 +30,9 @@ const SIGNS: EdgeSign[] = ["excitatory", "inhibitory", "modulatory", "unknown"];
 export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   const t = useT();
   const { projectId = "" } = useParams();
-  const [params, setParams] = useSearchParams();
-  const [fullGraph, setGraph] = useState<HcdGraph | null>(null);
-  /** "Hide hypotheses": the evidence-only graph */
-  const [hideHypotheses, setHideHypotheses] = useState(false);
-  const hypothesisCount = useMemo(() => graphHypothesisCount(fullGraph), [fullGraph]);
-  const graph = useMemo(() => (fullGraph && hideHypotheses && hypothesisCount ? evidenceOnlyHcd(fullGraph) : fullGraph), [fullGraph, hideHypotheses, hypothesisCount]);
+  const [graph, setGraph] = useState<HcdGraph | null>(null);
   const [frg, setFrg] = useState<FrgGraph | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
-  const [showLabels, setShowLabels] = useState(false);
-  const [showCollections, setShowCollections] = useState(true);
-  const selected = params.get("node");
-  const group = params.get("gn");
-  const motifId = params.get("motif");
   const layout = useGraphLayout(projectId, "hcd");
   const projectName = useProjectName(projectId);
 
@@ -53,9 +42,67 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
     api.frg(projectId).then(setFrg).catch(() => setFrg(null));
   }, [projectId]);
 
+  if (err) return <div className="p-6 text-sm text-rose-600">{t("graph.hcdFail", { err })}</div>;
+  if (!graph) return <div className="p-6 text-sm text-slate-500">{t("graph.loading")}</div>;
+  return (
+    <HcdGraphView
+      graph={graph}
+      frg={frg}
+      layout={layout}
+      exportName={`${projectId}_HCD`}
+      frgBase={`/projects/${encodeURIComponent(projectId)}/frg`}
+      leading={
+        embedded ? undefined : (
+          <>
+            <Link to={`/chat/${encodeURIComponent(projectId)}`} aria-label={t("graph.backChat")} title={t("graph.backChat")} className="flex shrink-0 items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
+              <ArrowLeft size={14} /> <span className="hidden sm:inline">{t("graph.backChat")}</span>
+            </Link>
+            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" title={projectId}>
+              {projectName} <span className="hidden font-mono text-[11px] font-normal text-slate-400 sm:inline">{projectId}</span>
+            </h1>
+          </>
+        )
+      }
+    />
+  );
+}
+
+interface HcdGraphViewProps {
+  graph: HcdGraph;
+  /** Adds the cross-links to the FRG (null: none) */
+  frg: FrgGraph | null;
+  layout: GraphLayoutController;
+  exportName: string;
+  /** Where the FRG of this graph opens (null: no FRG, no links to it) */
+  frgBase: string | null;
+  /** Start of the header (a back link and the title on the stand-alone page) */
+  leading?: ReactNode;
+  /** End of the header, before the link to the FRG */
+  headerExtra?: ReactNode;
+  /** Circuits the page emphasises when nothing else is highlighted (e.g. the circuits one project of a Canon pushed) */
+  emphasis?: Set<string> | null;
+  /** Extra details of a circuit, shown first in its panel */
+  nodeExtra?: (node: HcdNode) => ReactNode;
+}
+
+/** The HCD of a project or of a Canon: circuits, connections and Collections, with the details beside the canvas. */
+export function HcdGraphView({ graph: fullGraph, frg, layout, exportName, frgBase, leading, headerExtra, emphasis = null, nodeExtra }: HcdGraphViewProps) {
+  const t = useT();
+  const [params, setParams] = useSearchParams();
+  /** "Hide hypotheses": the evidence-only graph */
+  const [hideHypotheses, setHideHypotheses] = useState(false);
+  const hypothesisCount = useMemo(() => graphHypothesisCount(fullGraph), [fullGraph]);
+  const graph = useMemo(() => (hideHypotheses && hypothesisCount ? evidenceOnlyHcd(fullGraph) : fullGraph), [fullGraph, hideHypotheses, hypothesisCount]);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [showLabels, setShowLabels] = useState(false);
+  const [showCollections, setShowCollections] = useState(true);
+  const selected = params.get("node");
+  const group = params.get("gn");
+  const motifId = params.get("motif");
+
   const nodes = useMemo<GNode[]>(
     () =>
-      graph?.nodes.map((n) => ({
+      graph.nodes.map((n) => ({
         id: n.id,
         label: n.id,
         sublabel: n.names,
@@ -65,22 +112,21 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         width: 176,
         height: 38,
         ...(n.hypothesis ? { hypothesis: { title: markTitle(t, n.hypothesis.items.map((h) => h.id)), dotted: true } } : {}),
-      })) ?? [],
+      })),
     [graph, t],
   );
-  const byId = useMemo(() => new Map(graph?.nodes.map((n) => [n.id, n]) ?? []), [graph]);
-  const collections = useMemo(() => graph?.collections ?? [], [graph]);
+  const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph]);
+  const collections = useMemo(() => graph.collections ?? [], [graph]);
   const collectionById = useMemo(() => new Map(collections.map((c) => [c.id, c])), [collections]);
   const groups = useMemo<GGroup[]>(() => collections.map((c) => ({ id: c.id, label: c.id, sublabel: c.names, members: c.members })), [collections]);
   const signs = useMemo(() => {
     const m = new Map<string, EdgeSign>();
-    if (!graph) return m;
     for (const e of graph.edges) m.set(e.id, e.sign ?? classifyEdgeSign(e, byId.get(e.source)));
     return m;
   }, [graph, byId]);
   const edges = useMemo<GEdge[]>(
     () =>
-      graph?.edges.map((e) => ({
+      graph.edges.map((e) => ({
         id: e.id,
         source: e.source,
         target: e.target,
@@ -88,7 +134,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
         title: e.comments,
         sign: signs.get(e.id) ?? "unknown",
         ...(e.hypothesis ? { hypothesis: { title: markTitle(t, e.hypothesis.items.map((h) => h.id)), hollow: isDirectionOnly(e.hypothesis) } } : {}),
-      })) ?? [],
+      })),
     [graph, signs, t],
   );
   const signCounts = useMemo(() => {
@@ -97,7 +143,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
     return c;
   }, [signs]);
 
-  const motifs = useMemo(() => graph?.motifs ?? [], [graph]);
+  const motifs = useMemo(() => graph.motifs ?? [], [graph]);
   const motif = motifId ? motifs.find((m) => m.id === motifId) ?? null : null;
   const node = selected ? byId.get(selected) ?? null : null;
   const collection = !node && selected ? collectionById.get(selected) ?? null : null;
@@ -106,8 +152,8 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
       collection ? collection.members : motif ? motif.ucs.filter((id) => byId.has(id)) : group ? circuitsUnderGroup(frg, group).filter((id) => byId.has(id)) : [],
     [collection, motif, group, frg, byId],
   );
-  const groupSet = useMemo(() => (groupIds.length ? new Set(groupIds) : null), [groupIds]);
-  const edge = graph?.edges.find((e) => e.id === selectedEdge) ?? null;
+  const groupSet = useMemo(() => (groupIds.length ? new Set(groupIds) : emphasis), [groupIds, emphasis]);
+  const edge = graph.edges.find((e) => e.id === selectedEdge) ?? null;
 
   const select = useCallback(
     (id: string | null) => {
@@ -151,31 +197,27 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   );
 
   const legend = useMemo<LegendItem[]>(
-    () =>
-      graph
-        ? [
+    () => [
             ...ROI_KEYS.filter((k) => graph.nodes.some((n) => n.roiClass === k)).map((k) => ({ color: ROI_STYLE[k].fill, accent: ROI_STYLE[k].accent, label: t(`roi.${k}` as MessageKey) })),
             ...(collections.length && showCollections ? [{ color: "transparent", label: t("graph.collectionLegend"), kind: "group" as const }] : []),
             ...SIGNS.filter((s) => signCounts[s] > 0).map((s) => ({ color: SIGN_DEFAULTS[s].color, label: t("graph.projection", { sign: t(`sign.${s}` as MessageKey), n: signCounts[s] }), kind: "edge" as const, sign: s })),
             ...hypothesisLegend(t, graph),
-          ]
-        : [],
+          ],
     [graph, signCounts, collections.length, showCollections, t],
   );
 
-  if (err) return <div className="p-6 text-sm text-rose-600">{t("graph.hcdFail", { err })}</div>;
-  if (!graph || layout.layout === null) return <div className="p-6 text-sm text-slate-500">{t("graph.loading")}</div>;
+  if (layout.layout === null) return <div className="p-6 text-sm text-slate-500">{t("graph.loading")}</div>;
 
   const frgLink = (() => {
-    const base = `/projects/${encodeURIComponent(projectId)}/frg`;
+    if (!frgBase) return null;
     const fid = node ? frgIdForCircuit(frg, node.id) : null;
-    if (fid) return `${base}?node=${encodeURIComponent(fid)}`;
-    if (group) return `${base}?node=${encodeURIComponent(group)}`;
-    return base;
+    if (fid) return `${frgBase}?node=${encodeURIComponent(fid)}`;
+    if (group) return `${frgBase}?node=${encodeURIComponent(group)}`;
+    return frgBase;
   })();
 
   const detail = node ? (
-    <NodeDetail node={node} graph={graph} frg={frg} projectId={projectId} signs={signs} onSelect={select} onSelectMotif={selectMotif} />
+    <NodeDetail node={node} graph={graph} frg={frg} frgBase={frgBase} signs={signs} onSelect={select} onSelectMotif={selectMotif} extra={nodeExtra?.(node)} />
   ) : collection ? (
     <CollectionDetail collection={collection} graph={graph} onSelect={select} />
   ) : edge ? (
@@ -208,16 +250,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
-        {!embedded && (
-          <>
-            <Link to={`/chat/${encodeURIComponent(projectId)}`} aria-label={t("graph.backChat")} title={t("graph.backChat")} className="flex shrink-0 items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
-              <ArrowLeft size={14} /> <span className="hidden sm:inline">{t("graph.backChat")}</span>
-            </Link>
-            <h1 className="min-w-0 flex-1 truncate text-sm font-semibold" title={projectId}>
-              {projectName} <span className="hidden font-mono text-[11px] font-normal text-slate-400 sm:inline">{projectId}</span>
-            </h1>
-          </>
-        )}
+        {leading}
         <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">HCD</span>
         <span className="hidden shrink-0 text-xs text-slate-500 md:inline">
           {graph.nodes.length} UC · {graph.edges.length} Connection
@@ -239,9 +272,12 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
             ))}
           </select>
         )}
+        {headerExtra}
+        {frgLink && (
         <Link to={frgLink} className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 coarse:min-h-11">
           <GitFork size={13} /> {t("graph.toFrg")}
         </Link>
+        )}
       </header>
       <div className="min-h-0 flex-1">
         <GraphCanvas
@@ -253,7 +289,7 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
           onSelectEdge={(id) => setSelectedEdge(id)}
           layout={layout}
           showLabels={showLabels}
-          exportName={`${projectId}_HCD`}
+          exportName={exportName}
           legend={legend}
           highlightIds={groupSet}
           focusIds={groupIds}
@@ -279,9 +315,13 @@ export function HcdGraphPage({ embedded = false }: { embedded?: boolean }) {
                       {motif.gns.map((g, i) => (
                         <span key={g}>
                           {i > 0 && ", "}
-                          <Link to={`/projects/${encodeURIComponent(projectId)}/frg?node=${encodeURIComponent(g)}`} className="font-mono underline">
-                            {g}
-                          </Link>
+                          {frgBase ? (
+                            <Link to={`${frgBase}?node=${encodeURIComponent(g)}`} className="font-mono underline">
+                              {g}
+                            </Link>
+                          ) : (
+                            <span className="font-mono">{g}</span>
+                          )}
                         </span>
                       ))}
                     </>
@@ -347,15 +387,17 @@ function NodeDetail({
   node,
   graph,
   frg,
-  projectId,
+  frgBase,
   signs,
   onSelect,
   onSelectMotif,
+  extra,
 }: {
   node: HcdNode;
   graph: HcdGraph;
   frg: FrgGraph | null;
-  projectId: string;
+  frgBase: string | null;
+  extra?: ReactNode;
   signs: Map<string, EdgeSign>;
   onSelect: (id: string | null) => void;
   onSelectMotif: (id: string) => void;
@@ -366,7 +408,6 @@ function NodeDetail({
   const outgoing = graph.edges.filter((e) => e.source === node.id);
   const frgId = frgIdForCircuit(frg, node.id);
   const groups = parentGroupsOfCircuit(frg, node.id);
-  const frgBase = `/projects/${encodeURIComponent(projectId)}/frg`;
   const style = ROI_STYLE[node.roiClass];
   const inCollections = (graph.collections ?? []).filter((c) => c.subCircuits.includes(node.id));
   const inMotifs = (graph.motifs ?? []).filter((m) => m.ucs.includes(node.id));
@@ -386,7 +427,7 @@ function NodeDetail({
         </>
       }
       actions={
-        frg ? (
+        frg && frgBase ? (
           frgId ? (
             <>
               <Link to={`${frgBase}?node=${encodeURIComponent(frgId)}`} className={primaryActionBtn}>
@@ -404,6 +445,7 @@ function NodeDetail({
         ) : undefined
       }
     >
+      {extra}
       <HypothesisDetail hypothesis={node.hypothesis} />
       <Section title={t("graph.connections", { in: incoming.length, out: outgoing.length })} />
       {incoming.length + outgoing.length === 0 && <div className="mb-3 text-xs text-slate-500">—</div>}

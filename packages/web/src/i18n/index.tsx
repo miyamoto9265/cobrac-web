@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { UiLocale } from "@cobrac/shared";
 import { en, type MessageKey as BaseMessageKey } from "./en";
 import { AUTONOMOUS_CATALOG, type AutonomousKey } from "./autonomous";
+import { CANON_VIEW_CATALOG, type CanonViewKey } from "./canonView";
 import { HYPOTHESIS_CATALOG, type HypothesisKey } from "./hypothesis";
 import { PLAN_DRAFT_CATALOG, type PlanDraftKey } from "./planDraft";
 import { de } from "./de";
@@ -14,8 +15,8 @@ import { ru } from "./ru";
 import { zh } from "./zh";
 import { zhTw } from "./zhTw";
 
-/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts) */
-export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey;
+/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts) */
+export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey;
 
 export type Locale = UiLocale;
 
@@ -36,7 +37,7 @@ export const DEFAULT_LOCALE: Locale = "en";
 const STORAGE = "cobrac-locale";
 
 const BASE: Record<Locale, Record<BaseMessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
-const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale], ...PLAN_DRAFT_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
+const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale], ...PLAN_DRAFT_CATALOG[l as Locale], ...CANON_VIEW_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
 
 /** Name of a UI language in the current UI language (`ja` → "日本語" / "Japanese"); unknown ids come back unchanged. */
 export function localeName(id: string, t: TFn): string {

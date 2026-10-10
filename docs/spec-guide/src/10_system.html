@@ -337,7 +337,7 @@
     <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認つき。行はすぐ消え、依頼が失敗すると戻る）</td></tr>
     <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。ヘッダーとタブは次の表。<code>/projects/:id</code> は最初にあるタブか、まだ何も無ければ空の状態を開く。移行前の ID の URL は新しい ID に転送する。古いチャットの URL <code>/chat/:id</code> もここに転送する（クエリは保つ）</td></tr>
     <tr><td><code>/plans</code>・<code>/plans/:planId</code></td><td>CoBRAC オーケストレーター</td><td>計画の一覧と作成、計画の画面（下記と第 6 部）</td></tr>
-    <tr><td><code>/canons</code>・<code>/canons/:canonId</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon、Canon の画面、PR の画面（第 4 部）</td></tr>
+    <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon、Canon の画面（<code>view</code> はタブ：<code>hcd</code>・<code>tables</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code>。4.3）、PR の画面（第 4 部）</td></tr>
     <tr><td><code>/explore</code>・<code>/explore/projects/:id</code>・<code>/explore/canons/:id</code></td><td>公開ライブラリ</td><td>公開されたプロジェクトと Canon の閲覧、複製（4.11）</td></tr>
     <tr><td><code>/settings</code></td><td>設定</td><td>OpenAI API キー（承認された利用者にはデフォルトの API キーの利用状況も）、プロフィール（表示名と Contributor 名）、既定のモデルと推論の強さ、新しいプロジェクトの既定の Canon、パスワードの変更</td></tr>
     <tr><td><code>/manual</code></td><td>利用マニュアル</td><td><code>docs/manual/&lt;言語&gt;.md</code>（いまは ja と en）と <code>docs/manual/figures/</code> の SVG をビルド時に取り込み、ログインした全員に見せる。UI の言語で開き、無ければ英語で注記を付ける。<code>?lang=</code> と言語の切り替えで選べる。目次と見出しのアンカー付き。「?」の横の「ガイド」のリンクはその節を開く（<code>lib/help.ts</code>。アンカーがどの言語にもあることをテストが確かめる）</td></tr>

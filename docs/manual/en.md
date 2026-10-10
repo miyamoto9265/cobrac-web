@@ -123,9 +123,22 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### Using a Canon
 
-- Under "Canons" in the sidebar, create a "New Canon" with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project".
+- Under "Canons" in the sidebar, create a "New Canon" with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" on the "Projects" tab of the Canon page.
 - For a new project, choose a Canon with the "Canon" button on the create screen. Settings has a default Canon for new projects.
 - A project can be in one Canon only.
+
+### The Canon page
+
+Like a project page, the Canon page has a header with tabs below it.
+
+- **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits. The arrangement of the graph is saved in this browser.
+- **Tables**: circuits, connections and references as tables, with CSV download.
+- **Projects**: add and remove member projects, and see how many of each project's circuits are in the Canon.
+- **Pull requests**: the PRs received, "Approve selected", and sending a PR to another Canon.
+- **History**: the approved revs with their PRs and who approved them.
+- **Settings**: name, granularity policy and description, and the co-editors.
+
+While a Canon is still empty (rev 0), the "Projects" tab opens.
 
 ### How a Canon guides generation
 
@@ -137,7 +150,7 @@ Projects in a Canon are built to its definitions (circuit IDs, names, breakdowns
 
 1. **Push**: on a completed project, "Push to Canon" shows the differences and creates a pull request (PR). The Canon does not change until the PR is approved.
 2. **Review**: the Canon's owner or a co-editor checks the changes, the check results and the AI review (which points out issues but does not decide) on the PR page.
-3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" on the Canon page.
+3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" on the "Pull requests" tab of the Canon page.
 
 The owner can add **co-editors** by the e-mail address they signed up with. Co-editors open the Canon from "Shared with you" and can review its PRs.
 

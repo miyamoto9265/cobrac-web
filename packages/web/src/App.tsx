@@ -51,7 +51,7 @@ export default function App() {
         <Route path="/plans" element={<PlansPage />} />
         <Route path="/plans/:planId" element={<PlanDetailPage />} />
         <Route path="/canons" element={<CanonsPage />} />
-        <Route path="/canons/:canonId" element={<CanonDetailPage />} />
+        <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/explore/projects/:projectId" element={<PublicProjectPage />} />
         <Route path="/explore/canons/:canonId" element={<PublicCanonPage />} />
