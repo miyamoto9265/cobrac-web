@@ -273,12 +273,19 @@ describe("plans: drafting with the plan job", () => {
     expect(usage.totals.inputTokens).toBe(9000);
     expect(usage.byModel).toEqual([expect.objectContaining({ model: job.model, jobs: 1 })]);
 
-    // confirmation: the row an existing project covers is done, the first seed starts alone
+    // confirmation: the row an existing project covers is done; the plan runs as a flow, so the first seed starts with
+    // the rows that share no anchor with any seed (writing), while the rows around the seeds wait for them
     const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, { locale: "ja" }));
     expect(confirmed.estimate).toMatchObject({ rows: 10, seedRows: seeds.length });
+    expect(confirmed.scheduling).toBe("flow");
     expect(rowOf(planId, "prosody")).toMatchObject({ state: "done", projectId: "pprosody" });
     expect(rowOf(planId, "semantic comprehension")).toMatchObject({ state: "done", projectId: "psemant1" });
-    expect(rowsOf(planId).filter((r) => r.state === "running").map((r) => r.tlf)).toEqual(["speech production"]);
+    expect(rowsOf(planId).filter((r) => r.state === "running").map((r) => r.tlf)).toEqual(["speech production", "writing"]);
+    const after = await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`));
+    expect(after.rows.find((r) => r.tlf === "phonological processing")!.wait).toMatchObject({ kind: "seed" });
+    expect(after.rows.find((r) => r.tlf === "repetition")!.wait).toMatchObject({ kind: "dependency" });
+    expect(after.rows.every((r) => r.state === "skipped" || typeof r.lane === "number")).toBe(true);
+    expect(after.slots).toMatchObject({ used: 2, orchestrator: 0, limit: 4 });
   });
 
   it("asks for the draft only once every row is stored: a runner step during the writes queues nothing", async () => {

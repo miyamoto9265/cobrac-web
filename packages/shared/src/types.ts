@@ -1,3 +1,4 @@
+import { CLAUDE_MODELS } from "./provider.js";
 import type { ClonedFrom, Visibility } from "./publish.js";
 import type { BraVersionSummary } from "./braVersion.js";
 // ---------------------------------------------------------------------------
@@ -36,6 +37,10 @@ export interface UserRecord {
   apiKeyLast4?: string;
   /** Model IDs usable with the registered API key (snapshot taken at registration) */
   availableModels?: string[];
+  /** KMS-encrypted Anthropic API key (base64), for the Claude models. Never returned to clients. */
+  encryptedAnthropicKey?: string;
+  anthropicKeyRegistered?: boolean;
+  anthropicKeyLast4?: string;
   /** Defaults applied to new projects (null/undefined = Codex default) */
   defaultModel?: string | null;
   defaultReasoningEffort?: ReasoningEffort | null;
@@ -47,11 +52,14 @@ export interface UserRecord {
   updatedAt: string;
 }
 
-export type UserPublic = Omit<UserRecord, "encryptedApiKey">;
+export type UserPublic = Omit<UserRecord, "encryptedApiKey" | "encryptedAnthropicKey">;
 
 /** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the default-API-key tier */
 export interface MeResponse extends UserPublic {
+  /** Key of the OpenAI models */
   keySource: KeySource | null;
+  /** Key of the Claude models */
+  claudeKeySource: KeySource | null;
   orgTier: OrgTier | null;
 }
 
@@ -64,12 +72,13 @@ export interface AdminUpdateUserRequest {
 
 /** GET /users/me/models */
 export interface ModelsResponse {
-  /** Models the user may choose (Tier 1: exactly the Tier 1 models) */
+  /** Models the user may choose (Tier 1: exactly the Tier 1 models); the Claude models follow the OpenAI ones */
   models: string[];
   efforts: ReasoningEffort[];
   /** Model a job runs when the user picks "default" */
   envDefaultModel: string;
   keySource: KeySource | null;
+  claudeKeySource: KeySource | null;
   orgTier: OrgTier | null;
   /** Only `models` may be chosen (no custom model ID) */
   restricted: boolean;
@@ -109,6 +118,9 @@ export function filterCodexModels(ids: string[]): string[] {
     .filter((id) => !/cyber|audio|realtime|tts|transcribe|image|search|embedding|chat-latest|instruct|deep-research/.test(id))
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 }
+
+/** A model the app can run: an offered Claude model, or an OpenAI model `filterCodexModels` keeps. */
+export const isOfferedModel = (id: string): boolean => CLAUDE_MODELS.includes(id) || filterCodexModels([id]).length > 0;
 
 export type ProjectStatus =
   | "QUEUED"

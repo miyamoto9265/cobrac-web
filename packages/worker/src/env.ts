@@ -33,6 +33,11 @@ export const env = {
    * gpt-6-luna): requests above ~80k context wait 15–40 s longer before the first token.
    */
   codexAutoCompactTokens: Number(process.env.CODEX_AUTO_COMPACT_TOKENS ?? "75000"),
+  /**
+   * Context size (tokens) Claude Code compacts the conversation against (CLAUDE_CODE_AUTO_COMPACT_WINDOW). Below
+   * 100K, where Claude Haiku 5.5's price rises 5x, and close to Codex's limit above.
+   */
+  claudeAutoCompactWindow: Number(process.env.CLAUDE_AUTO_COMPACT_WINDOW ?? "100000"),
   /** RCS MCP endpoint; empty = agent runs without RCS */
   rcsMcpUrl: process.env.RCS_MCP_URL || undefined,
   /** Secrets Manager secret with the accepted RCS bearer tokens (comma-separated) */

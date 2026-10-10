@@ -1,12 +1,12 @@
 import { FileText, Gauge, KeyRound, Save, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import type { ConcurrencyStatus, DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
+import type { ConcurrencyStatus, DefaultKeyStatus, ModelProvider, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
 import { CONCURRENCY_MAX, CONCURRENCY_MIN, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
-import { useI18n, useT } from "../i18n";
+import { type MessageKey, useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { fmtDate, isActive } from "../lib/format";
@@ -96,18 +96,14 @@ export function AdminPage() {
   const cards = useMediaQuery(BELOW_XL);
   const [users, setUsers] = useState<UserPublic[]>([]);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [defaultKey, setDefaultKey] = useState<DefaultKeyStatus | null>(null);
-  const [newKey, setNewKey] = useState("");
-  const [keyBusy, setKeyBusy] = useState(false);
   const [orgUsage, setOrgUsage] = useState<OrgUsageRow[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   const load = () =>
-    Promise.all([api.adminUsers(), api.adminProjects(), api.adminDefaultKey(), api.adminOrgUsage()])
-      .then(([u, p, k, usage]) => {
+    Promise.all([api.adminUsers(), api.adminProjects(), api.adminOrgUsage()])
+      .then(([u, p, usage]) => {
         setUsers(u.items);
         setProjects(p.items);
-        setDefaultKey(k);
         setOrgUsage(usage.items);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
@@ -184,17 +180,6 @@ export function AdminPage() {
       {t("admin.forceStop")}
     </button>
   );
-  const keyAction = (fn: () => Promise<DefaultKeyStatus>) => {
-    setKeyBusy(true);
-    setErr(null);
-    fn()
-      .then((k) => {
-        setDefaultKey(k);
-        setNewKey("");
-      })
-      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
-      .finally(() => setKeyBusy(false));
-  };
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
@@ -210,45 +195,8 @@ export function AdminPage() {
       </div>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
-      <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="default-key">
-        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-          <KeyRound size={16} aria-hidden /> {t("admin.defaultKey")} <HelpTip text={t("admin.defaultKeyHelp")} />
-        </h2>
-        <div className="mb-3 text-sm" data-testid="default-key-status">
-          {defaultKey?.registered ? (
-            <span className="font-medium text-emerald-700">{t("admin.defaultKeyRegistered", { last4: defaultKey.last4 ?? "", date: defaultKey.updatedAt ? fmtDate(defaultKey.updatedAt, locale) : "" })}</span>
-          ) : (
-            <span className="font-medium text-amber-700">{t("admin.defaultKeyNone")}</span>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="password"
-            value={newKey}
-            onChange={(e) => setNewKey(e.target.value)}
-            placeholder="sk-..."
-            autoComplete="off"
-            aria-label={t("admin.defaultKey")}
-            className="min-w-0 flex-1 basis-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
-          />
-          <button
-            disabled={keyBusy || newKey.trim().length < 20}
-            onClick={() => keyAction(() => api.adminSetDefaultKey(newKey.trim()))}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11"
-          >
-            <Save size={14} aria-hidden /> {t("settings.register")}
-          </button>
-          {defaultKey?.registered && (
-            <button
-              disabled={keyBusy}
-              onClick={() => window.confirm(t("admin.defaultKeyConfirmDelete")) && keyAction(() => api.adminDeleteDefaultKey())}
-              className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
-            >
-              <Trash2 size={14} aria-hidden /> {t("delete")}
-            </button>
-          )}
-        </div>
-      </section>
+      <DefaultKeySection provider="openai" onError={setErr} />
+      <DefaultKeySection provider="anthropic" onError={setErr} />
 
       <ConcurrencySection />
 
@@ -382,5 +330,97 @@ export function AdminPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Labels and test ids of each provider's default key (the OpenAI one keeps the original ids). */
+const DEFAULT_KEY: Record<ModelProvider, { title: MessageKey; help: MessageKey; confirmDelete: MessageKey; placeholder: string; id: string }> = {
+  openai: { title: "admin.defaultKey", help: "admin.defaultKeyHelp", confirmDelete: "admin.defaultKeyConfirmDelete", placeholder: "sk-...", id: "" },
+  anthropic: { title: "claude.defaultKey", help: "claude.defaultKeyHelp", confirmDelete: "claude.defaultKeyConfirmDelete", placeholder: "sk-ant-...", id: "anthropic-" },
+};
+
+/** One provider's default API key: write-only (the last 4 characters and the date are all that is shown). */
+function DefaultKeySection({ provider, onError }: { provider: ModelProvider; onError: (e: string | null) => void }) {
+  const { t, locale } = useI18n();
+  const [defaultKey, setDefaultKey] = useState<DefaultKeyStatus | null>(null);
+  const [newKey, setNewKey] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [keyBusy, setKeyBusy] = useState(false);
+  const c = DEFAULT_KEY[provider];
+
+  useEffect(() => {
+    api
+      .adminDefaultKey(provider)
+      .then(setDefaultKey)
+      .catch((e) => onError(e instanceof Error ? e.message : String(e)));
+  }, [provider]);
+
+  const keyAction = (fn: () => Promise<DefaultKeyStatus>) => {
+    setKeyBusy(true);
+    onError(null);
+    fn()
+      .then((k) => {
+        setDefaultKey(k);
+        setNewKey("");
+        setWorkspaceId("");
+      })
+      .catch((e) => onError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setKeyBusy(false));
+  };
+
+  return (
+    <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid={`${c.id}default-key`}>
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        <KeyRound size={16} aria-hidden /> {t(c.title)} <HelpTip text={t(c.help)} />
+      </h2>
+      <div className="mb-3 text-sm" data-testid={`${c.id}default-key-status`}>
+        {defaultKey?.registered ? (
+          <span className="font-medium text-emerald-700">{t("admin.defaultKeyRegistered", { last4: defaultKey.last4 ?? "", date: defaultKey.updatedAt ? fmtDate(defaultKey.updatedAt, locale) : "" })}</span>
+        ) : (
+          <span className="font-medium text-amber-700">{t("admin.defaultKeyNone")}</span>
+        )}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="password"
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          placeholder={c.placeholder}
+          autoComplete="off"
+          aria-label={t(c.title)}
+          className="min-w-0 flex-1 basis-56 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
+        />
+        {provider === "anthropic" && (
+          <span className="flex min-w-0 flex-1 basis-44 items-center gap-1">
+            <input
+              value={workspaceId}
+              onChange={(e) => setWorkspaceId(e.target.value)}
+              placeholder={t("claude.workspace")}
+              autoComplete="off"
+              spellCheck={false}
+              aria-label={t("claude.workspace")}
+              className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:min-h-11"
+            />
+            <HelpTip text={t("claude.workspaceHelp")} />
+          </span>
+        )}
+        <button
+          disabled={keyBusy || newKey.trim().length < 20}
+          onClick={() => keyAction(() => api.adminSetDefaultKey(newKey.trim(), provider, workspaceId.trim()))}
+          className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11"
+        >
+          <Save size={14} aria-hidden /> {t("settings.register")}
+        </button>
+        {defaultKey?.registered && (
+          <button
+            disabled={keyBusy}
+            onClick={() => window.confirm(t(c.confirmDelete)) && keyAction(() => api.adminDeleteDefaultKey(provider))}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
+          >
+            <Trash2 size={14} aria-hidden /> {t("delete")}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

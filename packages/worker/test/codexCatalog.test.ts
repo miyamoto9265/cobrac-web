@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { PRICING } from "@cobrac/shared";
+import { PRICING, isClaudeModel } from "@cobrac/shared";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 type CodexModule = typeof import("../src/codex.js");
@@ -30,7 +30,8 @@ beforeAll(async () => {
 });
 
 describe("Codex model catalog", () => {
-  it.each(Object.keys(PRICING))("knows %s", (model) => {
+  // the Claude models run on the Claude Agent SDK, not on Codex
+  it.each(Object.keys(PRICING).filter((m) => !isClaudeModel(m)))("knows %s", (model) => {
     const entry = catalog.get(codex.codexModelSlug(model));
     expect(entry, `Codex has no metadata for ${model}`).toBeDefined();
     expect(entry!.context_window).toBe(codex.CODEX_CONTEXT_WINDOW);

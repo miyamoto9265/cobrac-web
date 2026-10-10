@@ -67,8 +67,15 @@ import {
   countRows,
   decisionAction,
   diffCanon,
+  controlSlotCap,
+  flowActiveWave,
+  flowPlan,
+  flowReplanDue,
   freeSlots,
   isAutonomous,
+  isFlowPlan,
+  perRowCostUsd,
+  rowsWithinCost,
   isMovableRow,
   isProjectDeleted,
   maxFollowups,
@@ -79,6 +86,7 @@ import {
   orchestratorRetryDelayMs,
   orchestratorModelOf,
   planFinished,
+  canRunJobs,
   policyAllows,
   prOutcome,
   pushOutcome,
@@ -100,7 +108,7 @@ import { planSpendUsd } from "./planCost.js";
 import { applyProposal } from "./planProposals.js";
 import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
-import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
 export const RUNNER = "runner";
 
@@ -119,7 +127,7 @@ export interface AdvanceResult {
 }
 
 /** The models a plan's jobs run on: the rows' (`model`) and the Orchestrator's own jobs' (`orchestratorModel`). */
-export type PlanGate = { policy: ModelPolicy & { source: KeySource }; model: string; orchestratorModel: string };
+export type PlanGate = { policy: ModelPolicy; model: string; orchestratorModel: string };
 
 /**
  * Whether the owner may start a job now, and on which models (each the plan's, or the tier default for one the owner did
@@ -128,7 +136,7 @@ export type PlanGate = { policy: ModelPolicy & { source: KeySource }; model: str
 export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
   const policy = await runPolicy(owner);
-  if (!policy.source) return { ok: false, reason: "no_key" };
+  if (!canRunJobs(policy)) return { ok: false, reason: "no_key" };
   const resolve = (chosen: string | null, picked: boolean): string | null => {
     const model = chosen || deploymentDefaultModel();
     if (policyAllows(policy, model)) return model;
@@ -138,7 +146,7 @@ export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promi
   const model = resolve(plan.settings.model, plan.settings.modelChosen);
   const orchestratorModel = resolve(o.model, o.chosen);
   if (!model || !orchestratorModel) return { ok: false, reason: "model_not_allowed" };
-  return { ok: true, policy: { ...policy, source: policy.source }, model, orchestratorModel };
+  return { ok: true, policy, model, orchestratorModel };
 }
 
 async function setRow(plan: PlanRecord, row: PlanRowRecord, to: PlanRowState, values: Partial<PlanRowRecord>, event: PlanEventType | null, detail?: Record<string, string | number | null>): Promise<boolean> {
@@ -420,7 +428,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       reasoningEffort: plan.settings.reasoningEffort,
       researchMode: plan.settings.researchMode,
       locale: plan.settings.locale,
-      keySource: gate.policy.source,
+      keySource: jobKeySource(gate.policy, gate.model),
       harnessRules: plan.harnessRules ?? HARNESS_RULES,
       plan: { planId: plan.planId, name: plan.name },
       projectId,
@@ -881,6 +889,47 @@ async function applyProposals(plan: PlanRecord, jobId: string): Promise<number> 
   return applied;
 }
 
+// --- flow scheduling (plans ordered automatically) --------------------------------------------------------------------
+
+/** A job of the plan's own Orchestrator (a draft, re-plan or row job, or a review / decision of one of its pull requests). */
+const isControlJob = (j: JobRecord, planId: string) => (j.type === "plan" && j.projectId === planId) || (j.type === "canon-review" && j.planId === planId);
+
+/**
+ * The rows of a flow plan that may start now, in start order (`flowPlan`): with a Canon, only rows that resume (retries
+ * and follow-ups) while `PLAN_MAX_WAITING_PRS` pull requests wait; in an autonomous plan, no more rows than its cost
+ * limit leaves room for (`rowsWithinCost`, half a row kept for each row being built).
+ */
+async function flowCandidates(plan: PlanRecord, rows: PlanRowRecord[], projects: Map<string, ProjectRecord>, withCanon: boolean): Promise<PlanRowRecord[]> {
+  const byId = new Map(rows.map((r) => [r.rowId, r]));
+  let out = flowPlan(rows).ready.map((id) => byId.get(id)!);
+  if (withCanon && waitingPrs(rows) >= PLAN_MAX_WAITING_PRS) out = out.filter((r) => !!r.projectId);
+  const max = plan.settings.autonomous?.maxCostUsd;
+  if (typeof max === "number" && out.length) {
+    const finished = rows.filter((r) => r.state === "done" && r.projectId && !r.existing).map((r) => projects.get(r.projectId!)?.costUsd ?? 0);
+    const inFlight = rows.filter((r) => IN_FLIGHT_ROW_STATES.includes(r.state) || r.state === "question").length;
+    out = out.slice(0, rowsWithinCost({ maxCostUsd: max, spentUsd: await planSpendUsd(plan, rows, projects), inFlight, perRowUsd: perRowCostUsd(finished) }));
+  }
+  return out;
+}
+
+/**
+ * A flow plan asks a re-plan job for proposals once its first row is done, then each time a tenth of the rows it builds
+ * (at least one) have finished since the last one; the rows are not re-ordered (they start by `flowPlan`'s order, which
+ * already uses the anchors the finished rows actually used).
+ */
+async function replanAfterProgress(plan: PlanRecord, rows: PlanRowRecord[]) {
+  if (isOpenPlanJob(plan.replan)) return;
+  const done = rows.filter((r) => r.state === "done" && !r.existing).length;
+  if (!flowReplanDue(rows, plan.replanDone ?? null)) return;
+  const values: Partial<PlanRecord> = {
+    replanDone: done,
+    lastReplanWave: plan.activeWave ?? null,
+    replan: { kind: "replan", jobId: null, status: "waiting", requestedAt: nowIso(), requestedBy: RUNNER, wave: plan.activeWave ?? null, locale: plan.settings.locale },
+  };
+  await updatePlan(plan.planId, values);
+  Object.assign(plan, values);
+}
+
 // --- step ------------------------------------------------------------------------------------------------------------
 
 /**
@@ -922,13 +971,19 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
     if (openJob(plan.replan) && (await followReplan(plan, result))) rows.splice(0, rows.length, ...(await listRows(planId, true)));
 
     if (plan.status === "RUNNING") {
+      const flow = isFlowPlan(plan);
       if (plan.ordering === "auto") {
         await readUsedAnchors(plan, rows);
-        await replanAfterWave(plan, rows, limits);
+        if (flow) await replanAfterProgress(plan, rows);
+        else await replanAfterWave(plan, rows, limits);
       }
       // with a Canon: each seed holds the later waves until its pull request is approved, and too many waiting pull
-      // requests hold back a new wave
-      const wave = cs ? nextActiveWave(rows, plan.activeWave ?? null, { seedGate: true, holdNewWave: waitingPrs(rows) >= PLAN_MAX_WAITING_PRS }) : nextActiveWave(rows, plan.activeWave ?? null);
+      // requests hold back a new wave. A flow plan has no wave barrier: its active wave is only the earliest unfinished one
+      const wave = flow
+        ? flowActiveWave(rows, plan.activeWave ?? null)
+        : cs
+          ? nextActiveWave(rows, plan.activeWave ?? null, { seedGate: true, holdNewWave: waitingPrs(rows) >= PLAN_MAX_WAITING_PRS })
+          : nextActiveWave(rows, plan.activeWave ?? null);
       if (wave !== (plan.activeWave ?? null)) {
         await updatePlan(planId, { activeWave: wave });
         plan.activeWave = wave;
@@ -939,7 +994,13 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
       // is left in flight
       const auto = isAutonomous(plan);
       const capped = auto && (await costLimitReached(plan, rows, projects));
-      const candidates = capped ? [] : cs ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows)) : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
+      const candidates = capped
+        ? []
+        : flow
+          ? await flowCandidates(plan, rows, projects, !!cs)
+          : cs
+            ? oneSeedAtATime(rows, rowsToStart(rows, wave, PLAN_LIMITS.maxRows))
+            : rowsToStart(rows, wave, PLAN_LIMITS.maxRows);
       const replanWaits = !capped && plan.replan?.status === "waiting";
       // a decision job that failed waits for its back-off before it is asked again
       const reviewsWanted = cs?.canon ? rows.filter((r) => r.state === "review" && r.aiReview === "wanted" && retryDue(r, now)) : [];
@@ -963,6 +1024,8 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
       } else if (candidates.length || replanWaits || reviewsWanted.length || answers.length || rowJobs.length) {
         const active = await slotJobs();
         let slots = freeSlots(await limits(), active, plan.ownerUserId);
+        // a flow plan's own AI jobs hold at most a third of the slots while rows wait to start (no cap otherwise)
+        let control = flow && candidates.length ? controlSlotCap((await limits()).effective) - active.filter((j) => isControlJob(j, planId)).length : Infinity;
         if (slots > 0) {
           const gate = await runGate(plan, owner);
           if (!gate.ok) {
@@ -981,12 +1044,13 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
               }
             }
             for (const { row, kind } of rowJobs) {
-              if (slots <= 0) break;
+              if (slots <= 0 || control <= 0) break;
               if ((await getPlan(planId, true))?.status !== "RUNNING") break;
               try {
                 const input = await rowJobInput(plan, row, rows, kind, newRowJobId(), projectOf(row), cs?.canon ?? null);
                 if (!(await queueRowJob(plan, row, input, owner!, gate))) continue;
                 slots--;
+                control--;
                 result.changed++;
                 // cancelled while the job was being stored (the cancel found no job to stop yet): stop it now
                 if ((await getPlan(planId, true))?.status === "CANCELLED") await stopPlanJob(planId, input.jobId, "plan cancelled");
@@ -996,12 +1060,13 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
               }
             }
             // the re-plan job takes its slot before more rows start
-            if (replanWaits && (await getPlan(planId, true))?.status === "RUNNING") {
+            if (replanWaits && slots > 0 && control > 0 && (await getPlan(planId, true))?.status === "RUNNING") {
               try {
                 const state = await queuePlanJob(plan, "replan", plan.replan!, rows, owner!, gate, (await limits()).effective);
                 if (state) {
                   result.planJob = state.jobId ?? undefined;
                   slots--;
+                  control--;
                   // cancelled while the job was being stored (the cancel found no job to stop yet): stop it now
                   if ((await getPlan(planId, true))?.status === "CANCELLED") await stopPlanJob(planId, state.jobId, "plan cancelled");
                 }
@@ -1013,10 +1078,11 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
             }
             // then the AI reviews of body rows' pull requests, each on a slot of its own
             for (const row of reviewsWanted) {
-              if (slots <= 0) break;
+              if (slots <= 0 || control <= 0) break;
               if ((await getPlan(planId, true))?.status !== "RUNNING") break;
               if (!(await requestRowReview(plan, row, cs!.canon!, owner!, gate))) continue;
               slots--;
+              control--;
               result.changed++;
             }
             for (const row of candidates) {

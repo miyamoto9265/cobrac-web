@@ -1,4 +1,5 @@
 import type {
+  ModelProvider,
   BraVersionDetailResponse,
   BraVersionDiffResponse,
   BradbRegisterResponse,
@@ -75,6 +76,9 @@ import type {
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
 
+/** `?provider=anthropic` for the Anthropic key (Claude models); nothing for the OpenAI key. */
+const providerQuery = (p: ModelProvider) => (p === "anthropic" ? "?provider=anthropic" : "");
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -113,11 +117,12 @@ export const api = {
   me: () => request<MeResponse>("GET", "/users/me"),
   updateMe: (b: { displayName?: string; contributorName?: string; defaultModel?: string | null; defaultReasoningEffort?: ReasoningEffort | null; defaultCanonId?: string | null }) =>
     request<MeResponse>("PUT", "/users/me", b),
-  apiKeyStatus: () => request<{ registered: boolean; last4: string | null }>("GET", "/users/me/apikey/status"),
-  setApiKey: (apiKey: string) => request<{ registered: boolean; last4: string; models: string[] }>("PUT", "/users/me/apikey", { apiKey }),
+  apiKeyStatus: (provider: ModelProvider = "openai") => request<{ registered: boolean; last4: string | null }>("GET", `/users/me/apikey/status${providerQuery(provider)}`),
+  setApiKey: (apiKey: string, provider: ModelProvider = "openai", workspaceId?: string) =>
+    request<{ registered: boolean; last4: string; models: string[] }>("PUT", `/users/me/apikey${providerQuery(provider)}`, { apiKey, ...(workspaceId ? { workspaceId } : {}) }),
   models: () => request<ModelsResponse>("GET", "/users/me/models"),
   usage: () => request<UsageSummary>("GET", "/users/me/usage"),
-  deleteApiKey: () => request<{ registered: boolean }>("DELETE", "/users/me/apikey"),
+  deleteApiKey: (provider: ModelProvider = "openai") => request<{ registered: boolean }>("DELETE", `/users/me/apikey${providerQuery(provider)}`),
 
   listProjects: (q?: string, status?: string) => {
     const p = new URLSearchParams();
@@ -248,9 +253,10 @@ export const api = {
   adminConcurrency: () => request<ConcurrencyStatus>("GET", "/admin/concurrency"),
   adminSetConcurrency: (b: UpdateConcurrencyRequest) => request<ConcurrencyStatus>("PUT", "/admin/concurrency", b),
   adminUpdateUser: (id: string, b: AdminUpdateUserRequest) => request<{ ok: true }>("PUT", `/admin/users/${id}`, b),
-  adminDefaultKey: () => request<DefaultKeyStatus>("GET", "/admin/default-api-key"),
-  adminSetDefaultKey: (apiKey: string) => request<DefaultKeyStatus>("PUT", "/admin/default-api-key", { apiKey }),
-  adminDeleteDefaultKey: () => request<DefaultKeyStatus>("DELETE", "/admin/default-api-key"),
+  adminDefaultKey: (provider: ModelProvider = "openai") => request<DefaultKeyStatus>("GET", `/admin/default-api-key${providerQuery(provider)}`),
+  adminSetDefaultKey: (apiKey: string, provider: ModelProvider = "openai", workspaceId?: string) =>
+    request<DefaultKeyStatus>("PUT", `/admin/default-api-key${providerQuery(provider)}`, { apiKey, ...(workspaceId ? { workspaceId } : {}) }),
+  adminDeleteDefaultKey: (provider: ModelProvider = "openai") => request<DefaultKeyStatus>("DELETE", `/admin/default-api-key${providerQuery(provider)}`),
   adminOrgUsage: () => request<OrgUsageResponse>("GET", "/admin/org-usage"),
   adminSpec: () => request<SpecResponse>("GET", "/admin/spec"),
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),

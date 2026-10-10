@@ -188,6 +188,21 @@ export function generatePlanProposalId(random?: () => number): string {
  */
 export type PlanOrdering = "manual" | "auto";
 
+/**
+ * How the runner starts rows. waves: a wave starts once the earlier ones are finished (plans ordered by hand, and plans
+ * confirmed before flow scheduling). flow: every row that may start now starts on a free slot, whatever its wave (see
+ * planFlow.ts); waves only set the order.
+ */
+export type PlanScheduling = "waves" | "flow";
+export const isFlowPlan = (p: Pick<PlanRecord, "scheduling">) => p.scheduling === "flow";
+
+/** Why a waiting row has not started (computed on read): what it waits for, and the rows it waits on. */
+export type PlanRowWaitKind = "dependency" | "seed" | "overlap" | "slot" | "prs" | "cost";
+export interface PlanRowWait {
+  kind: PlanRowWaitKind;
+  rowIds: string[];
+}
+
 /** One row the `plan` job could not read from a goal or an attachment, with the reason. */
 export interface PlanUnread {
   source: string;
@@ -238,6 +253,8 @@ export interface PlanEstimate {
   rows: number;
   seedRows: number;
   waves: number;
+  /** Flow plans: lanes of the rows */
+  lanes?: number;
   concurrency: number;
   minutes: number;
   costUsd: { min: number; max: number };
@@ -256,6 +273,10 @@ export interface PlanRecord {
   policy?: string;
   /** Absent on stage-1 plans = manual */
   ordering?: PlanOrdering;
+  /** Set at confirmation: flow for plans ordered automatically; absent = waves */
+  scheduling?: PlanScheduling;
+  /** Flow plans: rows done when the last re-plan job was asked for (the next one waits for a tenth of the rows more) */
+  replanDone?: number | null;
   /** Capability lists (attached at creation or added to the draft), under `plans/{planId}/attachments/files/` (read by the `plan` job) */
   attachments?: FileAttachment[];
   /** Attachments ever added (the next file is `f<n+1>`): a removed file's ID and key are never used again */
@@ -555,6 +576,10 @@ export interface PlanRowView extends PlanRowRecord {
   hub?: number;
   /** Other rows sharing at least `OVERLAP_LIMIT` anchors with this one: never in the same wave (computed on read) */
   overlaps?: string[];
+  /** Flow plans: the row's lane (computed on read) */
+  lane?: number;
+  /** Flow plans: why a waiting row has not started (computed on read) */
+  wait?: PlanRowWait | null;
 }
 
 export interface EffectiveLimits {
@@ -566,6 +591,8 @@ export interface EffectiveLimits {
 
 export interface PlanDetailResponse {
   plan: PlanRecord;
+  /** Flow plans: slots in use now (the owner's jobs; `orchestrator` of them are the plan's own AI jobs) */
+  slots?: { used: number; orchestrator: number; limit: number } | null;
   rows: PlanRowView[];
   events: PlanEventRecord[];
   limits: EffectiveLimits;
@@ -593,6 +620,8 @@ export interface PlanPulseEvent extends Pick<PlanEventRecord, "sk" | "type" | "a
 export interface PlanPulse {
   /** Rows of each wave by state, waves ascending */
   waves: { wave: number; counts: Partial<Record<PlanRowState, number>> }[];
+  /** Flow plans: rows of each lane by state, lanes ascending */
+  lanes?: { lane: number; counts: Partial<Record<PlanRowState, number>> }[];
   /** Rows being built (starting / running) */
   running: PlanPulseRow[];
   /** Rows that wait on the owner (question / review / decision / attention) */

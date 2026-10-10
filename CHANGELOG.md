@@ -5,6 +5,24 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-10
+
+### Added
+- Claude models: jobs can run on Claude Fable 5.1, Claude Opus 5.5, Claude Sonnet 5.5 and Claude Haiku 5.5 (`claude-fable-5-1`, `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5`) as well as the OpenAI models, with the same harness, turns and outputs. The worker runs them on the Claude Agent SDK; a project whose model changes provider continues in a new conversation
+- Anthropic API keys: Settings has an "Anthropic API key" card (for approved users, "Your own Anthropic API key (optional)"), and the admin page has a "Default Anthropic API key". Keys are checked with Anthropic and encrypted as the OpenAI keys are. A key that is not tied to one workspace can be registered with its workspace ID. Approved Tier 1 users can use Claude Haiku 5.5 through the default Anthropic key, Tier 2 users all four Claude models; a user's own key always wins. Until an admin registers the default Anthropic key, approved users see the card open and asking for their own key to use the Claude models
+- Prices of the Claude models, including prompt-cache writes, so their jobs show estimated costs
+
+### Changed
+- The rate-limit notice of a turn no longer names OpenAI ("Rate limit: resuming the turn…"), since it also covers Anthropic
+
+## [0.44.0] - 2026-10-10
+
+### Changed
+- CoBRAC Orchestrator: plans ordered automatically run as a flow instead of wave by wave. A row starts as soon as the rows it depends on are merged into the Canon, no unfinished baseline project shares a circuit with it, and no row being built overlaps it strongly (shares its ROI and more); a slot freed by any row is filled at once. Baseline projects that share no circuit are built side by side. Waves stay as hints of priority; rows with more rows depending on them start first. Plans ordered by hand, and plans confirmed before this change, keep running wave by wave
+- CoBRAC Orchestrator: the Orchestrator's own AI jobs (answers, decisions, re-plans) use at most a third of the plan's slots (2 of 6) while rows wait, so building rows keeps most of them. Re-plans of a flow plan come after the first row is done, then each time a tenth of the rows finishes
+- CoBRAC Orchestrator: an autonomous run keeps its cost limit by reserving half a row for each row being built, priced from the plan's own finished rows once 5 are done
+- CoBRAC Orchestrator: the page of a flow plan shows its lanes (rows that build related circuits) as a map with a tile per row: done, running (flowing), needs you (beating), next (outlined) and waiting. Clicking a tile scrolls to its row. The summary shows the slots in use (rows in blue, the Orchestrator's AI in violet), the rows are listed by lane, and a waiting row says what it waits for (for example 「syntactic processing の後」 or 「次に開始」). The plan list's progress bar goes by lane, and a draft ordered automatically shows its estimate as a flow with its number of lanes
+
 ## [0.43.0] - 2026-10-10
 
 ### Changed

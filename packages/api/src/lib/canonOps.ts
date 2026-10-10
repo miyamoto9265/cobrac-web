@@ -71,6 +71,7 @@ import {
 import { actorName, aiState, isActiveJob, reviewJobsOf } from "./canonReview.js";
 import { getProject, listJobsForCanon, putJob, updateProject } from "./db.js";
 import { bad } from "./http.js";
+import { jobKeySource } from "./runs.js";
 
 // --- Canons ------------------------------------------------------------------------------------------------------------
 
@@ -243,7 +244,7 @@ export async function requestAiReview(
   u: UserRecord,
   canon: CanonRecord,
   pr: CanonPullRequestRecord,
-  policy: ModelPolicy & { source: KeySource },
+  policy: ModelPolicy,
   opts: { model: string; locale: UiLocale; /** decide: the decision job of an autonomous plan (自律実行) */ kind?: "assist" | "decide"; planId?: string | null },
 ): Promise<AiReviewResult> {
   if (pr.state !== "open") return { ok: false, reason: "closed", message: "閉じた取り込み依頼には AI レビューを実行できません" };
@@ -270,7 +271,7 @@ export async function requestAiReview(
     userId: u.userId,
     type: "canon-review",
     status: "QUEUED",
-    keySource: policy.source,
+    keySource: jobKeySource(policy, opts.model),
     instruction: null,
     pendingAnswer: null,
     reviewPrNo: pr.prNo,

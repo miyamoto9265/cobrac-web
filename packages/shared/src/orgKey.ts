@@ -1,17 +1,20 @@
 // ---------------------------------------------------------------------------
-// Default API key: approved users without their own OpenAI key run jobs with the organization's key, which an
-// admin registers on the admin page. It belongs to no user ("org" in the code: keySource, orgAccess, orgTier).
+// Default API key: approved users without their own key run jobs with the organization's key, which an admin registers
+// on the admin page. It belongs to no user ("org" in the code: keySource, orgAccess, orgTier). Each provider (OpenAI,
+// Anthropic) has its own default key and its own user key; one approval and tier cover both.
 // ---------------------------------------------------------------------------
 
 import type { TokenUsage } from "./pricing.js";
 import { DEFAULT_CODEX_MODEL } from "./pricing.js";
+import type { ModelProvider } from "./provider.js";
+import { CLAUDE_MODELS, DEFAULT_CLAUDE_MODEL, isClaudeModel } from "./provider.js";
 
 /** Tier 1: the low-cost models only (`ORG_TIER1_MODELS`). Tier 2: every model. */
 export type OrgTier = 1 | 2;
 
 export const ORG_TIERS: readonly OrgTier[] = [1, 2];
 
-export const ORG_TIER1_MODELS: readonly string[] = ["gpt-6-luna", "gpt-5.6-luna"];
+export const ORG_TIER1_MODELS: readonly string[] = ["gpt-6-luna", "gpt-5.6-luna", "claude-haiku-5-5"];
 
 /** An admin's approval to run jobs with the default API key. */
 export interface OrgAccess {
@@ -33,6 +36,8 @@ export function orgTierAllows(tier: OrgTier, model: string): boolean {
 
 interface KeyHolder {
   apiKeyRegistered: boolean;
+  /** The user's own Anthropic key */
+  anthropicKeyRegistered?: boolean;
   orgAccess?: OrgAccess | null;
 }
 
@@ -46,26 +51,62 @@ export function keySourceOf(user: KeyHolder, defaultKeyAvailable: boolean): KeyS
   return null;
 }
 
-/** Models a user may choose: null = unrestricted (own key, or Tier 2). */
+/** The Anthropic key a job on a Claude model runs with: the user's own key, else the default Anthropic key. */
+export function claudeKeySourceOf(user: KeyHolder, defaultKeyAvailable: boolean): KeySource | null {
+  if (user.anthropicKeyRegistered) return "own";
+  if (user.orgAccess && isOrgTier(user.orgAccess.tier) && defaultKeyAvailable) return "org";
+  return null;
+}
+
+/** The Claude models a key source allows: every offered one with the user's own key or Tier 2, the low-cost one with Tier 1. */
+export interface ClaudePolicy {
+  source: KeySource | null;
+  allowed: readonly string[];
+}
+
+/** Models a user may choose: `allowed` null = every OpenAI model (own key, or Tier 2); Claude models per `claude`. */
 export interface ModelPolicy {
+  /** Key of the OpenAI models */
   source: KeySource | null;
   tier: OrgTier | null;
   allowed: readonly string[] | null;
+  claude: ClaudePolicy;
 }
 
-export function modelPolicyOf(user: KeyHolder, defaultKeyAvailable: boolean): ModelPolicy {
+export function modelPolicyOf(user: KeyHolder, defaultKeyAvailable: boolean, claudeDefaultKeyAvailable = false): ModelPolicy {
   const source = keySourceOf(user, defaultKeyAvailable);
-  if (source !== "org") return { source, tier: null, allowed: null };
-  const tier = user.orgAccess!.tier;
-  return { source, tier, allowed: tier === 1 ? ORG_TIER1_MODELS : null };
+  const claudeSource = claudeKeySourceOf(user, claudeDefaultKeyAvailable);
+  const tier = source === "org" || claudeSource === "org" ? user.orgAccess!.tier : null;
+  const claude: ClaudePolicy = {
+    source: claudeSource,
+    allowed: claudeSource === null ? [] : claudeSource === "org" && tier === 1 ? CLAUDE_MODELS.filter((m) => ORG_TIER1_MODELS.includes(m)) : CLAUDE_MODELS,
+  };
+  if (source !== "org") return { source, tier, allowed: null, claude };
+  return { source, tier, allowed: tier === 1 ? ORG_TIER1_MODELS.filter((m) => !isClaudeModel(m)) : null, claude };
 }
 
-export const policyAllows = (p: ModelPolicy, model: string): boolean => p.allowed === null || p.allowed.includes(model);
+/** The key source a job on `model` runs with. */
+export const sourceForModel = (p: ModelPolicy, model: string): KeySource | null => (isClaudeModel(model) ? p.claude.source : p.source);
+
+/** Whether some key can run jobs (an OpenAI or an Anthropic one). */
+export const canRunJobs = (p: ModelPolicy): boolean => p.source !== null || p.claude.source !== null;
+
+/**
+ * Whether the user may run `model`. A Claude model needs an Anthropic key; an OpenAI model needs an OpenAI key once the
+ * user has an Anthropic key (a user without any key keeps seeing every OpenAI model, as before).
+ */
+export function policyAllows(p: ModelPolicy, model: string): boolean {
+  if (isClaudeModel(model)) return p.claude.allowed.includes(model);
+  if (p.source === null && p.claude.source !== null) return false;
+  return p.allowed === null || p.allowed.includes(model);
+}
 
 /** A model the policy allows for an implicit choice (user default, deployment default): `preferred` if allowed, else the first allowed. */
 export function allowedDefaultModel(p: ModelPolicy, preferred: string): string {
   if (policyAllows(p, preferred)) return preferred;
-  return p.allowed!.includes(DEFAULT_CODEX_MODEL) ? DEFAULT_CODEX_MODEL : p.allowed![0];
+  if (p.source === null && p.claude.allowed.length) return p.claude.allowed.includes(DEFAULT_CLAUDE_MODEL) ? DEFAULT_CLAUDE_MODEL : p.claude.allowed[0];
+  if (p.allowed === null) return DEFAULT_CODEX_MODEL;
+  return p.allowed.includes(DEFAULT_CODEX_MODEL) ? DEFAULT_CODEX_MODEL : p.allowed[0];
 }
 
 /** Default-API-key usage of one user (GET /admin/org-usage). */
@@ -87,7 +128,7 @@ export interface OrgUsageRow {
  */
 export interface DefaultApiKeyRecord {
   kind: "config";
-  id: "default-api-key";
+  id: "default-api-key" | "default-anthropic-key";
   /** KMS ciphertext (base64) under `DEFAULT_KEY_ENCRYPTION_CONTEXT` */
   encryptedApiKey: string;
   last4: string;
@@ -102,6 +143,14 @@ export const DEFAULT_KEY_CATALOG_KEY = { kind: "config", id: "default-api-key" }
 
 /** KMS encryption context of the default API key; it has no userId, so no user's context can decrypt it. */
 export const DEFAULT_KEY_ENCRYPTION_CONTEXT: Readonly<Record<string, string>> = { purpose: "openai-api-key", scope: "default" };
+
+/** The default Anthropic key: the same record shape under its own Catalog id and encryption context. */
+export const DEFAULT_ANTHROPIC_KEY_CATALOG_KEY = { kind: "config", id: "default-anthropic-key" } as const;
+
+export const DEFAULT_ANTHROPIC_KEY_ENCRYPTION_CONTEXT: Readonly<Record<string, string>> = { purpose: "anthropic-api-key", scope: "default" };
+
+/** KMS `purpose` of a user's own key of each provider (with `userId` in the encryption context). */
+export const API_KEY_PURPOSE: Readonly<Record<ModelProvider, string>> = { openai: "openai-api-key", anthropic: "anthropic-api-key" };
 
 /** GET/PUT/DELETE /admin/default-api-key */
 export interface DefaultKeyStatus {
