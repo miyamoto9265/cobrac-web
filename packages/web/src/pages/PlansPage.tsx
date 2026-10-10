@@ -156,9 +156,10 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
         </div>
         {autonomous ? (
           <>
-            <p className="text-xs text-violet-700">{t("auto.summary")}</p>
             <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-violet-800">
-              {t("auto.cost")}
+              <span className="flex items-center gap-1">
+                {t("auto.cost")} <HelpTip text={`${t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })} ${t("auto.note")}`} />
+              </span>
               <input
                 type="number"
                 min={AUTONOMOUS_MAX_COST_RANGE.min}
@@ -171,7 +172,6 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
                 aria-invalid={!costOk}
               />
             </label>
-            <p className="text-xs text-violet-700">{t("auto.note")}</p>
           </>
         ) : (
           <p className="text-xs text-slate-600">{t("auto.off")}</p>

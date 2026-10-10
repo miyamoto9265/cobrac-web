@@ -33,17 +33,16 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
     <div className={`grid gap-3 rounded-xl border p-4 ${a ? "border-violet-200 bg-violet-50" : "border-slate-200"}`} data-testid="plan-autonomous-setting">
       <div className="grid gap-0.5">
         <h3 className={`flex items-center gap-1.5 font-semibold ${a ? "text-violet-800" : "text-slate-500"}`}>
-          <Wand2 size={16} aria-hidden /> {t("auto.label")}
+          <Wand2 size={16} aria-hidden /> {t("auto.label")} <HelpTip text={t("auto.help")} />
         </h3>
-        <p id={`${id}-help`} className={`text-sm ${a ? "text-violet-700" : "text-slate-600"}`}>
-          {a ? t("auto.help") : t("auto.off")}
-        </p>
+        {!a && <p className="text-sm text-slate-600">{t("auto.off")}</p>}
       </div>
       {a && (
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <label htmlFor={`${id}-cost`} className="text-sm font-semibold text-violet-800">
             {t("auto.cost")}
           </label>
+          <HelpTip text={t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })} />
           <input
             id={`${id}-cost`}
             type="number"
@@ -55,11 +54,7 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
             // inputCls is full width: the limit is a short number field
             className={`${inputCls.replace("w-full", "w-28")} bg-white`}
             aria-invalid={!ok(cost)}
-            aria-describedby={`${id}-cost-hint`}
           />
-          <span id={`${id}-cost-hint`} className="text-xs text-violet-700">
-            {t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })}
-          </span>
         </div>
       )}
       {afterDraft && (

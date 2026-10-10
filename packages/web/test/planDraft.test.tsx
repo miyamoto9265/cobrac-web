@@ -811,7 +811,9 @@ describe("the draft page", () => {
     expect(q('[data-testid="plan-settings"] h2')!.nextElementSibling).toBe(card);
     expect(card.className).not.toContain("violet");
     // the title is 自律実行; it is off, and the checkbox under it says the owner handles the plan
-    expect(q("h3", card)!.textContent).toBe(" 自律実行");
+    expect(q("h3", card)!.textContent).toMatch(/^ 自律実行/);
+    // what it does is behind the (?) next to the title, not a paragraph
+    expect(q("h3 [data-helptip]", card)).not.toBeNull();
     expect(card.textContent).toContain("オフ: PR の承認や衝突、質問にはご自身で対応します。");
     const sw = q<HTMLInputElement>('[data-testid="plan-manual-switch"]', card)!;
     expect(sw.closest("label")!.textContent).toContain("PR の承認や衝突にご自身で対応する");
@@ -831,6 +833,7 @@ describe("the draft page", () => {
     expect(on.className).toContain("bg-violet-50");
     expect(q<HTMLInputElement>('[data-testid="plan-manual-switch"]', on)!.checked).toBe(false);
     expect(on.textContent).toContain("オーケストレーターが人の代わりになって、最後まで進めます。");
+    expect(qa("p", on).some((p) => p.textContent?.includes("オーケストレーターが人の代わりになって"))).toBe(false);
     // the cost limit comes before the secondary checkbox
     expect(q('input[type="number"]', on)!.compareDocumentPosition(q('[data-testid="plan-manual-switch"]', on)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(on.textContent).toContain("1〜1000。達すると新しい行を始めず、動いている行が終わったら一時停止します。");

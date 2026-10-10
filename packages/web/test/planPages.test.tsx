@@ -215,7 +215,9 @@ describe("plan list", () => {
     await act(async () => button("Paste rows")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
-    expect(q('[data-testid="plan-autonomous"]')!.textContent).toContain("The Orchestrator approves pull requests, settles conflicts and answers questions for you, and runs the plan to the end.");
+    // the explanations are behind the (?) tips: no paragraph in the box
+    expect(document.querySelectorAll('[data-testid="plan-autonomous"] p')).toHaveLength(0);
+    expect(document.querySelectorAll('[data-testid="plan-autonomous"] [data-helptip]')).toHaveLength(3);
     // 自律実行 and its cost limit come first; handling the plan yourself is the checkbox below them
     expect(q('[data-testid="plan-autonomous"] input[type="number"]')!.compareDocumentPosition(q('[data-testid="plan-manual"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(button("Create plan")).toBeUndefined();

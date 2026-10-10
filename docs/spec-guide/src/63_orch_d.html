@@ -18,7 +18,7 @@
 <ul>
   <li><b>作成</b>：<code>POST /plans</code> に <code>autonomous: { maxCostUsd? }</code> を付けます。自律実行の計画は下書きの作成から始めるので <code>draft: true</code> が必要です（無ければ 400）。費用の上限は 1〜1000 USD（<code>AUTONOMOUS_MAX_COST_RANGE</code>）、省くと 20 USD（<code>AUTONOMOUS_DEFAULT_MAX_COST_USD</code>）。<code>canon</code> を省くと、計画の名前で新しい Canon を作る選択（<code>{ mode: "new", name }</code>）になります。</li>
   <li><b>下書きの間</b>：<code>PUT /plans/{id}</code> <code>{ settings: { autonomous: { maxCostUsd } | null } }</code> でオン・オフと上限を変えられます。確定後は変えられません（上限の引き上げは再開で行う）。</li>
-  <li><b>画面</b>：新しい計画のフォームは「自律実行」の区切りを先に置き、既定で説明と費用の上限の欄と「自律実行で開始」を出します。その下の副次のチェックボックス「PR の承認や衝突にご自身で対応する」をオンにすると、自律実行を使わず、「計画を作る」「下書きを作成」が代わりに出ます（Web は <code>autonomous</code> を送りません）。下書きの画面の「3. 進め方」の一番上にも同じ順の「自律実行」のカード（見出し・説明・自律実行のときの上限の欄、その下に同じチェックボックス。オンで <code>autonomous: null</code>、オフで <code>{ maxCostUsd }</code>）があります（6.7）。API は従来どおり、<code>autonomous</code> を付けた依頼だけを自律実行の計画にします。計画の一覧と計画の画面には「自律実行」の印、確定後の設定には「自律実行: 費用の上限 $n」が出ます。</li>
+  <li><b>画面</b>：新しい計画のフォームは「自律実行」の区切りを先に置き、既定で費用の上限の欄と「自律実行で開始」を出します（説明は見出しと上限の欄の (?) に置き、本文には出しません）。その下の副次のチェックボックス「PR の承認や衝突にご自身で対応する」をオンにすると、自律実行を使わず、「計画を作る」「下書きを作成」が代わりに出ます（Web は <code>autonomous</code> を送りません）。下書きの画面の「3. 進め方」の一番上にも同じ順の「自律実行」のカード（見出しと (?) の説明・自律実行のときの上限の欄、その下に同じチェックボックス。オンで <code>autonomous: null</code>、オフで <code>{ maxCostUsd }</code>）があります（6.7）。API は従来どおり、<code>autonomous</code> を付けた依頼だけを自律実行の計画にします。計画の一覧と計画の画面には「自律実行」の印、確定後の設定には「自律実行: 費用の上限 $n」が出ます。</li>
 </ul>
 
 <h3>下書きと確定</h3>
