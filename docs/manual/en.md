@@ -218,7 +218,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 ## Settings
 
-"Settings" in the sidebar has:
+Settings, the gear icon next to your email address at the bottom of the sidebar, has:
 
 - **OpenAI API key**: whether you can run jobs, and registering, updating or deleting your own key
 - **Profile**: display name and Contributor name (written to Project.csv and the xlsx; English is recommended)
@@ -226,7 +226,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 - **Change password**
 - **Language**
 
-The display language and the theme (light or dark) can also be switched at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
+To sign out, press the icon to the right of the gear. The display language and the theme (light or dark) can also be switched at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
 
 ## Troubleshooting
 
