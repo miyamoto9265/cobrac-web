@@ -106,7 +106,7 @@
 <ul>
   <li>ファイルはブラウザから保存先の S3 に直接送ります。プロジェクトを作るときに、API が送られたファイルの存在と大きさを検査し直してから、プロジェクトに移します。</li>
   <li>ワーカーは最初の実行で一度だけ、PDF と Office の文書から本文を抜き出し、URL の中身を取得します。結果は保存して、後の実行で再利用します。抜き出しに失敗した項目には失敗の印を付けるだけで、ジョブは続けます。</li>
-  <li>エージェントには資料の一覧と本文を渡し、依頼文の先頭で資料があることを伝えます。画像は、新しい会話（Codex のスレッド）の最初の依頼に添付します。</li>
+  <li>エージェントには資料の一覧と本文を渡し、依頼文の先頭で資料があることを伝えます。画像は、新しい会話の最初の依頼に添付します。</li>
   <li>プロジェクト画面のヘッダーには資料の一覧が出ます。ファイルは元の名前でダウンロードでき、URL は新しいタブで開きます。</li>
 </ul>
 
@@ -135,7 +135,7 @@
 </table>
 <ul>
   <li>ID は全体で一意で、一度使った ID は再利用しません。作成に失敗したプロジェクトや削除したプロジェクトの ID も同じです。</li>
-  <li>以前の形式の ID を持つプロジェクトと Canon も、そのまま使えます（付録 C）。</li>
+  <li>古い形式の ID を持つプロジェクトと Canon の扱いは、付録 C にまとめます。</li>
   <li>BRA の版の ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です（4.5）。</li>
   <li>S3 のキーとワーカーの作業ディレクトリには、名前ではなく ID だけを使います。</li>
 </ul>
@@ -168,7 +168,7 @@
 
 <h3>実装</h3>
 <ul>
-  <li>ID の検査は <code>PROJECT_ID_REGEX</code> / <code>isValidProjectId</code>、<code>CANON_ID_REGEX</code> / <code>isCanonId</code>、<code>PLAN_ID_REGEX</code> / <code>isPlanId</code> が行います。乱数はプラットフォームの暗号論的乱数です。</li>
+  <li>新しく発行する ID の形は <code>RANDOM_PROJECT_ID_REGEX</code>、<code>RANDOM_CANON_ID_REGEX</code>、<code>PLAN_ID_REGEX</code> です。ID の検査は <code>PROJECT_ID_REGEX</code> / <code>isValidProjectId</code>、<code>CANON_ID_REGEX</code> / <code>isCanonId</code>、<code>isPlanId</code> が行い、前の 2 つは付録 C の <code>&lt;userKey&gt;-&lt;番号&gt;</code> の形も受け付けます。乱数はプラットフォームの暗号論的乱数です。</li>
   <li>一意性：API は乱数の ID を引き、Catalog に <code>kind = id</code> の行を条件付き Put（<code>attribute_not_exists(id)</code>）で書いて予約します。取られていれば引き直します（5 回まで）。予約できてから参考資料を移し、プロジェクトを <code>attribute_not_exists(projectId)</code> で Put します。Projects テーブルは <code>userId</code> がキーなので、この条件は呼んだ人のプロジェクトしか見ません。全体での一意性は予約の行が保ちます。予約は消さないので、ID は再利用されません。Canon（<code>type = canon</code>）と計画（<code>type = plan</code>）も同じように予約します。利用者ごとの番号 <code>projectSeq</code> / <code>canonSeq</code> は使いません。</li>
   <li><code>GET /projects</code> は、呼んだ人のプロジェクトを <code>createdAt</code> の新しい順に返し、同じ時刻なら ID の順にします。<code>limit</code>（既定 100）と <code>cursor</code>（この順の中の位置）でページを送ります。</li>
   <li>名前の出どころは <code>nameSource</code> です。仮の名前は <code>provisional</code>、エージェントの名前は <code>auto</code>（<code>meta.json</code> の <code>name</code> から）、利用者の名前は <code>user</code> です。ワーカーが置き換えるのは <code>provisional</code> か <code>auto</code> のときだけです。</li>
@@ -244,11 +244,11 @@
 <table>
   <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
   <tbody>
-    <tr><td>番号と ID</td><td>版の番号 <code>n</code> は、ジョブを終えた後のプロジェクトの rev である。そのため、ほかの場所に保存した番号（複製元の番号、Canon が記録したプロジェクトの番号、解説記事の元になった番号）は、そのまま版を指す。全体で一意な ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（Project ID は再利用されない）</td></tr>
+    <tr><td>番号と ID</td><td>版の番号 <code>n</code> は、ジョブを終えた後のプロジェクトの改訂番号である。そのため、ほかの場所に保存した番号（複製元の番号、Canon が記録したプロジェクトの番号、解説記事の元になった番号）は、そのまま版を指す。全体で一意な ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（Project ID は再利用されない）</td></tr>
     <tr><td>親</td><td>版 <code>n-1</code>。複製したプロジェクトの最初の版では、コピー元の公開プロジェクトの版が親になる</td></tr>
     <tr><td>凍結する内容</td><td>ワーカーの作業ディレクトリのデータ（HCD・FRG・CSV のデータ、レポート、判断ログ、検査結果。ログの <code>*.jsonl</code> は除く）、xlsx、グラフの JSON、BRA-DB の登録パッケージ、版の記録（manifest）</td></tr>
     <tr><td>変更できないこと</td><td>ファイルを先に、manifest を最後に、上書きできない方法で書く。manifest がある版だけが存在し、置き換えられない。同じジョブで凍結をもう一度行うと、既存の版を返す。別のジョブが作った同じ番号の版には触れず、そのことを記録する。凍結に失敗しても記録するだけで、ジョブは失敗にしない。版のファイルは、S3 のバケットのポリシーでだれも削除できない</td></tr>
-    <tr><td>生成条件</td><td>版の記録には、その版を作った条件を残す：アプリのバージョンと git commit、指示書と JSON Schema のハッシュ、モデル、推論の強さ、調査モード、固定した Canon の rev、HCD の検査が従った SABRA の境界とその版、検査の規則の番号、CSV の形式、計画から作ったときはその計画。仮説モードでは、根拠のモード・仮説の範囲・上限・仮説の件数も残す（3.12）</td></tr>
+    <tr><td>生成条件</td><td>版の記録には、その版を作った条件を残す：アプリのバージョンと git commit、指示書と JSON Schema のハッシュ、モデル、推論の強さ、調査モード、固定した Canon の rev、HCD の検査が従った SABRA の境界とそのバージョン、検査の規則の世代、CSV の形式、計画から作ったときはその計画。仮説モードでは、根拠のモード・仮説の範囲・上限・仮説の件数も残す（3.12）</td></tr>
     <tr><td>内容のハッシュ</td><td>5 つの CSV（Project・References・Circuits・Connections・FRG）から計算する。BRA-DB に入るのはこの 5 つなので、データが同じならファイルの名前や詰め方によらず同じハッシュになる</td></tr>
     <tr><td>親との差分</td><td>表ごとに、追加・削除・変更した行の数を要約して残す。親の版のファイルがなければ要約はない</td></tr>
     <tr><td>登録パッケージ</td><td>5 つの CSV がそろうときだけ作る。BRA-DB の登録だけが読む内部のもので、ダウンロードには出さない（第 7 部）</td></tr>
@@ -290,7 +290,7 @@
 <table class="compact">
   <thead><tr><th style="width:18%">区分</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>公開するもの</td><td>名前、ROI、TLF、Contributor、rev、レポート、判断ログ、HCD・FRG の JSON（回路の一覧）、グラフの JSON、解説記事。所有者は仮名の <code>userKey</code> で示す</td></tr>
+    <tr><td>公開するもの</td><td>名前、ROI、TLF、Contributor、改訂番号、レポート、判断ログ、HCD・FRG の JSON（回路の一覧）、グラフの JSON、解説記事。所有者は仮名の <code>userKey</code> で示す</td></tr>
     <tr><td>公開しないもの</td><td>エージェント欄の履歴と会話、ジョブ、トークンの使用量と費用、参考資料、BRA の xlsx、グラフの配置、所有者のメールアドレスと利用者 ID</td></tr>
   </tbody>
 </table>
@@ -300,7 +300,7 @@
 <table class="compact">
   <thead><tr><th style="width:18%">項目</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>新しいプロジェクト</td><td>新しい Project ID。名前は元の名前に「 (clone)」を付けたもの。Contributor は元のまま。状態は完了。調査モード、SABRA の境界、検査の規則、仮説モードの設定を引き継ぐ。複製元の ID・その rev・所有者の <code>userKey</code>・名前・時刻を記録する</td></tr>
+    <tr><td>新しいプロジェクト</td><td>新しい Project ID。名前は元の名前に「 (clone)」を付けたもの。Contributor は元のまま。状態は完了。調査モード、SABRA の境界、検査の規則、仮説モードの設定を引き継ぐ。複製元の ID・その改訂番号・所有者の <code>userKey</code>・名前・時刻を記録する</td></tr>
     <tr><td>コピーするもの</td><td>作業ディレクトリのデータ（HCD・FRG・CSV のデータ、検査結果、レポート、判断ログ）、グラフの JSON、解説記事とその図。フォルダ名と、テキストファイルの中の元の Project ID は、語単位で新しい ID に書き換える</td></tr>
     <tr><td>コピーしないもの</td><td>エージェント欄の履歴、ジョブ、メッセージ、使用量、グラフの配置、参考資料、BRA の xlsx。xlsx は元の ID を含むので、xlsx の段階を未実行にしておき、フォローアップで作り直す</td></tr>
     <tr><td>複製の数</td><td>元の所有者には、プロジェクト画面と公開ライブラリで複製の数だけが見える。だれが複製したかは見えない</td></tr>
@@ -346,7 +346,7 @@
     <tr><td>管理画面</td><td>デフォルトの API キーで実行したジョブの、利用者ごとのトークン・推定費用・UTC の今月の費用・単価のないジョブの数</td></tr>
   </tbody>
 </table>
-<p>古いジョブの記録には、使用量を大きく数えたものがあります。API はそうした記録を返すときに補正し、画面はどこでも補正した値を出します（9.10）。BRA を 1 つ作るときの時間と費用の目安は 1.4 にあります。</p>
+<p>古いジョブの使用量の補正は付録 C にまとめます。BRA を 1 つ作るときの時間と費用の目安は 1.4 にあります。</p>
 <h3>実装</h3>
 <ul>
   <li>使用量は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code>、モデルは <code>model</code>、推定費用は <code>costUsd</code>（<code>estimateCostUsd()</code>）です。</li>

@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">序章</div>
   <h1 class="part" id="p0">この文書について</h1>
-  <p class="lead">この文書は、Web アプリ CoBRAC Agents の設計書です。回路の命名規則、BRA の作り方、プロジェクトと版、回路の定義をそろえる Canon、多数の BRA をまとめて作るオーケストレーター、BRA-DB への登録、そしてそれらを動かすシステムとセキュリティまでを、リポジトリのコードに基づいて 1 冊にまとめています。</p>
+  <p class="lead">この文書は、Web アプリ CoBRAC Agents の設計書で、リポジトリのコードに基づいて書いています。回路の命名規則、BRA の作り方、プロジェクトと版、回路の定義をそろえる Canon、多数の BRA をまとめて作るオーケストレーター、BRA-DB への登録、そしてそれらを動かすシステムとセキュリティまでを、1 冊にまとめています。</p>
 </div>
 
 <h2 id="s0-1">0.1 この文書の位置づけと読み方</h2>
@@ -61,9 +61,9 @@
   <thead><tr><th style="width:26%">LLM の仕事</th><th style="width:26%">ジョブ</th><th style="width:30%">使えるツール</th><th>詳しくは</th></tr></thead>
   <tbody>
     <tr><td>BRA を作る（CoBRAC エージェント）</td><td><code>initial</code>・<code>followup</code>（回答後の再開とリトライもこの会話を続ける）</td><td>Web 検索、<code>lit</code>、RCS、作業ディレクトリでのコマンド</td><td>第 3 部</td></tr>
-    <tr><td>解説記事を書く</td><td><code>article</code></td><td>なし</td><td>3.14</td></tr>
+    <tr><td>解説記事を書く</td><td><code>article</code></td><td>成果物を読むシェルだけ</td><td>3.14</td></tr>
     <tr><td>Canon の PR の AI レビューと判断</td><td><code>canon-review</code>（所見を出す <code>assist</code> と、自律実行で判断する <code>decide</code>）</td><td>なし</td><td>5.8、6.8</td></tr>
-    <tr><td>計画の下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS だけ</td><td>6.4、6.6、6.8</td></tr>
+    <tr><td>計画の下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS と添付資料の読み取り。回答と解決ではなし</td><td>6.4、6.6、6.8</td></tr>
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code></p>
@@ -133,6 +133,6 @@
   <li>「（3.4）」のような番号は、この文書の節の番号です。</li>
   <li>数値（上限、時間、費用）は、表紙に書いたバージョンのコードの値です。</li>
   <li>前半の部では、コードの名前は節の最後の「実装」と「典拠」の段にまとめ、本文には書きません。典拠には、その節の内容を決めているファイルを挙げます。</li>
-  <li>本文は「です・ます」で書き、表は常体で書きます。</li>
+  <li>本文は「です・ます」で書き、表は常体か体言止めで書きます。</li>
 </ul>
 </section>
