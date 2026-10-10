@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import type { LambdaContext, LambdaEvent } from "hono/aws-lambda";
 import type {
   ResumePlanRequest,
+  AnswerDraftRequest,
   AdminUpdateUserRequest,
   AnswerRequest,
   ApproveManyRequest,
@@ -176,6 +177,7 @@ import { readHypothesisRequest, requireBradbRegistrable } from "./lib/hypothesis
 import {
   acceptProposal,
   cancelDraft,
+  answerDraft,
   cancelPlan,
   confirmPlan,
   createPlan,
@@ -2082,6 +2084,13 @@ app.post("/plans/:id/draft", async (c) => {
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as DraftPlanRequest;
   return c.json(await requestDraft(u, plan, readLocale(body.locale)), 202);
+});
+
+/** The owner's answers to the Orchestrator's questions before the draft (or `skip`); the draft job is asked for again. */
+app.post("/plans/:id/draft/answers", async (c) => {
+  const u = c.get("user");
+  const body = (await c.req.json().catch(() => ({}))) as AnswerDraftRequest;
+  return c.json(await answerDraft(u, await loadOwnPlan(u, c.req.param("id")), body && typeof body === "object" ? body : {}), 202);
 });
 
 app.post("/plans/:id/draft/cancel", async (c) => {

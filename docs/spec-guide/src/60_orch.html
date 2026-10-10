@@ -181,7 +181,7 @@
   <li>添付ファイルを材料のフォルダにコピーし、xlsx と PDF の本文を、参考資料（4.2）と同じ方法で取り出します。</li>
   <li>RCS の MCP の 4 つのツールだけを使い、Web 検索も文献ツールも使わずに、LLM を 1 ターン動かします。RCS が設定されていない環境では、アンカーを空にしてその旨をメモに書くよう指示します。</li>
   <li>依頼文は、指示書 <code>prompts/plan.md</code>（付録 B）、仕事の種類（下書きか再計画か）、返答の言語、添付ファイルの索引、入力の JSON からなります。</li>
-  <li>返答は、決まった形の JSON のオブジェクト（行・読めなかった項目・方針・提案・メモ。すべて必須）だけです。読めなければ 1 回だけ頼み直します。</li>
+  <li>返答は、決まった形の JSON のオブジェクト（行・読めなかった項目・方針・提案・メモ・質問。すべて必須）だけです。読めなければ 1 回だけ頼み直します。</li>
 </ul>
 <table class="compact">
   <thead><tr><th style="width:26%">時間の予算</th><th>内容</th></tr></thead>
@@ -192,6 +192,17 @@
   </tbody>
 </table>
 <p>打ち切ったジョブや取り消したジョブも、使った分の使用量を記録します。ワーカーは 45 秒ごとにハートビートを送ります。結果は入力の隣の結果のファイルに書き、使用量・推定費用とともにジョブを完了にします。失敗したときは、エラーと使用量を記録してジョブを失敗にします。</p>
+
+<h3>下書きの前の質問</h3>
+<p>下書きのジョブは、行を書く前に所有者へ<b>0〜3 個の質問</b>を返せます。目標と資料だけでは、計画の範囲（どの機能・領域を入れるか、何行ほどか）・粒度・先に作る行が決まらないときに限ります。回答を受けて、もう 1 回だけ追加の質問を返せます。1 回あたり 3 個まで、合わせて 2 回までです。</p>
+<ol class="steps">
+  <li><b>質問の可否</b>：ランナーは下書きのジョブの入力に、質問してよいかどうかと、これまでの質問と回答を入れます。質問してよいのは、これまでの回数が 2 回未満で、所有者が質問を飛ばしていないときです。</li>
+  <li><b>質問を返す</b>：LLM は、決めかねることがあるときだけ、検索や資料の精読をせずにすぐ質問を返します。各質問は 1 文で、提案する答えを 2〜4 個付けられます。調べれば分かること、確認のためだけのこと、すでに答えのあることは聞きません。質問しないときは、回答に従って下書きを書きます。</li>
+  <li><b>検査</b>：質問してよい下書きのジョブの質問だけを残します。空の質問は除き、4 個目以降と長すぎる部分は切ります。質問が 1 つでも残れば、その返答の行は使いません。質問してはいけないジョブが返した質問は捨てて、除いた件数に数えます。</li>
+  <li><b>回答を待つ</b>：計画は下書き作成中のまま、下書きは「回答待ち」になり、質問の回を記録します。この間ランナーは何も積みません。答えられるのは所有者だけなので、自律実行の計画でも待ちます。計画の一覧の「あなたの番」には「オーケストレーターの質問に回答」が出ます。</li>
+  <li><b>回答</b>：画面には質問ごとに、提案の答えのボタンと入力欄が出ます。ボタンを押すと答えが欄に入り、書き換えることもできます。空欄の質問はオーケストレーターの判断に任せます。すべて空欄では送れません。「おまかせで進める」は質問を飛ばし、その下書きではそれ以上質問しません。回答を記録すると下書きは待機中に戻り、ランナーが次の下書きのジョブを積みます。</li>
+</ol>
+<p>答えた質問は、計画の画面の「作るもの」に「質問と回答 n」として折りたたんで残ります。下書きを新しく依頼すると、質問は最初からやり直します。回答を待つ間も「下書きを取り消す」で下書きに戻せます。</p>
 
 <h3>LLM への主な指示</h3>
 <table class="compact">
@@ -205,6 +216,7 @@
     <tr><td>粒度方針</td><td>計画のプロジェクトの回路をどの細かさで切るかを 1〜3 文で書く（あとで 1 つの Canon に入れられるように）。所有者の Canon に同じ分野のものがあれば、その方針を採る。入力の方針があれば、明らかに合わないとき以外は保つ</td></tr>
     <tr><td>長い一覧</td><td>全体で 30 行ほどを超えるときは、1 行あたりのアンカーを 3〜6 個にし、同じ領域は 1 回だけ検索して再利用し、理由とメモを短くする。それでも各項目に行か「読めなかった項目」を必ず付ける</td></tr>
     <tr><td>順序</td><td><b>並べない・バッチに分けない</b>（プログラムが計算する）</td></tr>
+    <tr><td>質問</td><td>質問してよいときだけ、範囲・粒度・先に作る行が決まらない場合に 0〜3 個。ふつうは 0 個。質問するときは検索せずにすぐ返し、ほかの欄は空にする</td></tr>
     <tr><td>その他</td><td>文章にモデル名を書かない。入力・添付・RCS だけを使い、Web を検索しない。時間の予算が厳しいので、検索を増やすより、根拠のあるアンカーを少なく付ける</td></tr>
   </tbody>
 </table>
@@ -248,13 +260,14 @@
 
 <h3>実装</h3>
 <ul>
-  <li><b>API</b>：依頼は <code>POST /plans/{id}/draft</code> <code>{ locale? }</code>、または作成時の <code>draft: true</code>。取り消しは <code>POST /plans/{id}/draft/cancel</code>（<code>DRAFTING</code> のときだけ）。</li>
-  <li><b>下書きの状態</b>：依頼で <code>waiting</code>、積むと <code>queued</code>、ワーカーが動くと <code>running</code>、適用で <code>done</code>（<code>unread</code> の一覧と <code>dropped</code> の数を持つ）、または <code>failed</code> / <code>cancelled</code>。失敗の理由のコードは <code>no_key</code> / <code>owner_disabled</code> / <code>model_not_allowed</code>。</li>
-  <li><b>イベント</b>：<code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>。</li>
+  <li><b>API</b>：依頼は <code>POST /plans/{id}/draft</code> <code>{ locale? }</code>、または作成時の <code>draft: true</code>。取り消しは <code>POST /plans/{id}/draft/cancel</code>（<code>DRAFTING</code> のときだけ）。質問への回答は <code>POST /plans/{id}/draft/answers</code> <code>{ answers?: string[], skip?: boolean }</code>（下書きが <code>asking</code> のときだけ。でなければ 409、すべて空欄なら 400）。</li>
+  <li><b>下書きの状態</b>：依頼で <code>waiting</code>、積むと <code>queued</code>、ワーカーが動くと <code>running</code>、質問を返すと <code>asking</code>（回答で <code>waiting</code> に戻る）、適用で <code>done</code>（<code>unread</code> の一覧と <code>dropped</code> の数を持つ）、または <code>failed</code> / <code>cancelled</code>。失敗の理由のコードは <code>no_key</code> / <code>owner_disabled</code> / <code>model_not_allowed</code>。</li>
+  <li><b>イベント</b>：<code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>・<code>draft_asked</code>・<code>draft_answered</code>。</li>
+  <li><b>質問</b>：上限は <code>PLAN_ASK_LIMITS</code>（1 回 3 個、2 回まで、提案の答え 4 個まで）。質問の回は下書きの状態の <code>qa</code>（<code>PlanDraftRound</code>：<code>questions</code>・<code>answers</code>・<code>askedAt</code>・<code>answeredAt</code>・<code>skipped</code>）。ジョブの入力は <code>ask</code>（<code>planMayAsk</code>）と <code>qa</code>（<code>planQaInput</code>。答えた回だけ、空欄は <code>""</code>）。</li>
   <li><b>ジョブ</b>：<code>type: "plan"</code>、<code>planJobKind: "draft"</code>、<code>projectId</code> には計画 ID を入れる。入力は <code>plans/{planId}/jobs/{jobId}/input.json</code>、結果はその隣の <code>result.json</code>。ワーカーのキーの解決は <code>planRunKey</code>。</li>
   <li><b>入力</b>：未読の添付は <code>{ id, name, key }</code> で渡す。完成したプロジェクトの印は <code>completed</code>。</li>
   <li><b>ワーカー</b>（<code>runPlanJob</code>）：<code>QUEUED</code> を条件に <code>RUNNING</code> にする。取り出した本文は <code>plans/{planId}/attachments/derived/</code> に残す。RCS のツールは <code>search_bna_candidates</code>・<code>search_homba_candidates</code>・<code>get_homba_term</code>・<code>get_sabra_definition</code>。依頼文は <code>planJobPrompt</code>、頼み直しは <code>PLAN_RETRY_PROMPT</code>。</li>
-  <li><b>返答の形</b>：<code>PLAN_RESULT_SCHEMA</code>（<code>rows</code>・<code>unread</code>・<code>policy</code>・<code>proposals</code>・<code>notes</code>）。結果のファイルは <code>PlanJobResult</code>（スキーマ <code>cobrac.plan-result/1</code>、種類、計画とジョブの ID、モデル、言語、時刻、検査した行・<code>unread</code>・方針・提案・<code>notes</code>・<code>dropped</code>）。新しい行の出所 <code>source</code> は、目標なら <code>goal</code>、入力の行なら <code>input</code>。</li>
+  <li><b>返答の形</b>：<code>PLAN_RESULT_SCHEMA</code>（<code>rows</code>・<code>unread</code>・<code>policy</code>・<code>proposals</code>・<code>notes</code>・<code>questions</code>）。結果のファイルは <code>PlanJobResult</code>（スキーマ <code>cobrac.plan-result/1</code>、種類、計画とジョブの ID、モデル、言語、時刻、検査した行・<code>unread</code>・方針・提案・<code>notes</code>・<code>dropped</code>）。新しい行の出所 <code>source</code> は、目標なら <code>goal</code>、入力の行なら <code>input</code>。</li>
   <li><b>時間の予算</b>：<code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）、<code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、行数のしきい値 <code>PLAN_JOB_SHORT_ROWS</code>（20）。打ち切ったターンの使用量はセッションのファイルから測り、SIGTERM のときはそこまでの使用量を記録する。</li>
   <li><b>検査</b>：<code>parsePlanResult</code>。入力の行は <code>ref</code>、新しい行は <code>id</code> で受け取る。アンカーの正規化は <code>normalizePlanAnchor</code>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）。上限は <code>MAX_ROW_ANCHORS</code>（40）・<code>MAX_PLAN_UNREAD</code>（200）・<code>MAX_PLAN_PROPOSALS</code>（30）。提案の種類は <code>add</code> / <code>remove</code> / <code>policy</code>。ランナーの再検査は <code>readPlanResult</code>。</li>
   <li><b>適用</b>：アンカーの出所は <code>anchorsSource: "predicted"</code>。既存のプロジェクトは結果の <code>existingProjectId</code>、なければ <code>matchExistingProject</code>。並べ方は <code>orderDraft</code> で、<code>ordering: "auto"</code> にする。</li>

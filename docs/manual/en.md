@@ -167,7 +167,8 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Cover the BRA of language").
 2. Under “Source list”, add files (CSV, xlsx, PDF and others) or choose “Paste rows” and paste them. One row is one project.
 3. "Start autonomous run" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the plan to the end on its own (the default). Turn on "Handle pull requests and conflicts yourself" to get "Create plan" (a plan from the rows read) and "Create draft" instead. None of them can be pressed without a goal, files or rows.
-4. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
+4. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
+5. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
 ### Ordering
 
@@ -206,7 +207,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 ### Questions, pause and cancel
 
 - When an agent asks a question, only its row stops, and the question appears under "Questions" on the plan page. Answering resumes that row.
-- "Pause" starts no new rows; running rows go on. "Resume" continues from where it stopped.
+- Each plan can be paused on its own, from the plan screen or with the button at the top right of its lane in the plan list. A paused plan starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled plan can be resumed.
 - Deleting a plan keeps the projects it created.
 

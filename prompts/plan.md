@@ -12,6 +12,8 @@ The prompt ends with the task of this job (DRAFT or REPLAN), the reply language 
 - `canons`: the owner's Canons (sets of projects whose circuit definitions must agree) with their granularity `policy`.
 - `concurrency`: how many rows run at once (for your sense of scale only).
 - `wave`: REPLAN only, the wave that has just finished.
+- `ask`: DRAFT only, true when you may ask the owner questions before you draft (see Questions before the draft).
+- `qa`: DRAFT only, the questions asked before this draft and the owner's answers, oldest round first (`answer` `""` = left open: decide it yourself).
 
 ## Attached files
 
@@ -52,6 +54,15 @@ Write the rows of the plan from the goal, the attached lists and the rows alread
 - **Do not order the rows** and do not group them into waves: the system computes the build order from `anchors`, `dependsOn` and `priority`. The order of `rows` in your reply does not matter.
 - **Long lists** (more than about 30 rows in all): the reply is long, so keep each row short. Use 3–6 anchors per row, look up each region once and reuse its ID for every row on it, and keep `rationale` to one short sentence and `notes` to a few lines. Every item still gets a row or an `unread` entry.
 
+## Questions before the draft
+
+When `ask` is true, decide first, before any search, whether the goal, the lists and `qa` leave open something that would change which rows you write: the scope (which functions or regions, how many rows), the granularity, or which rows come first. Ask only about that, never about what you can look up, settle with RCS, or reasonably assume.
+
+- Ask **0 to 3** questions. 0 is the usual answer: a clear goal or a capability list needs none. Never ask again what `qa` already answered, and never ask only to confirm.
+- Each question is one short sentence the owner can answer at a glance, polite and plain, in the reply language. `choices`: 2–4 short answers you suggest (the owner may write their own), or `[]` when only free text fits.
+- When you ask, reply at once with `questions` and nothing else: `rows`, `unread`, `proposals` `[]`, `policy` the input `policy`, `notes` `""`. Do not search or read the lists in depth first.
+- When you do not ask, or `ask` is false, `questions` is `[]` and you write the draft, following the answers in `qa`.
+
 ## Task REPLAN
 
 Wave `wave` has just finished. Rows with `state: "done"` and `anchorsSource: "used"` show the circuits their projects actually built. Propose changes only where these finished rows show that they are needed; often nothing is needed and `proposals` is `[]`.
@@ -60,7 +71,7 @@ Wave `wave` has just finished. Rows with `state: "done"` and `anchorsSource: "us
 - `remove`: a row that has not started (`state: "pending"`, `projectId` null, `existing` false) and that a finished row already covers. `rowId` = that row's ID; `roi`, `tlf`, `rationale` and `policy` `""`; `anchors` and `dependsOn` `[]`; `reason` names the finished row.
 - `policy`: only when the finished rows show that the policy does not fit (e.g. they had to cut circuits more finely than it says). `policy` = the whole new text; `rowId`, `roi`, `tlf` and `rationale` `""`; `anchors` and `dependsOn` `[]`; `reason`. At most one.
 - `reason`: one or two sentences naming the finished rows and what they show.
-- `rows` and `unread`: `[]`. `policy` (the top-level field): the input `policy` unchanged.
+- `rows`, `unread` and `questions`: `[]`. `policy` (the top-level field): the input `policy` unchanged.
 
 ## Reply
 
@@ -76,7 +87,8 @@ Reply with the JSON object of the output schema only: no text before or after it
   "proposals": [
     { "kind": "add", "rowId": "", "roi": "…", "tlf": "…", "rationale": "…", "anchors": ["BNA:…"], "dependsOn": [], "policy": "", "reason": "…" }
   ],
-  "notes": "…"
+  "notes": "…",
+  "questions": [{ "text": "…", "choices": ["…", "…"] }]
 }
 ```
 

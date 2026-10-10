@@ -213,10 +213,30 @@ export interface PlanUnread {
 export type PlanJobKind = "draft" | "replan";
 /**
  * waiting: requested, not yet queued (the runner queues it when a slot is free, never ahead of one). queued / running:
- * mirrors its job. done: its result was applied (draft) or stored as proposals (replan). failed / cancelled: ended
- * without a result (`error`).
+ * mirrors its job. asking: a draft job asked the owner questions before writing the rows (`qa`); the draft goes on
+ * once they answer or skip them. done: its result was applied (draft) or stored as proposals (replan). failed /
+ * cancelled: ended without a result (`error`).
  */
-export type PlanJobStatus = "waiting" | "queued" | "running" | "done" | "failed" | "cancelled";
+export type PlanJobStatus = "waiting" | "queued" | "running" | "asking" | "done" | "failed" | "cancelled";
+
+/** Questions the Orchestrator may ask before it drafts: at most `questions` per round, `rounds` rounds (the first, then follow-ups). */
+export const PLAN_ASK_LIMITS = { questions: 3, rounds: 2, choices: 4, question: 300, choice: 120, answer: 1000 } as const;
+
+/** One question of the Orchestrator before a draft, with answers it suggests (the owner may write their own). */
+export interface PlanDraftQuestion {
+  text: string;
+  choices: string[];
+}
+
+/** One round of questions before a draft and the owner's answers (null until answered; "" for a question left open). */
+export interface PlanDraftRound {
+  questions: PlanDraftQuestion[];
+  answers: string[] | null;
+  askedAt: string;
+  answeredAt?: string | null;
+  /** The owner chose to go on without answering: no more questions for this draft */
+  skipped?: boolean;
+}
 
 /** The latest `plan` job of a plan (draft or re-plan), on its `META` item. */
 export interface PlanJobState {
@@ -245,6 +265,8 @@ export interface PlanJobState {
   wave?: number | null;
   /** Reply language of the job */
   locale?: UiLocale | null;
+  /** Draft: the rounds of questions asked before it (the last one is open while `status` is asking) */
+  qa?: PlanDraftRound[];
 }
 
 export type PlanRowCounts = Record<PlanRowState, number>;
@@ -444,6 +466,8 @@ export type PlanEventType =
   | "draft_applied"
   | "draft_failed"
   | "draft_cancelled"
+  | "draft_asked"
+  | "draft_answered"
   | "ordered"
   | "replanned"
   | "replan_failed"
@@ -507,6 +531,12 @@ export interface CreatePlanRequest {
 }
 
 /** POST /plans/:id/resume: an autonomous plan paused at its cost limit resumes with a higher limit. */
+/** The owner's answers to the questions the Orchestrator asked before drafting (one per question), or `skip` to go on without them. */
+export interface AnswerDraftRequest {
+  answers?: string[];
+  skip?: boolean;
+}
+
 export interface ResumePlanRequest {
   maxCostUsd?: number;
 }
