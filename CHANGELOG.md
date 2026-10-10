@@ -9,6 +9,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Approved users no longer see the default API key or "Not registered". In Settings, their key card is "Your own OpenAI API key (optional)" and says "No key needed. You can run jobs as you are."; the form for a key of their own is folded under "Use your own key" until they register one. With their own key, the card says jobs run with it and are billed to their account; if the organisation's key is missing, it says jobs cannot run and to ask an admin. Users who are not approved see the card as before
 - The model pickers no longer say "Using the default API key", and messages about a missing key ask the user to get approved by an admin instead of mentioning the default API key (all languages; the manual, its figure and the specification follow)
 - The default API key's OpenAI organisation moved up a usage tier (2,000k tokens per minute, was 200k), so about 10 runs at once fit within it; the specification says so
+- New plan form: the source files and the pasted rows are one "Source list" section (「資料」). "Add files" and "Paste rows" sit side by side, the paste box opens on demand, and one help text explains how files and rows are read. They were two sections before (「資料のファイル」 and 「資料（CSV・TSV・テキスト）」) for the same list
 
 ### Removed
 - The note about tokens per run and the organisation's OpenAI rate limit is gone from the admin page's concurrency setting and from the help of a plan's concurrency, which now only says it is the lower of the overall and per-user limits

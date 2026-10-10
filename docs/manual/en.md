@@ -152,7 +152,7 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 ### Create a plan
 
 1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Cover the BRA of language").
-2. Add source files (CSV, xlsx, PDF and others) or paste rows. One row is one project.
+2. Under “Source list”, add files (CSV, xlsx, PDF and others) or choose “Paste rows” and paste them. One row is one project.
 3. "Create plan" makes a plan from the rows read. "Create draft" has the AI write the rows from the goal and the sources (it takes a few minutes and its cost is recorded). Neither can be pressed without a goal, files or rows.
 4. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
