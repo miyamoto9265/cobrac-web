@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 408" width="430" height="408" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
 <title id="t">使い始めるまでの 4 つの手順</title>
-<desc id="d">1. メールアドレスとパスワードでアカウントを作る。2. メールに届いた確認コードを入れる。3. 設定画面で自分の OpenAI API キーを登録するか、管理者にデフォルトの API キーの利用を承認してもらう。4. 新規プロジェクトで ROI と TLF を入れて実行する。</desc>
+<desc id="d">1. メールアドレスとパスワードでアカウントを作る。2. メールに届いた確認コードを入れる。3. 管理者に利用を承認してもらう（自分の OpenAI API キーを設定画面で登録しても使える）。4. 新規プロジェクトで ROI と TLF を入れて実行する。</desc>
 <defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
 <rect width="430" height="408" fill="#ffffff"/>
 <rect x="30" y="20" width="380" height="74" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
@@ -16,10 +16,10 @@
 <circle cx="34" cy="122" r="11" fill="#3b82f6"/><text x="34" y="126.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>2</tspan></text>
 <path d="M220 194 L220 214" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
 <rect x="30" y="216" width="380" height="74" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>
-<text x="220" y="230.7125" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>API キー</tspan></text>
-<text x="220" y="250.0625" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>自分のキーを登録</tspan></text>
-<text x="220" y="268.1875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>またはデフォルトの</tspan></text>
-<text x="220" y="286.3125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>API キーの承認</tspan></text>
+<text x="220" y="230.7125" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle"><tspan>利用の承認</tspan></text>
+<text x="220" y="250.0625" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>管理者に承認してもらう</tspan></text>
+<text x="220" y="268.1875" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>（自分の API キー</tspan></text>
+<text x="220" y="286.3125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>でも使える）</tspan></text>
 <circle cx="34" cy="220" r="11" fill="#3b82f6"/><text x="34" y="224.5" font-size="13" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>3</tspan></text>
 <path d="M220 292 L220 312" fill="none" stroke="#64748b" stroke-width="1.6" marker-end="url(#arrow-64748b)"/>
 <rect x="30" y="314" width="380" height="74" rx="8" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>

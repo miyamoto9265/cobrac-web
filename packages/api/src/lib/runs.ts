@@ -39,8 +39,8 @@ export async function runPolicy(u: UserRecord): Promise<ModelPolicy> {
 export async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: KeySource }> {
   const policy = await runPolicy(u);
   if (policy.source) return { ...policy, source: policy.source };
-  if (u.orgAccess) throw bad("デフォルトの API キーが登録されていません。管理者に連絡してください");
-  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者にデフォルトの API キーの利用承認を依頼してください");
+  if (u.orgAccess) throw bad("いまはジョブを実行できません。管理者に連絡してください");
+  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
 }
 
 /** 403 when the default-API-key tier does not include `model` (the message never names the tier). */

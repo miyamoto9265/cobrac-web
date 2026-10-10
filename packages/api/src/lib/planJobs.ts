@@ -49,7 +49,7 @@ export const isOpenPlanJob = (s: PlanJobState | null | undefined): s is PlanJobS
 
 /** What the runner stores when the owner cannot start a job now (English, like job errors; the page shows `errorCode`). */
 export const GATE_ERRORS: Record<"no_key" | "owner_disabled" | "model_not_allowed", string> = {
-  no_key: "No API key to run the job with: register one in Settings, or ask an admin for the default API key.",
+  no_key: "No API key to run the job with: register one in Settings, or ask an admin to approve you.",
   owner_disabled: "The owner's account is disabled.",
   model_not_allowed: "The model chosen for this plan is no longer available.",
 };

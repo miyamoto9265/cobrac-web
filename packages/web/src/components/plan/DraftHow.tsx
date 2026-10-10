@@ -79,14 +79,13 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
   );
 }
 
-/** The two models in three equal columns (the Orchestrator's, the agents' and the agents' reasoning effort), one key note. */
+/** The two models in three equal columns (the Orchestrator's, the agents' and the agents' reasoning effort). */
 function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
   const t = useT();
   const s = d.plan.settings;
   const o = orchestratorModelOf(s);
   // the models and effort are shown from local state and saved after a pause, so typing a custom model ID is not interrupted
   const [choice, setChoice] = useState({ model: s.modelChosen ? s.model : null, effort: s.reasoningEffort, orchestratorModel: o.chosen ? o.model : null });
-  const [orgKey, setOrgKey] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const choose = (v: typeof choice) => {
@@ -106,7 +105,6 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             hideEffort
             labels={{ model: t("pd.models.orchestrator") }}
             modelHint={t("pd.models.orchestratorHint")}
-            keyNote={false}
           />
         </div>
         <div className="contents" data-testid="plan-agents-model">
@@ -116,17 +114,10 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             onChange={(v) => choose({ ...choice, model: v.model, effort: v.effort })}
             labels={{ model: t("pd.models.agents"), effort: t("pd.models.effort") }}
             modelHint={t("pd.models.agentsHint")}
-            keyNote={false}
-            onKeySource={setOrgKey}
             contents
           />
         </div>
       </div>
-      {orgKey && (
-        <p className="text-xs text-slate-500" data-testid="default-key-note">
-          {t("pd.models.defaultKey")}
-        </p>
-      )}
     </div>
   );
 }
