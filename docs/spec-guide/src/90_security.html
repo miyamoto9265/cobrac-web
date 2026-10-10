@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">第 9 部</div>
   <h1 class="part" id="p9">セキュリティと費用</h1>
-  <p class="lead">この部は開発者と運用者に向けて、CoBRAC Agents の守り方とお金のかかり方をまとめます。IAM の権限、扱う情報と保存場所、暗号化と API キー、認証と認可、ワーカーの隔離、外部への送信、ログと脅威への対策、監視と緊急停止を順に定め、最後に AWS と OpenAI の費用を説明します。AWS の構成そのものは第 8 部で説明します。リリースやデプロイの手順、緊急時の操作、撤去の手順は、この文書ではなくリポジトリの <code>docs/ops/README.md</code> にあります。</p>
+  <p class="lead">第 9 部は開発者と運用者に向けて、CoBRAC Agents の守り方とお金のかかり方をまとめています。IAM の権限、扱う情報と保存場所、暗号化と API キー、認証と認可、ワーカーの隔離、外部への送信、ログと脅威への対策、監視と緊急停止を順に定め、最後に AWS と OpenAI の費用を説明しています。AWS の構成そのものは第 8 部に記載しています。リリースやデプロイの手順、緊急時の操作、撤去の手順は、本書ではなくリポジトリの <code>docs/ops/README.md</code> にあります。</p>
   <div class="map">
     <div><b>秘密の守り方</b>OpenAI の API キーは KMS で暗号化し、復号できるのはワーカーだけです。キーを使うのは Codex のプロセスだけで、エージェントのシェルには渡しません。</div>
     <div><b>データの範囲</b>プロジェクトのデータは所有者の userId に結び付け、API はほかの利用者に存在そのものを見せません。公開と共有は所有者が選んだときだけです。</div>
@@ -176,7 +176,7 @@
 <h3>WebSocket と CORS</h3>
 <ul>
   <li>WebSocket は、<code>$connect</code> の前に Lambda オーソライザーが ID トークンを検証します。購読のときも、そのプロジェクトが本人のもので、削除されていないことを検査します。接続の行には TTL があり、切断で消します。配信時に 410 Gone が返った接続は購読を外します。</li>
-  <li>CORS のプリフライト（OPTIONS）は JWT の認証を通りません。許可するヘッダーは <code>Authorization</code> と <code>Content-Type</code> です。オリジンはいま <code>*</code> です（個人の利用と CloudFront の既定の URL のため）。独自ドメインを足すときはオリジンを絞ります。</li>
+  <li>CORS のプリフライト（OPTIONS）は JWT の認証を通りません。許可するヘッダーは <code>Authorization</code> と <code>Content-Type</code> です。オリジンは現在 <code>*</code> です（個人の利用と CloudFront の既定の URL のため）。独自ドメインを足すときはオリジンを絞ります。</li>
   <li>成果物バケットの CORS は、参考資料のアップロードのための <code>POST</code> だけを、CloudFront のドメイン、<code>https://cobrac.site</code>（CDK の外で付けた distribution の別名）、<code>http://localhost:5173</code> から許します。ほかのホスト名で配信するときは <code>packages/infra/lib/cobrac-stack.ts</code> に足します。足さないと、そのオリジンからのアップロードはブラウザで失敗します。</li>
 </ul>
 <p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（Cognito・API・CORS）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/api/src/app.ts</code>（認証の middleware、<code>/admin/*</code>、アップロード、公開と複製）、<code>packages/api/src/handlers/authMessage.ts</code>・<code>ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/attachments.ts</code></p>
@@ -231,9 +231,9 @@
     <tr><td>参考資料の URL の先</td><td>ワーカー</td><td>利用者が指定した URL への取得の要求（9.5 の制限付き）</td></tr>
   </tbody>
 </table>
-<p class="small">いまのデプロイでは <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> を設定していないので、どちらも送られません。</p>
+<p class="small">現在のデプロイでは <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> を設定していないので、どちらも送られません。</p>
 <ul>
-  <li><b>Project ID</b>：新しい Project ID は <code>p</code> と乱数 7 文字（例 <code>p7m2q9xa</code>。Canon は <code>c…</code>）で、利用者についての情報を含みません。URL と xlsx の <code>Project ID</code> 列に出ます。古い形式の ID については付録 C を見てください。公開したプロジェクトと Canon は、所有者の <code>userKey</code> を見せます。</li>
+  <li><b>Project ID</b>：新しい Project ID は <code>p</code> と乱数 7 文字（例 <code>p7m2q9xa</code>。Canon は <code>c…</code>）で、利用者についての情報を含みません。URL と xlsx の <code>Project ID</code> 列に出ます。古い形式の ID については付録 C を参照してください。公開したプロジェクトと Canon は、所有者の <code>userKey</code> を見せます。</li>
   <li><b>OpenAI 側の保持・学習・リージョン</b>は、OpenAI との契約と組織の設定に従います。このアプリは、データを保持しない設定（ZDR）を強制しません。機微な文献を扱うときは、OpenAI の組織の設定を確認してください。</li>
 </ul>
 <p class="src">典拠：<code>packages/worker/src/codex.ts</code>、<code>rcs.ts</code>、<code>references.ts</code>（文献の照合）、<code>quotes.ts</code>（引用文の照合）、<code>litsearch.ts</code>・<code>litMcp.ts</code>、<code>materials.ts</code>、<code>env.ts</code>、<code>packages/shared/src/projectId.ts</code></p>
@@ -291,7 +291,7 @@
     <tr><td>デプロイの結果</td><td>GitHub Actions の実行のログと、ジョブの要約（Plan・RETAIN guard・Tag・Health）</td></tr>
   </tbody>
 </table>
-<p>SES の率は、SES がアカウントを審査する基準に合わせています。SES は 10%・0.5% から送信を止めることがあります。バウンスや苦情のあったアドレスは、アカウント単位の抑制リストがすでに送信先から外しているので、アラームは原因を探すためのものです。たとえば、打ち間違えたアドレスでのサインアップがこれにあたります。通知先を変える手順は <code>docs/ops/README.md</code> にあります。AWS の操作の追跡は 9.7 の「監査」を見てください。</p>
+<p>SES の率は、SES がアカウントを審査する基準に合わせています。SES は 10%・0.5% から送信を止めることがあります。バウンスや苦情のあったアドレスは、アカウント単位の抑制リストがすでに送信先から外しているので、アラームは原因を探すためのものです。たとえば、打ち間違えたアドレスでのサインアップがこれにあたります。通知先を変える手順は <code>docs/ops/README.md</code> にあります。AWS の操作の追跡は 9.7 の「監査」を参照してください。</p>
 <h3>緊急停止</h3>
 <p>止めたいものごとに、止める手段とそれを行う人を次のように定めます。具体的な操作は <code>docs/ops/README.md</code> にあります。</p>
 <table class="compact">
@@ -309,7 +309,7 @@
 <h2 id="s9-9">9.9 AWS の費用と予算</h2>
 <div class="box note">
   <div class="h">金額の読み方</div>
-  <p>この節の金額は、2026 年の東京リージョンの単価による<b>目安</b>で、正式な見積もりではありません。実際の請求は Cost Explorer で確認します。<b>OpenAI の利用料は AWS の請求に含まれません</b>（9.10）。</p>
+  <p>本節の金額は、2026 年の東京リージョンの単価による<b>目安</b>で、正式な見積もりではありません。実際の請求は Cost Explorer で確認します。<b>OpenAI の利用料は AWS の請求に含まれません</b>（9.10）。</p>
 </div>
 <h3>費用が動くとき</h3>
 <table class="compact">
@@ -365,7 +365,7 @@
     <tr><td>6 時間（上限）</td><td class="c">約 $0.10</td><td class="c">約 $0.30</td></tr>
   </tbody>
 </table>
-<p>S3 の同期とログを含めても、<b>1 ジョブの AWS の費用は普通は数十セントを大きく下回ります</b>。費用の大部分は OpenAI です。</p>
+<p>S3 の同期とログを含めても、<b>1 ジョブの AWS の費用は通常は数十セントを大きく下回ります</b>。費用の大部分は OpenAI です。</p>
 <p><b>1 回のデプロイ</b>では、CodeBuild が Node と Python のイメージを作ります（実測で約 2 分）。東京の general1.small 相当で 1 回 <b>$0.1〜0.4</b> 程度で、ECR の上書きと CloudFront の無効化が少し足されます。頻繁にデプロイすると、日常の画面の利用より目立つことがあります。GitHub Actions の実行（PR のチェックとデプロイのワークフロー）は GitHub 側の実行時間で、AWS の費用ではありません。バージョンを上げないマージでは、デプロイのジョブ自体が動きません。</p>
 <h3>シナリオの比較</h3>
 <table class="compact">
@@ -376,7 +376,7 @@
     <tr><td>数人で月 50 ジョブ</td><td class="c">$8〜18</td><td>設計の目標</td></tr>
     <tr><td>月 50 ジョブで Spot が不調</td><td class="c">$15〜25</td><td>$30 の Budgets で気づける（9.8）</td></tr>
     <tr><td>NAT を含む構成に変える</td><td class="c">+$32 以上</td><td>勧めない</td></tr>
-    <tr><td>常時稼働の t3.medium</td><td class="c">約 $30</td><td>待っている間も課金される。いまの構成のほうが安い</td></tr>
+    <tr><td>常時稼働の t3.medium</td><td class="c">約 $30</td><td>待っている間も課金される。現在の構成のほうが安い</td></tr>
     <tr><td>BRA-DB のスタック（常時稼働）</td><td class="c">+約 $34</td><td>7.6。<code>COBRAC_BRADB=false</code> で作らない</td></tr>
   </tbody>
 </table>
@@ -412,7 +412,7 @@
     <tr><td>独自ドメインと ACM（CDK に入れる場合）</td><td>費用は小さいが、運用が増える</td></tr>
   </tbody>
 </table>
-<p>いまの安さは、<b>使わないときにワーカーを止めること</b>と、<b>NAT を置かないこと</b>に支えられています。</p>
+<p>現在の安さは、<b>使わないときにワーカーを止めること</b>と、<b>NAT を置かないこと</b>に支えられています。</p>
 <p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（オーケストレーターの上限）、<code>packages/shared/src/plan.ts</code>（<code>MAX_CONFORM_FOLLOWUPS</code>・<code>PLAN_MAX_WAITING_PRS</code>）、<code>planOrder.ts</code>（<code>MAX_REPLAN_JOBS</code>）、<code>planJob.ts</code>（<code>PLAN_JOB_TIME_BUDGET_MS</code>）</p>
 
 <h2 id="s9-10">9.10 OpenAI の費用と記録</h2>

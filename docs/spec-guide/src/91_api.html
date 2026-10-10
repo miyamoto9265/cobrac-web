@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">付録 A</div>
   <h1 class="part" id="pa">API 一覧</h1>
-  <p class="lead">CoBRAC Agents の HTTP API と WebSocket のメッセージを、領域ごとにすべて挙げます。HTTP API は、API Gateway の HTTP API から 1 つの Lambda（<code>packages/api/src/app.ts</code>、Hono）に渡ります。WebSocket は別の API Gateway と <code>handlers/ws.ts</code>・<code>broadcaster.ts</code> が扱います。どちらも LLM は呼びません。仕組みの説明は本文の各部にあり、ここでは要求と応答の形をまとめます。</p>
+  <p class="lead">本付録は、CoBRAC Agents の HTTP API と WebSocket のメッセージを、領域ごとにすべて挙げています。HTTP API は、API Gateway の HTTP API から 1 つの Lambda（<code>packages/api/src/app.ts</code>、Hono）に渡ります。WebSocket は別の API Gateway と <code>handlers/ws.ts</code>・<code>broadcaster.ts</code> が扱います。どちらも LLM は呼びません。仕組みの説明は本文の各部にあり、本付録では要求と応答の形をまとめています。</p>
 </div>
 
 <h2 id="sa-1">A.1 共通の規則</h2>
@@ -44,7 +44,7 @@
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
     <tr><td>GET</td><td><code>/health</code></td><td><code>{ ok, version, time }</code>。デプロイの後にアプリのバージョンを確認する</td><td>だれでも</td></tr>
-    <tr><td>GET</td><td><code>/config</code></td><td>いま効いている同時実行数（管理画面の設定、なければデプロイ時の値）と、デプロイの既定のモデル：<code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, codexModel }</code></td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/config</code></td><td>現在効いている同時実行数（管理画面の設定、なければデプロイ時の値）と、デプロイの既定のモデル：<code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, codexModel }</code></td><td>ログイン</td></tr>
   </tbody>
 </table>
 <p class="small">SPA の実行時の設定（API と WebSocket の URL、Cognito の ID）は、API ではなく CloudFront の <code>/config.json</code> から読みます（8.7）。</p>
@@ -96,8 +96,8 @@
     <tr><td>GET</td><td><code>/projects/{id}/artifacts/text?key=</code></td><td>md・csv・txt・json の本文（レポート、判断ログ、表の表示）と、記事の図（<code>article/&lt;locale&gt;/figures/*.svg</code>）。版の凍結ファイル（<code>revisions/{n}/files/…</code>）も、表のビューアがこれで読む。<code>..</code> と <code>thread/</code> は 400</td><td>所有者</td></tr>
     <tr><td>GET</td><td><code>/projects/{id}/graph/{hcd|frg}</code></td><td>グラフ JSON</td><td>所有者</td></tr>
     <tr><td>GET・PUT・DELETE</td><td><code>/projects/{id}/graph/{hcd|frg}/layout</code></td><td>利用者が直した配置とスタイル <code>{ positions, nodes: { id: { width, height, color, border } }, edges: { id: { lineType, color, width, dashed, rounded, showLabel, markerStart, markerEnd, waypoints, sourceHandle, targetHandle } } }</code>。保存先は S3 の <code>graph/{kind}.layout.json</code>。PUT の上限は 2,000,000 文字、ノード 5,000、エッジ 20,000、経由点 100。DELETE で既定に戻す</td><td>所有者</td></tr>
-    <tr><td>GET</td><td><code>/projects/{id}/versions</code></td><td><code>{ items, current, clonedFrom }</code>：版を新しい順に返す（4.5）。いまのデータに対応する版がないプロジェクトでは、いまのデータも含める（付録 C）</td><td>所有者</td></tr>
-    <tr><td>GET</td><td><code>/projects/{id}/versions/{n}</code></td><td><code>{ item, manifest, files, bradbBlockedReason? }</code>。いまのデータでは <code>manifest</code> が null。BRA-DB に登録できない版には <code>bradbBlockedReason: "hypotheses"</code> が付く（A.12）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/versions</code></td><td><code>{ items, current, clonedFrom }</code>：版を新しい順に返す（4.5）。現在のデータに対応する版がないプロジェクトでは、現在のデータも含める（付録 C）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/versions/{n}</code></td><td><code>{ item, manifest, files, bradbBlockedReason? }</code>。現在のデータでは <code>manifest</code> が null。BRA-DB に登録できない版には <code>bradbBlockedReason: "hypotheses"</code> が付く（A.12）</td><td>所有者</td></tr>
     <tr><td>GET</td><td><code>/projects/{id}/versions/{n}/diff?base=</code></td><td><code>{ head, base, diff }</code>：5 つの CSV の行の変化。<code>base</code> の既定は n−1。前の版がなければ <code>diff</code> は null</td><td>所有者</td></tr>
   </tbody>
 </table>
@@ -120,7 +120,7 @@
 <p class="src">典拠：<code>packages/api/src/app.ts</code>、<code>packages/shared/src/publish.ts</code></p>
 
 <h2 id="sa-7">A.7 Canon</h2>
-<p>仕組みは第 5 部で説明します。</p>
+<p>仕組みは第 5 部に記載しています。</p>
 <table class="compact">
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:15%">呼べる人</th></tr></thead>
   <tbody>
@@ -152,7 +152,7 @@
 <p class="src">典拠：<code>packages/api/src/app.ts</code>（<code>loadCanon</code>・<code>loadPrForViewer</code>・<code>loadPrTarget</code>）・<code>lib/canonOps.ts</code>・<code>lib/canons.ts</code></p>
 
 <h2 id="sa-8">A.8 BRA-DB</h2>
-<p>仕組みは第 7 部で説明します。API の Lambda が、別のスタックにある登録用の Lambda を呼びます。</p>
+<p>仕組みは第 7 部に記載しています。API の Lambda が、別のスタックにある登録用の Lambda を呼びます。</p>
 <table class="compact">
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
@@ -163,12 +163,12 @@
 <p class="small">版の凍結ファイルは <code>GET /projects/{id}/artifacts/text</code> で読みます（A.5）。版をダウンロードする API はありません。</p>
 
 <h2 id="sa-9">A.9 CoBRAC オーケストレーター</h2>
-<p>仕組みは第 6 部で説明します。計画のルートはすべて所有者だけが使え、ほかの利用者には 404 を返します。計画のリースの中で行う変更は、ほかの処理がリースを持っている間は 409「計画を更新中です。少し待ってからやり直してください」になります。</p>
+<p>仕組みは第 6 部に記載しています。計画のルートはすべて所有者だけが使え、ほかの利用者には 404 を返します。計画のリースの中で行う変更は、ほかの処理がリースを持っている間は 409「計画を更新中です。少し待ってからやり直してください」になります。</p>
 <table class="compact">
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
     <tr><td>GET・POST</td><td><code>/plans</code></td><td><b>一覧</b>：自分の計画（削除していないもの）。実行中・一時停止中の計画のうち新しい 12 件には、そのときの様子 <code>pulse</code> を付ける。<code>pulse</code> は、バッチごと・状態ごとの行の数、作成中の行と操作を待つ行、最新の出来事 4 件とその行、未決の提案の数、見積もりと実績で、保存せず読むたびに計算する。<br><b>作成</b>：<code>{ name, goal?, rows?: [{ roi, tlf, rationale?, wave?, priority? }], csv?, attachments?: [{ uploadId, name }], draft?, locale?, canon?, autonomous?: { maxCostUsd? } }</code> → 201 <code>{ plan, rows, rejected }</code>。<code>rejected</code> は読めなかった CSV の行の行番号・理由・ファイル。CSV・TSV・テキストはすぐ読み、xlsx・PDF は下書きのジョブのために保存し、ほかの形式は 400。<code>draft: true</code> は下書きも依頼する（目標・ファイル・行のどれかが必要）。<code>autonomous</code> は自律実行で、<code>draft: true</code> が必要。費用の上限は 1〜1000 USD、省くと 20。<code>canon</code> を省くと計画の名前で新しい Canon を作る（6.8）。目標・資料・行のどれもないと 400。この依頼だけでは何も積まない</td><td>ログイン</td></tr>
-    <tr><td>GET</td><td><code>/plans/{id}</code></td><td>計画と行（プロジェクトのいまの状態・質問・費用、<code>hub</code>・<code>overlaps</code>）、履歴、提案（新しい順）、効いている上限、見積もり（<code>planEstimate</code>）、ここまでの時間と費用（計画用のジョブを含み、その分を <code>planJobsCostUsd</code> として別に返す）、Canon</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/plans/{id}</code></td><td>計画と行（プロジェクトの現在の状態・質問・費用、<code>hub</code>・<code>overlaps</code>）、履歴、提案（新しい順）、効いている上限、見積もり（<code>planEstimate</code>）、ここまでの時間と費用（計画用のジョブを含み、その分を <code>planJobsCostUsd</code> として別に返す）、Canon</td><td>所有者</td></tr>
     <tr><td>PUT</td><td><code>/plans/{id}</code></td><td>名前と目標の変更。下書きの間だけ、設定 <code>{ model?, orchestratorModel?, reasoningEffort?, researchMode?, autonomous?: { maxCostUsd } | null }</code> と <code>canon</code> も変えられる。<code>canon</code> は <code>{ mode: "none" }</code>、<code>{ mode: "existing", canonId }</code>（自分の Canon。なければ 404）、<code>{ mode: "new", name }</code> のどれか。粒度方針 <code>policy</code> を送ると 400（オーケストレーターが決める）</td><td>所有者</td></tr>
     <tr><td>DELETE</td><td><code>/plans/{id}</code></td><td>論理削除。下書き・完了・中止の計画だけで、それ以外と下書き作成中は 409。作ったプロジェクトは残る</td><td>所有者</td></tr>
     <tr><td>PUT</td><td><code>/plans/{id}/rows</code></td><td>下書きだけ：行を <code>{ rows }</code> の順に置き換える。<code>rowId</code> を保った行は、履歴・アンカー・依存・基準プロジェクトの印・既存のプロジェクトを保つ。<code>rebuild: true</code> で既存のプロジェクトを外す。<code>ordering</code> は <code>"manual"</code> になる。使えない最初の行を 400 で示す。確定後と下書き作成中は 409</td><td>所有者</td></tr>
@@ -177,7 +177,7 @@
     <tr><td>POST</td><td><code>/plans/{id}/draft</code></td><td><code>{ locale? }</code>：下書きを依頼する（<code>DRAFT</code> → <code>DRAFTING</code>。枠が空くと計画ランナーがジョブを積む）→ 202 と計画。目標・資料・行のどれもないと 400、下書きでなければ 409</td><td>所有者（キー）</td></tr>
     <tr><td>POST</td><td><code>/plans/{id}/draft/cancel</code></td><td>待機中か実行中の下書きのジョブを止め、<code>DRAFT</code> に戻す。下書き作成中でなければ 409</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/plans/{id}/order</code></td><td>下書きだけ：アンカーと依存からバッチと基準プロジェクトを計算する（<code>orderDraft</code>、<code>ordering: "auto"</code>。ジョブは使わない）→ <code>{ plan, rows }</code>。行がないと 400、下書き作成中は 409</td><td>所有者</td></tr>
-    <tr><td>POST</td><td><code>/plans/{id}/confirm</code></td><td><code>{ locale? }</code>：設定と検査の規則を固定し、順序が自動ならいまの同時実行数で並べ直し、既存のプロジェクトのある行を完了にして開始する。下書きでなければ（下書き作成中も）409</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/plans/{id}/confirm</code></td><td><code>{ locale? }</code>：設定と検査の規則を固定し、順序が自動なら現在の同時実行数で並べ直し、既存のプロジェクトのある行を完了にして開始する。下書きでなければ（下書き作成中も）409</td><td>所有者（キー）</td></tr>
     <tr><td>POST</td><td><code>/plans/{id}/pause</code>、<code>/plans/{id}/cancel</code></td><td>実行中の計画の一時停止 / 実行中か一時停止中の計画の中止（行のジョブも止める）</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/plans/{id}/resume</code></td><td><code>{ maxCostUsd? }</code>：一時停止中か中止した計画の再開（キーを判定し直す）。自律実行の計画には新しい費用の上限を送れる。上限は 1〜1000 USD で、これまでの費用より大きくなければ 400。費用の上限で止まった計画は、上限を上げないと 400。自律実行でない計画に上限を送ると 400</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/plans/{id}/rows/{rowId}/retry</code>、<code>/plans/{id}/rows/{rowId}/skip</code></td><td>要対応の行のリトライ / 待っている行・要対応の行・要判断の行のスキップ</td><td>所有者</td></tr>
@@ -194,7 +194,7 @@
     <tr><td>GET</td><td><code>/admin/users</code></td><td>全利用者（暗号化したキーを除く）</td><td>管理者</td></tr>
     <tr><td>PUT</td><td><code>/admin/users/{id}</code></td><td><code>{ disabled?, role?, orgTier? }</code>。<code>orgTier</code> は 0 か null が未承認、1、2 のどれか。自分自身の無効化は 400、いない利用者は 404</td><td>管理者</td></tr>
     <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で検査して登録・置き換え（拒否されたら 400）/ 削除</td><td>管理者</td></tr>
-    <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの使用量：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>。<code>month</code> は UTC でいまの月</td><td>管理者</td></tr>
+    <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの使用量：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>。<code>month</code> は UTC での現在の月</td><td>管理者</td></tr>
     <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>。それぞれ 1〜16 の整数で、null はデプロイ時の値に戻す。ほかの値は 400。dispatcher と計画ランナーは 30 秒以内に読み直す（8.3）</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト。削除したものも <code>deletedAt</code>・<code>deletedBy</code> 付きで返す。使用量は補正済み</td><td>管理者</td></tr>
     <tr><td>POST</td><td><code>/admin/projects/{userId}/{id}/cancel</code></td><td>強制停止</td><td>管理者</td></tr>
@@ -208,7 +208,7 @@
 <table class="compact">
   <thead><tr><th style="width:17%">向き</th><th style="width:36%">メッセージ</th><th>意味</th></tr></thead>
   <tbody>
-    <tr><td>ブラウザ → サーバー</td><td><code>{ action: "subscribe", projectId }</code></td><td>自分の削除していないプロジェクトを購読する。成功すると <code>{ type: "subscribed", projectId }</code> と、いまのプロジェクト <code>{ type: "project", … }</code> が返る。見つからなければ <code>{ type: "error", message: "project not found" }</code></td></tr>
+    <tr><td>ブラウザ → サーバー</td><td><code>{ action: "subscribe", projectId }</code></td><td>自分の削除していないプロジェクトを購読する。成功すると <code>{ type: "subscribed", projectId }</code> と、現在のプロジェクト <code>{ type: "project", … }</code> が返る。見つからなければ <code>{ type: "error", message: "project not found" }</code></td></tr>
     <tr><td>ブラウザ → サーバー</td><td><code>{ action: "unsubscribe", projectId }</code></td><td>購読をやめる</td></tr>
     <tr><td>ブラウザ → サーバー</td><td><code>{ action: "ping" }</code></td><td>接続を保つ。SPA は 5 分ごとに送る</td></tr>
     <tr><td>サーバー → ブラウザ</td><td><code>{ type: "message", projectId, message }</code></td><td>Messages に新しい行が入った（broadcaster が送る）</td></tr>
@@ -225,7 +225,7 @@
 <p class="src">典拠：<code>packages/api/src/handlers/ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/types.ts</code>（<code>WsClientEvent</code>・<code>WsServerEvent</code>）、<code>packages/web/src/lib/ws.ts</code></p>
 
 <h2 id="sa-12">A.12 仮説モードの要求と応答</h2>
-<p>仮説モード（3.12）に関わる API の形をまとめます。仮説を許す範囲（scope）は、作成とフォローアップの依頼に付ける <code>hypothesis</code> で指定します。依頼の文章に「仮説で」と書いても、範囲は広がりません。</p>
+<p>本節は、仮説モード（3.12）に関わる API の形をまとめています。仮説を許す範囲（scope）は、作成とフォローアップの依頼に付ける <code>hypothesis</code> で指定します。依頼の文章に「仮説で」と書いても、範囲は広がりません。</p>
 
 <h3>作成時の指定</h3>
 <p><code>POST /projects</code> の本文に <code>hypothesis: { claims, maxShare?, note? }</code> を付けます。</p>

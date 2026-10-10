@@ -2,11 +2,11 @@
 <div class="opener">
   <div class="no">付録 B</div>
   <h1 class="part" id="pb">指示書の原文</h1>
-  <p class="lead">ワーカーが LLM に渡す指示書（<code>prompts/</code> のファイル）の全文を、英語の原文のまま載せます。この付録は <code>build.mjs</code> が PDF を作るたびに <code>prompts/</code> から作るので、原文と食い違うことはありません。原文の中の命令は LLM に向けたもので、この文書の読者への指示ではありません。</p>
+  <p class="lead">ワーカーが LLM に渡す指示書（<code>prompts/</code> のファイル）の全文を、英語の原文のまま載せています。本付録は <code>build.mjs</code> が PDF を作るたびに <code>prompts/</code> から生成されるので、原文と食い違うことはありません。原文の中の命令は LLM に向けたもので、本書の読者への指示ではありません。</p>
 </div>
 
 <h2 id="sb-1">B.1 原文の読み方</h2>
-<p>実行時、ワーカーは差し込み値を埋め、プロジェクトの設定に応じてファイルを連結して依頼文を作ります（3.5）。基本仕様のファイルだけを見て実際の規則を判断しないでください。どのファイルがいつ付くかは次のとおりです。</p>
+<p>実行時、ワーカーは差し込み値を埋め、プロジェクトの設定に応じてファイルを連結して依頼文を作ります（3.5）。基本仕様のファイルだけでは、実際の規則は判断できません。どのファイルがいつ付くかは次のとおりです。</p>
 <table class="compact">
   <thead><tr><th style="width:30%">ファイル</th><th style="width:8%">節</th><th>いつ使うか</th></tr></thead>
   <tbody>
@@ -23,7 +23,7 @@
     <tr><td><code>orchestrator.md</code></td><td>B.12</td><td>自律実行の計画で、オーケストレーターが質問への回答や PR などを判断するジョブ（6.8）</td></tr>
   </tbody>
 </table>
-<p>依頼文のうち、FRG の候補、Canon の制約、RCS が使えないときの注記、プロジェクトの見出し、検査で見つかった問題の一覧などの動的な部分は、ワーカーがその場で組み立てるので、ここには含みません（3.5）。Canon の AI レビューの指示もファイルではなく、<code>packages/shared/src/canonAiReview.ts</code> の <code>canonAiPrompt()</code> が組み立てます。</p>
+<p>依頼文のうち、FRG の候補、Canon の制約、RCS が使えないときの注記、プロジェクトの見出し、検査で見つかった問題の一覧などの動的な部分は、ワーカーがその場で組み立てるので、本付録には含めていません（3.5）。Canon の AI レビューの指示もファイルではなく、<code>packages/shared/src/canonAiReview.ts</code> の <code>canonAiPrompt()</code> が組み立てます。</p>
 <p>原文の中で使う差し込み値は次のとおりです。数値はコードの定数から読んでいます。</p>
 <!-- PROMPT-SOURCES -->
 </section>

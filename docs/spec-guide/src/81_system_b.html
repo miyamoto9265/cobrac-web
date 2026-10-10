@@ -27,7 +27,7 @@
         <li>名前と ID：name、nameSource（<code>provisional</code> / <code>auto</code> / <code>user</code>）、<code>legacyId</code>（移行前の ID。C.4）</li>
         <li>入力と設定：roi、tlf、contributor、<code>attachments</code>（参考資料。4.2）、model、reasoningEffort、<code>researchMode</code>（3.7）、<code>sabraBoundary</code>（新しいプロジェクトは <code>neocortex</code>。2.3）、<code>harnessRules</code>（検査規則の水準。新しいプロジェクトは <code>2</code>）、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code>（仮説モード。3.12）。値がないときの動きは付録 C</li>
         <li>実行の状態：status、currentStep、stepStates、<code>activeStage</code>（実行中のジョブの段階：<code>RESEARCH</code>、段階の名前、調整のターンの <code>ADJUST</code>）、activeJobId、codexThreadId、pendingQuestion、hasArtifacts、errorMessage、completedAt</li>
-        <li>版と登録：<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = いまの版の番号）、<code>latestVersion</code>（最新の凍結した版の要約。4.5）、<code>bradb</code>（BRA-DB に最後に登録した版）</li>
+        <li>版と登録：<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = 現在の版の番号）、<code>latestVersion</code>（最新の凍結した版の要約。4.5）、<code>bradb</code>（BRA-DB に最後に登録した版）</li>
         <li>費用：<code>usage</code>・<code>costUsd</code>・<code>usedModels</code>（全ジョブの合計）</li>
         <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作った計画）</li>
       </ul></td></tr>
@@ -58,7 +58,7 @@
 </ul>
 
 <h3>メッセージの役割</h3>
-<p>role が <code>user</code> のメッセージは、利用者が入力した文だけです。API が <code>meta.kind</code> を <code>create</code> / <code>answer</code> / <code>followup</code> にして保存します。ワーカーがジョブの初めにエージェントに送る依頼文は、<code>system</code> / <code>status</code> のお知らせとして保存します（<code>meta.harnessPrompt</code>、本文は <code>meta.details</code>）。エージェント欄には「HCD フェーズを開始しました。」のように表示し、開くと全文が出ます。古い形式で保存した依頼文の表示は付録 C で説明します。</p>
+<p>role が <code>user</code> のメッセージは、利用者が入力した文だけです。API が <code>meta.kind</code> を <code>create</code> / <code>answer</code> / <code>followup</code> にして保存します。ワーカーがジョブの初めにエージェントに送る依頼文は、<code>system</code> / <code>status</code> のお知らせとして保存します（<code>meta.harnessPrompt</code>、本文は <code>meta.details</code>）。エージェント欄には「HCD フェーズを開始しました。」のように表示し、開くと全文が出ます。古い形式で保存した依頼文の表示は付録 C に記載しています。</p>
 
 <h3>所有の確認</h3>
 <p>一般の利用者に見えるのは、自分の <code>userId</code> の下の項目だけです。Project ID は全体で一意ですが、古い形式の ID（利用者ごとの slug。付録 C）は 2 人の利用者が同じ値を持つことがあります。一方、Jobs・Messages・<code>project-index</code> は <code>projectId</code> だけをキーにしています。そのため、読み出しはすべて所有者で絞ります。</p>
@@ -148,7 +148,7 @@ admin-docs/spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf   仕様書の PDF</pre>
     <tr><td>配置の保存</td><td><code>useGraphLayout</code> が、位置・大きさ・色・エッジのスタイル（経由点と接続点を含む）を 600 ミリ秒まとめてから <code>PUT …/layout</code> で保存する。グラフを作り直しても、同じノード ID・エッジ ID の設定は残る。Ctrl+Z / Ctrl+Y で元に戻す / やり直す</td></tr>
   </tbody>
 </table>
-<p>純粋な補助関数は <code>packages/web/src/lib/graphView.ts</code> にあり、vitest でテストします。既定の線の種類が直交だったときに保存した配置の扱いは、C.6 で説明します。</p>
+<p>純粋な補助関数は <code>packages/web/src/lib/graphView.ts</code> にあり、vitest でテストします。既定の線の種類が直交だったときに保存した配置の扱いは、C.6 に記載しています。</p>
 
 <h3>テーマ</h3>
 <ul>
@@ -184,7 +184,7 @@ admin-docs/spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf   仕様書の PDF</pre>
     <tr><td>ログの保持</td><td>CloudWatch Logs に、ワーカーも Lambda も 2 週間（8.2）</td></tr>
   </tbody>
 </table>
-<p>セキュリティ・個人情報・費用は第 9 部で説明します。</p>
+<p>セキュリティ・個人情報・費用は第 9 部に記載しています。</p>
 <p class="src">典拠：<code>packages/infra/bin/app.ts</code>・<code>lib/cobrac-stack.ts</code>、<code>packages/api/src/lib/concurrency.ts</code></p>
 
 <h2 id="s8-9">8.9 開発の約束</h2>

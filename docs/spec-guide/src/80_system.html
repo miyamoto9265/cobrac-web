@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">第 8 部</div>
   <h1 class="part" id="p8">システムの構成</h1>
-  <p class="lead">この部は開発者向けです。CoBRAC Agents を動かしている AWS の構成、部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、S3 の成果物、フロントエンド、非機能の目標、開発の約束を、実装に沿って説明します。BRA の作り方そのものは第 3 部、権限・秘密情報・費用は第 9 部で扱います。リリースとデプロイの手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
+  <p class="lead">第 8 部は開発者向けです。CoBRAC Agents を動かしている AWS の構成、部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、S3 の成果物、フロントエンド、非機能の目標、開発の約束を、実装に沿って記述しています。BRA の作り方そのものは第 3 部、権限・秘密情報・費用は第 9 部で扱います。リリースとデプロイの手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
   <div class="map">
     <div><b>プログラムの部品</b>API、dispatcher、broadcaster、janitor、計画ランナーの Lambda と、Fargate 上のワーカーです。どれも LLM を呼ばず、決まったコードで判断します。</div>
     <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画用のジョブも同じ仕組みで動きます（8.4）。</div>
@@ -14,7 +14,7 @@
 <p>アプリ本体は、東京リージョン（<code>ap-northeast-1</code>）の 1 つの CDK スタック <code>CobracAgents</code>（<code>packages/infra/lib/cobrac-stack.ts</code>）にまとまったサーバーレス構成です。BRA-DB だけは別のスタック <code>BraDb</code>（<code>bradb-stack.ts</code>）にあります（第 7 部）。</p>
 
 <h3>設計方針</h3>
-<p>構成は次の 4 つの方針で決めています。</p>
+<p>構成は次の 4 つの方針に基づいています。</p>
 <ol class="steps">
   <li><b>使われていないときの固定費を小さくする。</b>常時稼働の EC2 や NAT Gateway を置きません。例外は BRA-DB のスタックです。</li>
   <li><b>費用のかかる計算には、ジョブが動いている間だけ払う。</b>ワーカーは 1 ジョブにつき 1 つの Fargate タスクとして起動し、Spot を優先します。</li>
@@ -310,7 +310,7 @@
 <p class="small">Lambda 10 本の内訳は、<code>ApiFn</code>（HTTP API）、<code>WsAuthorizerFn</code>・<code>WsConnectFn</code>・<code>WsDisconnectFn</code>・<code>WsDefaultFn</code>（WebSocket）、<code>BroadcasterFn</code>、<code>DispatcherFn</code>、<code>JanitorFn</code>、<code>PlanRunnerFn</code>（計画ランナー）、<code>AuthMessageFn</code> です。このほかに、CDK が配置のために作る補助の Lambda（Web の配置、バケットの自動削除、イメージのビルド）があります。BRA-DB の登録 Lambda は <code>BraDb</code> スタックにあります。</p>
 
 <h3>データのリソース</h3>
-<p>DynamoDB のテーブルは 8 つで、どれもオンデマンド課金です。ポイントインタイムリカバリ（PITR）は使いません。キー・索引・削除方針・属性は 8.5 に、S3 の成果物バケットの設定と中身は 8.6 にまとめます。Web のバケットは非公開で、CloudFront が OAC で読みます。このバケットは DESTROY で、スタックを消すと中身も自動で消えます。</p>
+<p>DynamoDB のテーブルは 8 つで、どれもオンデマンド課金です。ポイントインタイムリカバリ（PITR）は使いません。キー・索引・削除方針・属性は 8.5 に、S3 の成果物バケットの設定と中身は 8.6 にまとめています。Web のバケットは非公開で、CloudFront が OAC で読みます。このバケットは DESTROY で、スタックを消すと中身も自動で消えます。</p>
 
 <h3>ネットワーク・配信・認証</h3>
 <table class="compact">
@@ -338,11 +338,11 @@
   <li>外向きの通信だけを通す NAT インスタンス（t4g.micro）</li>
   <li>登録 Lambda <code>cobrac-bradb-import</code></li>
 </ul>
-<p>インターネットから受ける通信はなく、5432 番ポートは登録 Lambda からしか受けません。データ用のボリュームは RETAIN で、毎日スナップショットを取って 7 世代を残します。synth のときに <code>COBRAC_BRADB=false</code> にすると、このスタックは作られません。構成と費用の内訳は 7.6 で説明します。</p>
-<p class="small">実装の注意：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。既定のスクリプトは、t4g.nano では <code>yum install</code> がメモリ不足で強制終了され、AL2023 には <code>route</code> もないためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しません。そのため設定を変えたときは、新しい論理 ID（いまは <code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので、RETAIN ガード（8.9）の対象外です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
+<p>インターネットから受ける通信はなく、5432 番ポートは登録 Lambda からしか受けません。データ用のボリュームは RETAIN で、毎日スナップショットを取って 7 世代を残します。synth のときに <code>COBRAC_BRADB=false</code> にすると、このスタックは作られません。構成と費用の内訳は 7.6 に記載しています。</p>
+<p class="small">実装の注意：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。既定のスクリプトは、t4g.nano では <code>yum install</code> がメモリ不足で強制終了され、AL2023 には <code>route</code> もないためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しません。そのため設定を変えたときは、新しい論理 ID（現在は<code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので、RETAIN ガード（8.9）の対象外です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
 
 <h3>パッケージ</h3>
-<p>リポジトリは npm workspaces のモノレポです。リポジトリ全体の構成と作業の規則は 8.9 で説明します。</p>
+<p>リポジトリは npm workspaces のモノレポです。リポジトリ全体の構成と作業の規則は 8.9 に記載しています。</p>
 <table class="compact">
   <thead><tr><th style="width:22%">パッケージ・フォルダ</th><th>役割</th></tr></thead>
   <tbody>
@@ -358,7 +358,7 @@
 <p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>・<code>bradb-stack.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>packages/worker/Dockerfile</code></p>
 
 <h2 id="s8-3">8.3 ジョブの実行と回復</h2>
-<p>ジョブは、API が記録してキューに入れ、dispatcher がワーカーを起動し、ワーカーがエージェントを動かして進めます。止まったジョブを見つけて再開させるのは janitor です。この節では、ジョブの状態とその遷移、ワーカーの起動と同時実行数、実行中の監視、停止と中断、janitor の処理を説明します。ワーカーの中の処理は 8.4、BRA の中身の進み方は第 3 部（長いジョブと保存は 3.15）で説明します。</p>
+<p>ジョブは、API が記録してキューに入れ、dispatcher がワーカーを起動し、ワーカーがエージェントを動かして進めます。止まったジョブを見つけて再開させるのは janitor です。本節では、ジョブの状態とその遷移、ワーカーの起動と同時実行数、実行中の監視、停止と中断、janitor の処理を扱います。ワーカーの中の処理は 8.4、BRA の中身の進み方は第 3 部（長いジョブと保存は 3.15）に記載しています。</p>
 
 <h3>状態</h3>
 <p>プロジェクトとジョブは同じ 7 つの状態を使います。</p>
@@ -425,7 +425,7 @@
   <li><b>完了後</b>：フォローアップ（画面では「追加の指示」。<code>POST /projects/{id}/followup</code>）は、同じ会話で新しいジョブを作ります。解説記事（<code>POST /projects/{id}/articles</code>）も新しいジョブで、BRA データには触れません。</li>
   <li><b>失敗</b>：ターンの失敗、6 時間の上限、Spot の中断などで <code>FAILED</code> になります。応答のなくなったジョブは、janitor が自動で再開します（後述）。</li>
 </ol>
-<p>実行モード（<code>mode</code>）ごとの動き方は 3.6 で説明します。</p>
+<p>実行モード（<code>mode</code>）ごとの動き方は 3.6 に記載しています。</p>
 
 <h3>ワーカーの起動</h3>
 <ol class="steps">
@@ -467,7 +467,7 @@
 </table>
 
 <h3>停止と中断</h3>
-<p><b>停止：</b>利用者・管理者・計画が停止すると、API がジョブを <code>CANCELLED</code> にし、ECS の <code>StopTask</code> を送ります。<code>StopTask</code> はコンテナに SIGTERM を送り、ワーカーは状態を保存して終わります。ワーカーはハートビートのたびにジョブの状態も見ているので、SIGTERM が届かなくても 1 分以内に中止に気づきます。</p>
+<p><b>停止：</b>利用者・管理者・計画が停止すると、API がジョブを <code>CANCELLED</code> にし、ECS の <code>StopTask</code> を送ります。<code>StopTask</code> はコンテナに SIGTERM を送り、ワーカーは状態を保存して終わります。ワーカーはハートビートのたびにジョブの状態も見ているので、SIGTERM が届かなくても 1 分以内に中止を検知します。</p>
 <p><b>Spot の中断：</b>Fargate Spot は AWS の都合で中断されることがあり、中断の 2 分前にコンテナに SIGTERM が届きます。ECS は停止の猶予（120 秒）の後にコンテナを止めます。SIGTERM を受けたワーカーは、次の順に処理します（<code>handleStop</code>）。</p>
 <ol class="steps">
   <li>打ち切られたターンの使用量をセッションの記録から数え、ジョブの費用に足します。</li>
@@ -478,7 +478,7 @@
 <p>停止による SIGTERM のときは、保存だけを行います。すでに終わったジョブや回答待ちのジョブには何もしません。SIGTERM が届かずにタスクが消えた場合でも、途中の保存があるので、失う作業は最大で 5 分ぶんです。</p>
 <div class="box note">
   <div class="h">実機で確認していないこと</div>
-  <p>本番の Spot の中断は意図して起こせません。そのため、中断からの再開は単体テストと <code>cdk synth</code>（タスク定義の <code>StopTimeout: 120</code>、janitor の <code>rate(5 minutes)</code>）でだけ確認しています。実際の中断が起きたら、ワーカーのログの <code>SIGTERM handled: retry</code> と、エージェント欄の「ワーカーが停止されます…」で動作を確認します。</p>
+  <p>本番の Spot の中断は意図して起こせません。そのため、中断からの再開は単体テストと <code>cdk synth</code>（タスク定義の <code>StopTimeout: 120</code>、janitor の <code>rate(5 minutes)</code>）でだけ確認されています。実際の中断が起きたら、ワーカーのログの <code>SIGTERM handled: retry</code> と、エージェント欄の「ワーカーが停止されます…」で動作を確認します。</p>
 </div>
 
 <h3>janitor の処理</h3>
@@ -514,12 +514,12 @@
 <h3>ターンの制御</h3>
 <p>BRA のジョブは、次の段階を順に進みます。段階を進めるのはワーカーです。</p>
 <pre>（調査）→ HCD → FRG →（HCD と FRG の整合の検査、調整のターン 1 回）→ CSV → xlsx</pre>
-<p>段階を「完了」にするのは、その段階のプログラムによる検査がファイルを受理したときだけです。ファイルがあるだけでは「実行中」にしかなりません。FRG の段階はエージェントを HCD に戻せます（3.11）。CSV と xlsx はエージェントではなくワーカーが作ります。各段階の中身は第 3 部で説明します。</p>
-<p>1 つの段階の中の繰り返しは次のとおりです。ループは <code>packages/worker/src/pipeline.ts</code> の <code>runPhases</code> です。ファイルの受け渡しの詳細は 3.4・3.5・3.10 で説明します。</p>
+<p>段階を「完了」にするのは、その段階のプログラムによる検査がファイルを受理したときだけです。ファイルがあるだけでは「実行中」にしかなりません。FRG の段階はエージェントを HCD に戻せます（3.11）。CSV と xlsx はエージェントではなくワーカーが作ります。各段階の中身は第 3 部に記載しています。</p>
+<p>1 つの段階の中の繰り返しは次のとおりです。ループは <code>packages/worker/src/pipeline.ts</code> の <code>runPhases</code> です。ファイルの受け渡しの詳細は 3.4・3.5・3.10 に記載しています。</p>
 <ol class="steps">
   <li>Codex の <code>runStreamed</code> で 1 ターンを実行し（<code>outputSchema</code> 付き）、出来事を Messages に書きます。</li>
   <li>最後の返答が <code>status: "question"</code> なら、状態を S3 に書いて終わります（8.3）。</li>
-  <li>ターンのたびに、いまの段階を検査します（<code>packages/shared/src/harness.ts</code> の <code>checkHcd</code> / <code>checkFrg</code>）。検査するのは、JSON Schema、ファイルをまたぐ参照、UC の命名、インターフェース、FRG の制約、値が英語だけであること、レポートの節です。文献も同じ段階で照合します（<code>packages/shared/src/references.ts</code> の <code>checkCitations</code>、<code>packages/worker/src/references.ts</code> の <code>ReferenceVerifier</code>。3.10）。</li>
+  <li>ターンのたびに、現在の段階を検査します（<code>packages/shared/src/harness.ts</code> の <code>checkHcd</code> / <code>checkFrg</code>）。検査するのは、JSON Schema、ファイルをまたぐ参照、UC の命名、インターフェース、FRG の制約、値が英語だけであること、レポートの節です。文献も同じ段階で照合します（<code>packages/shared/src/references.ts</code> の <code>checkCitations</code>、<code>packages/worker/src/references.ts</code> の <code>ReferenceVerifier</code>。3.10）。</li>
   <li>問題があれば、その一覧を修正依頼として返します。修正ターンは 1 段階につき <code>MAX_NUDGES</code>（3）回までです。修正ターンは挙げた問題を直すだけなので、推論の強さを <code>min(プロジェクトの強さ, medium)</code>（<code>fixTurnEffort</code>）にして実行します。問題が残れば警告を出して先に進み、出力が使えなければジョブを失敗にします。</li>
   <li>段階が受理されたら、次の段階の依頼を送ります。後の段階のファイルがすでに検査に通るとき（フォローアップの後など）は、作り直しません。エージェントが FRG や CSV の段階で HCD のファイルを変えたとき、または CSV の段階で FRG のファイルを変えたときは、後の段階がそれを検査し直し、新しい問題を自分の問題と一緒に返します（3.11）。</li>
   <li>CSV の段階では、<code>buildCsvs</code> が JSON から 5 つの CSV を機械的に作ります。エージェントは CSV を書きません。生成に失敗したら、その問題を JSON の修正依頼として返します。</li>
@@ -577,6 +577,6 @@
   <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業ディレクトリも使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意します。RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し、返答が読めなければ 1 回だけ再試行します。時間予算（<code>PLAN_JOB_TIME_BUDGET_MS</code>）は 7 分で、xlsx・PDF を読む下書きと 20 行を超える下書きは 25 分です。RCS が知らない HOMBA のアンカーを除いてから <code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.4）。</li>
   <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、ツールのない新しい会話で指摘を JSON で返させ、<code>result.json</code> に書きます。自律実行の計画の判断のジョブ（<code>reviewKind: "decide"</code>）は、判定も返します（5.8、6.8）。</li>
 </ul>
-<p>AI レビューと計画用のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 で説明します。</p>
+<p>AI レビューと計画用のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 に記載しています。</p>
 <p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>・<code>article.ts</code>・<code>planJob.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>references.ts</code>・<code>types.ts</code>（<code>fixTurnEffort</code>）・<code>planJob.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/Dockerfile</code></p>
 </section>

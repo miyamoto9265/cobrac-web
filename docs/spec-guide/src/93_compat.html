@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">付録 C</div>
   <h1 class="part" id="pc">古いプロジェクトの扱い</h1>
-  <p class="lead">本文には現行の仕様だけを書いています。この付録では、以前のバージョンのアプリで作られたプロジェクト・Canon・計画・ジョブの記録を、いまのアプリがどう扱うかをまとめます。新しく作るものには関係しません。古いデータを読む開発者と、古いプロジェクトについて問い合わせを受けた運用者に向けた付録です。変化の理由と経緯は付録 D にあります。</p>
+  <p class="lead">本文には現行の仕様だけを記述しています。本付録では、以前のバージョンのアプリで作られたプロジェクト・Canon・計画・ジョブの記録を、現在のアプリがどう扱うかをまとめています。新しく作るものには関係しません。古いデータを読む開発者と、古いプロジェクトについて問い合わせを受けた運用者に向けた付録です。変化の理由と経緯は付録 D にあります。</p>
   <div class="map">
     <div><b>作られたときの規則</b>既存のプロジェクトは、作成時に保存した印に従って検査し続けます。フォローアップでも複製でも変わりません。</div>
     <div><b>保存データは書き換えない</b>古い形の名前や記録は、DynamoDB と S3 の上ではそのまま残します。</div>
@@ -18,7 +18,7 @@
   <li><b>計画は確定時の規則で作る</b>：オーケストレーターの計画は、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、その計画の行はすべて確定時の規則で作られます（6.9）。</li>
   <li><b>保存したデータは書き換えない</b>：古い形の名前、古い境界のアンカー、多く数えすぎた使用量は、保存先の上ではそのままです。読むときに現在の形へ直すか、補正して表示します。</li>
 </ul>
-<p>主な変化と、それより前に作られたものの扱いを次の表にまとめます。詳しい扱いは右の列の節にあります。</p>
+<p>主な変化と、それより前に作られたものの扱いは次の表のとおりです。詳しい扱いは右の列の節にあります。</p>
 <table class="compact">
   <thead><tr><th style="width:30%">変化</th><th style="width:10%">導入</th><th style="width:22%">印</th><th>それより前のものの扱い</th><th style="width:7%">節</th></tr></thead>
   <tbody>
@@ -63,7 +63,7 @@
 </ul>
 
 <h3>SABRA の境界が以前のままのプロジェクト</h3>
-<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは新皮質だけになりました（2.3）。それまでは、扁桃体・海馬・大脳基底核・視床の皮質下の 36 ラベルと、嗅内皮質（<code>A28/34</code>）・側頭無顆粒島皮質（<code>TI</code>）も BNA で表していました。嗅皮質・梨状皮質などの不等皮質も BNA の側でしたが、BNA にラベルはありませんでした。いまはこれらを DHBA の項で表します。v0.24.0 より前に作ったプロジェクトは、この変更の影響を受けません。</p>
+<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは新皮質だけになりました（2.3）。それまでは、扁桃体・海馬・大脳基底核・視床の皮質下の 36 ラベルと、嗅内皮質（<code>A28/34</code>）・側頭無顆粒島皮質（<code>TI</code>）も BNA で表していました。嗅皮質・梨状皮質などの不等皮質も BNA の側でしたが、BNA にラベルはありませんでした。現在はこれらを DHBA の項で表します。v0.24.0 より前に作ったプロジェクトは、この変更の影響を受けません。</p>
 <ul>
   <li><b>プロジェクト</b>：<code>sabraBoundary</code> を持たないプロジェクトは、以前の境界のまま検査します。皮質下の BNA のアンカーのまま読み込み・検査・出力ができ、フォローアップでも書き直しを求めません。新しいプロジェクトは、作成時に <code>sabraBoundary: "neocortex"</code> を持ちます。複製は元の設定を引き継ぎます。</li>
   <li><b>版</b>：版の manifest には、検査が従った境界（<code>neocortex</code> / <code>legacy</code>）と、RCS が返した境界のバージョンが残ります（4.5）。</li>
@@ -130,12 +130,12 @@
 </table>
 
 <h3>Canon の制約の強さ</h3>
-<p>v0.12.0 には、Canon ごとの <code>constraintMode</code>（<code>strict</code> / <code>advisory</code>。画面では「助言（警告だけ）」）がありました。いまは廃止され、すべての Canon が同じ方法で検査されます（5.5）。古いリクエストがこの値を送ってきても受け付けて無視します。保存済みの値は項目に残りますが、読みません。</p>
+<p>v0.12.0 には、Canon ごとの <code>constraintMode</code>（<code>strict</code> / <code>advisory</code>。画面では「助言（警告だけ）」）がありました。現在は廃止され、すべての Canon が同じ方法で検査されます（5.5）。古いリクエストがこの値を送ってきても受け付けて無視します。保存済みの値は項目に残りますが、読みません。</p>
 <p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>checkFrg</code>）、<code>packages/shared/src/cross.ts</code>（<code>harnessRules</code> が 2 未満のときだけ X4）、<code>prompts/phases/HCD_roi_rules.md</code>・<code>FRG_gn_rules.md</code>、<code>packages/shared/src/bra.ts</code>、<code>scripts/bra-appendix-d.mjs</code>、<code>packages/shared/src/canon.ts</code>（<code>constraintMode</code>）</p>
 
 <h2 id="sc-4">C.4 ID と名前</h2>
 <h3>以前の形の ID</h3>
-<p>いまのプロジェクト・Canon・計画の ID は、1 文字の接頭辞（プロジェクトは <code>p</code>、Canon は <code>c</code>、計画は <code>n</code>）とランダムな 7 文字です（4.3）。v0.7.0 から v0.28.x までは、利用者ごとの番号を使った別の形で ID を発行していました。この形の ID は<b>いまも有効</b>で、どの検査も両方の形を受け付けます。BRA の版は、どちらの形でも <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です。</p>
+<p>現在のプロジェクト・Canon・計画の ID は、1 文字の接頭辞（プロジェクトは <code>p</code>、Canon は <code>c</code>、計画は <code>n</code>）とランダムな 7 文字です（4.3）。v0.7.0 から v0.28.x までは、利用者ごとの番号を使った別の形で ID を発行していました。この形の ID は<b>現在も有効</b>で、どの検査も両方の形を受け付けます。BRA の版は、どちらの形でも <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です。</p>
 <table class="compact">
   <thead><tr><th style="width:14%">種類</th><th style="width:44%">以前の形（v0.7.0 から）</th><th>例</th></tr></thead>
   <tbody>
@@ -207,21 +207,21 @@
 </table>
 
 <h3>古い会話の質問の印</h3>
-<p>いまのエージェントは、ターンの終わりに構造化した JSON で質問を返します（3.4）。v0.5.0 より前の会話では、質問を返答の中の <code>[QUESTION]…[/QUESTION]</code> の印で示していました。ワーカーとエージェント欄は、この古い印もいまも質問として読みます。</p>
+<p>現在のエージェントは、ターンの終わりに構造化した JSON で質問を返します（3.4）。v0.5.0 より前の会話では、質問を返答の中の <code>[QUESTION]…[/QUESTION]</code> の印で示していました。ワーカーとエージェント欄は、この古い印も引き続き質問として読みます。</p>
 
 <h3>古い形で保存したメッセージ</h3>
-<p>いまのワーカーは、ジョブの始めにエージェントへ送る依頼文を <code>system</code> / <code>status</code> のお知らせとして保存します（8.5）。v0.8.1 までのワーカーは、この依頼文を <code>meta.mode</code> 付きの <code>user</code> のメッセージとして保存していました。エージェント欄は、この古いメッセージもいまと同じお知らせとして表示します（<code>normalizeStoredMessage</code>）。</p>
+<p>現在のワーカーは、ジョブの始めにエージェントへ送る依頼文を <code>system</code> / <code>status</code> のお知らせとして保存します（8.5）。v0.8.1 までのワーカーは、この依頼文を <code>meta.mode</code> 付きの <code>user</code> のメッセージとして保存していました。エージェント欄は、この古いメッセージも現在と同じお知らせとして表示します（<code>normalizeStoredMessage</code>）。</p>
 
 <h3>古い計画の記録</h3>
 <ul>
-  <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。いまはこの指示をやめています（6.8）。</li>
-  <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、いまは使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
+  <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。現在はこの指示を使っていません（6.8）。</li>
+  <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、現在は使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
   <li>開発段階 3（計画の Canon、v0.36.0）より前に作った計画は Canon を持たず、Canon のない計画として動きます。</li>
-  <li>計画の資料の CSV では、バッチの列名として「波」もいまの「バッチ」「batch」「wave」と同じに読みます。以前の画面の表記に合わせた名前です。</li>
+  <li>計画の資料の CSV では、バッチの列名として「波」も現在の「バッチ」「batch」「wave」と同じに読みます。以前の画面の表記に合わせた名前です。</li>
 </ul>
 
 <h3>以前の既定で保存したグラフの配置</h3>
-<p>いまの既定では、グラフのエッジを曲線で描きます（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
+<p>現在の既定では、グラフのエッジを曲線で描きます（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
 
 <h3>v0.20.0 より前の PR</h3>
 <p>Canon の PR の履歴は、追記専用の項目 <code>PEV#…</code> に残します（5.8）。この項目がない v0.20.0 より前の PR は、push と判断を <code>PR#</code> の項目から組み立て直して表示します。</p>

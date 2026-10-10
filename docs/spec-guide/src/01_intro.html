@@ -1,13 +1,13 @@
 <section class="part intro">
 <div class="opener">
   <div class="no">序章</div>
-  <h1 class="part" id="p0">この文書について</h1>
+  <h1 class="part" id="p0">本書について</h1>
   <p class="lead">本書は Web アプリ CoBRAC Agents の設計書であり、リポジトリのコードに基づいて記述されています。回路の命名規則、BRA の作り方、プロジェクトと版、回路の定義をそろえる Canon、多数の BRA をまとめて作るオーケストレーター、BRA-DB への登録、およびそれらを動かすシステムとセキュリティを 1 冊に収めています。</p>
 </div>
 
-<h2 id="s0-1">0.1 この文書の位置づけと読み方</h2>
-<p>本書は、表紙に記載したバージョンのコードの動作を記述したものです。仕様を変えるときは、コードとこの文書を同じ変更の中で直します。それでも両者が食い違った場合は、コードが正しく、この文書の誤りです。</p>
-<p>前半（第 1〜7 部）は CoBRAC を使う人と BRA を読む人に向けて、何をどういう規則で作るかを説明します。後半（第 8・9 部と付録）は開発と運用を担う人に向けて、それを実現する仕組みを説明します。読者ごとの読み方は次のとおりです。</p>
+<h2 id="s0-1">0.1 本書の位置づけと読み方</h2>
+<p>本書は、表紙に記載したバージョンのコードの動作を記述したものです。仕様を変えるときは、コードと本書を同じ変更の中で修正します。それでも両者が食い違った場合は、コードを正とし、本書の誤りとして扱います。</p>
+<p>前半（第 1〜7 部）は、CoBRAC を使う人と BRA を読む人に向けて、何をどういう規則で作るかを説明しています。後半（第 8・9 部と付録）は、開発と運用を担う人に向けて、それを実現する仕組みを説明しています。読者ごとの読み方は次のとおりです。</p>
 <table>
   <thead><tr><th style="width:26%">読者</th><th style="width:30%">まず読むところ</th><th>必要に応じて</th></tr></thead>
   <tbody>
@@ -17,7 +17,7 @@
     <tr><td>CoBRAC の開発と運用を担う人</td><td>すべて。とくに第 8 部、第 9 部、付録 A〜C</td><td>運用の手順は <code>docs/ops/README.md</code></td></tr>
   </tbody>
 </table>
-<p>この文書のほかに、次の文書があります。</p>
+<p>本書のほかに、次の文書があります。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">文書</th><th>役割</th></tr></thead>
   <tbody>
@@ -28,7 +28,7 @@
   </tbody>
 </table>
 <table>
-  <caption>この文書の構成</caption>
+  <caption>本書の構成</caption>
   <thead><tr><th style="width:30%">部</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><b>第 1 部 CoBRAC の概要</b></td><td>CoBRAC がすること、BRA ができるまでの流れ、複数の BRA をそろえる仕組み、時間と費用の目安、データの扱い</td></tr>
@@ -69,7 +69,7 @@
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code></p>
 
 <h2 id="s0-3">0.3 用語</h2>
-<p>この文書で使う主な用語です。各部に出てくる細かい用語は、その部で定義します。</p>
+<p>本書で使う主な用語を次に示します。各部に固有の細かい用語は、その部で定義しています。</p>
 <table class="compact">
   <thead><tr><th style="width:22%">用語</th><th>意味</th></tr></thead>
   <tbody>
@@ -84,7 +84,7 @@
     <tr><td>SABRA</td><td>組織の混合アトラス。新皮質は BNA（Brainnetome）、それ以外は DHBA を使う。SABRA 自体は独自の ID を持たない（2.3）</td></tr>
     <tr><td>HOMBA / DHBA / BNA</td><td>HOMBA はヒトの脳のオントロジーで、DHBA 側の単位は DHBA 名を持つ HOMBA の項目。BNA は Brainnetome Atlas のラベルで、左が奇数、右が偶数</td></tr>
     <tr><td>RCS</td><td>ROSETTA Candidate Search。名前から HOMBA と BNA の候補と SABRA での扱いを返す MCP サーバー（別リポジトリ <code>rosetta-candidate-search</code>）</td></tr>
-    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で動かす。この文書で単に「エージェント」と書けばこれを指す</td></tr>
+    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で動かす。本書で単に「エージェント」と記した場合はこれを指す</td></tr>
     <tr><td>Codex</td><td>OpenAI のエージェント実行環境（Codex SDK と CLI）。モデルにツールを使わせ、会話を管理する</td></tr>
     <tr><td>ワーカー</td><td>ジョブごとに AWS Fargate で動く TypeScript のプログラム</td></tr>
     <tr><td>ハーネス</td><td>エージェントを決まった手順で動かし、成果物を検査して直させる仕組みの全体。ワーカーのプログラム、指示書、JSON Schema、検査、変換からなる（第 3 部）</td></tr>
@@ -112,7 +112,7 @@
 </table>
 
 <h2 id="s0-4">0.4 番号の対応</h2>
-<p>CoBRAC には、意味の違う番号がいくつかあります。混同しないように、ここで区別しておきます。</p>
+<p>CoBRAC には、意味の違う番号がいくつかあります。混同を避けるため、本節でそれらを区別します。</p>
 <table class="compact">
   <thead><tr><th style="width:22%">番号</th><th style="width:36%">対象</th><th>現行の値</th></tr></thead>
   <tbody>
@@ -125,14 +125,14 @@
     <tr><td>Canon の rev</td><td>Canon の中身の履歴</td><td>rev 0、1、2…（第 5 部）</td></tr>
   </tbody>
 </table>
-<p>プロジェクトは、作成したときの <code>harnessRules</code>、SABRA の境界、調査モードなどの設定を持ち続けます。アプリが新しくなっても、既存の BRA に新しい規則が一律に適用されるわけではありません。古い設定のプロジェクトがどう扱われるかは付録 C にまとめています。</p>
+<p>プロジェクトは、作成したときの <code>harnessRules</code>、SABRA の境界、調査モードなどの設定を持ち続けます。アプリが新しくなっても、既存の BRA に新しい規則が一律に適用されることはありません。古い設定のプロジェクトがどう扱われるかは付録 C にまとめています。</p>
 
 <h2 id="s0-5">0.5 表記</h2>
 <ul>
   <li>ファイル、キー、関数、API は <code>等幅</code> で示します。画面の文言は「」で示します。</li>
-  <li>「（3.4）」のような番号は、この文書の節の番号です。</li>
-  <li>数値（上限、時間、費用）は、表紙に書いたバージョンのコードの値です。</li>
-  <li>前半の部では、コードの名前は節の最後の「実装」と「典拠」の段にまとめ、本文には書きません。典拠には、その節の内容を決めているファイルを挙げます。</li>
-  <li>本文は「です・ます」で書き、表は常体か体言止めで書きます。</li>
+  <li>「（3.4）」のような番号は、本書の節の番号です。</li>
+  <li>数値（上限、時間、費用）は、表紙に記載したバージョンのコードの値です。</li>
+  <li>前半の部では、コードの名前は節の最後の「実装」と「典拠」の段にまとめ、本文には記載しません。典拠には、その節の内容を決めているファイルを挙げています。</li>
+  <li>本文は「です・ます」体、表は常体または体言止めで記述しています。</li>
 </ul>
 </section>
