@@ -214,7 +214,7 @@ Settings, the gear icon next to your email address at the bottom of the sidebar,
 - **Change password**
 - **Language**
 
-The display language and the theme (light or dark) can also be switched at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
+To sign out, press the icon to the right of the gear. The display language and the theme (light or dark) can also be switched at the bottom of the sidebar. Press the version number at the very bottom of the sidebar for the release notes, which list what changed in the app.
 
 ## Troubleshooting
 
