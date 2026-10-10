@@ -989,7 +989,7 @@ export const fr: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "Son projet a été arrêté en dehors du plan.",
   "plan.reason.project_deleted": "Son projet a été supprimé.",
   "plan.reason.start_failed": "Son projet n’a pas pu démarrer.",
-  "plan.rows": "Lignes ({n})",
+  "plan.rows": "Projets ({n})",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "Justification",

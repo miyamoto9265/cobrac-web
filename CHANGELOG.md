@@ -11,6 +11,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Changed
 - CoBRAC Orchestrator: each running plan in the plan list has its own pause button (and a paused plan a resume button), so plans can be paused and resumed one by one without opening them. A paused plan starts neither new rows nor the Orchestrator's AI jobs; running rows go on
 
+## [0.45.2] - 2026-10-10
+
+### Changed
+- Plan screen: the list heading reads "Projects (n)" instead of "Rows (n)", and clicking a row's card (or its title) opens its project
+- Plan screen: the time and cost estimates are no longer shown (they were too rough to rely on), and batches, time and cost share one compact card next to the progress
+- Plan screen: the settings (models, research mode, harness rules) fit on one line instead of a card
+
 ## [0.45.1] - 2026-10-10
 
 ### Changed

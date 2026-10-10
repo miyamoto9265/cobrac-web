@@ -42,7 +42,7 @@ function Stat({ label, help, children }: { label: string; help?: string; childre
 
 function Summary({ d }: { d: PlanDetailResponse }) {
   const t = useT();
-  const { plan, rows, limits, estimate, actual } = d;
+  const { plan, rows, limits, actual } = d;
   const counts = plan.rowCounts!;
   // wave numbers as stored (the headings of the rows show the same numbers)
   const waves = planWaves(rows);
@@ -51,7 +51,7 @@ function Summary({ d }: { d: PlanDetailResponse }) {
   const shown = ROW_STATE_ORDER.filter((s) => n(s) > 0);
   const flow = isFlowPlan(plan);
   const concurrency = (
-    <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+    <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-600">
       {t("plan.concurrency", { n: limits.effective })}
       <HelpTip
         text={t("plan.concurrencyHelp", {
@@ -62,7 +62,7 @@ function Summary({ d }: { d: PlanDetailResponse }) {
     </div>
   );
   return (
-    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="plan-summary">
+    <div className="mb-5 grid gap-3 sm:grid-cols-2" data-testid="plan-summary">
       <Stat label={t("plan.progress")}>
         <div className="font-medium">{t("plan.doneOf", { done: counts.done, n: rows.length })}</div>
         <PlanBar waves={waveCounts(rows)} lanes={flow ? laneCounts(rows) : undefined} activeWave={plan.activeWave} live={plan.status === "RUNNING"} className="mt-1.5" />
@@ -77,46 +77,30 @@ function Summary({ d }: { d: PlanDetailResponse }) {
           ))}
         </div>
       </Stat>
-      {flow && d.slots ? (
-        <Stat label={t("flow.slots")} help={t("flow.slotsHelp")}>
-          <SlotPips slots={d.slots} live={plan.status === "RUNNING"} />
+      {/* batches (or slots), time and cost in one card; estimates are not shown (they were too rough to rely on) */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-white p-3 text-sm" data-testid="plan-facts">
+        <div className="text-xs text-slate-500">{flow && d.slots ? t("flow.slots") : flow ? t("flow.lanes") : t("plan.waves")}</div>
+        <div className="min-w-0">
+          {flow && d.slots ? <SlotPips slots={d.slots} live={plan.status === "RUNNING"} /> : <span className="font-medium">{flow ? new Set(rows.map((r) => r.lane ?? 0)).size : wavesText(waves, plan.activeWave, t)}</span>}
           {concurrency}
-        </Stat>
-      ) : (
-        <Stat label={flow ? t("flow.lanes") : t("plan.waves")}>
-          <div className="font-medium">{flow ? new Set(rows.map((r) => r.lane ?? 0)).size : wavesText(waves, plan.activeWave, t)}</div>
-          {concurrency}
-        </Stat>
-      )}
-      <Stat label={t("plan.time")} help={t(flow ? "flow.estimateHelp" : "plan.estimateHelp")}>
-        <div>
-          <span className="text-slate-500">{t("plan.estimate")}</span> <span className="font-medium">{fmtDuration(estimate.minutes, t)}</span>
         </div>
-        <div>
-          <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium">{fmtDuration(actual.minutes, t)}</span>
-        </div>
-      </Stat>
-      <Stat label={t("plan.cost")}>
-        <div>
-          <span className="text-slate-500">{t("plan.estimate")}</span>{" "}
-          <span className="font-medium">
-            {formatUsd(estimate.costUsd.min)}–{formatUsd(estimate.costUsd.max)}
-          </span>
-        </div>
-        <div>
-          <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
+        <div className="text-xs text-slate-500">{t("plan.time")}</div>
+        <div className="font-medium">{fmtDuration(actual.minutes, t)}</div>
+        <div className="text-xs text-slate-500">{t("plan.cost")}</div>
+        <div className="min-w-0">
+          <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
           {plan.settings.autonomous && (
             <span className="ml-1.5 text-xs text-violet-700" data-testid="plan-cost-limit">
               {t("auto.limit", { cost: formatUsd(plan.settings.autonomous.maxCostUsd) })}
             </span>
           )}
+          {typeof d.planJobsCostUsd === "number" && (
+            <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
+              {t("plan.planJobsCost", { cost: formatUsd(d.planJobsCostUsd) })}
+            </div>
+          )}
         </div>
-        {typeof d.planJobsCostUsd === "number" && (
-          <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
-            {t("plan.planJobsCost", { cost: formatUsd(d.planJobsCostUsd) })}
-          </div>
-        )}
-      </Stat>
+      </div>
     </div>
   );
 }
@@ -128,28 +112,22 @@ function Settings({ d }: { d: PlanDetailResponse }) {
   const s = plan.settings;
   const o = orchestratorModelOf(s);
   return (
-    <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-settings">
-      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+    // one line: the autonomous run shows in the header and its cost limit in the summary
+    <section className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600" data-testid="plan-settings">
+      <h2 className="flex items-center gap-1 font-semibold text-slate-700">
         {t("plan.settings")} <HelpTip text={t("plan.settingsNote")} />
       </h2>
-      <div className="grid gap-1 text-xs text-slate-600">
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>{t("plan.orchestratorModel")}:</span>
-          <span className="font-mono">{o.model ?? "—"}</span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>{t("plan.agentsModel")}:</span>
-          <span className="font-mono">{s.model ?? "—"}</span>
-          <span>effort: {s.reasoningEffort ?? "default"}</span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>
-            {t("plan.researchMode")}: {s.researchMode ? "on" : "off"}
-          </span>
-          {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
-        </div>
-        {s.autonomous && <div className="text-violet-700">{t("auto.settingsRead", { cost: formatUsd(s.autonomous.maxCostUsd) })}</div>}
-      </div>
+      <span>
+        {t("plan.orchestratorModel")} <span className="font-mono">{o.model ?? "—"}</span>
+      </span>
+      <span>
+        {t("plan.agentsModel")} <span className="font-mono">{s.model ?? "—"}</span>
+        {s.reasoningEffort && <span className="text-slate-500"> · {s.reasoningEffort}</span>}
+      </span>
+      <span>
+        {t("plan.researchMode")} {s.researchMode ? "on" : "off"}
+      </span>
+      {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
     </section>
   );
 }
@@ -469,17 +447,37 @@ const building = (r: PlanRowView) => (r.state === "starting" || r.state === "run
 /** A row of a confirmed plan in the list (by wave, or by lane for a flow plan). */
 function RowItem({ r, d, flow, seed, names, canSkip, canonId, act }: { r: PlanRowView; d: PlanDetailResponse; flow: boolean; seed: boolean; names: ReadonlyMap<string, string>; canSkip: boolean; canonId: string | null; act: (rowId: string, action: "retry" | "skip") => void }) {
   const t = useT();
+  const navigate = useNavigate();
+  const to = r.projectId ? projectPath(r.projectId) : null;
+  // the whole card opens its project; links, buttons and a text selection inside it keep their own behavior
+  const open = (e: React.MouseEvent) => {
+    if (!to || (e.target as Element).closest("a,button,input,select,textarea,summary,label") || window.getSelection()?.toString()) return;
+    if (e.metaKey || e.ctrlKey) window.open(to, "_blank", "noopener");
+    else navigate(to);
+  };
+  const title = (
+    <>
+      <span className="font-medium">{r.tlf || "—"}</span>
+      <span className="text-slate-500"> · {r.roi || "—"}</span>
+    </>
+  );
   return (
-    // min-w-0: a grid item is as wide as its widest unbreakable content otherwise (the truncated project name of 「既存」)
+    // min-w-0: a grid item is as wide as its widest unbreakable content otherwise
     <li
       id={flowRowAnchor(r.rowId)}
       data-state={r.state}
-      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors scroll-mt-4 sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"}`}
+      onClick={open}
+      className={`flex min-w-0 flex-col gap-1 rounded-lg border bg-white px-3 py-2 transition-colors scroll-mt-4 sm:flex-row sm:items-center sm:gap-3 ${building(r) ? "border-blue-300 shadow-[inset_3px_0_0_theme(backgroundColor.blue.500)]" : "border-slate-200"} ${to ? "cursor-pointer hover:border-blue-400 hover:bg-blue-50/40" : ""}`}
     >
       <div className="min-w-0 flex-1">
         <div className="break-words text-sm">
-          <span className="font-medium">{r.tlf || "—"}</span>
-          <span className="text-slate-500"> · {r.roi || "—"}</span>
+          {to ? (
+            <Link to={to} className="hover:underline" data-testid="plan-row-link">
+              {title}
+            </Link>
+          ) : (
+            title
+          )}
         </div>
         {r.rationale && <div className="line-clamp-1 break-words text-xs text-slate-500">{r.rationale}</div>}
         {r.state === "skipped" && r.autoSkip && (
@@ -494,11 +492,6 @@ function RowItem({ r, d, flow, seed, names, canSkip, canonId, act }: { r: PlanRo
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2 text-xs">
-        {r.projectId && (
-          <Link to={projectPath(r.projectId)} className="max-w-[16rem] truncate text-blue-700 hover:underline">
-            {r.project?.name ?? r.projectId}
-          </Link>
-        )}
         {/* a row done by an existing project spent nothing for this plan (the summary leaves it out too) */}
         {typeof r.project?.costUsd === "number" && !r.existing && <span className="text-emerald-700">{formatUsd(r.project.costUsd)}</span>}
         {r.attempts > 0 && <span className="text-slate-500">{t("plan.attempts", { n: r.attempts, max: MAX_ROW_AUTO_RETRIES })}</span>}

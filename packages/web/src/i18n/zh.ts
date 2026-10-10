@@ -989,7 +989,7 @@ export const zh: Record<MessageKey, string> = {
   "plan.reason.cancelled_outside": "项目在计划之外被停止。",
   "plan.reason.project_deleted": "项目已被删除。",
   "plan.reason.start_failed": "无法启动项目。",
-  "plan.rows": "行（{n}）",
+  "plan.rows": "项目（{n}）",
   "plan.roi": "ROI",
   "plan.tlf": "TLF",
   "plan.rationale": "理由",
