@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- Orchestrator plans: the granularity policy (粒度方針) becomes the plan's policy (方針) with five items: scope, granularity, evidence, priority and decisions. The draft job writes it first from the goal, the source files and the answers to the questions before the draft, then writes the rows following it; re-plans may replace it. The Orchestrator's answers and decisions in autonomous runs follow it, and each row's agent gets its scope, granularity and evidence in the research and HCD instructions. A new Canon made at confirmation takes its granularity. The plan screen shows it as a compact "Policy" card, one line per item. Plans from before keep their policy as the granularity item
+
 ## [0.45.1] - 2026-10-10
 
 ### Changed

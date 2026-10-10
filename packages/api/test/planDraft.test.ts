@@ -2,7 +2,7 @@
 // existing projects, plan jobs and the limits, the janitor and the dispatcher for plan jobs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePlanResponse, PlanAttachmentsResponse, JobRecord, PlanDetailResponse, PlanDraftRow, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord, UsageSummary } from "@cobrac/shared";
-import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, sharedAnchors } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, planPolicyOf, sharedAnchors } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -215,7 +215,7 @@ describe("plans: drafting with the plan job", () => {
     finishJob(planId, job.jobId, languageResult(ids));
     await advancePlan(planId);
     const plan = planOf(planId);
-    expect(plan).toMatchObject({ status: "DRAFT", ordering: "auto", policy: POLICY, rowCount: 12, draft: { status: "done", unread: [{ source: "capabilities.xlsx", location: "Sheet1!A14", reason: "not a brain function" }], dropped: 3 } });
+    expect(plan).toMatchObject({ status: "DRAFT", ordering: "auto", policy: planPolicyOf(POLICY), rowCount: 12, draft: { status: "done", unread: [{ source: "capabilities.xlsx", location: "Sheet1!A14", reason: "not a brain function" }], dropped: 3 } });
     expect(eventsOf(planId).at(-1)).toMatchObject({ type: "draft_applied", detail: { rows: 12, added: 10, unread: 1, dropped: 3 } });
 
     const rows = rowsOf(planId);
@@ -401,11 +401,13 @@ describe("plans: drafting with the plan job", () => {
     expect(job).toMatchObject({ type: "plan", planJobKind: "draft", model: "orchestrator-model" });
     finishJob(planId, job.jobId, { rows: [], policy: POLICY });
     await advancePlan(planId);
-    expect(planOf(planId)).toMatchObject({ status: "DRAFT", policy: POLICY });
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", policy: planPolicyOf(POLICY) });
     const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, {}));
     expect(confirmed.settings).toMatchObject({ model: "agents-model", orchestratorModel: "orchestrator-model" });
-    const project = fake.items("projects").find((x) => x.planId === planId) as unknown as { model: string };
+    const project = fake.items("projects").find((x) => x.planId === planId) as unknown as ProjectRecord;
     expect(project.model).toBe("agents-model");
+    // the row's agent gets the plan's policy as it was when the row started
+    expect(project.planPolicy).toEqual(planPolicyOf(POLICY));
   });
 
   it("needs a key to run jobs with, and the chosen model", async () => {

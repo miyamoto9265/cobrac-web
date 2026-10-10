@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FileAttachment } from "./attachments.js";
+import type { PlanPolicy } from "./planPolicy.js";
 import { parseCsv } from "./csv.js";
 import type { UiLocale } from "./locale.js";
 import { randomCrockfordId } from "./projectId.js";
@@ -269,8 +270,11 @@ export interface PlanRecord {
   goal: string;
   status: PlanStatus;
   settings: PlanSettings;
-  /** Granularity policy (粒度方針) for the plan's Canon: written by the Orchestrator (the draft, then re-plans), never by the owner */
-  policy?: string;
+  /**
+   * 方針 (planPolicy.ts): written by the Orchestrator (the draft, then re-plans), never by the owner. A string on plans
+   * from before the five items: their granularity (read it with `planPolicyOf`).
+   */
+  policy?: PlanPolicy | string;
   /** Absent on stage-1 plans = manual */
   ordering?: PlanOrdering;
   /** Set at confirmation: flow for plans ordered automatically; absent = waves */
@@ -289,7 +293,7 @@ export interface PlanRecord {
   lastReplanWave?: number | null;
   /** Stage 3: the plan's Canon (one of the owner's; set when chosen, or when a new one is created at confirmation) */
   canonId?: string | null;
-  /** Stage 3: a Canon to create at confirmation (with the plan's policy) */
+  /** Stage 3: a Canon to create at confirmation (with the granularity of the plan's policy) */
   canonNew?: { name: string } | null;
   /** Harness rule set of every row's project, fixed at confirmation (`HARNESS_RULES` then) */
   harnessRules?: number | null;
@@ -411,8 +415,8 @@ export interface PlanProposalRecord {
   row?: { roi: string; tlf: string; rationale: string; anchors: string[]; dependsOn: string[] } | null;
   /** remove: the row to leave out */
   rowId?: string | null;
-  /** policy: the new granularity policy */
-  policy?: string | null;
+  /** policy: the whole new policy (a string on proposals from before the five items: the granularity) */
+  policy?: PlanPolicy | string | null;
   reason: string;
   status: PlanProposalStatus;
   jobId: string;

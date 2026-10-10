@@ -196,7 +196,7 @@ In an **autonomous run** the Orchestrator acts for you and takes the plan to the
 To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the form or under "3. How it runs" of the draft. In such a plan you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
 - Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the plan is created.
-- The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the plan's goal, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
+- The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the plan's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
 - The AI reads each PR and approves, requests changes or rejects it.
 - When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the plan's Canon is gone does the plan pause for you.
 - Re-plan proposals (rows to add or remove) are applied as soon as they arrive.

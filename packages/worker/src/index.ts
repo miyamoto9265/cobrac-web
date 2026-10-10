@@ -62,6 +62,8 @@ import {
   canonAgentFiles,
   canonRevisionKey,
   canonSpecNote,
+  planPolicyNote,
+  planPolicyOf,
   type CanonRunInfo,
   type CanonSnapshot,
   type FileAttachment,
@@ -217,6 +219,8 @@ let rcs: RcsClient | null = null;
 let materials: PreparedMaterials | null = null;
 /** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
 let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
+/** The plan's policy for its row's agent (research and HCD specs); empty for a project made outside a plan */
+let planNote = "";
 /** Research mode of this run (the project's setting; article jobs never research) */
 let research = false;
 /** The project's harness rule set (0: created before the ROI rules) */
@@ -285,6 +289,7 @@ async function main() {
   }
   if (mode === "followup") await freezeBaseline(project);
   await prepareCanon(project);
+  planNote = project.planPolicy ? planPolicyNote(planPolicyOf(project.planPolicy)) : "";
   if (!rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
   const carryOver = mode === "resume" || mode === "retry";
@@ -815,11 +820,13 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
 }
 
 async function researchSpec(): Promise<string> {
-  return (await readFile(join(env.promptsDir, "phases", "RESEARCH.md"), "utf8"))
-    .replaceAll("{P}", projectId)
-    .replaceAll("{MAX_CANDIDATES}", String(RESEARCH_BUDGET.maxCandidates))
-    .replaceAll("{MIN_QUERIES}", String(RESEARCH_BUDGET.minQueriesPerCandidate))
-    .replaceAll("{BUDGET_MINUTES}", String(env.researchTimeBudgetMin));
+  return (
+    (await readFile(join(env.promptsDir, "phases", "RESEARCH.md"), "utf8"))
+      .replaceAll("{P}", projectId)
+      .replaceAll("{MAX_CANDIDATES}", String(RESEARCH_BUDGET.maxCandidates))
+      .replaceAll("{MIN_QUERIES}", String(RESEARCH_BUDGET.minQueriesPerCandidate))
+      .replaceAll("{BUDGET_MINUTES}", String(env.researchTimeBudgetMin)) + planNote
+  );
 }
 
 async function researchPrompt(project: ProjectRecord): Promise<Prompt> {
@@ -1048,6 +1055,7 @@ async function rawPhaseSpec(phase: Phase): Promise<string> {
       .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
     if (phase === "HCD" && harnessRules >= 1) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "HCD_roi_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
     if (phase === "FRG" && harnessRules >= 2) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "FRG_gn_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
+    if (phase === "HCD") spec += planNote;
     if (phase === "HCD" && canonRun) spec += canonSpecNote(canonRun.info);
     if (phase === "HCD" && !rcs) {
       spec +=

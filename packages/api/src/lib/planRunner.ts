@@ -86,6 +86,8 @@ import {
   orchestratorRetryDelayMs,
   orchestratorModelOf,
   planFinished,
+  planPolicyOf,
+  isEmptyPlanPolicy,
   canRunJobs,
   policyAllows,
   prOutcome,
@@ -430,7 +432,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       locale: plan.settings.locale,
       keySource: jobKeySource(gate.policy, gate.model),
       harnessRules: plan.harnessRules ?? HARNESS_RULES,
-      plan: { planId: plan.planId, name: plan.name },
+      plan: { planId: plan.planId, name: plan.name, policy: planPolicyOf(plan.policy) },
       projectId,
       jobId,
       recover,
@@ -639,7 +641,7 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
   for (const r of applied.rows) await putRow(r);
   const dropped = parsed.dropped + applied.dropped;
   const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso(), ...(isAutonomous(plan) ? { autoConfirm: true } : {}) };
-  const values: Partial<PlanRecord> = { draft, ordering: "auto", rowCount: applied.rows.length, rowCounts: countRows(applied.rows), ...(parsed.policy ? { policy: parsed.policy } : {}) };
+  const values: Partial<PlanRecord> = { draft, ordering: "auto", rowCount: applied.rows.length, rowCounts: countRows(applied.rows), ...(isEmptyPlanPolicy(parsed.policy) ? {} : { policy: parsed.policy }) };
   if (!(await setPlanStatus(plan.planId, "DRAFTING", "DRAFT", values))) return;
   Object.assign(plan, values, { status: "DRAFT" });
   result.changed++;

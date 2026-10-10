@@ -9,6 +9,7 @@ import { PLAN_FILE_ACCEPT } from "../../lib/plan";
 import { checkPlanFiles, uploadPlanFiles } from "../../lib/planFiles";
 import { inputCls, primaryBtn } from "../../pages/CanonsPage";
 import { jobError, secondaryBtn } from "./common";
+import { PlanPolicyView } from "./PlanPolicyView";
 
 /** What the last draft job left: the error of a failed one, or the items a finished one could not read. */
 function DraftOutcome({ plan }: { plan: PlanRecord }) {
@@ -72,7 +73,7 @@ function DraftJob({ plan, busy, onCancel }: { plan: PlanRecord; busy: boolean; o
 
 /**
  * 「1. 作るもの」: the goal (stored when the field is left), the capability lists (added and removed here, while the plan
- * is a draft), the button that asks for a draft, what the draft job is doing or what it left, and the granularity policy
+ * is a draft), the button that asks for a draft, what the draft job is doing or what it left, and the policy
  * the Orchestrator wrote. While the draft is written everything here is read-only.
  */
 export function DraftWhat({
@@ -161,7 +162,6 @@ export function DraftWhat({
 
   const canDraft = !!goal.trim() || files.length > 0 || rows > 0;
   const full = files.length >= ATTACHMENT_LIMITS.maxFiles;
-  const policy = (plan.policy ?? "").trim();
   return (
     <section aria-labelledby={`${id}-h`} className="grid gap-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6" data-testid="plan-what">
       <div>
@@ -272,12 +272,7 @@ export function DraftWhat({
       )}
       {editable && <DraftOutcome plan={plan} />}
 
-      {policy && (
-        <div className="grid gap-0.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3" data-testid="plan-policy">
-          <div className="text-xs font-semibold text-slate-600">{t("pd.policy")}</div>
-          <p className="whitespace-pre-line break-words text-sm text-slate-700">{policy}</p>
-        </div>
-      )}
+      <PlanPolicyView policy={plan.policy} className="" />
     </section>
   );
 }

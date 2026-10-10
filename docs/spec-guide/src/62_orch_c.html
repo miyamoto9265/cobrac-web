@@ -55,7 +55,7 @@
 
 <h3>下書きと確定</h3>
 <ol class="steps">
-  <li><b>下書き</b>：人が対応する計画と同じく、計画用のジョブが行・アンカー・依存・粒度方針を書きます（6.4）。ジョブが失敗したときは、1 回だけ自動で依頼し直します。キーがないなど所有者の側の理由で始められないときは、やり直さずに下書きに戻します。</li>
+  <li><b>下書き</b>：人が対応する計画と同じく、計画用のジョブが方針・行・アンカー・依存を書きます（6.4）。ジョブが失敗したときは、1 回だけ自動で依頼し直します。キーがないなど所有者の側の理由で始められないときは、やり直さずに下書きに戻します。</li>
   <li><b>確定</b>：下書きを適用すると、ランナーがその処理を終えた直後に、所有者の確定と同じ処理で確定します（6.9）。計画が別の処理で使われていて確定できなければ、次の分にもう一度試します。ほかの理由で失敗したときは理由を残し、画面に「自律実行で下書きを確定できませんでした: …。内容を確かめて「確定して開始」を押してください。」と出します。所有者が手で確定すると、この表示は消えます。</li>
   <li><b>後から切り替えた計画</b>：下書きができたあとで自律実行に切り替えた計画は、自動では確定しません。所有者が確定すると、そこから自律実行で進みます。</li>
 </ol>
@@ -64,7 +64,7 @@
 <p>回答のジョブと解決のジョブは、どちらも下書き・再計画と同じ種類の計画用のジョブです。次の性質を持ちます。</p>
 <ul>
   <li>同時実行数の枠を 1 つ使い、オーケストレーターのモデルと所有者のキーで動きます。推論の強さは <code>medium</code> です。費用は計画の費用に入ります。</li>
-  <li>入力には、計画の名前・目標・粒度方針、Canon の名前と方針、行の情報、プロジェクトの情報が入ります。行の情報は、ROI・TLF・理由・バッチ・基準プロジェクトかどうか・アンカー・依存する行です。プロジェクトの情報は、状態・質問・最後のエラーと、判断ログ <code>decision_log.md</code> の末尾 12,000 字です。解決のジョブでは、状況と選択肢も入ります。</li>
+  <li>入力には、計画の名前・目標・方針（5 項目）、Canon の名前と粒度方針、行の情報、プロジェクトの情報が入ります。行の情報は、ROI・TLF・理由・バッチ・基準プロジェクトかどうか・アンカー・依存する行です。プロジェクトの情報は、状態・質問・最後のエラーと、判断ログ <code>decision_log.md</code> の末尾 12,000 字です。解決のジョブでは、状況と選択肢も入ります。</li>
   <li>ワーカーは、指示書 <code>prompts/orchestrator.md</code>（付録 B）と入力をモデルに読ませ、ツールも Web 検索も使わない 1 ターンで、種類ごとに決まった形で答えさせます。形が違えば 1 回だけ頼み直します。時間の予算は、ワーカーの開始から 5 分です。超えると打ち切り、ジョブは失敗します。</li>
   <li>1 つの行で同時に動く行のジョブは 1 件だけです。</li>
   <li>失敗した・止められた・結果が読めないジョブは、間をおいて依頼し直します。待つ時間は 1・2・4…分と倍に延び、最大 60 分です。回数の上限はありません。キーの残高切れのように費用のかからない失敗が続いても、毎分ジョブを起こすことはありません。行には失敗の回数とエラーが出ます。成功すると記録を消します。</li>
@@ -78,7 +78,7 @@
   <li><b>答え方</b>：所有者として決めて、はっきり答えます。聞き返したり、選択肢を並べたりはしません。根拠が支えるならエージェントの推奨を採り、そうでなければ次の条件を満たすものを選びます。
     <ul>
       <li>ROI・TLF をそのまま保つ</li>
-      <li>Canon の定義と粒度方針に合う</li>
+      <li>Canon の定義と、計画の方針（範囲・粒度・根拠）に合う</li>
       <li>最も保守的で、あとで直しやすい</li>
     </ul>
     決めたことは判断ログに残すよう、エージェントに伝えます。答えは回答の本文と理由の 2 つです。</li>
@@ -101,7 +101,7 @@
       <li>PR の番号・状態・メモ</li>
       <li>選択肢：要対応は「リトライ」（プロジェクトが削除されていればなし）と「スキップ」。要判断は「完了にする」「もう一度 push」（プロジェクトが完成しているときだけ）「スキップ」</li>
     </ul></li>
-  <li><b>選び方</b>：指示書は次の基準を示します。迷ったら、失敗を繰り返す行はスキップします。答えは行動と理由の 2 つです。
+  <li><b>選び方</b>：指示書は次の基準を示します。計画の方針の「判断」と「優先」が当てはまればそれに従い、理由にそう書きます。迷ったら、失敗を繰り返す行はスキップします。答えは行動と理由の 2 つです。
     <table class="compact">
       <thead><tr><th style="width:22%">行動</th><th>選ぶとき</th></tr></thead>
       <tbody>
@@ -162,7 +162,7 @@
   <li>外す行がもう始まっている</li>
   <li>行が 200 行に達している</li>
 </ul>
-<p>粒度方針の変更は、人が対応する計画と同じく承認なしで反映します。</p>
+<p>方針の変更は、人が対応する計画と同じく承認なしで反映します。</p>
 
 <h3>費用の上限</h3>
 <p>費用の上限の規則は、本節の記述が正本です。</p>
@@ -211,7 +211,7 @@
           <li>資料を削除しても、その資料から読んだ行は残ります。</li>
         </ul></li>
       <li>「下書きを作成」（行がないとき）か「下書きを作り直す」（現在の行は残る）を押せます。押せないときは、その理由が横に出ます。</li>
-      <li>下書きのジョブの状態、読めなかった項目、粒度方針（読むだけ）もここに出ます。</li>
+      <li>下書きのジョブの状態、読めなかった項目、方針（読むだけ）もここに出ます。</li>
     </ul></li>
   <li><b>行とバッチ</b>
     <ul>
@@ -245,7 +245,7 @@
   <li><b>CSV の読み込み</b>：自動の順序の下書きでは、全体を並べ直して自動の順序のままにします。手動の順序の下書きでは、行を末尾に足します。</li>
   <li><b>既存のプロジェクト</b>：同じ ROI × TLF で、完成して成果物のある自分のプロジェクトがあれば、行に「既存」とリンクが付きます。比べるときは大文字と小文字、空白を区別せず、削除したプロジェクトは数えません。既存の行は最後のバッチに並び、確定すると作らずに完了になります。見積もりにも費用にも入りません。確定までにそのプロジェクトを削除したときは、行は作られます。同じ ROI × TLF でまだ完成していないプロジェクトがあるときは、注意とリンクが出るだけで、確定すると別に作ります。</li>
   <li><b>作り直す</b>：既存のプロジェクトがあっても作りたい行は、編集画面で「作り直す」に印を付けて保存します。既存のプロジェクトは外れて行が作られます。この選択は行に残るので、下書きを作り直しても「既存」に戻りません。印を外して保存すると元に戻ります。</li>
-  <li><b>設定</b>：オーケストレーターのモデルは、計画用のジョブ（下書き・再計画・行のジョブ）と、計画の PR の AI レビュー・判断のジョブに使います（6.11）。エージェントのモデルと推論の強さは各行の BRA に使います。調査モードの既定はオンです。どちらのモデルも「デフォルト」を選ぶと、確定時に設定のデフォルトのモデルに決まります。<b>粒度方針</b>はオーケストレーターが書くもので、所有者は編集できません。</li>
+  <li><b>設定</b>：オーケストレーターのモデルは、計画用のジョブ（下書き・再計画・行のジョブ）と、計画の PR の AI レビュー・判断のジョブに使います（6.11）。エージェントのモデルと推論の強さは各行の BRA に使います。調査モードの既定はオンです。どちらのモデルも「デフォルト」を選ぶと、確定時に設定のデフォルトのモデルに決まります。<b>方針</b>はオーケストレーターが書くもので、所有者は編集できません。</li>
   <li><b>Canon</b>：「なし」「既存の Canon」「新しい Canon」から選びます。既存の Canon は自分が所有するものだけで、共同編集者として参加している Canon は選べません。新しい Canon の名前の初期値は計画の名前です（6.7）。</li>
 </ul>
 
@@ -262,7 +262,7 @@
     </ul></li>
   <li><b>既存の再確認</b>：既存のプロジェクトがある開始待ちの行について、そのプロジェクトがまだ削除されず、成果物付きで完成しているかを確認し直します。外れていれば照合し直し、なければ作ります。</li>
   <li><b>並べ直し</b>：自動の順序の計画は、その時点の実効の同時実行数でもう一度並べます。既存のプロジェクトで済む行は、そのプロジェクトを結果として完了にします（Canon のある計画の扱いは 6.7）。</li>
-  <li><b>Canon</b>：「新しい Canon」を選んでいれば、ここで作ります。計画の粒度方針を方針にした、非公開で空の rev 0 の Canon です。</li>
+  <li><b>Canon</b>：「新しい Canon」を選んでいれば、ここで作ります。計画の方針の「粒度」を粒度方針にした、非公開で空の rev 0 の Canon です。</li>
   <li><b>開始</b>：実行の仕方と見積もりを保存して、計画を実行中にします。実行の仕方は、自動の順序ならフロー実行、手動の順序ならバッチごとです（6.5）。そのあとランナーを 1 回すぐに動かします。最初の行が、次の分を待たずに始まります。</li>
 </ol>
 <p class="small">確定は計画のリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはありません（6.12）。自律実行の計画は、下書きを適用した直後にランナーが同じ処理で確定します（6.8）。</p>
@@ -287,7 +287,7 @@
   <li><b>作るもの</b>：目標は <code>PUT /plans/{id}</code> <code>{ goal }</code>。資料の追加は <code>POST /plans/{id}/attachments</code> <code>{ attachments }</code>（<code>POST /uploads</code> で上げたもの）、削除は <code>DELETE /plans/{id}/attachments/{fileId}</code>。下書きでないときは 409。ファイル番号の基準は <code>attachmentSeq</code>、消す目録は <code>attachments/derived/manifest.json</code>。</li>
   <li><b>順序</b>：「自動で並べる」は <code>POST /plans/{id}/order</code>（<code>DRAFT</code> のときだけ）で、<code>orderDraft</code> をやり直して <code>ordering: "auto"</code> にします（イベント <code>ordered</code>）。行の保存は <code>PUT /plans/{id}/rows</code>、手動の順序は <code>ordering: "manual"</code>。行の ID は <code>rowId</code>。CSV の読み込みは <code>POST /plans/{id}/rows/import</code>。</li>
   <li><b>既存と作り直し</b>：照合は <code>matchExistingProject</code>、結果は <code>existing = { projectId, name }</code>、未完成のプロジェクトへの注意は <code>duplicateOf</code>。「作り直す」は <code>rebuild: true</code> / <code>false</code>。</li>
-  <li><b>粒度方針</b>：<code>PUT /plans/{id}</code> で送ると 400「粒度方針はオーケストレーターが決めます」。</li>
+  <li><b>方針</b>：<code>PUT /plans/{id}</code> で送ると 400「方針はオーケストレーターが決めます」。</li>
   <li><b>確定</b>：<code>POST /plans/{id}/confirm</code>。キーがなければ 400、モデルを利用承認が許さなければ 403、既存の Canon が所有者のものでなければ 409。固定するハーネスのルールは <code>harnessRules</code>。既存の再確認で外れた行は、<code>confirmed</code> のイベントに <code>existingGone</code> として数えます。既存で済む行は <code>done</code>（<code>projectId</code> = そのプロジェクト、<code>completedAt</code>）。実行の仕方は <code>scheduling</code>（<code>flow</code> / <code>waves</code>。すでに決まっていればそのまま）、見積もりは <code>planEstimateFor</code>（バッチごとは <code>planEstimate</code>・<code>estimatePlan</code>、フロー実行は <code>simulateFlowMinutes</code>）で保存し、状態を <code>RUNNING</code> にします。</li>
   <li><b>質問と要対応</b>：計画の画面で答えると <code>POST /projects/{id}/answer</code> と同じ処理になります。要対応のリトライは行を <code>pending</code> に戻します。</li>
 </ul>
@@ -321,10 +321,10 @@
     <tr><td>進捗</td><td>完了した行の数 / 全体、バーと状態ごとの数、現在のバッチと同時に動く数（OpenAI の TPM の注記付き）、時間と費用（見積もりとここまで。費用には計画用のジョブの分を別に示す）</td></tr>
     <tr><td>レーンと同時実行</td><td>フロー実行の計画だけ。<b>レーンの図</b>は、レーンごとに 1 行、行ごとに 1 マスで、完了は緑、実行中は流れる青、承認待ちは紫、要対応・質問は脈打つ黄、次に始める行は青の点線、待ちは灰で示す。マスを押すとその行へ移る。<b>同時実行</b>の欄は使用中の枠を示し、行は青、オーケストレーターの AI は紫</td></tr>
     <tr><td>質問箱・要対応</td><td>エージェントが質問した行（質問と回答の欄）。要対応の行（理由、最後のエラー、「リトライ」「スキップ」）</td></tr>
-    <tr><td>設定</td><td>オーケストレーターのモデル、エージェントのモデルと推論の強さ、調査モード、自律実行と費用の上限（下書きの間だけ変えられる）。粒度方針は読むだけ（オーケストレーターが書く）。計画の Canon（「なし」「既存の Canon」「新しい Canon」。確定後はリンクと最新の rev。見つからなければ「Canon が見つかりません」）</td></tr>
+    <tr><td>設定</td><td>オーケストレーターのモデル、エージェントのモデルと推論の強さ、調査モード、自律実行と費用の上限（下書きの間だけ変えられる）。方針は読むだけ（オーケストレーターが書く）。計画の Canon（「なし」「既存の Canon」「新しい Canon」。確定後はリンクと最新の rev。見つからなければ「Canon が見つかりません」）</td></tr>
     <tr><td>行</td><td>下書きではバッチごとの表の編集欄（6.9）。それ以外はバッチごとの行と、その状態・プロジェクト・費用。作っている行と質問中の行には、そのプロジェクトの段階（調査 → HCD ⇄ FRG → CSV → xlsx）が出る。各行に「基準プロジェクト」のチップ、アンカー（4 個まで + 残りの数）、ハブの値、「重なり」、「依存」、既存のプロジェクトへの「既存」のチップ、重複するプロジェクトへの注意。バッチの見出しには保存されたバッチの番号（基準プロジェクトのバッチは「基準プロジェクト」）。フロー実行の計画では行をレーンごとに並べ、待っている行には待ち理由（6.5）を出す。自律実行の計画では、オーケストレーターの回答・判断の状態も出る（「AI の回答 n 回」、作成中・判断中、最後の判断と理由）</td></tr>
     <tr><td>下書き中</td><td>下書きのジョブの状態（枠の空き待ち・開始待ち・実行中。経過時間は出さない）と「取り消す」のバナー。下書きでは「下書きを作成」（やり直し。費用は記録される）、「自動で並べる」、下書きが読めなかった項目（資料、場所、理由）、失敗した下書きのエラー</td></tr>
-    <tr><td>実行中・一時停止中</td><td>開いている提案（行の追加 / 行の削除、理由、承認 / 却下）。決まった提案と、オーケストレーターが適用した粒度方針の変更は、履歴の下に折りたたむ。最新の再計画のジョブ（1 行）。Canon のある計画では、「承認待ち」の行に PR へのリンクと AI レビューの状態、要判断の行のカード（理由と「完了にする」「もう一度 push」「スキップ」）、「Canon に合わせた更新 n/m」（m は 6.7）、基準プロジェクトの PR の待ちと、承認待ちが 20 件に達したときのバナー（6.7）</td></tr>
+    <tr><td>実行中・一時停止中</td><td>開いている提案（行の追加 / 行の削除、理由、承認 / 却下）。決まった提案と、オーケストレーターが適用した方針の変更は、履歴の下に折りたたむ。最新の再計画のジョブ（1 行）。Canon のある計画では、「承認待ち」の行に PR へのリンクと AI レビューの状態、要判断の行のカード（理由と「完了にする」「もう一度 push」「スキップ」）、「Canon に合わせた更新 n/m」（m は 6.7）、基準プロジェクトの PR の待ちと、承認待ちが 20 件に達したときのバナー（6.7）</td></tr>
     <tr><td>履歴</td><td>計画の出来事の一覧。カードはスマートフォンでは折り返す。プロジェクトのヘッダーからは、そのプロジェクトを作った計画へリンクする</td></tr>
   </tbody>
 </table>
@@ -372,7 +372,7 @@
 <table class="compact">
   <thead><tr><th style="width:17%">項目</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><code>META</code></td><td>所有者、名前（200 字）、目標（4000 字）、状態、設定（エージェントのモデル、オーケストレーターのモデル、それぞれ所有者が選んだか、推論の強さ、調査モード、返答の言語）、<code>harnessRules</code>、<code>activeWave</code>、確定時の見積もり、状態ごとの行数、<code>pausedReason</code>、粒度方針 <code>policy</code>（2000 字）、<code>ordering</code>（<code>manual</code> / <code>auto</code>）、下書き・再計画のジョブの状態、添付ファイル、Canon（<code>canonId</code>）、ランナーのリース、各時刻、<code>deletedAt</code>。自律実行の計画は <code>settings.autonomous = { maxCostUsd }</code>、費用の上限に達した時刻 <code>costLimitAt</code>、自動の確定に失敗した理由 <code>autonomousError</code> も持つ</td></tr>
+    <tr><td><code>META</code></td><td>所有者、名前（200 字）、目標（4000 字）、状態、設定（エージェントのモデル、オーケストレーターのモデル、それぞれ所有者が選んだか、推論の強さ、調査モード、返答の言語）、<code>harnessRules</code>、<code>activeWave</code>、確定時の見積もり、状態ごとの行数、<code>pausedReason</code>、方針 <code>policy</code>（範囲・粒度・根拠・優先・判断、各 600 字、回答に拠った項目。古い計画では文字列 1 つで、粒度として読む）、<code>ordering</code>（<code>manual</code> / <code>auto</code>）、下書き・再計画のジョブの状態、添付ファイル、Canon（<code>canonId</code>）、ランナーのリース、各時刻、<code>deletedAt</code>。自律実行の計画は <code>settings.autonomous = { maxCostUsd }</code>、費用の上限に達した時刻 <code>costLimitAt</code>、自動の確定に失敗した理由 <code>autonomousError</code> も持つ</td></tr>
     <tr><td><code>ROW#&lt;rowId&gt;</code></td><td>順番、バッチ、ROI・TLF（各 300 字）、理由（1000 字）、優先度（−1000〜1000）、出所（<code>csv</code> と行番号 / <code>manual</code> / <code>llm</code>）、状態、アンカーとその出所（<code>predicted</code> / <code>used</code>）、依存 <code>dependsOn</code>、基準プロジェクト <code>seed</code>、既存のプロジェクト <code>existing</code>、「作り直す」<code>rebuild</code>、<code>projectId</code>、ジョブ、自動の試行回数、要対応・要判断の理由、最後のエラー、Canon 関連（<code>prNo</code>・<code>canonRevision</code>・<code>conform</code>・<code>conformAttempts</code>・<code>aiReview</code>）、時刻。自律実行ではスキップの理由 <code>autoSkip</code>、自動回答の回数 <code>autoAnswers</code>、判断のジョブの回数 <code>decideAttempts</code>、次のフォローアップ <code>followup</code>（<code>fix</code> / <code>changes</code> と本文）、行のジョブ <code>rowJob</code>、最後の解決 <code>aiResolution</code></td></tr>
     <tr><td><code>EVT#&lt;at&gt;#&lt;nonce&gt;</code></td><td>履歴（種類、時刻、<code>by</code> = 利用者か <code>runner</code>、行、プロジェクト、詳細）。種類は <code>created</code>・<code>rows_changed</code>・<code>confirmed</code>・<code>wave_started</code>、行の <code>row_started</code>・<code>row_question</code>・<code>row_resumed</code>・<code>row_done</code>・<code>row_retry</code>・<code>row_attention</code>・<code>row_skipped</code>・<code>row_cancelled</code>、計画の <code>paused</code>・<code>resumed</code>・<code>cancelled</code>・<code>completed</code>、下書きの <code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>、順序と再計画の <code>ordered</code>・<code>replanned</code>・<code>replan_failed</code>・<code>proposals_received</code>・<code>proposal_accepted</code>・<code>proposal_rejected</code>、Canon の <code>canon_created</code>・<code>row_pushed</code>・<code>row_conform</code>・<code>row_decision</code>・<code>row_resolved</code>・<code>row_ai_review</code>、自律実行の <code>row_auto_skipped</code>・<code>row_auto_answered</code>・<code>row_ai_resolved</code>・<code>row_ai_decided</code>・<code>cost_limit_reached</code>・<code>cost_limit_raised</code></td></tr>
     <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）</td></tr>

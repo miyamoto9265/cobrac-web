@@ -11,6 +11,7 @@ import { FlowMap, SlotPips, WaitChip, flowRowAnchor, rowsByLane } from "../compo
 import { RowAiNotes, RowFacts, autoSkipLine, dangerBtn, iconBtn, jobError, projectPath, rowLabel, rowName, secondaryBtn, seedChip } from "../components/plan/common";
 import { PlanDraft } from "../components/plan/PlanDraft";
 import { PlanHistory } from "../components/plan/PlanHistory";
+import { PlanPolicyView } from "../components/plan/PlanPolicyView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -176,21 +177,6 @@ function RaiseLimit({ plan, busy, onResume }: { plan: PlanRecord; busy: boolean;
         <Play size={14} aria-hidden /> {t("auto.raise")}
       </button>
     </form>
-  );
-}
-
-/** The granularity policy: written by the Orchestrator (the draft, then re-plans) and only shown here. */
-function Policy({ plan }: { plan: PlanRecord }) {
-  const t = useT();
-  const stored = plan.policy ?? "";
-  if (!stored.trim()) return null;
-  return (
-    <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-policy">
-      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
-        {t("canon.policy")} <HelpTip text={t("plan.policyHelp")} />
-      </h2>
-      <p className="whitespace-pre-line break-words text-sm text-slate-700">{stored}</p>
-    </section>
   );
 }
 
@@ -602,7 +588,7 @@ function ProposalBody({ p, rows, names, compact }: { p: PlanProposalRecord; rows
       </div>
     );
   }
-  if (p.kind === "policy") return <div className={`min-w-0 whitespace-pre-line break-words rounded bg-slate-100 p-2 text-sm text-slate-700 ${compact ? "line-clamp-2" : ""}`}>{p.policy ?? ""}</div>;
+  if (p.kind === "policy") return <PlanPolicyView policy={p.policy} bare />;
   return null;
 }
 
@@ -841,7 +827,7 @@ export function PlanDetailPage() {
             <Attention rows={rows.filter((r) => r.state === "attention")} act={rowAct} />
             {(plan.status === "RUNNING" || plan.status === "PAUSED") && <Proposals d={d} busy={busy} decide={decide} />}
             <Settings d={d} />
-            <Policy plan={plan} />
+            <PlanPolicyView policy={plan.policy} />
             <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
             <RowsByWave d={d} act={rowAct} />
             <PlanHistory events={d.events} rows={rows} plan={plan} />

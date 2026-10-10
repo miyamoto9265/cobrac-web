@@ -17,7 +17,7 @@ import type {
   ProjectRecord,
   UserRecord,
 } from "@cobrac/shared";
-import { PLAN_JOB_REASONING_EFFORT, PLAN_ROW_JOB_RESULT_SCHEMA, buildPlanRowJobInput, newId, nowIso, parsePlanRowResult, planJobKey, planRowOptions } from "@cobrac/shared";
+import { PLAN_JOB_REASONING_EFFORT, PLAN_ROW_JOB_RESULT_SCHEMA, buildPlanRowJobInput, newId, nowIso, parsePlanRowResult, planJobKey, planPolicyOf, planRowOptions } from "@cobrac/shared";
 import { enqueueRun, getObjectText, getPlanJson, putPlanJson } from "./aws.js";
 import { getPullRequest } from "./canons.js";
 import { putJob, updateJob } from "./db.js";
@@ -85,7 +85,7 @@ export async function rowJobInput(
     rowId: row.rowId,
     createdAt: nowIso(),
     locale: plan.settings.locale ?? null,
-    plan: { name: plan.name, goal: plan.goal, policy: plan.policy ?? "" },
+    plan: { name: plan.name, goal: plan.goal, policy: planPolicyOf(plan.policy) },
     canon: canon ? { name: canon.name, policy: canon.policy ?? "" } : null,
     row: {
       roi: row.roi,
