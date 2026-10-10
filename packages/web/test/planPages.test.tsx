@@ -215,7 +215,9 @@ describe("plan list", () => {
     await act(async () => button("Paste rows")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
-    expect(q('[data-testid="plan-autonomous"]')!.textContent).toContain("The Orchestrator runs the plan on its own (the default).");
+    expect(q('[data-testid="plan-autonomous"]')!.textContent).toContain("The Orchestrator approves pull requests, settles conflicts and answers questions for you, and runs the plan to the end.");
+    // 自律実行 and its cost limit come first; handling the plan yourself is the checkbox below them
+    expect(q('[data-testid="plan-autonomous"] input[type="number"]')!.compareDocumentPosition(q('[data-testid="plan-manual"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(button("Create plan")).toBeUndefined();
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
     await act(async () => button("Start autonomous run")!.click());

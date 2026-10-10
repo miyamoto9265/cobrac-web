@@ -149,18 +149,15 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
           <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} mt-2 font-mono text-xs`} autoFocus />
         )}
       </div>
-      <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="plan-autonomous">
-        <label className="flex items-center gap-2 text-sm coarse:min-h-11">
-          <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} data-testid="plan-manual" />
-          <span className="font-medium">{t("auto.manual.label")}</span>
-          <HelpTip text={t("auto.manual.help")} />
-        </label>
-        {autonomous && (
+      {/* 自律実行 comes first with its cost limit; handling the plan yourself is the secondary opt-in below it */}
+      <div className={`grid gap-2 rounded-lg border px-3 py-2.5 ${autonomous ? "border-violet-200 bg-violet-50" : "border-slate-200 bg-slate-50"}`} data-testid="plan-autonomous">
+        <div className={`flex items-center gap-1.5 text-sm font-semibold ${autonomous ? "text-violet-800" : "text-slate-500"}`}>
+          <Wand2 size={14} aria-hidden /> {t("auto.label")} <HelpTip text={t("auto.help")} />
+        </div>
+        {autonomous ? (
           <>
-            <p className="flex items-center gap-1 text-xs text-slate-600">
-              {t("auto.default")} <HelpTip text={t("auto.help")} />
-            </p>
-            <label className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <p className="text-xs text-violet-700">{t("auto.summary")}</p>
+            <label className="flex flex-wrap items-center gap-2 text-xs font-medium text-violet-800">
               {t("auto.cost")}
               <input
                 type="number"
@@ -169,13 +166,21 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
                 step="1"
                 value={maxCost}
                 onChange={(e) => setMaxCost(e.target.value)}
-                className={`${inputCls} w-28`}
+                // inputCls is full width: the limit is a short number field
+                className={`${inputCls.replace("w-full", "w-28")} bg-white`}
                 aria-invalid={!costOk}
               />
             </label>
-            <p className="text-xs text-slate-500">{t("auto.note")}</p>
+            <p className="text-xs text-violet-700">{t("auto.note")}</p>
           </>
+        ) : (
+          <p className="text-xs text-slate-600">{t("auto.off")}</p>
         )}
+        <label className={`flex items-center gap-2 border-t pt-2 text-xs text-slate-700 coarse:min-h-11 ${autonomous ? "border-violet-200" : "border-slate-200"}`}>
+          <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} data-testid="plan-manual" />
+          {t("auto.manual.label")}
+          <HelpTip text={t("auto.manual.help")} />
+        </label>
       </div>
       {err && <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 [overflow-wrap:anywhere]">{err}</div>}
       {!autonomous && <p className="text-xs text-slate-500">{t("plan.draftNote")}</p>}
