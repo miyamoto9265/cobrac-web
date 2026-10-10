@@ -198,9 +198,9 @@ export function ProjectsPage() {
       </ul>
       <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white lg:block">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+          <thead className="whitespace-nowrap bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-2">Project ID</th>
+              <th className="px-4 py-2">{t("projects.name")}</th>
               <th className="px-4 py-2">ROI</th>
               <th className="px-4 py-2">TLF</th>
               <th className="px-4 py-2">{t("projects.status")}</th>
@@ -221,20 +221,28 @@ export function ProjectsPage() {
             )}
             {filtered.map((p) => (
               <tr key={p.projectId} className="hover:bg-slate-50">
-                <td className="max-w-[20rem] px-4 py-2 text-xs">
-                  <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="break-words font-medium text-blue-700 hover:underline">
+                <td className="min-w-[14rem] max-w-[22rem] px-4 py-2 text-xs">
+                  <Link
+                    to={`/projects/${encodeURIComponent(p.projectId)}`}
+                    title={projectDisplayName(p)}
+                    className="line-clamp-2 break-words font-medium text-blue-700 hover:underline"
+                  >
                     {projectDisplayName(p)}
                   </Link>
-                  <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+                  <div className="whitespace-nowrap font-mono text-[11px] text-slate-400">{p.projectId}</div>
                   <HypothesisBadge project={p} className="mt-0.5" />
                 </td>
-                <td className="max-w-[16rem] truncate px-4 py-2" title={p.roi}>
-                  {p.roi || "-"}
-                </td>
-                <td className="max-w-[16rem] truncate px-4 py-2" title={p.tlf}>
-                  {p.tlf || "-"}
+                <td className="px-4 py-2">
+                  <div className="max-w-[12rem] truncate" title={p.roi}>
+                    {p.roi || "-"}
+                  </div>
                 </td>
                 <td className="px-4 py-2">
+                  <div className="max-w-[14rem] truncate" title={p.tlf}>
+                    {p.tlf || "-"}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-4 py-2">
                   <StatusBadge status={p.status} />
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px] text-slate-600" title={p.usedModels?.join(", ")}>

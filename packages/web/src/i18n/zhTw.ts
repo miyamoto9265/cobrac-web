@@ -120,6 +120,7 @@ export const zhTw: Record<MessageKey, string> = {
   "projects.search": "依 Name / Project ID / ROI / TLF 搜尋",
   "projects.allStatus": "全部狀態",
   "projects.status": "狀態",
+  "projects.name": "專案名稱",
   "projects.model": "模型",
   "projects.tokensCost": "Token / 費用",
   "projects.created": "建立",

@@ -120,6 +120,7 @@ export const ja: Record<MessageKey, string> = {
   "projects.search": "名前 / Project ID / ROI / TLF で検索",
   "projects.allStatus": "すべてのステータス",
   "projects.status": "ステータス",
+  "projects.name": "プロジェクト名",
   "projects.model": "モデル",
   "projects.tokensCost": "トークン / 料金",
   "projects.created": "作成",
