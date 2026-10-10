@@ -1,13 +1,29 @@
 <section class="part app">
 <div class="opener">
   <div class="no">付録 B</div>
-  <h1 class="part" id="pb">プロンプト原文</h1>
-  <p class="lead">ワーカーが LLM に渡す指示ファイルの全文です。英語の原文をそのまま載せます。この付録は <code>build.mjs</code> がリポジトリの <code>prompts/</code> から毎回作るので、原文と食い違うことはありません。原文の中の命令は LLM（CoBRAC エージェントなど）に向けたもので、この文書の読者への指示ではありません。</p>
+  <h1 class="part" id="pb">指示書の原文</h1>
+  <p class="lead">ワーカーが LLM に渡す指示書（<code>prompts/</code> のファイル）の全文を、英語の原文のまま載せています。本付録は <code>build.mjs</code> が PDF を作るたびに <code>prompts/</code> から生成されるので、原文と食い違うことはありません。原文の中の命令は LLM に向けたもので、本書の読者への指示ではありません。</p>
 </div>
 
 <h2 id="sb-1">B.1 原文の読み方</h2>
-<p>実行時、ワーカーは差し込み値を埋め、プロジェクトの設定に応じてファイルを連結します（2.6）。<b>基本仕様だけで実際の規則を判断しないでください。</b>HCD の後ろには ROI 規則（<code>harnessRules</code> が 1 以上）、FRG の後ろには GN 規則（<code>harnessRules</code> が 2）が付き、GN 規則は FRG 基本仕様の手順 5 にある UC 数の制約を置き換えます。調査モードでは <code>research_mode.md</code>、仮説モードでは <code>HYPOTHESIS.md</code> がさらに付きます。仮説の規則は許可された範囲だけに適用され、範囲外の文献根拠の要件は変わりません。</p>
-<p><code>AGENTS.md</code> は作業場所に置かれ、Codex がエージェントに読ませる共通ルールで、段ごとの依頼文とは別に適用されます。FRG の候補、Canon の制約、RCS が使えないときの注記、プロジェクトの見出し、検査の問題一覧などの動的な部分は、ここには含みません（2.6）。Canon の AI レビューの指示はファイルではなく、<code>packages/shared/src/canonAiReview.ts</code> の <code>canonAiPrompt()</code> が組み立てます。</p>
+<p>実行時、ワーカーは差し込み値を埋め、プロジェクトの設定に応じてファイルを連結して依頼文を作ります（3.5）。基本仕様のファイルだけでは、実際の規則は判断できません。どのファイルがいつ付くかは次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th style="width:30%">ファイル</th><th style="width:8%">節</th><th>いつ使うか</th></tr></thead>
+  <tbody>
+    <tr><td><code>AGENTS.md</code></td><td>B.2</td><td>作業ディレクトリに置かれ、Codex がエージェントに読ませる共通ルール。段階ごとの依頼文とは別に、BRA を作るすべてのターンに適用される</td></tr>
+    <tr><td><code>phases/RESEARCH.md</code></td><td>B.3</td><td>調査モードのプロジェクトで、HCD の前の調査ステップ（3.7）</td></tr>
+    <tr><td><code>phases/HCD.md</code></td><td>B.4</td><td>HCD の段階の基本仕様（3.8）</td></tr>
+    <tr><td><code>phases/HCD_roi_rules.md</code></td><td>B.5</td><td><code>harnessRules</code> が 1 以上のとき、HCD の基本仕様の後ろに付く</td></tr>
+    <tr><td><code>phases/FRG.md</code></td><td>B.6</td><td>FRG の段階の基本仕様（3.9）</td></tr>
+    <tr><td><code>phases/FRG_gn_rules.md</code></td><td>B.7</td><td><code>harnessRules</code> が 2 のとき、FRG の基本仕様の後ろに付く。基本仕様の手順 5 にある UC 数の制約を置き換える</td></tr>
+    <tr><td><code>research_mode.md</code></td><td>B.8</td><td>調査モードのプロジェクトで、各段階の仕様とフォローアップの依頼文の後ろに付く</td></tr>
+    <tr><td><code>phases/HYPOTHESIS.md</code></td><td>B.9</td><td>仮説モードのプロジェクトで付く（3.12）。仮説の規則は許可された範囲だけに適用され、範囲の外の文献根拠の要件は変わらない</td></tr>
+    <tr><td><code>article.md</code></td><td>B.10</td><td>解説記事のジョブ（3.14）</td></tr>
+    <tr><td><code>plan.md</code></td><td>B.11</td><td>オーケストレーターの計画の下書きと再計画のジョブ（6.4、6.6）</td></tr>
+    <tr><td><code>orchestrator.md</code></td><td>B.12</td><td>自律実行の計画で、オーケストレーターが質問への回答や PR などを判断するジョブ（6.8）</td></tr>
+  </tbody>
+</table>
+<p>依頼文のうち、FRG の候補、Canon の制約、RCS が使えないときの注記、プロジェクトの見出し、検査で見つかった問題の一覧などの動的な部分は、ワーカーがその場で組み立てるので、本付録には含めていません（3.5）。Canon の AI レビューの指示もファイルではなく、<code>packages/shared/src/canonAiReview.ts</code> の <code>canonAiPrompt()</code> が組み立てます。</p>
 <p>原文の中で使う差し込み値は次のとおりです。数値はコードの定数から読んでいます。</p>
 <!-- PROMPT-SOURCES -->
 </section>

@@ -1,5 +1,5 @@
-// Circuit naming figures (UC Descriptor, facets and Circuit ID), embedded in part 3 of the specification PDF
-// (docs/spec-guide/src/30_ucd.html). Rendered by docs-figures.mjs.
+// Circuit naming figures (UC Descriptor, facets and Circuit ID), embedded in part 2 of the specification PDF
+// (docs/spec-guide/src/20_naming.html; the legacy figure goes in 93_compat.html). Rendered by docs-figures.mjs.
 import { C, NW, arrow, box, header, pill, svg, text } from "./docs-figures-lib.mjs";
 
 const W = 860;

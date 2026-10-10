@@ -1,127 +1,132 @@
 <section class="part app">
 <div class="opener">
   <div class="no">付録 D</div>
-  <h1 class="part" id="pd">改訂の経緯</h1>
-  <p class="lead">この付録は、CoBRAC ハーネスが v0 から v2 まで世代を重ねてきた理由と、アプリの版ごとに入った主な機能を記録します。世代の移り変わりは、以前は 3 本の比較記事（v0→v1、v1→v1.1、v1.1→v2）に書かれていました。この本では、それぞれの<b>問題・変更・効果</b>を表にした要約だけを残します。現行の仕様は本文（第 1〜7 部）にあり、この付録は経緯を確かめるためのものです。</p>
+  <h1 class="part" id="pd">設計の経緯</h1>
+  <p class="lead">本付録は、CoBRAC のハーネスが v0 から v2 まで世代を重ねてきた理由と、その後の規則の変化、Canon とオーケストレーターの開発段階、一度だけ行った速度と費用の測定を記録しています。現行の仕様は本文にあり、本付録は経緯を確認するためのものです。古いプロジェクトを現在どう扱うかは付録 C にあります。</p>
+  <div class="map">
+    <div><b>ハーネスの世代</b>v0 から v2 までの各世代で、どんな問題をどう変え、どんな効果があったかを表にまとめています（D.1〜D.7）。</div>
+    <div><b>機能の開発段階</b>Canon とオーケストレーターを段階に分けて作った順序と、権限の変遷を残しています（D.8）。</div>
+    <div><b>測定と修正の記録</b>2026-10 の速度と費用の測定と、そこで見つかった使用量の二重計上の経緯を残しています（D.9・D.10）。</div>
+  </div>
 </div>
 
-<h2 id="sd-1">D.1 ハーネスの世代の一覧</h2>
-<p><b>ハーネス</b>は、LLM の周りにあるもの全体 ― 指示（プロンプト）、制御のループ、検査、後処理 ― を指します。世代の番号はハーネスの番号で、アプリの版番号、BRA データ形式の版（xlsx の BRA version、<code>CoBRAC-v1-0</code> / <code>CoBRAC-v1-1</code>）、検査規則の世代（<code>harnessRules</code>、D.7）とは別のものです。</p>
+<h2 id="sd-1">D.1 ハーネスの世代</h2>
+<p><b>ハーネス</b>は、LLM の周りにあるもの全体を指します。指示書、制御のループ、検査、後処理です。世代の番号はハーネスの番号で、ほかの番号とは別のものです。アプリのバージョン、BRA の CSV 形式（xlsx の BRA version、<code>CoBRAC-v1-0</code> / <code>CoBRAC-v1-1</code>）、検査規則の水準（<code>harnessRules</code>、付録 C）とは対応しません。</p>
 <table class="compact">
-  <thead><tr><th style="width:9%">世代</th><th style="width:20%">アプリの版</th><th style="width:20%">進め方を決める主体</th><th>主な特徴</th></tr></thead>
+  <thead><tr><th style="width:9%">世代</th><th style="width:22%">アプリのバージョン</th><th style="width:18%">進め方を決める主体</th><th>主な特徴</th></tr></thead>
   <tbody>
-    <tr><td><b>v0</b></td><td>デスクトップ版（Cursor）と、アプリ 0.1.0〜0.4.2</td><td>LLM（手順書を読んで自分で判断する）</td><td>日本語の指示書 4 本を順に読む。フェーズの完了は文字列のマーカー。品質の検査はない</td></tr>
-    <tr><td><b>v1</b></td><td>0.5.0〜0.6.0</td><td>ワーカー（プログラム）</td><td>英語の短いフェーズ仕様を 1 本ずつ渡し、ターンごとに検査する。CSV はコードで作る</td></tr>
-    <tr><td><b>v1.1</b></td><td>0.8.0〜0.8.1（命名規則と RCS は 0.7.0 で先に入った）</td><td>ワーカー</td><td>データは JSON と JSON Schema。CSV は常にコード。レポートと判断ログを画面で読める</td></tr>
-    <tr><td><b>v2</b></td><td>0.13.0〜（部品は 0.9.0〜0.12.1 で順に入った）</td><td>ワーカー（調整ターン 1 回を含む）</td><td>調査ステップ、文献と引用文の照合、BRA 仕様への準拠、Collection、HCD と FRG の整合チェックと往復。<b>現行の世代</b>（第 2 部）</td></tr>
+    <tr><td><b>v0</b></td><td>デスクトップ版（Cursor）と、v0.1.0〜v0.4.2</td><td>エージェント（手順書を読んで自分で判断する）</td><td>日本語の指示書 4 本を順に読む。段階の完了は文字列のマーカー。品質の検査はない</td></tr>
+    <tr><td><b>v1</b></td><td>v0.5.0〜v0.6.0</td><td>ワーカー</td><td>英語の短い段階の仕様を 1 本ずつ渡し、ターンごとに検査する。CSV はコードで作る</td></tr>
+    <tr><td><b>v1.1</b></td><td>v0.8.0〜v0.8.1（命名規則と RCS は v0.7.0 で先に入った）</td><td>ワーカー</td><td>データは JSON と JSON Schema。CSV は常にコードが作る。レポートと判断ログを画面で読める</td></tr>
+    <tr><td><b>v2</b></td><td>v0.13.0 以降（部品は v0.9.0〜v0.12.1 で順に入った）</td><td>ワーカー（調整ターン 1 回を含む）</td><td>調査ステップ、文献と引用文の照合、BRA 仕様への準拠、Collection、HCD と FRG の整合チェックと往復。<b>現行の世代</b>（第 3 部）</td></tr>
   </tbody>
 </table>
-<div class="box def">
-  <div class="h">この付録での主体の呼び方</div>
-  <p><b>CoBRAC エージェント（LLM）</b>は、OpenAI のモデルが Codex を通して動くもので、文献を調べ、判断し、ファイルを書きます（以前の比較記事と図 D.1・D.2 では「Codex エージェント」）。<b>ワーカー（プログラム）</b>は ECS Fargate 上の TypeScript のプログラムで LLM を含まず、依頼を送り、返ったファイルを検査し、次の依頼を決め、CSV・xlsx・グラフを作ります（2.1）。<b>人</b>は利用者で、デスクトップ版では LLM への最初の依頼と xlsx の生成も人が行いました。</p>
+<div class="box note">
+  <div class="h">本付録での呼び方</div>
+  <p>エージェントとワーカーの役割は序章 0.2 のとおりです。以前の比較記事と図 D.1・D.2 では、エージェントを「Codex エージェント」と呼んでいます。デスクトップ版では、エージェントへの最初の依頼と xlsx の生成も利用者が行っていました。</p>
 </div>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.5.0・0.7.0・0.8.0・0.13.0）、<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES</code>）</p>
 
-<h2 id="sd-2">D.2 v0：LLM が手順書を読んで進めた時代</h2>
-<p>v0 は、Web アプリより前に AI 支援エディタの Cursor で行っていた<b>デスクトップ版</b>の手順と、それをそのままサーバーに載せた<b>アプリ 0.1.0〜0.4.2</b> の両方を指します。流れ（TLF / ROI → HCD → FRG → CSV 5 本 → <code>.bra.xlsx</code>）は今と同じですが、どこまで進んだかを判断していたのは LLM でした。</p>
+<h2 id="sd-2">D.2 v0：エージェントが手順書を読んで進めた世代</h2>
+<p>v0 は 2 つのものを指します。Web アプリより前に AI 支援エディタの Cursor で行っていた<b>デスクトップ版</b>の手順と、それをそのままサーバーに載せた<b>v0.1.0〜v0.4.2</b> です。流れ（TLF / ROI → HCD → FRG → CSV 5 本 → <code>.bra.xlsx</code>）は現在と同じですが、どこまで進んだかを判断していたのはエージェントでした。デスクトップ版の指示書・仕様書・成果物の見本は、リポジトリの <code>archive/v0/</code> に参照用として残っており、アプリでは使いません。</p>
 <table class="compact">
-  <thead><tr><th style="width:15%">作業</th><th style="width:40%">デスクトップ版</th><th>アプリ 0.1.0〜0.4.2</th></tr></thead>
+  <thead><tr><th style="width:15%">作業</th><th style="width:40%">デスクトップ版</th><th>v0.1.0〜v0.4.2</th></tr></thead>
   <tbody>
-    <tr><td>最初の依頼</td><td>人が Cursor のチャットで、<code>instruction_0.md</code> を読んで従うよう LLM に頼む</td><td>ワーカーが「<code>instruction_0.md</code> を読んで従ってください」という 1 文を送る</td></tr>
-    <tr><td>HCD・FRG・CSV</td><td colspan="2">LLM が日本語の指示書 4 本（<code>instruction_0</code>〜<code>3</code>、計 13,871 トークン）を順に読み、フォルダを作り、HCD 8 本（初学者向け解説記事と Mermaid 図を含む）、FRG 5 本（表と Mermaid 図）を日本語で書き、最後に全部を英訳して CSV 5 本を手で書く。アプリでは 1 つの長いターンで全部を進め、フェーズの終わりに <code>[STEP_COMPLETE] HCD</code> のようなマーカーを出す</td></tr>
-    <tr><td>質問と完了</td><td>チャットで人に聞く。完了は人が見る</td><td>質問は返答の中の <code>[QUESTION]…[/QUESTION]</code>（ワーカーはタスクを止め、回答で会話を再開）。完了はワーカーが CSV の有無だけで判定し、無ければ同じ「続けて」を最大 3 回送る</td></tr>
-    <tr><td>xlsx</td><td>人が <code>python csv_to_excel.py</code> を実行し、Contributor と Project ID を入力する</td><td>ワーカーが <code>csv_to_excel.py</code> とグラフの生成を実行する</td></tr>
+    <tr><td>最初の依頼</td><td>利用者が Cursor のチャットで、<code>instruction_0.md</code> を読んで従うようエージェントに頼む</td><td>ワーカーが「<code>instruction_0.md</code> を読んで従ってください」という 1 文を送る</td></tr>
+    <tr><td>HCD・FRG・CSV</td><td colspan="2">エージェントが日本語の指示書 4 本（<code>instruction_0</code>〜<code>3</code>、計 13,871 トークン）を順に読み、フォルダを作る。HCD 8 本（初学者向け解説記事と Mermaid 図を含む）と FRG 5 本（表と Mermaid 図）を日本語で書き、最後に全部を英訳して CSV 5 本を手で書く。アプリでは 1 つの長いターンで全部を進め、段階の終わりに <code>[STEP_COMPLETE] HCD</code> のようなマーカーを出す</td></tr>
+    <tr><td>質問と完了</td><td>チャットで利用者に聞く。完了は利用者が見て判断する</td><td>質問は返答の中の <code>[QUESTION]…[/QUESTION]</code>。ワーカーはタスクを止め、回答で会話を再開する。完了はワーカーが CSV の有無だけで判定し、なければ同じ「続けて」を最大 3 回送る</td></tr>
+    <tr><td>xlsx</td><td>利用者が <code>python csv_to_excel.py</code> を実行し、Contributor と Project ID を入力する</td><td>ワーカーが <code>csv_to_excel.py</code> とグラフの生成を実行する</td></tr>
   </tbody>
 </table>
-<p>この進め方には、次の D.3 の表の左の列に挙げる 4 つの弱点がありました。</p>
-<p class="src">典拠：<code>archive/v0/</code>（<code>desktop/</code> の指示書と <code>csv_to_excel.py</code>、<code>samples/</code> の成果物、<code>userguide/</code>）。サーバー版 v0 の指示は git のタグ <code>v0.4.2</code> の <code>prompts/</code></p>
+<p>この進め方には、D.3 の表の左の列に挙げる 4 つの弱点がありました。</p>
+<p class="src">典拠：<code>archive/v0/</code>（<code>desktop/</code> の指示書と <code>csv_to_excel.py</code>、<code>samples/</code> の成果物、<code>userguide/</code>）。サーバー版 v0 の指示書は git のタグ <code>v0.4.2</code> の <code>prompts/</code></p>
 
-<h2 id="sd-3">D.3 v0 から v1 へ：ワーカーがフェーズを進める</h2>
-<p>アプリ 0.5.0（2026-09-26）で、進め方を決める主体を LLM からワーカーに移しました。ワーカー（プログラム）が HCD・FRG・CSV のフェーズを 1 つずつ進め、LLM には英語の短いフェーズ仕様をそのフェーズの分だけ渡し、ターンが終わるたびにファイルをコードで検査して、問題の一覧をそのまま返します。CSV・xlsx・グラフはワーカーが作るので、LLM は文献の調査と科学的な解釈に集中できます。</p>
-<figure data-figure="harness-overview.ja.svg" style="max-width:120mm;margin-left:auto;margin-right:auto"><figcaption><b>図 D.1</b>　v0 と v1：誰がワークフローを進めるか（「Codex エージェント」は LLM、「ワーカー」は LLM を含まないプログラム）</figcaption></figure>
+<h2 id="sd-3">D.3 v0 から v1 へ：ワーカーが段階を進める</h2>
+<p>v0.5.0（2026-09-26）で、進め方を決める主体をエージェントからワーカーに移しました。ワーカーが HCD・FRG・CSV の段階を 1 つずつ進めます。エージェントには、実行中の段階の短い英語の仕様だけを渡し、ターンが終わるたびにファイルをコードで検査して、問題の一覧をそのまま返します。CSV・xlsx・グラフはワーカーが作るので、エージェントは文献の調査と科学的な解釈に集中できます。</p>
+<figure data-figure="harness-overview.ja.svg" style="max-width:120mm;margin-left:auto;margin-right:auto"><figcaption><b>図 D.1</b>　v0 と v1：だれがワークフローを進めるか（「Codex エージェント」はエージェントのこと）</figcaption></figure>
 <table class="compact">
-  <thead><tr><th style="width:24%">v0 の弱点</th><th>v1 での変更（ワーカーと LLM の分担）</th><th style="width:19%">効果</th></tr></thead>
+  <thead><tr><th style="width:24%">v0 の弱点</th><th>v1 での変更（ワーカーとエージェントの分担）</th><th style="width:19%">効果</th></tr></thead>
   <tbody>
-    <tr><td>① 中身を誰も検査しない。完了は「CSV がある」ことで、列の欠けや存在しない回路 ID、壊れた FRG は xlsx を開くまで分からない</td><td>ワーカーがターンごとに md の表を読み取り、ファイルと列、ID、接続の両端、Reference ID、Interface と接続の一致、FRG の制約（根は 1 つ、循環なし、GN の UC は 2 つまで、UC の親 GN は 2 つまで、ROI 内の UC はすべて FRG につながる）を検査する。問題の一覧を LLM に返し、フェーズごとに最大 3 回直させる。3 回で残れば警告を出して進む</td><td>壊れた表のまま完了しなくなった。チャットで指摘を 1 件ずつ見られる</td></tr>
-    <tr><td>② 進み具合が文字列のマーカー頼み。出し忘れや綴り違い、長い返答に紛れた質問で表示が狂う</td><td>LLM のターンの終わりを、スキーマに合う JSON <code>{status, message, question}</code>（構造化出力）にした。フェーズの完了は、ワーカーの検査がファイルを受理したときに決まる</td><td>質問の見落としと読み違いがなくなった</td></tr>
-    <tr><td>③ CSV の段が手作業の翻訳。LLM が md を読み直して英訳し、CSV を打ち込む。遅く、出力が揺れる</td><td>LLM は成果物を最初から英語で書く。CSV はワーカーの <code>buildCsvs()</code> が md の表から作り、LLM は変換に失敗したときの予備だけ。フォルダと <code>Project.csv</code> もワーカーが作る</td><td>翻訳と読み直しが要らなくなった</td></tr>
-    <tr><td>④ 指示書が文脈に残り続ける。CSV の段では約 13.9k トークンがリクエストのたびに送り直される</td><td>どのフェーズでも同じルールを <code>AGENTS.md</code>（721 トークン、Codex が自動で読む）に移し、フェーズ仕様は今のフェーズの 1 本だけを依頼文に入れる。ワーカーが今のフェーズを知っているので、再試行や再開はその場所から始まる</td><td>文脈に載る指示が約 4 分の 1 に（D.6）</td></tr>
-    <tr><td>（出力の量）</td><td>初学者向け解説記事（<code>7_EasyToUnderstand.md</code>）と Mermaid の図を廃止し、図は CSV から作る Web のグラフにした。解説記事は 0.9.0 で依頼制のジョブとして戻った（2.15）</td><td>成果物の出力が約 43% 減（推定）</td></tr>
+    <tr><td>① 中身をだれも検査しない。完了は「CSV がある」ことで、列の欠けや存在しない回路 ID、壊れた FRG は xlsx を開くまで分からない</td><td>ワーカーがターンごとに md の表を読み取り、ファイルと列、ID、接続の両端、Reference ID、Interface と接続の一致、FRG の制約を検査する。FRG の制約は、根は 1 つ、循環なし、GN の UC は 2 つまで、UC の親 GN は 2 つまで、ROI 内の UC はすべて FRG につながる、の 5 つ。問題の一覧をエージェントに返し、段階ごとに最大 3 回直させる。3 回で残れば警告を出して進む</td><td>壊れた表のまま完了しなくなった。チャットで指摘を 1 件ずつ見られる</td></tr>
+    <tr><td>② 進捗が文字列のマーカー頼み。出し忘れや綴り違い、長い返答に紛れた質問で表示が狂う</td><td>ターンの終わりを、スキーマに合う JSON <code>{status, message, question}</code>（構造化出力）にした。段階の完了は、ワーカーの検査がファイルを受理したときに決まる</td><td>質問の見落としと読み違いがなくなった</td></tr>
+    <tr><td>③ CSV の段階が手作業の翻訳。エージェントが md を読み直して英訳し、CSV を打ち込む。遅く、出力が揺れる</td><td>エージェントは成果物を最初から英語で書く。CSV はワーカーの <code>buildCsvs()</code> が md の表から作り、エージェントは変換に失敗したときの予備だけを受け持つ。フォルダと <code>Project.csv</code> もワーカーが作る</td><td>翻訳と読み直しが要らなくなった</td></tr>
+    <tr><td>④ 指示書が文脈に残り続ける。CSV の段階では約 13.9k トークンがリクエストのたびに送り直される</td><td>どの段階でも同じルールを <code>AGENTS.md</code>（721 トークン、Codex が自動で読む）に移し、段階の仕様は実行中の段階の 1 本だけを依頼文に入れる。ワーカーが実行中の段階を知っているので、リトライや再開はその場所から始まる</td><td>文脈に載る指示が約 4 分の 1 に（D.6）</td></tr>
+    <tr><td>（出力の量）</td><td>初学者向け解説記事（<code>7_EasyToUnderstand.md</code>）と Mermaid の図を廃止し、図は CSV から作る Web のグラフにした。解説記事は v0.9.0 で依頼制のジョブとして戻った（3.14）</td><td>成果物の出力が約 43% 減（推定）</td></tr>
   </tbody>
 </table>
-<p>出力の減り方は、v0 時代の 5 プロジェクト（VOR 学習、演繹推論、連想記憶、知覚速度 2 件）の平均から推定しました。62,400 トークンから、解説記事と Mermaid 図 10,100、CSV 6,300、英語で書いた差 10,300 を引いて約 35,700 トークンで、書き直しを含まない下限です。</p>
+<p>出力の減り方は、v0 の 5 プロジェクト（VOR 学習、演繹推論、連想記憶、知覚速度 2 件）の平均から推定した値です。62,400 トークンから、解説記事と Mermaid 図の 10,100、CSV の 6,300、英語で書いた差の 10,300 を引くと、約 35,700 トークンになります。書き直しを含まない下限です。</p>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.5.0）、<code>packages/worker/src/pipeline.ts</code>、<code>packages/shared/src/harness.ts</code>、<code>prompts/AGENTS.md</code>。成果物の測定は <code>archive/v0/samples/</code></p>
 
 <h2 id="sd-4">D.4 v1 から v1.1 へ：JSON のデータと SABRA の名前</h2>
-<p>v1 でも LLM はデータを md の表で書き、ワーカーがそれをパースし直していました。Circuit ID は自由な名前で、画面で見られるのは xlsx とグラフだけでした。0.7.0（命名規則と RCS）と 0.8.0（JSON）の 2 段階で v1.1 になりました。フェーズの骨格は v1 と同じです。</p>
+<p>v1 でもエージェントはデータを md の表で書き、ワーカーがそれをパースし直していました。Circuit ID は自由な名前で、画面で見られるのは xlsx とグラフだけでした。v0.7.0（命名規則と RCS）と v0.8.0（JSON）の 2 段階で v1.1 になりました。段階の骨格は v1 と同じです。</p>
 <table class="compact">
-  <thead><tr><th style="width:24%">v1 の弱点</th><th>v1.1 での変更（版）</th><th style="width:22%">効果</th></tr></thead>
+  <thead><tr><th style="width:24%">v1 の弱点</th><th>v1.1 での変更（バージョン）</th><th style="width:22%">効果</th></tr></thead>
   <tbody>
-    <tr><td>① md の表のパースが脆い。セルの <code>|</code> は <code>\|</code>、改行は <code>&lt;br&gt;</code> と書く約束で、ワーカーには列名のゆれや分割された表を救うコードが要った。最大の <code>3_UC.md</code> は 14 列で長文のセルが 5 つあった</td><td>LLM はデータを JSON 4 本（<code>2_BIF.md</code> の References → <code>references.json</code>、<code>3_UC.md</code> → <code>uc.json</code>、BIF と <code>4_Connection.md</code> → <code>connections.json</code>、<code>3_FinalFRG.md</code> と <code>4_FunctionDetails.md</code> → <code>frg.json</code>）で書き、ワーカーは JSON Schema（<code>HARNESS_SCHEMAS</code>）で検査する。スキーマは <code>schemas/</code> に書き出し、LLM も読める。md のパーサは削除（0.8.0）</td><td>問題をファイル名と JSON ポインタで返せる（<code>uc.json: /ucs/3/implementation is required</code>）</td></tr>
-    <tr><td>② 誰も読まない中間ファイル（ワーカーは存在を確かめるだけで、利用者にも見えない）</td><td><code>1_InitialDecomposition.md</code>・<code>2_OptimizedFRG.md</code>・<code>5_Verification.md</code> を廃止し、理由と残る論点はレポートへ。レポートは <code>report.md</code> 1 本（<code>## HCD</code> と <code>## FRG</code>）、<code>1_Thinking.md</code> は <code>decision_log.md</code> になり、画面の「レポート」「判断ログ」で読める（0.8.0）</td><td>md は人が読む 2 本だけになった</td></tr>
-    <tr><td>③ Circuit ID が自由な名前で、プロジェクトごとに変わり、アトラスとの対応もない</td><td>LLM が RCS（MCP サーバー）で脳領域を照会し、UC を SABRA の単位（アンカー）に固定して UC Descriptor と Circuit ID で名付ける。ワーカーは構文、略称の一致（BNA は組み込みの表、HOMBA はワーカー自身が RCS に照会）、項目と facet の対応、重複を検査し、LLM の RCS 呼び出しをすべて <code>rcs_mcp_calls.jsonl</code> に残す（0.7.0）</td><td>同じ神経集団に、どのプロジェクトでも同じ名前が付く（第 3 部）</td></tr>
-    <tr><td>④ CSV を LLM が手書きする予備が残っていた</td><td>CSV フェーズから LLM のターンをなくした。問題は JSON ファイルの修正依頼として LLM に返す（0.8.0）</td><td>CSV は常にコードが作る</td></tr>
+    <tr><td>① md の表のパースが脆い。セルの <code>|</code> は <code>\|</code>、改行は <code>&lt;br&gt;</code> と書く約束で、列名のゆれや分割された表を救うコードが要った。最大の <code>3_UC.md</code> は 14 列で、長文のセルが 5 つあった</td><td>エージェントはデータを JSON 4 本で書き、ワーカーは JSON Schema（<code>HARNESS_SCHEMAS</code>）で検査する。<code>2_BIF.md</code> の References は <code>references.json</code> に、<code>3_UC.md</code> は <code>uc.json</code> に、BIF と <code>4_Connection.md</code> は <code>connections.json</code> に、<code>3_FinalFRG.md</code> と <code>4_FunctionDetails.md</code> は <code>frg.json</code> になった。スキーマは <code>schemas/</code> に書き出し、エージェントも読める。md のパーサーは削除（v0.8.0）</td><td>問題をファイル名と JSON ポインタで返せる（<code>uc.json: /ucs/3/implementation is required</code>）</td></tr>
+    <tr><td>② だれも読まない中間ファイル。ワーカーは存在を確認するだけで、利用者にも見えない</td><td><code>1_InitialDecomposition.md</code>・<code>2_OptimizedFRG.md</code>・<code>5_Verification.md</code> を廃止し、理由と残る論点はレポートへ移した。レポートは <code>report.md</code> 1 本（<code>## HCD</code> と <code>## FRG</code>）にし、<code>1_Thinking.md</code> は <code>decision_log.md</code> になった。画面の「レポート」「判断ログ」で読める（v0.8.0）</td><td>md は人が読む 2 本だけになった</td></tr>
+    <tr><td>③ Circuit ID が自由な名前で、プロジェクトごとに変わり、アトラスとの対応もない</td><td>エージェントが RCS（MCP サーバー）で脳領域を照会し、UC を SABRA の単位（アンカー）に固定して、UC Descriptor と Circuit ID で名付ける。ワーカーは構文、略称の一致、項目と facet の対応、重複を検査する。略称は、BNA なら組み込みの表、HOMBA ならワーカー自身が RCS に照会して照合する。エージェントの RCS の呼び出しは、すべて <code>rcs_mcp_calls.jsonl</code> に残す（v0.7.0）</td><td>同じ神経集団に、どのプロジェクトでも同じ名前が付く（第 2 部）</td></tr>
+    <tr><td>④ CSV をエージェントが手書きする予備が残っていた</td><td>CSV の段階からエージェントのターンをなくした。問題は JSON ファイルの修正依頼としてエージェントに返す（v0.8.0）</td><td>CSV は常にコードが作る</td></tr>
   </tbody>
 </table>
-<p>0.7.0 で xlsx の Circuits シートの末尾に UC Descriptor の列が加わりましたが、BRA version は <code>CoBRAC-v1-0</code> のままでした。</p>
+<p>v0.7.0 で xlsx の Circuits シートの末尾に UC Descriptor の列が加わりましたが、BRA version は <code>CoBRAC-v1-0</code> のままでした。</p>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.7.0・0.8.0）、<code>packages/shared/src/harness.ts</code>・<code>jsonSchema.ts</code>・<code>ucNaming.ts</code>、<code>packages/worker/src/rcs.ts</code></p>
 
 <h2 id="sd-5">D.5 v1.1 から v2 へ：一方通行から往復へ</h2>
-<p>v1.1 の流れは HCD → FRG → CSV → xlsx の一方通行で、受理したフェーズには戻りませんでした。FRG は「完成した HCD」から作るので、HCD の UC が粗すぎて FRG が形にならないときも、LLM は FRG の側で無理に合わせるしかありませんでした。v2 では FRG から HCD に戻る道を作り、その前後にワーカーの検査を足しました。部品は 0.9.0〜0.12.1 で順に入り、0.13.0（2026-09-29）の戻り道と調整ターンで一方通行でなくなりました。</p>
+<p>v1.1 の流れは HCD → FRG → CSV → xlsx の一方通行で、受理した段階には戻りませんでした。FRG は「完成した HCD」から作ります。そのため HCD の UC が粗すぎて FRG が形にならないときも、エージェントは FRG の側で無理に合わせるしかありませんでした。v2 では FRG から HCD に戻る道を作り、その前後にワーカーの検査を足しました。部品は v0.9.0〜v0.12.1 で順に入り、v0.13.0（2026-09-29）の戻り道と調整ターンで一方通行でなくなりました。</p>
 <figure data-figure="harness-v2-overview.ja.svg" style="max-width:120mm;margin-left:auto;margin-right:auto"><figcaption><b>図 D.2</b>　v1.1 と v2：一方通行から往復へ</figcaption></figure>
 <table class="compact">
-  <thead><tr><th style="width:24%">v1.1 の弱点</th><th>v2 での変更（ワーカーと LLM の分担）</th><th style="width:11%">版</th></tr></thead>
+  <thead><tr><th style="width:24%">v1.1 の弱点</th><th>v2 での変更（ワーカーとエージェントの分担）</th><th style="width:12%">バージョン</th></tr></thead>
   <tbody>
-    <tr><td>HCD に戻る道がない（数の制約が満たせないときの逃げ道は「TLF を細かく分解し直す」だけ）</td><td>LLM は FRG の手順から HCD に戻って UC を分ける・足せる。ワーカーは FRG の段の後、整合チェックに X1〜X3・X8 があれば<b>調整ターン</b>を 1 回だけ送り、LLM はどちらを直すかを証拠で決めて <code>decision_log.md</code> の revisions 節に記録する（2.12）</td><td>0.13.0</td></tr>
-    <tr><td>FRG の段で LLM が HCD を直しても検査されない</td><td>ワーカーが段ごとにデータファイルのハッシュを <code>phase_baseline.json</code> に残し、後の段で変わっていれば HCD の検査をすべてやり直す</td><td>0.12.0</td></tr>
-    <tr><td>HCD と FRG が合っているかを誰も見ない</td><td>ワーカーが整合チェック X1〜X6・X8（X7 は欠番）を <code>cross_check.json</code> に記録する（0.12.0 では記録だけ）。X9（粒度）と revisions 節の <code>[instruction]</code> タグを追加</td><td>0.12.0・0.13.0</td></tr>
-    <tr><td>文献を知識で書き、実在も引用文の原文も確かめない</td><td>ワーカーが DOI を Crossref、PMID を PubMed で引いて第一著者・年・題名を照合する（0.9.0）。Pointers on literature を原文の引用に限り（0.10.0）、ワーカーが全文か抄録と照合する（類似度 0.9 以上、0.11.0）</td><td>0.9.0〜0.11.0</td></tr>
-    <tr><td>文献を探す手段が知識と Web 検索だけ</td><td>HCD の前の<b>調査ステップ</b>（調査モード、既定でオン）と、LLM が使う文献ツール <code>lit</code>（PubMed・Europe PMC の検索、抄録、全文の文）。ワーカーは調査の網羅性を検査する（2.9）</td><td>0.11.0</td></tr>
-    <tr><td>BRA の Review Tool でエラーになる値</td><td>BRA 仕様の値の規則（BRA version <code>CoBRAC-v1-1</code>）：Source of ID は 1 値、1 行 1 文献、sCID / rCID relation、列挙値、ROI 行、Review End Line</td><td>0.10.0</td></tr>
-    <tr><td>粗い領域が均一な送り手のまま</td><td>Collection（0.11.0）。複数の SABRA 単位にまたがる送り手は理由（<code>uniformityNote</code>）が要る（コード 203、0.13.0）</td><td>0.11.0・0.13.0</td></tr>
-    <tr><td>出力と入力の不足</td><td>Template-v2-2 形式の xlsx もワーカーが作る（0.11.0、2.14）。Canon の定義を生成時の制約にする（0.12.0、第 4 部）。参考資料を添付でき、ワーカーが本文を取り出して LLM に渡す（0.12.0）</td><td>0.11.0・0.12.0</td></tr>
-    <tr><td>長いジョブがレート制限や会話の大きさで落ちる</td><td>レート制限は待って同じ会話で再開（最大 3 回）。会話を自動で圧縮し、それでも大きすぎるターンは新しい会話で続ける（2.16）</td><td>0.12.0・0.12.1</td></tr>
+    <tr><td>HCD に戻る道がない。数の制約が満たせないときの逃げ道は「TLF を細かく分解し直す」だけ</td><td>エージェントは FRG の手順から HCD に戻って、UC を分けたり足したりできる。ワーカーは FRG の段階の後、整合チェックに X1〜X3・X8 があれば<b>調整ターン</b>を 1 回だけ送る。エージェントはどちらを直すかを証拠で決め、<code>decision_log.md</code> の revisions 節に記録する（3.11）</td><td>v0.13.0</td></tr>
+    <tr><td>FRG の段階でエージェントが HCD を直しても検査されない</td><td>ワーカーが段階ごとにデータファイルのハッシュを <code>phase_baseline.json</code> に残し、後の段階で変わっていれば HCD の検査をすべてやり直す</td><td>v0.12.0</td></tr>
+    <tr><td>HCD と FRG が合っているかをだれも見ない</td><td>ワーカーが整合チェック X1〜X6・X8（X7 は欠番）を <code>cross_check.json</code> に記録する。v0.12.0 では記録だけだった。v0.13.0 で X9（粒度）と revisions 節の <code>[instruction]</code> タグを追加</td><td>v0.12.0・v0.13.0</td></tr>
+    <tr><td>文献を知識で書き、実在も引用文の原文も確認しない</td><td>ワーカーが DOI を Crossref で、PMID を PubMed で検索し、第一著者・年・タイトルを照合する（v0.9.0）。Pointers on literature を原文の引用に限り（v0.10.0）、ワーカーが全文か抄録と照合する（類似度 0.9 以上、v0.11.0）</td><td>v0.9.0〜v0.11.0</td></tr>
+    <tr><td>文献を探す手段が知識と Web 検索だけ</td><td>HCD の前の<b>調査ステップ</b>（調査モード、既定でオン）と、エージェントが使う文献ツール <code>lit</code>（PubMed・Europe PMC の検索、抄録、全文の文）。ワーカーは調査の網羅性を検査する（3.7）</td><td>v0.11.0</td></tr>
+    <tr><td>BRA の Review Tool でエラーになる値</td><td>BRA 仕様の値の規則（BRA version <code>CoBRAC-v1-1</code>）。Source of ID は 1 値、1 行 1 文献、sCID / rCID relation、列挙値、ROI 行、Review End Line</td><td>v0.10.0</td></tr>
+    <tr><td>粗い領域が均一な送り手のまま</td><td>Collection（v0.11.0）。複数の SABRA 単位にまたがる送り手には理由（<code>uniformityNote</code>）が要る（コード 203、v0.13.0）</td><td>v0.11.0・v0.13.0</td></tr>
+    <tr><td>出力と入力の不足</td><td>Template-v2-2 形式の xlsx もワーカーが作る（v0.11.0、3.13）。Canon の定義を生成時の制約にする（v0.12.0、第 5 部）。参考資料を添付でき、ワーカーが本文を取り出してエージェントに渡す（v0.12.0）</td><td>v0.11.0・v0.12.0</td></tr>
+    <tr><td>長いジョブがレート制限や会話の大きさで落ちる</td><td>レート制限は待って同じ会話で再開する（最大 3 回）。会話を自動で圧縮し、それでも大きすぎるターンは新しい会話で続ける（3.15）</td><td>v0.12.0・v0.12.1</td></tr>
   </tbody>
 </table>
-<p>作業規約（<code>AGENTS.md</code>）は、ワークフローの骨格（HCD → FRG → CSV → xlsx の順、ワーカーが進めて検証する方式、ターン終了時の JSON）を相談なしに変えないと定めています。0.13.0 は所有者の承認を得て骨格を「HCD → FRG →（整合チェック・調整）→ CSV → xlsx」に広げ、流れの形が変わったので v1.1 の次を <b>v2</b> と呼びました。</p>
+<p>作業規約（<code>AGENTS.md</code>）は、ワークフローの骨格を相談なしに変えないと定めています。骨格とは、HCD → FRG → CSV → xlsx の順、ワーカーが進めて検査する方式、ターン終了時の JSON です。v0.13.0 は所有者の承認を得て、骨格を「HCD → FRG →（整合チェック・調整）→ CSV → xlsx」に広げました。流れの形が変わったので、v1.1 の次を <b>v2</b> と呼びました。</p>
 <h3>実例：言語野（非語の音読）での 3 回の実行</h3>
-<p>同じ入力（TLF <code>nonword reading</code>、ROI <code>Angular gyrus, fosiform gyrus, VWFA, Broca, Wernicke</code>）で、v0 と 0.11.0 と、戻り道の試行を比べました。試行は、人がフォローアップで「ROI 内の UC を細かくし、FRG を組み直し、revisions 節に記録せよ」と指示したものです。</p>
+<p>同じ入力（TLF <code>nonword reading</code>、ROI <code>Angular gyrus, fosiform gyrus, VWFA, Broca, Wernicke</code>）で、v0、v0.11.0、戻り道の試行を比べました。試行は、利用者がフォローアップで「ROI 内の UC を細かくし、FRG を組み直し、revisions 節に記録せよ」と指示したものです。</p>
 <table class="compact">
-  <thead><tr><th style="width:22%">項目</th><th style="width:22%">v0（デスクトップ版、<code>Aphasia-nonword-reading</code>）</th><th style="width:24%">0.11.0（<code>ufwwj0jg-1</code>、既定の設定：gpt-6-luna・調査モード）</th><th>戻り道の試行（0.12.0、<code>-1</code> の複製 <code>ufwwj0jg-5</code>）</th></tr></thead>
+  <thead><tr><th style="width:22%">項目</th><th style="width:22%">v0（デスクトップ版、<code>Aphasia-nonword-reading</code>）</th><th style="width:24%">v0.11.0（<code>ufwwj0jg-1</code>、既定の設定：gpt-6-luna・調査モード）</th><th>戻り道の試行（v0.12.0、<code>-1</code> の複製 <code>ufwwj0jg-5</code>）</th></tr></thead>
   <tbody>
     <tr><td>ROI 内の UC / Collection</td><td>5（自由な名前）/ 0</td><td>4（うち 3 つは回全体）/ 0</td><td><b>7 / 3</b></td></tr>
     <tr><td>接続の行 / 文献</td><td>17 / 19</td><td>14 / 17</td><td>21 / 21</td></tr>
     <tr><td>照合済みの引用文</td><td>0（引用文がない）</td><td>14（全文 7、抄録 7）</td><td>21（全文 9、抄録 12）</td></tr>
     <tr><td>FRG</td><td>GN 8、深さ 3（同じ UC が複数の GN に入る）</td><td>GN 2、深さ 2</td><td><b>GN 4、深さ 3</b></td></tr>
     <tr><td>整合チェック X1〜X8 / X9</td><td>測れない</td><td>0 / 3</td><td>0 / <b>0</b></td></tr>
-    <tr><td>旧付録 D の自動判定で違反したコード</td><td>7</td><td>1（Circuit ID の <code>@</code>）</td><td>測っていない</td></tr>
+    <tr><td>古い付録 D の自動判定で違反したコード</td><td>7</td><td>1（Circuit ID の <code>@</code>）</td><td>測っていない</td></tr>
   </tbody>
 </table>
 <ul>
-  <li>v0 から 0.11.0 で違反は 7 コードから 1 コードに減り、引用文はすべて原文になって照合されました。一方で粒度は粗くなり（紡錘状回・下頭頂小葉・下前頭回がそれぞれ回全体の UC 1 つ）、FRG も GN 2 つ・深さ 2 に潰れました。</li>
-  <li>試行では LLM が HCD に戻って回全体の UC 3 つを 7 つの UC と 3 つの Collection に分け、FRG は腹側の正書法分析・側頭頭頂の音韻分析・前頭の音韻出力に分かれました。revisions 節は <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> 9 行、<code style="font-variant-ligatures:none">[HCD-&gt;FRG]</code> 4 行、<code>[kept]</code> 2 行で、最後の検証で残った問題は 0 件でした。</li>
-  <li>この粗さを捉えたのは X9 だけで（X1〜X8 は前後とも 0 件）、X9 は今も記録だけです。試行は調整ターン（0.13.0 から）ではなく人の指示で行い、母数は 1 件です。人の指示による変更にも <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> が付いたため、0.13.0 で <code>[instruction]</code> タグを加えました。</li>
+  <li>v0 から v0.11.0 で、違反は 7 コードから 1 コードに減り、引用文はすべて原文になって照合されました。一方で粒度は粗くなりました。紡錘状回・下頭頂小葉・下前頭回は、それぞれ回全体の UC 1 つです。FRG も GN 2 つ・深さ 2 に潰れました。</li>
+  <li>試行では、エージェントが HCD に戻って回全体の UC 3 つを 7 つの UC と 3 つの Collection に分けました。FRG は、腹側の正書法分析・側頭頭頂の音韻分析・前頭の音韻出力に分かれました。revisions 節は <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> 9 行、<code style="font-variant-ligatures:none">[HCD-&gt;FRG]</code> 4 行、<code>[kept]</code> 2 行で、最後の検査で残った問題は 0 件でした。</li>
+  <li>この粗さを捉えたのは X9 だけで、X1〜X8 は前後とも 0 件でした。X9 は現在も記録だけです。試行は調整ターン（v0.13.0 から）ではなく利用者の指示で行い、母数は 1 件です。利用者の指示による変更にも <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> が付いたため、v0.13.0 で <code>[instruction]</code> タグを加えました。</li>
 </ul>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.9.0〜0.13.0）、<code>packages/worker/src/pipeline.ts</code>（<code>adjustmentPrompt</code>）、<code>packages/shared/src/cross.ts</code>（<code>ADJUSTMENT_CODES</code>）、<code>packages/shared/src/quotes.ts</code>（<code>DEFAULT_QUOTE_THRESHOLD</code>）。実行の記録は本番のプロジェクト <code>ufwwj0jg-1</code>・<code>ufwwj0jg-5</code></p>
 
 <h2 id="sd-6">D.6 指示の量と費用の推移</h2>
-<p>各世代の指示ファイル（v0 は <code>instruction_0〜3.md</code>、v1 以降は <code>AGENTS.md</code> と <code>phases/*.md</code>）を <code>o200k_base</code> トークナイザで数え、段ごとに文脈に載っている量にしたものです。指示はモデルへのリクエストのたびに送り直され（大部分はキャッシュ入力の単価で課金）、同じ会話の中では前の段の指示も残ります。</p>
+<p>各世代の指示書を <code>o200k_base</code> トークナイザで数え、段階ごとに文脈に載っている量にまとめました。v0 は <code>instruction_0〜3.md</code>、v1 以降は <code>AGENTS.md</code> と <code>phases/*.md</code> です。指示はモデルへのリクエストのたびに送り直され、大部分はキャッシュ入力の単価で課金されます。同じ会話の中では、前の段階の指示も残ります。</p>
 <table class="compact">
-  <thead><tr><th style="width:12%">段</th><th class="c">v0</th><th class="c">v1（0.6.0）</th><th class="c">v1.1（0.8.1）</th><th class="c">v2（0.13.0、調査モードなし）</th><th class="c">v2（調査モード）</th></tr></thead>
+  <thead><tr><th style="width:12%">段階</th><th class="c">v0</th><th class="c">v1（v0.6.0）</th><th class="c">v1.1（v0.8.1）</th><th class="c">v2（v0.13.0、調査モードなし）</th><th class="c">v2（調査モード）</th></tr></thead>
   <tbody>
     <tr><td>調査</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">3,621</td></tr>
     <tr><td>HCD</td><td class="c">6,146</td><td class="c">2,017</td><td class="c">4,915</td><td class="c">8,145</td><td class="c">9,931</td></tr>
     <tr><td>FRG</td><td class="c">11,461</td><td class="c">3,053</td><td class="c">5,979</td><td class="c">9,506</td><td class="c">11,292</td></tr>
-    <tr><td>CSV</td><td class="c">13,871</td><td class="c" colspan="4">LLM のターンなし（v1 だけ、変換に失敗したときの予備 <code>phases/CSV.md</code> 481 がある）</td></tr>
+    <tr><td>CSV</td><td class="c">13,871</td><td class="c" colspan="4">エージェントのターンなし（v1 だけ、変換に失敗したときの予備 <code>phases/CSV.md</code> 481 がある）</td></tr>
   </tbody>
 </table>
 <ul>
-  <li><b>v0 → v1：約 4 分の 1。</b>入口と共通ルール 1,350 → 721、HCD の仕様 4,796 → 1,296、FRG 5,315 → 1,036、CSV 2,410 → 481（予備）。削減の約 3 分の 1 は英語化（同じ文で日本語は英語の約 1.75 倍のトークン）、残りは重複した説明とワーカーが引き受けた手順を削った分です。</li>
-  <li><b>v1 → v1.1：約 2 倍。</b>増分の約 3 分の 2 は 0.7.0 で <code>HCD.md</code> に入った UC の命名規則（+1,877）、JSON 化の分は <code>AGENTS.md</code> +299 と <code>HCD.md</code> +501 です。JSON Schema は LLM が必要なときだけ読むので、毎回の文脈には入りません。</li>
-  <li><b>v1.1 → v2：</b><code>HCD.md</code> +2,300（BRA の値の規則、Collection・203）、<code>AGENTS.md</code> +930（文献ツールと原文の引用、参考資料、revisions 節）、<code>FRG.md</code> +297（戻り道）。調査モードでは <code>RESEARCH.md</code> 1,450 と <code>research_mode.md</code> 336 が加わります。Canon の注記と調整ターンの依頼文は含めていません。</li>
+  <li><b>v0 → v1：約 4 分の 1。</b>入口と共通ルールは 1,350 → 721、HCD の仕様は 4,796 → 1,296、FRG は 5,315 → 1,036、CSV は 2,410 → 481（予備）になりました。削減の約 3 分の 1 は英語化によるものです。同じ文では、日本語は英語の約 1.75 倍のトークンになります。残りは、重複した説明とワーカーが引き受けた手順を削った分です。</li>
+  <li><b>v1 → v1.1：約 2 倍。</b>増分の約 3 分の 2 は、v0.7.0 で <code>HCD.md</code> に入った UC の命名規則（+1,877）です。JSON 化の分は <code>AGENTS.md</code> +299 と <code>HCD.md</code> +501 です。JSON Schema はエージェントが必要なときだけ読むので、毎回の文脈には入りません。</li>
+  <li><b>v1.1 → v2：</b><code>HCD.md</code> +2,300（BRA の値の規則、Collection・203）、<code>AGENTS.md</code> +930（文献ツールと原文の引用、参考資料、revisions 節）、<code>FRG.md</code> +297（戻り道）です。調査モードでは <code>RESEARCH.md</code> 1,450 と <code>research_mode.md</code> 336 が加わります。Canon の注記と調整ターンの依頼文は含めていません。</li>
 </ul>
 <h3>1 プロジェクトあたりの費用の試算</h3>
-<p>リクエストを HCD 120 回、FRG 60 回（v0 は CSV 20 回も）と仮定し、指示の量の差（v0 → v1 は成果物の出力の差も）だけを 2026-09-25 時点の単価で金額にしたものです。推論トークン、修正ターン、ツールの結果は含まないので、請求全体に占める差はこれより小さくなります。v1.1 と v2 の狙いは費用ではなく、データの形の保証、名前の統一、文献の確かさでした。</p>
+<p>リクエストを HCD 120 回、FRG 60 回、v0 では CSV 20 回も行うと仮定しました。そのうえで指示の量の差だけを、2026-09-25 時点の単価で金額にしたものです。v0 → v1 には成果物の出力の差も含めています。推論トークン、修正ターン、ツールの結果は含まないので、請求全体に占める差はこれより小さくなります。v1.1 と v2 の狙いは費用ではなく、データの形の保証、名前の統一、文献の確かさでした。</p>
 <table class="compact">
   <thead><tr><th style="width:15%">モデル</th><th class="c" style="width:24%">単価（入力 / キャッシュ / 出力、USD / 100 万）</th><th class="c">v0 → v1（減少）</th><th class="c">v1 → v1.1（増加）</th><th class="c">v1.1 → v2（増加。調査なし / あり）</th></tr></thead>
   <tbody>
@@ -131,91 +136,368 @@
     <tr><td>gpt-6-astra</td><td class="c">10.00 / 1.00 / 50.00</td><td class="c">約 $2.54</td><td class="c">約 $0.52</td><td class="c">約 $0.60 / $0.92</td></tr>
   </tbody>
 </table>
-<p><b>実測</b>（言語野の 0.11.0 の実行、gpt-6-luna）：調査ステップ（3 ターン、<code>lit</code> の呼び出しの成功 61 回）は 41.6 分・$0.31、プロジェクト全体（途中でレート制限に当たり再試行 1 回）は 76.5 分・$0.88、戻り道の試行の仕上げのジョブは 7 分・$0.04 と記録されました。</p>
-<p><b>注意：</b>この費用と入力トークン数（調査ステップ 1,520 万、全体 4,300 万）は、0.17.1 で直した使用量の二重計上（完走した実行で実際の約 2〜3 倍）より前の記録で、実際はこれより小さい可能性があります（0.18.1 以降の画面は読み出し時に補正）。1 回のリクエストが TPM 上限を超えた問題は会話の大きさによるもので、0.12.1 の自動圧縮のきっかけになりました。</p>
-<p class="src">典拠：トークン数は各版の <code>prompts/AGENTS.md</code>・<code>prompts/phases/*.md</code>（v0 は <code>archive/v0/desktop/</code>）を数えた値。単価は <code>packages/shared/src/pricing.ts</code>。<code>CHANGELOG.md</code>（0.12.1・0.17.1・0.18.1）</p>
+<p><b>実測</b>：言語野の v0.11.0 の実行（gpt-6-luna）では、次のように記録されました。調査ステップ（3 ターン、<code>lit</code> の呼び出しの成功 61 回）は 41.6 分・$0.31 でした。プロジェクト全体は、途中でレート制限に当たってリトライを 1 回行い、76.5 分・$0.88 でした。戻り道の試行の仕上げのジョブは 7 分・$0.04 でした。</p>
+<p><b>注意：</b>この費用と入力トークン数（調査ステップ 1,520 万、全体 4,300 万）は、v0.17.1 で直した使用量の二重計上より前の記録です（D.10）。完走した実行では実際の約 2〜3 倍に記録されていたので、実際はこれより小さい可能性があります。v0.18.1 以降の画面は、読み出すときに補正しています（付録 C）。1 回のリクエストが TPM の上限を超えた問題は会話の大きさによるもので、v0.12.1 の自動圧縮のきっかけになりました。</p>
+<p class="src">典拠：トークン数は各バージョンの <code>prompts/AGENTS.md</code>・<code>prompts/phases/*.md</code>（v0 は <code>archive/v0/desktop/</code>）を数えた値。単価は <code>packages/shared/src/pricing.ts</code>。<code>CHANGELOG.md</code>（0.12.1・0.17.1・0.18.1）</p>
 
-<h2 id="sd-7">D.7 v2 の中での規則の変化と古いプロジェクトの扱い</h2>
-<p>0.13.0 以降もハーネスの世代は v2 ですが、検査の規則は何度か変わりました。既存のプロジェクトは原則として<b>作られたときの規則</b>で検査し続け（フォローアップでも複製でも）、プロジェクトや版にはどの規則に従ったかの印が残ります。</p>
+<h2 id="sd-7">D.7 v2 の中での規則の変化</h2>
+<p>v0.13.0 以降もハーネスの世代は v2 ですが、検査の規則は何度か変わりました。既存のプロジェクトは作られたときの規則で検査し続け、プロジェクトや版にはどの規則に従ったかの印が残ります。印と古いプロジェクトの扱いは付録 C にまとめています。</p>
 <table class="compact">
-  <thead><tr><th style="width:27%">変化</th><th style="width:8%">版</th><th style="width:22%">印</th><th>それより前のプロジェクトの扱い</th></tr></thead>
+  <thead><tr><th style="width:44%">変化</th><th style="width:12%">バージョン</th><th>付録 C</th></tr></thead>
   <tbody>
-    <tr><td>データを md の表から JSON に</td><td>0.8.0</td><td>作業場所のファイルの形</td><td>読まない。xlsx とグラフは見られるが、フォローアップと再試行は止まる</td></tr>
-    <tr><td>BRA 仕様の値の規則</td><td>0.10.0</td><td>BRA version：<code>CoBRAC-v1-0</code> → <code>CoBRAC-v1-1</code></td><td>次のフォローアップで新しい規則で検査し、LLM に直させる（列は末尾に足しただけ）</td></tr>
-    <tr><td>エラーコードを旧付録 D から WBAI の Master に</td><td>0.17.0</td><td>Master のコードと <code>cobrac:</code> のコード</td><td>チェッカーは旧番号を <code>appendixD</code> として残す（3.10）</td></tr>
-    <tr><td>Circuit ID の形（左右を <code>side</code> に、区切りを <code>.</code> に）</td><td>0.17.0</td><td>—</td><td>旧い形（<code>BNA:57</code>、<code>@L</code>）も読み、次のフォローアップで書き換えを求める（3.8）</td></tr>
-    <tr><td>SABRA の境界（BNA は新皮質だけ、ほかは DHBA の語）</td><td>0.24.0</td><td><code>sabraBoundary: "neocortex"</code></td><td>皮質下の BNA のアンカーのまま検査を通る</td></tr>
-    <tr><td>ハーネス規則 1：ROI の要素と左右、引用文の使い回し</td><td>0.25.0</td><td><code>harnessRules: 1</code></td><td>印のない（0 の）プロジェクトは前の規則で検査する</td></tr>
-    <tr><td>ハーネス規則 2：GN の UC の連結、3〜4 UC の GN</td><td>0.28.0</td><td><code>harnessRules: 2</code>（現行）</td><td>1 以下は GN の UC が 2 つまで。2 では X4 を記録せず FRG の検査で強制する</td></tr>
-    <tr><td>版に検査の前提を記録</td><td>0.28.2</td><td>版の <code>harnessRules</code>・<code>sabraBoundary</code></td><td>それより前の版は「不明」と表示（5.2）</td></tr>
+    <tr><td>エラーコードを古い付録 D の番号から WBAI の Master に</td><td>v0.17.0</td><td>C.3</td></tr>
+    <tr><td>Circuit ID の形（左右を <code>side</code> に、区切りを <code>.</code> に）</td><td>v0.17.0</td><td>C.2</td></tr>
+    <tr><td>SABRA の境界（BNA は新皮質だけ、ほかは DHBA の語）</td><td>v0.24.0</td><td>C.2</td></tr>
+    <tr><td>検査規則の水準 1：ROI の要素と左右、引用文の使い回し</td><td>v0.25.0</td><td>C.3</td></tr>
+    <tr><td>検査規則の水準 2：GN の UC の連結、3〜4 UC の GN</td><td>v0.28.0</td><td>C.3</td></tr>
+    <tr><td>版に検査の前提を記録</td><td>v0.28.2</td><td>C.5</td></tr>
   </tbody>
 </table>
+
+<h3>回路の命名の変更履歴</h3>
+<p>v0.7.0 より前は、エージェントがプロジェクトごとに自由に Circuit ID を付けていました（2.1）。その後の変更は次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th style="width:14%">バージョン</th><th>入ったもの</th></tr></thead>
+  <tbody>
+    <tr><td>v0.7.0</td><td>命名規則の導入（アンカー・facet・UC Descriptor・Descriptor から作る Circuit ID）。それまでは Circuit ID に空白がないことだけを検査していた</td></tr>
+    <tr><td>v0.17.0</td><td>左右を 9 本目の facet <code>side</code> にし、アンカーを常に左右のペアにした。Circuit ID の文字を WBAI の仮仕様の文字集合（と括弧）にそろえ、括弧の中の区切りを <code>.</code> にした。検査のエラーコードを WBAI の Error code List (Master) に合わせ、Master にコードのない検査に <code>cobrac:</code> のローカルコードを付けた（2.8、2.10）</td></tr>
+    <tr><td>v0.24.0</td><td>SABRA の BNA と DHBA の境界の変更（BNA は新皮質だけ）に合わせた検査（2.3）</td></tr>
+  </tbody>
+</table>
+
+<h3>左右の表し方を変えた理由</h3>
+<p>v0.16 までは、左右をアンカーで表していました。WBAI では 2026-07-14 に、Circuit 名から <code>_L</code> / <code>_R</code> を外すことが決まりました。DHBA と海馬の BIF に合わせ、左右の重複は別に分析するという理由です。2026-08-06 の仮仕様で Circuit ID の文字が <code>A-Za-z0-9._~-</code> と決まり、08-19 に <code>/</code> と <code>+</code> を足すことで合意しました。<code>@</code> はこの文字集合の外です。</p>
+<p>最初は、左右を ID から外して Descriptor だけに残す案を試しました。しかし、同じ集団の左と右が 1 つの HCD で同じ ID になり、両立できませんでした。そこで v0.17.0（PR #64）で、左右を facet <code>side</code> にし、区別するときだけ Circuit ID の最後の項目に書く形にしました（2.8）。左右を区別しないのが既定なので、7/14 の決定とも矛盾しません。</p>
+
+<p>括弧の中の区切りを <code>,</code> から <code>.</code> に変えたのには、もう 1 つ理由があります。<code>,</code> 区切りの ID（<code>Amyg(BL,out:CEN)</code>）は、テンプレートの Graph Generator（draw.io 用 CSV）で 2 つに分かれていました。v0.17.0 で <code>.</code> にそろえたので、この問題は解消しています。</p>
+
+<h3>Collection の条件の緩和</h3>
+<p>当初、UC を Collection に分けるには層・細胞種の証拠が必要でした。v0.11 の言語プロジェクトの再実行では、この証拠がないために Collection が 1 つも作られませんでした。そこで v0.13.0 で、領域や名前のある部分の違いで足り、層・細胞種の証拠は必須でないと緩めました（2.9）。</p>
+
+<h3>エラーコードを変えた理由</h3>
+<p>v0.16 まで、CoBRAC の検査メッセージとチェッカーは、オントロジー報告書の付録 D の番号を使っていました。この番号を WBAI の BRA data: Error code List (Master)（Template-v2-2 / v2-3 が参照する表）と照合すると、Master にない番号や、Master では別の意味の番号が含まれていました。v0.17.0（PR #60）で、すべてのコードを Master に合わせました。Master にコードのない CoBRAC の検査には、<code>cobrac:</code> で始まるローカルコードを付けました。番号を借りずに名前にしたのは、Master の番号と衝突させないためです。古い番号との対応は付録 C（C.3）にあります。</p>
+
 <h3>v2 の時点で残っていた課題のその後</h3>
 <table class="compact">
-  <thead><tr><th style="width:40%">0.13 の時点の課題</th><th>その後</th></tr></thead>
+  <thead><tr><th style="width:40%">v0.13 の時点の課題</th><th>その後</th></tr></thead>
   <tbody>
     <tr><td>X9（粒度）を調整のきっかけにするか。往復のループ（最大 2 周の案）</td><td>どちらも入れていない。調整ターンは実行ごとに 1 回で、きっかけは X1〜X3・X8</td></tr>
-    <tr><td>機能スケッチ（TLF の分解を先に作り、調査の的にする）</td><td>着手していない。0.28.0 で、FRG の段の中で TLF を先に分解してから回路の候補と突き合わせる手順が入った（2.11）</td></tr>
-    <tr><td>Spot の中断でターンの途中の作業が消える。複製で調査モードが引き継がれない。打ち切られたターンの費用が記録されない</td><td>0.18.2 で、ワーカーがターン中も 5 分ごとに作業場所と会話を S3 に保存し、中断したジョブは約 5 分以内に再開する。複製は調査モードを引き継ぐ。費用は 0.17.1（失敗したターン）と 0.24.1（取消・時間切れ・SIGTERM など）で記録</td></tr>
-    <tr><td>UC が粗い（VWFA と後部紡錘状回が 1 つの UC）。左右の指定が無い ROI を左半球と仮定。同じ引用文の使い回し</td><td>0.25.0（ハーネス規則 1）で、ROI の要素ごとに専用の UC を求め、指定が無い ROI は両側として扱い、引用文の使い回しは警告する</td></tr>
-    <tr><td>WBAI への依頼（Circuit ID の文字、Source of ID の <code>BNA</code>、Template-v2-2 に UC Descriptor の置き場所が無い）</td><td>Circuit ID は 0.17.0 で WBAI 仮仕様の文字集合に合わせた（<code>@</code> を使わない）。残りは 3.13</td></tr>
+    <tr><td>機能スケッチ（TLF の分解を先に作り、調査の的にする）</td><td>着手していない。v0.28.0 で、FRG の段階の中で TLF を先に分解してから回路の候補と突き合わせる手順が入った（3.9）</td></tr>
+    <tr><td>Spot の中断でターンの途中の作業が消える。複製で調査モードが引き継がれない。打ち切られたターンの費用が記録されない</td><td>v0.18.2 で、ワーカーがターン中も 5 分ごとに作業ディレクトリと会話を S3 に保存し、中断したジョブは約 5 分以内に再開するようになった。複製は調査モードを引き継ぐ。費用は v0.17.1（失敗したターン）と v0.24.1（停止・時間切れ・SIGTERM など）で記録するようにした</td></tr>
+    <tr><td>UC が粗い（VWFA と後部紡錘状回が 1 つの UC）。左右の指定がない ROI を左半球と仮定する。同じ引用文の使い回し</td><td>v0.25.0（検査規則の水準 1）で、ROI の要素ごとに専用の UC を求め、指定がない ROI は両側として扱い、引用文の使い回しは警告するようにした</td></tr>
+    <tr><td>WBAI への依頼（Circuit ID の文字、Source of ID の <code>BNA</code>、Template-v2-2 に UC Descriptor の保存先がない）</td><td>Circuit ID は v0.17.0 で WBAI 仮仕様の文字集合に合わせた（<code>@</code> を使わない）。残りは 2.13</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 2</code>）、<code>packages/shared/src/cross.ts</code>（<code>harnessRules</code> が 2 未満のときだけ X4）、<code>packages/shared/src/braVersion.ts</code>、<code>CHANGELOG.md</code>（0.17.0〜0.28.2）</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 2</code>）、<code>packages/shared/src/cross.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>packages/shared/src/ucNaming.ts</code>、<code>scripts/bra-appendix-d.mjs</code>、<code>CHANGELOG.md</code>（0.17.0〜0.28.2）</p>
 
-<h2 id="sd-8">D.8 アプリの版の歩み</h2>
-<p>各マイナー版（0.x.0）で入った主な機能です（日付はすべて 2026 年）。太字はハーネスの世代が変わった版で、修正版（0.x.y）は重要なものだけを括弧で添えます。</p>
+<h2 id="sd-8">D.8 Canon とオーケストレーターの開発段階</h2>
+<h3>Canon の開発段階</h3>
+<p>Canon は次の段階に分けて作りました。現在の仕様は第 5 部にあります。</p>
 <table class="compact">
-  <thead><tr><th style="width:8%">版</th><th style="width:7%">日付</th><th>主な追加・変更</th></tr></thead>
+  <thead><tr><th style="width:20%">段階</th><th>入ったもの</th></tr></thead>
   <tbody>
-    <tr><td>0.1.0</td><td>09-13</td><td>最初のデプロイ。AWS 上の画面・API・Fargate のワーカーと、Codex SDK で HCD → FRG → CSV → xlsx を作る流れ（ハーネス v0）。質問と回答、フォローアップ、グラフ（0.1.2 で費用の記録）</td></tr>
-    <tr><td>0.2.0</td><td>09-13</td><td>グラフの編集（エッジの線種・経由点、ノードの大きさ・色）と配置の保存</td></tr>
-    <tr><td>0.3.0</td><td>09-13</td><td>画面の言語の切り替え（0.3.1 で 10 言語）</td></tr>
-    <tr><td>0.4.0</td><td>09-25</td><td>選べるモデルを GPT-5.6 と GPT-6 に絞る（0.4.2 で既定を gpt-6-luna に）</td></tr>
-    <tr><td><b>0.5.0</b></td><td>09-26</td><td><b>ハーネス v1</b>：ワーカーがフェーズを進めて検査、CSV をコードで生成、成果物を英語に、構造化出力（0.5.2 で GitHub Actions からのデプロイ）</td></tr>
-    <tr><td>0.6.0</td><td>09-28</td><td>スマートフォンとタブレットへの対応</td></tr>
-    <tr><td>0.7.0</td><td>09-28</td><td>RCS と、UC Descriptor・Circuit ID による命名。プロジェクト ID をシステムが割り当て、表示名を分ける</td></tr>
-    <tr><td><b>0.8.0</b></td><td>09-28</td><td><b>ハーネス v1.1</b>：データを JSON と JSON Schema に。レポートと判断ログを画面で閲覧</td></tr>
-    <tr><td>0.9.0</td><td>09-29</td><td>文献の照合、グラフの検索とハイライト、解説記事（依頼制）、表タブ、プロジェクトの削除、返答を画面の言語に</td></tr>
-    <tr><td>0.10.0</td><td>09-29</td><td>BRA 仕様への準拠（<code>CoBRAC-v1-1</code>）：1 行 1 文献、relation、原文の引用、列挙値、ROI 行など</td></tr>
-    <tr><td>0.11.0</td><td>09-29</td><td>Collection、引用文の照合、調査モードと文献ツール、Template-v2-2 形式の xlsx</td></tr>
-    <tr><td>0.12.0</td><td>09-29</td><td>参考資料、HCD↔FRG 整合の記録、HCD の再検証、Canon（器・公開と複製・PR・生成時の制約）、レート制限からの再開（0.12.1 で会話の自動圧縮）</td></tr>
-    <tr><td><b>0.13.0</b></td><td>09-29</td><td><b>ハーネス v2</b>：戻り道と調整ターン、revisions 節、X9、Collection の条件の緩和と 203。Canon の制約の強さの選択を廃止</td></tr>
-    <tr><td>0.14.0</td><td>10-01</td><td>作成画面の作り直し（ROI × TLF の入力欄、BNA の候補、「v」メニュー、Canon の選択）</td></tr>
-    <tr><td>0.15.0</td><td>10-01</td><td>進み具合の表示を「調査 → HCD ⇄ FRG → CSV → xlsx」にし、実行中の段を示す</td></tr>
-    <tr><td>0.16.0</td><td>10-01</td><td>「エージェント」欄とダークモード（現在のリリースノートでは見出しが抜け、0.17.0 の項にある）</td></tr>
-    <tr><td>0.17.0</td><td>10-01</td><td>エラーコードを WBAI の Master に、左右を facet <code>side</code> に、Circuit ID の文字を WBAI 仮仕様に（0.17.1 で使用量の二重計上を修正）</td></tr>
-    <tr><td>0.18.0</td><td>10-01</td><td>速度の改善（圧縮を 75k トークンで、文献ツールの結果を短く、修正ターンを medium で）。前後 3 回ずつで 48.6 分 → 31.0 分、$0.174 → $0.134（0.18.2 で Spot 中断への対策）</td></tr>
-    <tr><td>0.19.0</td><td>10-02</td><td>既定の API キー（組織のキー）と、管理者による利用者の承認（Tier 1 / 2）</td></tr>
-    <tr><td>0.20.0</td><td>10-04</td><td>Canon の PR の審査画面：差分、システムの検査、AI レビュー、コメント、共同編集者、履歴</td></tr>
-    <tr><td>0.21.0</td><td>10-04</td><td>アカウントのメールの件名と本文に、差出人と目的を明記</td></tr>
-    <tr><td>0.22.0</td><td>10-04</td><td>「リリースノート」ページを全員に。「ドキュメント」は管理者だけに</td></tr>
-    <tr><td>0.23.0</td><td>10-04</td><td>「利用マニュアル」ページ（日本語・英語）</td></tr>
-    <tr><td>0.24.0</td><td>10-04</td><td>SABRA の境界：新しいプロジェクトでは BNA は新皮質だけ（0.24.1 で打ち切られたターンの費用を記録）</td></tr>
-    <tr><td>0.25.0</td><td>10-04</td><td>ハーネス規則 1：ROI の要素ごとの UC、ROI の左右、引用文の使い回しの警告</td></tr>
-    <tr><td>0.26.0</td><td>10-04</td><td>BRA データの版と「版」タブ、BRA-DB への登録パッケージ</td></tr>
-    <tr><td>0.27.0</td><td>10-04</td><td>AWS 上の BRA-DB（PostgreSQL 17 + Apache AGE）と版の登録</td></tr>
-    <tr><td>0.28.0</td><td>10-04</td><td>FRG を回路の候補と突き合わせて組み立てる、ハーネス規則 2、HCD グラフの「モチーフ」</td></tr>
-    <tr><td>0.29.0</td><td>10-05</td><td>プロジェクトの ID を <code>p</code> + 7 文字、Canon の ID を <code>c</code> + 7 文字に</td></tr>
-    <tr><td>0.30.0</td><td>10-05</td><td>アカウントのメールを <code>cobrac.site</code> の差出人で送る（SES、DKIM）</td></tr>
-    <tr><td>0.31.0</td><td>10-06</td><td>BRA Planner（現在の CoBRAC オーケストレーター）段階 1：計画とバッチごとの実行。同時実行数の管理</td></tr>
-    <tr><td>0.32.0</td><td>10-06</td><td>仮説モードの検査・出力・LLM への指示（まだ有効にできない）</td></tr>
-    <tr><td>0.33.0</td><td>10-06</td><td>仮説モードを API で有効に。仮説を含む版は BRA-DB に登録せず、Canon の共有層にも入れない</td></tr>
-    <tr><td>0.34.0</td><td>10-06</td><td>仮説モードの画面（作成画面、グラフの印、バッジ、マニュアル）</td></tr>
-    <tr><td>0.35.0</td><td>10-06</td><td>オーケストレーター段階 2：下書き（LLM のジョブ）、資料、実行順序の計算、再計画と提案</td></tr>
-    <tr><td>0.36.0</td><td>10-06</td><td>オーケストレーター段階 3：Canon との組み合わせ、Canon の PR のまとめて承認（0.36.1 で改名）</td></tr>
-    <tr><td>0.37.0</td><td>10-07</td><td>オーケストレーターとエージェントのモデルを別々に選ぶ。粒度方針はオーケストレーターが決める</td></tr>
-    <tr><td>0.38.0</td><td>10-08</td><td>オーケストレーターの一覧をライブ表示に（「あなたの番」、バッチ別の進捗バー、行ごとのステップ）。（0.38.1：サイドバーのリリースノートの項目と、単価未登録の警告・単価の日付の注記を外す）</td></tr>
-    <tr><td>0.39.0</td><td>10-08</td><td>仕様をこの PDF（CoBRAC Agents 仕様書）1 冊にまとめ、管理者の「仕様書」ページで見せる。Markdown の文書を廃止</td></tr>
-    <tr><td>0.40.0</td><td>10-09</td><td>オーケストレーターの自律実行：下書きの自動確定、質問しないエージェント、AI による計画の PR の判断（承認・変更依頼・却下）、進められない行の見送り、費用の上限。表記「種」→「土台」</td></tr>
-    <tr><td>0.41.0</td><td>10-09</td><td>自律実行でオーケストレーターが人の代わりに判断する（AI がエージェントの質問に答える・要対応と人の判断の行を解決する・再計画の提案をすぐ反映する）。下書きの画面を作り直し、下書きで目標と資料を直せるように。表記「土台」→「基準プロジェクト」</td></tr>
-    <tr><td>0.42.0</td><td>10-10</td><td>新しい計画は自律実行が既定（人が PR・衝突に対応するのはオプション）。承認済みの利用者に既定の API キーを見せず、自分のキーは任意に。新しい計画の「資料」を 1 つの区切りに。Canon の画面をプロジェクトの画面と同じ構成（ヘッダー・タブ・HCD グラフ）に。設定とログアウトをサイドバー下部のアイコンに</td></tr>
-    <tr><td>0.43.0</td><td>10-10</td><td>サイドバーの整理（履歴の名前を 2 行に、完了以外だけ状態を出す、オーケストレーターの計画ごとに 1 行にまとめる、「プロジェクト一覧」は「すべて表示」から、仕様書は管理の画面から）。プロジェクト一覧の行の高さと先頭列「プロジェクト名」。自律実行の設定を「自律実行」と費用の上限から始める</td></tr>
+    <tr><td>Canon MVP 1</td><td>入れ物：作成・一覧・名前と説明・粒度方針の編集・論理削除・プロジェクトの追加と削除（すべて非公開、空）</td></tr>
+    <tr><td>1′</td><td>プロジェクトと Canon の公開、公開ライブラリ、公開プロジェクトの複製</td></tr>
+    <tr><td>2</td><td>プロジェクトの push と PR、差分と衝突ルール、所有者の承認による rev</td></tr>
+    <tr><td>2′</td><td>Canon から Canon への PR</td></tr>
+    <tr><td>3</td><td>rev への固定と生成時の制約（<code>canon/</code>・指示・検査）、追従（behind / affected）</td></tr>
+    <tr><td>3′</td><td>作成時の Canon の選択と、基準となるプロジェクトからの作成、既定の Canon</td></tr>
+    <tr><td>v0.20.0</td><td>審査画面（4 タブ、システムの検査、AI レビュー、履歴）、共同編集者、だれが判断したかの記録</td></tr>
+    <tr><td>オーケストレーターの開発段階 3</td><td>計画ごとに 1 つの Canon。完成した行の自動 push、AI レビューの自動依頼、Canon が進んだときの更新（最大 2 回）、基準プロジェクトの PR の承認待ち、まとめて承認（6.7）</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>CHANGELOG.md</code>、git のタグ <code>v0.16.0</code></p>
 
-<h2 id="sd-9">D.9 現行の仕様とリリースノート</h2>
-<p>この付録は経緯の記録です。現行の仕様は本文の第 1〜7 部が定め、付録 A〜C が補います。この付録と本文が食い違うときは、本文（とその典拠のコード）に従ってください。この本はアプリ v0.39.0 の時点の仕様です。版ごとの詳しい変更（追加・変更・修正・削除）は、サイトの「リリースノート」ページ（サイドバーの下端の版番号から開く。全員が閲覧可）にあり、中身はリポジトリの <code>CHANGELOG.md</code> です。</p>
-<p class="src">典拠：<code>CHANGELOG.md</code>（0.22.0）、<code>AGENTS.md</code>（バージョニング）</p>
+<h3>オーケストレーターの開発段階</h3>
+<p>オーケストレーターは、v0.31.0 から v0.36.0 にかけて 3 つの開発段階で作り、その後のバージョンで自律実行を加えました。v0.31.0 の時点の名前は「BRA Planner」です。現在の仕様は第 6 部にあり、新しい計画は自律実行が既定です。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">段階</th><th>入ったもの</th></tr></thead>
+  <tbody>
+    <tr><td><b>開発段階 1</b>：計画とバッチ実行（v0.31.0）</td><td>行は資料（CSV / TSV / テキストの一覧）か手入力。順序とバッチは所有者が手で決める。確定後、計画ランナーが毎分、同時実行数の範囲で行を起動し、状態を追う。Canon も LLM も使わない。確定は計画のリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはない</td></tr>
+    <tr><td><b>開発段階 2</b>：LLM の下書きと実行順序（v0.35.0）</td><td>計画用のジョブが、目標と資料から行・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算する（基準プロジェクトのバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
+    <tr><td><b>開発段階 3</b>：計画の Canon（v0.36.0）</td><td>計画ごとに 1 つの Canon。完成した行を自動で push し、本体の行には AI レビューを依頼し、Canon が進んだことによる衝突は更新のフォローアップで直す。行は人が PR を承認して完了する。「まとめて承認」</td></tr>
+    <tr><td><b>v0.37.0</b>：モデルの分離</td><td>モデルを「オーケストレーター」（下書き・バッチ後の再計画・行の PR の AI レビュー）と「エージェント」（各行の BRA）で別々に選ぶ。どちらも「デフォルト」なら確定時に決まり、確定後は両方が表示される。粒度方針はオーケストレーターが決める。計画の画面では読み取り専用で、API も所有者からの方針を拒む。再計画の方針の変更は承認なしですぐに反映され、決定済みの提案に「オーケストレーターが反映」として残る。行の追加・削除の提案は従来どおり承認を待つ</td></tr>
+    <tr><td><b>v0.40.0</b>：自律実行</td><td>計画の設定「自律実行」（<code>settings.autonomous</code>、費用の上限付き）。下書きのあと自動で確定し、行のエージェントは質問せず推奨案で進み、計画の PR は AI が承認・変更依頼・却下を判断し、進められない行はスキップする。費用の上限に達すると新しい行を始めない（6.8）</td></tr>
+    <tr><td><b>v0.41.0</b>：人の代わりの判断</td><td>自律実行で、オーケストレーターが人の代わりに判断する。エージェントの質問に AI が個別に答える（回答のジョブ、回数の上限なし。「質問しない」指示はやめた）。要対応・要判断の行を AI が解決する（解決のジョブ）。再計画の提案をすぐ反映する。PR の判断のジョブが失敗しても上限なく依頼し直す。下書きの画面を作り直し（作るもの・行とバッチ・進め方・確定の 4 つの区切り）、下書きで目標の書き直しと資料の追加・削除ができる。目標・資料・行のどれもない計画は作れない</td></tr>
+    <tr><td><b>v0.42.0</b>：自律実行が既定</td><td>新しい計画は自律実行で始まる。新しい計画のフォームは最初から費用の上限と「自律実行で開始」を出し、人が PR の承認・衝突・質問に対応するのはオプション（「PR の承認や衝突にご自身で対応する」）にした。オプションを選ぶと「計画を作成」「下書きを作成」に戻る。API は変えていない（<code>autonomous</code> を付けた要求だけが自律実行の計画になる）。資料のファイルと貼り付けた行を 1 つの「資料」の区切りにまとめた</td></tr>
+  </tbody>
+</table>
+<p>画面の日本語の表記も、次のように改めました。コードの識別子（<code>wave</code>、<code>seed</code> など）は変えていません。</p>
+<ul>
+  <li>v0.36.1：BRA Planner を CoBRAC オーケストレーターに改名しました。</li>
+  <li>v0.37.0：「波」を「バッチ」に（「第 1 バッチ」「種のバッチ」）、「能力リスト」を「資料」に改めました。計画の CSV の列名は、「バッチ」「batch」も「波」と同じくバッチとして読みます（付録 C）。</li>
+  <li>v0.40.0：「種」を「土台」に（「土台のバッチ」）改めました。</li>
+  <li>v0.41.0：「土台」を「基準プロジェクト」に改めました。</li>
+</ul>
+
+<h3>オーケストレーターの権限の変遷</h3>
+<p>計画ランナーと API には、開発段階ごとに次の権限を足しました。現在の権限の一覧は 9.1 にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:14%">段階</th><th>計画ランナーと API に足した権限</th></tr></thead>
+  <tbody>
+    <tr><td>開発段階 1</td><td>API：<code>Plans</code> の読み書き。計画ランナー：<code>Plans</code>・<code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き、<code>Catalog</code> の <code>config</code> の <code>GetItem</code> と <code>id</code> の <code>PutItem</code>、キューへの送信、タスクの停止</td></tr>
+    <tr><td>開発段階 2（下書き・再計画）</td><td>API：<code>plans/*</code> への <code>PutObject</code>（作成時の資料を <code>staging/</code> から <code>plans/{planId}/attachments/files/</code> に移す）。計画ランナー：<code>Canons</code> の <code>owner-index</code> の <code>Query</code>（計画用のジョブの入力に所有者の Canon を並べる）、<code>plans/*</code> の読み書き、完了した行の <code>users/*_HCD/uc.json</code> の読み取り（1 ステップで 20 件まで）</td></tr>
+    <tr><td>開発段階 3（計画の Canon）</td><td>計画ランナー：<code>Canons</code> の読み書き（開発段階 2 の <code>Query</code> を置き換え。行のプロジェクトの参加登録、PR の作成と追跡）、<code>canons/*</code> の読み書き（rev の差分、PR の <code>incoming.json</code>・<code>diff.json</code>、AI レビューの <code>input.json</code>）、<code>users/*/workspace/*</code> の読み取り（開発段階 2 の <code>uc.json</code> の読み取りを置き換え）。API・dispatcher・ワーカーは変えていない</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>CHANGELOG.md</code>（0.20.0・0.31.0〜0.42.0）、<code>packages/shared/src/canon.ts</code>・<code>plan.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）</p>
+
+<h2 id="sd-9">D.9 速度と費用の測定（2026-10）</h2>
+<div class="box note">
+  <div class="h">本節の位置づけ</div>
+  <p>本節は、ある時点の<b>測定の報告</b>です。数値は 2026-09〜10 の本番の記録と比較のための実行から出したもので、<b>保証する値ではありません</b>。モデル、アプリのバージョン、指示書、OpenAI 側の状態で変わります。調べたのは v0.16.0 の本番の実行で、変更は v0.17.1〜v0.18.2（どれも 2026-10-01 のリリース）です。条件は <code>gpt-6-luna</code>、推論の強さ high、調査モード on、日本語です。</p>
+  <p>調べたのは、BRA の作成にかかる時間と OpenAI の費用、遅さの原因、v0.18.0 の高速化とその前後の比較です。あわせて見つかった使用量の二重計上は D.10 に、Spot の中断からの再開は 8.3 にまとめています。現在の時間と費用の目安は 1.4 と 9.10 にあります。</p>
+</div>
+<h3>要点</h3>
+<p>v0.16.0 の本番の実行を調べると、BRA の作成 1 件にかかる時間（平均 60 分）の 88% は、モデルの応答を待っている時間でした。1 回の応答の待ち時間は、そのリクエストのコンテキスト（それまでの会話の長さ）でほぼ決まります。コンテキストが 8 万トークン未満なら固定の待ちは約 4 秒ですが、12 万を超えると約 42 秒になります。当時は会話の圧縮を 15 万トークンで行っていたので、モデル時間の 4 分の 3 近くがこの遅い領域で使われていました。</p>
+<p>そこで v0.18.0 では、3 つの変更を入れました。圧縮のしきい値を 7.5 万トークンに下げ、ツールの結果とファイルの書き方を小さくし、修正ターンの推論の強さを medium にしました。同じ ROI と TLF で変更前と変更後を 3 件ずつ実行したところ、<b>平均の所要時間は 48.6 分から 31.0 分に（36% 短縮）、実費は $0.174 から $0.134 に（23% 減）</b>なりました。ただし件数は 3 件ずつと少なく、調査ステップで挙げる候補が減ったことなど、注意して見るべき点があります（後述の「注意点」）。</p>
+<h3>本節の用語</h3>
+<table class="compact">
+  <thead><tr><th style="width:22%">用語</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td>コンテキスト</td><td>1 回のリクエストでモデルに送る会話全体（指示、これまでの応答、ツールの結果）。トークン数で数える</td></tr>
+    <tr><td>圧縮（compaction）</td><td>会話が一定の長さを超えたときに、Codex がそれまでの会話を要約して短くすること。しきい値は <code>CODEX_AUTO_COMPACT_TOKENS</code></td></tr>
+    <tr><td>本ターン・修正ターン</td><td>本ターンは各段階（調査・HCD・FRG）の作業そのもの。修正ターンは、ワーカーの検査が返した問題の一覧を直すためのターン</td></tr>
+    <tr><td>TPM</td><td>OpenAI の組織ごとの 1 分あたりのトークン数の上限（tokens per minute）。デフォルトの API キーの組織は、測定の当時 gpt-6-luna で毎分 20 万トークン。2026-10 に毎分 200 万になった（8.3）</td></tr>
+    <tr><td>セッション記録</td><td>Codex が会話ごとに残す記録（<code>rollout-…jsonl</code>）。応答ごとの時刻・トークン数・ツールの呼び出しが入っており、S3 の <code>thread/sessions/</code> に保存される</td></tr>
+    <tr><td>実費</td><td>セッション記録のトークン数と単価から計算した費用</td></tr>
+    <tr><td>記録上の費用</td><td>アプリがジョブごとに DynamoDB に記録し、画面に表示する費用</td></tr>
+  </tbody>
+</table>
+<h3>調べ方</h3>
+<p>調査は、有料のジョブを新しく起動せず、すでにある記録だけで行いました。</p>
+<ul>
+  <li><b>データ</b>：DynamoDB のジョブとメッセージ、S3 に保存された Codex のセッション記録、CloudWatch のログです。ワーカーのログは保持期間が短く、ほとんど残っていませんでした。</li>
+  <li><b>対象</b>：フル実行が完了した利用者のプロジェクト 3 件（以下 A・B・C）と、テストユーザーの <code>ufwwj0jg-1</code> です。A・B・C は中身を使わず、集計値だけを使いました。どれも v0.16.0、<code>gpt-6-luna</code>、推論の強さ high、調査モード on です。</li>
+  <li><b>方法</b>：セッション記録から、応答ごとの待ち時間、そのときのコンテキストの長さ、出力トークン数、直後のツールの呼び出しを取り出して集計しました。</li>
+</ul>
+<h3>時間の内訳</h3>
+<figure data-figure="speed-cost-breakdown.ja.svg"><figcaption><b>図 D.3</b>　BRA の作成 1 件の時間の内訳（本番の 3 件の平均 60.2 分、v0.16.0）</figcaption></figure>
+<p>A・B・C の 3 件の平均は 60.2 分でした（55.2 分、71.9 分、53.4 分）。段階ごとに見ると HCD が 68% を占めますが、性質ごとに見ると、どの段階でもほとんどの時間はモデルの応答待ちです。</p>
+<table class="compact">
+  <thead><tr><th>性質</th><th class="c" style="width:22%">時間（3 件の平均）</th><th class="c" style="width:14%">割合</th></tr></thead>
+  <tbody>
+    <tr><td>モデルの応答待ち</td><td class="c">52.9 分</td><td class="c">88%</td></tr>
+    <tr><td>ツールの実行の待ち（文献 MCP、RCS、シェル。並列に動いた分は重ねて数えない）</td><td class="c">6.0 分</td><td class="c">10%</td></tr>
+    <tr><td>ワーカーの検査（参照・引用文・RCS・スキーマの照合）と CSV・xlsx の作成</td><td class="c">0.6 分</td><td class="c">1%</td></tr>
+    <tr><td>起動と待ち行列</td><td class="c">0.7 分</td><td class="c">1%</td></tr>
+    <tr><td>レート制限による待ち（Reconnecting）</td><td class="c">0</td><td class="c">0%（3 件では一度も起きていない）</td></tr>
+    <tr><td>圧縮</td><td class="c">合計で数秒</td><td class="c">ほぼ 0</td></tr>
+  </tbody>
+</table>
+<p>1 件あたりの応答は 105〜146 回、出力は 14 万〜19 万トークン（うち推論が 8 万〜9.5 万）、入力は 880 万〜1,200 万トークンでした。入力の 93% はキャッシュから読まれていました。ワーカーの処理や文献ツールを速くしても縮む時間はわずかで、短縮の余地はモデルの応答待ちにあります。</p>
+<h3>コンテキスト長と応答時間</h3>
+<p>4 件の実行の応答 482 回について、待ち時間を「固定分 + 出力トークン数 ÷ 出力の速さ」として当てはめ、コンテキストの長さで分けました。</p>
+<figure data-figure="speed-cost-latency.ja.svg"><figcaption><b>図 D.4</b>　コンテキストの長さと応答の待ち時間（4 件の実行、応答 482 回）</figcaption></figure>
+<table class="compact">
+  <thead><tr><th>コンテキスト</th><th class="c">応答の数</th><th class="c">固定分</th><th class="c">出力の速さ</th><th class="c">モデル時間の合計</th></tr></thead>
+  <tbody>
+    <tr><td>8 万トークン未満</td><td class="c">203</td><td class="c">3.9 秒</td><td class="c">112 トークン/秒</td><td class="c">48 分</td></tr>
+    <tr><td>8 万〜12 万</td><td class="c">140</td><td class="c">16.3 秒</td><td class="c">105 トークン/秒</td><td class="c">81 分</td></tr>
+    <tr><td>12 万超</td><td class="c">139</td><td class="c">41.8 秒</td><td class="c">112 トークン/秒</td><td class="c">124 分</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>出力の速さは、どの帯でも約 110 トークン/秒で変わりません。長いコンテキストで遅くなるのは、出力が遅いからではなく、応答が始まるまでの固定の待ちが長いからです。</li>
+  <li>圧縮の前後（11 回）で比べると、直前の 6 回の応答は中央値 25〜68 秒（コンテキスト 12 万〜19 万）、直後の 6 回は 2〜6 秒（2 万〜6 万）でした。出力の量がほぼ同じ例もあり、321 トークンの出力に 43 秒かかった応答と、383 トークンの出力が 3.3 秒で返った応答があります。</li>
+  <li>当時の圧縮のしきい値は 15 万トークンだったので、モデル時間の 73% が 8 万トークン以上のコンテキストで使われていました。</li>
+  <li>長いコンテキストの応答は、直前 60 秒の送信量が少ないときでも中央値 22 秒かかりました。送信量が 20 万を超えても 429（レート制限）は返っていません。そのため、主な原因は TPM による抑制ではなく、サーバー側で長いコンテキストほど遅くなることだと考えられます。ただし、OpenAI 側の内部の仕組みは確認できていません。</li>
+  <li>8 万以上の応答がすべて 8 万未満の速さで返っていれば、1 件あたり 17〜23 分縮んでいた計算になります。これが、コンテキストを小さくすることで得られる短縮の上限です。</li>
+</ul>
+<p>HCD の本ターンについて、応答の直後のツールの呼び出しで待ち時間を分けました。ファイルの書き込みが 31%、文献 MCP が 26%、エージェント自身による確認が 15% でした。自身による確認とは、Python で JSON を読む、手作業でスキーマを確認する、といった作業です。書き込みの出力は最終的な HCD のファイルの約 3 倍あり、ファイル全体の書き直しを繰り返していました。エージェントが自分で行う確認は、後でワーカーが同じ検査をするので重複しています。</p>
+<h3>失敗とリトライの影響</h3>
+<p>当時のジョブ 21 件のうち、失敗が 12 件、中止が 1 件ありました。失敗 12 件のうち 11 件はコンテキストか TPM が原因でした。1 回のリクエストが TPM の上限を超えた、事前の圧縮に失敗した、Reconnecting のまま止まった、のいずれかです。残る 1 件はハートビートの途絶で、Spot の中断と思われます。たとえば <code>ufwwj0jg-1</code> は 67 分走った後に失敗し、利用者がリトライするまで止まっていました。利用者が感じる遅さには、こうした失敗とリトライも含まれます。コンテキストを小さくすれば、この失敗も減ると考えられます。</p>
+<h3>v0.18.0 で検討した選択肢</h3>
+<p>短縮の見積もりは、平均 60 分のジョブに対するものです。選択肢どうしは効果が重なるので、単純には足せません。コンテキストが小さくなると往復 1 回が安くなり、往復を減らす効果は小さくなるためです。</p>
+<table class="compact">
+  <thead><tr><th class="c" style="width:5%">#</th><th>選択肢</th><th class="c" style="width:13%">期待できる短縮</th><th style="width:22%">品質のリスク</th><th style="width:20%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td class="c">1</td><td>コンテキストを小さく保つ（圧縮のしきい値を下げる、ツールの結果を短くする）</td><td class="c">10〜20 分</td><td>低〜中。圧縮で引用文の細部が落ちうるが、ファイルが記憶の正本なので作業は失われない</td><td><b>v0.18.0 で採用</b></td></tr>
+    <tr><td class="c">2</td><td>文献と RCS の事前取得（HCD の前にワーカーが並列でまとめて取得し、資料ファイルにする）</td><td class="c">5〜10 分</td><td>中立〜改善</td><td>ワークフローに段階が 1 つ増えるので、相談してから</td></tr>
+    <tr><td class="c">3</td><td>検査を 1 コマンドにする（ワーカーの検査を CLI として渡し、手作業の確認をやめさせる）</td><td class="c">3〜8 分</td><td>改善</td><td>次の候補</td></tr>
+    <tr><td class="c">4</td><td>出力を減らす（ファイルは一度書き、後は差分で直す）</td><td class="c">3〜6 分</td><td>低〜中</td><td><b>v0.18.0 で採用</b></td></tr>
+    <tr><td class="c">5</td><td>段階ごとの推論の強さ（修正ターンを medium にする）</td><td class="c">1〜3 分</td><td>修正ターンは低</td><td><b>v0.18.0 で採用</b></td></tr>
+    <tr><td class="c">6</td><td>調査の並列化（候補の投射を 2〜4 本の会話に分ける）</td><td class="c">2〜4 分（当時の TPM で）</td><td>中</td><td>TPM に余裕ができるまで採用しない</td></tr>
+    <tr><td class="c">7</td><td>優先処理の階層（<code>service_tier</code>）</td><td class="c">不明</td><td>なし</td><td>有料の実測が必要で未確認</td></tr>
+    <tr><td class="c">8〜11</td><td>文献ツールの調整、結果のキャッシュ、出力のパイプライン化、待機させたワーカー</td><td class="c">それぞれ 2 分以下</td><td>低〜中</td><td>効果が小さいので採用しない</td></tr>
+    <tr><td class="c">12</td><td>HCD の領域ごと・UC ごとの並列、FRG の並列</td><td class="c">実質 0</td><td>高</td><td>できない（次項）</td></tr>
+  </tbody>
+</table>
+<p>選択肢 1・4・5 は、どれも設定値・定数・指示書の変更で済み、費用も下がる方向なので、1 つの PR（#61）にまとめて先に入れました。</p>
+<h3>並列化で縮められる範囲が小さい理由</h3>
+<figure data-figure="speed-cost-sequential.ja.svg"><figcaption><b>図 D.5</b>　並列化で縮められる範囲が小さい理由</figcaption></figure>
+<ul>
+  <li><b>段階の順番は動かせません。</b>FRG は HCD の UC と接続を入力にし、調整ターンは HCD と FRG の両方を見て直します。調査 → HCD → FRG → 調整の順は、依存関係のために直列になります。</li>
+  <li><b>HCD の中身も分けられません。</b>UC の粒度、領域をまたぐ接続、インターフェースの対応、Collection が互いに依存する 1 つのグラフだからです。領域ごとに別の会話で作ると、結合するときに整合をとり直す作業がもう一度必要になります。FRG（平均 5.5 分）も 1 本の木で、全 UC の割り当てとインターフェースの合成が要るため、分ける利点がありません。出力（CSV・xlsx・グラフ）はもともと 0.1 分です。</li>
+  <li><b>並列にできるのは証拠を集める部分だけです。</b>調査ステップの候補の投射は複数の会話に分けられます。しかし当時の組織の TPM の上限は gpt-6-luna で毎分 20 万トークンで、1 本の会話だけで平均 14 万〜17 万トークン/分を使っていました。2 本目を足すとすぐに上限に当たり、待ちが発生します。当時の TPM での短縮は 2〜4 分と見積もりました。</li>
+  <li>新しいジョブ（B・C）では、Codex が「コードモード」を使っているので、ツールの呼び出しはすでに部分的に並列になっています。コードモードは、<code>exec</code> の中の JavaScript から複数のツールをまとめて呼ぶ方式です。</li>
+</ul>
+<h3>v0.18.0 で入れた 3 つの変更</h3>
+<figure data-figure="speed-cost-changes.ja.svg"><figcaption><b>図 D.6</b>　v0.18.0 の 3 つの変更と、時間が縮む仕組み</figcaption></figure>
+<table class="compact">
+  <thead><tr><th style="width:18%">変更</th><th>内容</th><th style="width:24%">場所</th></tr></thead>
+  <tbody>
+    <tr><td>① 圧縮のしきい値</td><td><code>CODEX_AUTO_COMPACT_TOKENS</code> の既定値を 150,000 から 75,000 にした。インフラ側では値を設定していないので、コードの既定値だけで切り替わる。圧縮そのものは数秒で終わり、作業の内容はプロジェクトのファイルに残っている</td><td><code>packages/worker/src/env.ts</code></td></tr>
+    <tr><td>② ツールの結果を短くする</td><td><code>find_sentences</code> が返す文を最大 15 文から 8 文に、文献検索の既定の件数を 10 件から 8 件にした</td><td><code>packages/worker/src/litsearch.ts</code>、<code>litMcp.ts</code></td></tr>
+    <tr><td>② 書き方を小さくする</td><td>エージェントの共通ルールに「Working efficiently」の節を足した。ファイルは内容が決まったときに一度書き、その後は小さな編集で直すこと、確認のためにファイル全体を表示しないことを求める。文献は <code>max_results</code> 5〜8、RCS は <code>top_k</code> 5 以下で照会し、独立した照会はまとめて行うことも求める</td><td><code>prompts/AGENTS.md</code></td></tr>
+    <tr><td>③ 修正ターンは medium</td><td>検査の指摘、調査の被覆の不足、CSV の問題を直す修正ターンを <code>min(プロジェクトの推論の強さ, medium)</code> で動かす。調査の本ターン、HCD と FRG の本ターン、調整ターンはプロジェクトの推論の強さのまま</td><td><code>fixTurnEffort</code>（<code>packages/shared/src/types.ts</code>）、<code>packages/worker/src/index.ts</code>、<code>pipeline.ts</code></td></tr>
+  </tbody>
+</table>
+<p>①と②は、どちらも会話を 8 万トークン未満に保つための変更です。③は、問題の一覧を直すだけのターンで長く推論する必要はない、という考えによります。本ターンの推論の強さは品質に効く可能性が高いので変えていません。</p>
+<h3>変更前後の比較</h3>
+<ul>
+  <li>テストユーザー（<code>cobrac/langrerun-test-user</code>）とそのキーで、<code>ufwwj0jg-1</code> と同じ条件で実行しました。ROI は「Angular gyrus, fosiform gyrus, VWFA, Broca, Wernicke」、TLF は「nonword reading」、調査モード on、<code>gpt-6-luna</code>、推論の強さ high、日本語です。</li>
+  <li>変更前（<code>ufwwj0jg-6</code>〜<code>8</code>）と変更後（<code>ufwwj0jg-9</code>〜<code>11</code>）を 3 件ずつ、1 件ずつ順番に実行しました。TPM を取り合わないように、同時には走らせていません。</li>
+  <li>どれも本番の Fargate Spot で実行しました。時間は API とメッセージの記録から、使用量と実費は S3 のセッション記録から出しています。記録上の費用は、二重計上があるので使っていません（D.10）。</li>
+  <li>比較のための実行の費用は合計 $0.92 でした（変更前 $0.52、変更後 $0.40）。</li>
+</ul>
+<figure data-figure="speed-cost-before-after.ja.svg"><figcaption><b>図 D.7</b>　変更前と変更後（同じ ROI・TLF で 3 件ずつ、平均）</figcaption></figure>
+<table class="compact">
+  <thead><tr><th style="width:28%"></th><th class="c">変更前</th><th class="c">変更後</th><th class="c" style="width:10%">差</th></tr></thead>
+  <tbody>
+    <tr><td><b>合計</b></td><td class="c"><b>48.6 分</b>（43.1 / 52.6 / 50.1）</td><td class="c"><b>31.0 分</b>（28.6 / 35.5 / 28.9）</td><td class="c"><b>−36%</b></td></tr>
+    <tr><td>起動</td><td class="c">0.6 分</td><td class="c">0.5 分</td><td class="c"></td></tr>
+    <tr><td>調査</td><td class="c">15.8 分</td><td class="c">9.0 分</td><td class="c">−43%</td></tr>
+    <tr><td>HCD（修正ターン・検査を含む）</td><td class="c">24.3 分</td><td class="c">16.5 分</td><td class="c">−32%</td></tr>
+    <tr><td>FRG</td><td class="c">7.9 分</td><td class="c">5.0 分</td><td class="c">−37%</td></tr>
+    <tr><td>CSV・xlsx</td><td class="c">0.1 分</td><td class="c">0.1 分</td><td class="c"></td></tr>
+    <tr><td>モデルの応答待ち</td><td class="c">41.7 分</td><td class="c">24.2 分</td><td class="c">−42%</td></tr>
+    <tr><td>応答の回数</td><td class="c">97</td><td class="c">89</td><td class="c">−8%</td></tr>
+    <tr><td>コンテキストの中央値 / 最大</td><td class="c">8.0 万 / 15.4 万</td><td class="c">4.8 万 / 8.6 万</td><td class="c"></td></tr>
+    <tr><td>圧縮の回数</td><td class="c">2.7</td><td class="c">5.0</td><td class="c"></td></tr>
+    <tr><td>入力トークン（キャッシュを含む）</td><td class="c">763 万</td><td class="c">390 万</td><td class="c">−49%</td></tr>
+    <tr><td>出力トークン（推論を含む）</td><td class="c">11.6 万</td><td class="c">11.7 万</td><td class="c">±0</td></tr>
+    <tr><td><b>実費</b></td><td class="c"><b>$0.174</b>（0.166 / 0.182 / 0.174）</td><td class="c"><b>$0.134</b>（0.126 / 0.157 / 0.118）</td><td class="c"><b>−23%</b></td></tr>
+    <tr><td>記録上の費用</td><td class="c">$0.441（実費の 2〜3 倍）</td><td class="c">$0.134（実費と一致）</td><td class="c"></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>縮んだ時間のほとんどは、応答待ちが短くなったこと（−17.5 分）によるものです。コンテキストの中央値が 8 万から 4.8 万トークンに下がり、最大でも 8.6 万に収まりました。上の見立てどおりの結果です。圧縮は 1 件あたり 2 回ほど増えましたが、圧縮にかかる時間はわずかです。</li>
+  <li>入力トークンがほぼ半分になったので、実費も下がりました。出力トークンは変わっていません。</li>
+  <li>事前の見積もりは 35〜40 分でしたが、それより短くなりました。</li>
+  <li>変更後の記録上の費用はセッション記録の実費と一致しており、v0.17.1 の修正が本番で正しく動いていることも確認できました。</li>
+</ul>
+<table class="compact">
+  <caption>品質（各件の値）</caption>
+  <thead><tr><th style="width:32%"></th><th>変更前</th><th>変更後</th></tr></thead>
+  <tbody>
+    <tr><td>UC の数</td><td>6 / 7 / 7</td><td>6 / 7 / 6</td></tr>
+    <tr><td>Collection</td><td>0 / 2 / 1</td><td>1 / 1 / 0</td></tr>
+    <tr><td>BIF / UC 間の接続</td><td>5・6 / 8・13 / 8・13</td><td>6・13 / 7・12 / 7・10</td></tr>
+    <tr><td>参考文献</td><td>13 / 12 / 14</td><td>12 / 13 / 12</td></tr>
+    <tr><td>FRG のノード</td><td>3 / 4 / 4</td><td>3 / 3 / 3</td></tr>
+    <tr><td>修正ターン（戻ってきた問題の数）</td><td>1（10）/ 0 / 1（8）</td><td>1（10）/ 1（7）/ 1（5）</td></tr>
+    <tr><td>警告のまま残った問題</td><td>0 / 0 / 0</td><td>0 / 0 / 0</td></tr>
+    <tr><td>参照の照合（DOI / PMID）</td><td>すべて verified</td><td>すべて verified</td></tr>
+    <tr><td>引用文の照合（verified / unverified）</td><td>6/0、6/1、12/1</td><td>12/1、11/1、8/2</td></tr>
+    <tr><td>整合チェック（cross_check）</td><td>3 件とも所見なし</td><td>2 件は所見なし、1 件で X9 が 1</td></tr>
+    <tr><td>調整ターン</td><td>発動なし</td><td>発動なし</td></tr>
+    <tr><td>調査の候補の投射</td><td>11 / 9 / 11</td><td>8 / 7 / 7</td></tr>
+  </tbody>
+</table>
+<p>HCD と FRG の規模（UC・接続・文献の数）と検査の結果（参照はすべて verified、警告は 0）は、変更の前後で同じ程度でした。</p>
+<div class="box note">
+  <div class="h">注意点</div>
+  <ul>
+    <li><b>件数が少ないこと。</b>前後 3 件ずつなので、品質の差が偶然かどうかはこの数では判断できません。時間の差（48.6 分と 31.0 分）は各件のばらつき（変更前 43.1〜52.6 分、変更後 28.6〜35.5 分）より大きいので、短縮したこと自体は確かだと考えられます。ただし短縮の幅には誤差があります。</li>
+    <li><b>調査の候補が減ったこと。</b>調査ステップで挙げる候補の投射が、平均 10.3 件から 7.3 件に減りました。被覆の検査はどちらも全件受理していますが、調査ステップが短くなったこと（15.8 分 → 9.0 分）と合わせると、調べる範囲が狭くなっている可能性があります。原因としては、検索結果の件数を 10 件から 8 件に減らしたことと、修正ターンを medium にしたことが考えられますが、切り分けていません。必要なら、調査ステップだけ検索の既定の件数を戻して確認します。</li>
+    <li><b>変更前のバージョンがそろっていないこと。</b>変更前の 1・2 件目は v0.16.0、3 件目は v0.17.0 で走りました。比較の途中で、別の PR（#60・#62・#64）による v0.17.0 が本番に出たためです。v0.17.0 は HCD の指示書（左右を <code>side</code> という項目で表す、Circuit ID の文字集合）とエラーコードの番号を変えています。変更後は v0.18.0 で、v0.17.x の変更も含みます。3 件目（v0.17.0）の 50.1 分は 1・2 件目（43.1 分・52.6 分）と同じ範囲なので、v0.17.0 の変更が時間に与えた影響は小さいと考えられます。ただし、厳密に同じバージョンどうしの比較ではありません。</li>
+    <li><b>そのほかの小さな変化。</b>FRG のノードが 4 から 3 になった件があり、記録だけの検査 X9 が 1 件出ました。</li>
+    <li><b>出力を減らす効果は見えていません。</b>出力トークンは前後で変わらなかったので、全体の書き直しをやめさせる指示（選択肢 4）の効き目は、この計測では確認できていません。</li>
+  </ul>
+</div>
+<h3>残る課題と次の候補</h3>
+<p>測定の時点で挙げた課題です。その後に変わったものは、現在の状態の欄に記載しています。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">項目</th><th>現在の状態</th><th style="width:36%">次に行うこと</th></tr></thead>
+  <tbody>
+    <tr><td>調査の候補の減少</td><td>変更後に候補の投射が平均 10.3 件から 7.3 件に減った。被覆の検査は全件受理</td><td>調査ステップだけ検索の既定の件数を戻すなどして、原因を切り分ける</td></tr>
+    <tr><td>さらなる短縮</td><td>出力トークンは減っていない</td><td>検査を 1 コマンドにする（選択肢 3）、文献と RCS の事前取得（選択肢 2。段階が増えるので相談してから）、書き込みの往復を減らす工夫</td></tr>
+    <tr><td>長いコンテキストが遅い理由</td><td>サーバー側の処理によると推定されるが、確認していない</td><td>コンテキスト 4 万と 14 万で同じ小さなリクエストを送れば切り分けられる。費用は数セントだが有料の呼び出しなので、許可を得てから</td></tr>
+    <tr><td>優先処理の階層（<code>service_tier</code>）</td><td>使えるか、どれだけ速くなるかが未確認</td><td>同じく有料の実測が必要</td></tr>
+    <tr><td>並列化</td><td>採用していない。2026-10 にデフォルトの API キーの組織の TPM が毎分 200 万になった</td><td>TPM に余裕ができたので、調査の並列化を検討できる</td></tr>
+    <tr><td>打ち切られたターンの使用量</td><td>v0.24.1 で修正済み。時間切れ・停止・SIGTERM・理由なしの異常終了のターンも、セッション記録から数えて打ち切られたジョブ自身に足す</td><td>修正前のジョブの分は戻せない（付録 C）</td></tr>
+    <tr><td>過去のジョブの補正</td><td>WebSocket の更新と調査ステップの指標は補正しない。失敗したターンの分は戻せない（付録 C）</td><td>必要が出たら対応する</td></tr>
+    <tr><td>Spot の中断への対応</td><td>単体テストと synth だけで確認した（8.3）</td><td>実際の中断が起きたらログで確認する</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/worker/src/env.ts</code>（圧縮のしきい値）、<code>litsearch.ts</code>・<code>litMcp.ts</code>（件数）、<code>prompts/AGENTS.md</code>（Working efficiently）、<code>packages/shared/src/types.ts</code>（<code>fixTurnEffort</code>）、<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>、<code>packages/shared/src/plan.ts</code>（<code>RUN_TOKENS_PER_MINUTE</code>・<code>ORG_TOKENS_PER_MINUTE</code>）。PR #60〜#64・#66〜#70（v0.17.0〜v0.18.2）。測定値は本番の記録とセッション記録から出したもので、コードの定数ではない</p>
+
+<h2 id="sd-10">D.10 使用量の二重計上と過去のジョブの補正</h2>
+<p>D.9 の調査で、セッション記録から計算した実費と、アプリが記録した費用が合わないことが分かりました。本番の 3 件（A・B・C）の実費は $0.24・$0.28・$0.21 でしたが、記録上の費用は $0.51・$0.83・$0.61 と、2〜3 倍になっていました。</p>
+<p>原因は、Codex がターンの終わり（<code>turn.completed</code>）に返す使用量の意味の取り違えでした。この値はそのターンの分ではなく、<b>会話が始まってからの累計</b>で、後のジョブで会話を再開しても累計は続きます。v0.17.0 までのワーカーはこの累計を毎ターン足していたので、ターンが進むほど過去の分を何度も数えていました。<code>ufwwj0jg-1</code> で確認すると、DynamoDB に足した各ターンの値は、セッション記録の各ターンの終わりの累計（<code>total_token_usage</code>）と 6 ターンすべてで一致しました。</p>
+<figure data-figure="speed-cost-usage.ja.svg"><figcaption><b>図 D.8</b>　使用量の二重計上：累計をターンごとに足していた（<code>ufwwj0jg-1</code> の入力トークン）</figcaption></figure>
+<table class="compact">
+  <thead><tr><th>ターン</th><th class="c">DB に足した入力トークン</th><th class="c">セッション記録の累計</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td class="c">3,265,610</td><td class="c">3,265,610</td></tr>
+    <tr><td>2</td><td class="c">5,826,689</td><td class="c">5,826,689</td></tr>
+    <tr><td>3</td><td class="c">6,088,575</td><td class="c">6,088,575</td></tr>
+    <tr><td>4</td><td class="c">8,400,808</td><td class="c">8,400,808</td></tr>
+    <tr><td>5</td><td class="c">9,319,890</td><td class="c">9,319,890</td></tr>
+    <tr><td>6（リトライのジョブ。別のプロセスで再開）</td><td class="c">10,175,056</td><td class="c">10,175,056</td></tr>
+  </tbody>
+</table>
+<p>v0.17.1（PR #63）で、ターンの前と後の累計の差を足す、現在の数え方に直しました（9.10）。それまでは失敗で終わったターンを 0 として扱っていたので、失敗したジョブは逆に少なく記録されていました。直した後の比較実行（D.9）では、記録上の費用がセッション記録の実費と一致しました。</p>
+<p>v0.17.1 より前のジョブには、DynamoDB に 2〜3 倍の値が残っています。本番のデータは書き換えず、<b>読み込むときに補正して表示する</b>ことにしました（v0.18.1、PR #69）。補正の対象・方法・限界は付録 C（C.7）にあります。本番の DynamoDB を読み取りだけで補正した結果は次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th>プロジェクト</th><th class="c">記録上の費用</th><th class="c">補正後</th><th class="c">セッション記録から出した実費</th></tr></thead>
+  <tbody>
+    <tr><td><code>ufwwj0jg-6</code></td><td class="c">$0.416</td><td class="c">$0.166</td><td class="c">$0.166</td></tr>
+    <tr><td><code>ufwwj0jg-7</code></td><td class="c">$0.374</td><td class="c">$0.182</td><td class="c">$0.182</td></tr>
+    <tr><td><code>ufwwj0jg-1</code></td><td class="c">$0.879</td><td class="c">$0.202</td><td class="c">$0.309</td></tr>
+  </tbody>
+</table>
+<p><code>ufwwj0jg-1</code> の補正後（$0.202）と実費（$0.309）の差は、フォローアップの 2 つのジョブで失敗したターンの分です。v0.17.1 より前は失敗したターンを 0 として記録していたので、この分は復元できません。</p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>turnUsage</code>）、<code>packages/shared/src/usageCorrection.ts</code>、<code>packages/api/src/lib/usageCorrection.ts</code>、テスト <code>packages/worker/test/codex.test.ts</code>・<code>packages/shared/test/usageCorrection.test.ts</code>、<code>CHANGELOG.md</code>（0.17.1・0.18.1）</p>
+
+<h2 id="sd-11">D.11 長いジョブの回復の経緯</h2>
+<h3>会話の大きさと TPM</h3>
+<p>1 回の依頼が 1 分あたりのトークンの上限より大きいと、待っても通りません。当時のエラーは「Request too large … Limit 200000, Requested 202304」で、<code>gpt-6-luna</code> の上限は 20 万でした。会話の文脈が上限に達すると、その後のターンはすべて拒まれます。これが v0.12.1 の会話の自動圧縮と、大きすぎるターンを新しい会話で続ける仕組みのきっかけになりました（8.4）。</p>
+<p>圧縮の上限は速さのためでもあります。本番の実行では、文脈が約 8 万トークンを超える依頼は、小さい依頼より返答が 15〜40 秒遅く、ジョブの時間の大半がそうした依頼に使われていました（D.9）。</p>
+<p>デフォルトの API キーの組織の TPM は、2026-10 初めまで gpt-6-luna・gpt-5.6-luna で毎分 20 万でした。その後、利用の tier が上がり、OpenAI の Build tier の値である毎分 200 万になりました（8.3）。</p>
+<h3>Spot の中断からの再開</h3>
+<figure data-figure="speed-cost-interruption.ja.svg"><figcaption><b>図 D.9</b>　Spot の中断からの再開：v0.18.1 までと v0.18.2 から</figcaption></figure>
+<p>v0.18.1 までは、作業ディレクトリを S3 に保存するのは、段階の受理・質問・完了・失敗のときだけでした。SIGTERM を受けても何もしていませんでした。HCD⇄FRG の試行（2026-09-29）では、15 分ぶんの作業を失い、中断の検出にも 27 分かかりました。janitor 自体が 15 分ごとにしか動いていなかったので、再開は中断の 15〜30 分後でした。</p>
+<p>v0.18.2（PR #66）で、5 分ごとの保存、SIGTERM の処理、停止の猶予 120 秒、janitor の 5 分ごとの実行を入れました。ハートビートを古いとみなす 15 分は変えていません。同じバージョンで、ワーカーの起動と janitor のメッセージを UI の言語で出すようにし（PR #68、10 言語）、公開プロジェクトの複製に元の調査モードの設定をコピーするようにしました（PR #67）。現在の仕組みは 8.3 にあります。</p>
+<p class="src">典拠：<code>packages/worker/src/interrupt.ts</code>・<code>codex.ts</code>・<code>env.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>CHANGELOG.md</code>（0.12.1・0.18.2）</p>
+
+<h2 id="sd-12">D.12 アプリのバージョンの歩み</h2>
+<p>主なバージョンで入った機能だけを挙げています（日付はすべて 2026 年）。太字はハーネスの世代が変わったバージョンです。すべてのバージョンの詳しい変更は、サイトの「リリースノート」ページにあります（D.13）。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">バージョン</th><th style="width:8%">日付</th><th>主な追加・変更</th></tr></thead>
+  <tbody>
+    <tr><td>v0.1.0</td><td>09-13</td><td>最初のデプロイ。AWS 上の画面・API・Fargate のワーカーと、Codex SDK で HCD → FRG → CSV → xlsx を作る流れ（ハーネス v0）。質問と回答、フォローアップ、グラフ</td></tr>
+    <tr><td><b>v0.5.0</b></td><td>09-26</td><td><b>ハーネス v1</b>：ワーカーが段階を進めて検査、CSV をコードで生成、成果物を英語に、構造化出力</td></tr>
+    <tr><td>v0.7.0</td><td>09-28</td><td>RCS と、UC Descriptor・Circuit ID による命名。プロジェクト ID をシステムが割り当て、表示名を分ける</td></tr>
+    <tr><td><b>v0.8.0</b></td><td>09-28</td><td><b>ハーネス v1.1</b>：データを JSON と JSON Schema に。レポートと判断ログを画面で閲覧</td></tr>
+    <tr><td>v0.9.0〜v0.12.1</td><td>09-29</td><td>文献の照合、解説記事、BRA 仕様への準拠（<code>CoBRAC-v1-1</code>）、Collection、引用文の照合、調査モードと文献ツール、Template-v2-2 形式の xlsx、参考資料、HCD と FRG の整合の記録、Canon、レート制限からの再開と会話の自動圧縮</td></tr>
+    <tr><td><b>v0.13.0</b></td><td>09-29</td><td><b>ハーネス v2</b>：戻り道と調整ターン、revisions 節、X9、Collection の条件の緩和と 203。Canon の制約の強さの選択を廃止</td></tr>
+    <tr><td>v0.17.0</td><td>10-01</td><td>エラーコードを WBAI の Master に、左右を facet <code>side</code> に、Circuit ID の文字を WBAI 仮仕様に（v0.17.1 で使用量の二重計上を修正）</td></tr>
+    <tr><td>v0.18.0</td><td>10-01</td><td>速度の改善（D.9）。v0.18.1 で過去のジョブの使用量の補正、v0.18.2 で Spot の中断への対策</td></tr>
+    <tr><td>v0.19.0</td><td>10-02</td><td>デフォルトの API キー（組織のキー）と、管理者による利用承認（Tier 1 / 2）</td></tr>
+    <tr><td>v0.20.0</td><td>10-04</td><td>Canon の PR の審査画面：差分、システムの検査、AI レビュー、コメント、共同編集者、履歴</td></tr>
+    <tr><td>v0.24.0</td><td>10-04</td><td>SABRA の境界：新しいプロジェクトでは BNA は新皮質だけ</td></tr>
+    <tr><td>v0.25.0</td><td>10-04</td><td>検査規則の水準 1：ROI の要素ごとの UC、ROI の左右、引用文の使い回しの警告</td></tr>
+    <tr><td>v0.26.0・v0.27.0</td><td>10-04</td><td>BRA データの版と「版」タブ、BRA-DB への登録パッケージ。AWS 上の BRA-DB（PostgreSQL 17 + Apache AGE）と版の登録</td></tr>
+    <tr><td>v0.28.0</td><td>10-04</td><td>FRG を回路の候補と突き合わせて組み立てる、検査規則の水準 2、HCD グラフの「モチーフ」</td></tr>
+    <tr><td>v0.29.0</td><td>10-05</td><td>プロジェクトの ID を <code>p</code> + 7 文字、Canon の ID を <code>c</code> + 7 文字に</td></tr>
+    <tr><td>v0.31.0〜v0.36.0</td><td>10-06</td><td>オーケストレーターの開発段階 1〜3（D.8）。仮説モード（v0.32.0〜v0.34.0）</td></tr>
+    <tr><td>v0.37.0</td><td>10-07</td><td>オーケストレーターとエージェントのモデルを別々に選ぶ。粒度方針はオーケストレーターが決める</td></tr>
+    <tr><td>v0.39.0</td><td>10-08</td><td>仕様を本書（CoBRAC Agents 仕様書）1 冊にまとめ、管理者の「仕様書」ページで見せる。それまで <code>/docs</code> は <code>docs/*.md</code> を表示していた。<code>docs/*.md</code> と README・AGENTS を返していた <code>GET /admin/docs</code>・<code>/admin/docs/{slug}</code> は廃止</td></tr>
+    <tr><td>v0.40.0・v0.41.0</td><td>10-09</td><td>オーケストレーターの自律実行と、人の代わりの判断（D.8）</td></tr>
+    <tr><td>v0.42.0</td><td>10-10</td><td>新しい計画は自律実行が既定。承認済みの利用者にデフォルトの API キーを見せず、自分のキーは任意に。Canon の画面をプロジェクトの画面と同じ構成に。設定とログアウトをサイドバー下部のアイコンに</td></tr>
+    <tr><td>v0.43.0</td><td>10-10</td><td>サイドバーの整理（履歴の名前を 2 行に、完了以外だけ状態を出す、オーケストレーターの計画ごとに 1 行にまとめる、「プロジェクト一覧」は「すべて表示」から、仕様書は管理画面から開く）。プロジェクト一覧の行の高さと、先頭列の「プロジェクト名」。自律実行の設定を「自律実行」と費用の上限から始める</td></tr>
+    <tr><td>v0.44.0</td><td>10-10</td><td>自動の順序の計画をフロー実行に（条件を満たした行から枠に詰める）。レーンの図と同時実行の枠の表示、オーケストレーターの AI のジョブの枠の上限、自律実行の費用の予約（6.5、6.6、6.8）</td></tr>
+    <tr><td>v0.45.0</td><td>10-10</td><td>Anthropic の Claude のモデルでジョブを実行（Claude Agent SDK）。Anthropic の API キーとデフォルトの Anthropic API キー、キーを渡さない中継（4.1、8.4、9.5）</td></tr>
+    <tr><td>v0.45.1</td><td>10-10</td><td>仕様書を全面的に書き直した（章立て・書き言葉・付録 C/D への分離）</td></tr>
+  </tbody>
+</table>
+<h3>最初のバージョンで範囲外としたもの</h3>
+<p>最初のバージョン（ハーネス v1 の時点）では、プロジェクトの共有と共同編集、Web 画面での成果物の手編集、課金プラン、モバイルアプリ、独自ドメインを範囲外としました。その後、閲覧だけの公開と複製、Canon の共同編集者が入りました（4.6、5.8）。独自ドメイン <code>cobrac.site</code> は、CDK の外で CloudFront の別名として設定しています。成果物の手編集は現在もできません（グラフの配置とスタイルは除く、8.7）。課金プランとモバイルアプリはありません。</p>
+<p class="src">典拠：<code>CHANGELOG.md</code>、<code>README.md</code></p>
+
+<h2 id="sd-13">D.13 現行の仕様とリリースノート</h2>
+<p>本付録は経緯の記録です。現行の仕様は本文の第 1〜9 部が定め、付録 A〜C と付録 E が補います。本付録と本文が食い違うときは、本文とその典拠のコードが優先します。本書は、アプリ v0.45.1 の時点の仕様です。</p>
+<p>バージョンごとの詳しい変更（追加・変更・修正・削除）は、サイトの「リリースノート」ページにあります。サイドバーの下端のバージョン番号から開け、全員が閲覧できます。中身はリポジトリの <code>CHANGELOG.md</code> です。</p>
+<p class="src">典拠：<code>CHANGELOG.md</code>（0.22.0）、<code>AGENTS.md</code>（バージョニング）、<code>packages/web/src/components/Layout.tsx</code></p>
 </section>

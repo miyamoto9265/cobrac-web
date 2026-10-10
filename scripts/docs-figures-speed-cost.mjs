@@ -1,4 +1,4 @@
-// Figures of the BRA speed and cost measurements (v0.17.1–v0.18.2), embedded in part 7 of the specification PDF (docs/spec-guide). Rendered by docs-figures.mjs.
+// Figures of the BRA speed and cost measurements (v0.17.1–v0.18.2), embedded in appendix D of the specification PDF (docs/spec-guide/src/94_history.html). Rendered by docs-figures.mjs.
 import { C, NW, arrow, box, header, svg, text, textWidth } from "./docs-figures-lib.mjs";
 
 const W = 860;

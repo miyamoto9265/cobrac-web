@@ -1,0 +1,246 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録 C</div>
+  <h1 class="part" id="pc">古いプロジェクトの扱い</h1>
+  <p class="lead">本文には現行の仕様だけを記述しています。本付録では、以前のバージョンのアプリで作られたプロジェクト・Canon・計画・ジョブの記録を、現在のアプリがどう扱うかをまとめています。新しく作るものには関係しません。古いデータを読む開発者と、古いプロジェクトについて問い合わせを受けた運用者に向けた付録です。変化の理由と経緯は付録 D にあります。</p>
+  <div class="map">
+    <div><b>作られたときの規則</b>既存のプロジェクトは、作成時に保存した印に従って検査し続けます。フォローアップでも複製でも変わりません。</div>
+    <div><b>保存データは書き換えない</b>古い形の名前や記録は、DynamoDB と S3 の上ではそのまま残します。</div>
+    <div><b>読むときに直す</b>比べるときや表示するときに、現在の形へ読み替えたり、値を補正したりします。</div>
+  </div>
+</div>
+
+<h2 id="sc-1">C.1 基本の考え方</h2>
+<p>検査の規則や名前の形は、バージョンを重ねるあいだに何度か変わりました。CoBRAC は既存のプロジェクトを、原則として<b>作られたときの規則</b>で検査し続けます。アプリが新しくなっただけで、すべての既存の BRA に新しい制約を一律に当てはめることはしません。</p>
+<ul>
+  <li><b>印を持ち続ける</b>：プロジェクトは作成時に、検査規則の水準（<code>harnessRules</code>）、SABRA の境界（<code>sabraBoundary</code>）、調査モードなどの設定を保存します。後のフォローアップとリトライも、その設定に従います。</li>
+  <li><b>複製は元の印を引き継ぐ</b>：公開プロジェクトの複製は、元の調査モード、SABRA の境界、<code>harnessRules</code>、仮説モードの設定をそのままコピーします（4.6）。</li>
+  <li><b>計画は確定時の規則で作る</b>：オーケストレーターの計画は、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、その計画の行はすべて確定時の規則で作られます（6.9）。</li>
+  <li><b>保存したデータは書き換えない</b>：古い形の名前、古い境界のアンカー、多く数えすぎた使用量は、保存先の上ではそのままです。読むときに現在の形へ直すか、補正して表示します。</li>
+</ul>
+<p>主な変化と、それより前に作られたものの扱いは次の表のとおりです。詳しい扱いは右の列の節にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:30%">変化</th><th style="width:10%">導入</th><th style="width:22%">印</th><th>それより前のものの扱い</th><th style="width:7%">節</th></tr></thead>
+  <tbody>
+    <tr><td>作業ディレクトリのデータを Markdown の表から JSON に</td><td>v0.8.0</td><td>ファイルの形</td><td>続きの実行はできない。xlsx とグラフは見られる</td><td>C.6</td></tr>
+    <tr><td>BRA の値の規則</td><td>v0.10.0</td><td>CSV 形式 <code>CoBRAC-v1-0</code> → <code>CoBRAC-v1-1</code></td><td>次のフォローアップのときに新しい規則で検査し、エージェントに直させる</td><td>C.3</td></tr>
+    <tr><td>エラーコードを WBAI の Master に合わせる</td><td>v0.17.0</td><td>Master のコードと <code>cobrac:</code> のコード</td><td>チェッカーが古い番号を <code>appendixD</code> として残す</td><td>C.3</td></tr>
+    <tr><td>Circuit ID と Descriptor の形（左右を <code>side</code> に、区切りを <code>.</code> に）</td><td>v0.17.0</td><td>—</td><td>古い形も読み、次のフォローアップで書き直しを求める</td><td>C.2</td></tr>
+    <tr><td>使用量の数え方の修正</td><td>v0.17.1</td><td>ジョブの開始時刻</td><td>読むときに補正して表示する</td><td>C.7</td></tr>
+    <tr><td>デフォルトの API キー</td><td>v0.19.0</td><td>ジョブの <code>keySource</code></td><td>値がなければ自分のキーで動いたものとみなす</td><td>C.6</td></tr>
+    <tr><td>SABRA の境界（BNA は新皮質だけ）</td><td>v0.24.0</td><td><code>sabraBoundary: "neocortex"</code></td><td>皮質下の BNA のアンカーのまま検査を通る</td><td>C.2</td></tr>
+    <tr><td>ROI 規則（ROI の要素と左右、引用文の使い回し）</td><td>v0.25.0</td><td><code>harnessRules: 1</code></td><td>印のない（0 の）プロジェクトは前の規則で検査する</td><td>C.3</td></tr>
+    <tr><td>版の凍結</td><td>v0.26.0</td><td>版のスナップショット</td><td>現在のデータを「未保存」の版として見せ、次のフォローアップで凍結する</td><td>C.5</td></tr>
+    <tr><td>GN 規則（GN の UC の連結、3〜4 UC の GN）</td><td>v0.28.0</td><td><code>harnessRules: 2</code>（現行）</td><td>1 以下は GN の UC が 2 つまで。X4 を記録する</td><td>C.3</td></tr>
+    <tr><td>版に検査の前提を記録</td><td>v0.28.2</td><td>版の <code>harnessRules</code>・<code>sabraBoundary</code></td><td>それより前の版は「不明」と表示する</td><td>C.5</td></tr>
+    <tr><td>ランダムな ID</td><td>v0.29.0</td><td>ID の形</td><td>以前の形の ID もそのまま有効</td><td>C.4</td></tr>
+    <tr><td>計画のモデルを 2 つに分ける</td><td>v0.37.0</td><td>計画の <code>orchestratorModel</code></td><td>行のモデルをオーケストレーターにも使う</td><td>C.6</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 2</code>）、<code>packages/shared/src/types.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>CHANGELOG.md</code>（0.8.0〜0.37.0）</p>
+
+<h2 id="sc-2">C.2 命名</h2>
+<h3>古い形の Descriptor と Circuit ID</h3>
+<p>v0.16 までは、左右をアンカーで表していました。片側の BNA 領域は単一のラベルで書き（<code>BNA:57</code> が左の A4ul）、DHBA 側や BNA の群は <code>@L</code> / <code>@R</code> を付けました（<code>BNAG:FuG@L</code>）。Circuit ID も <code>A4ul@L</code> の形で、括弧の中の区切りは <code>,</code>、投射は <code>out:</code> と書いていました。v0.17.0 からは、左右を facet <code>side</code> で表し、区切りを <code>.</code>、投射を <code>out-</code> と書きます（2.8）。たとえば <code>MVOcC(V1,L4Ca)</code> は <code>MVOcC(V1.L4Ca)</code> に、<code>Amyg(BL,out:CEN)</code> は <code>Amyg(BL.out-CEN)</code> になりました。</p>
+<p>v0.16 までに作ったプロジェクトと Canon には、古い形の Descriptor と Circuit ID が残っています。<b>保存済みのデータは書き換えません。</b>読むときに現在の形へ直し、その形で比べます。</p>
+<figure data-figure="circuit-naming-legacy.ja.svg"><figcaption><b>図 C.1</b>　古い形の読み替え。検査は次のフォローアップで書き直しを求め、Canon は同じ回路・同じ ID として比べ、出力は保存された ID をそのまま出す</figcaption></figure>
+<table class="compact">
+  <thead><tr><th>対象</th><th>古い形</th><th>読むときの形</th><th>関数</th></tr></thead>
+  <tbody>
+    <tr><td>Descriptor（単一の BNA ラベル）</td><td><code>BNA:57</code> / <code>BNA:58</code></td><td><code>BNA:57-58/side:left</code> / <code>…/side:right</code></td><td><code>canonicalUcDescriptor</code></td></tr>
+    <tr><td>Descriptor（<code>@L</code> / <code>@R</code>）</td><td><code>BNAG:FuG@L</code>、<code>HOMBA:12261@R</code></td><td><code>BNAG:FuG/side:left</code>、<code>HOMBA:12261/side:right</code></td><td>同上</td></tr>
+    <tr><td>Circuit ID（<code>@</code>、<code>,</code>、<code>out:</code>）</td><td><code>A4ul@L(L5,pt,out:Sp)</code></td><td><code>A4ul(L5.pt.out-Sp.left)</code></td><td><code>modernCircuitId</code></td></tr>
+    <tr><td>Circuit ID（<code>,</code> 区切り）</td><td><code>NAC(shell,DRD1+)</code></td><td><code>NAC(shell.DRD1+)</code></td><td>同上</td></tr>
+    <tr><td>Circuit ID（<code>@</code> と正式略称の <code>/</code>）</td><td><code>A9/46d@L(L3)</code></td><td><code>A9/46d(L3.left)</code></td><td>同上</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>検査</b>：古いプロジェクトの次のフォローアップでは、ワーカーの検査が現在の形への書き直しを求めます。対象には、接続、Sub-Circuits、Output Semantics、<code>[U.…]</code> の参照も含みます。書き直すのはエージェントです。</li>
+  <li><b>正規化</b>：Descriptor を比べるときの正規化（2.5）は、最初に古い形を現在の形に直してから、<code>mol</code> の値の並べ替えと小文字化を行います。</li>
+  <li><b>出力</b>：ビューアと CSV / xlsx は、保存された ID をそのまま出します。<code>,</code> を含む古い ID は、CSV の書き出しが自動でクォートします。</li>
+  <li><b>Canon</b>：古い形と現在の形を、同じ回路・同じ ID として比べます（<code>currentCanonSnapshot</code>、2.12）。<code>bna:29</code> と <code>bna:29-30/side:left</code> は同じ回路で、<code>A44d@L</code> と <code>A44d(left)</code> は同じ Circuit ID です。そのため、衝突ルール C4（Circuit ID と Descriptor の 1 対 1、5.7）にはなりません。プロジェクトが現在の形を持ち込むと PR には改名として表示され、マージ後の Canon は現在の形になります。</li>
+  <li>片側の単一ラベルと逆側の <code>side</code> が混ざった Descriptor（<code>BNA:57/side:right</code>）は、読み替えずにエラーにします。</li>
+</ul>
+
+<h3>SABRA の境界が以前のままのプロジェクト</h3>
+<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは新皮質だけになりました（2.3）。それまでは、扁桃体・海馬・大脳基底核・視床の皮質下の 36 ラベルと、嗅内皮質（<code>A28/34</code>）・側頭無顆粒島皮質（<code>TI</code>）も BNA で表していました。嗅皮質・梨状皮質などの不等皮質も BNA の側でしたが、BNA にラベルはありませんでした。現在はこれらを DHBA の項で表します。v0.24.0 より前に作ったプロジェクトは、この変更の影響を受けません。</p>
+<ul>
+  <li><b>プロジェクト</b>：<code>sabraBoundary</code> を持たないプロジェクトは、以前の境界のまま検査します。皮質下の BNA のアンカーのまま読み込み・検査・出力ができ、フォローアップでも書き直しを求めません。新しいプロジェクトは、作成時に <code>sabraBoundary: "neocortex"</code> を持ちます。複製は元の設定を引き継ぎます。</li>
+  <li><b>版</b>：版の manifest には、検査が従った境界（<code>neocortex</code> / <code>legacy</code>）と、RCS が返した境界のバージョンが残ります（4.5）。</li>
+  <li><b>Canon</b>：保存済みの Canon の回路は書き換えません。Canon に従うプロジェクトは、Canon にある Descriptor をそのまま使えます。以前の境界で作られた <code>BNA:223-224</code> なども、境界の検査の対象から外します。Canon どうしを比べるときは、現在の形に直したスナップショットを使います（<code>currentCanonSnapshot</code>）。</li>
+</ul>
+<p>以前の境界で作られたプロジェクトでは、次のような書き方が残っていることがあります。</p>
+<table class="compact">
+  <thead><tr><th>集団</th><th>現在の境界での書き方</th><th>v0.24.0 より前の書き方</th></tr></thead>
+  <tbody>
+    <tr><td>側坐核（全体、両側）</td><td><code>HOMBA:10339</code>、<code>NAC</code></td><td><code>BNA:223-224</code></td></tr>
+    <tr><td>海馬 CA1 の錐体細胞</td><td><code>HOMBA:10297/cell:pyr</code>、<code>CA1(pyr)</code></td><td><code>BNAG:Hipp/part:HOMBA:10297/cell:pyr</code>、<code>Hipp(CA1.pyr)</code></td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>canonicalUcDescriptor</code>・<code>modernCircuitId</code>・<code>normalizeUcDescriptor</code>（<code>packages/shared/src/ucNaming.ts</code>）、<code>packages/shared/src/canonMerge.ts</code>（<code>currentCanonSnapshot</code>）、<code>packages/shared/src/braVersion.ts</code>、<code>packages/shared/test/ucNaming.test.ts</code></p>
+
+<h2 id="sc-3">C.3 検査規則</h2>
+<h3>検査規則の水準</h3>
+<p><code>harnessRules</code> は、プロジェクトに保存される検査規則の水準です。新しいプロジェクトは、v0.25.0 から 1、v0.28.0 から 2（現行）を持ちます。それより前のプロジェクトは値を持たず、0 として扱います。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">値</th><th style="width:22%">作られた時期</th><th>検査の内容</th></tr></thead>
+  <tbody>
+    <tr><td>0（値なし）</td><td>v0.25.0 より前</td><td>ROI 規則も GN 規則も付かない従来の検査。<code>meta.json</code> に ROI の要素と左右の項目はない</td></tr>
+    <tr><td>1</td><td>v0.25.0〜v0.27.x</td><td>HCD の仕様の後ろに <code>HCD_roi_rules.md</code> が付き、ROI 規則を検査する（3.8）。<code>meta.json</code> に <code>roiElements[]</code>・<code>roiSide</code>・<code>roiSideSource</code> を書く。GN 規則は付かない</td></tr>
+    <tr><td>2</td><td>v0.28.0 以降</td><td>ROI 規則に加え、FRG の仕様の後ろに <code>FRG_gn_rules.md</code> が付き、GN 規則を検査する（3.9）。<code>motifNote</code> は 3〜4 UC の GN だけに書く</td></tr>
+  </tbody>
+</table>
+<p>値が 0 か 1 のプロジェクトでは、GN の規則が次のように現行と異なります。</p>
+<table class="compact">
+  <thead><tr><th style="width:24%">規則</th><th style="width:36%">値 0〜1</th><th>値 2（現行）</th></tr></thead>
+  <tbody>
+    <tr><td>GN の子の UC 数</td><td>最大 2</td><td>最大 2。3〜4 は <code>motifNote</code> があるときだけ。5 以上はエラー</td></tr>
+    <tr><td>GN の UC の連結</td><td>整合チェック X4 の警告として記録する。任意の ROI の UC を通る経路でよい</td><td>FRG の検査でエラーにする。X4 は算出しない</td></tr>
+    <tr><td>UC だけを子に持つ GN</td><td>ちょうど 2 UC</td><td>2 UC 以上</td></tr>
+    <tr><td>UC の親の GN</td><td>最大 2</td><td>同じ</td></tr>
+  </tbody>
+</table>
+<p>FRG の基本仕様 <code>FRG.md</code> には「最大 2 UC」の制約が残っています。値 2 のプロジェクトでは、後ろに付く <code>FRG_gn_rules.md</code> がこの制約を置き換えます。値 0〜1 のプロジェクトでは、基本仕様の制約がそのまま効きます。</p>
+
+<h3>CSV 形式のバージョン</h3>
+<p><code>Project.csv</code> の BRA version は、v0.10.0 から <code>CoBRAC-v1-1</code> です。<code>CoBRAC-v1-0</code> からの列の変更は末尾への追加だけで、v1-0 のすべての列の位置は変わりません。追加した列は次のとおりです。</p>
+<ul>
+  <li>References.csv：Literature type と Alternative URL。</li>
+  <li>Circuits.csv：UC Descriptor の後ろの Sub-Circuits と Uniform。</li>
+  <li>Connections.csv：Pointers on figure の後ろの 2 つの関係と、論文中の表記。</li>
+</ul>
+<p>グラフは v1-0 と v1-1 の CSV を列名で読みます。v0.9 以前に書かれたファイルは、次のフォローアップで通常どおり検査され、BRA の値の規則に合わない点が修正依頼として戻ります。直るまでの間も CSV は作れます。そのときは、Source of ID のリストは先頭の値を使い、複数の文献を持つ接続は文献ごとの行に分け、関係のない接続は <code>=</code> と Circuit ID で書きます。</p>
+
+<h3>エラーコードの古い番号</h3>
+<p>v0.16 まで、CoBRAC の検査メッセージとチェッカー（<code>scripts/bra-appendix-d.mjs</code>）は、オントロジー報告書の付録 D の番号を使っていました。v0.17.0 からは WBAI の Error code List (Master) のコードと、<code>cobrac:</code> で始まるローカルコードを使います（2.10）。以前の報告と照合できるように、チェッカーの JSON の出力では各コードに古い番号を <code>appendixD</code> として残し、Markdown の報告にも「付録 D」の列を設けています。古い番号と現在のコードの対応は次のとおりです。変えたのはコードの番号と文言だけで、判定の挙動は変えていません。</p>
+<table class="compact">
+  <thead><tr><th style="width:42%">検査</th><th style="width:22%">古い番号（付録 D）</th><th>現在のコード</th></tr></thead>
+  <tbody>
+    <tr><td>Circuit ID の許容文字</td><td>104</td><td><code>cobrac:circuit-id-chars</code>（Master の 104 は「意味的な重複の疑い」）</td></tr>
+    <tr><td>UC とその中のより細かい UC が両方 UC（両側と片側を含む）</td><td>127</td><td><code>cobrac:nested-uc</code>（Master の 127 は「Uniform の未記載」）</td></tr>
+    <tr><td>送り手が Uniform でない</td><td>205（Master にない）</td><td><b>203</b></td></tr>
+    <tr><td>Collection の Sub-Circuits が未記載</td><td>128（Master では別の意味）</td><td><b>120</b></td></tr>
+    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>128 に含めていた</td><td><b>121</b></td></tr>
+    <tr><td>UC に Sub-Circuits がある</td><td>129（Master にない）</td><td><code>cobrac:uc-no-sub-circuits</code></td></tr>
+    <tr><td>Collection の Source of ID が <code>collection</code> でない</td><td>108</td><td><code>cobrac:collection-source</code></td></tr>
+    <tr><td>Collection が接続の受け手</td><td>—</td><td><code>cobrac:collection-end</code></td></tr>
+    <tr><td>U. ノードの ID が「U. + 定義済みの Circuit ID」でない</td><td>415</td><td><code>cobrac:u-node-circuit</code></td></tr>
+    <tr><td>U. ノードで Circuit ID が未記載</td><td>420</td><td><b>424</b></td></tr>
+  </tbody>
+</table>
+
+<h3>Canon の制約の強さ</h3>
+<p>v0.12.0 には、Canon ごとの <code>constraintMode</code>（<code>strict</code> / <code>advisory</code>。画面では「助言（警告だけ）」）がありました。現在は廃止され、すべての Canon が同じ方法で検査されます（5.5）。古いリクエストがこの値を送ってきても受け付けて無視します。保存済みの値は項目に残りますが、読みません。</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>checkFrg</code>）、<code>packages/shared/src/cross.ts</code>（<code>harnessRules</code> が 2 未満のときだけ X4）、<code>prompts/phases/HCD_roi_rules.md</code>・<code>FRG_gn_rules.md</code>、<code>packages/shared/src/bra.ts</code>、<code>scripts/bra-appendix-d.mjs</code>、<code>packages/shared/src/canon.ts</code>（<code>constraintMode</code>）</p>
+
+<h2 id="sc-4">C.4 ID と名前</h2>
+<h3>以前の形の ID</h3>
+<p>現在のプロジェクト・Canon・計画の ID は、1 文字の接頭辞（プロジェクトは <code>p</code>、Canon は <code>c</code>、計画は <code>n</code>）とランダムな 7 文字です（4.3）。v0.7.0 から v0.28.x までは、利用者ごとの番号を使った別の形で ID を発行していました。この形の ID は<b>現在も有効</b>で、どの検査も両方の形を受け付けます。BRA の版は、どちらの形でも <code>&lt;ProjectID&gt;@v&lt;n&gt;</code> です。</p>
+<table class="compact">
+  <thead><tr><th style="width:14%">種類</th><th style="width:44%">以前の形（v0.7.0 から）</th><th>例</th></tr></thead>
+  <tbody>
+    <tr><td>プロジェクト</td><td><code>^u[0-9a-hjkmnp-tv-z]{7}-[1-9][0-9]*$</code></td><td><code>u7m2q9xa-12</code></td></tr>
+    <tr><td>Canon</td><td><code>^u[0-9a-hjkmnp-tv-z]{7}-c[1-9][0-9]*$</code></td><td><code>u7m2q9xa-c1</code></td></tr>
+    <tr><td>計画</td><td>なし（計画はランダムな ID だけ）</td><td>—</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>頭の <code>u…</code> は利用者の <code>userKey</code> です。利用者の項目の <code>projectSeq</code> / <code>canonSeq</code> は、この形で最後に発行した番号で、もう進めません。</li>
+  <li>以前の形の ID は仮名の利用者キーを含みますが、Cognito の <code>sub</code> やメールアドレスは含みません。分かるのは 2 つのプロジェクトが同じ利用者のものだということだけなので、そのまま残しています（9.6）。</li>
+  <li>v0.7 より前の利用者ごとの slug は、どちらの形にも当てはまりません。移行した古い ID からの転送のためにだけ解決されます。この古い形の ID のプロジェクトは公開できません。公開できるのは、ランダムな形か <code>&lt;userKey&gt;-&lt;seq&gt;</code> の形の ID のプロジェクトです（4.6）。</li>
+  <li>v0.7 より前の古い ID は、2 人の利用者が同じ値を持ちえます。Jobs・Messages・<code>project-index</code> は <code>projectId</code> だけをキーにしているので、読み出しはすべて所有者で絞ります（8.5）。</li>
+</ul>
+
+<h3>古い ID の移行と転送</h3>
+<p><code>scripts/migrate-project-ids.mjs</code> は、古い ID のプロジェクトを新しい ID の下にコピーするスクリプトです。既定では試行だけを行い、<code>--apply</code> を付けたときに書き込みます。実行の手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
+<ul>
+  <li>コピーするもの：<code>legacyId</code>（移行前の ID）を付けた Projects の項目、Jobs と Messages、フォルダ名を変えた S3 のオブジェクト。</li>
+  <li>古い Projects の項目は、<code>users/{userId}/{legacyId}/migration-backup/project-item.json</code> に保存してから消します。このため一覧には 1 回だけ出ます。</li>
+  <li><code>--keep-old</code> を付けると、古い Jobs・Messages の項目を控えとして残します。古い S3 のオブジェクトは消しません。</li>
+  <li>もう一度実行すると、移したコピーの隣に残った古い Projects の項目も消します。</li>
+  <li>移行前の ID の URL は、新しい ID に転送します（<code>GET /projects/resolve/{id}</code>）。削除したプロジェクトは転送の対象から外れます。</li>
+</ul>
+<p>画面の URL も、古いものは新しい場所へ転送します。古いチャットの URL <code>/chat/:id</code> はクエリを保ったままプロジェクト画面へ、<code>/docs/CHANGELOG</code> は「リリースノート」ページ（<code>/releases</code>）へ移ります。</p>
+
+<h3>古い名前</h3>
+<p>自動で付けた名前（<code>nameSource = "auto"</code>）が古い ASCII の slug のままのプロジェクトがあります。たとえば TLF が <code>VOR</code>、ROI が <code>小脳</code> のプロジェクトの名前が <code>VOR</code> になっているものです。こうしたプロジェクトは、画面でもダウンロードのファイル名でも、仮の名前（<code>&lt;TLF&gt; in &lt;ROI&gt;</code>）を使います。</p>
+<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/api/src/app.ts</code>、<code>packages/web/src/App.tsx</code>、<code>scripts/migrate-project-ids.mjs</code></p>
+
+<h2 id="sc-5">C.5 版と出力</h2>
+<h3>版の仕組みより前に完成したプロジェクト</h3>
+<p>版の凍結は v0.26.0 から行っています（4.5）。それより前に完成したプロジェクトにはスナップショットがないので、次のように扱います。</p>
+<ul>
+  <li>現在のデータを、版 <code>revision</code>、由来 <code>live</code> として一覧に出します。画面では「未保存」と表示し、作業用のコピーから表示します。</li>
+  <li>フォローアップは完了したプロジェクトでしか受け付けません。そこでフォローアップのワーカーは、変更を始める前に、そのデータを版 <code>revision</code>、由来 <code>baseline</code> として凍結します。生成条件は最後のジョブが記録したものだけで、<code>revision</code> がなければ 1 にします。フォローアップの結果は <code>revision + 1</code> になり、baseline がその親です。</li>
+  <li>失敗・中止した古いプロジェクトのリトライは、baseline を凍結しません。作業用のコピーが途中まで変わっているかもしれないためです。その結果の版の親にはスナップショットがなく、差分の要約もありません。</li>
+</ul>
+
+<h3>検査の前提が記録されていない版</h3>
+<ul>
+  <li>版の manifest に <code>harnessRules</code> を記録するようになったのは v0.28.2 からです。それより前に保存した版の manifest は書き換えず、「版」タブでは「不明」と表示します。</li>
+  <li>規則の印を持たないプロジェクトの版には、<code>harnessRules</code> として 0 を記録します。</li>
+  <li>仮説モードより前に保存した版には、仮説の情報（根拠の扱い、仮説の範囲、上限、件数）がありません。</li>
+</ul>
+
+<h3>Template-v2-2 形式の xlsx がないプロジェクト</h3>
+<p>Template-v2-2 形式の xlsx をワーカーが作るようになる前に完了したプロジェクトと、CoBRAC の xlsx よりファイルが古いプロジェクトには、この出力がありません（3.13）。<code>GET /projects/{id}/artifacts/template-xlsx</code> を呼ぶと、API の Lambda が同梱のテンプレートを使って、作業ディレクトリの CSV と JSON からその場で作って保存し、署名付き URL を返します。<code>CoBRAC-v1-x</code> のどの CSV も読めます。そのため、こうしたプロジェクトではヘッダーの「BRA xlsx (Template-v2-2)」の最初のクリックでファイルを作り、ボタンはその完了を待ちます。API の Lambda のメモリを 1,024 MB にしているのは、このブックをその場で作るためです（8.2）。</p>
+<p class="src">典拠：<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/lib/versions.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>packages/web/src/components/workspace/VersionsView.tsx</code>、<code>packages/api/src/app.ts</code>（template-xlsx）、<code>CHANGELOG.md</code>（0.26.0・0.28.2）</p>
+
+<h2 id="sc-6">C.6 データモデル</h2>
+<h3>v0.8 より前の作業ディレクトリ</h3>
+<p>v0.8 より前に作った作業ディレクトリは、<code>3_UC.md</code> のような Markdown の表でデータを持ち、<code>uc.json</code> がありません。こうしたプロジェクトへの <code>resume</code>・<code>followup</code>・<code>retry</code> は、すぐに <code>sys.legacyWorkspace</code> のエラーで失敗します。xlsx とグラフは引き続き見られます。作業を続けるには、新しいプロジェクトを作ります。</p>
+
+<h3>属性がないときの意味</h3>
+<p>古い項目には、後から加わった属性がありません。属性がないときは、次のように扱います。</p>
+<table class="compact">
+  <thead><tr><th style="width:16%">テーブル</th><th style="width:24%">属性</th><th style="width:16%">加わった時期</th><th>値がないときの扱い</th></tr></thead>
+  <tbody>
+    <tr><td>Users</td><td><code>projectSeq</code> / <code>canonSeq</code></td><td>—（もう進めない）</td><td>ランダムな ID より前に発行した ID の最後の番号として残るだけで、使わない（C.4）</td></tr>
+    <tr><td>Projects</td><td><code>researchMode</code></td><td>v0.11.0</td><td>調査なしで動く</td></tr>
+    <tr><td>Projects</td><td><code>sabraBoundary</code></td><td>v0.24.0</td><td>以前の境界で検査する（C.2）</td></tr>
+    <tr><td>Projects</td><td><code>harnessRules</code></td><td>v0.25.0</td><td>0 として扱い、ROI 規則も GN 規則も付けない（C.3）</td></tr>
+    <tr><td>Projects</td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code></td><td>v0.32.0</td><td><code>evidenceMode</code> がなければ <code>strict</code> と同じで、文献の裏付けだけを使う。上限がなければ 20%（<code>DEFAULT_HYPOTHESIS_MAX_SHARE</code>）</td></tr>
+    <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
+    <tr><td>Messages</td><td><code>userId</code></td><td>v0.7</td><td>そのジョブの所有者で絞り込む。WebSocket の配信も同じく判断する</td></tr>
+    <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>行のモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
+  </tbody>
+</table>
+
+<h3>古い会話の質問の印</h3>
+<p>現在のエージェントは、ターンの終わりに構造化した JSON で質問を返します（3.4）。v0.5.0 より前の会話では、質問を返答の中の <code>[QUESTION]…[/QUESTION]</code> の印で示していました。ワーカーとエージェント欄は、この古い印も引き続き質問として読みます。</p>
+
+<h3>古い形で保存したメッセージ</h3>
+<p>現在のワーカーは、ジョブの始めにエージェントへ送る依頼文を <code>system</code> / <code>status</code> のお知らせとして保存します（8.5）。v0.8.1 までのワーカーは、この依頼文を <code>meta.mode</code> 付きの <code>user</code> のメッセージとして保存していました。エージェント欄は、この古いメッセージも現在と同じお知らせとして表示します（<code>normalizeStoredMessage</code>）。</p>
+
+<h3>古い計画の記録</h3>
+<ul>
+  <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。現在はこの指示を使っていません（6.8）。</li>
+  <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、現在は使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
+  <li>フロー実行（6.5）が入った v0.44.0 より前に確定した計画は、実行の仕方 <code>scheduling</code> を持たないか <code>waves</code> で、自動の順序でもバッチごとに進みます。</li>
+  <li>開発段階 3（計画の Canon、v0.36.0）より前に作った計画は Canon を持たず、Canon のない計画として動きます。</li>
+  <li>計画の資料の CSV では、バッチの列名として「波」も現在の「バッチ」「batch」「wave」と同じに読みます。以前の画面の表記に合わせた名前です。</li>
+</ul>
+
+<h3>以前の既定で保存したグラフの配置</h3>
+<p>現在の既定では、グラフのエッジを曲線で描きます（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
+
+<h3>v0.20.0 より前の PR</h3>
+<p>Canon の PR の履歴は、追記専用の項目 <code>PEV#…</code> に残します（5.8）。この項目がない v0.20.0 より前の PR は、push と判断を <code>PR#</code> の項目から組み立て直して表示します。</p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>QUESTION_REGEX</code>）・<code>systemMessage.ts</code>・<code>plan.ts</code>（<code>orchestratorModelOf</code>、列名の別名）、<code>packages/worker/src/index.ts</code>・<code>codex.ts</code>、<code>packages/web/src/components/MessageItem.tsx</code>、<code>packages/api/src/lib/ownership.ts</code>、<code>packages/api/src/lib/canonReview.ts</code>、<code>packages/shared/src/hypothesis.ts</code>、<code>packages/web/src/</code>（グラフの編集）</p>
+
+<h2 id="sc-7">C.7 使用量</h2>
+<p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
+<ul>
+  <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブ。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
+  <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の行（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
+  <li><b>補正する画面</b>：プロジェクトの一覧、プロジェクトのジョブの表と合計、エージェント欄の使用量の行、利用状況のまとめ、管理画面のプロジェクト一覧。対応する API は、プロジェクトの詳細、メッセージ、<code>/users/me/usage</code>、<code>/admin/projects</code> です。DB には書きません。終わったジョブの補正は、Lambda のコンテナごとに保持します。</li>
+</ul>
+<p>この補正には、次の限界があります。</p>
+<ul>
+  <li><b>記録されなかった分は戻せません。</b>v0.17.1 より前は、失敗で終わったターンを 0 として記録していました。その分は復元できないので、補正後の値は実費より低くなることがあります。</li>
+  <li><b>打ち切られたターンの分も戻せません。</b>v0.24.1 より前は、時間切れ・停止・SIGTERM・理由を返さない異常終了で打ち切られたターンの使用量を記録していませんでした。</li>
+  <li><b>WebSocket で届く更新は補正しません。</b>古いプロジェクトで新しいジョブが終わった直後は、画面を読み込み直すまで補正前の合計が見えます。</li>
+  <li><b>調査ステップの指標</b>（<code>researchStep.usage</code>）は補正しません。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/usageCorrection.ts</code>（<code>USAGE_FIX_AT</code>）、<code>packages/api/src/lib/usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>、テスト <code>packages/shared/test/usageCorrection.test.ts</code></p>
+</section>

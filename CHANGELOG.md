@@ -11,6 +11,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Changed
 - CoBRAC Orchestrator: each running plan in the plan list has its own pause button (and a paused plan a resume button), so plans can be paused and resumed one by one without opening them. A paused plan starts neither new rows nor the Orchestrator's AI jobs; running rows go on
 
+## [0.45.1] - 2026-10-10
+
+### Changed
+- The specification PDF (admin「仕様書」page) is rewritten throughout. Its parts now go from concepts to how a BRA is built to how BRAs are brought together and the system underneath: an introduction with a reader's guide and a glossary, then overview, circuit naming, how a BRA is made, projects and versions, Canon, Orchestrator (autonomous runs first), BRA-DB, system, and security and cost, with appendices for the API, the prompts, how old projects are handled, design history and sources. The body states only the current behaviour; history and handling of old projects moved to their own appendices, and figures, numbers and limits were checked against the code. The Japanese is rewritten in a consistent formal style with one term per concept
+- Release, deployment and emergency procedures moved from the specification to `docs/ops/README.md`
+
 ## [0.45.0] - 2026-10-10
 
 ### Added
