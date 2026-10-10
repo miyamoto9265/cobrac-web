@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronRight, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, PauseCircle, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, PauseCircle, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
@@ -39,11 +39,15 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
   const [files, setFiles] = useState<File[]>([]);
   const [fileMsg, setFileMsg] = useState<string | null>(null);
   const [pasted, setPasted] = useState("");
+  // rows can be pasted instead of a file: the box opens on demand, so the section reads as one place for the source list
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState<{ i: number; n: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  // 自律実行: the plan runs from its draft to the end on its own, within a cost limit
-  const [autonomous, setAutonomous] = useState(false);
+  // 自律実行 is the default: the plan runs from its draft to the end on its own, within a cost limit. The owner opts in
+  // to handling the pull requests, conflicts and questions themselves (manual).
+  const [manual, setManual] = useState(false);
+  const autonomous = !manual;
   const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
   const fileRef = useRef<HTMLInputElement>(null);
   const needId = useId();
@@ -96,7 +100,7 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
       </label>
       <div className="min-w-0">
         <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
-          {t("plan.files")} <HelpTip text={t("plan.filesHelp", { n: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB })} />
+          {t("plan.files")} <HelpTip text={`${t("plan.filesHelp", { n: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB })} ${t("plan.csvHelp")}`} />
         </span>
         <input
           ref={fileRef}
@@ -114,6 +118,11 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
           <button type="button" disabled={busy || files.length >= ATTACHMENT_LIMITS.maxFiles} onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11">
             <FileUp size={14} aria-hidden /> {t("plan.addFiles")}
           </button>
+          {!pasteOpen && (
+            <button type="button" disabled={busy} onClick={() => setPasteOpen(true)} className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11" data-testid="plan-paste-open">
+              <ClipboardPaste size={14} aria-hidden /> {t("plan.csv")}
+            </button>
+          )}
         </div>
         {files.length > 0 && (
           <ul className="mt-2 flex flex-wrap gap-1.5" data-testid="plan-file-list" aria-label={t("plan.files")}>
@@ -136,21 +145,21 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
         )}
         {/* file names are often one long token: break them anywhere rather than scroll sideways at 390 px */}
         {fileMsg && <div className="mt-2 whitespace-pre-line rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 [overflow-wrap:anywhere]">{fileMsg}</div>}
-      </div>
-      <div>
-        <span className="mb-1 flex items-center gap-1 text-xs text-slate-500">
-          {t("plan.csv")} <HelpTip text={t("plan.csvHelp")} />
-        </span>
-        <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} font-mono text-xs`} />
+        {pasteOpen && (
+          <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} rows={4} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${inputCls} mt-2 font-mono text-xs`} autoFocus />
+        )}
       </div>
       <div className="grid gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2" data-testid="plan-autonomous">
         <label className="flex items-center gap-2 text-sm coarse:min-h-11">
-          <input type="checkbox" checked={autonomous} onChange={(e) => setAutonomous(e.target.checked)} />
-          <span className="font-medium">{t("auto.label")}</span>
-          <HelpTip text={t("auto.help")} />
+          <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} data-testid="plan-manual" />
+          <span className="font-medium">{t("auto.manual.label")}</span>
+          <HelpTip text={t("auto.manual.help")} />
         </label>
         {autonomous && (
           <>
+            <p className="flex items-center gap-1 text-xs text-slate-600">
+              {t("auto.default")} <HelpTip text={t("auto.help")} />
+            </p>
             <label className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
               {t("auto.cost")}
               <input
