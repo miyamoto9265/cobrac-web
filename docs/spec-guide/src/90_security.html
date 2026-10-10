@@ -1,0 +1,468 @@
+<section class="part pops">
+<div class="opener">
+  <div class="no">第 9 部</div>
+  <h1 class="part" id="p9">セキュリティと費用</h1>
+  <p class="lead">この部は開発者と運用者に向けて、CoBRAC Agents の守り方とお金のかかり方をまとめます。IAM の権限、扱う情報と保存場所、暗号化と API キー、認証と認可、ワーカーの隔離、外部への送信、ログと脅威への対策、監視と緊急停止を順に定め、最後に AWS と OpenAI の費用を説明します。AWS の構成そのものは第 8 部で説明します。リリースやデプロイの手順、緊急時の操作、撤去の手順は、この文書ではなくリポジトリの <code>docs/ops/README.md</code> にあります。</p>
+  <div class="map">
+    <div><b>秘密の守り方</b>OpenAI の API キーは KMS で暗号化し、復号できるのはワーカーだけです。キーを使うのは Codex のプロセスだけで、エージェントのシェルには渡しません。</div>
+    <div><b>データの範囲</b>プロジェクトのデータは所有者の userId に結び付け、API はほかの利用者に存在そのものを見せません。公開と共有は所有者が選んだときだけです。</div>
+    <div><b>費用の考え方</b>使われていないときの固定費を小さくし、ジョブが動いている間だけ Fargate Spot に払います。費用の大部分は OpenAI で、AWS の請求には含まれません。</div>
+  </div>
+</div>
+
+<h2 id="s9-1">9.1 IAM の権限</h2>
+<p>各 Lambda とワーカーには、その仕事に必要な権限だけを CDK で付けています。とくに API キーについては、<b>暗号化できるのは API の Lambda だけ</b>、<b>復号できるのはワーカーのタスクロールだけ</b>です。主体ごとの権限は次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th style="width:17%">主体</th><th>付いている権限</th><th style="width:25%">付いていないもの</th></tr></thead>
+  <tbody>
+    <tr><td>ワーカーのタスクロール（Codex を子プロセスで動かす）</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き。<code>Canons</code> の読み取り（固定した rev）。<code>Catalog</code> は <code>config</code> の区画だけの <code>GetItem</code>（デフォルトの API キー）。成果物バケット全体の読み書き。KMS の <code>Decrypt</code>。Secrets Manager の <code>rcs/mcp-bearer-token</code> の読み取り（RCS を使うとき）</td><td>KMS の <code>Encrypt</code>。<code>Plans</code>・<code>WsConnections</code></td></tr>
+    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが検査する）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>、<code>admin-docs/*</code>（仕様書の PDF）。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
+    <tr><td>dispatcher</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>WsConnections</code> の読み書き。<code>Catalog</code> の <code>config</code> の <code>GetItem</code>（同時実行数）。キューの受け取りと送信（積み直し）。ワーカーのタスク定義の <code>RunTask</code>、タグ付け、タスクロールと実行ロールの <code>PassRole</code></td><td>KMS</td></tr>
+    <tr><td>janitor</td><td>上の 5 つのテーブルの読み書き。キューへの送信</td><td>KMS</td></tr>
+    <tr><td>WebSocket の Lambda・broadcaster</td><td>上の 5 つのテーブルの読み書き。WebSocket の接続の管理（<code>WsDefaultFn</code> と broadcaster）</td><td>KMS</td></tr>
+    <tr><td>計画ランナー（planRunner）</td><td><code>Plans</code>・<code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>Canons</code> の読み書き。<code>Catalog</code> は <code>config</code> の <code>GetItem</code> と <code>id</code> の <code>PutItem</code>（ID の予約）だけ。成果物の <code>plans/*</code>・<code>canons/*</code> の読み書きと <code>users/*/workspace/*</code> の読み取り。キューへの送信。クラスター内のタスクの停止</td><td>KMS</td></tr>
+    <tr><td>authMessage</td><td>なし（Cognito から利用者の属性を受け取って文面を返すだけ）</td><td>テーブル・バケット・鍵。ログも出さない</td></tr>
+  </tbody>
+</table>
+<p>計画ランナーは、行のプロジェクトを API と同じ処理で作って動かし、計画が取り消されたときはタスクを止めます。自律実行の計画では、判断のジョブ（6.8）の結果に従って、所有者に代わり Canon の PR の承認・却下・変更の依頼と、エージェントの質問への回答を行います。これらは API と同じ処理を通り、同じ検査を受けます。人が対応する計画では、承認・却下・回答は人が API で行います。</p>
+<div class="box">
+  <div class="h">API キーに触れる経路</div>
+  <p>API の Lambda は、キーを登録するときに暗号化するだけで、復号はできません。計画ランナーには KMS の権限がまったくなく、計画用のジョブの入力（<code>input.json</code>）にもキーは入りません。計画用のジョブのキーは、ほかのジョブと同じくワーカーが解決して復号します。</p>
+</div>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）、<code>packages/api/src/lib/aws.ts</code>（暗号化）、<code>packages/api/src/lib/planRunner.ts</code>（自律実行の判断の適用）、<code>packages/worker/src/index.ts</code>（復号）</p>
+
+<h2 id="s9-2">9.2 扱う情報と保存場所</h2>
+<p>CoBRAC Agents は一般向けの公開サービスではなく、招待かセルフサインアップで参加する少人数の利用者を想定しています。それでも OpenAI の API キーと研究データを扱うので、保存・復号・記録の扱いを 9.2〜9.7 で定めます。</p>
+<h3>個人を特定できる情報</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">情報</th><th style="width:13%">入手元</th><th style="width:22%">保存先</th><th style="width:17%">目的</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td>メールアドレス</td><td>サインアップ</td><td>Cognito、<code>Users</code></td><td>ログイン、管理画面</td><td>必須</td></tr>
+    <tr><td>パスワード</td><td>サインアップ</td><td>Cognito だけ</td><td>認証</td><td>アプリと DynamoDB には保存しない</td></tr>
+    <tr><td>Cognito の <code>sub</code>（userId）</td><td>Cognito</td><td>全テーブルの所有者のキー、S3 の接頭辞</td><td>本人の識別</td><td>UUID</td></tr>
+    <tr><td>表示名・Contributor 名</td><td>設定画面</td><td><code>Users</code>、<code>Project.csv</code>・xlsx</td><td>プロフィール、成果物の作成者欄</td><td>英語を推奨（xlsx の仕様）</td></tr>
+    <tr><td>OpenAI API キー</td><td>設定画面</td><td><code>Users.encryptedApiKey</code>（KMS の暗号文）</td><td>Codex の実行</td><td>平文は保存しない。API の応答にも含めない</td></tr>
+    <tr><td>API キーの末尾 4 文字</td><td>登録時に計算</td><td><code>Users.apiKeyLast4</code></td><td>「登録済み」の表示</td><td>キーの代わりにはならない</td></tr>
+    <tr><td>デフォルトの API キー（組織の OpenAI キー）</td><td>管理画面</td><td><code>Catalog</code> の <code>config</code> / <code>default-api-key</code>（KMS の暗号文、末尾 4 文字、日付）</td><td>自分のキーを持たない、利用承認を受けた利用者のジョブ</td><td>書き込み専用。見えるのは末尾 4 文字と日付だけ</td></tr>
+    <tr><td>利用承認とデフォルトの API キーの利用</td><td>管理画面</td><td><code>Users.orgAccess</code>、<code>Jobs.keySource</code>・<code>usage</code>・<code>costUsd</code></td><td>利用承認（Tier 1 / Tier 2）、管理画面の利用者ごとの費用</td><td>管理者だけが見る</td></tr>
+    <tr><td>使えるモデルの一覧</td><td>OpenAI の <code>/v1/models</code></td><td><code>Users.availableModels</code></td><td>モデルの選択肢</td><td>キーを登録したときの一覧</td></tr>
+  </tbody>
+</table>
+<p class="small">パスワードのハッシュや MFA の秘密などは Cognito が管理します。アプリが扱うのは、ブラウザの中の ID・アクセス・リフレッシュトークンだけです。</p>
+<h3>プロジェクトのデータ</h3>
+<p>プロジェクトのデータには、次のものがあります。</p>
+<ul>
+  <li>ROI・TLF と、作成時に付けた参考資料（ファイルと URL）</li>
+  <li>チャットの全文（利用者の指示、エージェントの出力、コマンドの結果、Web 検索の語句）</li>
+  <li>HCD・FRG の JSON のデータファイル、レポートと判断ログ（Markdown）、CSV、xlsx、グラフの JSON</li>
+  <li>Codex の会話の状態</li>
+</ul>
+<p>オーケストレーターの計画（名前、目標、手入力または資料から読んだ行の ROI・TLF・理由、履歴）は、所有者の userId のもとで <code>Plans</code> テーブルに保存し、所有者だけが読めます（ほかの利用者には 404）。アップロードした資料そのものは計画には残さず、読み取った行だけを残します。</p>
+<p>これらは個人情報ではありませんが、未発表の研究上の仮説や文献のメモを含むことがあります。<b>ほかの利用者には見えません</b>。管理者はプロジェクトの一覧を見てジョブを強制停止できますが、成果物の本体を返す API は所有者だけが呼べます。</p>
+<h3>集めないもの・返さないもの</h3>
+<ul>
+  <li>支払いの情報、住所、電話番号、生年月日は集めません。</li>
+  <li>API キーの平文は返しません（<code>GET /users/me</code> は <code>encryptedApiKey</code> を取り除いて返します）。</li>
+  <li><code>thread/</code>（Codex のセッション）のダウンロード URL は返しません。</li>
+</ul>
+<h3>保存場所</h3>
+<table class="compact">
+  <thead><tr><th style="width:18%">場所</th><th>保存するもの</th></tr></thead>
+  <tbody>
+    <tr><td>ブラウザ</td><td>Amplify が保持する ID・アクセス・リフレッシュトークン</td></tr>
+    <tr><td>Cognito ユーザープール</td><td>メールアドレス、パスワードのハッシュ、確認の状態、グループ</td></tr>
+    <tr><td>DynamoDB</td><td><code>Users</code>（プロフィールと API キーの暗号文）、<code>Projects</code>（メタデータと質問文）、<code>Jobs</code>（実行の状態とトークンの使用量）、<code>Messages</code>（チャットの全文。1 件 60,000 字で切る）、<code>Plans</code>（計画の名前・目標・行・履歴）、<code>Canons</code>・<code>Catalog</code>、<code>WsConnections</code>（接続 ID。約 2 時間で消える）</td></tr>
+    <tr><td>S3 成果物バケット</td><td><code>users/{userId}/{projectId}/</code> の <code>workspace</code>・<code>thread</code>・<code>output</code>・<code>graph</code>・<code>article</code>・<code>attachments</code>。版の <code>revisions/{n}/</code>（削除しない）。作成前の参考資料の <code>staging/{userId}/</code>（1 日で消える）</td></tr>
+    <tr><td>BRA-DB（<code>BraDb</code> の VPC の EC2。暗号化した EBS）</td><td>登録した版：5 つの CSV の内容、Contributor 名、Project ID、ROI・TLF。登録ごとに版 ID、内容のハッシュ、生成条件、登録した人の名前</td></tr>
+    <tr><td>CloudWatch Logs（14 日）</td><td>Lambda の標準出力（エラーのメッセージ。キーは出力しない実装）、ワーカーのログ（コマンドの出力の一部は <code>Messages</code> にも残る）</td></tr>
+    <tr><td>OpenAI</td><td>プロンプト、作業ディレクトリのファイル、Web 検索。OpenAI の規約に従う（9.6）</td></tr>
+  </tbody>
+</table>
+<p>BRA-DB には、プロジェクトの所有者が登録したものだけが入ります。メールアドレス・userId・API キーは入りません（<code>requested_by</code> は Contributor 名です）。BRA-DB に届くのは VPC の中からだけです。インスタンスは 5432 番を登録 Lambda からしか受けず、SSH もパブリックアドレスも持たず、管理は SSM Session Manager で行います。接続はインスタンス自身の証明書による TLS で、ロールのパスワードは Secrets Manager（<code>cobrac/bradb/*</code>）にあります。API は、呼び出した人がプロジェクトの所有者であることを検査してから登録 Lambda を呼びます（第 7 部）。</p>
+<p>リージョンは東京（<code>ap-northeast-1</code>）です。ポイントインタイムリカバリ（PITR）は無効です。<code>WsConnections</code> 以外のテーブル、成果物バケット、KMS の鍵、ユーザープールは、スタックを消しても残ります（<code>RemovalPolicy.RETAIN</code>）。</p>
+<h3>保持と削除</h3>
+<ul>
+  <li>ログの保持は 14 日です。<code>Messages</code> と成果物には期限がありません。</li>
+  <li>プロジェクトの削除は論理削除で、所有者の画面から隠れるだけです（4.3）。メッセージ・ジョブ・S3 の成果物は残り、管理者のプロジェクト一覧には表示されます。Canon と計画の削除も同じく論理削除です。</li>
+  <li>物理的に消す API はありません。必要なら管理者が AWS で直接消します。ただし版（<code>revisions/</code>）は、バケットポリシーがすべての主体に削除を禁じているので、先にポリシーを変えない限り消せません。</li>
+  <li>API キーを削除すると、<code>encryptedApiKey</code> を消して <code>apiKeyRegistered=false</code> にします。過去の暗号文は KMS 側には残りますが、どこからも参照されません。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/app.ts</code>（<code>/users/me</code>・プロジェクトの削除）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+
+<h2 id="s9-3">9.3 暗号化と API キー</h2>
+<h3>通信の暗号化</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">経路</th><th>方式</th></tr></thead>
+  <tbody>
+    <tr><td>ブラウザ ↔ CloudFront</td><td>HTTPS（HTTP は転送）</td></tr>
+    <tr><td>ブラウザ ↔ Cognito</td><td>HTTPS</td></tr>
+    <tr><td>ブラウザ ↔ HTTP API</td><td>HTTPS と Bearer の ID トークン</td></tr>
+    <tr><td>ブラウザ ↔ WebSocket</td><td>WSS。接続時にクエリの <code>token</code> で ID トークンを検証</td></tr>
+    <tr><td>Lambda・ワーカー ↔ AWS の API</td><td>TLS（SDK の既定）</td></tr>
+    <tr><td>ワーカー ↔ OpenAI</td><td>HTTPS（Codex）</td></tr>
+  </tbody>
+</table>
+<p>S3 のバケットは <code>enforceSSL</code> で HTTPS 以外を拒みます。署名付きのダウンロード URL も HTTPS です。</p>
+<h3>保存時の暗号化</h3>
+<table class="compact">
+  <thead><tr><th style="width:36%">対象</th><th>方式</th></tr></thead>
+  <tbody>
+    <tr><td>S3（Web と成果物）</td><td>SSE-S3（S3 が管理する鍵）</td></tr>
+    <tr><td>DynamoDB</td><td>サービスの既定の保存時暗号化</td></tr>
+    <tr><td>ECS の一時ディスク</td><td>Fargate の既定</td></tr>
+    <tr><td>Cognito のパスワード</td><td>Cognito が管理（アプリは平文を持たない）</td></tr>
+    <tr><td>OpenAI API キー</td><td><b>カスタマー管理の KMS キー（CMK）で暗号化</b>。DynamoDB には base64 の暗号文だけを置く</td></tr>
+  </tbody>
+</table>
+<p>成果物バケットには KMS による暗号化（SSE-KMS）を足していません。オブジェクトは非公開で（Block Public Access。OAC は Web のバケット側）、成果物は有効期限 15 分の署名付き URL でだけ取り出せます。</p>
+<h3>API キーと KMS</h3>
+<ul>
+  <li>鍵の種類は、カスタマー管理の対称 CMK です。年 1 回の自動ローテーションを有効にし、削除方針は RETAIN です。</li>
+  <li>暗号化は API の Lambda だけが行います。暗号化コンテキストは <code>{ userId, purpose: "openai-api-key" }</code> です。</li>
+  <li>復号はワーカーだけが行い、同じコンテキストを必要とします。ほかの利用者の暗号文は、コンテキストが合わないので復号に失敗します。</li>
+  <li>デフォルトの API キーは、userId を含まない別のコンテキスト <code>{ purpose: "openai-api-key", scope: "default" }</code> を使います。そのため、個人のキーとデフォルトの API キーを、互いのコンテキストで復号することはできません。</li>
+  <li>平文があるのは、登録時の確認の要求の間の API の Lambda のメモリと、実行時のワーカーのプロセスのメモリだけです。ワーカーは平文を Codex のプロセスに渡します。ディスク・ログ・S3 には書きません。</li>
+  <li>登録時には <code>GET https://api.openai.com/v1/models</code> を呼び、401・403 なら登録を拒みます。返ってきたモデルの一覧を、使えるモデルとして保存します。</li>
+  <li><b>ブラウザからキーを取り出す API はありません。</b>忘れたら OpenAI 側で発行し直し、登録を上書きします。</li>
+</ul>
+<h3>デフォルトの API キー</h3>
+<p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。利用承認（Tier 1 / Tier 2）と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
+<p>どのキーで実行するかは、ワーカーが起動のたびに決め直します。新しいジョブ、回答、リトライ、中断後の再開のどれでも同じです。そのため、利用承認を取り消したり、Tier を下げたり、デフォルトの API キーを消したりすると、次の起動から効きます。デフォルトの API キーを復号するのは、利用承認を受けていて自分のキーを持たない利用者のジョブで、そのジョブのモデルを Tier が許すときだけです。</p>
+<h3>アプリでは暗号化しないもの</h3>
+<p>チャットの本文、ROI・TLF、成果物、グラフの JSON、会話の状態は、S3 と DynamoDB のサービスによる暗号化だけで保存します。アプリの層での項目ごとの暗号化は、意図してしていません。管理者と AWS アカウントの権限を持つ人は、コンソールからこれらを読めます。</p>
+<p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/app.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>index.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code></p>
+
+<h2 id="s9-4">9.4 認証と認可</h2>
+<h3>認証</h3>
+<p>認証は Cognito で行います。</p>
+<ul>
+  <li>サインインは <b>SRP</b> で行います。パスワードそのものはサーバーに送りません。</li>
+  <li>パスワードは 10 文字以上で、英小文字と数字を含む必要があります。</li>
+  <li>トークンの有効期間は、ID トークンとアクセストークンが 2 時間、リフレッシュトークンが 30 日です。</li>
+  <li><code>preventUserExistenceErrors</code> を有効にし、登録されていないメールアドレスにも同じエラーを返します。</li>
+  <li>アカウントの回復はメールだけです。</li>
+  <li>セルフサインアップを無効にしたとき（<code>COBRAC_SELF_SIGNUP=false</code>）は、管理者が Cognito で利用者を作ります。Cognito が仮パスワードをメールで送り、初回のサインインでログイン画面が新しいパスワードを求めます（Cognito の <code>NEW_PASSWORD_REQUIRED</code>）。</li>
+</ul>
+<h3>アカウントのメール</h3>
+<p>確認コード、再送、パスワードの再設定、メールアドレスの変更、管理者による招待のメールは、Cognito のカスタムメッセージのトリガー（<code>packages/api/src/handlers/authMessage.ts</code>）が書きます。どのメールにも、次のものを入れます。</p>
+<ul>
+  <li>CoBRAC Agents と運営者（WBAI）の名前、送った理由</li>
+  <li>コードとその有効期間</li>
+  <li>心当たりがなければ無視してよいこと、サイトへのリンク</li>
+</ul>
+<p>言語は、Web アプリがクライアントのメタデータとして渡す UI の言語（<code>lang</code>）、次に <code>locale</code> 属性で決めます。日本語か英語のどちらかで書き、分からなければ両方を 1 通に入れます。トリガーは Cognito から利用者の属性を受け取りますが、テーブル・バケット・鍵には触れず、ログも出しません。メールは SES から DKIM 署名付きで送ります。バウンスと苦情のあったアドレスは、SES のアカウント単位の抑制リストが送信先から外します。</p>
+<h3>管理者</h3>
+<ul>
+  <li>API は要求のたびに、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code>（GitHub の Secret）に含まれるか、Cognito のグループ <code>admin</code> に属しているかを検査し、そうであれば役割を <code>admin</code> にします。初回のサインインで作る利用者も、既存の利用者も同じです。一覧からアドレスを消しても自動では一般の利用者に戻らないので、管理画面で役割を変えます。</li>
+  <li>管理者ができることは 4.1 の表にあります。仕様書（この PDF）は、<code>GET /admin/spec</code> が API に同梱した PDF を S3 の <code>admin-docs/spec-&lt;ハッシュ 16 桁&gt;.pdf</code> に置き、10 分間有効の署名付き URL を返します。</li>
+  <li>管理者は自分自身を無効にできません。無効にされた利用者は、すべての API で 403 になります。</li>
+</ul>
+<h3>API の認可</h3>
+<ol class="steps">
+  <li>API Gateway の JWT オーソライザーが、ID トークンの発行者（iss）と対象（aud）を検査します。</li>
+  <li>Hono がクレームから userId・メールアドレス・グループを読み、<code>Users</code> を読み込みます（初回は作ります）。</li>
+  <li>プロジェクトの操作は、自分の userId を使った <code>getProject(自分の userId, id)</code> でだけ読みます。ほかの利用者の ID や削除済みのプロジェクトは 404 になります。</li>
+  <li>S3 のキーは <code>users/{自分}/{projectId}/</code> に固定し、<code>..</code>、<code>thread/</code>、絶対パスを拒みます。</li>
+  <li>参考資料のアップロードでは、API が呼び出した人の userId と乱数のアップロード ID からステージングのキーを作り、署名付き POST のポリシーでキー・Content-Type・大きさ（20 MB）を固定します（有効期限 15 分）。プロジェクトの作成時に、各アップロードの存在と大きさ、合計が 50 MB 以内であることを検査し直してから、プロジェクトに移します。</li>
+  <li>管理者の経路は <code>role === "admin"</code> を要求します。</li>
+</ol>
+<h3>共有</h3>
+<p>Canon の共同編集者、プロジェクトと Canon の公開、公開プロジェクトの複製で、だれに何が見えるかは 4.6 で定めます。認可の観点では、次の点が要点です。</p>
+<ul>
+  <li>公開は所有者が選んだときだけで、既定は非公開です。公開した内容にも、所有者のメールアドレスと userId は含めず、仮名の <code>userKey</code> だけを見せます。</li>
+  <li>複製は、複製した人の接頭辞（<code>users/{複製した人}/{新しい ID}/</code>）にだけ書きます。API のロールは <code>users/*</code> に書けるので、自分の接頭辞かどうかは API のコードが検査します（9.1）。</li>
+  <li>共同編集者が依頼した AI レビューは、その人のキーで実行し、その人の使用量に数えます。</li>
+</ul>
+<h3>WebSocket と CORS</h3>
+<ul>
+  <li>WebSocket は、<code>$connect</code> の前に Lambda オーソライザーが ID トークンを検証します。購読のときも、そのプロジェクトが本人のもので、削除されていないことを検査します。接続の行には TTL があり、切断で消します。配信時に 410 Gone が返った接続は購読を外します。</li>
+  <li>CORS のプリフライト（OPTIONS）は JWT の認証を通りません。許可するヘッダーは <code>Authorization</code> と <code>Content-Type</code> です。オリジンはいま <code>*</code> です（個人の利用と CloudFront の既定の URL のため）。独自ドメインを足すときはオリジンを絞ります。</li>
+  <li>成果物バケットの CORS は、参考資料のアップロードのための <code>POST</code> だけを、CloudFront のドメイン、<code>https://cobrac.site</code>（CDK の外で付けた distribution の別名）、<code>http://localhost:5173</code> から許します。ほかのホスト名で配信するときは <code>packages/infra/lib/cobrac-stack.ts</code> に足します。足さないと、そのオリジンからのアップロードはブラウザで失敗します。</li>
+</ul>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（Cognito・API・CORS）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/api/src/app.ts</code>（認証の middleware、<code>/admin/*</code>、アップロード、公開と複製）、<code>packages/api/src/handlers/authMessage.ts</code>・<code>ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/attachments.ts</code></p>
+
+<h2 id="s9-5">9.5 ワーカーの隔離と秘密情報</h2>
+<p>エージェントは、ワーカーのコンテナの中で Web 検索と任意のコマンドを実行できます。そこで、エージェントが届く範囲から AWS の認証情報と API キーを外し、作業を本人のデータに限ります。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">項目</th><th>実装</th></tr></thead>
+  <tbody>
+    <tr><td>実行の単位</td><td>1 ジョブに 1 タスク。ディスクをほかのジョブと共有しない</td></tr>
+    <tr><td>OS のユーザー</td><td>uid 10001 の <code>worker</code>（root ではない）</td></tr>
+    <tr><td>ネットワーク</td><td>パブリックサブネットとパブリック IP。受信なし。送信は許可（OpenAI・AWS・文献の Web）</td></tr>
+    <tr><td>Codex のサンドボックス</td><td>コンテナそのものを境界とし、<code>danger-full-access</code> と <code>approvalPolicy: never</code> で動かす（コンテナの中では Landlock・seccomp が使えない）</td></tr>
+    <tr><td>使えるキー</td><td>そのジョブの userId で復号したキーだけ。利用承認を受けていてキーを持たない利用者なら、デフォルトの API キー</td></tr>
+    <tr><td>権限</td><td>タスクロールの権限は 9.1 のとおり。<b>KMS は Decrypt だけ</b>（Encrypt は API）</td></tr>
+  </tbody>
+</table>
+<h3>子プロセスの環境変数</h3>
+<p>タスクロールの認証情報があれば、だれの API キーでも復号できます。そこでワーカーは、子プロセスを起動するときに次の変数を環境から取り除きます（<code>childEnv.ts</code> の <code>WORKER_ONLY_ENV</code>）。対象の子プロセスは、Codex、エージェントのコマンド、<code>pdftotext</code>・<code>pandoc</code>（poppler）、xlsx の生成（Python）のすべてです。</p>
+<ul>
+  <li>AWS の認証情報（<code>AWS_*</code>）とコンテナの認証情報の URI</li>
+  <li><code>NCBI_API_KEY</code></li>
+  <li>RCS のトークン</li>
+</ul>
+<p>Codex のプロセスにだけ、必要な RCS のトークンを戻します。Codex はこれを MCP のベアラートークンとして送ります。さらに Codex の <code>shell_environment_policy</code> で、エージェントのシェルのコマンドから <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> と RCS のトークンを外します。Codex の設定（<code>CODEX_HOME</code> と信頼済みの <code>/work/.codex</code>）は root の所有なので、エージェントは Codex の環境で動く MCP サーバー・フック・通知のコマンドを足せません。</p>
+<h3>同じユーザーのプロセスからの保護</h3>
+<p>ワーカー（PID 1）、Codex、エージェントのコマンドはどれも <code>worker</code> のユーザーで動きます。そのままでは、互いの <code>/proc/&lt;pid&gt;/environ</code> を読めてしまいます。そこで、イメージの中で <code>node</code>・Codex・<code>git</code> の実行ファイルを、実行だけ可能（<code>chmod 0111</code>）にしています。読めないファイルから起動したプロセスは dump できない扱いになり、ほかの <code>worker</code> のプロセスから、その環境変数とメモリを読めなくなります。</p>
+<p>これで、エージェントは Codex のプロセスから OpenAI の API キーを読めず、PID 1 からコンテナの認証情報の URI（タスクロールと KMS に届く）も読めません。<code>git</code> を含めるのは、Codex が自分の環境（キーを含む）で <code>git</code> を実行するためです。Codex は起動時にプラグインのリポジトリを clone し、ターンごとに diff を取ります。</p>
+<h3>RCS MCP のトークン</h3>
+<p>ワーカーは起動時に Secrets Manager の <code>rcs/mcp-bearer-token</code> を読み、Codex のプロセスにだけ渡します（<code>RCS_MCP_TOKEN</code>）。エージェントのシェルのコマンドには渡さず、ブラウザにも送りません。シークレットにはカンマ区切りで受け付けるトークンが入っており（入れ替えの間は <code>旧,新</code>）、ワーカーは最後のものを使います。設定がないか読めないときは、RCS なしで続けます。RCS 側の問題で BRA の作成を止めないためです。</p>
+<div class="box">
+  <div class="h">OpenAI の API キーを使うもの</div>
+  <p>ワーカーは KMS でキーを復号し、Codex のプロセスを作るときにだけ渡します（Codex SDK の <code>apiKey</code>）。モデルに要求を送るのは Codex で、ワーカー自身は OpenAI を呼びません。エージェントがシェルで実行するコマンドには、キーが渡りません。キーを平文で扱うほかの場所は、API の Lambda が登録時に <code>/v1/models</code> で確認するときだけです。</p>
+</div>
+<h3>参考資料の URL の取得</h3>
+<p>参考資料の URL は、ブラウザではなくワーカーが取りに行きます。http(s) だけを許し、転送（最大 5 回）のどの段も公開のアドレスに解決されなければなりません。ループバック、プライベート、タスクのメタデータのエンドポイントのようなリンクローカルのアドレスは拒みます。大きさは 10 MB まで、時間は 20 秒までです。</p>
+<h3>残るリスク</h3>
+<p>プロンプトインジェクションで、作業ディレクトリやメタデータの外を読ませようとする試みには、次の 3 つで備えています。エージェントが届くプロセスから AWS の認証情報とその URI を外すこと、キーを持つプロセス（ワーカー・Codex・git）を dump できなくして <code>/proc</code> から環境変数を読めなくすること、データを本人のものに限ることです。ただし、別のアカウントや VPC で分けるような完全なマルチテナントの隔離ではありません。エージェントは自分のジョブのためにキーを使っており、たとえば自分のジョブのデータを外に送ることはできてしまいます。</p>
+<p class="src">典拠：<code>packages/worker/Dockerfile</code>、<code>packages/worker/src/childEnv.ts</code>、<code>codex.ts</code>（<code>createCodex</code>・<code>openThread</code>）、<code>rcs.ts</code>、<code>materials.ts</code>、<code>packages/shared/src/attachments.ts</code>（<code>isPrivateAddress</code>）</p>
+
+<h2 id="s9-6">9.6 外部への送信</h2>
+<table class="compact">
+  <thead><tr><th style="width:17%">送信先</th><th style="width:19%">送る主体</th><th>送るもの</th></tr></thead>
+  <tbody>
+    <tr><td>OpenAI（モデル）</td><td>ワーカーの中の Codex。利用者のキーか、利用承認を受けた利用者ならデフォルトの API キー（データはそのキーの OpenAI の組織に届く）</td><td>ROI・TLF・Contributor・Project ID。指示書の全文と、エージェントが読んだ作業ディレクトリのファイル（参考資料を含む。最初のプロンプトに付けた画像、エージェントが開いたファイルや抜き出した文字）。利用者の回答とフォローアップの指示。エージェントの Web 検索の語句（検索の提供元へ）</td></tr>
+    <tr><td>OpenAI（Canon の PR の AI レビュー）</td><td>ワーカー。所有者のキーか、許されたモデルでのデフォルトの API キー</td><td>審査画面と同じ資料：差分、衝突とシステムの検査、変わった項目の両側（回路の定義、引用文付きの接続、文献）、Canon の名前と粒度方針、関係する Project・Canon の ID と名前。このターンのモデルには、ツールも Web 検索も与えない</td></tr>
+    <tr><td>OpenAI（<code>/v1/models</code>）</td><td>API の Lambda</td><td>キーの登録時の確認（同じキー）</td></tr>
+    <tr><td>RCS MCP（rosetta-candidate-search、同じ AWS アカウント）</td><td>エージェント（Codex の MCP）。ワーカーも命名の照合で使う</td><td>領域名と短い文脈（ROI、TLF、種）。RCS の AI オプションが有効なら、RCS が語句の整理と判定のために DeepSeek に転送する。利用者の識別子と API キーは送らない</td></tr>
+    <tr><td>Crossref（<code>api.crossref.org</code>）、doi.org、NCBI E-utilities（PubMed）</td><td>ワーカー（文献の照合）</td><td><code>references.json</code> の DOI・PMID・タイトル（筆頭著者付き）。プロジェクトのほかの内容と利用者の識別子は送らない。連絡先 <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> は設定したときだけ送る</td></tr>
+    <tr><td>Europe PMC、NCBI（E-utilities と PMC 全文の BioC）、Crossref、Semantic Scholar（<code>api.semanticscholar.org</code>）</td><td>ワーカー（引用文の照合）</td><td>同じ DOI・PMID（と見つけた PMCID）。論文のオープンアクセスの全文か要旨をダウンロードする。引用文そのものの比較はワーカーの中で行い、どこにも送らない</td></tr>
+    <tr><td>NCBI E-utilities（PubMed）、Europe PMC、NCBI BioC</td><td>エージェントの文献ツール（<code>lit</code> MCP）</td><td>検索の語句と、問い合わせる DOI・PMID・PMCID。Europe PMC が答えないか全文がないときは BioC へ。<code>CROSSREF_MAILTO</code> は設定したときだけ送る。利用者の識別子は送らない</td></tr>
+    <tr><td>参考資料の URL の先</td><td>ワーカー</td><td>利用者が指定した URL への取得の要求（9.5 の制限付き）</td></tr>
+  </tbody>
+</table>
+<p class="small">いまのデプロイでは <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> を設定していないので、どちらも送られません。</p>
+<ul>
+  <li><b>Project ID</b>：新しい Project ID は <code>p</code> と乱数 7 文字（例 <code>p7m2q9xa</code>。Canon は <code>c…</code>）で、利用者についての情報を含みません。URL と xlsx の <code>Project ID</code> 列に出ます。古い形式の ID については付録 C を見てください。公開したプロジェクトと Canon は、所有者の <code>userKey</code> を見せます。</li>
+  <li><b>OpenAI 側の保持・学習・リージョン</b>は、OpenAI との契約と組織の設定に従います。このアプリは、データを保持しない設定（ZDR）を強制しません。機微な文献を扱うときは、OpenAI の組織の設定を確認してください。</li>
+</ul>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>、<code>rcs.ts</code>、<code>references.ts</code>（文献の照合）、<code>quotes.ts</code>（引用文の照合）、<code>litsearch.ts</code>・<code>litMcp.ts</code>、<code>materials.ts</code>、<code>env.ts</code>、<code>packages/shared/src/projectId.ts</code></p>
+
+<h2 id="s9-7">9.7 ログ・監査・脅威と対策</h2>
+<h3>ログに残るもの</h3>
+<table class="compact">
+  <thead><tr><th style="width:16%">場所</th><th>残りうるもの</th><th style="width:30%">残らないもの</th></tr></thead>
+  <tbody>
+    <tr><td><code>Messages</code></td><td>プロンプト、エージェントの文章、コマンドの出力（長いときは先頭と末尾だけ）、エラー</td><td>API キー</td></tr>
+    <tr><td>CloudWatch Logs</td><td>例外のメッセージ、タスクの ARN、モデル名</td><td>キーの平文（出力しない実装）</td></tr>
+    <tr><td>S3 の <code>thread/</code></td><td>Codex のセッション（再開用）</td><td>—</td></tr>
+  </tbody>
+</table>
+<p>保持期間は、ログが 14 日、メッセージと成果物は無期限です（9.2）。</p>
+<h3>監査</h3>
+<p>管理者の操作（無効化、強制停止）を記録する専用の監査テーブルはありません。<code>Jobs</code> と <code>Messages</code> のシステムの行が記録の代わりになります。AWS の操作については CloudTrail の証跡を作っていないので、管理イベントは既定の 90 日間のイベント履歴で追います。CI のデプロイのセッション名は <code>GitHubActions-cobrac-web-&lt;run_id&gt;</code>、Cursor の Cloud Agent のセッション名は <code>cursor-cloud-agent</code> なので、これで主体を見分けられます。検索のコマンドは <code>docs/ops/README.md</code> にあります。</p>
+<h3>脅威と対策</h3>
+<table class="compact">
+  <thead><tr><th style="width:20%">脅威</th><th>対策</th><th style="width:30%">残るリスク</th></tr></thead>
+  <tbody>
+    <tr><td>ほかの利用者のプロジェクトを見る</td><td>userId による範囲の限定。署名付き URL は自分の接頭辞だけ</td><td>管理者と AWS の権限を持つ人はメタデータを見られる</td></tr>
+    <tr><td>API キーの盗難（DB の漏えい）</td><td>KMS と暗号化コンテキスト。平文を返す API がない</td><td>復号できるワーカーのロールが乗っ取られる場合</td></tr>
+    <tr><td>API キーの盗難（ログ・エージェント）</td><td>ログに出さない。子プロセスからワーカーの AWS 認証情報とその URI を外す。<code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> をエージェントのコマンドから外す。<code>node</code>・Codex・<code>git</code> を実行だけ可能にし、ほかのプロセスの <code>/proc/&lt;pid&gt;/environ</code> から読めなくする（9.5）</td><td>エージェントは自分のジョブのためにキーを使う。デフォルトの API キーではこれが重くなるので、信頼できる協力者だけに利用承認を出し、そのキーの OpenAI のプロジェクトに予算を付け、悪用が疑われたらキーを替える</td></tr>
+    <tr><td>認証のない API</td><td>JWT オーソライザー。CORS のプリフライトは認証しない</td><td><code>/health</code> は公開</td></tr>
+    <tr><td>アカウントの列挙</td><td>Cognito の <code>preventUserExistenceErrors</code></td><td>メールアドレスの確認状態は推測されうる</td></tr>
+    <tr><td>Spot の中断で成果物が欠ける</td><td>S3 への保存と janitor の自動リトライ（8.3）</td><td>自動リトライは 2 回まで。その後は手動</td></tr>
+    <tr><td>質問が放置される</td><td>7 日で <code>FAILED</code></td><td>成果物は S3 に残る</td></tr>
+    <tr><td>セルフサインアップの悪用</td><td><code>COBRAC_SELF_SIGNUP=false</code> で閉じる</td><td>既定は開いている。キーがないとジョブを始められないので、費用は登録した本人の OpenAI のキーにかかる</td></tr>
+  </tbody>
+</table>
+<h3>運用の規則</h3>
+<ol>
+  <li><b>API キーをチャットやチケットに貼りません。</b>漏れたら OpenAI 側で失効させ、設定画面で登録し直します。</li>
+  <li>管理者のメールアドレスは GitHub Actions の Secret <code>COBRAC_ADMIN_EMAILS</code> に置きます（デプロイのログでは伏せ字）。緊急デプロイ用のコピーはローカルの <code>.env</code> に置き、コミットしません（<code>.env</code> は <code>.gitignore</code> にあります）。</li>
+  <li>使わなくなった利用者は、管理画面で無効にします。Cognito の利用者の削除はコンソールで行います。</li>
+  <li>利用者・成果物・KMS の鍵・ユーザープールは、スタックを消しても残ります。撤去するなら先に手で空にします（<code>docs/ops/README.md</code>）。</li>
+  <li>コマンドの出力は CloudWatch に残りえます。プロンプトに秘密を書かないでください。</li>
+  <li>CI のデプロイは <code>main</code> に限った GitHub OIDC のロールを使い、GitHub にもコーディングエージェントにも長期の AWS のキーを置きません（<code>docs/ops/README.md</code>）。</li>
+</ol>
+<p>本番向けにさらに足せるものとして、CORS のオリジンの制限、PITR、S3 の SSE-KMS、アクセスログがあります。どれもまだ実装していません。</p>
+<p class="src">典拠：<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/src/db.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>、<code>.gitignore</code>、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code>（CloudTrail）</p>
+
+<h2 id="s9-8">9.8 監視と緊急停止</h2>
+<h3>監視</h3>
+<p>アプリは次の監視がなくても動きます。ただし予算の通知がないと、Spot から On-Demand への切り替わりやログの急増を見逃しやすくなります。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">対象</th><th>見る場所と基準</th></tr></thead>
+  <tbody>
+    <tr><td>AWS の費用</td><td>AWS Budgets。cobrac-web には、予測 $20・実績 $30 でメールを送る予算を勧める。Cost Explorer でサービスごとに見る。急に増えたとき、まず疑うのは Fargate、次に CloudWatch Logs と CodeBuild</td></tr>
+    <tr><td>ワーカーのログ</td><td>スタックの出力 <code>WorkerLogGroup</code> のロググループ（14 日）</td></tr>
+    <tr><td>OpenAI の使用量と推定費用</td><td><code>Jobs.usage</code>・<code>Jobs.costUsd</code>、プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>。OpenAI の請求書と突き合わせるのに使う。AWS の費用とは別（9.10）</td></tr>
+    <tr><td>SES の評判</td><td>バウンス率 5%、苦情率 0.1% に達すると、スタックのアラームが SSM パラメータ <code>/cobrac-web/alarm-email</code> のアドレスにメールを送る</td></tr>
+    <tr><td>利用者とジョブ</td><td>管理画面で、利用者、デフォルトの API キーの費用、全プロジェクトと実行中のジョブを見る</td></tr>
+    <tr><td>デプロイの結果</td><td>GitHub Actions の実行のログと、ジョブの要約（Plan・RETAIN guard・Tag・Health）</td></tr>
+  </tbody>
+</table>
+<p>SES の率は、SES がアカウントを審査する基準に合わせています。SES は 10%・0.5% から送信を止めることがあります。バウンスや苦情のあったアドレスは、アカウント単位の抑制リストがすでに送信先から外しているので、アラームは原因を探すためのものです。たとえば、打ち間違えたアドレスでのサインアップがこれにあたります。通知先を変える手順は <code>docs/ops/README.md</code> にあります。AWS の操作の追跡は 9.7 の「監査」を見てください。</p>
+<h3>緊急停止</h3>
+<p>止めたいものごとに、止める手段とそれを行う人を次のように定めます。具体的な操作は <code>docs/ops/README.md</code> にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">止めたいもの</th><th>手段</th><th style="width:16%">だれが</th></tr></thead>
+  <tbody>
+    <tr><td>CI からのデプロイ</td><td><code>deploy</code> ワークフローを無効にするか、デプロイロールを引き受けられなくする</td><td>所有者</td></tr>
+    <tr><td>Cloud Agent や CI の AWS アクセス全体</td><td>ロールを引き受けられなくするか、発行済みのセッションも含めて全 Deny を付ける。GitHub 側では Actions を無効にする</td><td>所有者（ローカルで）</td></tr>
+    <tr><td>実行中のジョブ</td><td>管理画面から強制停止する（ECS のタスクを止める）。利用者を無効にすると、その人の API は 403 になる</td><td>管理者</td></tr>
+    <tr><td>新規の登録</td><td><code>COBRAC_SELF_SIGNUP=false</code> にしてデプロイする</td><td>所有者</td></tr>
+    <tr><td>漏れた API キー</td><td>OpenAI 側で失効させ、設定画面で登録し直す。デフォルトの API キーは管理画面で消すか登録し直す（次のジョブの起動から効く。9.3）</td><td>利用者・管理者</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（アラーム・出力）、<code>packages/infra/bin/app.ts</code>、<code>packages/api/src/app.ts</code>（<code>/admin/*</code>）、<code>README.md</code>（Operations notes）、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code></p>
+
+<h2 id="s9-9">9.9 AWS の費用と予算</h2>
+<div class="box note">
+  <div class="h">金額の読み方</div>
+  <p>この節の金額は、2026 年の東京リージョンの単価による<b>目安</b>で、正式な見積もりではありません。実際の請求は Cost Explorer で確認します。<b>OpenAI の利用料は AWS の請求に含まれません</b>（9.10）。</p>
+</div>
+<h3>費用が動くとき</h3>
+<table class="compact">
+  <thead><tr><th style="width:26%">操作</th><th>主に増えるもの</th></tr></thead>
+  <tbody>
+    <tr><td>だれも使っていない</td><td>わずかな CloudFront、KMS の $1、ECR、DynamoDB の保存。VPC 自体はほぼ無料</td></tr>
+    <tr><td>画面を見る</td><td>CloudFront、HTTP API、Lambda、DynamoDB の読み取り（オンデマンド）</td></tr>
+    <tr><td>チャットの購読</td><td>WebSocket の接続時間とメッセージ、Streams の Lambda</td></tr>
+    <tr><td>ジョブの実行</td><td><b>Fargate の CPU とメモリの時間</b>、ENI とパブリック IP、ワーカーの CloudWatch、S3 の PUT、DynamoDB の書き込み</td></tr>
+    <tr><td>質問への回答待ち</td><td>Fargate は止まる。S3 と DynamoDB の保存だけ</td></tr>
+    <tr><td>オーケストレーターの下書き・再計画</td><td>短い Codex の実行のための Fargate タスク 1 つ（1 ターン。返答が読めなければもう 1 ターン。最長 7 分、長い資料の下書きは 25 分なので、Spot でせいぜい 1 セント程度）、小さな S3 のオブジェクト、DynamoDB の書き込み</td></tr>
+    <tr><td>Canon のある計画</td><td>新しい種類のジョブはない。本体の行の PR ごとに通常の AI レビューのジョブ（<code>canon-review</code>）が 1 つ、Canon が先に進んで衝突した行には Canon に合わせるフォローアップのジョブが最大 2 つ。push は小さな S3 のオブジェクトと計画ランナーの DynamoDB の書き込み</td></tr>
+    <tr><td><code>cdk deploy</code></td><td>CodeBuild（イメージを作り直すとき）、ECR への push、CloudFront の無効化、Lambda の更新</td></tr>
+  </tbody>
+</table>
+<h3>予算の目安</h3>
+<table class="compact">
+  <caption>使われていないとき（利用者数人、ジョブ 0 件）の月額</caption>
+  <thead><tr><th>項目</th><th class="c" style="width:28%">月額の目安</th></tr></thead>
+  <tbody>
+    <tr><td>KMS の CMK 1 つ</td><td class="c">$1.00</td></tr>
+    <tr><td>ECR（0.5〜1 GB）</td><td class="c">約 $0.10</td></tr>
+    <tr><td>DynamoDB・S3 の保存（数 MB〜数百 MB）</td><td class="c">$0.10〜0.50</td></tr>
+    <tr><td>CloudFront・Cognito（無料枠の範囲）</td><td class="c">$0〜0.50</td></tr>
+    <tr><td><b>小計</b></td><td class="c"><b>約 $1.5〜3</b></td></tr>
+  </tbody>
+</table>
+<p class="small">ここに NAT Gateway を足すだけで $32 以上増えます。BRA-DB のスタックは別に約 $34 かかります（7.6）。</p>
+<table class="compact">
+  <caption>想定の利用（月 50 ジョブ、1 件 2〜4 時間、回答待ちの間は停止。実行時間の合計 100〜200 時間）</caption>
+  <thead><tr><th style="width:26%">サービス</th><th>前提</th><th class="c" style="width:18%">月額の目安</th></tr></thead>
+  <tbody>
+    <tr><td>Fargate Spot 1 vCPU / 2 GB</td><td>1 時間あたり約 $0.013〜0.020</td><td class="c">$2〜4</td></tr>
+    <tr><td>同、On-Demand に切り替わった分</td><td>Spot のおよそ 2.5〜3 倍</td><td class="c">混ざれば +$1〜3</td></tr>
+    <tr><td>CloudFront と Web の S3</td><td>少ないアクセス</td><td class="c">$1</td></tr>
+    <tr><td>API Gateway（HTTP と WebSocket）</td><td>数十万リクエスト未満</td><td class="c">$1〜2</td></tr>
+    <tr><td>Lambda</td><td>arm64、短い実行。計画ランナーは毎分動く（月に約 43,800 回。計画が動いていなければ Query が 1〜2 回で、無料枠に十分収まる）</td><td class="c">$0〜1</td></tr>
+    <tr><td>DynamoDB オンデマンド</td><td>主にメッセージの書き込み</td><td class="c">$1〜2</td></tr>
+    <tr><td>S3 の成果物（数 GB、PUT が多い）</td><td>作業ディレクトリの同期を含む</td><td class="c">$0.5〜1.5</td></tr>
+    <tr><td>CloudWatch Logs</td><td>14 日、ワーカーの出力</td><td class="c">$0.5〜2</td></tr>
+    <tr><td>KMS</td><td>鍵と暗号化・復号</td><td class="c">$1〜2</td></tr>
+    <tr><td><b>AWS の合計</b></td><td></td><td class="c"><b>約 $8〜18</b></td></tr>
+  </tbody>
+</table>
+<p>仕様上の目標は<b>月 50 ジョブでインフラが月 $20 未満</b>で、上の表には余裕があります。Spot がまったく使えずすべて On-Demand になると、Fargate だけで $8〜15、合計で <b>$15〜25</b> まで伸びることがあります。</p>
+<table class="compact">
+  <caption>1 ジョブあたりの AWS の費用の目安</caption>
+  <thead><tr><th>実行時間</th><th class="c">Spot</th><th class="c">On-Demand</th></tr></thead>
+  <tbody>
+    <tr><td>30 分</td><td class="c">約 $0.01</td><td class="c">約 $0.03</td></tr>
+    <tr><td>2 時間</td><td class="c">$0.03〜0.04</td><td class="c">約 $0.10</td></tr>
+    <tr><td>4 時間</td><td class="c">$0.06〜0.08</td><td class="c">約 $0.20</td></tr>
+    <tr><td>6 時間（上限）</td><td class="c">約 $0.10</td><td class="c">約 $0.30</td></tr>
+  </tbody>
+</table>
+<p>S3 の同期とログを含めても、<b>1 ジョブの AWS の費用は普通は数十セントを大きく下回ります</b>。費用の大部分は OpenAI です。</p>
+<p><b>1 回のデプロイ</b>では、CodeBuild が Node と Python のイメージを作ります（実測で約 2 分）。東京の general1.small 相当で 1 回 <b>$0.1〜0.4</b> 程度で、ECR の上書きと CloudFront の無効化が少し足されます。頻繁にデプロイすると、日常の画面の利用より目立つことがあります。GitHub Actions の実行（PR のチェックとデプロイのワークフロー）は GitHub 側の実行時間で、AWS の費用ではありません。バージョンを上げないマージでは、デプロイのジョブ自体が動きません。</p>
+<h3>シナリオの比較</h3>
+<table class="compact">
+  <thead><tr><th style="width:34%">シナリオ</th><th class="c" style="width:18%">AWS の月額の感覚</th><th>補足</th></tr></thead>
+  <tbody>
+    <tr><td>開発だけ（デプロイ済み、ジョブはほぼなし）</td><td class="c">$2〜4</td><td>KMS が目立つ</td></tr>
+    <tr><td>個人で月 10 ジョブ</td><td class="c">$4〜8</td><td></td></tr>
+    <tr><td>数人で月 50 ジョブ</td><td class="c">$8〜18</td><td>設計の目標</td></tr>
+    <tr><td>月 50 ジョブで Spot が不調</td><td class="c">$15〜25</td><td>$30 の Budgets で気づける（9.8）</td></tr>
+    <tr><td>NAT を含む構成に変える</td><td class="c">+$32 以上</td><td>勧めない</td></tr>
+    <tr><td>常時稼働の t3.medium</td><td class="c">約 $30</td><td>待っている間も課金される。いまの構成のほうが安い</td></tr>
+    <tr><td>BRA-DB のスタック（常時稼働）</td><td class="c">+約 $34</td><td>7.6。<code>COBRAC_BRADB=false</code> で作らない</td></tr>
+  </tbody>
+</table>
+<h3>費用を抑える実装</h3>
+<ul>
+  <li>Fargate Spot を優先し、容量がないときだけ On-Demand にします。</li>
+  <li>質問（<code>[QUESTION]</code>）でタスクを終了します。回答までの計算の費用は 0 です。</li>
+  <li>NAT・独自ドメイン（CDK 内）・Container Insights・PITR を使いません。CloudFront は Price Class 200 です。</li>
+  <li>ログは 14 日で消し、未完了のマルチパートアップロードは 3 日で消します。</li>
+  <li>同時実行数の上限で、気づかないうちに Spot のタスクが積み上がるのを防ぎます。管理者の設定は 1 つの上限につき 1〜16 で、17 以上は拒みます（8.3）。</li>
+  <li>janitor は 5 分ごとに動きます。ハートビートが 15 分途絶えたら最大 2 回まで自動でリトライし、回答待ち 7 日・キュー 24 時間で失敗にします。Spot の中断では 120 秒の猶予で保存して次の janitor で再開し、ターンの途中も 5 分ごとに保存します（8.3）。</li>
+</ul>
+<p>オーケストレーターは、計画ランナーが毎分動いて、費用が膨らまないように次のように抑えます。</p>
+<ul>
+  <li>両方の同時実行数の上限に空きがあるときだけ行を始めます（待機中のジョブも数えます）。そのため、大きな計画でも、ジョブがキューの 24 時間の時間切れまで待つことはありません。</li>
+  <li>失敗した行の自動リトライは 2 回までで、その後は「要対応」になります。自律実行の計画では判断のジョブが対処を決め、人が対応する計画では人を待ちます（6.8・6.9）。</li>
+  <li>所有者がジョブを動かせなくなった計画は、行を次々に失敗させずに自分で一時停止します。キーがない、アカウントが無効、選んだモデルが許されなくなった、の場合です。</li>
+  <li>自律実行の計画は、計画の費用の上限に達すると新しい行を始めません（6.8）。</li>
+  <li>下書きと再計画の計画用のジョブも、行と同じく空きがあるときだけ積み、両方の上限に数えます。再計画はバッチごとに最大 1 回、計画あたり約 10 回まで（<code>MAX_REPLAN_JOBS</code>）です。最初は最初のバッチが終わった後、以降は前回から行の 10 分の 1 が終わるごとに行い、自動の順序の計画だけで、一時停止中は動かしません。</li>
+  <li>ワーカーは計画用のジョブを 7 分（長い資料の下書きは 25 分）で打ち切ります。janitor は、ハートビートが途絶えたものと 24 時間キューにあるものを失敗にし、リトライしません。計画ランナーが 1 ステップで読む <code>uc.json</code> は 20 件までです。</li>
+  <li>Canon のある計画では、本体の行の PR の AI レビューと Canon に合わせるフォローアップ（行あたり最大 2 回、<code>MAX_CONFORM_FOLLOWUPS</code>）は、所有者のキーかデフォルトの API キーで動く通常のジョブです。行と同じ空きの判定を通り、両方の上限に数え、ほかのジョブと同じく課金されます。基準プロジェクトは AI レビューを受けません。</li>
+  <li>Canon に合わせるフォローアップは、PR がまだ開いているときだけ送ります（計画ランナーが直前に読み直します）。そのため、すでに承認・却下された PR に有料のフォローアップを使うことはありません。</li>
+  <li>計画の PR が 20 件承認を待っている間は、新しいバッチを始めません（<code>PLAN_MAX_WAITING_PRS</code>）。放置された計画は、審査者の仕事を積み上げずに止まります。</li>
+</ul>
+<h3>後で費用が増える変更</h3>
+<table class="compact">
+  <thead><tr><th style="width:34%">変更</th><th>影響</th></tr></thead>
+  <tbody>
+    <tr><td>NAT とプライベートサブネット</td><td>固定費が月 $32 以上増える</td></tr>
+    <tr><td>PITR・バージョニング</td><td>保存量がおよそ 2 倍になる</td></tr>
+    <tr><td>ログの無期限保持・Insights</td><td>CloudWatch が主な費用になりうる</td></tr>
+    <tr><td>同時実行数を 10 にする</td><td>ピーク時の Fargate が 5 倍</td></tr>
+    <tr><td>独自ドメインと ACM（CDK に入れる場合）</td><td>費用は小さいが、運用が増える</td></tr>
+  </tbody>
+</table>
+<p>いまの安さは、<b>使わないときにワーカーを止めること</b>と、<b>NAT を置かないこと</b>に支えられています。</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（オーケストレーターの上限）、<code>packages/shared/src/plan.ts</code>（<code>MAX_CONFORM_FOLLOWUPS</code>・<code>PLAN_MAX_WAITING_PRS</code>）、<code>planOrder.ts</code>（<code>MAX_REPLAN_JOBS</code>）、<code>planJob.ts</code>（<code>PLAN_JOB_TIME_BUDGET_MS</code>）</p>
+
+<h2 id="s9-10">9.10 OpenAI の費用と記録</h2>
+<h3>だれが払うか</h3>
+<p>OpenAI の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はそのキーの OpenAI の請求に載ります。Tier 1 の利用者は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code>（下の単価表で最も安い 2 行）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行の計画の費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクトに、月の予算を設定してください。</p>
+<h3>単価表</h3>
+<table class="compact avoid">
+  <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-09-25</code>、OpenAI の標準の短いコンテキストの単価）</caption>
+  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">出力（推論を含む）</th></tr></thead>
+  <tbody>
+    <tr><td><code>gpt-6-luna</code>（デフォルトのモデル）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.50</td></tr>
+    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.20</td><td class="c">0.02</td><td class="c">1.20</td></tr>
+    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">10</td></tr>
+    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">12</td></tr>
+    <tr><td><code>gpt-5.6-sol</code>（<code>gpt-5.6</code> は Sol への別名）</td><td class="c">4</td><td class="c">0.40</td><td class="c">20</td></tr>
+    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">50</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、<code>gpt-6-luna</code>（<code>DEFAULT_CODEX_MODEL</code>）を使います。そのため、費用は常にどこかのモデルに帰属します。</li>
+  <li>推論のトークンは出力として課金されます。日付付きのスナップショット名は、末尾の日付を外して単価を探します。表にないモデルは、トークン数だけを表示し、費用は「$—」になります。</li>
+  <li>単価表は、コードの定数として手で保守するスナップショットです。OpenAI が値段を変えたら <code>PRICING</code> と <code>PRICING_AS_OF</code> を直し、patch のバージョンとしてデプロイします。実際の請求額の正本は OpenAI のダッシュボードです。</li>
+  <li>Codex に伝えるコンテキスト長は 272,000 トークンに固定しています（<code>CODEX_CONTEXT_WINDOW</code>）。OpenAI は gpt-5.6・gpt-6 に 1,050,000 トークンを掲げていますが、272K を超える入力は 2 倍の単価になるためです（8.4）。</li>
+</ul>
+<h3>費用の計算</h3>
+<p>使用量は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code> の 4 つの数です。推定費用 <code>costUsd</code> は、<code>estimateCostUsd()</code> が単価表から次の式で計算します。推論のトークンは <code>outputTokens</code> に含まれています。</p>
+<pre><code>(inputTokens − cachedInputTokens) × 入力の単価
+  + cachedInputTokens × キャッシュされた入力の単価
+  + outputTokens × 出力の単価        （単価は 100 万トークンあたり）</code></pre>
+<p>表にないモデルでは <code>null</code> になり、画面は <code>$—</code> を出します。ジョブの <code>model</code> は、ジョブの開始時に実際に Codex に渡したモデルです（4.2）。</p>
+<h3>1 ターンの使用量の数え方</h3>
+<p>Codex がターンの終わり（<code>turn.completed</code>）に返す使用量は、そのターンの分ではなく、<b>会話が始まってからの累計</b>です。後のジョブで会話を再開しても、累計は続きます。そこでワーカーは、次のように数えます（<code>packages/worker/src/codex.ts</code> の <code>runTurn</code>）。</p>
+<ul>
+  <li>ターンの使用量は、ターン後の累計からターン前の累計を引いたものです。</li>
+  <li>ターン前の累計は、その会話のセッションファイル（<code>&lt;CODEX_HOME&gt;/sessions/…/rollout-…-&lt;threadId&gt;.jsonl</code>）の最後の <code>token_count</code> から読みます（<code>sessionTotalUsage</code>）。新しい会話は 0 から数え、後のジョブで再開した会話も同じ方法で前の続きから数えます。</li>
+  <li>レート制限で待ってから続けたターンは、最後の累計を 1 回だけ使います。</li>
+  <li>失敗（<code>turn.failed</code>）で終わったターンも、セッションファイルの累計から数えます。</li>
+  <li>打ち切られて終わりを返さないターンも、同じ方法で数えます。停止、調査ステップの 60 分の時間切れ、SIGTERM、6 時間の上限で打ち切られたものと、失敗のターンを出さずに終わった <code>codex exec</code> がこれにあたります。実行中のターンが測り方を登録し、先に来た停止の経路が 1 回だけそれを使います（<code>InFlightTurn</code>）。測った分は打ち切られたジョブ自身の費用に足し、次の実行はそれを含む累計から始めるので、二重には数えません。</li>
+</ul>
+<p>ジョブの使用量を足した後、ワーカーは全ジョブからプロジェクトの合計を集計し直します（<code>refreshProjectUsage</code>）。この数え方を決めた経緯は付録 D にあり、それより前に記録したジョブの扱いは付録 C にあります。</p>
+<h3>使用量と費用の記録</h3>
+<p>ワーカーは各ジョブについて、使ったモデル、入力・キャッシュされた入力・出力・推論のトークン数、推定費用を記録します（<code>Jobs.usage</code>・<code>Jobs.costUsd</code>。プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>）。ジョブには、どちらのキーで実行したか（<code>keySource</code>：<code>own</code> か、デフォルトの API キーの <code>org</code>）も記録します。画面での見え方は 4.7 にあります。</p>
+<p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、自分のプロジェクトのジョブに加えて、自分の Canon と、共同編集者として入っている Canon の AI レビュー、自分の計画の計画用のジョブ（<code>plan</code>）も、全体とモデルごとの合計に含めます。</p>
+<p>推定は単価表で計算するので、OpenAI の請求書と一致しないことがあります。とくに単価表にないモデルでは一致しません。この記録は AWS の費用とは別のもので、OpenAI の請求と突き合わせるために使います。</p>
+<h3>BRA 1 件あたりの目安</h3>
+<ul>
+  <li><b>gpt-6-luna・推論の強さ high・調査モード オン</b>で BRA を 1 件作ると、実費で約 $0.13〜0.18 でした（付録 D の測定）。オーケストレーターの見積もりは、1 行あたり $0.18〜0.39、中央値 48 分で計算します（<code>PLAN_ESTIMATE</code>。6.9）。</li>
+  <li>単価の高いモデルで推論を強くした長い HCD → FRG → CSV の実行は、1 件で<b>数ドルから数十ドル</b>になりえます。これは約 $10 のインフラの月額（9.9）よりはるかに大きいので、作成画面でモデルと推論の強さを下げることが、費用を抑える近道です。</li>
+  <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間で約 10〜60 分（1 vCPU / 2 GB の Spot で約 $0.01〜0.05）、OpenAI 側で入力 150 万〜600 万トークン（大部分はキャッシュ）と出力 4 万〜15 万トークン（推論の強さ high 以上）が増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
+  <li><b>オーケストレーターの下書き・再計画</b>は、推論の強さ <code>medium</code> で RCS の照会をする短い Codex の 1 ターンです（返答が読めなければ 1 回やり直します）。時間の予算は 7 分で、xlsx・PDF の資料を読むか 20 行を超える下書きは 25 分です。BRA の実行に比べれば小さな費用です。ほかのジョブと同じく所有者のキーかデフォルトの API キーで課金され、ジョブに記録され、計画の画面に計画自身のジョブの費用として出ます。計画の PR の AI レビューの費用も、計画の費用に含めます。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>
+</section>

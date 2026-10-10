@@ -1,0 +1,244 @@
+<section class="pharness">
+<h2 id="s3-12">3.12 仮説モード</h2>
+<p>BRA に入れるのは、既定では文献で支持されたデータだけです。<b>仮説モード</b>のプロジェクトに限り、文献が直接は支持しない接続や UC、またはその性質を、<b>仮説</b>として印を付けたうえで含められます。</p>
+<p>仮説モードが緩めるのは、「論文の文がその主張そのものを述べている」という 1 つの条件だけです。次のものは、仮説モードでもいつもどおり検査します。</p>
+<ul>
+  <li>DOI / PMID とその照会、引用文の照合、1 接続 1 文献、Pointers（3.8・3.10）</li>
+  <li>命名と SABRA の境界（第 2 部）</li>
+  <li>スキーマ（余分なキーを許さないまま）、interface、Collection と均質な送り手、FRG の構造</li>
+  <li>英語で書くこと、レポートの節、Canon（第 5 部）</li>
+</ul>
+<p>仮説は開示するためのものです。ハーネスが書くものや求めるものは、調査・実験・検証・予測を提案しません。仮説モードは検査の規則の世代（3.8）とは別の設定で、どの世代とも組み合わせられます。</p>
+
+<h3>許可・記述・検査の分担</h3>
+<table class="compact">
+  <thead><tr><th style="width:16%">役割</th><th>すること</th></tr></thead>
+  <tbody>
+    <tr><td>利用者</td><td>作成時に「仮説モード」を選ぶか、フォローアップで「この指示で仮説を許す」をオンにして、許す主張・対象・比率の上限・メモを決める。<b>指示の文章に「仮説で」と書いても範囲は広がらない</b></td></tr>
+    <tr><td>API</td><td>要求を検査し、許可範囲（scope。<code>S1</code>、<code>S2</code>…）としてプロジェクトに保存する</td></tr>
+    <tr><td>ワーカー</td><td>許可範囲を依頼文に展開し、仮説を検査し、番号（<code>H1</code>…）と比率を計算して記録し、出力に印を付ける</td></tr>
+    <tr><td>エージェント</td><td>まず直接の根拠を探し、見つからないときだけ許可範囲の中で仮説を書く（前提の論文、推論の種類、理由）。レポートの <code>## Hypotheses</code> で開示する</td></tr>
+  </tbody>
+</table>
+
+<h3>許可範囲</h3>
+<p>許可範囲は、どの主張を、どの要素について、どれだけの比率まで仮説にしてよいかを定めます。</p>
+<ul>
+  <li><b>作成時</b>：利用者は、許す主張（1 つ以上）、比率の上限（10 / 20 / 30 / 50%、既定 20%）、任意のメモ（200 文字以内）を選びます。プロジェクトは仮説モードになり、対象を HCD 全体とする許可範囲 <code>S1</code> と、比率の上限を持ちます。</li>
+  <li><b>フォローアップ</b>：利用者は、許す主張、対象、比率の上限、メモを選びます。対象は「全体」か、グラフで選んだ回路と GN（合計 1〜200 個）です。新しい許可範囲が、それまでの最大の番号の次の番号で加わり、仮説を許していなかったプロジェクトでも仮説モードになります。ワーカーは指示の後に <code>Hypotheses allowed with this instruction: &lt;scope&gt; (share limit n%)</code> の 1 行を足します。</li>
+  <li><b>範囲の判定</b>：対象の回路は、挙げた UC、挙げた Collection の UC（入れ子も展開します）、挙げた GN の下のすべての階層の UC です。接続は、送り手か受け手が対象の回路なら範囲に入ります。UC は、それ自身が対象か、その接続の相手が対象なら範囲に入ります。ある許可範囲が仮説を覆うのは、その仮説のすべての主張を許し、対象がその要素を覆うときです。</li>
+  <li><b>文献だけへの復帰</b>：仮説モードのプロジェクトのジョブが CSV まで完了し、最後の検査で仮説が 0 件なら、ワーカーはプロジェクトを文献だけのモードに戻します。許可範囲と上限は記録として残ります。</li>
+  <li><b>複製</b>：仮説モードかどうか、許可範囲、比率の上限をコピーします。</li>
+</ul>
+<p>API の要求の形式とエラーは付録 A にまとめます。</p>
+
+<h3>仮説の記録の形式</h3>
+<p>仮説は、<code>uc.json</code> の UC と <code>connections.json</code> の接続に、任意の <code>hypothesis</code> キーとして書きます。Collection と BIF には付けません。このキーは仮説モードのプロジェクトに見せるスキーマにだけあり、仮説モードでないプロジェクトのスキーマにはありません。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">欄</th><th>値</th></tr></thead>
+  <tbody>
+    <tr><td><code>claims</code></td><td>主張。1 つ以上、各 1 回。接続では <code>existence</code>・<code>direction</code>・<code>sign</code>。UC では <code>population</code>・<code>transmitter</code>・<code>modulation</code>・<code>role</code>（<code>role</code> は印を付けるだけ）</td></tr>
+    <tr><td><code>basis</code></td><td>推論の種類。直接的なものから順に、<code>published</code>（論文が仮説として述べる）、<code>homology</code>（相同性が不確かな他種の領域）、<code>analogy</code>（類似の回路）、<code>indirect</code>（機能的結合・共活性化・損傷・向きのない拡散 MRI など）、<code>model</code>（計算モデルが必要とする）、<code>functional-need</code>（FRG が TLF を実現するためだけに必要）。他種での直接の証拠は、Taxon を付けた通常の証拠として扱う</td></tr>
+    <tr><td><code>rationale</code></td><td>理由。空でない文で、前提がなぜ仮説を支えるかと、直接の証拠を何で探して見つからなかったかを書く。<code>[Author, Year]</code> の引用は通常どおり検査する。予測・検証・次の手順は書かない</td></tr>
+    <tr><td><code>premises</code></td><td>前提。<code>references.json</code> の Reference ID を 1 つ以上（通常どおり照会する）。接続では、先頭がそのレコードの最初の文献</td></tr>
+    <tr><td><code>scope</code></td><td>仮説を許す許可範囲の ID（<code>S&lt;n&gt;</code>）</td></tr>
+    <tr><td><code>researchCandidate</code></td><td>調査モードだけ。探した記録である <code>research.json</code> の候補（<code>C&lt;n&gt;</code>）で、状態が <code>not_found</code> か <code>weak</code> のもの</td></tr>
+  </tbody>
+</table>
+
+<h3>ワーカーの検査</h3>
+<p>仮説の検査で見つかった問題は、すべてエラーとして修正ターンで返します。メッセージは、欄を直す、論文を証拠として引用する、仮説を外す、のどれをすればよいかを示します。仮説の検査は HCD 段階の外のファイルにも依存します（GN の対象を決める <code>frg.json</code>、候補の <code>research.json</code>、レポート）。そのため HCD のファイルが変わっていなくても、FRG と CSV の検査でやり直します。表で「安全側」としたものは、仕様の要求より厳しくしてある検査です。</p>
+<table class="compact">
+  <thead><tr><th>検査</th><th style="width:34%">メッセージが求めること</th></tr></thead>
+  <tbody>
+    <tr><td>キーのスキーマ（すべてのモード）、空の理由</td><td>キーを直す</td></tr>
+    <tr><td>主張・前提の重複</td><td>1 回ずつ挙げる</td></tr>
+    <tr><td><code>references.json</code> にない前提。DOI も PMID もない前提（安全側）</td><td>照会できる前提を挙げる</td></tr>
+    <tr><td>接続の最初の前提が、そのレコードの最初の文献でない</td><td>レコードの論文を先頭にする</td></tr>
+    <tr><td>存在の仮説なのに測定法が <code>Hypothetical</code> でない。向き・符号の仮説や仮説のないレコードに <code>Hypothetical</code>（安全側）</td><td><code>Hypothetical</code> にする、論文の測定法に戻す、またはキーを足す</td></tr>
+    <tr><td>仮説でないレコードがすでに支える送り手 → 受け手への、存在の仮説</td><td>仮説のレコードを外す</td></tr>
+    <tr><td>同じ送り手 → 受け手への 2 つ目の存在の仮説（安全側。比率を水増ししない）</td><td>1 つにまとめ、ほかの論文は前提と理由に挙げる</td></tr>
+    <tr><td>集団の仮説なのに Source of ID が <code>makeshift</code> でない。アンカーだけの UC（SABRA の単位そのもの）への集団の仮説（安全側）</td><td><code>makeshift</code> にする、facet を足す、または別の主張にする</td></tr>
+    <tr><td>伝達物質の仮説で値が空、修飾の仮説で値が空（安全側）</td><td>推定した値を書く</td></tr>
+    <tr><td>主張と要素を覆う許可範囲がない</td><td>仮説を外す（許可範囲と、どの許可範囲も許さない主張を示す）</td></tr>
+    <tr><td>主張ごとには許されるが、1 つの許可範囲がすべてを許してはいない</td><td>1 つの許可範囲が許す主張だけにする</td></tr>
+    <tr><td><code>scope</code> が不明、または覆わない（ほかの許可範囲が覆う）</td><td>覆う許可範囲を書く</td></tr>
+    <tr><td>調査モードで、<code>researchCandidate</code> がない・候補にない・<code>contradicted</code>（外す）・<code>supported</code>（その証拠を使う）など。調査モードでないのに <code>researchCandidate</code> がある</td><td>候補を直すか外す</td></tr>
+    <tr><td>比率が上限を超える</td><td>仮説を減らす（比率を下げるために接続や UC を足さない）。上限の中で TLF を実現できないなら、ターン終了の <code>message</code> でそう伝える</td></tr>
+    <tr><td>レポート（後述）</td><td>節・ID・文を足す</td></tr>
+  </tbody>
+</table>
+<p><b>仮説を許していないプロジェクト</b>では、<code>hypothesis</code> キーを持つ UC や接続があれば、ファイルごとに 1 つのメッセージで返し、論文と引用で支えるか、外すよう求めます。利用者が指示の文章で仮説を頼んでいた場合、エージェントは、「仮説を許可」をオンにして指示を送り直す必要があることを <code>message</code> で伝えます。文献だけのプロジェクトでは、<code>Hypothetical</code> は普通の列挙値です。文献だけのプロジェクトの依頼文・検査結果・CSV・xlsx は、仮説モードがないときと同じです。</p>
+
+<h3>比率・番号・レポート</h3>
+<ul>
+  <li><b>比率</b>：プロジェクトの版全体で、すべての許可範囲を合わせて数えます。仮説の接続の数をすべての接続のレコードの数で、仮説の UC の数をすべての UC（ROI の内部と外部。Collection は数えない）の数で割ります。主張の数にかかわらず、要素は 1 回だけ数えます。</li>
+  <li><b>上限の計算</b>：許されるのは <code>floor(p × 全体 / 100)</code> 個までです（<code>p</code> は上限の百分率）。整数で計算するので、上限 20% なら 10 件中 2 件は通り、3 件は通りません。上限は 10 / 20 / 30 / 50% で、既定は 20% です。</li>
+  <li><b>番号</b>：<code>H1</code>、<code>H2</code>… を、まず <code>uc.json</code> の順に UC へ、次に <code>connections.json</code> の順に接続へ付けます。追加や削除で番号は変わりえます。CSV の注記、仮説の記録、レポートの検査、整合の記録は同じ番号を使います。</li>
+  <li><b>レポート</b>：仮説が 1 つ以上あれば、<code>## Limitations</code> の前に <code>## Hypotheses</code> の節を置き、すべての ID を挙げます。節には、ID・要素・主張・推論の種類・前提・理由の表と、上限に対する 2 つの比率を書き、<code>functional-need</code> は太字にします。</li>
+  <li><b>根拠だけの経路</b>：ROI の入力から出力まで、仮説の接続を使わない有向の経路がないときは、<code>## Limitations</code> に定型文 "No evidence-only path leads from the ROI inputs to the ROI outputs." を書きます。仮説モードの Limitations には事実だけを書き、今後の研究は書きません。</li>
+  <li><b>FRG</b>：許可範囲の中では、FRG の手順 5 の「UC や接続を作らない」という制約は仮説を禁じません。その追加は判断ログの revisions に <code>[FRG-&gt;HCD][hypothesis]</code> として記録します（3.11）。仮説を証拠に置き換えるのは、指示があったときだけです（<code>[hypothesis] H3 → evidence [Author, Year]</code>）。</li>
+</ul>
+
+<h3>出力とほかの仕組みとの関係</h3>
+<table class="compact">
+  <thead><tr><th style="width:20%">対象</th><th>扱い</th></tr></thead>
+  <tbody>
+    <tr><td>CSV・xlsx</td><td>列は増やさない。仮説の接続・UC と、その FRG の <code>U.</code> の行の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。存在の仮説は測定法 <code>Hypothetical</code>、集団の仮説は Source of ID <code>makeshift</code>。Template-v2-2 の Credibility rating は書かない</td></tr>
+    <tr><td>仮説に依存する GN</td><td>UC に仮説の UC を含む GN と、2 つ以上の UC が仮説の接続なしには連結しない GN。Comments の末尾に <code>Depends on hypotheses: H2, H5</code> を足す</td></tr>
+    <tr><td>仮説の記録</td><td>ワーカーだけが書く <code>hypotheses.json</code>。仮説モードだけで、検査のたびに書き直し、スキーマで検査する。許可範囲、比率（接続と UC の件数・全体・比率・上限）、仮説の一覧、根拠だけの経路の有無、FRG ができていれば GN の依存</td></tr>
+    <tr><td>整合の記録</td><td>仮説の件数、根拠だけの経路の有無、仮説を含めた経路の有無、GN の依存（記録だけ）</td></tr>
+    <tr><td>グラフ</td><td>仮説の接続・UC と、仮説に依存する GN に「H」の印を付ける。向きだけの仮説は矢じりの形で区別する。「仮説を隠す」で根拠だけのグラフを表示する。ROI の印と接続の符号は、仮説の行を除いた Comments から読む</td></tr>
+    <tr><td>版</td><td>生成条件に、根拠のモード・許可範囲・上限・仮説の件数を記録する（4.5）</td></tr>
+    <tr><td>BRA-DB</td><td>仮説を含む版は、いまは登録できない（第 7 部）</td></tr>
+    <tr><td>Canon</td><td>仮説は Canon の共有層に入れず、プロジェクトの役割層だけに置く。PR の画面に、共有層に入れない仮説の件数を出す（第 5 部）</td></tr>
+    <tr><td>BRA の 274</td><td>引用が接続を保証するかは<b>前提</b>で判断する。仮説の接続の引用文が支えるのは前提で、仮説の接続そのものを確認した引用としては読まない</td></tr>
+  </tbody>
+</table>
+
+<h3>画面</h3>
+<ul>
+  <li><b>作成画面</b>：入力欄のツールバーにある「仮説モード」をオンにすると、許す主張のチェックボックス（存在・向き・符号・集団・伝達物質と修飾・役割。最初はすべてオンで、役割は外せません）、上限（最初は 20%）、任意のメモが出ます。</li>
+  <li><b>フォローアップ</b>：完了したプロジェクトのエージェント欄に「この指示で仮説を許す」があり、送るたびにオフに戻ります。オンにすると、主張、対象（「全体」か「グラフで選んだ回路・GN」）、上限（最初は「変えない」）が出ます。</li>
+  <li><b>表示</b>：ヘッダとプロジェクトの一覧に「仮説モード」のバッジと、分かれば仮説の件数が出ます。版のタブの生成条件には、根拠のモード・許可範囲・件数と全件数（割合）・上限が出ます。詳細パネルには、仮説ごとの ID、推論の種類、主張、理由、前提、許可範囲が出ます。予測や検証の方法は出しません。</li>
+</ul>
+
+<h3>実装</h3>
+<p>プロジェクトの設定は <code>evidenceMode</code>（<code>strict</code> か <code>hypothesis</code>。値がなければ <code>strict</code> と同じ）、<code>hypothesisScopes</code>、<code>hypothesisMaxShare</code> です。許可範囲の依頼文は <code>prompts/phases/HYPOTHESIS.md</code>、スキーマの出し分けは <code>agentHarnessSchemas</code> です。検査は <code>hypothesisProblems</code>、範囲の判定は <code>scopeTargetCovers</code>、比率は <code>hypothesisShare</code>、番号は <code>hypothesisRecords</code>、仮説の記録のスキーマは <code>HYPOTHESES_SCHEMA</code> です。<code>hypotheses.json</code> は <code>scopes</code>、<code>share</code>、<code>hypotheses[]</code>、<code>evidenceOnlyPath</code>、<code>gns[]</code> を持ち、<code>cross_check.json</code> では <code>hypotheses</code> に記録します。</p>
+<p class="src">典拠：<code>prompts/phases/HYPOTHESIS.md</code>、<code>packages/shared/src/hypothesis.ts</code>・<code>hypothesisInput.ts</code>・<code>hypothesisVersion.ts</code>・<code>graphHypothesis.ts</code>、<code>packages/worker/src/hypothesisRules.ts</code>、<code>packages/api/src/lib/hypothesisSettings.ts</code>、<code>packages/web/src/components/hypothesis/</code>、利用マニュアル「仮説モード」</p>
+
+<h2 id="s3-13">3.13 出力：CSV・xlsx・グラフ</h2>
+<p>CSV 段階と xlsx 段階は、ワーカーのプログラムだけの処理で、LLM は関与しません。CSV をエージェントに書かせず、同じデータから xlsx とグラフを作るので、別々に書いた表どうしが食い違うことはありません。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">成果物</th><th>作り方</th></tr></thead>
+  <tbody>
+    <tr><td>CSV 5 本（<code>&lt;ProjectID&gt;_CSV/</code>）</td><td>JSON から <code>Project</code>・<code>References</code>・<code>Circuits</code>・<code>Connections</code>・<code>FRG</code> を作る。<code>Circuits.csv</code> の Comments には、<code>roi</code> から <code>noROI(...)</code> の印を、<code>uniformityNote</code> から <code>Uniform in this project: …</code> を足す。CSV 段階で問題が出たら、JSON を直す依頼としてエージェントに返す</td></tr>
+    <tr><td>CoBRAC 形式の xlsx</td><td>CSV から作る。Capability&amp;Mechanism のセルには、Capability、テンプレートの既定の印 <code>&lt;&lt;mechanism to realize the capability&gt;&gt;</code>、Mechanism を入れる</td></tr>
+    <tr><td>Template-v2-2 の xlsx</td><td>BRA Data Preparation Manual の公式テンプレートに同じデータを書く（後述）。ダウンロード名は <code>{名前}_{ID}.template-v2-2.bra.xlsx</code></td></tr>
+    <tr><td>グラフ</td><td>CSV から HCD / FRG のグラフの JSON を作る。画面のグラフと、解説記事の図の元になる</td></tr>
+    <tr><td>レポートと判断ログ</td><td>エージェントが書いた文章を、そのまま閲覧・ダウンロードできるようにする</td></tr>
+  </tbody>
+</table>
+<p>公式テンプレートの生成だけが失敗した場合、CoBRAC 形式の xlsx とグラフがそろった状態でジョブが完了することがあります。必要な形式がそろっているかは、ジョブの状態だけでなく出力で確認してください。完了した結果は、ワーカーが生成条件と一緒に凍結して版にします（4.5）。公式テンプレートの出力ができる前に完了したプロジェクトの扱いは、付録 C にまとめます。</p>
+
+<h3>CSV の形式</h3>
+<p><code>Project.csv</code> に書く BRA version は <code>CoBRAC-v1-1</code> です。v1-0 からの列の変更は末尾への追加だけで、v1-0 のすべての列の位置は変わりません。追加した列は次のとおりです。グラフは v1-0 と v1-1 の CSV を列名で読みます。</p>
+<ul>
+  <li>References：Literature type と Alternative URL</li>
+  <li>Circuits.csv：UC Descriptor の後ろに Sub-Circuits と Uniform</li>
+  <li>Connections.csv：Pointers on figure の後ろに、2 つの関係と論文中の表記</li>
+</ul>
+
+<h3>公式テンプレートへの書き込み</h3>
+<ul>
+  <li><b>テンプレートが土台</b>：11 枚のシート、見出し、数式、AdminOnly のリスト、入力規則、条件付き書式を残します。テンプレートが取り込む WholeBIF の行（入力欄の下にある IMPORTRANGE の結果）も残します。書くのは投稿者が入力するセルだけで、自動の列と管理用の列は数式のままにします。</li>
+  <li><b>行</b>：入力欄の行が足りないときは、投稿者が行うのと同じように、WholeBIF の取り込みの上に行を挿入します。最後の入力行を数式ごとコピーし、下の行への参照をずらします。テンプレートの配置の変化（IMPORTRANGE の行の位置）を検出したら、出力を失敗にします。</li>
+  <li><b>Reference ID</b>：テンプレートは BibTeX のキーから Reference ID を作ります（<code>Schultz_1997a</code> → <code>Schultz, 1997a</code>）。そこで CoBRAC の ID ごとに、筆頭著者と年からキーを作ります（重なれば次の文字を付けます）。書き込む自由な文章の中の引用も、同じ ID にそろえます。</li>
+  <li><b>BibTeX</b>：テンプレートの正規表現に合わせ、1 行に 1 項目、<code>=</code> の前後に空白を置きます。ジョブの最後に、ワーカーが DOI を Crossref で、PMID だけの文献を PubMed で照会し、結果を書誌の記録に残します。記録がなければ、<code>references.json</code> と文献の照合の結果から作ります。</li>
+  <li><b>DHBA の列</b>：テンプレート自身が持つ WholeBIF の Circuits の行（Source of ID が <code>DHBA</code>）を、DHBA のオントロジーとして使います。これは HOMBA の <code>graph_order</code> とは別の番号です。1 つの DHBA 項にアンカーした UC はその行の値を、DHBA 項より細かい UC はその項の graph_order に小数を足した値を書きます。BNA にアンカーした回路、ROI の行、UC Descriptor のない回路は空にします。</li>
+</ul>
+<p>テンプレートに書く場所のないもの（UC Descriptor、facet、<code>BNA</code>、CoBRAC の文献の検査など）と、テンプレートの上流に依頼する追加は、別のメモで管理しています。</p>
+
+<h3>実装</h3>
+<ul>
+  <li>CSV は <code>buildCsvs</code>（<code>Project.csv</code> は <code>buildProjectCsv</code>）、グラフは <code>buildGraphs</code> が作ります。CoBRAC 形式の xlsx は <code>prompts/csv_to_excel.py</code> が対話なしで作ります（引数 <code>--contributor</code>・<code>--project-id</code>・<code>--base-dir</code>・<code>--output</code>）。</li>
+  <li>公式テンプレートは <code>prompts/templates/Template-v2-2.bra.xlsx</code> で、<code>buildTemplateXlsx</code>（<code>braTemplate.ts</code>）が書きます。表計算のライブラリは Google 固有の部品を落とすので、XML の水準で編集します（<code>xlsxSheet.ts</code>、zip は fflate）。</li>
+  <li>値の分かる数式セル（References の A / G〜J、Circuits の AO）には Google Sheets の計算結果を表示値として入れ、<code>fullCalcOnLoad</code> で残りを Excel に再計算させます。</li>
+  <li>入力欄の行は、References 2〜29、Circuits 2〜31、Connections 2〜80、FRG 2〜198 です。行を挿入したときは、ほかのシートからの参照、入力規則の範囲、フィルタ、リンク、名前の定義もずらします。</li>
+  <li>書誌の照会は <code>bibliography.ts</code> で、1 要求 10 秒、合計 60 秒までです。失敗したものは次のジョブで再試行し、<code>REFERENCE_LOOKUP=off</code> では照会しません。結果は <code>bibliography.json</code> に、照合の結果は <code>reference_check.json</code> にあります。</li>
+</ul>
+<table class="compact">
+  <caption>シートごとに書く列</caption>
+  <thead><tr><th style="width:12%">シート</th><th>書く</th><th style="width:30%">残す（数式・管理用）</th></tr></thead>
+  <tbody>
+    <tr><td>Project</td><td>A2 Contributor、B2 Project ID、C2 List of contributors、D2 Description、B5〜B8 Review End Line</td><td>E2 BRA version <code>Template-v2-2.bra</code></td></tr>
+    <tr><td>References</td><td>D DOI（なければ空）、E BibTeX、F Literature type、K Alternative URL（DOI がないときだけ）、L Contributor、M Project ID</td><td>A Reference ID、B / C リンク、G〜J、N〜W</td></tr>
+    <tr><td>Circuits</td><td>2 行目は ROI の行。A Circuit ID、B Source of ID、C Names、D〜R DHBA の graph_order・名前・Lv.2〜14、S Sub-Circuits、U Uniform、V Transmitter、W Modulation Type、AA Comments（+ <code>UC Descriptor: …</code>）、AB Contributor、AC Project ID</td><td>T、X〜Z は空。AD〜AM、AO</td></tr>
+    <tr><td>Connections</td><td>A sCID、B / C 関係と表記、D rCID、E / F 関係と表記、H Comments、I Reference ID、J Taxon、K 測定法、L / M Pointers、AE Contributor、AF Project ID（文献ごとに 1 行）</td><td>G、N は空。O〜AD、AG〜AP</td></tr>
+    <tr><td>FRG</td><td>AC Node ID、AD Subnodes、AE Circuit ID、AF Projected Circuits、BA Capability&amp;Mechanism、BC Implementation（UC の行）、BG Requirements Realization、BI Requirements、BK Output Semantics、BM Comments</td><td>A〜AB、AG〜AZ（Region Category・Interface・Implementation は数式）、BB、BD〜BF、BH、BJ、BL、BN〜BX</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code></p>
+
+<h2 id="s3-14">3.14 解説記事</h2>
+<p>解説記事は、完成した BRA を、それを作っていない読者に説明する記事です。利用者の求めに応じて作ります。BRA を作る段階の 1 つではなく、BRA の会話とは別の新しい会話で動く LLM のジョブです。</p>
+<ul>
+  <li><b>作れるとき</b>：プロジェクトが完了して xlsx まで生成済みで、動いているジョブがないときだけです。利用者は言語とモデルを選び、「記事を作成」を押します。言語は 10 言語から選べ、既定は画面の言語です。モデルの既定はプロジェクトのモデルで、デフォルトの API キーでは利用者の利用承認（4.1）で使えるモデルだけを選べます。</li>
+  <li><b>言語ごとの記事</b>：記事は言語ごとに並べて持てます。作り直したときは、新しい記事が検査に通ったときだけ置き換えます。</li>
+  <li><b>プロジェクトの状態</b>：記事のジョブの間、プロジェクトはフォローアップのときと同じく待機中 → 実行中 → 完了と進みます。ただし、段階の状態、プロジェクトの改訂番号、完了時刻、BRA の会話、プロジェクトフォルダは変えません。失敗や取り消しは記事のジョブの状態にだけ残し、プロジェクトは完了に戻します。</li>
+  <li><b>ワーカー</b>：プロジェクトフォルダを、会話は復元せずに戻し、CSV から図を 3 枚描きます。全回路と接続の図、TLF → GN → UC の木の図、GN ごとの接続の図です。それぞれ幅 980 px 以内の版と 430 px のスマートフォン用の版があり、ラベルは日本語か英語です。そのうえで、Web 検索・RCS・文献のツールを持たない新しい会話を始め、記事の指示書と図の一覧、要約表の事実を送ります。</li>
+  <li><b>エージェント</b>：成果物（<code>meta.json</code>・<code>report.md</code>・<code>decision_log.md</code>・HCD と FRG の JSON）だけを読み、記事を書きます。データにない事実は足しません。3 枚の図で示せない点があれば、自分で描いた SVG を最大 2 枚足せます。</li>
+  <li><b>検査</b>：次の点を検査します。問題は修正依頼として最大 3 回返し、それでも残ればジョブを失敗にします。
+    <ul>
+      <li><code>#</code> のタイトルが 1 つあり、その後に要約表があり、<code>##</code> の節が 5 つ以上あること。最低の長さがあり、指定した言語の文字で書かれていること。</li>
+      <li>ワーカーの図を、それぞれ 1 回ずつ、代替テキストとキャプション付きで埋め込んでいること。ほかの画像は使えません。HTML や手書きの参考文献の一覧がないこと。</li>
+      <li><b>Circuit ID の間の矢印（<code>`A` → `B`</code>）は、<code>connections.json</code> にある接続だけ</b>であること。GN の ID が実在し、節へのリンクが見出しと合っていること。</li>
+      <li><b>引用は <code>references.json</code> の ID だけ</b>であること。</li>
+    </ul>
+  </li>
+  <li><b>公開</b>：ワーカーが参考文献の一覧（その言語の見出しと、引用した ID の DOI のリンク）を足し、図と記事を保存します。この実行ではプロジェクトフォルダを S3 に戻しません。SVG はすべて、ワーカーとブラウザの両方で、描画要素と表示属性だけを許す無害化を通します。ブラウザは画像として表示し、記事の欄が 640 px より狭ければスマートフォン用の図を使います。</li>
+  <li><b>古さ</b>：記事は、作り始めたときのプロジェクトの改訂番号を持ちます。その後のフォローアップで改訂番号が変わると、記事を「古い」と表示し、作り直しを勧めます。</li>
+  <li><b>言語</b>：記事は中心の成果物ではないので、成果物を英語で書くという規則の例外です。CSV・xlsx・グラフの変換は記事を読みません。日本語の記事は敬体の、平易な説明文にします。</li>
+  <li><b>使用量</b>：記事のジョブの使用量も、ほかのジョブと同じくプロジェクトの使用量に足します。</li>
+</ul>
+
+<h3>実装</h3>
+<p>記事のジョブの実行モードは <code>article</code> で、作れる条件は <code>stepStates.XLSX = done</code> です。プロジェクトの状態は <code>QUEUED → RUNNING → COMPLETED</code> と進み、<code>revision</code> は変えません。図は <code>buildArticleFigures</code> が描き、名前は <code>circuit</code>・<code>frg</code>・<code>function-map</code> です。指示書は <code>prompts/article.md</code>、検査は <code>checkArticle</code>、無害化は <code>sanitizeSvg</code> です。記事は <code>&lt;ProjectID&gt;/article/&lt;locale&gt;.md</code> と <code>.json</code>、図は <code>article/&lt;locale&gt;/figures/</code> に保存し、ブラウザはオブジェクト URL の <code>&lt;img&gt;</code> で図を表示します。英語の規則の例外は <code>AGENTS.md</code> に明記してあります。</p>
+<p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code></p>
+
+<h2 id="s3-15">3.15 長いジョブと保存</h2>
+<p>長いジョブでは、途中で止まっても作業を失わないことと、会話が大きくなりすぎないことが必要です。この 2 つはワーカーが受け持ちます。</p>
+<ul>
+  <li><b>保存</b>：実行中、ワーカーは 5 分ごとにプロジェクトフォルダと Codex の会話を S3 に保存します。Spot の中断を知らせる SIGTERM を受けたときも保存します。ワーカーが定期的に書くハートビートが途絶えたジョブは、janitor が回復を試みます（8.3）。</li>
+  <li><b>会話の圧縮</b>：Codex は会話を自動で圧縮します。既定では 75,000 トークンで圧縮し、組織の毎分のトークン上限を 1 回の要求で超えないようにします。コンテキストの窓は 272,000 トークンとして扱います。</li>
+  <li><b>大きすぎる会話</b>：会話が大きすぎて再開できない場合は、新しい会話で既存のファイルと判断ログを読んで続けます（3.5）。</li>
+  <li><b>コンテキストと費用の節約</b>：ツールの結果を小さくし、ファイルを部分的に編集し、修正ターンだけ推論の強さを下げます。</li>
+</ul>
+<p>使用量と費用の計算は 9.10、API キーなどの秘密情報の守り方は 9.5 にまとめます。</p>
+
+<h3>実装</h3>
+<p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は <code>CODEX_CONTEXT_WINDOW</code> です。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>CODEX_CONTEXT_WINDOW</code>・<code>turnUsage</code>・<code>sessionTotalUsage</code>）、<code>index.ts</code>（保存とハートビート）、<code>s3sync.ts</code>、<code>env.ts</code></p>
+
+<h2 id="s3-16">3.16 完成した BRA の読み方と限界</h2>
+<div class="box note">
+  <div class="h">完了は受理の保証ではない</div>
+  <p>ジョブの完了は、すべての検査に通ったことや、科学的に正しいことを保証するものではありません。残った警告、照合できなかった引用、調査の不足、仮説への依存は、成果物と一緒に読む必要があります。</p>
+</div>
+
+<h3>検査で分かることの限界</h3>
+<p>ワーカーの検査と照合（3.10）は、形式と対応を機械的に確かめるものです。どの層も、その先の科学的な妥当性までは保証しません。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">層</th><th>結果の限界</th></tr></thead>
+  <tbody>
+    <tr><td>JSON Schema</td><td>正しい形でも、内容が正しいとは限らない</td></tr>
+    <tr><td>HCD / FRG</td><td>生物学的・計算論的な妥当性を完全には判定しない</td></tr>
+    <tr><td>SABRA</td><td>RCS が使えない場合の外部照合には欠落がある</td></tr>
+    <tr><td>BRA の値</td><td>許された値を使っていることと、科学的根拠の強さとは別</td></tr>
+    <tr><td>文献の照合</td><td>書誌が実在することは、その主張の保証ではない</td></tr>
+    <tr><td>引用文の照合</td><td>図の内容や主張の含意までは自動では保証しない</td></tr>
+    <tr><td>調査</td><td>検索しなかった文献がないことは証明しない</td></tr>
+    <tr><td>Canon</td><td>Canon 自体の定義にはレビューが必要</td></tr>
+    <tr><td>仮説</td><td>前提を照合しても、仮説を実証したことにはならない</td></tr>
+    <tr><td>HCD と FRG の整合</td><td>記録と調整の仕組みで、所見がすべてゼロになる保証ではない</td></tr>
+  </tbody>
+</table>
+
+<h3>完成した BRA を読むときの確認</h3>
+<p>完成した BRA を読むときは、次の項目を順に確認してください。</p>
+<table class="compact">
+  <thead><tr><th style="width:15%">確認</th><th style="width:30%">見る場所</th><th>判断すること</th></tr></thead>
+  <tbody>
+    <tr><td>対象</td><td>メタ情報、Overview</td><td>ROI / TLF、左右、種、入出力が意図どおりか</td></tr>
+    <tr><td>構造</td><td>HCD、FRG、表</td><td>UC の粒度、ROI の内外、Collection、処理の流れ、機能の階層が妥当か</td></tr>
+    <tr><td>根拠</td><td>文献、接続、検査結果</td><td>実在する文献か、原文の照合の状態、論文がどの粒度・種・方法で何を示したか</td></tr>
+    <tr><td>機能との対応</td><td>レポートの FRG の対応表</td><td>上からの副機能と下からの候補がどう対応したか、対応しなかったものをどう扱ったか</td></tr>
+    <tr><td>HCD と FRG の調整</td><td><code>cross_check.json</code>、判断ログ</td><td>調整の理由、残した食い違い、未解決の警告</td></tr>
+    <tr><td>調査の限界</td><td><code>research_check.json</code>、Limitations</td><td>未探索・未発見・反証を区別できるか</td></tr>
+    <tr><td>仮説</td><td>Hypotheses、H の表示、<code>hypotheses.json</code></td><td>許可範囲、比率、前提、仮説を除いた経路があるか</td></tr>
+    <tr><td>出力</td><td>ダウンロード、版</td><td>必要な xlsx の形式・CSV・グラフ・レポートがそろっているか</td></tr>
+    <tr><td>来歴</td><td>版の生成条件</td><td>モデル、プロンプト、規則、SABRA 境界、Canon の rev を確認できるか</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>）、<code>packages/shared/src/harness.ts</code>、<code>cross.ts</code>、<code>research.ts</code>、<code>hypothesis.ts</code></p>
+</section>
