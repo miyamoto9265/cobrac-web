@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- New plan form: the source files and the pasted rows are one "Source list" section (「資料」). "Add files" and "Paste rows" sit side by side, the paste box opens on demand, and one help text explains how files and rows are read. They were two sections before (「資料のファイル」 and 「資料（CSV・TSV・テキスト）」) for the same list
+
 ## [0.41.0] - 2026-10-09
 
 ### Added

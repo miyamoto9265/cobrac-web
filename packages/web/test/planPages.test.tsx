@@ -196,7 +196,8 @@ describe("plan list", () => {
     await render("/plans");
     expect(q('[data-testid="plan-list"]')!.textContent).toContain("No plans yet.");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Source list (CSV, TSV or text)"]')!, "ROI,TLF\nSTG,hearing\n");
+    await act(async () => button("Paste rows")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     await act(async () => button("Create plan")!.click());
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
@@ -208,7 +209,8 @@ describe("plan list", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Source list (CSV, TSV or text)"]')!, "ROI,TLF\nSTG,hearing\n");
+    await act(async () => button("Paste rows")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     await act(async () => q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="checkbox"]')!.click());
     expect(button("Create plan")).toBeUndefined();
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");

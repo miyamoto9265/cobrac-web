@@ -226,9 +226,13 @@ describe("new plan with a draft", () => {
     expect(q('[data-testid="plan-need-input"]')).toBeNull();
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "");
     expect(create.disabled).toBe(true);
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="資料（CSV・TSV・テキスト）"]')!, "ROI,TLF\nSTG,hearing\n");
+    // the paste box sits in the same 資料 section and opens on demand
+    expect(q('textarea[aria-label="行を貼り付ける"]')).toBeNull();
+    await click(q<HTMLButtonElement>('[data-testid="plan-paste-open"]'));
+    expect(q('[data-testid="plan-paste-open"]')).toBeNull();
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="行を貼り付ける"]')!, "ROI,TLF\nSTG,hearing\n");
     expect(create.disabled).toBe(false);
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="資料（CSV・TSV・テキスト）"]')!, "  ");
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="行を貼り付ける"]')!, "  ");
     expect(create.disabled).toBe(true);
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [new File(["ROI,TLF\n"], "language.csv", { type: "text/csv" })]);
     expect(create.disabled).toBe(false);
