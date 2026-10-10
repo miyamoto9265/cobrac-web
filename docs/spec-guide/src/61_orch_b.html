@@ -68,6 +68,22 @@
 </figure>
 <p class="small">補足：R1〜R7 のハブは、R1・R2・R5 が 2、ほかが 1 です。基準プロジェクトの候補は依存のない行なので、R5 はハブが 2 でも基準プロジェクトになりません。しきい値は max(1, ⌈2 × 0.6⌉) = 2 なので、R1 と R2 が基準プロジェクトです。本体は R5（ハブ 2）→ R3 → R4 → R6 → R7 の順に置かれます。R4 は、バッチ 3 にまだ空きがあっても R3 と 2 個共有するので、バッチ 4 に入ります。R7 は、バッチ 3 が 3 行で満杯なので、バッチ 4 に入ります。</p>
 
+<h3>フロー実行</h3>
+<p>順序の種類が「自動」で確定した計画は、<b>フロー実行</b>で進みます。バッチは区切りではなく、始める順の目安になります。開始待ちの行は、次の 3 つの条件を満たした時点で始まります。どの行の枠が空いても、すぐに次の行で埋めます。手動の順序の計画は、バッチごとに進みます（6.6）。</p>
+<table class="compact">
+  <thead><tr><th style="width:16%">条件</th><th>内容</th><th style="width:20%">画面の待ち理由</th></tr></thead>
+  <tbody>
+    <tr><td><b>依存</b></td><td>依存する行がすべて完了している（Canon のある計画では、PR が承認されて Canon に入っている）。依存が循環していれば、自分を含む循環の依存は無視する</td><td>「○○ の後」</td></tr>
+    <tr><td><b>基準プロジェクト</b></td><td>アンカーを共有する基準プロジェクトが、すべて完了・スキップ・中止になっている。アンカーを共有しない基準プロジェクトどうしは並行して作る</td><td>「基準 ○○ の後」</td></tr>
+    <tr><td><b>重なり</b></td><td>まだ仕事が入っていない行（開始中・実行中・質問中・承認待ちの行と、プロジェクトのある開始待ちの行）との重なりの強さが 3 未満。強さは共有するアンカー 1 個につき 1 で、どちらかの ROI（最初のアンカー）なら 2。完了した行がすでに作った回路は 0.3 倍に数える</td><td>「○○ の後」</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>始める順</b>：Canon に合わせた更新、リトライ、基準プロジェクトの順で、そのあとは後ろに依存する行の多い順（クリティカルパス）、ハブ、優先度、バッチ、並び順の順です。条件を満たして枠を待つ行には「次に開始」と出ます。承認待ちの上限（6.7）で止まった行には「承認待ちが多いため待機」、自律実行の費用の上限（6.8）で止まった行には「費用の上限」と出ます。</li>
+  <li><b>レーン</b>：依存と、ハブでないアンカーでつながる行のまとまりです。行の 25% 以上かつ 3 行以上が持つアンカーはハブとして扱い、つながりに数えません。行数の多い順にレーン 1、2、… と番号を付けます。レーンは表示のためのもので、実行の条件にはなりません。</li>
+  <li><b>見積もり</b>：上の条件で 1 行 48 分として枠に詰めるシミュレーションに、手直しの時間（6.9）を足します。図 6.2 の例（同時実行数 3）では、条件を満たすのは R1・R3・R6・R7 です。R2 は R1 と IFG44 を共有する基準プロジェクトで、R4 は R3 と強く重なり、R5 は R1・R2 に依存するためです。3 つの枠に R1・R3・R6 が入り、48 分後に R2・R4・R7、96 分後に R5 が始まります。3 回分 × 48 分に手直しを足して約 151 分で、バッチごとに進めた場合（4 回分、約 199 分）より短くなります。レーンは R1・R2・R5、R3・R4、R6・R7 の 3 つです。</li>
+</ul>
+
 <h3>下書きの並べ方</h3>
 <ul>
   <li>作る行（スキップでも既存でもない行）を、バッチ 1 から上の 3 段階で置きます。</li>
@@ -78,7 +94,8 @@
 
 <h3>実装</h3>
 <p>計算は <code>packages/shared/src/planOrder.ts</code> の <code>orderPlanRows</code> で、下書きの並べ方は <code>orderDraft</code> です。アンカーの形は <code>HOMBA:&lt;id&gt;</code>（DHBA 側）、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>（BNA の領域のペア）、<code>BNAG:&lt;L2&gt;</code>（BNA の群）で、<code>BNAG:IFG</code> の行と IFG の 1 領域の行はアンカーを共有します。定数は、基準プロジェクトのしきい値 <code>SEED_HUB_SHARE</code>（0.6）、基準プロジェクトの最大数 <code>MAX_SEED_ROWS</code>（3）、同じバッチに入れない共有の数 <code>OVERLAP_LIMIT</code>（2）です。行の並び順は <code>order</code>、基準プロジェクトの印は <code>seed</code> です。<code>GET /plans/{id}</code> は、スキップ以外の行について <code>hub</code> と <code>overlaps</code> を返します。</p>
-<p class="src">典拠：<code>packages/shared/src/planOrder.ts</code>（<code>orderPlanRows</code>・<code>orderDraft</code>）、<code>packages/api/src/lib/planOps.ts</code></p>
+<p>フロー実行は計画の <code>scheduling: "flow"</code>（バッチごとは <code>"waves"</code>）で、計算は <code>packages/shared/src/planFlow.ts</code> にあります。始められる行と待ち理由は <code>flowPlan</code>、重なりの強さは <code>overlapScore</code>（しきい値 <code>STRONG_OVERLAP</code> = 3、完了した回路の重み <code>COVERED_WEIGHT</code> = 0.3）、レーンは <code>planLanes</code>（ハブの割合 <code>HUB_ANCHOR_SHARE</code> = 0.25、<code>HUB_MIN_ROWS</code> = 3）、見積もりは <code>simulateFlowMinutes</code> です。<code>GET /plans/{id}</code> は、フロー実行の計画の行に <code>lane</code> と <code>wait</code> を付けます。</p>
+<p class="src">典拠：<code>packages/shared/src/planOrder.ts</code>（<code>orderPlanRows</code>・<code>orderDraft</code>）・<code>planFlow.ts</code>、<code>packages/api/src/lib/planOps.ts</code></p>
 
 <h2 id="s6-6">6.6 実行とバッチごとの見直し</h2>
 <p>確定した計画は、ランナーが進めます。ランナーは毎分動き、確定・再開・リトライの直後にも 1 回動きます。下書き作成中・実行中・一時停止中の計画ごとに、計画に 90 秒の<b>リース</b>を取り、取れなければその計画を飛ばします。本節では、行の状態を画面の名前（開始待ち・実行中・質問中・完了・要対応・スキップなど）で表記します。状態の一覧は 6.12 にあります。</p>
@@ -88,8 +105,8 @@
   <thead><tr><th style="width:20%">手順</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><b>1. 行を追う</b></td><td>開始中・実行中・質問中の行のプロジェクトを見る。待機・実行・仕上げ中なら実行中、回答待ちなら質問中、完了なら完了（Canon のある計画では push、6.7）。失敗したときは、試行が 2 回未満なら同じプロジェクトのまま開始待ちに戻し（自動リトライ）、2 回に達していれば要対応にする。回答待ちのまま 7 日たって失敗したときは、リトライせず要対応にする。計画の外で止められた・削除されたときも要対応にする</td></tr>
-    <tr><td><b>2. バッチを進める</b></td><td>実行中の計画だけ。現在のバッチとそれより前に、開始待ち・開始中・実行中の行がなくなったら、待つ行のある次のバッチへ進める。質問中と要対応の行は待たない（その行だけが止まる）。前のバッチに戻ることはない</td></tr>
-    <tr><td><b>3. 行を始める</b></td><td>現在のバッチとそれより前の開始待ちの行を、バッチと並び順の順に、<b>空き枠</b>の数だけ始める（下の「枠の使い方」）。1 行ごとに計画を読み直し、一時停止・中止されていれば止める</td></tr>
+    <tr><td><b>2. バッチを進める</b></td><td>実行中の計画だけ。現在のバッチとそれより前に、開始待ち・開始中・実行中の行がなくなったら、待つ行のある次のバッチへ進める。質問中と要対応の行は待たない（その行だけが止まる）。前のバッチに戻ることはない。フロー実行の計画では、現在のバッチを「未完了の行のあるいちばん早いバッチ」にするだけで、表示のためにしか使わない</td></tr>
+    <tr><td><b>3. 行を始める</b></td><td>現在のバッチとそれより前の開始待ちの行を、バッチと並び順の順に、<b>空き枠</b>の数だけ始める（下の「枠の使い方」）。フロー実行の計画では、6.5 の条件を満たす行を、6.5 の始める順に始める。1 行ごとに計画を読み直し、一時停止・中止されていれば止める</td></tr>
     <tr><td><b>4. 完了</b></td><td>すべての行が完了かスキップなら、計画を完了にする</td></tr>
   </tbody>
 </table>
@@ -117,6 +134,7 @@
   <li>Canon のある計画で、PR の判断のジョブ（自律実行）か AI レビュー（人が対応する計画）を依頼する（6.7）</li>
   <li>新しい行と、リトライ・更新を待つ行を始める</li>
 </ol>
+<p>フロー実行の計画では、始められる行があるあいだ、オーケストレーター自身の AI のジョブ（行のジョブ・再計画・PR の AI レビューと判断）は、実効の同時実行数の 3 分の 1（切り上げ。6 なら 2）までしか枠を使いません。行が AI を待つあいだも、ほかの行が枠を使えるようにするためです。できあがった回答をエージェントに渡すことは、この制限を受けません。</p>
 
 <h3>質問と要対応の行</h3>
 <p>エージェントが質問した行や要対応になった行は、その行だけが止まり、ほかの行は進み続けます。</p>
@@ -139,6 +157,7 @@
 
 <h3>バッチごとの見直し</h3>
 <p>順序の種類が「自動」の計画では、バッチが終わるたびに残りの行を見直します。下書きの直後は自動で、自律実行の計画はそのまま自動で進みます。所有者が行を手で並べ替えた計画（手動の順序、6.9）では見直しません。</p>
+<p><b>フロー実行の計画</b>では、手順 1 のアンカーの置き換えは同じように行いますが、手順 2 の並べ直しはしません。始める順は毎ステップ、実物のアンカーで計算し直すためです。再計画のジョブは、最初の行が完了した後に 1 回、その後は作る行の 1 割（1 行以上）が前回のあとに終わるごとに 1 回求めます。</p>
 <ol class="steps">
   <li><b>アンカーを実物で置き換える</b>：完了した行（既存で済んだ行を除く）のうち、アンカーがまだ「実物」でないものについて、そのプロジェクトの HCD の <code>uc.json</code> を読みます（1 ステップ 20 件まで。1 つのバッチに入る数より多い）。読めてアンカーがあれば、すべての UC と Collection の Descriptor のアンカーで、行のアンカーを置き換えます。予想と違った重なりが、次の並べ直しに反映されます。</li>
   <li><b>並べ直す</b>：次の条件がそろえば、動かせる行を、現在のアンカーとハブの値で、次のバッチから並べ直します。
@@ -177,14 +196,15 @@
 <h3>実装</h3>
 <ul>
   <li><b>ランナー</b>：Lambda <code>planRunner</code> を EventBridge の <code>rate(1 minute)</code> で動かす。1 ステップは <code>advancePlan</code>、行を追うのは <code>syncRow</code>。リースは計画の <code>META</code> への楽観的な条件付き書き込み。現在のバッチは <code>activeWave</code>。</li>
+  <li><b>フロー実行</b>：始める行は <code>flowCandidates</code>（<code>flowPlan</code> に承認待ちの上限と費用の予約をかけたもの）、現在のバッチは <code>flowActiveWave</code>、AI のジョブの枠は <code>controlSlotCap</code>。</li>
   <li><b>行の状態</b>：開始待ち <code>pending</code>、開始中 <code>starting</code>、実行中 <code>running</code>、質問中 <code>question</code>、完了 <code>done</code>、要対応 <code>attention</code>（理由 <code>failed</code>・<code>question_timeout</code>・<code>cancelled_outside</code>・<code>project_deleted</code>・<code>start_failed</code>）、スキップ <code>skipped</code>、中止 <code>cancelled</code>。自動リトライの回数は <code>MAX_ROW_AUTO_RETRIES</code>（2）。</li>
   <li><b>行の開始</b>：プロジェクトの作成は <code>POST /projects</code> と同じ <code>createProject</code>（<code>planId</code> と計画の <code>harnessRules</code> 付き）、続きからの開始は <code>POST /projects/{id}/retry</code> と同じ <code>queueRetry</code>、止めるのは <code>stopProject</code>。一時停止の理由は <code>owner_disabled</code> / <code>no_key</code> / <code>model_not_allowed</code>。</li>
   <li><b>通知と来歴</b>：チャットの通知は <code>sys.planStarted</code>・<code>sys.planCancelled</code>。来歴は <code>Projects.planId</code>・<code>Jobs.planId</code> と版の manifest の <code>planId</code>。</li>
   <li><b>見直し</b>：完了した行の <code>users/{owner}/{projectId}/workspace/{projectId}_HCD/uc.json</code> を <code>anchorsOfUcJson</code> で読み、アンカーの出所を <code>anchorsSource: "used"</code> にする。動かせる行は <code>isMovableRow</code>、並べ直しは <code>replanRows(rows, activeWave, effective)</code>、最後に並べ直したバッチは <code>lastReplanWave</code>（イベント <code>replanned</code>：バッチと動かした行）。</li>
-  <li><b>再計画のジョブ</b>：<code>replan = { kind: "replan", status: "waiting", wave, requestedBy: "runner" }</code>。回数の判定は <code>replanJobDue</code>、上限は <code>MAX_REPLAN_JOBS</code>（10）。取り消しは <code>dropReplan</code>。イベントは <code>proposals_received</code>・<code>replan_failed</code>。</li>
+  <li><b>再計画のジョブ</b>：<code>replan = { kind: "replan", status: "waiting", wave, requestedBy: "runner" }</code>。回数の判定は <code>replanJobDue</code>（フロー実行は <code>flowReplanDue</code> で、前回の完了数を <code>replanDone</code> に持つ）、上限は <code>MAX_REPLAN_JOBS</code>（10）。取り消しは <code>dropReplan</code>。イベントは <code>proposals_received</code>・<code>replan_failed</code>。</li>
   <li><b>提案</b>：<code>PROP#&lt;proposalId&gt;</code> に、状態 <code>open</code>・ジョブ・バッチ付きで保存する（<code>storeProposals</code>）。承認は <code>POST /plans/{id}/proposals/{proposalId}/accept</code>、却下は <code>…/reject</code>。条件に合わなければ 409（200 行に達した追加、「無効」<code>stale</code> になった提案を含む）。決めた提案は <code>decidedAt</code> / <code>decidedBy</code> を持ち、<code>accepted</code> / <code>rejected</code> になる（イベント <code>proposal_accepted</code> / <code>proposal_rejected</code>）。方針の提案は <code>accepted</code>・<code>decidedBy: "runner"</code> で保存する（イベント <code>proposal_accepted</code>、<code>by</code> = <code>runner</code>）。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/planRunner.ts</code>（<code>advancePlan</code>・<code>syncRow</code>）・<code>runs.ts</code>（<code>createProject</code>・<code>queueRetry</code>・<code>stopProject</code>）・<code>planJobs.ts</code>・<code>planOps.ts</code>、<code>packages/shared/src/plan.ts</code>・<code>planOrder.ts</code>（<code>replanRows</code>・<code>replanJobDue</code>・<code>anchorsOfUcJson</code>）</p>
+<p class="src">典拠：<code>packages/api/src/lib/planRunner.ts</code>（<code>advancePlan</code>・<code>syncRow</code>・<code>flowCandidates</code>）・<code>runs.ts</code>（<code>createProject</code>・<code>queueRetry</code>・<code>stopProject</code>）・<code>planJobs.ts</code>・<code>planOps.ts</code>、<code>packages/shared/src/plan.ts</code>・<code>planOrder.ts</code>（<code>replanRows</code>・<code>replanJobDue</code>・<code>anchorsOfUcJson</code>）・<code>planFlow.ts</code>（<code>flowActiveWave</code>・<code>controlSlotCap</code>・<code>flowReplanDue</code>）</p>
 
 <h2 id="s6-7">6.7 Canon のある計画</h2>
 <p>計画に Canon を 1 つ決めると、完成した行をその Canon に取り込みながら進みます。自律実行で作った計画は、既定で計画の名前の新しい Canon を持ちます（6.3）。<b>行が完了になるのは、その行の PR が承認されたとき</b>です。</p>
@@ -343,8 +363,8 @@
 
 <h3>基準プロジェクトのゲートと承認待ちの上限</h3>
 <div class="grid2">
-  <div class="card"><div class="h">基準プロジェクトのゲート</div>Canon のある計画では、基準プロジェクトは、<b>その PR が承認される</b>（または要判断が解決されるか、スキップされる）まで、あとのすべてのバッチを止めます。基準プロジェクトは同じバッチにあっても 1 件ずつ始まり、ほかの基準プロジェクトが実行中・承認待ち・要判断の間は始まりません。画面には「基準プロジェクトの PR の承認を待っています。」と PR へのリンク、または「基準プロジェクトに人の判断が必要です。」が出ます。基準プロジェクトの PR が先に承認されると、あとの行はその rev から作り始めます。自律実行の計画では、判断のジョブによる承認（またはスキップ）でゲートが開きます。</div>
-  <div class="card"><div class="h">承認待ちの上限</div>承認待ちの行が 20 件に達すると、新しいバッチを始めません。現在のバッチの行は続きます。画面には「承認待ちの PR が n 件あるため、次のバッチを止めています。」と出ます。Canon の画面の「まとめて承認」（5.6）で、矛盾のない PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
+  <div class="card"><div class="h">基準プロジェクトのゲート</div>Canon のある計画では、基準プロジェクトは、<b>その PR が承認される</b>（または要判断が解決されるか、スキップされる）まで、あとのすべてのバッチを止めます。基準プロジェクトは同じバッチにあっても 1 件ずつ始まり、ほかの基準プロジェクトが実行中・承認待ち・要判断の間は始まりません。画面には「基準プロジェクトの PR の承認を待っています。」と PR へのリンク、または「基準プロジェクトに人の判断が必要です。」が出ます。基準プロジェクトの PR が先に承認されると、あとの行はその rev から作り始めます。自律実行の計画では、判断のジョブによる承認（またはスキップ）でゲートが開きます。フロー実行の計画では、基準プロジェクトが止めるのはアンカーを共有する行だけです（6.5）。</div>
+  <div class="card"><div class="h">承認待ちの上限</div>承認待ちの行が 20 件に達すると、新しいバッチを始めません。現在のバッチの行は続きます。フロー実行の計画では、プロジェクトのある行（リトライと Canon に合わせた更新）だけを始めます。画面には「承認待ちの PR が n 件あるため、次のバッチを止めています。」と出ます。Canon の画面の「まとめて承認」（5.6）で、矛盾のない PR をまとめて承認できます。再計画も、バッチの行の PR がすべて承認されてから行います。</div>
 </div>
 
 <h3>Canon が見つからないとき</h3>

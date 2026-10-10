@@ -33,7 +33,7 @@
   <thead><tr><th style="width:16%">項目</th><th>仕様</th></tr></thead>
   <tbody>
     <tr><td>保存</td><td>管理画面で、どの管理者も登録・置き換え・削除できる。どの利用者にも属さない。個人のキーとは別の暗号化の条件で保存するので、個人のキーの条件では復号できず、逆もできない。登録時に個人のキーと同じく OpenAI で有効性を検査し、Tier 2 の利用者に出すモデルの一覧を保存する。書き込み専用で、API は登録の有無・末尾 4 文字・更新日時だけを返す。個人のキーをデフォルトの API キーにコピーすることはない</td></tr>
-    <tr><td>利用承認と Tier</td><td>管理画面で利用者ごとに設定する。既存の利用者も新しい利用者も、未承認から始まる。Tier 1 で使えるのは <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code> だけ（正確なモデル ID で判定）。Tier 2 ではすべてのモデルを使える</td></tr>
+    <tr><td>利用承認と Tier</td><td>管理画面で利用者ごとに設定する。既存の利用者も新しい利用者も、未承認から始まる。Tier 1 で使えるのは <code>gpt-6-luna</code>・<code>gpt-5.6-luna</code> と、Claude のモデルでは <code>claude-haiku-5-5</code> だけ（正確なモデル ID で判定）。Tier 2 ではすべてのモデルを使える</td></tr>
     <tr><td>優先順位</td><td>利用者自身のキーが常に優先され、Tier の制限を受けない。Tier はデフォルトの API キーで実行するジョブにだけかかる。承認済みの利用者が後で自分のキーを登録すると以後は自分のキーで実行し、削除するとデフォルトの API キーに戻る。管理者の個人のキーは、その管理者自身のジョブにだけ使う</td></tr>
     <tr><td>ジョブの開始時の判定</td><td>ジョブを始めるすべての依頼（作成・フォローアップ・リトライ・回答・解説記事）で、API が使うキーとモデルを決める。解説記事では記事に選んだモデルも判定する。使えるキーがない場合は 400。自分のキーがなく、承認とデフォルトの API キーの登録もそろっていない場合がこれに当たる。利用者がこのジョブのために選んだモデルが Tier にない場合は 403「このモデル（&lt;model&gt;）は利用できません」</td></tr>
     <tr><td>選んでいないモデルの置き換え</td><td>利用者がこのジョブで選んでいないモデルは、失敗させずに Tier の既定（<code>gpt-6-luna</code>）に置き換える。対象は、保存した既定のモデル、デプロイの既定、複製に与える既定、以前に自分のキーや別の Tier で作ったプロジェクトのモデル。そうしたプロジェクトにフォローアップ・リトライ・回答を送ると、プロジェクトのモデルを以後も Tier の既定に移し、通常の「Model: …」のお知らせを出す。モデルを選ばない解説記事は Tier の既定で実行し、プロジェクトのモデルは変えない</td></tr>
@@ -42,6 +42,19 @@
     <tr><td>取り消し</td><td>ワーカーは起動のたびに、もう一度判定する。対象は新しいジョブ・回答・リトライ・中断後の再開。承認がない、デフォルトの API キーがない、Tier が許さないモデル、のどれかに当たればジョブを失敗にし、お知らせを出す。実行中のターンは止めない</td></tr>
     <tr><td>利用額</td><td>ジョブには、自分のキーとデフォルトの API キーのどちらで実行したかを記録する。管理画面は、デフォルトの API キーで実行したジョブを利用者ごとに合計し、各利用者の横に出す（4.7）。アプリには支出の上限がないので、デフォルトの API キーを発行した OpenAI のプロジェクトに予算を設定する</td></tr>
     <tr><td>漏えいへの備え</td><td>キーは API から返さず、ログに出さず、エージェントが実行するコマンドにも渡さない。エージェントは自分のタスクの中では広い操作ができるが、キーを持つプロセスの環境は読めない構成になっている（9.5）。それでもエージェントは自分のジョブでキーを使うので、信頼できる共同作業者だけを承認し、予算を設定した OpenAI プロジェクトのキーを使う</td></tr>
+  </tbody>
+</table>
+
+<h3>Claude のモデルのキー</h3>
+<p>エージェントは OpenAI のモデルのほかに、Anthropic の Claude のモデルでも動かせます（4.2）。OpenAI と Anthropic のキーは別々に登録し、どちらのキーで動くかはジョブのモデルの提供元ごとに、上の表と同じ規則で決まります。</p>
+<table class="compact">
+  <thead><tr><th style="width:16%">項目</th><th>仕様</th></tr></thead>
+  <tbody>
+    <tr><td>登録</td><td>利用者は設定画面の「Anthropic API キー」（承認済みの利用者には「自分の Anthropic API キー（任意）」）で自分のキーを登録できる。管理者は管理画面で「デフォルトの Anthropic API キー」を登録する。どちらも登録時に Anthropic で有効性を検査する。ワークスペースに紐づかないキー（ユーザーキー）には、任意の欄でワークスペース ID（<code>wrkspc_…</code>）を添える</td></tr>
+    <tr><td>どのキーで動くか</td><td>自分の Anthropic キーが優先し、なければ利用承認とデフォルトの Anthropic API キーの組で実行する。Tier による制限は上の表のとおり</td></tr>
+    <tr><td>キーがないとき</td><td>デフォルトの Anthropic API キーが登録されていない間は、承認済みの利用者も、自分の Anthropic キーを登録しない限り Claude のモデルを使えない。設定画面のカードは「自分の Anthropic API キーを登録すると、Claude のモデルを使えます。」と示し、入力欄を開いておく。Claude のキーがない利用者が Claude のモデルを選ぶと 403「Claude のモデルを使うには Anthropic API キーの登録が必要です」</td></tr>
+    <tr><td>選択欄と既定</td><td>モデルの選択欄には、使えるキーがある提供元のモデルだけを出す。Claude のキーしかない利用者の既定のモデルは <code>claude-haiku-5-5</code></td></tr>
+    <tr><td>利用額</td><td>ジョブに記録するキーの種類（自分のキーかデフォルトの API キーか）は、そのジョブのモデルの提供元のキーを指す</td></tr>
   </tbody>
 </table>
 
@@ -64,9 +77,10 @@
   <li>利用承認は <code>Users.orgAccess = { tier, approvedAt, approvedBy }</code> です。値がないか null なら未承認です。Tier 1 のモデルは <code>ORG_TIER1_MODELS</code> です。<code>/users/me/models</code> は Tier 1 の利用者に <code>restricted: true</code> を返します。</li>
   <li>ワーカーが取り消しで出すお知らせは <code>sys.noApiKey</code>・<code>sys.orgKeyUnavailable</code>・<code>sys.orgKeyModel</code> です。ワーカーが読めるのは Catalog の <code>config</code> パーティションだけです（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）。</li>
   <li>ジョブは <code>keySource</code>（<code>own</code> / <code>org</code>。<code>org</code> がデフォルトの API キー）を記録します。利用者ごとの合計は <code>GET /admin/org-usage</code> が返します。</li>
+  <li>Anthropic のキー：個人のキーは <code>Users.encryptedAnthropicKey</code>（暗号化コンテキスト <code>{ userId, purpose: "anthropic-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-anthropic-key"</code>（<code>{ purpose: "anthropic-api-key", scope: "default" }</code>）に保存します。保存するのは、キーの後に改行とワークスペース ID を続けた 1 つの文字列（<code>joinAnthropicCredential</code>）の暗号文です。有効性の検査は Anthropic の <code>/v1/models</code> で行います。どのキーで動くかは提供元ごとに <code>ModelPolicy</code>（<code>claude</code> が Anthropic 側）が決め、<code>/users/me/models</code> は Anthropic 側のキーの種類を <code>claudeKeySource</code> で返します。</li>
   <li>キーを守る仕組み：<code>shell_environment_policy</code> が <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> をコマンドの環境から除きます。エージェントは自分の Fargate タスクの中で Codex のプロセスと同じ OS ユーザーとして動きますが、<code>node</code>・Codex・git の実行ファイルは実行専用で、そのプロセスはダンプできません。そのため <code>/proc/&lt;pid&gt;/environ</code> からキーを読めません。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>、<code>packages/web/src/i18n/claude.ts</code></p>
 
 <h2 id="s4-2">4.2 プロジェクトの作成と設定</h2>
 <p>プロジェクトは「新規プロジェクト」の画面で作ります。入力欄は ROI（対象の脳領域）と TLF（その領域が担う機能）の 2 つの欄を上下に組にしたもので、どちらか一方だけでも作れます。足りない側はエージェントが調べて補います。ROI の欄に Brainnetome（BNA）の略称か領域名を打つと、BNA の領域が候補に出ます。空の欄には ROI と TLF の例が順に表示され、「例を使う」で両方の欄に入ります。操作の詳細は利用マニュアルにあります。</p>
@@ -84,11 +98,12 @@
 <p>名前と Contributor の入力欄はありません。プロジェクトは、ROI と TLF から作った仮の名前と、アカウントに設定した Contributor 名で始まります。名前は後でエージェントが付けた名前に置き換わり、プロジェクト画面で変えることもできます（4.3）。</p>
 
 <h3>モデルと推論の強さ</h3>
-<p>エージェントを動かす OpenAI のモデルと、<b>推論の強さ</b>（reasoning effort）は、次の規則で決まります。</p>
+<p>エージェントを動かすモデルと、<b>推論の強さ</b>（reasoning effort）は、次の規則で決まります。モデルは OpenAI のモデルのほかに、Anthropic の Claude のモデルも選べます。</p>
 <ul>
   <li><b>モデルの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、アプリの既定（<code>gpt-6-luna</code>）の順に、最初に値があるものを使います。プロジェクトを作るとき、API は必ず具体的なモデル名を決めて保存します。費用を計算できるようにするためで、「Codex の既定」のような不明な値は残しません。デフォルトの API キーを使う Tier 1 の利用者では、Tier にない既定は <code>gpt-6-luna</code> に置き換わります（4.1）。</li>
   <li><b>推論の強さの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、Codex の既定の順です。値は <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code>・<code>max</code>・<code>ultra</code>・<code>persistent</code> のどれかで、画面は <code>high</code> を推奨として示します。</li>
   <li><b>選べるモデル</b>：API キーを登録するとき、そのキーで使える GPT-5.6 と GPT-6 の文章のモデルを保存します。日付付きのスナップショットと、音声・画像・検索などの派生モデルは除きます。デフォルトの API キーの利用者には、Tier 2 ならデフォルトの API キーのモデルを、Tier 1 なら Tier 1 のモデルを出します。モデルは作成と設定の画面で選べます。</li>
+  <li><b>Claude のモデル</b>：選べるのは <code>claude-fable-5-1</code>・<code>claude-opus-5-5</code>・<code>claude-sonnet-5-5</code>・<code>claude-haiku-5-5</code> の 4 つです。モデル ID が <code>claude-</code> で始まれば Anthropic のモデルとして扱い、Claude Agent SDK で実行します（8.4）。ハーネス、指示書、ターンの制御、成果物は OpenAI のモデルと同じです。選択欄に出るのは、使えるキーがある提供元のモデルだけです（4.1）。</li>
   <li><b>引き継ぎ</b>：フォローアップとリトライは、プロジェクトの設定をそのまま使います。解説記事と AI レビューは、そのときに選んだモデルを使い、選ばなければプロジェクトか既定のモデルを使います。</li>
   <li><b>ターンごとの強さ</b>：調査モードでは、調査のターンの強さを少なくとも <code>high</code> に上げます。修正ターンでは <code>medium</code> を上限にします（8.4）。ほかのターンはプロジェクトの強さのままです。</li>
 </ul>
@@ -114,13 +129,14 @@
 <ul>
   <li>モデルのデプロイの既定は環境変数 <code>CODEX_MODEL</code>、アプリの既定は <code>DEFAULT_CODEX_MODEL</code> です。推論の強さのデプロイの既定は <code>CODEX_REASONING_EFFORT</code> です。選べるモデルは OpenAI の <code>/v1/models</code> の結果を <code>filterCodexModels</code> で絞り、<code>availableModels</code> に保存します。修正ターンの上限は <code>fixTurnEffort</code>（<code>FIX_TURN_EFFORT</code> = <code>medium</code>）です。</li>
   <li><code>gpt-5.6</code> という別名は Codex のモデルの目録にないので、ワーカーは OpenAI がそれを振り向ける <code>gpt-5.6-sol</code> を Codex に渡します（<code>CODEX_MODEL_ALIASES</code>）。ジョブには利用者が選んだモデルを記録します。</li>
+  <li>Claude のモデルの一覧は <code>CLAUDE_MODELS</code>、提供元の判定は <code>providerOf</code>（<code>packages/shared/src/provider.ts</code>）です。</li>
   <li>参考資料の上限は <code>ATTACHMENT_LIMITS</code>（<code>packages/shared/src/attachments.ts</code>）です。</li>
   <li>アップロード：<code>POST /uploads</code> が名前と大きさを検査し、署名付き POST を返します。ポリシーで staging のキー・Content-Type・大きさの範囲を固定し、有効期間は 15 分です。バケットの CORS は、CloudFront のドメイン、<code>https://cobrac.site</code>、<code>http://localhost:5173</code> からの POST を許します。staging のファイルは 1 日で消えます。</li>
   <li><code>POST /projects</code> は、アップロードが存在して上限内であることを検査してから <code>attachments/files/</code> に移し、一覧を <code>Projects.attachments</code> に保存します（<code>kind: "file"</code>：name・key・size・contentType。<code>kind: "url"</code>：url）。</li>
   <li>ワーカーは実行のたびに <code>attachments/</code> を <code>/work/materials/</code> にコピーします。最初の実行で、PDF の本文（<code>pdftotext</code>）、Office の本文（DOCX・PPTX・XLSX の共有文字列）、URL の中身を抜き出します。URL の中身は、HTML なら本文、PDF なら本文付きのファイル、画像ならその画像です。取得は 10 MB・20 秒・リダイレクト 5 回までで、経由するすべての遷移先が公開アドレスでなければなりません。結果は <code>manifest.json</code> とともに <code>attachments/derived/</code> に保存します。</li>
   <li><code>materials/INDEX.md</code> が各項目の元・本文・状態を並べ、依頼文の先頭に <code>Reference materials:</code> の行が付きます。資料の扱いは <code>prompts/AGENTS.md</code> がエージェントに伝えます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>・<code>provider.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
 
 <h2 id="s4-3">4.3 プロジェクトの ID・名前・削除</h2>
 <h3>ID の形式</h3>
@@ -324,11 +340,11 @@
 <p class="src">典拠：<code>packages/api/src/app.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code></p>
 
 <h2 id="s4-7">4.7 使用量と費用の表示</h2>
-<p>ジョブごとに、OpenAI のモデルが使ったトークンの量（<b>使用量</b>）と、そこから計算した推定費用を記録し、画面に表示します。費用は単価表から計算した推定値で、実際の請求額の正本は OpenAI のダッシュボードです。測り方と単価表は 9.10 にあります。</p>
+<p>ジョブごとに、モデルが使ったトークンの量（<b>使用量</b>）と、そこから計算した推定費用を記録し、画面に表示します。費用は単価表から計算した推定値で、実際の請求額の正本は OpenAI と Anthropic のダッシュボードです。測り方と単価表は 9.10 にあります。</p>
 <table class="compact">
   <thead><tr><th style="width:20%">記録するもの</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>使用量</td><td>入力、そのうちキャッシュされた入力、出力、そのうち推論のトークンの 4 つの量。途中で止まったターンの分も数える</td></tr>
+    <tr><td>使用量</td><td>入力、そのうちキャッシュされた入力、出力、そのうち推論のトークンの 4 つの量。Claude のモデルでは、キャッシュへの書き込みも別に数える。途中で止まったターンの分も数える</td></tr>
     <tr><td>モデル</td><td>ジョブの開始時に実際に使ったモデル（4.2）</td></tr>
     <tr><td>推定費用</td><td>使用量に、モデルごとの単価をかけた値。単価表にないモデルでは費用を出さず、画面は <code>$—</code> と表示する</td></tr>
     <tr><td>キーの種類</td><td>自分のキーとデフォルトの API キーのどちらで実行したか（4.1）</td></tr>

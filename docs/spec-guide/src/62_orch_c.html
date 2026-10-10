@@ -173,6 +173,7 @@
       <li>計画用のジョブ（下書き・再計画・行のジョブ）</li>
       <li>この計画の PR についての AI レビューと判断のジョブ</li>
     </ul></li>
+  <li><b>費用の予約</b>（フロー実行の計画）：行を始める前に、上限からこれまでの費用と、作っている行 1 件につき 0.5 行分を引き、その残りに収まる数だけ行を始めます。1 行の費用は、完了した行が 5 件になるまでは $0.39（見積もりの上限）、その後は完了した行の費用の 75 パーセンタイルです。作っている行がなければ、残りが 1 行分に満たなくても 1 行は始めます。</li>
   <li><b>上限に達したとき</b>：ランナーは毎回の処理で費用を確認し、初めて上限に達したときに、その時刻と費用・上限を記録します。それ以降は<b>新しい行・フォローアップ・解決のジョブ・再計画を始めません</b>。実行中の行は最後まで進み、その質問への回答と PR の判断も続きます。動いているもの（開始中・実行中・質問中の行、判断を待つ PR、行のジョブ）がなくなると、計画は一時停止します。画面には「一時停止中: 自律実行の費用の上限に達したため、新しい行を始めていません。上限を上げると再開できます。」と出ます。要対応・要判断の行は、そのまま再開を待ちます。実行中の行が最後まで進むので、費用は上限を少し超えることがあります。</li>
   <li><b>再開</b>：新しい上限を指定して再開します。新しい上限は 1〜1000 USD で、これまでの費用より大きくなければなりません。上限に達して止まった計画を、新しい上限なしで再開することはできません。画面では、一時停止の帯の下に「新しい費用の上限」の欄と「上限を上げて再開」が出ます。</li>
 </ul>
@@ -186,7 +187,7 @@
   <li><b>解決</b>：除外の条件は <code>lastError</code> が「The plan's Canon was not found.」の行。選択肢は <code>planRowOptions</code>（<code>retry</code> / <code>skip</code>、<code>done</code> / <code>push</code> / <code>skip</code>）、状況には <code>orchestratorRetries</code>・<code>previous</code> が入ります。出力は <code>{ action, reason }</code>。反映は <code>applyResolution</code> で、<code>retry</code> → <code>pending</code>（<code>aiRetries</code> を 1 増やす）、<code>skip</code> → <code>skipped</code>（<code>autoSkip.reason = "ai_skipped"</code>、<code>error</code> に AI の理由）、<code>done</code> → <code>done</code>、<code>push</code> → <code>running</code>。行に <code>aiResolution = { action, reason, at, jobId }</code>、イベント <code>row_ai_resolved</code>。中止では <code>stopPlanJob</code> で行のジョブを止めます。</li>
   <li><b>PR の判断</b>：行は <code>aiReview: "wanted"</code>。<code>requestAiReview</code> を <code>kind: "decide"</code>・<code>planId</code> 付きで呼び、<code>canon-review</code> のジョブ（<code>reviewKind: "decide"</code>）を積み、行の <code>decideAttempts</code> を 1 増やします。材料は <code>buildCanonAiPacket</code>、指示は <code>canonAiDecisionPrompt</code>、スキーマは <code>CANON_AI_DECISION_SCHEMA</code>（<code>verdict</code> は <code>approve</code> / <code>request_changes</code> / <code>reject</code>）。ワーカーは <code>parseCanonAiDecision</code> で検査し、<code>result.json</code> の <code>decision</code> に書きます。反映は <code>applyDecision</code> と <code>decisionAction</code>（エラーの衝突への <code>incoming</code> の選択も除く。選ばれなかった警告は <code>canon</code>）。承認は <code>approvePullRequest</code>、変更の依頼は <code>requestPrChanges</code>、却下は <code>rejectPullRequest</code>。Canon に合わせる指示は <code>canonFixInstruction</code>、フォローアップは <code>queueFollowup</code> で、<code>row.followup.kind</code> は <code>fix</code> / <code>changes</code>。却下の行は <code>autoSkip.reason = "ai_rejected"</code>。push の時点の扱いは <code>pushOutcome(…, { autonomous: true })</code> → <code>{ to: "conform", fix: true }</code>。回数の上限は <code>AUTONOMOUS_MAX_FOLLOWUPS</code>（人が対応する計画は <code>MAX_CONFORM_FOLLOWUPS</code>）、超えたときの理由は <code>conform_limit</code>。競合は <code>race</code>。名前は <code>aiActorName</code>、記録は <code>via = { kind: "ai", jobId, model }</code> で、PR の <code>decidedVia</code>・承認の <code>approvals[].via</code>・履歴の <code>via: "ai"</code>・rev の <code>approvedVia</code> に残ります。イベントは <code>row_ai_decided</code>・<code>row_done</code>。</li>
   <li><b>再計画の提案</b>：<code>applyProposals</code> が強い一貫性で読み直し、所有者の承認と同じ <code>applyProposal</code> で反映します（決めた人は <code>runner</code>、イベント <code>proposal_accepted</code> の <code>by: "runner"</code>）。反映できない提案は <code>stale</code>。</li>
-  <li><b>費用の上限</b>：費用は <code>planSpendUsd</code>、判定は <code>costLimitReached</code>。達した時刻は <code>costLimitAt</code>、イベント <code>cost_limit_reached</code>、一時停止の理由は <code>pausedReason: "cost_limit"</code>。再開は <code>POST /plans/{id}/resume</code> <code>{ maxCostUsd }</code>。範囲外やこれまでの費用以下なら 400、上限に達した計画を <code>maxCostUsd</code> なしで再開しても 400。再開すると <code>costLimitAt</code> を消し、イベント <code>cost_limit_raised</code> を残します。</li>
+  <li><b>費用の上限</b>：費用は <code>planSpendUsd</code>、判定は <code>costLimitReached</code>。費用の予約は <code>rowsWithinCost</code>、1 行の費用は <code>perRowCostUsd</code>（<code>packages/shared/src/planFlow.ts</code>）。達した時刻は <code>costLimitAt</code>、イベント <code>cost_limit_reached</code>、一時停止の理由は <code>pausedReason: "cost_limit"</code>。再開は <code>POST /plans/{id}/resume</code> <code>{ maxCostUsd }</code>。範囲外やこれまでの費用以下なら 400、上限に達した計画を <code>maxCostUsd</code> なしで再開しても 400。再開すると <code>costLimitAt</code> を消し、イベント <code>cost_limit_raised</code> を残します。</li>
 </ul>
 <p>行と計画が持つ自律実行の項目と、イベントの一覧は 6.12 に記載しています。</p>
 <p class="src">典拠：<code>packages/shared/src/plan.ts</code>（<code>PlanAutonomous</code>・<code>isAutonomous</code>・<code>pushOutcome</code>・上限の定数）・<code>canonAiDecision.ts</code>、<code>packages/shared/src/planRowJob.ts</code>（行のジョブの入力・スキーマ・検査）、<code>packages/api/src/lib/planRunner.ts</code>（<code>followRowJob</code>・<code>giveAnswer</code>・<code>applyResolution</code>・<code>applyProposals</code>・<code>applyDecision</code>・<code>costLimitReached</code>）・<code>planRowJobs.ts</code>・<code>planProposals.ts</code>・<code>planOps.ts</code>（<code>readAutonomous</code>・<code>confirmPlan</code>・<code>resumePlan</code>）・<code>planCost.ts</code>・<code>runs.ts</code>（<code>answerQuestion</code>）・<code>canonOps.ts</code>、<code>packages/api/src/handlers/planRunner.ts</code>（<code>autoConfirm</code>）、<code>packages/worker/src/planJob.ts</code>（<code>runPlanRowJob</code>）・<code>pipeline.ts</code>（<code>answerPreamble</code>）・<code>canonReview.ts</code>、<code>prompts/orchestrator.md</code>、<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>・<code>components/canonReview/AiPanel.tsx</code></p>
@@ -262,12 +263,13 @@
   <li><b>既存の再確認</b>：既存のプロジェクトがある開始待ちの行について、そのプロジェクトがまだ削除されず、成果物付きで完成しているかを確認し直します。外れていれば照合し直し、なければ作ります。</li>
   <li><b>並べ直し</b>：自動の順序の計画は、その時点の実効の同時実行数でもう一度並べます。既存のプロジェクトで済む行は、そのプロジェクトを結果として完了にします（Canon のある計画の扱いは 6.7）。</li>
   <li><b>Canon</b>：「新しい Canon」を選んでいれば、ここで作ります。計画の粒度方針を方針にした、非公開で空の rev 0 の Canon です。</li>
-  <li><b>開始</b>：見積もりを保存して計画を実行中にし、ランナーを 1 回すぐに動かします。最初の行が、次の分を待たずに始まります。</li>
+  <li><b>開始</b>：実行の仕方と見積もりを保存して、計画を実行中にします。実行の仕方は、自動の順序ならフロー実行、手動の順序ならバッチごとです（6.5）。そのあとランナーを 1 回すぐに動かします。最初の行が、次の分を待たずに始まります。</li>
 </ol>
 <p class="small">確定は計画のリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはありません（6.12）。自律実行の計画は、下書きを適用した直後にランナーが同じ処理で確定します（6.8）。</p>
 <div class="box">
   <div class="h">見積もりの計算式</div>
   <p>時間 ≒ 基準プロジェクトの数 × 48 分（1 件ずつ）＋ Σ 本体のバッチ ⌈バッチの行数 ÷ 同時実行数⌉ × 48 分 ＋ 行の 20% × 15 分（手直し）÷ 同時実行数。費用 ≒ 行数 × $0.18〜0.39。既存・スキップの行は除き、質問への回答や PR の承認を待つ時間は含みません。</p>
+  <p>フロー実行の計画（自動の順序の下書きを含む）の時間は、この式の前の 2 項の代わりに、6.5 のシミュレーションの時間を使います。手直しの項と費用は同じです。</p>
   <p>例：141 行（基準プロジェクト 3 行、残りを 1 バッチ）なら、同時実行数 1 で約 120 時間、4 で約 32 時間、8 で約 18 時間、12 で約 13 時間、16 で約 10 時間です。</p>
 </div>
 
@@ -286,10 +288,10 @@
   <li><b>順序</b>：「自動で並べる」は <code>POST /plans/{id}/order</code>（<code>DRAFT</code> のときだけ）で、<code>orderDraft</code> をやり直して <code>ordering: "auto"</code> にします（イベント <code>ordered</code>）。行の保存は <code>PUT /plans/{id}/rows</code>、手動の順序は <code>ordering: "manual"</code>。行の ID は <code>rowId</code>。CSV の読み込みは <code>POST /plans/{id}/rows/import</code>。</li>
   <li><b>既存と作り直し</b>：照合は <code>matchExistingProject</code>、結果は <code>existing = { projectId, name }</code>、未完成のプロジェクトへの注意は <code>duplicateOf</code>。「作り直す」は <code>rebuild: true</code> / <code>false</code>。</li>
   <li><b>粒度方針</b>：<code>PUT /plans/{id}</code> で送ると 400「粒度方針はオーケストレーターが決めます」。</li>
-  <li><b>確定</b>：<code>POST /plans/{id}/confirm</code>。キーがなければ 400、モデルを利用承認が許さなければ 403、既存の Canon が所有者のものでなければ 409。固定するハーネスのルールは <code>harnessRules</code>。既存の再確認で外れた行は、<code>confirmed</code> のイベントに <code>existingGone</code> として数えます。既存で済む行は <code>done</code>（<code>projectId</code> = そのプロジェクト、<code>completedAt</code>）。見積もりは <code>planEstimate</code>（計算は <code>estimatePlan</code>）で保存し、状態を <code>RUNNING</code> にします。</li>
+  <li><b>確定</b>：<code>POST /plans/{id}/confirm</code>。キーがなければ 400、モデルを利用承認が許さなければ 403、既存の Canon が所有者のものでなければ 409。固定するハーネスのルールは <code>harnessRules</code>。既存の再確認で外れた行は、<code>confirmed</code> のイベントに <code>existingGone</code> として数えます。既存で済む行は <code>done</code>（<code>projectId</code> = そのプロジェクト、<code>completedAt</code>）。実行の仕方は <code>scheduling</code>（<code>flow</code> / <code>waves</code>。すでに決まっていればそのまま）、見積もりは <code>planEstimateFor</code>（バッチごとは <code>planEstimate</code>・<code>estimatePlan</code>、フロー実行は <code>simulateFlowMinutes</code>）で保存し、状態を <code>RUNNING</code> にします。</li>
   <li><b>質問と要対応</b>：計画の画面で答えると <code>POST /projects/{id}/answer</code> と同じ処理になります。要対応のリトライは行を <code>pending</code> に戻します。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/plans.ts</code>・<code>planOps.ts</code>（<code>confirmPlan</code>）・<code>planRunner.ts</code>、<code>packages/shared/src/plan.ts</code>（<code>estimatePlan</code>・<code>planEstimate</code>・<code>PLAN_ESTIMATE</code>）・<code>planOrder.ts</code>、<code>packages/web/src/pages/PlanDetailPage.tsx</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/plans.ts</code>・<code>planOps.ts</code>（<code>confirmPlan</code>）・<code>planRunner.ts</code>、<code>packages/shared/src/plan.ts</code>（<code>estimatePlan</code>・<code>planEstimate</code>・<code>PLAN_ESTIMATE</code>）・<code>planOrder.ts</code>・<code>planFlow.ts</code>（<code>planEstimateFor</code>）、<code>packages/web/src/pages/PlanDetailPage.tsx</code></p>
 
 <h2 id="s6-10">6.10 計画の一覧と操作</h2>
 <h3>計画の一覧</h3>
@@ -303,7 +305,7 @@
     <tr><td><b>新しい計画</b></td><td>右から開くパネル（Esc か背景で閉じる）。計画が 1 つもないときは、作成のフォームが画面に出ている</td></tr>
   </tbody>
 </table>
-<p>進捗バーの色は、完了が緑、作っている行が流れる青、質問・判断が黄、承認待ちが紫、要対応が赤です。現在のバッチは枠で囲みます。自律実行の計画には、一覧でも「自律実行」の印が付きます。</p>
+<p>進捗バーの色は、完了が緑、作っている行が流れる青、質問・判断が黄、承認待ちが紫、要対応が赤です。現在のバッチは枠で囲みます。フロー実行の計画では、進捗バーをレーンごとに区切ります。自律実行の計画には、一覧でも「自律実行」の印が付きます。</p>
 <p>「新しい計画」のパネルには、名前・目標・資料の欄と、「自律実行」の区切りがあります（6.3）。</p>
 <ul>
   <li><b>資料</b>：ファイルか、行の貼り付けです。ファイルは外せるチップで表示します。CSV・TSV・テキストはすぐ読み、xlsx・PDF は下書きのジョブが読みます。</li>
@@ -317,15 +319,16 @@
   <tbody>
     <tr><td>見出しと操作</td><td>名前（変更可）、状態、自律実行の印、ID、目標。下書き・一時停止（理由付き）・中止・完了のバナー。確定・一時停止・再開・中止・削除（確認付き）。下書きの間は 4 つの区切りで、進捗のカードは出さない（6.9）</td></tr>
     <tr><td>進捗</td><td>完了した行の数 / 全体、バーと状態ごとの数、現在のバッチと同時に動く数（OpenAI の TPM の注記付き）、時間と費用（見積もりとここまで。費用には計画用のジョブの分を別に示す）</td></tr>
+    <tr><td>レーンと同時実行</td><td>フロー実行の計画だけ。<b>レーンの図</b>は、レーンごとに 1 行、行ごとに 1 マスで、完了は緑、実行中は流れる青、承認待ちは紫、要対応・質問は脈打つ黄、次に始める行は青の点線、待ちは灰で示す。マスを押すとその行へ移る。<b>同時実行</b>の欄は使用中の枠を示し、行は青、オーケストレーターの AI は紫</td></tr>
     <tr><td>質問箱・要対応</td><td>エージェントが質問した行（質問と回答の欄）。要対応の行（理由、最後のエラー、「リトライ」「スキップ」）</td></tr>
     <tr><td>設定</td><td>オーケストレーターのモデル、エージェントのモデルと推論の強さ、調査モード、自律実行と費用の上限（下書きの間だけ変えられる）。粒度方針は読むだけ（オーケストレーターが書く）。計画の Canon（「なし」「既存の Canon」「新しい Canon」。確定後はリンクと最新の rev。見つからなければ「Canon が見つかりません」）</td></tr>
-    <tr><td>行</td><td>下書きではバッチごとの表の編集欄（6.9）。それ以外はバッチごとの行と、その状態・プロジェクト・費用。作っている行と質問中の行には、そのプロジェクトの段階（調査 → HCD ⇄ FRG → CSV → xlsx）が出る。各行に「基準プロジェクト」のチップ、アンカー（4 個まで + 残りの数）、ハブの値、「重なり」、「依存」、既存のプロジェクトへの「既存」のチップ、重複するプロジェクトへの注意。バッチの見出しには保存されたバッチの番号（基準プロジェクトのバッチは「基準プロジェクト」）。自律実行の計画では、オーケストレーターの回答・判断の状態も出る（「AI の回答 n 回」、作成中・判断中、最後の判断と理由）</td></tr>
+    <tr><td>行</td><td>下書きではバッチごとの表の編集欄（6.9）。それ以外はバッチごとの行と、その状態・プロジェクト・費用。作っている行と質問中の行には、そのプロジェクトの段階（調査 → HCD ⇄ FRG → CSV → xlsx）が出る。各行に「基準プロジェクト」のチップ、アンカー（4 個まで + 残りの数）、ハブの値、「重なり」、「依存」、既存のプロジェクトへの「既存」のチップ、重複するプロジェクトへの注意。バッチの見出しには保存されたバッチの番号（基準プロジェクトのバッチは「基準プロジェクト」）。フロー実行の計画では行をレーンごとに並べ、待っている行には待ち理由（6.5）を出す。自律実行の計画では、オーケストレーターの回答・判断の状態も出る（「AI の回答 n 回」、作成中・判断中、最後の判断と理由）</td></tr>
     <tr><td>下書き中</td><td>下書きのジョブの状態（枠の空き待ち・開始待ち・実行中。経過時間は出さない）と「取り消す」のバナー。下書きでは「下書きを作成」（やり直し。費用は記録される）、「自動で並べる」、下書きが読めなかった項目（資料、場所、理由）、失敗した下書きのエラー</td></tr>
     <tr><td>実行中・一時停止中</td><td>開いている提案（行の追加 / 行の削除、理由、承認 / 却下）。決まった提案と、オーケストレーターが適用した粒度方針の変更は、履歴の下に折りたたむ。最新の再計画のジョブ（1 行）。Canon のある計画では、「承認待ち」の行に PR へのリンクと AI レビューの状態、要判断の行のカード（理由と「完了にする」「もう一度 push」「スキップ」）、「Canon に合わせた更新 n/m」（m は 6.7）、基準プロジェクトの PR の待ちと、承認待ちが 20 件に達したときのバナー（6.7）</td></tr>
     <tr><td>履歴</td><td>計画の出来事の一覧。カードはスマートフォンでは折り返す。プロジェクトのヘッダーからは、そのプロジェクトを作った計画へリンクする</td></tr>
   </tbody>
 </table>
-<p>計画の画面は、下書き作成中は 5 秒ごと、実行中・一時停止中は 15 秒ごとに読み直します。進捗バーはバッチごとに区切られ、行が進むと伸びます。流れる帯、伸びるバー、実行中の点の脈動といった動きは、OS で「視差効果を減らす」を選んでいると止まります。</p>
+<p>計画の画面は、下書き作成中は 5 秒ごと、実行中・一時停止中は 15 秒ごとに読み直します。進捗バーはバッチごと（フロー実行ではレーンごと）に区切られ、行が進むと伸びます。流れる帯、伸びるバー、実行中の点の脈動といった動きは、OS で「視差効果を減らす」を選んでいると止まります。</p>
 
 <h3>計画への操作</h3>
 <table class="compact">
@@ -346,12 +349,12 @@
   <li>最新の出来事 4 件とその行、未決の提案の数</li>
   <li>見積もりと実績</li>
 </ul>
-<p>動きを止める判定は <code>prefers-reduced-motion</code> です。</p>
-<p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/components/PlanBar.tsx</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/app.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）、<code>packages/web/src/App.tsx</code>、<code>docs/manual/ja.md</code></p>
+<p>レーンの図と同時実行の欄は、<code>GET /plans/{id}</code> の行の <code>lane</code>・<code>wait</code> と使用中の枠 <code>slots</code> から描きます。動きを止める判定は <code>prefers-reduced-motion</code> です。</p>
+<p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/components/PlanBar.tsx</code>・<code>plan/FlowMap.tsx</code>、<code>packages/web/src/i18n/planFlow.ts</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/app.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）、<code>packages/web/src/App.tsx</code>、<code>docs/manual/ja.md</code></p>
 
 <h2 id="s6-11">6.11 同時実行数・モデル・費用</h2>
 <ul>
-  <li><b>同時実行数</b>：管理者が管理画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定します。計画の実効の同時実行数は、この 2 つの小さい方です。設定の保存先と読み方、OpenAI の TPM との関係は 8.3 に記載しています。</li>
+  <li><b>同時実行数</b>：管理者が管理画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定します。計画の実効の同時実行数は、この 2 つの小さい方です。フロー実行の計画では、オーケストレーター自身の AI のジョブはその 3 分の 1 までです（6.6）。設定の保存先と読み方、OpenAI の TPM との関係は 8.3 に記載しています。</li>
   <li><b>2 種類のモデル</b>：<b>オーケストレーターのモデル</b>は、計画用のジョブ（下書き・再計画・行のジョブ）と、計画の PR の AI レビュー・判断のジョブに使います。<b>エージェントのモデル</b>と推論の強さは、各行の BRA に使います。どちらも確定時に固定されます（6.9）。計画用のジョブは推論の強さ <code>medium</code> の短い 1 ターンなので、行に比べれば費用はわずかです。</li>
   <li><b>見積もりと実績</b>：見積もりは確定時に保存します（6.9）。計画の画面には「これまで」として、確定からの経過時間（完了・中止まで）と、費用の合計が出ます。費用は、行のプロジェクト・計画用のジョブ・計画の PR の AI レビューを合わせたもので、うち計画用のジョブの費用を別に示します。既存のプロジェクトで済んだ行は数えません。</li>
   <li><b>費用の記録</b>：下書き・再計画・行のジョブ・AI レビュー・判断のジョブ・Canon に合わせた更新は、すべて通常のジョブです。枠が空いたときだけ積み、枠より先には積みません。どれも同時実行数の枠を 1 つ使い、所有者のキー（またはデフォルトの API キー）で実行され、使用量と推定費用がジョブに記録されます。取り消し・時間切れのジョブも、それまでに使った分が記録されます。API とランナーは API キーを復号しません。</li>
@@ -375,7 +378,7 @@
     <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）</td></tr>
   </tbody>
 </table>
-<p class="small">ID：計画は <code>n</code> + 7 文字の小文字 Crockford base32 です（<code>PLAN_ID_REGEX</code>、例 <code>n4h8w2rk</code>）。Project・Canon の ID と同じく Catalog に予約され（<code>kind = id</code>、<code>type = plan</code>）、再利用されません。<code>PROJECT_ID_REGEX</code> とも <code>CANON_ID_REGEX</code> とも一致しません。行は計画の中で <code>r</code> + 7、提案は <code>q</code> + 7 です。1 つの計画の行は 200 行までです。<code>META</code> にはこのほか、確定・完了・中止の時刻、新しい Canon の名前（<code>canonNew</code>）、最後に並べ直したバッチ（<code>lastReplanWave</code>）を持ちます。</p>
+<p class="small">ID：計画は <code>n</code> + 7 文字の小文字 Crockford base32 です（<code>PLAN_ID_REGEX</code>、例 <code>n4h8w2rk</code>）。Project・Canon の ID と同じく Catalog に予約され（<code>kind = id</code>、<code>type = plan</code>）、再利用されません。<code>PROJECT_ID_REGEX</code> とも <code>CANON_ID_REGEX</code> とも一致しません。行は計画の中で <code>r</code> + 7、提案は <code>q</code> + 7 です。1 つの計画の行は 200 行までです。<code>META</code> にはこのほか、確定・完了・中止の時刻、新しい Canon の名前（<code>canonNew</code>）、最後に並べ直したバッチ（<code>lastReplanWave</code>）、実行の仕方 <code>scheduling</code>（<code>flow</code> / <code>waves</code>、6.5）、フロー実行で前回の再計画を求めたときの完了数（<code>replanDone</code>）を持ちます。</p>
 
 <h3>計画の状態</h3>
 <figure>

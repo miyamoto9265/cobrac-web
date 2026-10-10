@@ -5,7 +5,7 @@
   <p class="lead">第 8 部は開発者向けです。CoBRAC Agents を動かしている AWS の構成、部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、S3 の成果物、フロントエンド、非機能の目標、開発の約束を、実装に沿って記述しています。BRA の作り方そのものは第 3 部、権限・秘密情報・費用は第 9 部で扱います。リリースとデプロイの手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
   <div class="map">
     <div><b>プログラムの部品</b>API、dispatcher、broadcaster、janitor、計画ランナーの Lambda と、Fargate 上のワーカーです。どれも LLM を呼ばず、決まったコードで判断します。</div>
-    <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画用のジョブも同じ仕組みで動きます（8.4）。</div>
+    <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex（Claude のモデルでは Claude Code）の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画用のジョブも同じ仕組みで動きます（8.4）。</div>
     <div><b>人</b>利用者はプロジェクトを作り、質問に答え、成果物を受け取ります。管理者は利用者、デフォルトの API キー、同時実行数を管理します（4.1）。</div>
   </div>
 </div>
@@ -23,7 +23,7 @@
 </ol>
 <p><b>NAT Gateway を置かない理由：</b>東京では NAT Gateway 1 つ（1 AZ）あたり、月に約 $32 とデータ処理料が固定でかかります。ワーカーは短い時間しか動かないので、パブリックサブネットでパブリック IP を付け、インターネットゲートウェイから外に出れば足ります。ワーカーのセキュリティグループには受信の規則が 1 つもありません。</p>
 <p>画面が使う HTTP API・WebSocket・Cognito の接続先は、CDK がデプロイのたびに <code>config.json</code> として Web のバケットに書きます。CloudFront はこのファイルをキャッシュしないので、環境ごとに Web をビルドし直す必要はありません。</p>
-<p>システムの中で LLM が動くのは、ワーカーが Codex を通じて実行するジョブだけです。Lambda の部品はどれも LLM を呼びません。API が OpenAI を呼ぶのは、キーの確認で <code>/v1/models</code> を読むときだけです。</p>
+<p>システムの中で LLM が動くのは、ワーカーが Codex（Claude のモデルでは Claude Agent SDK）を通じて実行するジョブだけです。Lambda の部品はどれも LLM を呼びません。API が OpenAI と Anthropic を呼ぶのは、キーの確認で <code>/v1/models</code> を読むときだけです。</p>
 
 <h3>プロジェクトの作成から画面への通知まで</h3>
 <p>図 8.1 は主な部品と、プロジェクトを作ってから進捗が画面に届くまでの流れを示します。</p>
@@ -200,6 +200,7 @@
     <tr><td>dispatcher（Lambda）</td><td><code>handlers/dispatcher.ts</code></td><td>SQS のメッセージごと（1 件ずつ）</td><td>同時実行数を検査して Fargate のタスクを起動する（8.3）</td></tr>
     <tr><td>ワーカー</td><td><code>packages/worker</code></td><td>ジョブごとに 1 タスク</td><td>ハーネスの本体。段階の進行、検査、CSV・xlsx・グラフ・版の作成（8.4、第 3 部）</td></tr>
     <tr><td>Codex CLI</td><td><code>@openai/codex-sdk</code> が起動する子プロセス</td><td>ワーカーがターンを依頼したとき</td><td>エージェントのターンを実行し、OpenAI API を呼ぶ。MCP サーバー（<code>lit</code>・RCS）を起動して接続する</td></tr>
+    <tr><td>Claude Code</td><td><code>@anthropic-ai/claude-agent-sdk</code> が起動する子プロセス</td><td>Claude のモデルのジョブでワーカーがターンを依頼したとき</td><td>Codex CLI と同じ役目。Anthropic API を、ワーカーの中の中継を通して呼ぶ（8.4、9.5）</td></tr>
     <tr><td>DynamoDB</td><td>8 つのテーブル</td><td>常に</td><td>状態・メッセージ・設定（8.5）</td></tr>
     <tr><td>S3（成果物）</td><td>バケット <code>Artifacts</code></td><td>常に</td><td>作業ディレクトリ・会話・成果物・版・Canon・計画の資料（8.6）</td></tr>
     <tr><td>KMS</td><td><code>ApiKeyKmsKey</code></td><td>キーの登録とジョブの開始</td><td>API が暗号化し、ワーカーだけが復号する（9.3）</td></tr>
@@ -215,7 +216,7 @@
 <table class="compact">
   <thead><tr><th style="width:24%">サービス</th><th>使い方</th></tr></thead>
   <tbody>
-    <tr><td>OpenAI API</td><td>モデルの推論。利用者のキーか、デフォルトの API キーで呼ぶ（4.1）</td></tr>
+    <tr><td>OpenAI API・Anthropic API</td><td>モデルの推論。ジョブのモデルの提供元を、利用者のキーかデフォルトの API キーで呼ぶ（4.1）</td></tr>
     <tr><td>RCS MCP</td><td>rosetta-candidate-search の <code>rcs-mcp</code>。同じアカウントにある別のシステムで、SABRA の単位の候補を返す。トークンは Secrets Manager にある</td></tr>
     <tr><td>PubMed・Europe PMC</td><td>エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ（3.7）</td></tr>
     <tr><td>Crossref・PubMed・Europe PMC・Semantic Scholar</td><td>ワーカーが文献の DOI・PMID と引用文を照合する（3.10）</td></tr>
@@ -348,14 +349,14 @@
   <tbody>
     <tr><td><code>@cobrac/shared</code></td><td>型、ハーネスの JSON Schema・検査・CSV の生成、グラフ JSON（<code>buildGraphs()</code>）、Project ID と名前の規則（<code>projectId.ts</code>）、単価表（<code>pricing.ts</code>）。API・ワーカー・Web のすべてが使う</td></tr>
     <tr><td><code>@cobrac/api</code></td><td>Hono のアプリと Lambda のハンドラ（http・dispatcher・ws・broadcaster・janitor・planRunner・authMessage・bradbImport）</td></tr>
-    <tr><td><code>@cobrac/worker</code></td><td>Codex の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>、Python 3、poppler）</td></tr>
+    <tr><td><code>@cobrac/worker</code></td><td>Codex と Claude Agent SDK の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>・<code>@anthropic-ai/claude-agent-sdk</code>、Python 3、poppler）</td></tr>
     <tr><td><code>@cobrac/web</code></td><td>SPA（認証、エージェント欄、グラフ、設定、管理画面）</td></tr>
     <tr><td><code>@cobrac/infra</code></td><td>CDK のスタック <code>CobracAgents</code> と <code>BraDb</code>。Lambda は esbuild でまとめ、ワーカーのイメージはデプロイ時に CodeBuild で作る</td></tr>
     <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-2.bra.xlsx</code>）。全文は付録 B</td></tr>
     <tr><td><code>scripts/</code></td><td>リリース、RETAIN ガード、BRA のエラーコードの判定、ID の移行、文書の図の生成など（8.9）</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>・<code>bradb-stack.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>packages/worker/Dockerfile</code></p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>・<code>bradb-stack.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>claude.ts</code>、<code>packages/worker/Dockerfile</code></p>
 
 <h2 id="s8-3">8.3 ジョブの実行と回復</h2>
 <p>ジョブは、API が記録してキューに入れ、dispatcher がワーカーを起動し、ワーカーがエージェントを動かして進めます。止まったジョブを見つけて再開させるのは janitor です。本節では、ジョブの状態とその遷移、ワーカーの起動と同時実行数、実行中の監視、停止と中断、janitor の処理を扱います。ワーカーの中の処理は 8.4、BRA の中身の進み方は第 3 部（長いジョブと保存は 3.15）に記載しています。</p>
@@ -544,12 +545,27 @@
   <li>Codex には、出力の最大トークン（これらのモデルでは 128,000）の設定はありません。</li>
 </ul>
 
+<h3>Claude のモデルの実行</h3>
+<p>Claude のモデル（4.2）のジョブは、Codex ではなく Claude Agent SDK（<code>@anthropic-ai/claude-agent-sdk</code>）で実行します。SDK は Claude Code を子プロセスとして動かします（<code>claude.ts</code>）。SDK の出来事を Codex と同じ形（<code>item.*</code>・<code>turn.*</code>）に直すので、ターンの制御、お知らせ、使用量の数え方は Codex のジョブと同じです。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
+  <tbody>
+    <tr><td>ツール</td><td>Bash・Read・Write・Edit・Glob・Grep・TodoWrite（<code>CLAUDE_TOOLS</code>）と MCP（<code>lit</code>・RCS）。Web 検索が有効なら WebSearch・WebFetch も加える</td></tr>
+    <tr><td>指示と出力</td><td><code>AGENTS.md</code> はシステムプロンプトに追記する。利用者やプロジェクトの Claude Code の設定は読まない（<code>settingSources: []</code>）。ターンの出力は同じ JSON Schema（<code>outputFormat</code>）で受ける</td></tr>
+    <tr><td>推論の強さ</td><td><code>minimal</code> を <code>low</code> に、<code>ultra</code>・<code>persistent</code> を <code>max</code> に読み替える（<code>claudeEffort</code>）。ほかはそのまま渡す</td></tr>
+    <tr><td>会話</td><td>Claude Code のセッション。スレッド ID は <code>claude-&lt;セッション ID&gt;</code>。セッションは <code>CODEX_HOME/sessions/claude</code> に置き、Codex のセッションと一緒に S3 に保存する。プロジェクトのモデルの提供元が変わると、新しい会話で続ける（お知らせ <code>sys.newThreadProvider</code>）</td></tr>
+    <tr><td>会話の圧縮</td><td>文脈が <code>CLAUDE_AUTO_COMPACT_WINDOW</code>（既定 100,000 トークン）を超えると、Claude Code が会話を要約する。Haiku 5.5 の単価が上がる長い文脈に入らないため</td></tr>
+    <tr><td>キー</td><td>Claude Code には本物のキーを渡さず、ワーカーの中の中継の URL と実行ごとのトークンだけを渡す（9.5）</td></tr>
+  </tbody>
+</table>
+
 <h3>コードの既定値で動く設定</h3>
 <p>ワーカーと janitor には、インフラで設定せず、コードの既定値で動いている設定があります。デプロイの設定値は運用手順書にまとめています。</p>
 <table class="compact">
   <thead><tr><th style="width:34%">環境変数</th><th style="width:22%">既定値</th><th>意味</th></tr></thead>
   <tbody>
     <tr><td><code>CODEX_AUTO_COMPACT_TOKENS</code></td><td>75,000</td><td>会話を圧縮するしきい値</td></tr>
+    <tr><td><code>CLAUDE_AUTO_COMPACT_WINDOW</code></td><td>100,000</td><td>Claude Code が会話を要約する文脈の大きさ</td></tr>
     <tr><td><code>RESEARCH_TIME_BUDGET_MIN</code></td><td>60 分</td><td>調査ステップの時間予算（3.7）</td></tr>
     <tr><td><code>WORKFLOW_TIMEOUT_MS</code></td><td>6 時間</td><td>最長の実行時間</td></tr>
     <tr><td><code>MAX_NUDGES</code></td><td>3</td><td>1 段階あたりの修正ターンの上限</td></tr>
@@ -559,7 +575,7 @@
     <tr><td><code>MAX_AUTO_RETRY</code>（janitor）</td><td>2</td><td>自動リトライの回数（8.3）</td></tr>
   </tbody>
 </table>
-<p>同時実行数を上げると Fargate の費用が比例して増え、大きいモデルを指定すると OpenAI の費用だけが増えます。</p>
+<p>同時実行数を上げると Fargate の費用が比例して増え、大きいモデルを指定すると OpenAI か Anthropic の費用だけが増えます。</p>
 
 <h3>BRA 以外のジョブ</h3>
 <p>LLM のジョブは次の 4 種類で、それぞれ別の会話です。互いの会話を共有することはありません。</p>
@@ -578,5 +594,5 @@
   <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、ツールのない新しい会話で指摘を JSON で返させ、<code>result.json</code> に書きます。自律実行の計画の判断のジョブ（<code>reviewKind: "decide"</code>）は、判定も返します（5.8、6.8）。</li>
 </ul>
 <p>AI レビューと計画用のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 に記載しています。</p>
-<p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>・<code>article.ts</code>・<code>planJob.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>references.ts</code>・<code>types.ts</code>（<code>fixTurnEffort</code>）・<code>planJob.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/Dockerfile</code></p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>claude.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>・<code>article.ts</code>・<code>planJob.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>references.ts</code>・<code>types.ts</code>（<code>fixTurnEffort</code>）・<code>planJob.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/Dockerfile</code></p>
 </section>

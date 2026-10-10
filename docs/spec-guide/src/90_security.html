@@ -2,11 +2,11 @@
 <div class="opener">
   <div class="no">第 9 部</div>
   <h1 class="part" id="p9">セキュリティと費用</h1>
-  <p class="lead">第 9 部は開発者と運用者に向けて、CoBRAC Agents の守り方とお金のかかり方をまとめています。IAM の権限、扱う情報と保存場所、暗号化と API キー、認証と認可、ワーカーの隔離、外部への送信、ログと脅威への対策、監視と緊急停止を順に定め、最後に AWS と OpenAI の費用を説明しています。AWS の構成そのものは第 8 部に記載しています。リリースやデプロイの手順、緊急時の操作、撤去の手順は、本書ではなくリポジトリの <code>docs/ops/README.md</code> にあります。</p>
+  <p class="lead">第 9 部は開発者と運用者に向けて、CoBRAC Agents の守り方とお金のかかり方をまとめています。IAM の権限、扱う情報と保存場所、暗号化と API キー、認証と認可、ワーカーの隔離、外部への送信、ログと脅威への対策、監視と緊急停止を順に定め、最後に AWS と OpenAI・Anthropic の費用を説明しています。AWS の構成そのものは第 8 部に記載しています。リリースやデプロイの手順、緊急時の操作、撤去の手順は、本書ではなくリポジトリの <code>docs/ops/README.md</code> にあります。</p>
   <div class="map">
-    <div><b>秘密の守り方</b>OpenAI の API キーは KMS で暗号化し、復号できるのはワーカーだけです。キーを使うのは Codex のプロセスだけで、エージェントのシェルには渡しません。</div>
+    <div><b>秘密の守り方</b>OpenAI と Anthropic の API キーは KMS で暗号化し、復号できるのはワーカーだけです。キーを使うのは Codex のプロセスか、Claude のモデルではワーカーの中の中継だけで、エージェントのシェルには渡しません。</div>
     <div><b>データの範囲</b>プロジェクトのデータは所有者の userId に結び付け、API はほかの利用者に存在そのものを見せません。公開と共有は所有者が選んだときだけです。</div>
-    <div><b>費用の考え方</b>使われていないときの固定費を小さくし、ジョブが動いている間だけ Fargate Spot に払います。費用の大部分は OpenAI で、AWS の請求には含まれません。</div>
+    <div><b>費用の考え方</b>使われていないときの固定費を小さくし、ジョブが動いている間だけ Fargate Spot に払います。費用の大部分は OpenAI と Anthropic の利用料で、AWS の請求には含まれません。</div>
   </div>
 </div>
 
@@ -100,6 +100,7 @@
     <tr><td>ブラウザ ↔ WebSocket</td><td>WSS。接続時にクエリの <code>token</code> で ID トークンを検証</td></tr>
     <tr><td>Lambda・ワーカー ↔ AWS の API</td><td>TLS（SDK の既定）</td></tr>
     <tr><td>ワーカー ↔ OpenAI</td><td>HTTPS（Codex）</td></tr>
+    <tr><td>ワーカー ↔ Anthropic</td><td>HTTPS（ワーカーの中の中継から。Claude Code と中継の間は 127.0.0.1 の HTTP、9.5）</td></tr>
   </tbody>
 </table>
 <p>S3 のバケットは <code>enforceSSL</code> で HTTPS 以外を拒みます。署名付きのダウンロード URL も HTTPS です。</p>
@@ -111,7 +112,7 @@
     <tr><td>DynamoDB</td><td>サービスの既定の保存時暗号化</td></tr>
     <tr><td>ECS の一時ディスク</td><td>Fargate の既定</td></tr>
     <tr><td>Cognito のパスワード</td><td>Cognito が管理（アプリは平文を持たない）</td></tr>
-    <tr><td>OpenAI API キー</td><td><b>カスタマー管理の KMS キー（CMK）で暗号化</b>。DynamoDB には base64 の暗号文だけを置く</td></tr>
+    <tr><td>OpenAI・Anthropic の API キー</td><td><b>カスタマー管理の KMS キー（CMK）で暗号化</b>。DynamoDB には base64 の暗号文だけを置く</td></tr>
   </tbody>
 </table>
 <p>成果物バケットには KMS による暗号化（SSE-KMS）を足していません。オブジェクトは非公開で（Block Public Access。OAC は Web のバケット側）、成果物は有効期限 15 分の署名付き URL でだけ取り出せます。</p>
@@ -124,13 +125,14 @@
   <li>平文がメモリにあるのは、キーの登録時に API の Lambda が確認の要求をしている間と、ジョブの実行中のワーカーのプロセスだけです。ワーカーは平文を Codex のプロセスに渡します。ディスク・ログ・S3 には書きません。</li>
   <li>登録時には <code>GET https://api.openai.com/v1/models</code> を呼び、401・403 なら登録を拒みます。返ってきたモデルの一覧を、使えるモデルとして保存します。</li>
   <li><b>ブラウザからキーを取り出す API はありません。</b>忘れたら OpenAI 側で発行し直し、登録を上書きします。</li>
+  <li>Anthropic のキー（Claude のモデル用）も同じ扱いで、コンテキストの <code>purpose</code> が <code>"anthropic-api-key"</code> です（デフォルトのキーは <code>scope: "default"</code> 付き）。登録時は <code>GET https://api.anthropic.com/v1/models</code> で確かめます。実行時の平文はワーカーのプロセスの中の中継にだけあり、Claude Code のプロセスには渡しません（9.5）。</li>
 </ul>
 <h3>デフォルトの API キー</h3>
-<p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。利用承認（Tier 1 / Tier 2）と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
+<p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。Claude のモデルには、同じ扱いのデフォルトの Anthropic API キーを別に登録します。利用承認（Tier 1 / Tier 2）と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
 <p>どのキーで実行するかは、ワーカーが起動のたびに決め直します。新しいジョブ、回答、リトライ、中断後の再開のどれでも同じです。そのため、利用承認を取り消したり、Tier を下げたり、デフォルトの API キーを消したりすると、次の起動から効きます。デフォルトの API キーを復号するのは、利用承認を受けていて自分のキーを持たない利用者のジョブで、そのジョブのモデルを Tier が許すときだけです。</p>
 <h3>アプリでは暗号化しないもの</h3>
 <p>チャットの本文、ROI・TLF、成果物、グラフの JSON、会話の状態は、S3 と DynamoDB のサービスによる暗号化だけで保存します。アプリの層での項目ごとの暗号化は、意図してしていません。管理者と AWS アカウントの権限を持つ人は、コンソールからこれらを読めます。</p>
-<p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/app.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>index.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/app.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>index.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code></p>
 
 <h2 id="s9-4">9.4 認証と認可</h2>
 <h3>認証</h3>
@@ -188,7 +190,7 @@
   <tbody>
     <tr><td>実行の単位</td><td>1 ジョブに 1 タスク。ディスクをほかのジョブと共有しない</td></tr>
     <tr><td>OS のユーザー</td><td>uid 10001 の <code>worker</code>（root ではない）</td></tr>
-    <tr><td>ネットワーク</td><td>パブリックサブネットとパブリック IP。受信なし。送信は許可（OpenAI・AWS・文献の Web）</td></tr>
+    <tr><td>ネットワーク</td><td>パブリックサブネットとパブリック IP。受信なし。送信は許可（OpenAI・Anthropic・AWS・文献の Web）</td></tr>
     <tr><td>Codex のサンドボックス</td><td>コンテナそのものを境界とし、<code>danger-full-access</code> と <code>approvalPolicy: never</code> で動かす（コンテナの中では Landlock・seccomp が使えない）</td></tr>
     <tr><td>使えるキー</td><td>そのジョブの userId で復号したキーだけ。利用承認を受けていてキーを持たない利用者なら、デフォルトの API キー</td></tr>
     <tr><td>権限</td><td>タスクロールの権限は 9.1 のとおり。<b>KMS は Decrypt だけ</b>（Encrypt は API）</td></tr>
@@ -202,6 +204,16 @@
   <li>RCS のトークン</li>
 </ul>
 <p>Codex のプロセスにだけ、必要な RCS のトークンを戻します。Codex はこれを MCP のベアラートークンとして送ります。さらに Codex の <code>shell_environment_policy</code> で、エージェントのシェルのコマンドから <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> と RCS のトークンを外します。Codex の設定（<code>CODEX_HOME</code> と信頼済みの <code>/work/.codex</code>）は root の所有なので、エージェントは Codex の環境で動く MCP サーバー・フック・通知のコマンドを足せません。</p>
+<h3>Claude のモデルのキーを渡さない中継</h3>
+<p>Claude のモデルのジョブでは、エージェントのコマンドが Claude Code の環境を受け継ぎます。そのため、Claude Code には本物のキーを渡しません。</p>
+<ul>
+  <li>ワーカーは自分のプロセスの中で、127.0.0.1 に中継（<code>claudeGateway.ts</code>）を開きます。Claude Code には中継の URL（<code>ANTHROPIC_BASE_URL</code>）と、実行ごとの乱数のトークン（<code>ANTHROPIC_API_KEY</code>）だけを渡します。トークンはワーカーが終われば意味を持ちません。</li>
+  <li>中継はトークンを確かめてから、本物の Anthropic のキー（とワークスペース ID の <code>anthropic-workspace-id</code> ヘッダー）に差し替えます。RCS も同じ中継を通し、ベアラートークンを本物に差し替えます。</li>
+  <li>中継が通すのは Messages と Models の API だけです。Messages は、そのジョブのモデルと <code>claude-haiku-5-5</code>（Claude Code の小さな裏方の呼び出し用）以外を 403 で拒みます。エージェントがキーを別のモデルに使うことはできません。</li>
+  <li>ワーカーの環境にある <code>CLAUDE*</code>・<code>ANTHROPIC*</code> の変数は、Claude Code に渡しません。</li>
+</ul>
+<p>このため、Anthropic のキーと RCS のトークンはワーカーのプロセスにだけあり、Claude Code とエージェントのコマンドが持つのは実行ごとのトークンだけです。</p>
+
 <h3>同じユーザーのプロセスからの保護</h3>
 <p>ワーカー（PID 1）、Codex、エージェントのコマンドはどれも <code>worker</code> のユーザーで動きます。そのままでは、互いの <code>/proc/&lt;pid&gt;/environ</code> を読めてしまいます。そこで、イメージの中で <code>node</code>・Codex・<code>git</code> の実行ファイルを、実行だけ可能（<code>chmod 0111</code>）にしています。読めないファイルから起動したプロセスは dump できない扱いになり、ほかの <code>worker</code> のプロセスから、その環境変数とメモリを読めなくなります。</p>
 <p>これで、エージェントは Codex のプロセスから OpenAI の API キーを読めず、PID 1 からコンテナの認証情報の URI（タスクロールと KMS に届く）も読めません。<code>git</code> を含めるのは、Codex が自分の環境（キーを含む）で <code>git</code> を実行するためです。Codex は起動時にプラグインのリポジトリを clone し、ターンごとに diff を取ります。</p>
@@ -209,13 +221,13 @@
 <p>ワーカーは起動時に Secrets Manager の <code>rcs/mcp-bearer-token</code> を読み、Codex のプロセスにだけ渡します（<code>RCS_MCP_TOKEN</code>）。エージェントのシェルのコマンドには渡さず、ブラウザにも送りません。シークレットにはカンマ区切りで受け付けるトークンが入っており（入れ替えの間は <code>旧,新</code>）、ワーカーは最後のものを使います。設定がないか読めないときは、RCS なしで続けます。RCS 側の問題で BRA の作成を止めないためです。</p>
 <div class="box">
   <div class="h">OpenAI の API キーを使うもの</div>
-  <p>ワーカーは KMS でキーを復号し、Codex のプロセスを作るときにだけ渡します（Codex SDK の <code>apiKey</code>）。モデルに要求を送るのは Codex で、ワーカー自身は OpenAI を呼びません。エージェントがシェルで実行するコマンドには、キーが渡りません。キーを平文で扱うほかの場所は、API の Lambda が登録時に <code>/v1/models</code> で確認するときだけです。</p>
+  <p>ワーカーは KMS でキーを復号し、Codex のプロセスを作るときにだけ渡します（Codex SDK の <code>apiKey</code>）。モデルに要求を送るのは Codex で、ワーカー自身は OpenAI を呼びません。エージェントがシェルで実行するコマンドには、キーが渡りません。キーを平文で扱うほかの場所は、API の Lambda が登録時に <code>/v1/models</code> で確認するときだけです。Anthropic のキーは Claude Code にも渡さず、ワーカーの中の中継だけが使います（上記）。</p>
 </div>
 <h3>参考資料の URL の取得</h3>
 <p>参考資料の URL は、ブラウザではなくワーカーが取りに行きます。http(s) だけを許し、転送（最大 5 回）のどの段も公開のアドレスに解決されなければなりません。ループバック、プライベート、タスクのメタデータのエンドポイントのようなリンクローカルのアドレスは拒みます。大きさは 10 MB まで、時間は 20 秒までです。</p>
 <h3>残るリスク</h3>
 <p>プロンプトインジェクションで、作業ディレクトリやメタデータの外を読ませようとする試みには、次の 3 つで備えています。エージェントが届くプロセスから AWS の認証情報とその URI を外すこと、キーを持つプロセス（ワーカー・Codex・git）を dump できなくして <code>/proc</code> から環境変数を読めなくすること、データを本人のものに限ることです。ただし、別のアカウントや VPC で分けるような完全なマルチテナントの隔離ではありません。エージェントは自分のジョブのためにキーを使っており、たとえば自分のジョブのデータを外に送ることはできてしまいます。</p>
-<p class="src">典拠：<code>packages/worker/Dockerfile</code>、<code>packages/worker/src/childEnv.ts</code>、<code>codex.ts</code>（<code>createCodex</code>・<code>openThread</code>）、<code>rcs.ts</code>、<code>materials.ts</code>、<code>packages/shared/src/attachments.ts</code>（<code>isPrivateAddress</code>）</p>
+<p class="src">典拠：<code>packages/worker/Dockerfile</code>、<code>packages/worker/src/childEnv.ts</code>、<code>codex.ts</code>（<code>createCodex</code>・<code>openThread</code>）、<code>claude.ts</code>・<code>claudeGateway.ts</code>、<code>rcs.ts</code>、<code>materials.ts</code>、<code>packages/shared/src/attachments.ts</code>（<code>isPrivateAddress</code>）</p>
 
 <h2 id="s9-6">9.6 外部への送信</h2>
 <table class="compact">
@@ -224,6 +236,7 @@
     <tr><td>OpenAI（モデル）</td><td>ワーカーの中の Codex。利用者のキーか、利用承認を受けた利用者ならデフォルトの API キー（データはそのキーの OpenAI の組織に届く）</td><td>ROI・TLF・Contributor・Project ID。指示書の全文と、エージェントが読んだ作業ディレクトリのファイル（参考資料を含む。最初のプロンプトに付けた画像、エージェントが開いたファイルや抜き出した文字）。利用者の回答とフォローアップの指示。エージェントの Web 検索の語句（検索の提供元へ）</td></tr>
     <tr><td>OpenAI（Canon の PR の AI レビュー）</td><td>ワーカー。所有者のキーか、許されたモデルでのデフォルトの API キー</td><td>審査画面と同じ資料：差分、衝突とシステムの検査、変わった項目の両側（回路の定義、引用文付きの接続、文献）、Canon の名前と粒度方針、関係する Project・Canon の ID と名前。このターンのモデルには、ツールも Web 検索も与えない</td></tr>
     <tr><td>OpenAI（<code>/v1/models</code>）</td><td>API の Lambda</td><td>キーの登録時の確認（同じキー）</td></tr>
+    <tr><td>Anthropic（モデルと <code>/v1/models</code>）</td><td>Claude のモデルのジョブでは、ワーカーの中の中継（Claude Code の要求を転送する）。キーの登録時の確認は API の Lambda</td><td>OpenAI のモデルと同じもの（上の 2 行）。データはそのキーの Anthropic の組織（ワークスペース）に届く</td></tr>
     <tr><td>RCS MCP（rosetta-candidate-search、同じ AWS アカウント）</td><td>エージェント（Codex の MCP）。ワーカーも命名の照合で使う</td><td>領域名と短い文脈（ROI、TLF、種）。RCS の AI オプションが有効なら、RCS が語句の整理と判定のために DeepSeek に転送する。利用者の識別子と API キーは送らない</td></tr>
     <tr><td>Crossref（<code>api.crossref.org</code>）、doi.org、NCBI E-utilities（PubMed）</td><td>ワーカー（文献の照合）</td><td><code>references.json</code> の DOI・PMID・タイトル（筆頭著者付き）。プロジェクトのほかの内容と利用者の識別子は送らない。連絡先 <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> は設定したときだけ送る</td></tr>
     <tr><td>Europe PMC、NCBI（E-utilities と PMC 全文の BioC）、Crossref、Semantic Scholar（<code>api.semanticscholar.org</code>）</td><td>ワーカー（引用文の照合）</td><td>同じ DOI・PMID（と見つけた PMCID）。論文のオープンアクセスの全文か要旨をダウンロードする。引用文そのものの比較はワーカーの中で行い、どこにも送らない</td></tr>
@@ -234,9 +247,9 @@
 <p class="small">現在のデプロイでは <code>CROSSREF_MAILTO</code> と <code>NCBI_API_KEY</code> を設定していないので、どちらも送られません。</p>
 <ul>
   <li><b>Project ID</b>：新しい Project ID は <code>p</code> と乱数 7 文字（例 <code>p7m2q9xa</code>。Canon は <code>c…</code>）で、利用者についての情報を含みません。URL と xlsx の <code>Project ID</code> 列に出ます。古い形式の ID については付録 C を参照してください。公開したプロジェクトと Canon は、所有者の <code>userKey</code> を見せます。</li>
-  <li><b>OpenAI 側の保持・学習・リージョン</b>は、OpenAI との契約と組織の設定に従います。このアプリは、データを保持しない設定（ZDR）を強制しません。機微な文献を扱うときは、OpenAI の組織の設定を確認してください。</li>
+  <li><b>OpenAI 側と Anthropic 側の保持・学習・リージョン</b>は、それぞれとの契約と組織の設定に従います。このアプリは、データを保持しない設定（ZDR）を強制しません。機微な文献を扱うときは、OpenAI と Anthropic の組織の設定を確認してください。</li>
 </ul>
-<p class="src">典拠：<code>packages/worker/src/codex.ts</code>、<code>rcs.ts</code>、<code>references.ts</code>（文献の照合）、<code>quotes.ts</code>（引用文の照合）、<code>litsearch.ts</code>・<code>litMcp.ts</code>、<code>materials.ts</code>、<code>env.ts</code>、<code>packages/shared/src/projectId.ts</code></p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>・<code>claudeGateway.ts</code>、<code>rcs.ts</code>、<code>references.ts</code>（文献の照合）、<code>quotes.ts</code>（引用文の照合）、<code>litsearch.ts</code>・<code>litMcp.ts</code>、<code>materials.ts</code>、<code>env.ts</code>、<code>packages/shared/src/projectId.ts</code></p>
 
 <h2 id="s9-7">9.7 ログ・監査・脅威と対策</h2>
 <h3>ログに残るもの</h3>
@@ -285,7 +298,7 @@
   <tbody>
     <tr><td>AWS の費用</td><td>AWS Budgets。cobrac-web には、予測 $20・実績 $30 でメールを送る予算を勧める。Cost Explorer でサービスごとに見る。急に増えたとき、まず疑うのは Fargate、次に CloudWatch Logs と CodeBuild</td></tr>
     <tr><td>ワーカーのログ</td><td>スタックの出力 <code>WorkerLogGroup</code> のロググループ（14 日）</td></tr>
-    <tr><td>OpenAI の使用量と推定費用</td><td><code>Jobs.usage</code>・<code>Jobs.costUsd</code>、プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>。OpenAI の請求書と突き合わせるのに使う。AWS の費用とは別（9.10）</td></tr>
+    <tr><td>OpenAI・Anthropic の使用量と推定費用</td><td><code>Jobs.usage</code>・<code>Jobs.costUsd</code>、プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>。OpenAI と Anthropic の請求書と突き合わせるのに使う。AWS の費用とは別（9.10）</td></tr>
     <tr><td>SES の評判</td><td>バウンス率 5%、苦情率 0.1% に達すると、スタックのアラームが SSM パラメータ <code>/cobrac-web/alarm-email</code> のアドレスにメールを送る</td></tr>
     <tr><td>利用者とジョブ</td><td>管理画面で、利用者、デフォルトの API キーの費用、全プロジェクトと実行中のジョブを見る</td></tr>
     <tr><td>デプロイの結果</td><td>GitHub Actions の実行のログと、ジョブの要約（Plan・RETAIN guard・Tag・Health）</td></tr>
@@ -415,34 +428,39 @@
 <p>現在の安さは、<b>使わないときにワーカーを止めること</b>と、<b>NAT を置かないこと</b>に支えられています。</p>
 <p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（オーケストレーターの上限）、<code>packages/shared/src/plan.ts</code>（<code>MAX_CONFORM_FOLLOWUPS</code>・<code>PLAN_MAX_WAITING_PRS</code>）、<code>planOrder.ts</code>（<code>MAX_REPLAN_JOBS</code>）、<code>planJob.ts</code>（<code>PLAN_JOB_TIME_BUDGET_MS</code>）</p>
 
-<h2 id="s9-10">9.10 OpenAI の費用と記録</h2>
+<h2 id="s9-10">9.10 OpenAI と Anthropic の費用と記録</h2>
 <h3>だれが払うか</h3>
-<p>OpenAI の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はこのキーを持つ組織に請求されます。Tier 1 の利用者は <code>gpt-6-luna</code> と <code>gpt-5.6-luna</code>（下の単価表で最も安い 2 行）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行の計画の費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクトに、月の予算を設定してください。</p>
+<p>OpenAI と Anthropic の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はこのキーを持つ組織に請求されます。Tier 1 の利用者は <code>gpt-6-luna</code>・<code>gpt-5.6-luna</code>・<code>claude-haiku-5-5</code>（下の単価表で最も安いモデル）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行の計画の費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクトと Anthropic のワークスペースに、月の予算を設定してください。</p>
 <h3>単価表</h3>
 <table class="compact avoid">
-  <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-09-25</code>、OpenAI の標準の短いコンテキストの単価）</caption>
-  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">出力（推論を含む）</th></tr></thead>
+  <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-10-10</code>、標準の短いコンテキストの単価。キャッシュ書き込みは Claude のモデルだけで、5 分のキャッシュの単価）</caption>
+  <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">キャッシュ書き込み</th><th class="c">出力（推論を含む）</th></tr></thead>
   <tbody>
-    <tr><td><code>gpt-6-luna</code>（デフォルトのモデル）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.50</td></tr>
-    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.20</td><td class="c">0.02</td><td class="c">1.20</td></tr>
-    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">10</td></tr>
-    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">12</td></tr>
-    <tr><td><code>gpt-5.6-sol</code>（<code>gpt-5.6</code> は Sol への別名）</td><td class="c">4</td><td class="c">0.40</td><td class="c">20</td></tr>
-    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">50</td></tr>
+    <tr><td><code>gpt-6-luna</code>（デフォルトのモデル）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.50</td></tr>
+    <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.20</td><td class="c">0.02</td><td class="c">—</td><td class="c">1.20</td></tr>
+    <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">10</td></tr>
+    <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">12</td></tr>
+    <tr><td><code>gpt-5.6-sol</code>（<code>gpt-5.6</code> は Sol への別名）</td><td class="c">4</td><td class="c">0.40</td><td class="c">—</td><td class="c">20</td></tr>
+    <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">—</td><td class="c">50</td></tr>
+    <tr><td><code>claude-haiku-5-5</code></td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.125</td><td class="c">0.50</td></tr>
+    <tr><td><code>claude-sonnet-5-5</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">2.5</td><td class="c">10</td></tr>
+    <tr><td><code>claude-opus-5-5</code></td><td class="c">4</td><td class="c">0.20</td><td class="c">5</td><td class="c">20</td></tr>
+    <tr><td><code>claude-fable-5-1</code></td><td class="c">10</td><td class="c">0.25</td><td class="c">12.5</td><td class="c">50</td></tr>
   </tbody>
 </table>
 <ul>
   <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、<code>gpt-6-luna</code>（<code>DEFAULT_CODEX_MODEL</code>）を使います。そのため、費用は常にどこかのモデルに帰属します。</li>
   <li>推論のトークンは出力として課金されます。日付付きのスナップショット名は、末尾の日付を外して単価を探します。表にないモデルは、トークン数だけを表示し、費用は「$—」になります。</li>
-  <li>単価表は、コードの定数として手で保守するスナップショットです。OpenAI が値段を変えたら <code>PRICING</code> と <code>PRICING_AS_OF</code> を直し、patch のバージョンとしてデプロイします。実際の請求額の正本は OpenAI のダッシュボードです。</li>
+  <li>単価表は、コードの定数として手で保守するスナップショットです。OpenAI か Anthropic が値段を変えたら <code>PRICING</code> と <code>PRICING_AS_OF</code> を直し、patch のバージョンとしてデプロイします。実際の請求額の正本は OpenAI と Anthropic のダッシュボードです。</li>
   <li>Codex に伝えるコンテキスト長は 272,000 トークンに固定しています（<code>CODEX_CONTEXT_WINDOW</code>）。OpenAI は gpt-5.6・gpt-6 に 1,050,000 トークンを掲げていますが、272K を超える入力は 2 倍の単価になるためです（8.4）。</li>
 </ul>
 <h3>費用の計算</h3>
-<p>使用量は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code> の 4 つの数です。推定費用 <code>costUsd</code> は、<code>estimateCostUsd()</code> が単価表から次の式で計算します。推論のトークンは <code>outputTokens</code> に含まれています。</p>
-<pre><code>(inputTokens − cachedInputTokens) × 入力の単価
+<p>使用量は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code> の 4 つの数で、Claude のモデルではキャッシュへの書き込み <code>cacheWriteTokens</code> が加わります。推定費用 <code>costUsd</code> は、<code>estimateCostUsd()</code> が単価表から次の式で計算します。推論のトークンは <code>outputTokens</code> に含まれています。</p>
+<pre><code>(inputTokens − cachedInputTokens − cacheWriteTokens) × 入力の単価
   + cachedInputTokens × キャッシュされた入力の単価
+  + cacheWriteTokens × キャッシュ書き込みの単価
   + outputTokens × 出力の単価        （単価は 100 万トークンあたり）</code></pre>
-<p>表にないモデルでは <code>null</code> になり、画面は <code>$—</code> を出します。ジョブの <code>model</code> は、ジョブの開始時に実際に Codex に渡したモデルです（4.2）。</p>
+<p>キャッシュ書き込みの単価がないモデルでは、入力の単価を使います。表にないモデルでは <code>null</code> になり、画面は <code>$—</code> を出します。ジョブの <code>model</code> は、ジョブの開始時に実際に Codex か Claude Agent SDK に渡したモデルです（4.2）。</p>
 <h3>1 ターンの使用量の数え方</h3>
 <p>Codex がターンの終わり（<code>turn.completed</code>）に返す使用量は、そのターンの分ではなく、<b>会話が始まってからの累計</b>です。後のジョブで会話を再開しても、累計は続きます。そこでワーカーは、次のように数えます（<code>packages/worker/src/codex.ts</code> の <code>runTurn</code>）。</p>
 <ul>
@@ -452,11 +470,12 @@
   <li>失敗（<code>turn.failed</code>）で終わったターンも、セッションファイルの累計から数えます。</li>
   <li>打ち切られて終わりを返さないターンも、同じ方法で数えます。停止、調査ステップの 60 分の時間切れ、SIGTERM、6 時間の上限で打ち切られたものと、失敗のターンを出さずに終わった <code>codex exec</code> がこれにあたります。実行中のターンが測り方を登録し、先に来た停止の経路が 1 回だけそれを使います（<code>InFlightTurn</code>）。測った分は打ち切られたジョブ自身の費用に足し、次の実行はそれを含む累計から始めるので、二重には数えません。</li>
 </ul>
+<p>Claude のモデルでは、ターンの使用量を SDK の結果（<code>result.usage</code>）から取り、キャッシュの読み込み（<code>cachedInputTokens</code>）と書き込み（<code>cacheWriteTokens</code>）を分けて記録します。累計は Codex のセッションファイルと同じ形で <code>&lt;CODEX_HOME&gt;/sessions/claude-usage/rollout-claude-&lt;id&gt;.jsonl</code> に書くので、上の数え方がそのまま使えます。</p>
 <p>ジョブの使用量を足した後、ワーカーは全ジョブからプロジェクトの合計を集計し直します（<code>refreshProjectUsage</code>）。この数え方を決めた経緯は付録 D にあり、それより前に記録したジョブの扱いは付録 C にあります。</p>
 <h3>使用量と費用の記録</h3>
 <p>ワーカーは各ジョブについて、使ったモデル、入力・キャッシュされた入力・出力・推論のトークン数、推定費用を記録します（<code>Jobs.usage</code>・<code>Jobs.costUsd</code>。プロジェクトの合計は <code>Projects.usage</code>・<code>Projects.costUsd</code>）。ジョブには、どちらのキーで実行したか（<code>keySource</code>：<code>own</code> か、デフォルトの API キーの <code>org</code>）も記録します。画面での見え方は 4.7 にあります。</p>
 <p>利用者ごとの集計（<code>GET /users/me/usage</code>）は、全体とモデルごとの合計に、自分のプロジェクトのジョブのほか、次のものも含めます。自分の Canon と共同編集者として入っている Canon の AI レビューと、自分の計画の計画用のジョブ（<code>plan</code>）です。</p>
-<p>推定は単価表で計算するので、OpenAI の請求書と一致しないことがあります。とくに単価表にないモデルでは一致しません。この記録は AWS の費用とは別のもので、OpenAI の請求と突き合わせるために使います。</p>
+<p>推定は単価表で計算するので、OpenAI と Anthropic の請求書と一致しないことがあります。とくに単価表にないモデルでは一致しません。この記録は AWS の費用とは別のもので、OpenAI と Anthropic の請求と突き合わせるために使います。</p>
 <h3>BRA 1 件あたりの目安</h3>
 <ul>
   <li><b>gpt-6-luna・推論の強さ high・調査モード オン</b>で BRA を 1 件作ると、実費で約 $0.13〜0.18 でした（付録 D の測定）。オーケストレーターの見積もりは、1 行あたり $0.18〜0.39、中央値 48 分で計算します（<code>PLAN_ESTIMATE</code>。6.9）。</li>
@@ -464,5 +483,5 @@
   <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間は約 10〜60 分増えます（1 vCPU / 2 GB の Spot で約 $0.01〜0.05）。OpenAI 側では、入力が 150 万〜600 万トークン（大部分はキャッシュ）、出力が 4 万〜15 万トークン（推論の強さ high 以上）増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
   <li><b>オーケストレーターの下書き・再計画</b>は、推論の強さ <code>medium</code> で RCS の照会をする短い Codex の 1 ターンです（返答が読めなければ 1 回やり直します）。時間の予算は 7 分で、xlsx・PDF の資料を読むか 20 行を超える下書きは 25 分です。BRA の実行に比べれば小さな費用です。ほかのジョブと同じく所有者のキーかデフォルトの API キーで課金され、ジョブに記録され、計画の画面に計画自身のジョブの費用として出ます。計画の PR の AI レビューの費用も、計画の費用に含めます。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）・<code>claude.ts</code>、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>
 </section>

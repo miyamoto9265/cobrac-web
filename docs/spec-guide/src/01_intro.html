@@ -39,7 +39,7 @@
     <tr><td><b>第 6 部 オーケストレーター</b></td><td>多数の ROI × TLF を計画にまとめ、実行順序の計算、バッチごとの実行、自律実行での判断までを自動で進める仕組み</td></tr>
     <tr><td><b>第 7 部 BRA-DB への登録</b></td><td>凍結した版を、BRA-DB と同じスキーマ（v4.6）のデータベースに来歴付きで登録する手順と規則</td></tr>
     <tr><td><b>第 8 部 システムの構成</b></td><td>AWS の部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、フロントエンド、非機能の目標</td></tr>
-    <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と OpenAI の費用</td></tr>
+    <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と OpenAI・Anthropic の費用</td></tr>
     <tr><td><b>付録</b></td><td>A API 一覧、B 指示書の原文、C 古いプロジェクトの扱い、D 設計の経緯（速度と費用の測定を含む）、E 典拠</td></tr>
   </tbody>
 </table>
@@ -56,7 +56,7 @@
     <tr><td><code>lit</code>・RCS</td><td>プログラム</td><td>エージェントが呼ぶツール。文献の検索結果や SABRA の単位の候補を返すだけで、採否は判断しない</td><td>3.7、2.3</td></tr>
   </tbody>
 </table>
-<p>LLM が動くのは、ワーカーが Codex を通じて実行するジョブの中だけです。API や計画ランナーなどの Lambda は LLM を呼びません。LLM を使うジョブは次のとおりで、ジョブごとに会話が分かれており、互いの会話は共有しません。</p>
+<p>LLM が動くのは、ワーカーが Codex（Claude のモデルでは Claude Agent SDK）を通じて実行するジョブの中だけです。API や計画ランナーなどの Lambda は LLM を呼びません。LLM を使うジョブは次のとおりで、ジョブごとに会話が分かれており、互いの会話は共有しません。</p>
 <table class="compact">
   <thead><tr><th style="width:26%">LLM の仕事</th><th style="width:26%">ジョブ</th><th style="width:30%">使えるツール</th><th>詳しくは</th></tr></thead>
   <tbody>
@@ -66,7 +66,7 @@
     <tr><td>計画の下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS と添付資料の読み取り。回答と解決ではなし</td><td>6.4、6.6、6.8</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code>・<code>claude.ts</code></p>
 
 <h2 id="s0-3">0.3 用語</h2>
 <p>本書で使う主な用語を次に示します。各部に固有の細かい用語は、その部で定義しています。</p>
@@ -84,15 +84,16 @@
     <tr><td>SABRA</td><td>組織の混合アトラス。新皮質は BNA（Brainnetome）、それ以外は DHBA を使う。SABRA 自体は独自の ID を持たない（2.3）</td></tr>
     <tr><td>HOMBA / DHBA / BNA</td><td>HOMBA はヒトの脳のオントロジーで、DHBA 側の単位は DHBA 名を持つ HOMBA の項目。BNA は Brainnetome Atlas のラベルで、左が奇数、右が偶数</td></tr>
     <tr><td>RCS</td><td>ROSETTA Candidate Search。名前から HOMBA と BNA の候補と SABRA での扱いを返す MCP サーバー（別リポジトリ <code>rosetta-candidate-search</code>）</td></tr>
-    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で動かす。本書で単に「エージェント」と記した場合はこれを指す</td></tr>
+    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で、Anthropic の Claude のモデルを Claude Agent SDK で動かす（4.2）。本書で単に「エージェント」と記した場合はこれを指す</td></tr>
     <tr><td>Codex</td><td>OpenAI のエージェント実行環境（Codex SDK と CLI）。モデルにツールを使わせ、会話を管理する</td></tr>
+    <tr><td>Claude Agent SDK</td><td>Anthropic のエージェント実行環境。Claude Code を子プロセスとして動かし、Claude のモデルのジョブで Codex と同じ役目を果たす（8.4）</td></tr>
     <tr><td>ワーカー</td><td>ジョブごとに AWS Fargate で動く TypeScript のプログラム</td></tr>
     <tr><td>ハーネス</td><td>エージェントを決まった手順で動かし、成果物を検査して直させる仕組みの全体。ワーカーのプログラム、指示書、JSON Schema、検査、変換からなる（第 3 部）</td></tr>
     <tr><td>プロジェクト</td><td>BRA を 1 つ作る単位。ID はシステムが付け（<code>p</code> + 7 文字）、変えず、再利用しない。名前は自由に変えられる（4.3）</td></tr>
     <tr><td>ジョブ</td><td>ワーカーの 1 回の実行。BRA の作成（初回・フォローアップ・回答後の再開・リトライ）のほか、解説記事、AI レビュー、計画用のジョブがある</td></tr>
     <tr><td>段階</td><td>BRA のジョブの区切り。HCD、FRG、CSV、xlsx の順に進む。調査モードでは、HCD の前に調査ステップが入る（3.7）</td></tr>
     <tr><td>ターン</td><td>エージェントが依頼文を 1 つ受け取ってから、終了の JSON（<code>status</code> は <code>done</code> か <code>question</code>）を返すまでの作業</td></tr>
-    <tr><td>会話</td><td>ターンの履歴（Codex のスレッド）。BRA を作る会話は、1 つのプロジェクトに 1 つ</td></tr>
+    <tr><td>会話</td><td>ターンの履歴（Codex のスレッド、Claude のモデルでは Claude Code のセッション）。BRA を作る会話は、1 つのプロジェクトに 1 つ</td></tr>
     <tr><td>依頼文 / 指示書</td><td>ワーカーがターンごとにエージェントに渡す文 / その元になる <code>prompts/</code> のファイル（付録 B）</td></tr>
     <tr><td>作業ディレクトリ</td><td>ワーカーのディスク上の <code>/work</code>。プロジェクトフォルダ（<code>/work/&lt;ProjectID&gt;/</code>）と、ワーカーが置く <code>AGENTS.md</code>・<code>schemas/</code>・<code>materials/</code>・<code>canon/</code> を含み、S3 に保存される</td></tr>
     <tr><td>検査 / 照合</td><td>プログラムが規則に照らして判定すること / Crossref や PubMed などの外部のデータや文献の原文と突き合わせること</td></tr>
@@ -101,12 +102,13 @@
     <tr><td>フォローアップ</td><td>完了したプロジェクトに修正を指示し、同じ会話で成果物を作り直すジョブ。画面では「追加の指示」</td></tr>
     <tr><td>リトライ</td><td>失敗または中止したジョブを、前回の成果物から再開するジョブ（画面の「続きからリトライ」）。API の呼び出しなどを自動でやり直すことは「再試行」と呼んで区別する</td></tr>
     <tr><td>推論の強さ</td><td>モデルの reasoning effort（画面では「Reasoning effort」）</td></tr>
-    <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー。管理者が利用承認（Tier 1 / Tier 2）した利用者は、自分のキーがなくてもこのキーでジョブを実行できる（4.1）</td></tr>
+    <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー（Claude のモデルにはデフォルトの Anthropic API キー）。管理者が利用承認（Tier 1 / Tier 2）した利用者は、自分のキーがなくてもこのキーでジョブを実行できる（4.1）</td></tr>
     <tr><td>使用量</td><td>ジョブが使ったトークンの量。費用はここから計算する（4.7、9.10）</td></tr>
     <tr><td>版</td><td>完了したジョブの結果を凍結したもの。ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（4.5）。アプリのバージョンとは別</td></tr>
     <tr><td>Canon / rev</td><td>回路の定義をそろえるプロジェクトのまとまり / Canon の中身の版。PR を承認するたびに 1 つ進み、rev 0 は空の Canon（第 5 部）</td></tr>
     <tr><td>PR / push / 取り込み</td><td>プロジェクト（または別の Canon）の内容を Canon に入れる依頼 / PR を送ること / PR が承認されて新しい rev になること</td></tr>
-    <tr><td>計画 / 行 / バッチ</td><td>オーケストレーターの単位。計画は行（ROI × TLF）の一覧で、行はバッチごとに実行される（第 6 部）</td></tr>
+    <tr><td>計画 / 行 / バッチ</td><td>オーケストレーターの単位。計画は行（ROI × TLF）の一覧で、行はバッチに分けられる。手動の順序の計画はバッチごとに実行される（第 6 部）</td></tr>
+    <tr><td>フロー実行 / レーン</td><td>自動の順序の計画の進め方。行は依存・基準プロジェクト・重なりの条件を満たした時点で空いた枠から始まり、バッチは始める順の目安になる / 依存と回路の重なりでつながる行のまとまり。表示のためのもの（6.5）</td></tr>
     <tr><td>自律実行</td><td>新しい計画の既定。確定・回答・PR の判断などを、オーケストレーターが人の代わりに行う。自律実行を切った計画を「人が対応する計画」と呼ぶ（6.8、6.9）</td></tr>
   </tbody>
 </table>

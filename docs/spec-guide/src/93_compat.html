@@ -216,6 +216,7 @@
 <ul>
   <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。現在はこの指示を使っていません（6.8）。</li>
   <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、現在は使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
+  <li>フロー実行（6.5）が入った v0.44.0 より前に確定した計画は、実行の仕方 <code>scheduling</code> を持たないか <code>waves</code> で、自動の順序でもバッチごとに進みます。</li>
   <li>開発段階 3（計画の Canon、v0.36.0）より前に作った計画は Canon を持たず、Canon のない計画として動きます。</li>
   <li>計画の資料の CSV では、バッチの列名として「波」も現在の「バッチ」「batch」「wave」と同じに読みます。以前の画面の表記に合わせた名前です。</li>
 </ul>
