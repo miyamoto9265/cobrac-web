@@ -1,4 +1,5 @@
-import { Gauge, KeyRound, Save, Trash2 } from "lucide-react";
+import { FileText, Gauge, KeyRound, Save, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import type { ConcurrencyStatus, DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
 import { CONCURRENCY_MAX, CONCURRENCY_MIN, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
@@ -197,7 +198,16 @@ export function AdminPage() {
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <h1 className="mb-4 text-xl font-semibold">{t("admin.title")}</h1>
+      <div className="mb-4 flex max-w-3xl flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-semibold">{t("admin.title")}</h1>
+        <Link
+          to="/docs"
+          data-testid="admin-spec"
+          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 coarse:py-2.5"
+        >
+          <FileText size={16} aria-hidden /> {t("nav.spec")}
+        </Link>
+      </div>
       {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
       <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="default-key">
