@@ -1135,7 +1135,6 @@ export const ru: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "значение развёртывания: {n}",
   "admin.concurrencyEffective": "Действует: всего {global}, на пользователя {perUser}",
   "admin.concurrencyRange": "Введите целое число от {min} до {max} или оставьте поле пустым.",
-  "admin.concurrencyTpm": "Один запуск BRA расходует около {min}–{max}k токенов в минуту, а лимит OpenAI организации — {tpm}k токенов в минуту, поэтому при большем числе одновременных запусков возможны ожидания из-за лимита скорости.",
   "plan.row.review": "Ждёт одобрения",
   "plan.row.decision": "Нужно ваше решение",
   "plan.canon": "Canon",

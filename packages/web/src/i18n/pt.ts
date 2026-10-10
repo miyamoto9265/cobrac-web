@@ -1135,7 +1135,6 @@ export const pt: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "valor da implantação: {n}",
   "admin.concurrencyEffective": "Em vigor: {global} no total, {perUser} por usuário",
   "admin.concurrencyRange": "Digite um número inteiro de {min} a {max} ou deixe o campo vazio.",
-  "admin.concurrencyTpm": "Uma execução de BRA usa cerca de {min}–{max}k tokens por minuto e o limite da OpenAI da organização é de {tpm}k tokens por minuto; com mais execuções simultâneas, pode haver espera pelo limite de taxa.",
   "plan.row.review": "Aguardando aprovação",
   "plan.row.decision": "Sua decisão",
   "plan.canon": "Canon",

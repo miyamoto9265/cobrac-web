@@ -1135,7 +1135,6 @@ export const ko: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "배포 시의 값: {n}",
   "admin.concurrencyEffective": "현재 상한: 전체 {global}, 사용자별 {perUser}",
   "admin.concurrencyRange": "{min}~{max}의 정수를 입력하거나 비워 두세요.",
-  "admin.concurrencyTpm": "BRA 실행 한 번은 분당 약 {min}–{max}k 토큰을 쓰고 조직의 OpenAI 상한은 분당 {tpm}k 토큰입니다. 동시 실행을 늘리면 속도 제한 때문에 기다릴 수 있습니다.",
   "plan.row.review": "승인 대기",
   "plan.row.decision": "사람의 판단",
   "plan.canon": "Canon",

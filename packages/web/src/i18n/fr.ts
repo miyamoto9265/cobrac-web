@@ -1135,7 +1135,6 @@ export const fr: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "valeur du déploiement : {n}",
   "admin.concurrencyEffective": "En vigueur : {global} au total, {perUser} par utilisateur",
   "admin.concurrencyRange": "Saisissez un entier de {min} à {max}, ou laissez le champ vide.",
-  "admin.concurrencyTpm": "Une exécution BRA consomme environ {min}–{max}k jetons par minute et la limite OpenAI de l’organisation est de {tpm}k jetons par minute ; davantage d’exécutions simultanées peuvent donc attendre la limite de débit.",
   "plan.row.review": "En attente d’approbation",
   "plan.row.decision": "Votre décision",
   "plan.canon": "Canon",

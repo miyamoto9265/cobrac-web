@@ -1133,7 +1133,6 @@ export const en = {
   "admin.concurrencyDeployment": "deployment value: {n}",
   "admin.concurrencyEffective": "In force: {global} overall, {perUser} per user",
   "admin.concurrencyRange": "Enter a whole number from {min} to {max}, or leave the field empty.",
-  "admin.concurrencyTpm": "One BRA run uses about {min}–{max}k tokens per minute and the organization's OpenAI limit is {tpm}k tokens per minute, so more runs at once may wait on the rate limit.",
   "plan.row.review": "Awaiting approval",
   "plan.row.decision": "Your decision",
   "plan.canon": "Canon",

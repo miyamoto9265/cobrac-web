@@ -1135,7 +1135,6 @@ export const zhTw: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "部署時的值：{n}",
   "admin.concurrencyEffective": "目前上限：整體 {global}，每位使用者 {perUser}",
   "admin.concurrencyRange": "請輸入 {min} 到 {max} 的整數，或留空。",
-  "admin.concurrencyTpm": "一次 BRA 執行每分鐘約使用 {min}–{max}k 個 token，組織的 OpenAI 上限為每分鐘 {tpm}k 個 token；同時執行更多工作時，可能因速率限制而等待。",
   "plan.row.review": "待核准",
   "plan.row.decision": "需人工判斷",
   "plan.canon": "Canon",

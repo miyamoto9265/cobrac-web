@@ -1135,7 +1135,6 @@ export const ja: Record<MessageKey, string> = {
   "admin.concurrencyDeployment": "デプロイ時の値: {n}",
   "admin.concurrencyEffective": "現在の上限: 全体 {global}、1 人あたり {perUser}",
   "admin.concurrencyRange": "{min}〜{max} の整数を入力するか、空欄にしてください。",
-  "admin.concurrencyTpm": "BRA の 1 回の実行は毎分約 {min}〜{max}k トークンを使い、組織の OpenAI の上限は毎分 {tpm}k トークンです。同時実行を増やすと、レート制限で待つことがあります。",
   "plan.row.review": "承認待ち",
   "plan.row.decision": "人の判断",
   "plan.canon": "Canon",
