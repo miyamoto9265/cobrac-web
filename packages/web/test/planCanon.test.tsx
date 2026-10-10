@@ -96,7 +96,7 @@ async function render(path: string) {
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
-            <Route path="/canons/:canonId" element={<CanonDetailPage />} />
+            <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
             <Route path="/canons/:canonId/pulls/:no" element={<CanonPullPage />} />
           </Routes>
         </MemoryRouter>
@@ -442,7 +442,7 @@ describe("bulk approval in the Canon", () => {
   it("offers only conflict-free open pull requests, approves them oldest first and shows where it stopped", async () => {
     api.getCanon.mockResolvedValue(canonDetail("owner"));
     api.approveManyPulls.mockResolvedValue({ approved: [{ prNo: 5, revision: 4 }], stopped: { prNo: 9, reason: "conflicts", blocking: 1 } });
-    await render(`/canons/${CANON}`);
+    await render(`/canons/${CANON}/pulls`);
     const list = q('[data-testid="canon-pulls"]')!;
     const offered = qa('[data-testid="bulk-pick"]', list).map((el) => Number(el.closest("li")!.getAttribute("data-pr")));
     expect(offered).toEqual([9, 5]);
@@ -463,14 +463,14 @@ describe("bulk approval in the Canon", () => {
 
   it("lets a co-editor approve together but shows the plan as a plain chip, and offers nothing to an admin", async () => {
     api.getCanon.mockResolvedValue(canonDetail("editor"));
-    await render(`/canons/${CANON}`);
+    await render(`/canons/${CANON}/pulls`);
     expect(qa('[data-testid="bulk-pick"]')).toHaveLength(2);
     expect(qa('[data-testid="pr-plan"]').every((el) => el.tagName === "SPAN")).toBe(true);
     if (root) await act(async () => root!.unmount());
     host?.remove();
 
     api.getCanon.mockResolvedValue(canonDetail("admin"));
-    await render(`/canons/${CANON}`);
+    await render(`/canons/${CANON}/pulls`);
     expect(q('[data-testid="bulk-approve"]')).toBeNull();
     expect(qa('[data-testid="bulk-pick"]')).toHaveLength(0);
   });

@@ -1,22 +1,36 @@
-import { ArrowLeft, CheckCheck, Layers, LogOut, Plus, Save, Trash2, UserPlus, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { ChevronDown, ChevronUp, CheckCheck, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
-import { projectDisplayName } from "@cobrac/shared";
+import { projectDisplayName, toCsv } from "@cobrac/shared";
+import { Section } from "../components/DetailPanel";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PlanChip } from "../components/PlanChip";
 import { SendCanonPr } from "../components/SendCanonPr";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
+import { SheetTable } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject } from "../lib/canonGraph";
 import { fmtDate } from "../lib/format";
 import { bulkApprovable } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
-import { PolicyLabel, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
+import { useGraphLayout } from "../lib/useGraphLayout";
+import { CANON_VIEWS, PolicyLabel, canonPath, canonPullPath, inputCls, primaryBtn, type CanonView } from "./CanonsPage";
 import { publicCanonPath } from "./ExplorePage";
+import { HcdGraphView } from "./HcdGraphPage";
 import { workspacePath } from "./ProjectWorkspacePage";
+
+const VIEW_TABS: { view: CanonView; label: MessageKey; Icon: LucideIcon }[] = [
+  { view: "hcd", label: "chat.hcd", Icon: Network },
+  { view: "tables", label: "ws.tables", Icon: Table2 },
+  { view: "projects", label: "canon.members", Icon: FolderOpen },
+  { view: "pulls", label: "pr.list", Icon: GitPullRequest },
+  { view: "history", label: "canon.history", Icon: History },
+  { view: "settings", label: "canon.settings", Icon: Settings },
+];
 
 function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSaved: () => void }) {
   const t = useT();
@@ -67,7 +81,7 @@ function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSave
   );
 }
 
-function MembersCard({ detail, projects, onChanged }: { detail: CanonDetailResponse; projects: ProjectRecord[]; onChanged: () => void }) {
+function MembersCard({ detail, projects, pushed, onChanged }: { detail: CanonDetailResponse; projects: ProjectRecord[]; pushed: Map<string, number>; onChanged: () => void }) {
   const t = useT();
   const { locale } = useI18n();
   const canonId = detail.canon.canonId;
@@ -105,7 +119,10 @@ function MembersCard({ detail, projects, onChanged }: { detail: CanonDetailRespo
               </Link>
               <div className="font-mono text-[11px] text-slate-400">{m.projectId}</div>
               <div className="break-words text-xs text-slate-500">{[m.roi, m.tlf].filter((s) => s?.trim()).join(" · ")}</div>
-              <div className="text-[11px] text-slate-400">{fmtDate(m.joinedAt, locale)}</div>
+              <div className="text-[11px] text-slate-400">
+                {fmtDate(m.joinedAt, locale)}
+                {pushed.get(m.projectId) ? ` · ${t("cv.pushedCircuits", { n: pushed.get(m.projectId)! })}` : ""}
+              </div>
             </div>
             <StatusBadge status={m.status as ProjectStatus} compact />
             <button
@@ -256,7 +273,7 @@ function EditorsCard({ detail, onChanged, onLeft }: { detail: CanonDetailRespons
 }
 
 /** Member projects as a co-editor sees them (they belong to the owner, so no links or changes). */
-function MembersList({ detail }: { detail: CanonDetailResponse }) {
+function MembersList({ detail, pushed }: { detail: CanonDetailResponse; pushed: Map<string, number> }) {
   const t = useT();
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
@@ -270,6 +287,7 @@ function MembersList({ detail }: { detail: CanonDetailResponse }) {
             <div className="break-words text-sm font-medium">{m.name}</div>
             <div className="font-mono text-[11px] text-slate-400">{m.projectId}</div>
             <div className="break-words text-xs text-slate-500">{[m.roi, m.tlf].filter((s) => s?.trim()).join(" · ")}</div>
+            {!!pushed.get(m.projectId) && <div className="text-[11px] text-slate-400">{t("cv.pushedCircuits", { n: pushed.get(m.projectId)! })}</div>}
           </li>
         ))}
       </ul>
@@ -359,82 +377,202 @@ function PullsCard({ canonId, pulls, role, onChanged }: { canonId: string; pulls
   );
 }
 
-function ContentsCard({ snapshot, revisions }: { snapshot: CanonSnapshot | null; revisions: CanonRevisionSummary[] }) {
+
+/** Approved revisions, newest first, with the pull request that made each and who approved it. */
+function HistoryView({ canonId, revisions }: { canonId: string; revisions: CanonRevisionSummary[] }) {
   const t = useT();
   const { locale } = useI18n();
-  if (!snapshot || snapshot.revision === 0) {
-    return (
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-        <h2 className="mb-2 text-sm font-semibold">{t("canon.contents")}</h2>
-        <p className="flex items-center gap-1 text-sm text-slate-500">
-          {t("canon.contentsEmpty")} <HelpTip text={t("canon.contentsEmptyHelp")} />
-        </p>
-      </section>
-    );
-  }
-  const circuits = [...snapshot.circuits].sort((a, b) => a.key.localeCompare(b.key));
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <h2 className="mb-1 text-sm font-semibold">
-        {t("canon.contents")} <span className="font-mono font-normal text-slate-400">{t("canon.revision", { n: snapshot.revision })}</span>
-      </h2>
-      <div className="mb-2 text-xs text-slate-500">{t("canon.counts", { c: snapshot.circuits.length, x: snapshot.connections.length, r: snapshot.references.length, p: snapshot.roles.length })}</div>
-      <div className="max-h-96 overflow-auto">
-        <table className="w-full text-xs" data-testid="canon-circuits">
-          <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="px-2 py-1">Circuit ID</th>
-              <th className="px-2 py-1">Uniform</th>
-              <th className="px-2 py-1">Sub-Circuits</th>
-              <th className="px-2 py-1">{t("canon.sources")}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {circuits.map((c) => (
-              <tr key={c.key} className={c.state !== "valid" ? "bg-amber-50" : ""}>
-                <td className="whitespace-nowrap px-2 py-1 font-mono" title={c.descriptor}>
-                  {c.circuitId}
-                </td>
-                <td className="px-2 py-1">{c.status === "uniform" ? "TRUE" : "FALSE"}</td>
-                <td className="px-2 py-1 font-mono text-[11px] text-slate-500">{c.subCircuits.map((k) => snapshot.circuits.find((x) => x.key === k)?.circuitId ?? k).join(", ")}</td>
-                <td className="px-2 py-1 font-mono text-[11px] text-slate-500">{c.sources.join(", ")}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {snapshot.connections.some((c) => c.state === "flagged") && <div className="mt-2 text-xs text-amber-700">{t("canon.flaggedConnections", { n: snapshot.connections.filter((c) => c.state === "flagged").length })}</div>}
-      <h3 className="mb-1 mt-3 text-xs font-semibold text-slate-600">{t("canon.history")}</h3>
-      <ul className="text-[11px] text-slate-500">
+      <h2 className="mb-2 text-sm font-semibold">{t("canon.history")}</h2>
+      {revisions.length === 0 && <div className="text-sm text-slate-400">{t("cv.historyEmpty")}</div>}
+      <ol className="divide-y divide-slate-100" data-testid="canon-history">
         {revisions.map((r) => (
-          <li key={r.revision}>
-            <span className="font-mono">{t("canon.revision", { n: r.revision })}</span> · #{r.prNo} {r.source} · {fmtDate(r.createdAt, locale)}
-            {r.approvedByName && <span className="text-emerald-700"> · {t("ed.approvedBy", { name: r.approvedByName })}</span>}
+          <li key={r.revision} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-sm">
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{t("canon.revision", { n: r.revision })}</span>
+            {r.prNo ? (
+              <Link to={canonPullPath(canonId, r.prNo)} className="min-w-0 break-words text-blue-700 hover:underline">
+                <span className="font-mono text-slate-500">#{r.prNo}</span> {r.source}
+              </Link>
+            ) : (
+              r.source && <span className="min-w-0 break-words text-slate-600">{r.source}</span>
+            )}
+            {r.circuitCount !== undefined && <span className="text-xs text-slate-500">{t("cv.revCounts", { c: r.circuitCount, x: r.connectionCount ?? 0 })}</span>}
+            <span className="ml-auto text-[11px] text-slate-400">
+              {fmtDate(r.createdAt, locale)}
+              {r.approvedByName && <span className="text-emerald-700"> · {t("ed.approvedBy", { name: r.approvedByName })}</span>}
+            </span>
           </li>
         ))}
-      </ul>
+      </ol>
     </section>
   );
 }
 
+/** Circuits, connections and references of the head revision as sortable tables (CSV download in the browser). */
+function CanonTablesView({ snapshot }: { snapshot: CanonSnapshot }) {
+  const t = useT();
+  const [params, setParams] = useSearchParams();
+  const table = CANON_TABLES.find((x) => x === params.get("table")) ?? "circuits";
+  const sheet = useMemo(() => canonSheet(snapshot, table), [snapshot, table]);
+  const download = () => {
+    const url = URL.createObjectURL(new Blob(["﻿", toCsv([sheet.columns, ...sheet.rows])], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${snapshot.canonId}_rev${snapshot.revision}_${sheet.name}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-200 bg-white px-3 py-2 sm:flex-wrap sm:px-4" aria-label={t("table.source")}>
+        {CANON_TABLES.map((x) => (
+          <button
+            key={x}
+            type="button"
+            onClick={() => setParams((p) => new URLSearchParams({ ...Object.fromEntries(p), table: x }), { replace: true })}
+            aria-pressed={x === table}
+            data-testid={`canon-table-${x}`}
+            className={`shrink-0 whitespace-nowrap rounded-md border px-2 py-1 font-mono text-xs coarse:min-h-11 ${
+              x === table ? "border-blue-500 bg-blue-50 text-blue-700" : "border-slate-300 text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {canonSheet(snapshot, x).name} <span className="text-slate-400">({x === "circuits" ? snapshot.circuits.length + snapshot.groups.length : x === "connections" ? snapshot.connections.length : snapshot.references.length})</span>
+          </button>
+        ))}
+      </div>
+      <SheetTable key={table} sheet={sheet} onDownload={download} />
+    </div>
+  );
+}
+
+/** The Canon's graph: its shared layer drawn like a project's HCD, with one member project's circuits emphasised on request. */
+function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; snapshot: CanonSnapshot }) {
+  const t = useT();
+  const canonId = detail.canon.canonId;
+  const graph = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
+  const layout = useGraphLayout(canonId, "hcd", { canon: true });
+  const [emphasis, setEmphasis] = useState("");
+  const emphasised = useMemo(() => (emphasis ? circuitsOfProject(snapshot, emphasis) : null), [snapshot, emphasis]);
+  const sourcesOf = useMemo(() => new Map(snapshot.circuits.map((c) => [c.circuitId, c] as const)), [snapshot]);
+  const names = useMemo(() => new Map(detail.members.map((m) => [m.projectId, m.name] as const)), [detail.members]);
+  // projects that pushed something, members first (a project that left the Canon keeps its entries)
+  const pushers = useMemo(() => {
+    const ids = new Set(snapshot.circuits.flatMap((c) => c.sources));
+    return [...detail.members.filter((m) => ids.has(m.projectId)).map((m) => m.projectId), ...[...ids].filter((id) => !names.has(id)).sort()];
+  }, [snapshot, detail.members, names]);
+  const owner = detail.role === "owner";
+  return (
+    <HcdGraphView
+      graph={graph}
+      frg={null}
+      layout={layout}
+      exportName={`${canonId}_rev${snapshot.revision}_HCD`}
+      frgBase={null}
+      emphasis={emphasised}
+      headerExtra={
+        pushers.length > 1 && (
+          <select
+            value={emphasis}
+            onChange={(e) => setEmphasis(e.target.value)}
+            aria-label={t("cv.emphasis")}
+            title={t("cv.emphasis")}
+            data-testid="canon-emphasis"
+            className="ml-auto w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11"
+          >
+            <option value="">{t("cv.emphasisAll")}</option>
+            {pushers.map((id) => (
+              <option key={id} value={id}>
+                {names.get(id) ?? id}
+              </option>
+            ))}
+          </select>
+        )
+      }
+      nodeExtra={(node) => {
+        const c = sourcesOf.get(node.id);
+        if (!c) return null;
+        return (
+          <>
+            {c.state === "flagged" && <div className="mb-3 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">{t("cv.flagged")}</div>}
+            <Section title={t("canon.sources")} />
+            <ul className="mb-3 flex flex-col gap-1">
+              {c.sources.map((id) => (
+                <li key={id} className="min-w-0 text-xs">
+                  {owner && names.has(id) ? (
+                    <Link to={workspacePath(id, "hcd")} className="break-words text-blue-700 hover:underline">
+                      {names.get(id)}
+                    </Link>
+                  ) : (
+                    <span className="break-words">{names.get(id) ?? id}</span>
+                  )}{" "}
+                  <span className="font-mono text-[11px] text-slate-400">{id}</span>
+                </li>
+              ))}
+            </ul>
+          </>
+        );
+      }}
+    />
+  );
+}
+
+function CanonEmpty({ owner, onAddProjects }: { owner: boolean; onAddProjects: () => void }) {
+  const t = useT();
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center" data-testid="canon-empty">
+      <Layers size={36} className="text-slate-300" />
+      <h2 className="text-base font-semibold text-slate-700">{t("cv.emptyTitle")}</h2>
+      <p className="max-w-md text-sm text-slate-500">{t("canon.contentsEmptyHelp")}</p>
+      {owner && (
+        <button type="button" onClick={onAddProjects} className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
+          <FolderOpen size={15} /> {t("cv.toProjects")}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A tab whose content is cards (projects, pull requests, history, settings). */
+function CardPane({ children }: { children: ReactNode }) {
+  return (
+    <div className="h-full overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+      <div className="mx-auto grid max-w-4xl grid-cols-[minmax(0,1fr)] content-start gap-4 sm:gap-5">{children}</div>
+    </div>
+  );
+}
+
+/** Canon page, laid out like the project workspace: a header, view tabs and the view below. `/canons/:canonId/:view?` */
 export function CanonDetailPage() {
+  const { canonId = "" } = useParams();
+  return <CanonWorkspace key={canonId} canonId={canonId} />;
+}
+
+function CanonWorkspace({ canonId }: { canonId: string }) {
   const t = useT();
   const { locale } = useI18n();
   const navigate = useNavigate();
-  const { canonId = "" } = useParams();
+  const { view: rawView } = useParams();
+  const { search } = useLocation();
   const [detail, setDetail] = useState<CanonDetailResponse | null>(null);
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [pulls, setPulls] = useState<CanonPullRequestRecord[]>([]);
   const [snapshot, setSnapshot] = useState<CanonSnapshot | null>(null);
   const [revisions, setRevisions] = useState<CanonRevisionSummary[]>([]);
+  const [showDetails, setShowDetails] = useState(false);
 
   const reload = useCallback(() => {
     api
       .getCanon(canonId)
       .then((d) => {
         setDetail(d);
-        if (d.canon.headRevision > 0) api.canonRevision(canonId, d.canon.headRevision).then(setSnapshot).catch(() => undefined);
+        if (d.canon.headRevision > 0)
+          api
+            .canonRevision(canonId, d.canon.headRevision)
+            .then((s) => setSnapshot((prev) => (prev?.revision === s.revision ? prev : s)))
+            .catch(() => undefined);
+        else setSnapshot(null);
       })
       .catch((e) => setErr(e instanceof Error ? e.message : String(e)));
     api.canonPulls(canonId).then((r) => setPulls(r.items)).catch(() => undefined);
@@ -443,92 +581,176 @@ export function CanonDetailPage() {
   }, [canonId]);
   useEffect(reload, [reload]);
 
+  // circuits each project has in the head revision
+  const pushed = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const x of snapshot?.circuits ?? []) if (x.state !== "invalidated") for (const id of x.sources) m.set(id, (m.get(id) ?? 0) + 1);
+    return m;
+  }, [snapshot]);
+  const c = detail?.canon;
+  const hasContent = !!c && c.headRevision > 0;
+  const view = CANON_VIEWS.find((v) => v === rawView) ?? null;
+  const defaultView: CanonView | null = c ? (hasContent ? "hcd" : "projects") : null;
+  useEffect(() => {
+    if (!rawView && defaultView) navigate(`${canonPath(canonId, defaultView)}${search}`, { replace: true });
+  }, [rawView, defaultView, canonId, search, navigate]);
+
+  // On narrow screens the tab strip scrolls; keep the open tab in sight.
+  const tabsRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [view, detail !== null]);
+
+  if (rawView && !view) return <Navigate to={canonPath(canonId)} replace />;
+  if (err && !detail) return <div className="p-6 text-sm text-rose-600">{err}</div>;
+  if (!c || !detail) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
+
+  const owner = detail.role === "owner";
+  const openPulls = pulls.filter((p) => p.state === "open").length;
   const remove = async () => {
-    if (!detail || !window.confirm(t("canon.deleteConfirm"))) return;
+    if (!window.confirm(t("canon.deleteConfirm"))) return;
     try {
-      await api.deleteCanon(detail.canon.canonId);
+      await api.deleteCanon(c.canonId);
       notifyProjectsChanged();
       navigate("/canons");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   };
+  const ready = (v: CanonView) => (v === "hcd" || v === "tables" ? hasContent : true);
+  const btn = "flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs coarse:min-h-11 disabled:opacity-50";
 
-  const c = detail?.canon;
+  const center = (() => {
+    switch (view) {
+      case null:
+        return null;
+      case "hcd":
+      case "tables":
+        if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
+        if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
+        return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} /> : <CanonTablesView snapshot={snapshot} />;
+      case "projects":
+        return <CardPane>{owner ? <MembersCard detail={detail} projects={projects} pushed={pushed} onChanged={reload} /> : <MembersList detail={detail} pushed={pushed} />}</CardPane>;
+      case "pulls":
+        return (
+          <CardPane>
+            <PullsCard canonId={c.canonId} pulls={pulls} role={detail.role} onChanged={reload} />
+            {owner && <SendCanonPr canon={c} />}
+          </CardPane>
+        );
+      case "history":
+        return (
+          <CardPane>
+            <HistoryView canonId={c.canonId} revisions={revisions} />
+          </CardPane>
+        );
+      case "settings":
+        return (
+          <CardPane>
+            {owner && <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />}
+            <EditorsCard detail={detail} onChanged={reload} onLeft={() => navigate("/canons")} />
+          </CardPane>
+        );
+    }
+  })();
+
   return (
-    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <Link to="/canons" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 coarse:min-h-11">
-        <ArrowLeft size={12} /> {t("canon.back")}
-      </Link>
-      {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
-      {!c && !err && <div className="text-sm text-slate-400">{t("loading")}</div>}
-      {c && detail && (
-        <>
-          <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="flex min-w-0 items-center gap-2 break-words text-xl font-semibold">
-              <Layers size={20} className="shrink-0" /> {c.name}
-            </h1>
-            <span className="font-mono text-xs text-slate-400">{c.canonId}</span>
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600">{t("canon.revision", { n: c.headRevision })}</span>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h1 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
+            <Layers size={18} className="shrink-0 text-violet-600" /> <span className="min-w-0 break-words">{c.name}</span>
+          </h1>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600" data-testid="canon-head">
+            {t("canon.revision", { n: c.headRevision })}
+          </span>
+          {!owner && (
+            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
+              {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
+            </span>
+          )}
+          <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto sm:justify-end">
+            <button type="button" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails} className={`${btn} border-slate-300 text-slate-600 hover:bg-slate-50 lg:hidden`}>
+              {t("ws.details")} {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
             <HelpLink section="canon" />
-            {detail.role !== "owner" && (
-              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
-                {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
+            {owner && (
+              <VisibilityToggle
+                visibility={c.visibility}
+                confirmText={t("vis.confirmCanon")}
+                onChange={async (v) => {
+                  await api.setCanonVisibility(c.canonId, { visibility: v });
+                  reload();
+                }}
+              />
+            )}
+            {owner && (
+              <button
+                type="button"
+                onClick={() => void remove()}
+                title={t("canon.delete")}
+                aria-label={t("canon.delete")}
+                className="flex items-center justify-center rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 coarse:h-11 coarse:w-11"
+              >
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        </div>
+        <div className={showDetails ? "block" : "hidden lg:block"}>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span className="font-mono">{c.canonId}</span>
+            {c.policy && (
+              <span className="min-w-0 max-w-full break-words" title={c.policy}>
+                <b className="text-slate-700">{t("canon.policy")}:</b> <span className="line-clamp-2 inline whitespace-pre-line">{c.policy}</span>
               </span>
             )}
-            {detail.role === "owner" && (
-            <VisibilityToggle
-              visibility={c.visibility}
-              confirmText={t("vis.confirmCanon")}
-              onChange={async (v) => {
-                await api.setCanonVisibility(c.canonId, { visibility: v });
-                reload();
-              }}
-            />
-            )}
-            {detail.role === "owner" && c.visibility === "public" && (
+            {snapshot && <span>{t("canon.counts", { c: snapshot.circuits.length, x: snapshot.connections.length, r: snapshot.references.length, p: detail.members.length })}</span>}
+            {!snapshot && <span>{t("canon.memberCount", { n: detail.members.length })}</span>}
+            {owner && c.visibility === "public" && (
               <>
-                <Link to={publicCanonPath(c.canonId)} className="inline-flex items-center text-xs text-emerald-700 hover:underline coarse:min-h-11">
+                <Link to={publicCanonPath(c.canonId)} className="text-emerald-700 hover:underline coarse:py-1.5">
                   {t("vis.publicPage")}
                 </Link>
-                <label className="flex items-center gap-1.5 text-xs text-slate-600 coarse:min-h-11">
-                  <input
-                    type="checkbox"
-                    checked={c.acceptPullRequests !== false}
-                    onChange={(e) => void api.setCanonVisibility(c.canonId, { acceptPullRequests: e.target.checked }).then(reload)}
-                  />
+                <label className="flex items-center gap-1.5 text-slate-600 coarse:min-h-11">
+                  <input type="checkbox" checked={c.acceptPullRequests !== false} onChange={(e) => void api.setCanonVisibility(c.canonId, { acceptPullRequests: e.target.checked }).then(reload)} />
                   {t("canon.acceptPrLabel")}
                 </label>
               </>
             )}
-            {detail.role === "owner" && (
-            <button
-              type="button"
-              onClick={() => void remove()}
-              className="ml-auto flex items-center gap-1 rounded-md border border-rose-300 px-2.5 py-1.5 text-xs text-rose-700 hover:bg-rose-50 coarse:min-h-11"
-            >
-              <Trash2 size={12} /> {t("canon.delete")}
-            </button>
-            )}
+            <span>
+              {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
+            </span>
           </div>
-          {c.policy && <p className="mb-4 max-w-3xl whitespace-pre-line text-sm text-slate-700">{c.policy}</p>}
-          <div className="grid max-w-5xl grid-cols-[minmax(0,1fr)] gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
-              {detail.role === "owner" ? <MembersCard detail={detail} projects={projects} onChanged={reload} /> : <MembersList detail={detail} />}
-              <PullsCard canonId={c.canonId} pulls={pulls} role={detail.role} onChanged={reload} />
-              <ContentsCard snapshot={snapshot} revisions={revisions} />
-              {detail.role === "owner" && <SendCanonPr canon={c} />}
-              <div className="text-[11px] text-slate-400">
-                {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
-              </div>
-            </div>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] content-start gap-5">
-              <EditorsCard detail={detail} onChanged={reload} onLeft={() => navigate("/canons")} />
-              {detail.role === "owner" && <SettingsCard key={c.updatedAt} detail={detail} onSaved={reload} />}
-            </div>
-          </div>
-        </>
-      )}
+          {c.description && <p className="mt-1 max-w-4xl whitespace-pre-line text-xs text-slate-600">{c.description}</p>}
+        </div>
+        {err && <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
+      </header>
+
+      <div className="flex shrink-0 items-end border-b border-slate-200 bg-slate-50">
+        <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("cv.views")}>
+          {VIEW_TABS.map(({ view: v, label, Icon }) => {
+            const on = v === view;
+            const count = v === "pulls" ? openPulls : v === "projects" ? detail.members.length : 0;
+            return (
+              <Link
+                key={v}
+                to={canonPath(canonId, v)}
+                data-testid={`canon-tab-${v}`}
+                aria-current={on ? "page" : undefined}
+                className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-t-md border px-3 py-1.5 text-xs font-medium coarse:min-h-11 ${
+                  on ? "border-slate-200 border-b-white bg-white text-slate-900" : `border-transparent hover:bg-white/70 ${ready(v) ? "text-slate-600" : "text-slate-400"}`
+                }`}
+              >
+                <Icon size={14} className={on ? "text-blue-600" : undefined} /> {t(label)}
+                {count > 0 && <span className={`rounded-full px-1.5 text-[10px] ${v === "pulls" ? "bg-violet-100 text-violet-800" : "bg-slate-200 text-slate-600"}`}>{count}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
     </div>
   );
 }

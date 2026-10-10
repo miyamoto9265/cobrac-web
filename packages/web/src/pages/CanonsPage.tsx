@@ -7,7 +7,11 @@ import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 
-export const canonPath = (canonId: string) => `/canons/${encodeURIComponent(canonId)}`;
+/** Views of the Canon page (the tabs under its header) */
+export const CANON_VIEWS = ["hcd", "tables", "projects", "pulls", "history", "settings"] as const;
+export type CanonView = (typeof CANON_VIEWS)[number];
+
+export const canonPath = (canonId: string, view?: CanonView) => `/canons/${encodeURIComponent(canonId)}${view ? `/${view}` : ""}`;
 export const canonPullPath = (canonId: string, no: number) => `${canonPath(canonId)}/pulls/${no}`;
 
 export const inputCls = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
