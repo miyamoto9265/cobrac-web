@@ -11,8 +11,8 @@ import type { AttachmentType } from "./attachments.js";
 import { attachmentTypeOf } from "./attachments.js";
 import type { UiLocale } from "./locale.js";
 import { uiLanguageName } from "./locale.js";
-import type { PlanJobKind, PlanProposalKind, PlanRowRecord, PlanUnread } from "./plan.js";
-import { PLAN_LIMITS, cleanPlanNote, cleanPlanText, normalizePlanRow, planRowKey } from "./plan.js";
+import type { PlanDraftQuestion, PlanDraftRound, PlanJobKind, PlanProposalKind, PlanRowRecord, PlanUnread } from "./plan.js";
+import { PLAN_ASK_LIMITS, PLAN_LIMITS, cleanPlanNote, cleanPlanText, normalizePlanRow, planRowKey } from "./plan.js";
 import { planAnchors } from "./planOrder.js";
 import type { ProjectStatus } from "./types.js";
 
@@ -101,7 +101,19 @@ export interface PlanJobInput {
   concurrency: number;
   /** Re-plan: the wave that has just finished */
   wave: number | null;
+  /** Draft: the owner's answers to the questions asked before it (oldest round first; "" = left open) */
+  qa?: { question: string; answer: string }[][];
+  /** Draft: the job may reply with questions instead of rows (absent or false: it drafts) */
+  ask?: boolean;
 }
+
+/** The answered rounds of a draft's questions, for its next job (a round the owner skipped counts, unanswered). */
+export function planQaInput(qa: PlanDraftRound[] | null | undefined): { question: string; answer: string }[][] {
+  return (qa ?? []).filter((r) => r.answers || r.skipped).map((r) => r.questions.map((q, i) => ({ question: q.text, answer: r.answers?.[i] ?? "" })));
+}
+
+/** Whether a draft's next job may ask: fewer than PLAN_ASK_LIMITS.rounds rounds so far, and none skipped. */
+export const planMayAsk = (qa: PlanDraftRound[] | null | undefined) => (qa ?? []).length < PLAN_ASK_LIMITS.rounds && !(qa ?? []).some((r) => r.skipped);
 
 const clipText = (s: string, n: number = PLAN_JOB_INPUT_LIMITS.text) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
@@ -172,8 +184,17 @@ export const PLAN_RESULT_SCHEMA = {
       },
     },
     notes: { type: "string" },
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { text: { type: "string" }, choices: { type: "array", items: { type: "string" } } },
+        required: ["text", "choices"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["rows", "unread", "policy", "proposals", "notes"],
+  required: ["rows", "unread", "policy", "proposals", "notes", "questions"],
   additionalProperties: false,
 } as const;
 
@@ -219,11 +240,13 @@ export interface PlanJobResult {
   policy: string;
   proposals: PlanProposalDraft[];
   notes: string;
+  /** Draft: questions for the owner before the rows (the rows are then empty); absent in results of older jobs */
+  questions?: PlanDraftQuestion[];
   /** Parts that referred to rows, anchors or projects not in the input, or were not usable (removed) */
   dropped: number;
 }
 
-export type ParsedPlanResult = Pick<PlanJobResult, "rows" | "unread" | "policy" | "proposals" | "notes" | "dropped">;
+export type ParsedPlanResult = Pick<PlanJobResult, "rows" | "unread" | "policy" | "proposals" | "notes" | "dropped"> & { questions: PlanDraftQuestion[] };
 
 const str = (v: unknown, n: number) => (typeof v === "string" ? (v.trim().length > n ? `${v.trim().slice(0, n)}…` : v.trim()) : "");
 
@@ -233,7 +256,7 @@ const str = (v: unknown, n: number) => (typeof v === "string" ? (v.trim().length
  * input and finished; proposals of a re-plan that add a row not in the plan yet, remove a row that has not started, or
  * change the policy. Everything else is dropped and counted. null when the reply is not the schema's object.
  */
-export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" | "rows" | "projects" | "policy">): ParsedPlanResult | null {
+export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" | "rows" | "projects" | "policy" | "ask">): ParsedPlanResult | null {
   let raw: unknown;
   try {
     raw = JSON.parse(text.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, ""));
@@ -246,6 +269,23 @@ export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" |
   let dropped = 0;
   const inputRows = new Map(input.rows.map((x) => [x.rowId, x]));
   const completed = new Set(input.projects.filter((p) => p.completed).map((p) => p.projectId));
+
+  // questions only from a draft that may ask (at most PLAN_ASK_LIMITS.questions); a reply that asks drafts nothing yet
+  const asked = Array.isArray(r.questions) ? r.questions : [];
+  const questions: PlanDraftQuestion[] = [];
+  if (input.kind === "draft" && input.ask) {
+    for (const item of asked) {
+      const x = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const q = str(x.text, PLAN_ASK_LIMITS.question);
+      if (!q || questions.length >= PLAN_ASK_LIMITS.questions) {
+        dropped++;
+        continue;
+      }
+      const choices = [...new Set((Array.isArray(x.choices) ? x.choices : []).map((c) => str(c, PLAN_ASK_LIMITS.choice)).filter(Boolean))].slice(0, PLAN_ASK_LIMITS.choices);
+      questions.push({ text: q, choices });
+    }
+  } else dropped += asked.length;
+  if (questions.length) return { rows: [], unread: [], policy: cleanPlanNote(r.policy).slice(0, 2000), proposals: [], notes: str(r.notes, 4000), dropped, questions };
 
   const rows: PlanDraftRow[] = [];
   if (input.kind === "draft") {
@@ -344,7 +384,7 @@ export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" |
     }
   } else if (r.proposals.length) dropped += r.proposals.length;
 
-  return { rows, unread, policy: cleanPlanNote(r.policy).slice(0, 2000), proposals, notes: str(r.notes, 4000), dropped };
+  return { rows, unread, policy: cleanPlanNote(r.policy).slice(0, 2000), proposals, notes: str(r.notes, 4000), dropped, questions };
 }
 
 // --- prompt ----------------------------------------------------------------------------------------------------------
@@ -360,8 +400,8 @@ export function planJobPrompt(spec: string, input: PlanJobInput, materialsIndex:
   return [
     spec.trim(),
     "",
-    `Task: ${input.kind === "draft" ? "DRAFT — write the rows of the plan (`rows`), the rows you could not read (`unread`) and the policy (`policy`); leave `proposals` empty." : `REPLAN — wave ${input.wave ?? "?"} has just finished. Propose changes (\`proposals\`) only where the finished rows show they are needed; leave \`rows\` and \`unread\` empty and return the current policy in \`policy\`.`}`,
-    `Write \`rationale\`, \`reason\`, \`notes\` and the policy in ${lang}. Keep ROI and TLF in the language they are given in (English when you write them yourself); keep anchors, row IDs and project IDs exactly as written.`,
+    `Task: ${input.kind === "draft" ? `DRAFT — ${input.ask ? `first decide whether to ask the owner (Questions before the draft): if you ask, reply with 1–${PLAN_ASK_LIMITS.questions} \`questions\` and nothing else. Otherwise ` : ""}write the rows of the plan (\`rows\`), the rows you could not read (\`unread\`) and the policy (\`policy\`); leave \`proposals\`${input.ask ? "" : " and `questions`"} empty.` : `REPLAN — wave ${input.wave ?? "?"} has just finished. Propose changes (\`proposals\`) only where the finished rows show they are needed; leave \`rows\`, \`unread\` and \`questions\` empty and return the current policy in \`policy\`.`}`,
+    `Write \`rationale\`, \`reason\`, \`notes\`, questions and the policy in ${lang}. Keep ROI and TLF in the language they are given in (English when you write them yourself); keep anchors, row IDs and project IDs exactly as written.`,
     materialsIndex ? `Attached capability lists (read each file; the text of xlsx and PDF files is next to it):\n${materialsIndex.trim()}` : "No attached files.",
     "",
     "Input (JSON):",

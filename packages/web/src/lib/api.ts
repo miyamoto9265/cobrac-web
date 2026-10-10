@@ -55,6 +55,7 @@ import type {
   ConcurrencyStatus,
   CreatePlanRequest,
   ResumePlanRequest,
+  AnswerDraftRequest,
   CreatePlanResponse,
   DraftPlanRequest,
   ListPlansResponse,
@@ -234,6 +235,7 @@ export const api = {
   resumePlan: (id: string, b: ResumePlanRequest) => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/resume`, b),
   planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
   requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
+  answerDraft: (id: string, b: AnswerDraftRequest) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/answers`, b),
   cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),
   /** Draft only: capability lists uploaded with `createUpload` are added (CSV / TSV / text are read into rows at once) */
   addPlanAttachments: (id: string, attachments: AddPlanAttachmentsRequest["attachments"]) =>

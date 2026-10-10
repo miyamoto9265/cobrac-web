@@ -56,7 +56,9 @@ export function PlanDraft({
 
   // a draft that reads xlsx / PDF lists or many rows gets the long budget (as planJobBudgetMs)
   const long = (plan.attachments ?? []).some((a) => !isDeterministicPlanAttachment(a.name)) || rows.length > PLAN_JOB_SHORT_ROWS;
-  const banner = drafting
+  const banner = drafting && plan.draft?.status === "asking"
+    ? { cls: "border-violet-200 bg-violet-50 text-violet-700", text: t("ask.banner") }
+    : drafting
     ? { cls: "border-blue-200 bg-blue-50 text-blue-700", text: long ? t("plan.draftingNoteLong", { n: PLAN_JOB_SHORT_ROWS }) : t("plan.draftingNote") }
     : auto && plan.autonomousError
       ? { cls: "border-rose-200 bg-rose-50 text-rose-700", text: t("auto.confirmError", { error: plan.autonomousError }) }
