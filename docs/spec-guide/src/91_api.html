@@ -44,10 +44,10 @@
   <tbody>
     <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / null）と <code>orgTier</code></td><td>ログイン</td></tr>
     <tr><td>PUT</td><td><code>/users/me</code></td><td><code>displayName</code>（80 字）・<code>contributorName</code>（120 字）・<code>defaultModel</code>（Tier に無ければ 403）・<code>defaultReasoningEffort</code>・<code>defaultCanonId</code>（自分の Canon だけ）を変える</td><td>ログイン</td></tr>
-    <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル、Tier 2 はデフォルトの API キーのモデル、Tier 1 はその 2 つ）、<code>restricted</code>、<code>keySource</code>、<code>orgTier</code>、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル、Tier 2 はデフォルトの API キーのモデル、Tier 1 はその 2 つ。Claude のモデルは Anthropic のキーで使えるものを加える）、<code>restricted</code>、<code>keySource</code>・<code>claudeKeySource</code>、<code>orgTier</code>、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
     <tr><td>GET</td><td><code>/users/me/usage</code></td><td>自分のプロジェクト全体のトークンと推定費用（全体・モデルごと・プロジェクトごと。削除したものは <code>deleted</code> の印）。自分の Canon と共同編集者の Canon の AI レビュー、自分の計画の <code>plan</code> のジョブも全体とモデルごとに数える</td><td>ログイン</td></tr>
-    <tr><td>GET</td><td><code>/users/me/apikey/status</code></td><td>キーが登録済みかと末尾 4 文字</td><td>ログイン</td></tr>
-    <tr><td>PUT</td><td><code>/users/me/apikey</code></td><td><code>{ apiKey }</code> を登録・更新する。OpenAI の <code>/v1/models</code> で確かめ（拒否されたら 400、確かめられなければ 502）、KMS で暗号化し、選べるモデルを保存 → <code>{ registered, last4, models }</code></td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/apikey/status</code></td><td>キーが登録済みかと末尾 4 文字（<code>?provider=anthropic</code> で Anthropic のキー。以下の 2 つも同じ）</td><td>ログイン</td></tr>
+    <tr><td>PUT</td><td><code>/users/me/apikey</code></td><td><code>{ apiKey }</code> を登録・更新する。OpenAI の <code>/v1/models</code> で確かめ（拒否されたら 400、確かめられなければ 502）、KMS で暗号化し、選べるモデルを保存 → <code>{ registered, last4, models }</code>。Anthropic のキーは <code>{ apiKey, workspaceId? }</code> を Anthropic の <code>/v1/models</code> で確かめる</td><td>ログイン</td></tr>
     <tr><td>DELETE</td><td><code>/users/me/apikey</code></td><td>キーを消す</td><td>ログイン</td></tr>
   </tbody>
 </table>
@@ -182,7 +182,7 @@
   <tbody>
     <tr><td>GET</td><td><code>/admin/users</code></td><td>全利用者（暗号化したキーを除く）</td><td>管理者</td></tr>
     <tr><td>PUT</td><td><code>/admin/users/{id}</code></td><td><code>{ disabled?, role?, orgTier? }</code>（<code>orgTier</code>：0 か null は未承認、1、2）。自分自身の無効化は 400、いない利用者は 404</td><td>管理者</td></tr>
-    <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で確かめて登録・置き換え（拒否は 400）/ 削除</td><td>管理者</td></tr>
+    <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で確かめて登録・置き換え（拒否は 400）/ 削除。<code>?provider=anthropic</code> でデフォルトの Anthropic API キー（<code>{ apiKey, workspaceId? }</code>）</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの利用：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>（<code>month</code> は UTC の今月）</td><td>管理者</td></tr>
     <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>（それぞれ 1〜16 の整数、null はデプロイ時の値。ほかは 400）。dispatcher と計画ランナーは 30 秒以内に読み直す</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト（削除したものも <code>deletedAt</code>・<code>deletedBy</code> つき。利用量は補正済み）</td><td>管理者</td></tr>

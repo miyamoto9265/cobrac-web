@@ -88,4 +88,31 @@ describe("the API key card of the settings page", () => {
     expect($("own-key-form")).toBeNull();
     expect($("api-key-card")!.textContent).toContain("OpenAI API キー");
   });
+
+  it("shows the Anthropic key card with its own status for each provider", async () => {
+    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", claudeKeySource: "own", apiKeyRegistered: false, anthropicKeyRegistered: true };
+    api.apiKeyStatus.mockImplementation(async (provider?: string) =>
+      provider === "anthropic" ? { registered: true, last4: "wxyz" } : { registered: false, last4: null },
+    );
+    await render(<SettingsPage />);
+    expect(api.apiKeyStatus).toHaveBeenCalledWith("anthropic");
+    expect($("key-status")!.textContent).toBe("登録は不要です。そのままジョブを実行できます。");
+    const card = $("anthropic-api-key-card")!;
+    expect($("anthropic-key-status")!.textContent).toContain("自分のキー（末尾 …wxyz）で実行しています");
+    expect(card.textContent).toContain("Anthropic");
+    expect(card.textContent).not.toContain("未登録");
+  });
+
+  it("asks an approved user for their own Anthropic key while there is no default Anthropic key", async () => {
+    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", claudeKeySource: null, apiKeyRegistered: false };
+    api.apiKeyStatus.mockResolvedValue({ registered: false, last4: null });
+    await render(<SettingsPage />);
+    const card = $("anthropic-api-key-card")!;
+    expect($("anthropic-key-status")!.textContent).toBe("自分の Anthropic API キーを登録すると、Claude のモデルを使えます。");
+    expect($("anthropic-own-key-form")).toBeNull();
+    expect(card.querySelector('input[type="password"]')).not.toBeNull();
+    expect(card.textContent).not.toContain("任意");
+    expect(card.textContent).not.toContain("未登録");
+  });
 });
+

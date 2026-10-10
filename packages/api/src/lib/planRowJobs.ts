@@ -22,6 +22,7 @@ import { enqueueRun, getObjectText, getPlanJson, putPlanJson } from "./aws.js";
 import { getPullRequest } from "./canons.js";
 import { putJob, updateJob } from "./db.js";
 import { updateRow } from "./plans.js";
+import { jobKeySource } from "./runs.js";
 
 /**
  * The job a row needs from the Orchestrator's AI now: none while it has one, nor before `orchestratorRetry.at` after
@@ -117,7 +118,7 @@ export async function queueRowJob(
   row: PlanRowRecord,
   input: PlanRowJobInput,
   owner: UserRecord,
-  gate: { policy: ModelPolicy & { source: KeySource }; orchestratorModel: string },
+  gate: { policy: ModelPolicy; orchestratorModel: string },
 ): Promise<boolean> {
   await putPlanJson(planJobKey(plan.planId, input.jobId, "input.json"), input);
   const rowJob = { kind: input.kind, jobId: input.jobId, status: "queued" as const, requestedAt: nowIso() };
@@ -133,7 +134,7 @@ export async function queueRowJob(
     planRowId: row.rowId,
     planId: plan.planId,
     status: "QUEUED",
-    keySource: gate.policy.source,
+    keySource: jobKeySource(gate.policy, gate.orchestratorModel),
     instruction: null,
     pendingAnswer: null,
     locale: input.locale,

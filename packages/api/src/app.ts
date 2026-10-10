@@ -20,6 +20,7 @@ import type {
   CsvFileName,
   ListBraVersionsResponse,
   DefaultApiKeyRecord,
+  ModelProvider,
   ArticleJobState,
   ArticleMeta,
   CanonDetailResponse,
@@ -93,6 +94,10 @@ import {
   PRICING,
   REASONING_EFFORTS,
   addUsage,
+  ANTHROPIC_WORKSPACE_ID,
+  CLAUDE_MODELS,
+  joinAnthropicCredential,
+  DEFAULT_ANTHROPIC_KEY_CATALOG_KEY,
   DEFAULT_KEY_CATALOG_KEY,
   isOrgTier,
   policyAllows,
@@ -107,6 +112,7 @@ import {
   braDownloadFileName,
   buildTemplateXlsx,
   filterCodexModels,
+  isOfferedModel,
   VISIBILITIES,
   cloneName,
   cloneTargetKey,
@@ -204,6 +210,7 @@ import {
   queueRetry,
   readLocale,
   requireModel,
+  jobKeySource,
   requireRunKey,
   stopProject,
   type StagedAttachment,
@@ -337,7 +344,7 @@ const requireAdmin = (u: UserRecord) => {
 app.get("/users/me", async (c) => {
   const u = c.get("user");
   const { policy } = await modelPolicy(u);
-  const res: MeResponse = { ...toPublicUser(u), keySource: policy.source, orgTier: policy.tier };
+  const res: MeResponse = { ...toPublicUser(u), keySource: policy.source, claudeKeySource: policy.claude.source, orgTier: policy.tier };
   return c.json(res);
 });
 
@@ -361,7 +368,7 @@ app.put("/users/me", async (c) => {
   }
   await updateUser(u.userId, values);
   const { policy } = await modelPolicy(u);
-  const res: MeResponse = { ...toPublicUser({ ...u, ...values }), keySource: policy.source, orgTier: policy.tier };
+  const res: MeResponse = { ...toPublicUser({ ...u, ...values }), keySource: policy.source, claudeKeySource: policy.claude.source, orgTier: policy.tier };
   return c.json(res);
 });
 
@@ -369,13 +376,17 @@ app.get("/users/me/models", async (c) => {
   const u = c.get("user");
   const { policy, defaultKey } = await modelPolicy(u);
   const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
+  // a user with an Anthropic key and no OpenAI key chooses among the Claude models only
+  const claudeOnly = policy.source === null && policy.claude.source !== null;
+  const openAiModels = claudeOnly ? [] : policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels);
   const res: ModelsResponse = {
-    models: policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels),
+    models: [...openAiModels, ...policy.claude.allowed],
     efforts: REASONING_EFFORTS,
     envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
     keySource: policy.source,
+    claudeKeySource: policy.claude.source,
     orgTier: policy.tier,
-    restricted: policy.allowed !== null,
+    restricted: policy.allowed !== null || claudeOnly,
     pricedModels: Object.keys(PRICING),
   };
   return c.json(res);
@@ -446,8 +457,12 @@ app.get("/users/me/usage", async (c) => {
   return c.json(summary);
 });
 
+/** `?provider=anthropic` selects the Anthropic key (Claude models); otherwise the OpenAI key. */
+const providerParam = (c: { req: { query(name: string): string | undefined } }): ModelProvider => (c.req.query("provider") === "anthropic" ? "anthropic" : "openai");
+
 app.get("/users/me/apikey/status", (c) => {
   const u = c.get("user");
+  if (providerParam(c) === "anthropic") return c.json({ registered: !!u.anthropicKeyRegistered, last4: u.anthropicKeyLast4 ?? null });
   return c.json({ registered: !!u.apiKeyRegistered, last4: u.apiKeyLast4 ?? null });
 });
 
@@ -461,18 +476,50 @@ async function verifiedOpenAiKey(apiKey: unknown): Promise<{ key: string; models
   return { key, models: filterCodexModels((((await r.json()) as { data?: { id: string }[] }).data ?? []).map((m) => m.id)) };
 }
 
-app.put("/users/me/apikey", async (c) => {
-  const { apiKey } = (await c.req.json()) as { apiKey?: string };
+/**
+ * A pasted Anthropic key, checked against the Anthropic API (the Claude models are a fixed list, `CLAUDE_MODELS`).
+ * `workspaceId` is for a key that is not scoped to one workspace; the stored key is then the key and the workspace ID
+ * (`joinAnthropicCredential`).
+ */
+async function verifiedAnthropicKey(apiKey: unknown, workspaceId: unknown): Promise<{ key: string; stored: string; models: string[] }> {
+  const key = (typeof apiKey === "string" ? apiKey : "").trim();
+  if (!key || key.length < 20 || /\s/.test(key)) throw bad("API キーの形式が不正です");
+  const ws = (typeof workspaceId === "string" ? workspaceId : "").trim();
+  if (ws && !ANTHROPIC_WORKSPACE_ID.test(ws)) throw bad("ワークスペース ID の形式が不正です（wrkspc_ で始まる ID）");
+  const headers: Record<string, string> = { "x-api-key": key, "anthropic-version": "2023-06-01", ...(ws ? { "anthropic-workspace-id": ws } : {}) };
+  const r = await fetch("https://api.anthropic.com/v1/models", { headers });
+  if (r.status === 401 || r.status === 403) throw bad("Anthropic がこの API キーを拒否しました（無効なキー）");
+  if (r.status === 400 && /workspace/i.test(await r.text())) {
+    throw bad(ws ? "このワークスペース ID はこのキーでは使えません" : "このキーにはワークスペース ID が必要です。ワークスペース ID も入力してください");
+  }
+  if (!r.ok) throw new HTTPException(502, { message: `Anthropic への疎通確認に失敗しました (${r.status})` });
+  return { key, stored: joinAnthropicCredential(key, ws), models: [...CLAUDE_MODELS] };
+}
+
+async function verifiedOpenAi(apiKey: unknown) {
   const { key, models } = await verifiedOpenAiKey(apiKey);
+  return { key, stored: key, models };
+}
+
+/** The pasted key of `provider`, checked; `stored` is what gets encrypted (the Anthropic key may carry its workspace ID). */
+const verifiedKey = (provider: ModelProvider, body: { apiKey?: unknown; workspaceId?: unknown }) =>
+  provider === "anthropic" ? verifiedAnthropicKey(body.apiKey, body.workspaceId) : verifiedOpenAi(body.apiKey);
+
+app.put("/users/me/apikey", async (c) => {
+  const provider = providerParam(c);
+  const body = (await c.req.json().catch(() => ({}))) as { apiKey?: unknown; workspaceId?: unknown };
+  const { key, stored, models } = await verifiedKey(provider, body);
   const u = c.get("user");
-  const encryptedApiKey = await encryptApiKey(key, u.userId);
-  await updateUser(u.userId, { encryptedApiKey, apiKeyRegistered: true, apiKeyLast4: key.slice(-4), availableModels: models });
+  const encrypted = await encryptApiKey(stored, u.userId, provider);
+  if (provider === "anthropic") await updateUser(u.userId, { encryptedAnthropicKey: encrypted, anthropicKeyRegistered: true, anthropicKeyLast4: key.slice(-4) });
+  else await updateUser(u.userId, { encryptedApiKey: encrypted, apiKeyRegistered: true, apiKeyLast4: key.slice(-4), availableModels: models });
   return c.json({ registered: true, last4: key.slice(-4), models });
 });
 
 app.delete("/users/me/apikey", async (c) => {
   const u = c.get("user");
-  await updateUser(u.userId, { encryptedApiKey: "", apiKeyRegistered: false, apiKeyLast4: "" });
+  if (providerParam(c) === "anthropic") await updateUser(u.userId, { encryptedAnthropicKey: "", anthropicKeyRegistered: false, anthropicKeyLast4: "" });
+  else await updateUser(u.userId, { encryptedApiKey: "", apiKeyRegistered: false, apiKeyLast4: "" });
   return c.json({ registered: false, last4: null });
 });
 
@@ -587,7 +634,7 @@ app.post("/projects", async (c) => {
     researchMode,
     ...(hypothesis ? { hypothesis } : {}),
     locale,
-    keySource: policy.source,
+    keySource: jobKeySource(policy, model),
     staged,
     urls,
     // before the job is queued, so the worker's first run already follows the Canon
@@ -943,7 +990,7 @@ app.post("/projects/:id/articles", async (c) => {
   const locale = body.locale;
   // a model chosen for the article itself, else the project's (or the tier's default when the project's is outside it)
   const chosen = normModel(body.model);
-  if (chosen && filterCodexModels([chosen]).length === 0) throw bad("このモデルは解説記事に使えません");
+  if (chosen && !isOfferedModel(chosen)) throw bad("このモデルは解説記事に使えません");
   if (chosen) requireModel(policy, chosen);
   const projectModel = p.model || deploymentDefaultModel();
   const model = chosen || (policyAllows(policy, projectModel) ? null : implicitModel(policy, projectModel));
@@ -955,7 +1002,7 @@ app.post("/projects/:id/articles", async (c) => {
     userId: u.userId,
     type: "article",
     status: "QUEUED",
-    keySource: policy.source,
+    keySource: jobKeySource(policy, model ?? projectModel),
     instruction: null,
     pendingAnswer: null,
     articleLocale: locale,
@@ -1515,7 +1562,7 @@ app.post("/canons/:id/pulls/:no/ai-review", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { model?: unknown; locale?: unknown };
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
   const picked = normModel(body.model);
-  if (picked && filterCodexModels([picked]).length === 0) throw bad("このモデルは AI レビューに使えません");
+  if (picked && !isOfferedModel(picked)) throw bad("このモデルは AI レビューに使えません");
   const model = picked ?? implicitModel(policy, deploymentDefaultModel());
   requireModel(policy, model);
   const r = await requestAiReview(u, canon, pr, policy, { model, locale: body.locale });
@@ -2130,17 +2177,18 @@ app.put("/admin/users/:id", async (c) => {
 /** The default API key: write-only (only the last 4 characters and the date are ever returned). */
 app.get("/admin/default-api-key", async (c) => {
   requireAdmin(c.get("user"));
-  return c.json(defaultKeyStatus(await getDefaultKey()));
+  return c.json(defaultKeyStatus(await getDefaultKey(providerParam(c))));
 });
 
 app.put("/admin/default-api-key", async (c) => {
   const me = c.get("user");
   requireAdmin(me);
-  const { apiKey } = (await c.req.json().catch(() => ({}))) as { apiKey?: unknown };
-  const { key, models } = await verifiedOpenAiKey(apiKey);
+  const provider = providerParam(c);
+  const body = (await c.req.json().catch(() => ({}))) as { apiKey?: unknown; workspaceId?: unknown };
+  const { key, stored, models } = await verifiedKey(provider, body);
   const record: DefaultApiKeyRecord = {
-    ...DEFAULT_KEY_CATALOG_KEY,
-    encryptedApiKey: await encryptDefaultApiKey(key),
+    ...(provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_CATALOG_KEY : DEFAULT_KEY_CATALOG_KEY),
+    encryptedApiKey: await encryptDefaultApiKey(stored, provider),
     last4: key.slice(-4),
     availableModels: models,
     updatedAt: nowIso(),
@@ -2152,7 +2200,7 @@ app.put("/admin/default-api-key", async (c) => {
 
 app.delete("/admin/default-api-key", async (c) => {
   requireAdmin(c.get("user"));
-  await deleteDefaultKey();
+  await deleteDefaultKey(providerParam(c));
   return c.json(defaultKeyStatus(null));
 });
 

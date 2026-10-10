@@ -141,7 +141,7 @@ describe("default API key", () => {
     openai.status = 200;
     await share();
     const { encryptDefaultApiKey } = await import("../src/lib/aws.js");
-    expect(encryptDefaultApiKey).toHaveBeenCalledWith(WBAI_KEY);
+    expect(encryptDefaultApiKey).toHaveBeenCalledWith(WBAI_KEY, "openai");
     expect(fake.items("catalog")).toEqual([
       expect.objectContaining({ kind: "config", id: "default-api-key", encryptedApiKey: DEFAULT_CIPHER, last4: "WXYZ", updatedBy: ADMIN.sub, availableModels: ["gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-luna"] }),
     ]);

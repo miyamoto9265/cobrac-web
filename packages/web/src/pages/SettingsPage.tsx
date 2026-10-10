@@ -1,9 +1,9 @@
 import { KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { CanonRecord, ReasoningEffort } from "@cobrac/shared";
+import type { CanonRecord, KeySource, ModelProvider, ReasoningEffort } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { ModelSelect } from "../components/ModelSelect";
-import { LanguageSelect, useT } from "../i18n";
+import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { usableDefaultModel } from "../lib/models";
@@ -13,8 +13,6 @@ export function SettingsPage() {
   const { me, refreshMe, doUpdatePassword } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [contributorName, setContributorName] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [keyStatus, setKeyStatus] = useState<{ registered: boolean; last4: string | null } | null>(null);
   const [defModel, setDefModel] = useState<string | null>(null);
   const [defEffort, setDefEffort] = useState<ReasoningEffort | null>(null);
   const [defCanon, setDefCanon] = useState("");
@@ -32,7 +30,6 @@ export function SettingsPage() {
       setDefEffort(me.defaultReasoningEffort ?? null);
       setDefCanon(me.defaultCanonId ?? "");
     }
-    api.apiKeyStatus().then(setKeyStatus).catch(() => undefined);
     api.listCanons().then((r) => setCanons(r.items)).catch(() => undefined);
   }, [me]);
 
@@ -53,78 +50,13 @@ export function SettingsPage() {
   const card = "min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5";
   const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
 
-  const approved = !!me?.orgAccess;
-  const keyForm = (
-    <>
-      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className={input} autoComplete="off" aria-label={t("settings.apiKey")} />
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          disabled={busy || apiKey.trim().length < 20}
-          className={btn}
-          onClick={() =>
-            void run(async () => {
-              const r = await api.setApiKey(apiKey.trim());
-              setKeyStatus(r);
-              setApiKey("");
-              await refreshMe();
-            }, t("settings.keySaved"))
-          }
-        >
-          <Save size={14} /> {t("settings.register")}
-        </button>
-        {keyStatus?.registered && (
-          <button
-            disabled={busy}
-            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
-            onClick={() =>
-              void run(async () => {
-                await api.deleteApiKey();
-                setKeyStatus({ registered: false, last4: null });
-                await refreshMe();
-              }, t("settings.keyDeleted"))
-            }
-          >
-            <Trash2 size={14} /> {t("delete")}
-          </button>
-        )}
-      </div>
-    </>
-  );
-
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-4 text-xl font-semibold">{t("settings.title")}</h1>
       {msg && <div className={`mb-4 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div className="grid max-w-4xl gap-5 md:grid-cols-2">
-        <section className={card} data-testid="api-key-card">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <KeyRound size={16} /> {approved ? t("settings.ownKey") : t("settings.apiKey")} <HelpTip text={approved ? t("settings.ownKeyHelp") : t("settings.apiKeyHelp")} />
-          </h2>
-          {approved ? (
-            <div className="mb-2 text-xs" data-testid="key-status">
-              {keyStatus?.registered ? (
-                <span className="font-medium text-emerald-700">{t("settings.ownKeyActive", { last4: keyStatus.last4 ?? "" })}</span>
-              ) : me?.keySource === "org" ? (
-                <span className="font-medium text-emerald-700">{t("settings.ready")}</span>
-              ) : (
-                <span className="font-medium text-amber-700">{t("settings.unavailable")}</span>
-              )}
-            </div>
-          ) : (
-            <div className="mb-2 text-xs" data-testid="key-status">
-              {t("settings.status")}{" "}
-              {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
-            </div>
-          )}
-          {approved && !keyStatus?.registered ? (
-            <details className="text-sm" data-testid="own-key-form">
-              <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-800">{t("settings.useOwnKey")}</summary>
-              <div className="mt-2">{keyForm}</div>
-            </details>
-          ) : (
-            keyForm
-          )}
-        </section>
+        <ApiKeyCard provider="openai" source={me?.keySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
+        <ApiKeyCard provider="anthropic" source={me?.claudeKeySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
 
         <section className={card}>
           <h2 className="mb-3 text-sm font-semibold">{t("settings.profile")}</h2>
@@ -216,5 +148,140 @@ export function SettingsPage() {
         </section>
       </div>
     </div>
+  );
+}
+
+/** Labels and test ids of each provider's key card (the OpenAI one keeps the original ids). */
+const KEY_CARD: Record<ModelProvider, { title: MessageKey; help: MessageKey; ownTitle: MessageKey; ownHelp: MessageKey; ownActive: MessageKey; ready: MessageKey; unavailable: MessageKey; saved: MessageKey; placeholder: string; id: string }> = {
+  openai: {
+    title: "settings.apiKey",
+    help: "settings.apiKeyHelp",
+    ownTitle: "settings.ownKey",
+    ownHelp: "settings.ownKeyHelp",
+    ownActive: "settings.ownKeyActive",
+    ready: "settings.ready",
+    unavailable: "settings.unavailable",
+    saved: "settings.keySaved",
+    placeholder: "sk-...",
+    id: "",
+  },
+  anthropic: {
+    title: "claude.key",
+    help: "claude.keyHelp",
+    ownTitle: "claude.ownKey",
+    ownHelp: "claude.ownKeyHelp",
+    ownActive: "claude.ownKeyActive",
+    ready: "claude.ready",
+    unavailable: "claude.unavailable",
+    saved: "claude.keySaved",
+    placeholder: "sk-ant-...",
+    id: "anthropic-",
+  },
+};
+
+/**
+ * One provider's API key: approved users run on the default key and may add their own; others register theirs. `source`
+ * is the key that provider's models run with now.
+ */
+function ApiKeyCard({ provider, source, approved, run, busy }: { provider: ModelProvider; source: KeySource | null; approved: boolean; run: (fn: () => Promise<void>, okText: string) => Promise<void>; busy: boolean }) {
+  const t = useT();
+  const { refreshMe } = useAuth();
+  const [apiKey, setApiKey] = useState("");
+  const [workspaceId, setWorkspaceId] = useState("");
+  const [keyStatus, setKeyStatus] = useState<{ registered: boolean; last4: string | null } | null>(null);
+  const c = KEY_CARD[provider];
+  // An approved user's own key is optional while the organisation's key covers the provider. There is no default
+  // Anthropic key yet, so Claude then needs the user's own key: the card asks for it with the form open.
+  const optional = approved && (provider === "openai" || source === "org" || !!keyStatus?.registered);
+
+  useEffect(() => {
+    api.apiKeyStatus(provider).then(setKeyStatus).catch(() => undefined);
+  }, [provider, source]);
+
+  const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
+  const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
+  const keyForm = (
+    <>
+      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={c.placeholder} className={input} autoComplete="off" aria-label={t(c.title)} />
+      {provider === "anthropic" && (
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            value={workspaceId}
+            onChange={(e) => setWorkspaceId(e.target.value)}
+            placeholder={t("claude.workspace")}
+            className={input}
+            autoComplete="off"
+            spellCheck={false}
+            aria-label={t("claude.workspace")}
+            data-testid="anthropic-workspace-id"
+          />
+          <HelpTip text={t("claude.workspaceHelp")} />
+        </div>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          disabled={busy || apiKey.trim().length < 20}
+          className={btn}
+          onClick={() =>
+            void run(async () => {
+              const r = await api.setApiKey(apiKey.trim(), provider, workspaceId.trim());
+              setKeyStatus(r);
+              setApiKey("");
+              setWorkspaceId("");
+              await refreshMe();
+            }, t(c.saved))
+          }
+        >
+          <Save size={14} /> {t("settings.register")}
+        </button>
+        {keyStatus?.registered && (
+          <button
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
+            onClick={() =>
+              void run(async () => {
+                await api.deleteApiKey(provider);
+                setKeyStatus({ registered: false, last4: null });
+                await refreshMe();
+              }, t("settings.keyDeleted"))
+            }
+          >
+            <Trash2 size={14} /> {t("delete")}
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5" data-testid={`${c.id}api-key-card`}>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+        <KeyRound size={16} /> {optional ? t(c.ownTitle) : t(c.title)} <HelpTip text={optional ? t(c.ownHelp) : t(c.help)} />
+      </h2>
+      {approved ? (
+        <div className="mb-2 text-xs" data-testid={`${c.id}key-status`}>
+          {keyStatus?.registered ? (
+            <span className="font-medium text-emerald-700">{t(c.ownActive, { last4: keyStatus.last4 ?? "" })}</span>
+          ) : source === "org" ? (
+            <span className="font-medium text-emerald-700">{t(c.ready)}</span>
+          ) : (
+            <span className="font-medium text-amber-700">{t(c.unavailable)}</span>
+          )}
+        </div>
+      ) : (
+        <div className="mb-2 text-xs" data-testid={`${c.id}key-status`}>
+          {t("settings.status")}{" "}
+          {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
+        </div>
+      )}
+      {optional && !keyStatus?.registered ? (
+        <details className="text-sm" data-testid={`${c.id}own-key-form`}>
+          <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-800">{t("settings.useOwnKey")}</summary>
+          <div className="mt-2">{keyForm}</div>
+        </details>
+      ) : (
+        keyForm
+      )}
+    </section>
   );
 }

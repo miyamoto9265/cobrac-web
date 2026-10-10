@@ -7,6 +7,7 @@ export * from "./canon.js";
 export * from "./publish.js";
 export * from "./locale.js";
 export * from "./pricing.js";
+export * from "./provider.js";
 export * from "./systemMessage.js";
 export * from "./jsonSchema.js";
 export * from "./harness.js";

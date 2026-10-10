@@ -4,8 +4,8 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
-import type { ArtifactInfo, BradbRequest, RunJobMessage } from "@cobrac/shared";
-import { DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition, isPlanId, planPrefix } from "@cobrac/shared";
+import type { ArtifactInfo, BradbRequest, ModelProvider, RunJobMessage } from "@cobrac/shared";
+import { API_KEY_PURPOSE, DEFAULT_ANTHROPIC_KEY_ENCRYPTION_CONTEXT, DEFAULT_KEY_ENCRYPTION_CONTEXT, REVISIONS_PREFIX, contentDisposition, isPlanId, planPrefix } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 import { safeKeySegments } from "./s3Keys.js";
@@ -24,20 +24,21 @@ export async function invokeBradb<T>(payload: BradbRequest): Promise<T> {
   return JSON.parse(text) as T;
 }
 
-export async function encryptApiKey(plain: string, userId: string): Promise<string> {
+export async function encryptApiKey(plain: string, userId: string, provider: ModelProvider = "openai"): Promise<string> {
   const r = await kms.send(
     new EncryptCommand({
       KeyId: env.kmsKeyId,
       Plaintext: Buffer.from(plain, "utf8"),
-      EncryptionContext: { userId, purpose: "openai-api-key" },
+      EncryptionContext: { userId, purpose: API_KEY_PURPOSE[provider] },
     }),
   );
   return Buffer.from(r.CiphertextBlob!).toString("base64");
 }
 
 /** The default API key, under its own encryption context (no userId), so it is tied to no user. */
-export async function encryptDefaultApiKey(plain: string): Promise<string> {
-  const r = await kms.send(new EncryptCommand({ KeyId: env.kmsKeyId, Plaintext: Buffer.from(plain, "utf8"), EncryptionContext: { ...DEFAULT_KEY_ENCRYPTION_CONTEXT } }));
+export async function encryptDefaultApiKey(plain: string, provider: ModelProvider = "openai"): Promise<string> {
+  const context = provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_ENCRYPTION_CONTEXT : DEFAULT_KEY_ENCRYPTION_CONTEXT;
+  const r = await kms.send(new EncryptCommand({ KeyId: env.kmsKeyId, Plaintext: Buffer.from(plain, "utf8"), EncryptionContext: { ...context } }));
   return Buffer.from(r.CiphertextBlob!).toString("base64");
 }
 

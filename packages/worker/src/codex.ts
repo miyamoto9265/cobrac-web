@@ -1,11 +1,12 @@
-import { Codex, type Input, type McpToolCallItem, type ModelReasoningEffort, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
+import { Codex, type Input, type McpToolCallItem, type ModelReasoningEffort, type RunResult, type RunStreamedResult, type ThreadEvent, type ThreadItem, type TurnOptions } from "@openai/codex-sdk";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import type { MessageType } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput } from "@cobrac/shared";
+import type { MessageType, TokenUsage } from "@cobrac/shared";
+import { DEFAULT_CLAUDE_MODEL, DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, isClaudeModel, parseTurnOutput } from "@cobrac/shared";
 import { childEnv } from "./childEnv.js";
+import { ClaudeEngine } from "./claude.js";
 import { env } from "./env.js";
 import { RCS_TOKEN_ENV, rcsCodexConfig, type RcsConnection } from "./rcs.js";
 
@@ -24,7 +25,19 @@ export interface TurnUsage {
   cachedInput: number;
   output: number;
   reasoningOutput: number;
+  /** Input written to the prompt cache (Claude models; part of `input`). Absent = 0 */
+  cacheWrite?: number;
 }
+
+/** A conversation of either provider: a Codex thread, or a Claude thread that streams the same events. */
+export interface AgentThread {
+  readonly id: string | null;
+  run(input: Input, turnOptions?: TurnOptions): Promise<RunResult>;
+  runStreamed(input: Input, turnOptions?: TurnOptions): Promise<RunStreamedResult>;
+}
+
+/** The SDK a model runs on: Codex for the OpenAI models, the Claude Agent SDK for the Claude models. */
+export type AgentEngine = Codex | ClaudeEngine;
 
 const NO_USAGE: TurnUsage = { input: 0, cachedInput: 0, output: 0, reasoningOutput: 0 };
 
@@ -41,7 +54,7 @@ export function sessionTotalUsage(threadId: string, codexHome: string = env.code
     try {
       const t = (JSON.parse(lines[i]) as { payload?: { type?: string; info?: { total_token_usage?: Record<string, number> } | null } }).payload;
       const u = t?.type === "token_count" ? t.info?.total_token_usage : undefined;
-      if (u) return { input: u.input_tokens ?? 0, cachedInput: u.cached_input_tokens ?? 0, output: u.output_tokens ?? 0, reasoningOutput: u.reasoning_output_tokens ?? 0 };
+      if (u) return withCacheWrite({ input: u.input_tokens ?? 0, cachedInput: u.cached_input_tokens ?? 0, output: u.output_tokens ?? 0, reasoningOutput: u.reasoning_output_tokens ?? 0 }, u.cache_write_input_tokens);
     } catch {
       // a line still being written
     }
@@ -61,12 +74,27 @@ function findSessionFile(dir: string, threadId: string): string | null {
   return null;
 }
 
+/** `u` with `cacheWrite` when there were cache writes (OpenAI usage keeps its four fields). */
+function withCacheWrite(u: TurnUsage, cacheWrite: number | null | undefined): TurnUsage {
+  return cacheWrite ? { ...u, cacheWrite } : u;
+}
+
 /** Usage of one turn: the running total after it minus the total before it (never below 0). */
 export function turnUsage(after: TurnUsage | null, before: TurnUsage | null): TurnUsage {
   if (!after) return { ...NO_USAGE };
   const b = before ?? NO_USAGE;
-  const d = (k: keyof TurnUsage) => Math.max(0, after[k] - b[k]);
-  return { input: d("input"), cachedInput: d("cachedInput"), output: d("output"), reasoningOutput: d("reasoningOutput") };
+  const d = (k: keyof TurnUsage) => Math.max(0, (after[k] ?? 0) - (b[k] ?? 0));
+  return withCacheWrite({ input: d("input"), cachedInput: d("cachedInput"), output: d("output"), reasoningOutput: d("reasoningOutput") }, d("cacheWrite"));
+}
+
+/** A turn's usage as the job's `TokenUsage`. */
+export function tokenUsageOf(u: TurnUsage): TokenUsage {
+  return { inputTokens: u.input, cachedInputTokens: u.cachedInput, outputTokens: u.output, reasoningOutputTokens: u.reasoningOutput, ...(u.cacheWrite ? { cacheWriteTokens: u.cacheWrite } : {}) };
+}
+
+/** Codex usage of a turn or thread total as `TurnUsage`. */
+export function fromCodexUsage(u: { input_tokens: number; cached_input_tokens: number; output_tokens: number; reasoning_output_tokens: number; cache_write_input_tokens?: number }): TurnUsage {
+  return withCacheWrite({ input: u.input_tokens, cachedInput: u.cached_input_tokens, output: u.output_tokens, reasoningOutput: u.reasoning_output_tokens }, u.cache_write_input_tokens);
 }
 
 export interface TurnSink {
@@ -101,6 +129,24 @@ export const CODEX_MODEL_ALIASES: Readonly<Record<string, string>> = { "gpt-5.6"
 
 export function codexModelSlug(model: string): string {
   return CODEX_MODEL_ALIASES[model] ?? model;
+}
+
+/**
+ * The engine of `model`: Claude models run on the Claude Agent SDK (with `apiKey` as the Anthropic key), every other
+ * model on Codex. `rcs` and `opts.lit` give the agent the RCS and literature MCP tools.
+ */
+export function createEngine(model: string | null, apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean } = {}): AgentEngine {
+  if (!isClaudeModel(model)) return createCodex(apiKey, rcs, opts);
+  return new ClaudeEngine({
+    apiKey,
+    models: [...new Set([model!, DEFAULT_CLAUDE_MODEL])],
+    rcs,
+    lit: !!opts.lit,
+    configDir: join(env.codexHome, "sessions", "claude"),
+    usageDir: join(env.codexHome, "sessions", "claude-usage"),
+    autoCompactWindow: env.claudeAutoCompactWindow,
+    crossrefMailto: env.crossrefMailto,
+  });
 }
 
 /**
@@ -142,8 +188,13 @@ export function resolveModelSettings(project: { model?: string | null; reasoning
   return { model, reasoningEffort: effort };
 }
 
-export function openThread(codex: Codex, threadId: string | null, settings: ModelSettings, opts: { webSearch?: boolean } = {}): Thread {
+export function openThread(engine: AgentEngine, threadId: string | null, settings: ModelSettings, opts: { webSearch?: boolean } = {}): AgentThread {
   const webSearch = opts.webSearch ?? true;
+  if (engine instanceof ClaudeEngine) {
+    const o = { workingDirectory: env.workDir, model: settings.model, reasoningEffort: settings.reasoningEffort, webSearch };
+    return threadId ? engine.resumeThread(threadId, o) : engine.startThread(o);
+  }
+  const codex = engine;
   const options = {
     workingDirectory: env.workDir,
     skipGitRepoCheck: true,
@@ -168,17 +219,20 @@ const RATE_LIMIT_MIN_WAIT_MS = 30_000;
 const RATE_LIMIT_MAX_WAIT_MS = 180_000;
 const HEARTBEAT_MS = 45_000;
 const RATE_LIMIT_RESUME_PROMPT =
-  "The previous turn stopped on a temporary OpenAI rate limit before it finished. Continue the same task from where it stopped (check the files you already wrote instead of redoing them), then end the turn as instructed.";
+  "The previous turn stopped on a temporary rate limit before it finished. Continue the same task from where it stopped (check the files you already wrote instead of redoing them), then end the turn as instructed.";
 
-/** Rate limits (TPM / RPM, HTTP 429) pass with time; an exhausted quota, a billing problem or a too large request does not. */
+/**
+ * Rate limits (TPM / RPM, HTTP 429) and Anthropic's overload (HTTP 529) pass with time; an exhausted quota, a billing
+ * problem or a too large request does not.
+ */
 export function isRateLimitError(message: string | null): boolean {
-  if (!message || /quota|billing/i.test(message) || isRequestTooLarge(message)) return false;
-  return /rate.?limit|too many requests|\b429\b|tokens per min|requests per min/i.test(message);
+  if (!message || /quota|billing|credit balance/i.test(message) || isRequestTooLarge(message)) return false;
+  return /rate.?limit|too many requests|\b429\b|tokens per min|requests per min|overloaded|\b529\b/i.test(message);
 }
 
 /** One request is larger than the tokens-per-minute limit: waiting never helps, only a smaller conversation does. */
 export function isRequestTooLarge(message: string | null): boolean {
-  return !!message && /request too large|input or output tokens must be reduced|context_length_exceeded|maximum context length/i.test(message);
+  return !!message && /request too large|input or output tokens must be reduced|context_length_exceeded|maximum context length|prompt is too long/i.test(message);
 }
 
 /** Pause before resuming a rate-limited turn: the server's "try again in …" hint or exponential backoff, whichever is longer. */
@@ -231,12 +285,12 @@ interface TurnState {
 }
 
 /**
- * Run one turn, streaming items to the sink; turns that fail on an OpenAI rate limit are resumed after a pause.
+ * Run one turn, streaming items to the sink; turns that fail on a rate limit are resumed after a pause.
  * `turn.completed` carries the thread's running total (also after a resume in a new process), so the turn's own usage
  * is that total minus the total before the turn. A turn that never completes is measured from the session file; one
  * that throws (cancel, time budget, crash) leaves that measurement in `o.inFlight` for the caller to count.
  */
-export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
+export async function runTurn(thread: AgentThread, prompt: Input, sink: TurnSink, signal?: AbortSignal, o: RunTurnOptions = {}): Promise<TurnResult> {
   const result: TurnResult = {
     threadId: thread.id ?? null,
     finalMessage: "",
@@ -280,8 +334,8 @@ export async function runTurn(thread: Thread, prompt: Input, sink: TurnSink, sig
     if (!error || !isRateLimitError(error) || attempt >= RATE_LIMIT_TURN_RETRIES) break;
 
     const wait = rateLimitWaitMs(error, attempt);
-    console.warn(`[worker] turn hit an OpenAI rate limit; resuming in ${Math.round(wait / 1000)} s (${attempt + 1}/${RATE_LIMIT_TURN_RETRIES})`);
-    await sink.onMessage("status", `OpenAI rate limit: resuming the turn in ${Math.round(wait / 1000)} s (retry ${attempt + 1}/${RATE_LIMIT_TURN_RETRIES}).`, { kind: "rateLimitRetry", waitMs: wait });
+    console.warn(`[worker] turn hit a rate limit; resuming in ${Math.round(wait / 1000)} s (${attempt + 1}/${RATE_LIMIT_TURN_RETRIES})`);
+    await sink.onMessage("status", `Rate limit: resuming the turn in ${Math.round(wait / 1000)} s (retry ${attempt + 1}/${RATE_LIMIT_TURN_RETRIES}).`, { kind: "rateLimitRetry", waitMs: wait });
     for (let left = wait; left > 0; left -= HEARTBEAT_MS) {
       await sink.onHeartbeat();
       await sleep(Math.min(left, HEARTBEAT_MS), signal);
@@ -309,7 +363,7 @@ async function handleEvent(ev: ThreadEvent, result: TurnResult, state: TurnState
       return;
     case "turn.completed":
       state.completed = true;
-      state.total = { input: ev.usage.input_tokens, cachedInput: ev.usage.cached_input_tokens, output: ev.usage.output_tokens, reasoningOutput: ev.usage.reasoning_output_tokens };
+      state.total = fromCodexUsage(ev.usage);
       return;
     case "turn.failed":
       state.failedMessage = ev.error.message;

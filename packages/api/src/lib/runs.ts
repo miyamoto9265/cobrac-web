@@ -3,7 +3,7 @@
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
 import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, hypothesisCreateFields, isUiLocale, newId, nowIso, policyAllows } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
@@ -35,21 +35,26 @@ export async function runPolicy(u: UserRecord): Promise<ModelPolicy> {
   return (await modelPolicy(u)).policy;
 }
 
-/** The caller's key and model policy; 400 when the caller has no key to run a job with. */
-export async function requireRunKey(u: UserRecord): Promise<ModelPolicy & { source: KeySource }> {
+/** The caller's key and model policy; 400 when the caller has no key (of either provider) to run a job with. */
+export async function requireRunKey(u: UserRecord): Promise<ModelPolicy> {
   const policy = await runPolicy(u);
-  if (policy.source) return { ...policy, source: policy.source };
+  if (canRunJobs(policy)) return policy;
   if (u.orgAccess) throw bad("いまはジョブを実行できません。管理者に連絡してください");
-  throw bad("OpenAI API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
+  throw bad("API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
 }
 
-/** 403 when the default-API-key tier does not include `model` (the message never names the tier). */
+/** 403 when the user's keys and tier do not include `model` (the message never names the tier). */
 export function requireModel(policy: ModelPolicy, model: string) {
+  if (isClaudeModel(model) && policy.claude.source === null) throw new HTTPException(403, { message: "Claude のモデルを使うには Anthropic API キーの登録が必要です" });
   if (!policyAllows(policy, model)) throw new HTTPException(403, { message: `このモデル（${model}）は利用できません` });
 }
 
-/** A default (user setting, deployment) the user did not pick for this job: replaced by an allowed model when the tier excludes it. */
-export const implicitModel = (policy: ModelPolicy, preferred: string) => (policy.allowed ? allowedDefaultModel(policy, preferred) : preferred);
+/** A default (user setting, deployment) the user did not pick for this job: replaced by an allowed model when the user cannot run it. */
+export const implicitModel = (policy: ModelPolicy, preferred: string) => allowedDefaultModel(policy, preferred);
+
+/** Whose key a job on `model` runs with (the worker checks it again when it starts). */
+export const jobKeySource = (policy: ModelPolicy, model: string | null | undefined): KeySource =>
+  sourceForModel(policy, model || deploymentDefaultModel()) ?? policy.source ?? policy.claude.source ?? "own";
 
 /**
  * The model a project's next job runs. A project made with a model the user can no longer run (made with their own
@@ -217,7 +222,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
 }
 
 /** Queues a retry of a FAILED / CANCELLED project from its last non-article job; `moved` is the model the project moved to, if any. */
-export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelPolicy & { source: KeySource }, opts: { locale: UiLocale | null; moved: string | null }): Promise<string> {
+export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelPolicy, opts: { locale: UiLocale | null; moved: string | null }): Promise<string> {
   const jobs = await listJobsForProject(p.projectId, u.userId);
   const last = jobs.filter((j) => j.type !== "article").sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const now = nowIso();
@@ -228,7 +233,7 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
     userId: u.userId,
     type: last?.type ?? "initial",
     status: "QUEUED",
-    keySource: policy.source,
+    keySource: jobKeySource(policy, p.model),
     instruction: last?.instruction ?? null,
     pendingAnswer: null,
     locale: opts.locale ?? last?.locale ?? null,
@@ -254,7 +259,7 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
 export async function queueFollowup(
   u: UserRecord,
   p: ProjectRecord,
-  policy: ModelPolicy & { source: KeySource },
+  policy: ModelPolicy,
   opts: { instruction: string; locale: UiLocale | null; moved: string | null; hypothesis?: HypothesisInput | null },
 ): Promise<string> {
   const text = opts.instruction;
@@ -266,7 +271,7 @@ export async function queueFollowup(
     userId: u.userId,
     type: "followup",
     status: "QUEUED",
-    keySource: policy.source,
+    keySource: jobKeySource(policy, p.model),
     instruction: text,
     pendingAnswer: null,
     locale: opts.locale,
@@ -335,7 +340,7 @@ export async function stopProject(p: ProjectRecord, by: keyof typeof STOP_NOTICE
 export async function answerQuestion(
   u: UserRecord,
   p: ProjectRecord,
-  policy: ModelPolicy & { source: KeySource },
+  policy: ModelPolicy,
   text: string,
   opts: { source: "user" | "auto"; locale: UiLocale | null },
 ): Promise<boolean> {
@@ -343,7 +348,7 @@ export async function answerQuestion(
   const job = await getJob(p.projectId, p.activeJobId, true);
   if (!job) return false;
   const moved = await moveToAllowedModel(u, p, policy);
-  const values: Partial<JobRecord> = { status: "QUEUED", pendingAnswer: text, pendingAnswerSource: opts.source, keySource: policy.source, ...(opts.locale ? { locale: opts.locale } : {}) };
+  const values: Partial<JobRecord> = { status: "QUEUED", pendingAnswer: text, pendingAnswerSource: opts.source, keySource: jobKeySource(policy, p.model), ...(opts.locale ? { locale: opts.locale } : {}) };
   if (opts.source === "auto") {
     if (!(await updateJobIfStatus(p.projectId, job.jobId, "WAITING_USER_INPUT", values))) return false;
   } else await updateJob(p.projectId, job.jobId, values);

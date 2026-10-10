@@ -37,7 +37,7 @@ function NewProject() {
   const [err, setErr] = useState<string | null>(null);
   const files = useAttachments(attachments, setAttachments, busy);
   const uploading = attachmentsBusy(attachments);
-  const canSubmit = !busy && !uploading && !!(roi.trim() || tlf.trim()) && !!me?.keySource && canonChoiceReady(canon);
+  const canSubmit = !busy && !uploading && !!(roi.trim() || tlf.trim()) && !!(me?.keySource || me?.claudeKeySource) && canonChoiceReady(canon);
   const submit = async () => {
     if (!canSubmit) return;
     setBusy(true);
@@ -71,7 +71,7 @@ function NewProject() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
         <h1 className="mb-5 text-center text-2xl font-semibold tracking-tight sm:mb-7">{t("chat.newTitle")}</h1>
-        {!me?.keySource && (
+        {!me?.keySource && !me?.claudeKeySource && (
           <div className="mb-4 w-full max-w-2xl rounded-md border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             {needKeyBefore}
             <Link to="/settings" className="underline">
