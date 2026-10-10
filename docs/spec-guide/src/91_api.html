@@ -252,14 +252,14 @@
   <li>受け付けると、新しい scope <code>S&lt;最大の番号 + 1&gt;</code> を加え、<code>evidenceMode</code> を <code>hypothesis</code> にします。それまで仮説を許していなかったプロジェクトでも同じです。</li>
   <li>scope の記録は <code>{ id, claims, target, note?, jobId, createdAt }</code> です。</li>
   <li>ジョブの作成とプロジェクトの更新は、1 つの DynamoDB トランザクションで行います。条件はプロジェクトがまだ <code>COMPLETED</code> であることです。同じフォローアップを二重に送ったときなど、その間にプロジェクトの状態が変わっていれば 409「プロジェクトの状態が変わったため送信できませんでした。再読み込みしてください」を返します。</li>
-  <li>エージェント欄には、加えた範囲と上限を示すお知らせ（<code>sys.hypothesisScope</code>）が出ます。</li>
 </ul>
+<p class="small">作成のときもフォローアップのときも、エージェント欄に、加えた範囲と上限を示すお知らせ（<code>sys.hypothesisScope</code>）が出ます。</p>
 
 <h3>応答とほかのルートでの扱い</h3>
 <table class="compact">
   <thead><tr><th style="width:30%">ルート</th><th>仮説モードでの扱い</th></tr></thead>
   <tbody>
-    <tr><td><code>GET /projects/{id}</code>・<code>GET /projects</code></td><td>プロジェクトの <code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> を返す。最後の検査で仮説が 0 件になったプロジェクトは <code>evidenceMode</code> が <code>strict</code> に戻るが、scope と上限は記録として残る（3.12）</td></tr>
+    <tr><td><code>GET /projects/{id}</code></td><td>プロジェクトの <code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> を返す。最後の検査で仮説が 0 件になったプロジェクトは <code>evidenceMode</code> が <code>strict</code> に戻るが、scope と上限は記録として残る（3.12）</td></tr>
     <tr><td><code>POST /public/projects/{id}/clone</code></td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> を複製に引き継ぐ</td></tr>
     <tr><td><code>GET /projects/{id}/versions/{n}</code></td><td>仮説を含む版、または仮説モードで仮説の件数を記録していない版には <code>bradbBlockedReason: "hypotheses"</code> を付ける</td></tr>
     <tr><td><code>POST /projects/{id}/versions/{n}/bradb</code></td><td>上と同じ版の登録は 400「仮説を含む版は、いまは BRA-DB に登録できません」</td></tr>
