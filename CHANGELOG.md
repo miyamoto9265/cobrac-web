@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-10
+
 ### Changed
 - CoBRAC Orchestrator: plans ordered automatically run as a flow instead of wave by wave. A row starts as soon as the rows it depends on are merged into the Canon, no unfinished baseline project shares a circuit with it, and no row being built overlaps it strongly (shares its ROI and more); a slot freed by any row is filled at once. Baseline projects that share no circuit are built side by side. Waves stay as hints of priority; rows with more rows depending on them start first. Plans ordered by hand, and plans confirmed before this change, keep running wave by wave
 - CoBRAC Orchestrator: the Orchestrator's own AI jobs (answers, decisions, re-plans) use at most a third of the plan's slots (2 of 6) while rows wait, so building rows keeps most of them. Re-plans of a flow plan come after the first row is done, then each time a tenth of the rows finishes
