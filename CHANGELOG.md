@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-10
+
 ### Changed
 - Approved users no longer see the default API key or "Not registered". In Settings, their key card is "Your own OpenAI API key (optional)" and says "No key needed. You can run jobs as you are."; the form for a key of their own is folded under "Use your own key" until they register one. With their own key, the card says jobs run with it and are billed to their account; if the organisation's key is missing, it says jobs cannot run and to ask an admin. Users who are not approved see the card as before
 - The model pickers no longer say "Using the default API key", and messages about a missing key ask the user to get approved by an admin instead of mentioning the default API key (all languages; the manual, its figure and the specification follow)
