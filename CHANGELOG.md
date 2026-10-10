@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The sidebar history is easier to read: project names wrap to two lines instead of being cut short, and the status shows only when a project is not completed (a small coloured dot with "Running", "Waiting for answer", "Failed" and so on) instead of a "Completed" badge on every row. The sidebar links are slightly tighter, leaving more room for the history
+
 ## [0.42.0] - 2026-10-10
 
 ### Changed
