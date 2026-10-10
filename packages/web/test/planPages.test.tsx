@@ -198,12 +198,15 @@ describe("plan list", () => {
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await act(async () => button("Paste rows")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan”
+    expect(button("Create plan")).toBeUndefined();
+    await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
     await act(async () => button("Create plan")!.click());
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
   });
 
-  it("starts an autonomous run with its cost limit", async () => {
+  it("starts an autonomous run with its cost limit by default", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
@@ -211,7 +214,8 @@ describe("plan list", () => {
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await act(async () => button("Paste rows")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
-    await act(async () => q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="checkbox"]')!.click());
+    expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
+    expect(q('[data-testid="plan-autonomous"]')!.textContent).toContain("The Orchestrator runs the plan on its own (the default).");
     expect(button("Create plan")).toBeUndefined();
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
     await act(async () => button("Start autonomous run")!.click());
