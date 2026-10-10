@@ -196,7 +196,8 @@ describe("plan list", () => {
     await render("/plans");
     expect(q('[data-testid="plan-list"]')!.textContent).toContain("No plans yet.");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Source list (CSV, TSV or text)"]')!, "ROI,TLF\nSTG,hearing\n");
+    await act(async () => button("Paste rows")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan”
     expect(button("Create plan")).toBeUndefined();
     await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
@@ -211,7 +212,8 @@ describe("plan list", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Source list (CSV, TSV or text)"]')!, "ROI,TLF\nSTG,hearing\n");
+    await act(async () => button("Paste rows")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
     expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
     expect(q('[data-testid="plan-autonomous"]')!.textContent).toContain("The Orchestrator runs the plan on its own (the default).");
     expect(button("Create plan")).toBeUndefined();

@@ -8,6 +8,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Changed
 - CoBRAC Orchestrator: a new plan runs as an autonomous run by default. The new plan form shows the cost limit and "Start autonomous run" from the start; handling pull request approvals, conflicts and questions yourself is now an option ("Handle pull requests and conflicts yourself", in the form and at the top of "3. How it runs" of a draft) that brings back "Create plan" and "Create draft". The API is unchanged: only a request with `autonomous` makes an autonomous plan
 - The Canon pull request page and the AI review ask politely instead of saying "You decide" (11 languages; for example 「承認の前に、衝突 n 件の扱いを選んでください」)
+- New plan form: the source files and the pasted rows are one "Source list" section (「資料」). "Add files" and "Paste rows" sit side by side, the paste box opens on demand, and one help text explains how files and rows are read. They were two sections before (「資料のファイル」 and 「資料（CSV・TSV・テキスト）」) for the same list
 
 ## [0.41.0] - 2026-10-09
 
