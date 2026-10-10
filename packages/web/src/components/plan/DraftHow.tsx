@@ -96,9 +96,10 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
     timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort, orchestratorModel: v.orchestratorModel }), 600);
   };
   return (
-    <div className="grid gap-2.5" data-testid="plan-models">
-      <h3 className="font-semibold">{t("model.label")}</h3>
-      <div className="grid gap-4 sm:grid-cols-3">
+    // compact: three small pickers in one row, not wider than they need to be
+    <div className="grid gap-1.5" data-testid="plan-models">
+      <h3 className="text-sm font-semibold">{t("model.label")}</h3>
+      <div className="grid max-w-3xl gap-x-3 gap-y-2 sm:grid-cols-3">
         <div data-testid="plan-orchestrator-model">
           <ModelSelect
             model={choice.orchestratorModel}
@@ -107,6 +108,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             hideEffort
             labels={{ model: t("pd.models.orchestrator") }}
             modelHint={t("pd.models.orchestratorHint")}
+            dense
           />
         </div>
         <div className="contents" data-testid="plan-agents-model">
@@ -117,6 +119,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             labels={{ model: t("pd.models.agents"), effort: t("pd.models.effort") }}
             modelHint={t("pd.models.agentsHint")}
             contents
+            dense
           />
         </div>
       </div>

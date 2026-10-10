@@ -7,6 +7,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Fixed
 - CoBRAC Orchestrator: the autonomous-run setting of the new plan form and of a draft's "3. How it runs" now leads with "Autonomous run", what it does and its cost limit; "Handle pull requests and conflicts yourself" is a secondary checkbox below them. Before, that checkbox was the heading, so the autonomous run and its cost limit sat under an unticked box. The cost limit field is a short number field again
+- CoBRAC Orchestrator: the model pickers of a draft's "3. How it runs" (the Orchestrator's model, the agents' model and their reasoning effort) are compact: smaller labels and lower pickers in one row of limited width
 
 ## [0.42.0] - 2026-10-10
 
