@@ -801,6 +801,8 @@ export const de: Record<MessageKey, string> = {
   "cc3.leaveOut": "Auslassen",
   "settings.defaultCanon": "Standard-Canon für neue Projekte",
   "help.tip": "Hilfe",
+  "app.alpha": "Alpha",
+  "app.alphaTip": "Dies ist eine Alpha-Version in Entwicklung. Funktionen und Ansichten können sich ohne Ankündigung ändern.",
   "help.guide": "Anleitung",
   "cc3.help": "Ein Projekt in einem Canon übernimmt die gemeinsamen Schaltkreisdefinitionen des Canons. Konflikte gehen zur Korrektur an den Agenten zurück.",
   "cc3.newShort": "Neuer Canon",

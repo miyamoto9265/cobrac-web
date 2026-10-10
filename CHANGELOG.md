@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The site now shows that it is an alpha version: an「アルファ版」(Alpha) badge sits beside the app name in the sidebar, the mobile header and the sign-in page, and its (?) tooltip says features and screens may still change
+
 ## [0.45.2] - 2026-10-10
 
 ### Changed

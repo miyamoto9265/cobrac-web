@@ -801,6 +801,8 @@ export const zhTw: Record<MessageKey, string> = {
   "cc3.leaveOut": "排除",
   "settings.defaultCanon": "新專案的預設 Canon",
   "help.tip": "說明",
+  "app.alpha": "Alpha 版",
+  "app.alphaTip": "這是開發中的 Alpha 版本。功能與畫面可能會在未經通知的情況下變更。",
   "help.guide": "使用說明",
   "cc3.help": "加入 Canon 的專案會沿用該 Canon 中各專案共用的迴路定義；衝突會退回給代理修正。",
   "cc3.newShort": "新 Canon",

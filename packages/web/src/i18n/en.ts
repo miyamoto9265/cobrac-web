@@ -799,6 +799,8 @@ export const en = {
   "cc3.leaveOut": "Leave out",
   "settings.defaultCanon": "Default Canon for new projects",
   "help.tip": "Help",
+  "app.alpha": "Alpha",
+  "app.alphaTip": "This is an alpha version under development. Features and screens may change without notice.",
   "help.guide": "Guide",
   "cc3.help": "A project in a Canon uses the circuit definitions shared by the Canon's projects. Conflicts go back to the agent to fix.",
   "cc3.newShort": "New Canon",
