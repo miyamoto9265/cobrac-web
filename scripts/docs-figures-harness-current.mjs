@@ -1,6 +1,6 @@
 // Current harness v2 figures: who reasons (the LLM agent) and who runs the procedure (the worker program), what passes
-// between them in one turn, and which of them writes each file in one BRA run. Embedded in part 2 of the specification
-// PDF (docs/spec-guide/src/20_harness.html).
+// between them in one turn, and which of them writes each file in one BRA run. Embedded in part 3 of the specification
+// PDF (docs/spec-guide/src/30_harness.html).
 import { C, NW, arrow, box, group, header, legendRows, pill, svg, text, textWidth } from "./docs-figures-lib.mjs";
 
 const W = 860;

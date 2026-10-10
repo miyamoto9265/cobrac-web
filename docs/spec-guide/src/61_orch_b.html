@@ -229,7 +229,7 @@
   </g>
   <g font-size="8.4" fill="#374151">
     <text x="182" y="12" text-anchor="middle">失敗 → 自動リトライ（2 回まで）</text>
-    <text x="182" y="25" text-anchor="middle" fill="#0f766e">Canon が進んだ衝突 → 更新の追加指示（2 回まで）</text>
+    <text x="182" y="25" text-anchor="middle" fill="#0f766e">Canon が進んだ衝突 → 更新のフォローアップ（2 回まで）</text>
     <text x="470" y="56" text-anchor="middle">完了（Canon なし）</text>
     <text x="306" y="104" text-anchor="end">質問</text><text x="346" y="104">回答</text>
     <text x="250" y="100" text-anchor="end">失敗が続く等</text>
@@ -245,7 +245,7 @@
     <text x="276" y="250" text-anchor="middle">スキップ（「もう一度 push」で running に戻すこともできる）</text>
   </g>
 </svg>
-<figcaption><b>図 6.3</b>　行の状態の遷移。緑の矢印は Canon のある計画だけの遷移。図の英字は行の状態で、pending は開始待ち、starting は開始中、running は実行中、question は質問中、done は完了、attention は要対応、skipped はスキップ、review は承認待ち、decision は要判断（6.12）。自律実行の計画では、承認は判断のジョブが、回答・リトライ・スキップ・要判断の扱いは行のジョブが行い、追加指示は 3 回まで（6.8）。計画の中止で止めた行は中止（cancelled）になる（図では省略）</figcaption>
+<figcaption><b>図 6.3</b>　行の状態の遷移。緑の矢印は Canon のある計画だけの遷移。図の英字は行の状態で、pending は開始待ち、starting は開始中、running は実行中、question は質問中、done は完了、attention は要対応、skipped はスキップ、review は承認待ち、decision は要判断（6.12）。自律実行の計画では、承認は判断のジョブが、回答・リトライ・スキップ・要判断の扱いは行のジョブが行い、フォローアップは 3 回まで（6.8）。計画の中止で止めた行は中止（cancelled）になる（図では省略）</figcaption>
 </figure>
 
 <h3>Canon の選択と確定</h3>
@@ -280,8 +280,8 @@
   <thead><tr><th style="width:32%">push の結果</th><th>自律実行の計画</th><th style="width:30%">人が対応する計画</th></tr></thead>
   <tbody>
     <tr><td>エラーの衝突なし（警告・要確認は審査に回す）</td><td><b>承認待ち</b>。基準プロジェクトを含むすべての行が、判断のジョブを待つ（6.8）</td><td><b>承認待ち</b>。本体の行は AI レビューを依頼する。基準プロジェクトは依頼しない</td></tr>
-    <tr><td>エラーの衝突あり。行の固定より後に Canon が進んだ</td><td><b>開始待ち</b>で Canon に合わせた更新を待つ（追加指示は 1 行 3 回まで）</td><td><b>開始待ち</b>で Canon に合わせた更新を待つ（2 回まで）</td></tr>
-    <tr><td>エラーの衝突あり。Canon は進んでいない</td><td><b>開始待ち</b>で、Canon に合わせる修正の追加指示を待つ（3 回まで、6.8）</td><td><b>要判断</b>（衝突が残る）</td></tr>
+    <tr><td>エラーの衝突あり。行の固定より後に Canon が進んだ</td><td><b>開始待ち</b>で Canon に合わせた更新を待つ（フォローアップは 1 行 3 回まで）</td><td><b>開始待ち</b>で Canon に合わせた更新を待つ（2 回まで）</td></tr>
+    <tr><td>エラーの衝突あり。Canon は進んでいない</td><td><b>開始待ち</b>で、Canon に合わせる修正のフォローアップを待つ（3 回まで、6.8）</td><td><b>要判断</b>（衝突が残る）</td></tr>
     <tr><td>更新の回数を使い切っても、エラーの衝突が残る</td><td colspan="2"><b>要判断</b>（更新の上限）。自律実行の計画では、解決のジョブが扱いを選ぶ</td></tr>
     <tr><td>push の失敗、プロジェクトがほかの Canon にいる</td><td colspan="2"><b>要判断</b></td></tr>
   </tbody>
@@ -295,7 +295,7 @@
   <li>開始に失敗したら、更新待ちと古い固定を戻し、回数は数えたままにします。</li>
   <li>プロジェクトが計画の Canon にもう入っていない、または Canon がなくなっていれば、要判断にします。</li>
 </ul>
-<p class="small">画面では、更新を待つ行に開いている PR へのリンクと「Canon に合わせた更新を待っています」が、一度でも更新した行に「Canon に合わせた更新 n/m」が出ます。m は追加指示の上限で、人が対応する計画では 2、自律実行の計画では 3 です。</p>
+<p class="small">画面では、更新を待つ行に開いている PR へのリンクと「Canon に合わせた更新を待っています」が、一度でも更新した行に「Canon に合わせた更新 n/m」が出ます。m はフォローアップの上限で、人が対応する計画では 2、自律実行の計画では 3 です。</p>
 
 <h3>PR の追跡</h3>
 <p>ランナーは毎ステップ、承認待ちの行、PR のある要判断の行、更新待ちの行の PR を読みます。一時停止中も読みます。</p>
