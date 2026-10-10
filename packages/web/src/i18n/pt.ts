@@ -957,7 +957,7 @@ export const pt: Record<MessageKey, string> = {
   "plan.waveLabel": "Onda",
   "plan.current": "atual",
   "plan.concurrency": "Até {n} por vez",
-  "plan.concurrencyHelp": "O menor entre o limite geral ({global}) e o limite por usuário ({perUser}) definidos por um administrador. Uma execução usa cerca de {min}–{max}k tokens por minuto e o limite da OpenAI da organização é de {tpm}k tokens por minuto, então o limite de taxa pode ser o teto real.",
+  "plan.concurrencyHelp": "O menor entre o limite geral ({global}) e o limite por usuário ({perUser}) definidos por um administrador.",
   "plan.time": "Tempo",
   "plan.cost": "Custo",
   "plan.estimate": "Estimativa",

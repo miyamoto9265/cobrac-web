@@ -957,7 +957,7 @@ export const ja: Record<MessageKey, string> = {
   "plan.waveLabel": "バッチ",
   "plan.current": "実行中",
   "plan.concurrency": "同時に最大 {n} 件",
-  "plan.concurrencyHelp": "管理者が設定する全体の上限（{global}）と 1 人あたりの上限（{perUser}）の小さいほうです。1 回の実行は毎分約 {min}〜{max}k トークンを使い、組織の OpenAI の上限は毎分 {tpm}k トークンなので、実際の上限はレート制限になることがあります。",
+  "plan.concurrencyHelp": "管理者が設定する全体の上限（{global}）と 1 人あたりの上限（{perUser}）の小さいほうです。",
   "plan.time": "時間",
   "plan.cost": "費用",
   "plan.estimate": "見積もり",

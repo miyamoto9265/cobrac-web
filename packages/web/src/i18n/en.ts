@@ -955,7 +955,7 @@ export const en = {
   "plan.waveLabel": "Wave",
   "plan.current": "current",
   "plan.concurrency": "Up to {n} at a time",
-  "plan.concurrencyHelp": "The lower of the overall limit ({global}) and the per-user limit ({perUser}) set by an admin. One run uses about {min}–{max}k tokens per minute and the organization's OpenAI limit is {tpm}k tokens per minute, so the rate limit may be the real ceiling.",
+  "plan.concurrencyHelp": "The lower of the overall limit ({global}) and the per-user limit ({perUser}) set by an admin.",
   "plan.time": "Time",
   "plan.cost": "Cost",
   "plan.estimate": "Estimate",

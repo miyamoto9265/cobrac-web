@@ -957,7 +957,7 @@ export const zh: Record<MessageKey, string> = {
   "plan.waveLabel": "批次",
   "plan.current": "当前",
   "plan.concurrency": "每次最多 {n} 个",
-  "plan.concurrencyHelp": "取管理员设置的总上限（{global}）与每位用户上限（{perUser}）中较小的一个。一次运行每分钟约使用 {min}–{max}k 个 token，而组织的 OpenAI 上限为每分钟 {tpm}k 个 token，因此实际上限可能是速率限制。",
+  "plan.concurrencyHelp": "取管理员设置的总上限（{global}）与每位用户上限（{perUser}）中较小的一个。",
   "plan.time": "时间",
   "plan.cost": "费用",
   "plan.estimate": "预计",

@@ -957,7 +957,7 @@ export const fr: Record<MessageKey, string> = {
   "plan.waveLabel": "Vague",
   "plan.current": "en cours",
   "plan.concurrency": "Jusqu’à {n} à la fois",
-  "plan.concurrencyHelp": "La plus petite des deux limites fixées par un administrateur : globale ({global}) et par utilisateur ({perUser}). Une exécution consomme environ {min}–{max}k jetons par minute et la limite OpenAI de l’organisation est de {tpm}k jetons par minute ; la vraie limite peut donc être le débit autorisé.",
+  "plan.concurrencyHelp": "La plus petite des deux limites fixées par un administrateur : globale ({global}) et par utilisateur ({perUser}).",
   "plan.time": "Durée",
   "plan.cost": "Coût",
   "plan.estimate": "Estimation",

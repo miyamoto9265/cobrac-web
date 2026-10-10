@@ -957,7 +957,7 @@ export const ko: Record<MessageKey, string> = {
   "plan.waveLabel": "웨이브",
   "plan.current": "진행 중",
   "plan.concurrency": "한 번에 최대 {n}개",
-  "plan.concurrencyHelp": "관리자가 정한 전체 상한({global})과 사용자별 상한({perUser}) 중 작은 값입니다. 실행 한 번은 분당 약 {min}–{max}k 토큰을 쓰고 조직의 OpenAI 상한은 분당 {tpm}k 토큰이므로, 실제 상한은 속도 제한이 될 수 있습니다.",
+  "plan.concurrencyHelp": "관리자가 정한 전체 상한({global})과 사용자별 상한({perUser}) 중 작은 값입니다.",
   "plan.time": "시간",
   "plan.cost": "비용",
   "plan.estimate": "예상",

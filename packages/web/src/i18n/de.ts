@@ -957,7 +957,7 @@ export const de: Record<MessageKey, string> = {
   "plan.waveLabel": "Welle",
   "plan.current": "aktuell",
   "plan.concurrency": "Bis zu {n} gleichzeitig",
-  "plan.concurrencyHelp": "Der kleinere Wert aus der Gesamtgrenze ({global}) und der Grenze pro Person ({perUser}), die eine Admin-Person festlegt. Ein Lauf braucht etwa {min}–{max}k Tokens pro Minute und das OpenAI-Limit der Organisation liegt bei {tpm}k Tokens pro Minute, daher kann das Ratenlimit die eigentliche Grenze sein.",
+  "plan.concurrencyHelp": "Der kleinere Wert aus der Gesamtgrenze ({global}) und der Grenze pro Person ({perUser}), die eine Admin-Person festlegt.",
   "plan.time": "Zeit",
   "plan.cost": "Kosten",
   "plan.estimate": "Schätzung",

@@ -2,7 +2,7 @@ import { ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, Rota
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
-import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, ORG_TOKENS_PER_MINUTE, RUN_TOKENS_PER_MINUTE, formatUsd, orchestratorModelOf } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, orchestratorModelOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { LiveDot, PlanBar } from "../components/PlanBar";
@@ -72,9 +72,6 @@ function Summary({ d }: { d: PlanDetailResponse }) {
             text={t("plan.concurrencyHelp", {
               global: limits.maxConcurrentJobs,
               perUser: limits.maxConcurrentJobsPerUser,
-              min: RUN_TOKENS_PER_MINUTE.min / 1000,
-              max: RUN_TOKENS_PER_MINUTE.max / 1000,
-              tpm: ORG_TOKENS_PER_MINUTE / 1000,
             })}
           />
         </div>

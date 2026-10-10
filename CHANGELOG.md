@@ -6,10 +6,10 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [Unreleased]
 
 ### Changed
-- The default API key's OpenAI organisation moved up a usage tier: the plan's concurrency help now gives its limit as 2,000k tokens per minute (was 200k), so about 10 runs at once fit within it. The specification says the same
+- The default API key's OpenAI organisation moved up a usage tier (2,000k tokens per minute, was 200k), so about 10 runs at once fit within it; the specification says so
 
 ### Removed
-- The admin page no longer shows the note under the concurrency setting about tokens per run and the organisation's OpenAI rate limit
+- The note about tokens per run and the organisation's OpenAI rate limit is gone from the admin page's concurrency setting and from the help of a plan's concurrency, which now only says it is the lower of the overall and per-user limits
 
 ## [0.41.0] - 2026-10-09
 
