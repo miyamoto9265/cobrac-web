@@ -112,28 +112,22 @@ function Settings({ d }: { d: PlanDetailResponse }) {
   const s = plan.settings;
   const o = orchestratorModelOf(s);
   return (
-    <section className="mb-5 rounded-xl border border-slate-200 bg-white p-4" data-testid="plan-settings">
-      <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+    // one line: the autonomous run shows in the header and its cost limit in the summary
+    <section className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600" data-testid="plan-settings">
+      <h2 className="flex items-center gap-1 font-semibold text-slate-700">
         {t("plan.settings")} <HelpTip text={t("plan.settingsNote")} />
       </h2>
-      <div className="grid gap-1 text-xs text-slate-600">
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>{t("plan.orchestratorModel")}:</span>
-          <span className="font-mono">{o.model ?? "—"}</span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>{t("plan.agentsModel")}:</span>
-          <span className="font-mono">{s.model ?? "—"}</span>
-          <span>effort: {s.reasoningEffort ?? "default"}</span>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1">
-          <span>
-            {t("plan.researchMode")}: {s.researchMode ? "on" : "off"}
-          </span>
-          {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
-        </div>
-        {s.autonomous && <div className="text-violet-700">{t("auto.settingsRead", { cost: formatUsd(s.autonomous.maxCostUsd) })}</div>}
-      </div>
+      <span>
+        {t("plan.orchestratorModel")} <span className="font-mono">{o.model ?? "—"}</span>
+      </span>
+      <span>
+        {t("plan.agentsModel")} <span className="font-mono">{s.model ?? "—"}</span>
+        {s.reasoningEffort && <span className="text-slate-500"> · {s.reasoningEffort}</span>}
+      </span>
+      <span>
+        {t("plan.researchMode")} {s.researchMode ? "on" : "off"}
+      </span>
+      {plan.harnessRules !== undefined && plan.harnessRules !== null && <span>{t("plan.harness", { n: plan.harnessRules })}</span>}
     </section>
   );
 }
