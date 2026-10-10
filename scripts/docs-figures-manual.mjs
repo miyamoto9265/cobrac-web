@@ -21,11 +21,11 @@ const S = {
     },
     start: {
       title: "使い始めるまでの 4 つの手順",
-      desc: "1. メールアドレスとパスワードでアカウントを作る。2. メールに届いた確認コードを入れる。3. 設定画面で自分の OpenAI API キーを登録するか、管理者にデフォルトの API キーの利用を承認してもらう。4. 新規プロジェクトで ROI と TLF を入れて実行する。",
+      desc: "1. メールアドレスとパスワードでアカウントを作る。2. メールに届いた確認コードを入れる。3. 管理者に利用を承認してもらう（自分の OpenAI API キーを設定画面で登録しても使える）。4. 新規プロジェクトで ROI と TLF を入れて実行する。",
       steps: [
         { title: "アカウント作成", lines: ["メールアドレスと", "パスワード（10 文字以上）"] },
         { title: "確認コード", lines: ["メールに届いた", "コードを入力"] },
-        { title: "API キー", lines: ["自分のキーを登録", "またはデフォルトの", "API キーの承認"] },
+        { title: "利用の承認", lines: ["管理者に承認してもらう", "（自分の API キー", "でも使える）"] },
         { title: "新規プロジェクト", lines: ["ROI と TLF を", "入れて実行"] },
       ],
     },
@@ -74,11 +74,11 @@ const S = {
     },
     start: {
       title: "Four steps to get started",
-      desc: "1. Create an account with your e-mail address and a password. 2. Enter the confirmation code from the e-mail. 3. Register your own OpenAI API key in Settings, or have an admin approve you for the default API key. 4. Create a new project with an ROI and a TLF and run it.",
+      desc: "1. Create an account with your e-mail address and a password. 2. Enter the confirmation code from the e-mail. 3. Have an admin approve you (or register your own OpenAI API key in Settings). 4. Create a new project with an ROI and a TLF and run it.",
       steps: [
         { title: "Create account", lines: ["e-mail address and", "password (10+ chars)"] },
         { title: "Confirm", lines: ["enter the code", "from the e-mail"] },
-        { title: "API key", lines: ["register your own", "or get approved for", "the default API key"] },
+        { title: "Approval", lines: ["have an admin", "approve you (or use", "your own API key)"] },
         { title: "New project", lines: ["enter ROI and TLF", "and run"] },
       ],
     },

@@ -27,14 +27,11 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 
 If sign-up is closed, ask an admin.
 
-### Get an API key
+### Get approved
 
-Runs need an OpenAI API key. You need one of these:
+To run agents, have an admin approve you. Once approved, Settings shows "No key needed. You can run jobs as you are." and you can start right away.
 
-- **Your own key**: paste it under "OpenAI API key" in Settings and press "Register / update". It is stored encrypted, and usage is billed to your OpenAI account.
-- **The default API key**: without a key of your own, ask an admin to approve you for it. Once approved, Settings shows "Using the default API key".
-
-If you have both, your own key is used.
+To run on your own OpenAI account instead, open "Use your own key" under "Your own OpenAI API key (optional)" in Settings, paste the key and press "Register / update". It is stored encrypted, later jobs run with your key, and usage is billed to your OpenAI account. Delete it to go back. Without approval, registering your own key also lets you run jobs.
 
 ## Create a project
 
@@ -126,9 +123,22 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### Using a Canon
 
-- Under "Canons" in the sidebar, create a "New Canon" with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project".
+- Under "Canons" in the sidebar, create a "New Canon" with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" on the "Projects" tab of the Canon page.
 - For a new project, choose a Canon with the "Canon" button on the create screen. Settings has a default Canon for new projects.
 - A project can be in one Canon only.
+
+### The Canon page
+
+Like a project page, the Canon page has a header with tabs below it.
+
+- **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits. The arrangement of the graph is saved in this browser.
+- **Tables**: circuits, connections and references as tables, with CSV download.
+- **Projects**: add and remove member projects, and see how many of each project's circuits are in the Canon.
+- **Pull requests**: the PRs received, "Approve selected", and sending a PR to another Canon.
+- **History**: the approved revs with their PRs and who approved them.
+- **Settings**: name, granularity policy and description, and the co-editors.
+
+While a Canon is still empty (rev 0), the "Projects" tab opens.
 
 ### How a Canon guides generation
 
@@ -140,7 +150,7 @@ Projects in a Canon are built to its definitions (circuit IDs, names, breakdowns
 
 1. **Push**: on a completed project, "Push to Canon" shows the differences and creates a pull request (PR). The Canon does not change until the PR is approved.
 2. **Review**: the Canon's owner or a co-editor checks the changes, the check results and the AI review (which points out issues but does not decide) on the PR page.
-3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" on the Canon page.
+3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" on the "Pull requests" tab of the Canon page.
 
 The owner can add **co-editors** by the e-mail address they signed up with. Co-editors open the Canon from "Shared with you" and can review its PRs.
 
@@ -210,7 +220,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 Settings, the gear icon next to your email address at the bottom of the sidebar, has:
 
-- **OpenAI API key**: register, update or delete it, and the status of the default API key
+- **OpenAI API key**: whether you can run jobs, and registering, updating or deleting your own key
 - **Profile**: display name and Contributor name (written to Project.csv and the xlsx; English is recommended)
 - **Default model / reasoning effort / Canon**: starting values for new projects
 - **Change password**
@@ -222,11 +232,11 @@ To sign out, press the icon to the right of the gear. The display language and t
 
 ### I cannot run a project
 
-If the screen says that no OpenAI API key is available, register your own key in Settings or ask an admin to approve you for the default API key ([get an API key](#get-an-api-key)).
+If the screen says that no OpenAI API key is available, ask an admin to approve you or register your own key in Settings ([get approved](#get-approved)). If it says that jobs cannot run right now, ask an admin.
 
 ### The model I want is not in the list
 
-With the default API key, the lists show only the models it can use. Register your own key to use other models.
+The lists show only the models you can use. To use others, ask an admin or register your own key.
 
 ### The run seems stuck
 

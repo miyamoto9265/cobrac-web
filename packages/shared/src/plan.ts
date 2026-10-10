@@ -625,12 +625,6 @@ export const CONCURRENCY_MAX = 16;
 export const CONCURRENCY_CATALOG_KEY = { kind: "config", id: "concurrency" } as const;
 /** Lambdas re-read the setting after this long (the dispatcher reads it for every job it starts). */
 export const CONCURRENCY_CACHE_MS = 30 * 1000;
-/**
- * OpenAI tokens per minute: one BRA run uses about 140–170k, and the organisation's limit for the model the runs use is
- * 200k (as of 2026-10), so the real ceiling on parallel runs may be the TPM limit rather than the concurrency setting.
- */
-export const RUN_TOKENS_PER_MINUTE = { min: 140_000, max: 170_000 } as const;
-export const ORG_TOKENS_PER_MINUTE = 200_000;
 
 export interface ConcurrencySettingRecord {
   kind: typeof CONCURRENCY_CATALOG_KEY.kind;

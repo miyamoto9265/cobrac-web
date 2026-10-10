@@ -19,7 +19,6 @@ export function useModelList(model: string | null) {
   const [models, setModels] = useState<string[]>([]);
   const [priced, setPriced] = useState<string[]>([]);
   const [envDefault, setEnvDefault] = useState<string | null>(null);
-  const [onDefaultKey, setOnDefaultKey] = useState(false);
   const [restricted, setRestricted] = useState(false);
   const [custom, setCustom] = useState(false);
   useEffect(() => {
@@ -29,13 +28,12 @@ export function useModelList(model: string | null) {
         setModels(r.models);
         setPriced(r.pricedModels ?? []);
         setEnvDefault(r.envDefaultModel);
-        setOnDefaultKey(r.keySource === "org");
         setRestricted(!!r.restricted);
         if (model && !r.models.includes(model) && !r.restricted) setCustom(true);
       })
       .catch(() => undefined);
   }, [model]);
-  return { models, priced, envDefault, onDefaultKey, restricted, custom, setCustom };
+  return { models, priced, envDefault, restricted, custom, setCustom };
 }
 
 interface Props {
@@ -51,22 +49,15 @@ interface Props {
   labels?: { model: string; effort?: string };
   /** A line under the model picker (what the model is used for) */
   modelHint?: string;
-  /** The 「デフォルトの API キーを使用」 note under the picker; a caller with several pickers may show one note instead */
-  keyNote?: boolean;
-  /** Told whether the models come from the default API key (for the caller's own note) */
-  onKeySource?: (onDefaultKey: boolean) => void;
   /** The pickers join the caller's grid (`display: contents`) instead of a grid of their own */
   contents?: boolean;
 }
 
 /** Model + reasoning-effort picker. Model list comes from the user's registered OpenAI key. */
-export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false, hideEffort = false, labels, modelHint, keyNote = true, onKeySource, contents = false }: Props) {
+export function ModelSelect({ model, effort, onChange, defaultLabel, compact = false, hideEffort = false, labels, modelHint, contents = false }: Props) {
   const t = useT();
   const fallbackLabel = defaultLabel ?? t("model.default");
-  const { models, priced, envDefault, onDefaultKey, restricted, custom, setCustom } = useModelList(model);
-  useEffect(() => {
-    onKeySource?.(onDefaultKey);
-  }, [onDefaultKey, onKeySource]);
+  const { models, priced, envDefault, restricted, custom, setCustom } = useModelList(model);
 
   const sel = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
   const lbl = labels ? "mb-1 block text-sm font-semibold text-slate-700" : "mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500";
@@ -101,7 +92,6 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
           {!restricted && <option value={CUSTOM}>{t("model.custom")}</option>}
         </select>
         {modelHint && <span className="mt-1 block text-xs text-slate-500">{modelHint}</span>}
-        {keyNote && onDefaultKey && <span className="mt-1 block text-[11px] text-slate-500" data-testid="default-key-note">{t("model.defaultKey")}</span>}
         {custom && (
           <input
             value={model ?? ""}

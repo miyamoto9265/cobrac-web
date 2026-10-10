@@ -14,9 +14,9 @@ export function planRunKey(user: UserRecord, defaultKey: DefaultApiKeyRecord | n
   if (user.encryptedApiKey) return { source: "own", encryptedApiKey: user.encryptedApiKey, context: { userId: user.userId, purpose: "openai-api-key" } };
   const access = user.orgAccess;
   if (!access || !isOrgTier(access.tier)) {
-    return { error: "No OpenAI API key is registered for this user, and the user is not approved for the default API key.", meta: { i18n: "sys.noApiKey" } };
+    return { error: "No OpenAI API key is registered, and an admin has not approved you.", meta: { i18n: "sys.noApiKey" } };
   }
-  if (!defaultKey?.encryptedApiKey) return { error: "No default API key is registered. Ask an admin.", meta: { i18n: "sys.orgKeyUnavailable" } };
+  if (!defaultKey?.encryptedApiKey) return { error: "Jobs cannot run right now. Ask an admin.", meta: { i18n: "sys.orgKeyUnavailable" } };
   if (!orgTierAllows(access.tier, model)) {
     return { error: `Model ${model} is not available.`, meta: { i18n: "sys.orgKeyModel", model } };
   }

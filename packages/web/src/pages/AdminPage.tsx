@@ -1,7 +1,7 @@
 import { Gauge, KeyRound, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ConcurrencyStatus, DefaultKeyStatus, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
-import { CONCURRENCY_MAX, CONCURRENCY_MIN, ORG_TOKENS_PER_MINUTE, RUN_TOKENS_PER_MINUTE, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
+import { CONCURRENCY_MAX, CONCURRENCY_MIN, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
@@ -83,7 +83,6 @@ export function ConcurrencySection() {
       </div>
       {!valid && <div className="mt-2 text-xs text-rose-700">{t("admin.concurrencyRange", { min: CONCURRENCY_MIN, max: CONCURRENCY_MAX })}</div>}
       {err && <div className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
-      <p className="mt-3 text-xs text-slate-500">{t("admin.concurrencyTpm", { min: RUN_TOKENS_PER_MINUTE.min / 1000, max: RUN_TOKENS_PER_MINUTE.max / 1000, tpm: ORG_TOKENS_PER_MINUTE / 1000 })}</p>
     </section>
   );
 }

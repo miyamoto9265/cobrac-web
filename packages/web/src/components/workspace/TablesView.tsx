@@ -86,7 +86,8 @@ export function TablesView({ projectId, sources }: { projectId: string; sources:
   );
 }
 
-function SheetTable({ sheet, onDownload }: { sheet: Sheet; onDownload: () => void }) {
+/** One sheet with filter, sort, wrap and a download button (project CSVs, Canon tables). */
+export function SheetTable({ sheet, onDownload }: { sheet: Sheet; onDownload: () => void }) {
   const t = useT();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState | null>(null);
@@ -179,7 +180,7 @@ function SheetTable({ sheet, onDownload }: { sheet: Sheet; onDownload: () => voi
   );
 }
 
-function Placeholder({ text }: { text: string }) {
+export function Placeholder({ text }: { text: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-500">
       <Table2 size={28} className="text-slate-300" />

@@ -6,10 +6,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [Unreleased]
 
 ### Changed
+- Approved users no longer see the default API key or "Not registered". In Settings, their key card is "Your own OpenAI API key (optional)" and says "No key needed. You can run jobs as you are."; the form for a key of their own is folded under "Use your own key" until they register one. With their own key, the card says jobs run with it and are billed to their account; if the organisation's key is missing, it says jobs cannot run and to ask an admin. Users who are not approved see the card as before
+- The model pickers no longer say "Using the default API key", and messages about a missing key ask the user to get approved by an admin instead of mentioning the default API key (all languages; the manual, its figure and the specification follow)
+- The default API key's OpenAI organisation moved up a usage tier (2,000k tokens per minute, was 200k), so about 10 runs at once fit within it; the specification says so
 - CoBRAC Orchestrator: a new plan runs as an autonomous run by default. The new plan form shows the cost limit and "Start autonomous run" from the start; handling pull request approvals, conflicts and questions yourself is now an option ("Handle pull requests and conflicts yourself", in the form and at the top of "3. How it runs" of a draft) that brings back "Create plan" and "Create draft". The API is unchanged: only a request with `autonomous` makes an autonomous plan
 - The Canon pull request page and the AI review ask politely instead of saying "You decide" (11 languages; for example 「承認の前に、衝突 n 件の扱いを選んでください」)
 - New plan form: the source files and the pasted rows are one "Source list" section (「資料」). "Add files" and "Paste rows" sit side by side, the paste box opens on demand, and one help text explains how files and rows are read. They were two sections before (「資料のファイル」 and 「資料（CSV・TSV・テキスト）」) for the same list
+- The Canon page is laid out like the project page: a header (name, latest rev, granularity policy, counts, visibility) with tabs below it. "HCD graph" draws the latest rev's circuits, connections and Collections with the project's graph view (select a circuit to see which projects pushed it, or highlight one project's circuits; the arrangement is kept in the browser), "Tables" shows circuits, connections and references with CSV download, and "Projects", "Pull requests", "History" and "Settings" hold what used to be stacked on one page. Projects also show how many of their circuits are in the Canon. An empty Canon opens on "Projects"
 - Settings and sign-out are no longer items in the sidebar list: they are icons next to your email address at the bottom of the sidebar (a gear and a sign-out icon), which leaves more room for the list
+
+### Removed
+- The note about tokens per run and the organisation's OpenAI rate limit is gone from the admin page's concurrency setting and from the help of a plan's concurrency, which now only says it is the lower of the overall and per-user limits
 
 ## [0.41.0] - 2026-10-09
 

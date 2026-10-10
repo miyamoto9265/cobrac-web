@@ -23,11 +23,55 @@ function isEmpty(l: LayoutState) {
   return Object.keys(l.positions).length === 0 && Object.keys(l.nodes).length === 0 && Object.keys(l.edges).length === 0;
 }
 
+/** Where an arrangement is kept: on the server (a project's graphs) or in this browser (a Canon's graph). */
+interface LayoutStore {
+  load(): Promise<Partial<GraphLayout> | null>;
+  save(s: LayoutState): Promise<unknown>;
+  reset(): Promise<unknown>;
+}
+
+function projectStore(projectId: string, kind: "hcd" | "frg"): LayoutStore {
+  return { load: () => api.getLayout(projectId, kind), save: (s) => api.saveLayout(projectId, kind, s), reset: () => api.resetLayout(projectId, kind) };
+}
+
+/** Browser storage can be unavailable (private windows, blocked site data); the arrangement then lasts until reload. */
+function browserStore(key: string): LayoutStore {
+  return {
+    load: async () => {
+      try {
+        const v = localStorage.getItem(key);
+        return v ? (JSON.parse(v) as Partial<GraphLayout>) : null;
+      } catch {
+        return null;
+      }
+    },
+    save: async (s) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(s));
+      } catch {
+        /* kept in memory only */
+      }
+    },
+    reset: async () => {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        /* nothing stored */
+      }
+    },
+  };
+}
+
+/** Arrangement key of a Canon's HCD in browser storage */
+export const canonLayoutKey = (canonId: string) => `cobrac-canon-layout:${canonId}:hcd`;
+
 /**
  * Loads the user's graph arrangement (positions, node sizes/colours, edge styles) and persists
  * changes with a debounce. Keeps an undo/redo history of committed changes.
+ * `canon`: the scope is a Canon ID and the arrangement stays in this browser (a Canon has no server-side layout).
  */
-export function useGraphLayout(projectId: string, kind: "hcd" | "frg") {
+export function useGraphLayout(projectId: string, kind: "hcd" | "frg", { canon = false }: { canon?: boolean } = {}) {
+  const store = useMemo(() => (canon ? browserStore(canonLayoutKey(projectId)) : projectStore(projectId, kind)), [canon, projectId, kind]);
   const [layout, setLayout] = useState<LayoutState | null>(null); // null = not loaded yet
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [histLen, setHistLen] = useState({ undo: 0, redo: 0 });
@@ -42,8 +86,8 @@ export function useGraphLayout(projectId: string, kind: "hcd" | "frg") {
     undoStack.current = [];
     redoStack.current = [];
     setHistLen({ undo: 0, redo: 0 });
-    api
-      .getLayout(projectId, kind)
+    store
+      .load()
       .then((l) => {
         if (!alive) return;
         const s = normalize(l);
@@ -58,20 +102,20 @@ export function useGraphLayout(projectId: string, kind: "hcd" | "frg") {
     return () => {
       alive = false;
     };
-  }, [projectId, kind]);
+  }, [store]);
 
   const flush = useCallback(
     async (s: LayoutState) => {
       setSaving("saving");
       try {
-        await api.saveLayout(projectId, kind, s);
+        await store.save(s);
         setSaving("saved");
         setTimeout(() => setSaving((x) => (x === "saved" ? "idle" : x)), 1500);
       } catch {
         setSaving("error");
       }
     },
-    [projectId, kind],
+    [store],
   );
 
   const scheduleSave = useCallback(
@@ -174,7 +218,7 @@ export function useGraphLayout(projectId: string, kind: "hcd" | "frg") {
     if (timer.current) clearTimeout(timer.current);
     setSaving("saving");
     try {
-      await api.resetLayout(projectId, kind);
+      await store.reset();
       undoStack.current.push(latest.current);
       redoStack.current = [];
       setHistLen({ undo: undoStack.current.length, redo: 0 });
@@ -184,7 +228,7 @@ export function useGraphLayout(projectId: string, kind: "hcd" | "frg") {
     } catch {
       setSaving("error");
     }
-  }, [projectId, kind]);
+  }, [store]);
 
   /** Forget positions only (re-run automatic layout) but keep styles. */
   const resetPositions = useCallback(() => commit((p) => ({ ...p, positions: {} })), [commit]);

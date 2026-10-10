@@ -111,7 +111,8 @@ describe("default API key", () => {
     await approve(ALICE, 1);
     const unshared = await create(ALICE);
     expect(unshared.status).toBe(400);
-    expect(await unshared.text()).toContain("デフォルトの API キー");
+    expect(await unshared.clone().text()).not.toContain("デフォルト");
+    expect(await unshared.text()).toContain("いまはジョブを実行できません");
 
     const status = await share();
     expect(status).toEqual({ registered: true, last4: "WXYZ", updatedAt: expect.any(String) });

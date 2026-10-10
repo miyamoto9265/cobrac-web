@@ -63,7 +63,7 @@
     <tr><td>粒度方針・説明</td><td>Canon の画面で名前・粒度方針・説明を直せる。</td></tr>
     <tr><td>rev</td><td><code>headRevision</code> が最新。承認で n → n+1。同時の承認は条件付き書き込みで片方が 409。</td></tr>
     <tr><td>削除</td><td>論理削除（<code>deletedAt</code>）。参加プロジェクトは解放され（<code>canonId</code> が消える）、項目は残る。プロジェクトを削除すると Canon から外れる。</td></tr>
-    <tr><td>画面</td><td>参加プロジェクト、PR、中身（回路・接続・文献）、rev の履歴（各 rev の承認者つき）。</td></tr>
+    <tr><td>画面</td><td>プロジェクトの画面と同じく、ヘッダー（名前・最新の rev・粒度方針・件数・公開）の下にタブが並ぶ（<code>/canons/{id}/{view}</code>）。「HCD グラフ」は最新の rev の共有層をプロジェクトの HCD と同じ図で描く（Web が描く。Uniform の回路と、接続の端になっている Collection が節点、ほかの Collection とまとまりが枠、無効になった項目は除く。ROI の色は参加プロジェクトの役割層から決め、どれかのプロジェクトで ROI 内なら ROI 内。回路を選ぶと push したプロジェクトが出て、1 つのプロジェクトの回路を強調できる。図の配置はブラウザに保存し、サーバーには保存しない）。「表データ」は回路・接続・文献の表（CSV をブラウザで作ってダウンロード）。ほかに「プロジェクト」（参加プロジェクトと、各プロジェクトの回路の数）、「PR」（PR の一覧・まとめて承認・別の Canon に PR を送る）、「版の履歴」（各 rev の PR と承認者）、「設定」（名前・粒度方針・説明・共同編集者）。中身がある Canon は「HCD グラフ」、空（rev 0）の Canon は「プロジェクト」を開く。</td></tr>
   </tbody>
 </table>
 
@@ -287,7 +287,7 @@
   <li><b>AI による判断</b>（自律実行の計画の PR だけ）：承認・却下・変更の依頼は Canon の所有者のアカウントで行い（<code>decidedBy</code> などは所有者）、名前は「AI (&lt;モデル&gt;)」（<code>aiActorName</code>）、判断したジョブとモデルを <code>via = { kind: "ai", jobId, model }</code> として PR（<code>decidedVia</code>）・承認（<code>approvals[].via</code>）・履歴（<code>via: "ai"</code>）・rev（<code>approvedVia</code>）に残します。</li>
 </ul>
 <h3>まとめて承認</h3>
-<p>Canon の画面の PR の一覧で、エラーの衝突も要確認の項目も無く、変更を依頼していない未処理の PR にチェックを入れ（全選択も可）、「まとめて承認」を押すと、選んだ PR を<b>番号の順に 1 件ずつ</b>承認します（<code>POST /canons/{id}/pulls/approve-many</code>、1〜50 件）。1 件ごとに直前の承認でできた最新の Canon に対して判定し直し、見つからない・処理済み・新しい head に対してブロックする衝突がある・承認数が足りない・head の競合、のどれかで止まり、残りは承認しません。結果には承認した件数と、どの PR でなぜ止まったかが出ます。承認者は 1 件ずつ承認したときと同じように記録されます。</p>
+<p>Canon の画面の「PR」タブの一覧で、エラーの衝突も要確認の項目も無く、変更を依頼していない未処理の PR にチェックを入れ（全選択も可）、「まとめて承認」を押すと、選んだ PR を<b>番号の順に 1 件ずつ</b>承認します（<code>POST /canons/{id}/pulls/approve-many</code>、1〜50 件）。1 件ごとに直前の承認でできた最新の Canon に対して判定し直し、見つからない・処理済み・新しい head に対してブロックする衝突がある・承認数が足りない・head の競合、のどれかで止まり、残りは承認しません。結果には承認した件数と、どの PR でなぜ止まったかが出ます。承認者は 1 件ずつ承認したときと同じように記録されます。</p>
 <ul>
   <li>押せるのは 1 件ずつの承認と同じく、所有者か共同編集者です。PR 番号が 1〜50 件でなければ 400。重複は除き、順番は保ちます。1 件ずつ <code>POST …/pulls/{no}/approve</code> と同じ関数（<code>approvePullRequest</code>、衝突の選択なし）で、読み直した Canon に対して承認し、必要なら差分を取り直して rebased として記録します。</li>
   <li>止まる理由は、見つからない（<code>not_found</code>）、開いていない（<code>closed</code>）、新しい head に対してブロックする衝突がある（<code>conflicts</code>、その数 <code>blocking</code>）、承認数が足りない（<code>approvals</code>）、head の競合（<code>race</code>）です。1 件の承認中の予期しないエラー（ペイロードが無い、AWS のエラーなど）も、その PR で <code>race</code> として止まり、途中で Canon が削除されたら <code>not_found</code> で止まります（まだ 1 件も承認していなければ 404）。どの場合も、すでに行った承認は必ず結果に返ります。</li>
