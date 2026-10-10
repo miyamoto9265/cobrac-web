@@ -16,7 +16,8 @@
 8. [権限と承認：人・CI・クラウドエージェント](#8-権限と承認人ciクラウドエージェント)
 9. [監視の操作](#9-監視の操作)
 10. [緊急停止の操作](#10-緊急停止の操作)
-11. [撤去と残る費用](#11-撤去と残る費用)
+11. [BRA-DB の保守](#11-bra-db-の保守)
+12. [撤去と残る費用](#12-撤去と残る費用)
 
 ---
 
@@ -116,7 +117,7 @@ flowchart LR
 - `cdk diff` の出力を解釈できない（`Stack CobracAgents` の行がない）ときも止まります。
 - 終了コードは 0（安全、または許可済み）、1（危険な変更あり）、2（出力を解釈できない）です。ログには、リソースの型・パス・論理 ID だけを出し、プロパティの値は出しません。
 
-差分を確認したうえで続けるときは、次のコマンドで実行し直します。通常の「Re-run」では入力が付かないので、再び止まります。だれがこれを決めるかは [8. 権限と承認](#だれが何を承認するか)にあります。BRA-DB のインスタンスを置き換える手順は仕様書 7.6 にあります。
+差分を確認したうえで続けるときは、次のコマンドで実行し直します。通常の「Re-run」では入力が付かないので、再び止まります。だれがこれを決めるかは [8. 権限と承認](#だれが何を承認するか)にあります。BRA-DB のインスタンスを置き換える手順は [11. BRA-DB の保守](#11-bra-db-の保守)にあります。
 
 ```sh
 gh workflow run deploy.yml --ref main -f allow_retain_replacement=true
@@ -261,7 +262,18 @@ Cloud Agent は Cursor の OIDC で認証します。VM のソケット `/run/cu
 | 新規の登録 | `COBRAC_SELF_SIGNUP=false` にしてデプロイする |
 | 漏れた API キー | OpenAI 側で失効させ、設定画面で登録し直す。デフォルトの API キーは、管理画面で消すか登録し直す |
 
-## 11. 撤去と残る費用
+## 11. BRA-DB の保守
+
+BRA-DB の構成は仕様書 7.6 にあります。インスタンスには SSH もパブリックアドレスもないので、操作はすべて SSM Session Manager を通します。`<InstanceId>` は `BraDb` スタックのインスタンスの ID です。
+
+| 作業 | 手順 |
+|---|---|
+| シェル | `aws ssm start-session --target <InstanceId>` の後、`sudo -u postgres psql -d bra_db_v4_6` |
+| ローカルから接続 | `aws ssm start-session --target <InstanceId> --document-name AWS-StartPortForwardingSession --parameters portNumber=5432,localPortNumber=15432` の後、`127.0.0.1:15432` に `bra` か `cobrac_read` で接続する（パスワードは Secrets Manager）。BRA-DB の保守担当の利用を想定 |
+| 復元 | 同じ AZ でスナップショットからボリュームを作り、インスタンスを止め、データ用ボリュームを外して、復元したものを `/dev/sdf` に付けて起動する。その後、スタックの定義（`DataVolume`）を PR で合わせる |
+| インスタンスの置き換え | AMI の更新などで `AWS::EC2::Instance` / `VolumeAttachment` が置き換わると、CI の RETAIN ガードがデプロイを止める（[5](#5-retain-ガード)）。先にデータ用ボリュームを外し、`allow_retain_replacement=true` で再実行する。新しいインスタンスが、起動時にクラスタを登録し直す |
+
+## 12. 撤去と残る費用
 
 `cdk destroy` の後も、次のものは残り、わずかな保存の費用がかかり続けます（`RemovalPolicy.RETAIN`）。
 
