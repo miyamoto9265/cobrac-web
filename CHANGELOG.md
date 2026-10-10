@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- Canon pull request review: the wording under the decision buttons and in the AI review no longer lectures the reviewer. 「まだ N 件の衝突を決める必要があります」 is now 「承認の前に解決が必要な衝突が N 件あります」; 「判断するのはあなたです」 is gone (the line now says the check and AI review results are for reference and nothing is approved or rejected automatically); the AI notice and the comment-draft help read as polite requests. Same change in all languages (ko, zh and zh-TW also drop 당신 / 你)
+
 ## [0.41.0] - 2026-10-09
 
 ### Added

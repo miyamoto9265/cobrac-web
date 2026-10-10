@@ -171,12 +171,12 @@ describe("Canon PR review page", () => {
     expect($('[data-testid="check-group-provenance"]')!.textContent).toContain("Affects another project");
   });
 
-  it("runs the AI review with a Tier model, says the human decides, and turns a draft into a comment", async () => {
+  it("runs the AI review with a Tier model, shows the AI notice, and turns a draft into a comment", async () => {
     api.canonPull.mockResolvedValue(detail());
     api.aiReviewPull.mockResolvedValue({ ai: null });
     await render();
     await click($('[data-testid="tab-ai"]'));
-    expect($('[data-testid="ai-notice"]')!.textContent).toContain("You decide");
+    expect($('[data-testid="ai-notice"]')!.textContent).toContain("check the evidence");
     const options = [...document.querySelectorAll<HTMLOptionElement>('[data-testid="ai-model"] option')].map((o) => o.value);
     expect(options).toEqual(["", "gpt-6-luna", "gpt-5.6-luna"]);
     await click($('[data-testid="ai-run"]'));
