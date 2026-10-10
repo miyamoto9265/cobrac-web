@@ -187,7 +187,7 @@ from pypdf import PdfReader, PdfWriter
 w = PdfWriter()
 for f in sys.argv[1:3]:
     for p in PdfReader(f).pages: w.add_page(p)
-w.add_metadata({"/Title": sys.argv[4], "/Subject": "CoBRAC Agents の仕様（システム・ハーネス・命名・Canon・版と BRA-DB・オーケストレーター・運用）", "/Creator": "docs/spec-guide/build.mjs"})
+w.add_metadata({"/Title": sys.argv[4], "/Subject": "CoBRAC Agents の仕様（回路の命名・BRA の作り方・プロジェクトと版・Canon・オーケストレーター・BRA-DB・システム・セキュリティと費用）", "/Creator": "docs/spec-guide/build.mjs"})
 w.page_mode = "/UseOutlines"
 w.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
 with open(sys.argv[3], "wb") as f: w.write(f)

@@ -1,0 +1,244 @@
+<section class="psys">
+<h2 id="s8-5">8.5 データモデル</h2>
+<p>状態・メッセージ・設定は DynamoDB の 8 つのテーブルに置きます。型の正本は <code>packages/shared/src/types.ts</code> です。どのテーブルもオンデマンド課金で、ポイントインタイムリカバリ（PITR）は使いません。機能を足すときは新しいテーブルを加え、既存のテーブルの構造は変えません。<code>Canons</code>・<code>Catalog</code>・<code>Plans</code> は、そのようにして加えたテーブルです。</p>
+
+<h3>テーブルと削除方針</h3>
+<table class="compact">
+  <thead><tr><th style="width:14%">テーブル</th><th style="width:36%">キーと索引</th><th style="width:12%">削除方針</th><th>主な中身</th></tr></thead>
+  <tbody>
+    <tr><td><code>Users</code></td><td><code>userId</code>。GSI <code>userKey-index</code>（キーだけ）</td><td>RETAIN</td><td>プロフィール、API キーの暗号文、デフォルトの API キーの利用承認</td></tr>
+    <tr><td><code>Projects</code></td><td><code>userId</code> + <code>projectId</code>。Streams（新しい項目）</td><td>RETAIN</td><td>プロジェクトのメタデータと質問文</td></tr>
+    <tr><td><code>Jobs</code></td><td><code>projectId</code> + <code>jobId</code>。GSI <code>status-index</code>（<code>status</code> + <code>createdAt</code>）</td><td>RETAIN</td><td>実行の状態、使用量、推定費用</td></tr>
+    <tr><td><code>Messages</code></td><td><code>projectId</code> + <code>sk</code>。Streams（新しい項目）</td><td>RETAIN</td><td>エージェント欄の全文（1 件 60,000 字で切る）</td></tr>
+    <tr><td><code>Canons</code></td><td><code>canonId</code> + <code>sk</code>。GSI <code>owner-index</code></td><td>RETAIN</td><td>Canon（第 5 部）</td></tr>
+    <tr><td><code>Catalog</code></td><td><code>kind</code> + <code>id</code></td><td>RETAIN</td><td>公開の一覧、複製の数、ID の予約、設定</td></tr>
+    <tr><td><code>Plans</code></td><td><code>planId</code> + <code>sk</code>。GSI <code>owner-index</code> と <code>status-index</code></td><td>RETAIN</td><td>オーケストレーターの計画（第 6 部）</td></tr>
+    <tr><td><code>WsConnections</code></td><td><code>connectionId</code> + <code>projectId</code>。GSI <code>project-index</code>。TTL</td><td>DESTROY</td><td>WebSocket の接続（約 2 時間 10 分で消える）</td></tr>
+  </tbody>
+</table>
+
+<h3>テーブルの属性</h3>
+<table class="compact">
+  <thead><tr><th style="width:12%">テーブル</th><th style="width:15%">PK / SK</th><th>主な属性</th></tr></thead>
+  <tbody>
+    <tr><td>Users</td><td><code>userId</code>（Cognito の sub）/ —</td><td>email、displayName（80 字）、contributorName（120 字）、role、disabled、<code>userKey</code>、<code>projectSeq</code> / <code>canonSeq</code>（古い形式の ID の最後の番号。もう進めない。付録 C）、<code>defaultCanonId</code>、encryptedApiKey（API は返さない）、apiKeyRegistered、apiKeyLast4、availableModels、defaultModel、defaultReasoningEffort、<code>orgAccess</code>（<code>{ tier, approvedAt, approvedBy }</code>。4.1）、<code>editorCanons</code>（共同編集者として入っている、ほかの利用者の Canon）、作成と更新の時刻</td></tr>
+    <tr><td>Projects</td><td><code>userId</code> / <code>projectId</code></td><td>
+      <ul>
+        <li>名前と ID：name、nameSource（<code>provisional</code> / <code>auto</code> / <code>user</code>）、<code>legacyId</code>（移行前の ID。C.4）</li>
+        <li>入力と設定：roi、tlf、contributor、<code>attachments</code>（参考資料。4.2）、model、reasoningEffort、<code>researchMode</code>（3.7）、<code>sabraBoundary</code>（新しいプロジェクトは <code>neocortex</code>。2.3）、<code>harnessRules</code>（検査規則の水準。新しいプロジェクトは <code>2</code>）、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code>（仮説モード。3.12）。値がないときの動きは付録 C</li>
+        <li>実行の状態：status、currentStep、stepStates、<code>activeStage</code>（実行中のジョブの段階：<code>RESEARCH</code>、段階の名前、調整のターンの <code>ADJUST</code>）、activeJobId、codexThreadId、pendingQuestion、hasArtifacts、errorMessage、completedAt</li>
+        <li>版と登録：<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = 現在の版の番号）、<code>latestVersion</code>（最新の凍結した版の要約。4.5）、<code>bradb</code>（BRA-DB に最後に登録した版）</li>
+        <li>費用：<code>usage</code>・<code>costUsd</code>・<code>usedModels</code>（全ジョブの合計）</li>
+        <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作った計画）</li>
+      </ul></td></tr>
+    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> は計画の ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code>。値がないときは付録 C）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code>）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（ツールごとの文献検索の成功と失敗の数）、<code>researchStep</code>（調査ステップの記録。3.7）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
+    <tr><td>Messages</td><td><code>projectId</code> / <code>{ISO 時刻}#{seq}</code></td><td>userId、jobId、role（<code>user</code> / <code>agent</code> / <code>system</code>）、type（<code>prompt</code>・<code>agent_message</code>・<code>reasoning</code>・<code>command</code>・<code>file_change</code>・<code>web_search</code>・<code>todo</code>・<code>question</code>・<code>status</code>・<code>error</code>・<code>artifact</code>）、content、step、meta</td></tr>
+    <tr><td>WsConnections</td><td><code>connectionId</code> / <code>projectId</code>（<code>_</code> は接続そのものの記録）</td><td>userId、<code>ttl</code>（接続から 2 時間 10 分。API Gateway の接続の上限が 2 時間のため）</td></tr>
+    <tr><td>Catalog</td><td><code>kind</code> / <code>id</code></td><td>
+      <ul>
+        <li><code>project</code>・<code>canon</code>：公開中の項目（ownerUserId、name、publishedAt など。4.6、5.11）</li>
+        <li><code>clones</code>：複製の数</li>
+        <li><code>id</code>：ランダムな Project・Canon・計画の ID の予約（type、ownerUserId、createdAt）。消さない</li>
+        <li><code>config</code> / <code>default-api-key</code>：デフォルトの API キー（encryptedApiKey、last4、availableModels、updatedAt、updatedBy）</li>
+        <li><code>config</code> / <code>concurrency</code>：管理画面で設定した同時実行数（maxConcurrentJobs、maxConcurrentJobsPerUser、updatedAt、updatedBy。8.3）</li>
+      </ul></td></tr>
+    <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト、PR とその履歴、rev、送った PR、共同編集者（第 5 部）</td></tr>
+    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>計画の設定と状態、行、履歴、再計画の提案（6.12）</td></tr>
+  </tbody>
+</table>
+
+<h3>索引と Streams</h3>
+<ul>
+  <li>Jobs の <code>status-index</code>（status + createdAt）：dispatcher と janitor が、状態ごとにジョブを探します。</li>
+  <li>WsConnections の <code>project-index</code>（projectId）：broadcaster が送り先を探します。</li>
+  <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の検査と、<code>userKey</code> から利用者を検索するのに使います。ランダムな ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> の行の <code>ownerUserId</code> で分かります。</li>
+  <li>Canons の <code>owner-index</code>（ownerUserId + createdAt）：所有者の Canon の一覧を作ります。<code>META</code> の項目だけがキーを持つ疎な索引です。</li>
+  <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）：所有者の計画の一覧と、計画ランナーが進める下書き中・実行中・一時停止中の計画を探します。どちらも <code>META</code> だけの疎な索引です。</li>
+  <li>Streams：Projects と Messages の <code>NEW_IMAGE</code> を broadcaster に渡します。</li>
+</ul>
+
+<h3>メッセージの役割</h3>
+<p>role が <code>user</code> のメッセージは、利用者が入力した文だけです。API が <code>meta.kind</code> を <code>create</code> / <code>answer</code> / <code>followup</code> にして保存します。ワーカーがジョブの初めにエージェントに送る依頼文は、<code>system</code> / <code>status</code> のお知らせとして保存します（<code>meta.harnessPrompt</code>、本文は <code>meta.details</code>）。エージェント欄には「HCD フェーズを開始しました。」のように表示し、開くと全文が出ます。古い形式で保存した依頼文の表示は付録 C に記載しています。</p>
+
+<h3>所有の確認</h3>
+<p>一般の利用者に見えるのは、自分の <code>userId</code> の下の項目だけです。Project ID は全体で一意ですが、古い形式の ID（利用者ごとの slug。付録 C）は 2 人の利用者が同じ値を持つことがあります。一方、Jobs・Messages・<code>project-index</code> は <code>projectId</code> だけをキーにしています。そのため、読み出しはすべて所有者で絞ります。</p>
+<ul>
+  <li>ジョブは <code>userId</code> で絞ります。</li>
+  <li>メッセージは <code>userId</code> で絞ります（<code>userId</code> を持たない古いメッセージの扱いは C.6）。</li>
+  <li>WebSocket の配信は、所有者の接続にだけ送ります。</li>
+</ul>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/shared/src/types.ts</code>・<code>harness.ts</code>（<code>HARNESS_RULES</code>）・<code>publish.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/worker/src/db.ts</code>（メッセージの長さ）、<code>packages/api/src/handlers/ws.ts</code>（TTL）</p>
+
+<h2 id="s8-6">8.6 S3 の成果物</h2>
+<h3>バケットの設定</h3>
+<p>成果物のバケット（<code>Artifacts</code>）の設定は次のとおりです。</p>
+<ul>
+  <li>公開を全面的に止め（Block Public Access）、SSE-S3 で暗号化し、SSL を強制します（<code>enforceSSL</code>）。バージョニングは使わず、削除方針は RETAIN です。</li>
+  <li>バケットポリシーで、<code>users/*/*/revisions/*</code>（BRA の版）の削除をすべての主体に禁じます。</li>
+  <li>未完了のマルチパートアップロードは 3 日で中止し、<code>staging/</code> は 1 日で消します。</li>
+  <li>ブラウザからのアップロードのため、CloudFront のドメイン、<code>https://cobrac.site</code>、<code>http://localhost:5173</code> からの <code>POST</code> だけを CORS で許可します。</li>
+</ul>
+<p>ワーカーは S3 と差分で同期し、MD5 が同じファイルは送りません。グラフ JSON は、LLM を使わない <code>buildGraphs()</code> が CSV から作ります。</p>
+
+<h3>キーの構成</h3>
+<pre>users/{userId}/{projectId}/
+  workspace/        /work/{projectId} のコピー（json・md・csv・jsonl）
+  thread/           CODEX_HOME/sessions（一覧とダウンロードから除く）
+  output/{projectId}.bra.xlsx
+  output/{projectId}.template-v2-2.bra.xlsx   公式テンプレート（3.13）
+  graph/hcd.json, graph/frg.json
+  graph/{hcd|frg}.layout.json                 利用者が直した配置とスタイル（API が書く）
+  article/{locale}.md, article/{locale}.json  解説記事と ArticleMeta（3.14）
+  article/{locale}/figures/{name}.svg, {name}.narrow.svg   記事の図（無害化した SVG）
+  attachments/files/{NN}-{name}               作成時に添付した参考資料
+  attachments/derived/                        ワーカーが作る：抜き出した本文、取得した URL、manifest.json
+  revisions/{n}/manifest.json                 BRA データの版 n（一度だけ書き、消さない。4.5）
+  revisions/{n}/files/...                     凍結したコピー：workspace/…、output/*.xlsx、graph/*.json
+  revisions/{n}/bradb/                        BRA-DB の登録パッケージ
+staging/{userId}/{uploadId}/{name}            プロジェクトができる前のブラウザからのアップロード（1 日で消える）
+canons/{canonId}/
+  rev/{n}/canon.json                          Canon の rev のスナップショット（一度だけ書く）
+  pr/{no}/incoming.json, pr/{no}/diff.json    push が運んだもの、基の rev との差分と衝突
+  pr/{no}/ai/{jobId}/input.json, result.json  AI レビューの材料と結果
+plans/{planId}/
+  attachments/files/{NN}-{name}               作成時に添付した資料
+  attachments/derived/                        ワーカーが作る：xlsx・PDF の本文、manifest.json
+  jobs/{jobId}/input.json                     計画用のジョブの入力（鍵は入れない）
+  jobs/{jobId}/result.json                    検査した結果
+admin-docs/spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf   仕様書の PDF</pre>
+<table class="compact">
+  <caption>接頭辞ごとの中身</caption>
+  <thead><tr><th style="width:34%">接頭辞</th><th>中身</th></tr></thead>
+  <tbody>
+    <tr><td><code>users/{userId}/{projectId}/workspace/</code></td><td>作業ファイル（HCD・FRG の JSON、CSV、レポート、判断ログ、検査結果）</td></tr>
+    <tr><td><code>…/thread/</code></td><td>Codex の会話の状態。再開に使い、ダウンロードの URL は出さない</td></tr>
+    <tr><td><code>…/output/</code>・<code>graph/</code>・<code>article/</code>・<code>attachments/</code></td><td>xlsx、グラフ JSON、解説記事、参考資料</td></tr>
+    <tr><td><code>…/revisions/{n}/</code></td><td>凍結した BRA の版（削除禁止。4.5）</td></tr>
+    <tr><td><code>staging/{userId}/</code></td><td>プロジェクトを作る前にアップロードした参考資料（1 日で消える。4.2）</td></tr>
+    <tr><td><code>canons/{canonId}/</code></td><td>Canon の rev のスナップショットと PR の内容（第 5 部）</td></tr>
+    <tr><td><code>plans/{planId}/</code></td><td>計画の資料（<code>attachments/</code>）と、計画用のジョブの <code>input.json</code>・<code>result.json</code>（<code>jobs/{jobId}/</code>）。API キーなどの秘密情報は書かない</td></tr>
+    <tr><td><code>admin-docs/</code></td><td>仕様書の PDF。API が同梱の PDF をバージョンごとに 1 回だけ置き、管理者に署名付き URL で渡す。古いバージョンの PDF は消さない</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/s3sync.ts</code>・<code>materials.ts</code></p>
+
+<h2 id="s8-7">8.7 フロントエンド</h2>
+<h3>基本</h3>
+<ul>
+  <li>Vite + React 18 + React Router + Tailwind で作ります。認証は Amplify（Cognito の SRP）、Markdown の表示は react-markdown と GFM です。</li>
+  <li>実行時の設定は、CloudFront が配る <code>/config.json</code>（apiUrl、wsUrl、userPoolId、userPoolClientId、region、appName）です。CDK が書くので、環境ごとにビルドし直さずに済みます。ローカルの開発では <code>VITE_*</code> を使います。</li>
+  <li>ルートの <code>package.json</code> の <code>version</code> を <code>__APP_VERSION__</code> として、<code>git rev-parse --short HEAD</code> を <code>__APP_COMMIT__</code> として、Vite の <code>define</code> で埋め込みます（8.9）。</li>
+  <li>WebSocket は、ID トークンをクエリに付けて接続し、プロジェクトを購読します。5 分ごとに <code>ping</code> を送り、切れたら待ち時間を倍にしながら（30 秒まで）つなぎ直します。API Gateway の WebSocket は 2 時間で切れるので、ポーリングも併用します（4.4）。</li>
+  <li>エージェント欄の Markdown（GFM）では、コマンド・思考・Web 検索を折りたたみます。</li>
+</ul>
+
+<h3>グラフの表示と編集</h3>
+<p>グラフは <code>@xyflow/react</code> と dagre で描きます。HCD は上から下へ、FRG は左から右へ配置します。主な機能は次のとおりです。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">機能</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>色分け</td><td>HCD はノードを ROI の区分（塗りと縞）で色分けし、エッジの既定のスタイルを投射の生理（興奮性・抑制性・修飾性）で決める。FRG は種類で色分けする。縮小するとラベルを大きくし、自己接続はループで描く</td></tr>
+    <tr><td>エッジの生理の既定</td><td>抑制性は青（<code>#2563eb</code>）と四角の終点、興奮性は灰色と三角、修飾性は紫の破線と円。分類は Connection のコメントを優先し、なければ送り手の Transmitter / Modulation Type を使う（<code>classifyEdgeSign</code>）。同じ分類のすべてのエッジに同じスタイルを当てられる</td></tr>
+    <tr><td>閲覧</td><td>ノードを選ぶと、隣接するもの（HCD）か祖先と子孫（FRG）以外を薄くする。キャンバスの外からの選択（URL、検索、詳細のリンク）では、詳細のシートの上に来るように表示を寄せる。検索欄は ID・名前・UC Descriptor でノードを順位付けする（↑ ↓ Enter、<code>/</code> でフォーカス）</td></tr>
+    <tr><td>ツールバー</td><td>検索、全体表示、元に戻す / やり直す、スタイル編集モード、メニュー（配置の向き、グリッドに合わせる、ページの設定、PNG の書き出し、リセット）。ページの設定では、エッジのラベルの表示と、すべて開く / 閉じるを選ぶ</td></tr>
+    <tr><td>スタイル編集モード</td><td>スタイルのパネル、大きさの取っ手、接続の取っ手は、このモードでだけ出る。タッチ機器では、このモードでだけノードをドラッグできる</td></tr>
+    <tr><td>ノードの編集</td><td>ドラッグで移動、角と辺で大きさの変更、スタイルのパネルで塗りと枠の色の変更</td></tr>
+    <tr><td>エッジの編集</td><td>線の種類（曲線、直線、自動の直交、経由点を編集できる直交、折れ線）、色、太さ、破線、角の丸み、始点と終点の印（矢印、開いた矢印、四角、円、ひし形、棒）を変える。直交のエッジは、経路上の「+」で経由点を足し、ドラッグで曲げ、ダブルクリックで消す。選んだエッジの両端を、ノードの辺の取っ手（1 辺に 7 点）に付け替えられる。既定の線の種類は曲線</td></tr>
+    <tr><td>平行なエッジ</td><td>同じ 2 つのノードを結ぶエッジ（帰還ループの A→B と B→A、または複数の A→B）は、20 単位ずつ離れた別のレーンに描く（<code>lib/parallelEdges.ts</code>）。どのエッジも自分の進む向きの右側に置き、ラベルは各レーンの外側に置く。レーンは描くたびに計算し、保存しない。利用者が経由点を描いたエッジは、自分の経路を保つ。同じノードの自己ループは外側に重ねる</td></tr>
+    <tr><td>配置の保存</td><td><code>useGraphLayout</code> が、位置・大きさ・色・エッジのスタイル（経由点と接続点を含む）を 600 ミリ秒まとめてから <code>PUT …/layout</code> で保存する。グラフを作り直しても、同じノード ID・エッジ ID の設定は残る。Ctrl+Z / Ctrl+Y で元に戻す / やり直す</td></tr>
+  </tbody>
+</table>
+<p>純粋な補助関数は <code>packages/web/src/lib/graphView.ts</code> にあり、vitest でテストします。既定の線の種類が直交だったときに保存した配置の扱いは、C.6 に記載しています。</p>
+
+<h3>テーマ</h3>
+<ul>
+  <li>ライトとダークがあり、既定は <code>prefers-color-scheme</code> に従います。サイドバーとログインのカードに「システム / ライト / ダーク」の切り替えがあり、ブラウザごとに保存します（<code>localStorage</code> の <code>cobrac-theme</code>）。<code>index.html</code> のインラインのスクリプトが、最初の描画の前にテーマを当てます。</li>
+  <li>Tailwind の色は CSS 変数を指し、背景・文字・枠に別の組を持ちます（<code>packages/web/theme-palette.js</code>）。そのため <code>bg-white</code> はダークでは暗い面になり、塗ったボタンの <code>text-white</code> は白のままです。サイドバーはどちらのテーマでも暗い色です（<code>theme-static</code>）。</li>
+  <li>グラフの塗りと線の色はライトの値で保存し、描くときに変換します（<code>lib/graphTheme.ts</code>）。ダークでは、塗りを同じ色相の暗い色にしてラベルを明るくし、線を明るくします。スタイルのパネルの見本は、描いた色を示します。</li>
+  <li><code>test/theme.test.tsx</code> が、画面で使う文字と面の組、既定の塗りと見本の上のノードのラベル、キャンバスの上のエッジのコントラストを検査します。</li>
+</ul>
+
+<h3>画面の幅への対応</h3>
+<table class="compact">
+  <thead><tr><th style="width:24%">幅・条件</th><th>表示</th></tr></thead>
+  <tbody>
+    <tr><td>1280px（<code>xl</code>）以上</td><td>エージェント欄を右に固定する。左端のドラッグで幅を変えられ（300px からウィンドウの 55% まで）、細い帯にたためる。幅と開閉はブラウザに保存する</td></tr>
+    <tr><td>1280px 未満</td><td>エージェント欄は、タブの並びの右端の「エージェント」ボタンから、右のドロワー（タブレット）か下のシート（スマホ）として開く。閉じても書きかけは残る。エージェントが質問すると、成果物の上のバナーが欄へのリンクになり、固定した欄は開く。管理画面は利用者ごと・プロジェクトごとのカードになる</td></tr>
+    <tr><td>1024px（<code>lg</code>）未満</td><td>サイドバーは、上の帯のメニューボタンから開くドロワーになる。上の帯には新規プロジェクトのボタンもある。移動、背景のタップ、Escape で閉じる。プロジェクト一覧は表の代わりにカードになる</td></tr>
+    <tr><td>グラフの領域が 900px 以上 / 未満</td><td>HCD・FRG の表示はウィンドウではなく自分の領域の幅に合わせる。900px 以上では詳細をグラフの横の列に、未満ではグラフの下部に重なる開閉できるシートに出す（スタイルのパネルも同じ）</td></tr>
+    <tr><td>グラフの領域が 560px 未満</td><td>元に戻す / やり直すがツールバーのメニューに入り、凡例はたたんだ状態で始まる。ミニマップは広い配置でだけ出る</td></tr>
+    <tr><td>タッチ機器（<code>pointer: coarse</code>）</td><td>ボタンとリンクに約 44px の押せる範囲を取る。入力欄は iOS がフォーカスで拡大しないように 16px の文字にする。セーフエリアを守る（<code>viewport-fit=cover</code>）</td></tr>
+  </tbody>
+</table>
+<p>カードと表は、どちらか一方だけを描きます。</p>
+<p class="src">典拠：<code>packages/web/package.json</code>、<code>packages/web/src/lib/ws.ts</code>・<code>config.ts</code>・<code>graphView.ts</code>・<code>parallelEdges.ts</code>・<code>useGraphLayout.ts</code>・<code>graphTheme.ts</code>・<code>theme.tsx</code>、<code>components/graph/*.tsx</code>、<code>components/GraphCanvas.tsx</code></p>
+
+<h2 id="s8-8">8.8 非機能の目標</h2>
+<table>
+  <thead><tr><th style="width:24%">項目</th><th>目標</th></tr></thead>
+  <tbody>
+    <tr><td>API</td><td>通常の操作は 1 秒以内</td></tr>
+    <tr><td>ジョブの開始</td><td>待機から実行まで 2 分以内（Fargate の起動を含む）</td></tr>
+    <tr><td>グラフ</td><td>約 200 ノードまで扱える</td></tr>
+    <tr><td>同時実行数</td><td>デプロイの値で全体 2、1 人あたり 1。管理者は管理画面で、デプロイなしにそれぞれ 1〜16 に変えられる（8.3）</td></tr>
+    <tr><td>ログの保持</td><td>CloudWatch Logs に、ワーカーも Lambda も 2 週間（8.2）</td></tr>
+  </tbody>
+</table>
+<p>セキュリティ・個人情報・費用は第 9 部に記載しています。</p>
+<p class="src">典拠：<code>packages/infra/bin/app.ts</code>・<code>lib/cobrac-stack.ts</code>、<code>packages/api/src/lib/concurrency.ts</code></p>
+
+<h2 id="s8-9">8.9 開発の約束</h2>
+<p>リポジトリは GitHub の <code>miyamoto9265/cobrac-web</code>（公開）で、npm workspaces のモノレポです。作業の規則は <code>AGENTS.md</code> にあり、人もコーディングエージェントもそれに従います。リリース・デプロイ・権限の手順、ワークフロー、RETAIN ガード、デプロイの設定値は運用手順書（<code>docs/ops/README.md</code>）にまとめています。</p>
+<table class="compact">
+  <thead><tr><th style="width:26%">場所</th><th>中身</th></tr></thead>
+  <tbody>
+    <tr><td><code>package.json</code></td><td>workspaces の定義。<code>version</code> がアプリ全体のバージョンの唯一の正本</td></tr>
+    <tr><td><code>CHANGELOG.md</code></td><td>リリースノート（Keep a Changelog の形式）。全員が「リリースノート」の画面（サイドバーの下端のバージョンから開く）で読む</td></tr>
+    <tr><td><code>scripts/</code></td><td><code>release.mjs</code>（バージョンの更新と CHANGELOG の確定）、<code>retain-guard.mjs</code>（デプロイ前の RETAIN ガード）、<code>bra-appendix-d.mjs</code>（BRA の出力をエラーコードごとに判定する）、文書の図の生成</td></tr>
+    <tr><td><code>.github/workflows/</code></td><td><code>ci.yml</code>・<code>deploy.yml</code>・<code>claude.yml</code></td></tr>
+    <tr><td><code>prompts/</code>・<code>packages/*</code></td><td>指示書とパッケージ（8.2）</td></tr>
+  </tbody>
+</table>
+
+<h3>バージョン番号</h3>
+<ul>
+  <li>バージョンの正本は、ルートの <code>package.json</code> の <code>version</code> だけです。ビルド時に Vite が埋め込み、サイドバーの下に <code>vX.Y.Z · &lt;git の短い SHA&gt;</code> と表示します。CDK は同じ値を Lambda の <code>APP_VERSION</code> に渡し、<code>GET /health</code> がそれを返します。ワーカーにも同じ値と git の commit を渡し、凍結する版の生成条件に記録します（4.5）。</li>
+  <li>Semantic Versioning に従います。0.x の間の目安は次のとおりです。
+    <ul>
+      <li><b>patch</b>：バグの修正、文言・表示の調整、文書、単価表の更新</li>
+      <li><b>minor</b>：画面や API の追加、データモデルの追加、ワークフロー・プロンプトの変更</li>
+      <li><b>major</b>：既存のデータと互換性がなくなる変更（テーブルの構造、成果物の形式）</li>
+    </ul></li>
+  <li>バージョンを手で編集しません。必ず <code>release.mjs</code> を通します（workspace の <code>package.json</code> は自動でそろいます）。<code>[Unreleased]</code> が空のまま <code>release</code> すると失敗するので、CHANGELOG を書かずにバージョンを上げることはできません。</li>
+  <li>デプロイされるのは、バージョンを上げた PR を <code>main</code> にマージしたときだけです。このマージがデプロイの承認になります。バージョンを上げないマージ（文書だけの変更など）はデプロイされず、次のリリースにまとめて入ります。</li>
+</ul>
+
+<h3>変更するときの約束</h3>
+<ul>
+  <li>型検査（<code>npm run typecheck</code>）とテスト（<code>npm test</code>）を通してからコミットします。<code>packages/shared</code> の型を変えたら、api・worker・web をすべてビルドして影響を確認します。</li>
+  <li>インフラ（<code>packages/infra</code>）を変えたら、<code>npm run cdk -- diff</code> で差分を確認します。RETAIN のリソース（DynamoDB・S3・KMS・Cognito、BRA-DB のインスタンスとボリューム）を置き換える変更は、必ず人が確認します。デプロイの前には RETAIN ガードがこの種の変更を検出して止めます。</li>
+  <li>ワークフローの骨格は、相談せずに変えません。骨格とは、HCD → FRG → CSV → xlsx の順序、ワーカーが段階を進めて検査する方式、ターンの終わりの JSON <code>{status, message, question}</code> です。段階の指示書の文言の調整はかまいません。</li>
+  <li>エージェントが書く JSON のキーを変えるときは、JSON Schema（<code>HARNESS_SCHEMAS</code>）、検査、CSV への変換、段階の指示書の例を同時に直します。</li>
+  <li>画面の文言は、10 の言語（ja・en・de・es・fr・ko・pt・ru・zh・zhTw）すべてに足します。</li>
+  <li>文書の図は生成スクリプト（<code>npm run docs:figures</code>）で書き出し、手で編集しません。<code>npm test</code> が、生成結果とコミット済みのファイルの一致を検査します。プロンプトを変えたら <code>npm run docs:prompts</code> で文書の原文を更新し、<code>docs:prompts:check</code> で検査します。</li>
+  <li>挙動を変えたら、関係する文書を同じ変更の中で直します。</li>
+  <li>秘密情報（API キー、<code>.env</code>、トークン）はコミットしません。追跡するのは <code>.env.example</code> だけです。</li>
+</ul>
+
+<h3>ローカルでの開発と確認</h3>
+<ul>
+  <li>必要なものは Node.js 22 以上と npm 10 以上です。Docker は要りません。AWS の認証情報は緊急デプロイのときだけ要ります。</li>
+  <li>通常の確認の流れは次のとおりです。
+    <ol>
+      <li><code>npm install</code></li>
+      <li><code>npm run build</code>（shared の tsc → api の型検査・worker の tsc・web の Vite）</li>
+      <li><code>npm run typecheck</code>（shared のビルド結果が要る）</li>
+      <li><code>npm test</code>（shared の単体テストと <code>scripts/*.test.mjs</code>）</li>
+      <li><code>npm run cdk -- synth</code>（デプロイ前の確認）</li>
+    </ol></li>
+  <li><code>csv_to_excel.py</code> だけを試すときは、<code>pip install -r prompts/requirements.txt</code> の後に <code>python prompts/csv_to_excel.py --contributor … --project-id … --base-dir … --output ….bra.xlsx</code> を実行します。</li>
+  <li>画面だけをローカルで動かすときは、<code>.env.example</code> を <code>packages/web/.env.local</code> にコピーし、<code>VITE_API_URL</code> などをデプロイ済みの環境に向けて、<code>npm run dev:web</code> を実行します。成果物バケットの CORS は、<code>http://localhost:5173</code> からのアップロードを許しています（8.6）。</li>
+  <li>デプロイの後は、<code>WebUrl</code> を開いてサインアップし、設定画面で API キーを登録し、ROI と TLF を入れて実行すれば、動作を確認できます。</li>
+</ul>
+<p class="src">典拠：<code>package.json</code>、<code>AGENTS.md</code>、<code>README.md</code>、<code>scripts/release.mjs</code>・<code>retain-guard.mjs</code>、<code>.github/workflows/ci.yml</code>・<code>deploy.yml</code>・<code>claude.yml</code>、<code>packages/web/vite.config.ts</code></p>
+</section>

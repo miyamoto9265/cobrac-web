@@ -1,26 +1,27 @@
-<div class="cover">
+<div class="cover dense">
   <div class="band">
     <div class="kicker">COBRAC AGENTS · SPECIFICATION</div>
     <h1>CoBRAC Agents 仕様書</h1>
-    <div class="sub">LLM のエージェントと検査するプログラムで BRA を作る Web アプリの、<br>システム・ハーネス・命名・Canon・版と BRA-DB・オーケストレーター・運用</div>
+    <div class="sub">LLM のエージェントとプログラムによる検査で BRA を作る Web アプリの設計書。<br>回路の命名と BRA の作り方から、Canon・オーケストレーター・システムの構成まで</div>
   </div>
   <div class="topics compact-topics">
-    <div class="t" style="--c:#1d4ed8"><div class="n">第 1 部</div><div class="h">システムの全体像</div><p>アーキテクチャ、利用者と権限、画面、ジョブ、データモデル、ワーカー。</p></div>
-    <div class="t" style="--c:#6d28d9"><div class="n">第 2 部</div><div class="h">ハーネス</div><p>推論する LLM（CoBRAC エージェント）と検査するワーカーで 1 件の BRA を作る仕組み。</p></div>
-    <div class="t" style="--c:#4338ca"><div class="n">第 3 部</div><div class="h">UC Descriptor と facet</div><p>回路を SABRA の単位と 9 本の facet で名付け、プロジェクトをまたいで同じキーで呼ぶ規則。</p></div>
-    <div class="t" style="--c:#0f766e"><div class="n">第 4 部</div><div class="h">Canon（整合単位の実装）</div><p>回路の定義をそろえる BRA の範囲と、その版・取り込み・審査の手続き。</p></div>
-    <div class="t" style="--c:#b45309"><div class="n">第 5 部</div><div class="h">版と BRA-DB（仮）on AWS</div><p>凍結した版を、BRA-DB スキーマ v4.6 のデータベースに来歴つきで登録する。</p></div>
-    <div class="t" style="--c:#be123c"><div class="n">第 6 部</div><div class="h">CoBRAC オーケストレーター</div><p>多数の ROI × TLF を計画にまとめ、順序の計算・バッチ実行・再計画まで自動で進める。</p></div>
-    <div class="t" style="--c:#0e7490"><div class="n">第 7 部</div><div class="h">AWS インフラ・セキュリティ・運用</div><p>AWS の構成と予算、個人情報とセキュリティ、リリースとデプロイ、速度と費用。</p></div>
-    <div class="t" style="--c:#475569"><div class="n">付録</div><div class="h">API・プロンプト・典拠・経緯</div><p>API の一覧、LLM に渡す指示の全文、典拠と文書の作り方、改訂の経緯。</p></div>
+    <div class="t" style="--c:#334155"><div class="n">第 1 部</div><div class="h">CoBRAC の概要</div><p>何を入れると何ができるか、だれが何をするか、時間と費用の目安、データの扱い。</p></div>
+    <div class="t" style="--c:#4338ca"><div class="n">第 2 部</div><div class="h">回路の命名</div><p>回路を SABRA の単位と facet で名付け、どの BRA でも同じキーで呼ぶための規則。</p></div>
+    <div class="t" style="--c:#6d28d9"><div class="n">第 3 部</div><div class="h">BRA の作り方</div><p>エージェントが調査・HCD・FRG を書き、ワーカーが検査して直させる仕組み。</p></div>
+    <div class="t" style="--c:#1d4ed8"><div class="n">第 4 部</div><div class="h">プロジェクトと版</div><p>利用者と権限、プロジェクトの作成と設定、版、公開と複製、使用量の表示。</p></div>
+    <div class="t" style="--c:#0f766e"><div class="n">第 5 部</div><div class="h">Canon</div><p>「整合単位」の実装。回路の定義をそろえる範囲と、取り込みと審査の手続き。</p></div>
+    <div class="t" style="--c:#be123c"><div class="n">第 6 部</div><div class="h">オーケストレーター</div><p>多数の ROI × TLF を計画にまとめ、順序の計算から実行と判断までを自動で進める。</p></div>
+    <div class="t" style="--c:#b45309"><div class="n">第 7 部</div><div class="h">BRA-DB への登録</div><p>凍結した版を、BRA-DB と同じスキーマのデータベースに来歴付きで登録する。</p></div>
+    <div class="t" style="--c:#1d4ed8"><div class="n">第 8 部</div><div class="h">システムの構成</div><p>AWS の部品、ジョブの実行と回復、ワーカー、データモデル、フロントエンド。</p></div>
+    <div class="t" style="--c:#0e7490"><div class="n">第 9 部</div><div class="h">セキュリティと費用</div><p>権限、個人情報、暗号化、認証と認可、監視、AWS と OpenAI・Anthropic の費用。</p></div>
+    <div class="t" style="--c:#475569"><div class="n">付録</div><div class="h">API・指示書・互換・経緯・典拠</div><p>API の一覧、LLM に渡す指示書の全文、古いプロジェクトの扱い、設計の経緯、典拠。</p></div>
   </div>
   <div class="meta">
     <table>
-      <tr><th>位置づけ</th><td>CoBRAC の仕様の唯一の正本。サイトの「仕様書」（管理者）で読める。利用マニュアルとリリースノートは別</td></tr>
-      <tr><th>対象</th><td><code>miyamoto9265/cobrac-web</code> v0.43.0（2026-10-10 時点の main）</td></tr>
-      <tr><th>典拠</th><td>リポジトリのコード（<code>packages/</code>・<code>prompts/</code>・<code>scripts/</code>・<code>.github/</code>）。部ごとの典拠は付録 C</td></tr>
-      <tr><th>想定読者</th><td>WBAI のメンバー、BRA の審査・統合に関わる人、CoBRAC の開発・運用者</td></tr>
-      <tr><th>生成</th><td><code>docs/spec-guide/</code> の HTML から <code>build.mjs</code> で作成（付録 C）</td></tr>
+      <tr><th>位置づけ</th><td>CoBRAC の仕様をまとめた設計書。現行のコードに基づいて記述し、コードと食い違う場合はコードを正とする。サイトの「仕様書」（管理者）で読める</td></tr>
+      <tr><th>対象</th><td><code>miyamoto9265/cobrac-web</code> v0.45.1（2026-10-10 時点の main）</td></tr>
+      <tr><th>想定読者</th><td>WBAI のメンバー、BRA の審査と統合に関わる人、CoBRAC の開発と運用を担う人。読者別の読み方は 0.1</td></tr>
+      <tr><th>典拠</th><td>リポジトリのコード（<code>packages/</code>・<code>prompts/</code>・<code>scripts/</code>・<code>.github/</code>）。部ごとの典拠は付録 E</td></tr>
     </table>
   </div>
 </div>
