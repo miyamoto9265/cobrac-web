@@ -53,61 +53,77 @@ export function SettingsPage() {
   const card = "min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5";
   const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
 
+  const approved = !!me?.orgAccess;
+  const keyForm = (
+    <>
+      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className={input} autoComplete="off" aria-label={t("settings.apiKey")} />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          disabled={busy || apiKey.trim().length < 20}
+          className={btn}
+          onClick={() =>
+            void run(async () => {
+              const r = await api.setApiKey(apiKey.trim());
+              setKeyStatus(r);
+              setApiKey("");
+              await refreshMe();
+            }, t("settings.keySaved"))
+          }
+        >
+          <Save size={14} /> {t("settings.register")}
+        </button>
+        {keyStatus?.registered && (
+          <button
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
+            onClick={() =>
+              void run(async () => {
+                await api.deleteApiKey();
+                setKeyStatus({ registered: false, last4: null });
+                await refreshMe();
+              }, t("settings.keyDeleted"))
+            }
+          >
+            <Trash2 size={14} /> {t("delete")}
+          </button>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <h1 className="mb-4 text-xl font-semibold">{t("settings.title")}</h1>
       {msg && <div className={`mb-4 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div className="grid max-w-4xl gap-5 md:grid-cols-2">
-        <section className={card}>
+        <section className={card} data-testid="api-key-card">
           <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-            <KeyRound size={16} /> {t("settings.apiKey")} <HelpTip text={t("settings.apiKeyHelp")} />
+            <KeyRound size={16} /> {approved ? t("settings.ownKey") : t("settings.apiKey")} <HelpTip text={approved ? t("settings.ownKeyHelp") : t("settings.apiKeyHelp")} />
           </h2>
-          <div className="mb-2 text-xs">
-            {t("settings.status")}{" "}
-            {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
-          </div>
-          {me?.orgAccess && (
-            <div className="mb-2 flex items-center gap-1 text-xs text-slate-600" data-testid="default-key-status">
-              {me.keySource === "org"
-                ? t("settings.orgKeyInUse")
-                : me.keySource === "own"
-                  ? t("settings.orgKeyStandby")
-                  : t("settings.orgKeyDown")}
-              <HelpTip text={t("settings.orgKeyHelp")} />
+          {approved ? (
+            <div className="mb-2 text-xs" data-testid="key-status">
+              {keyStatus?.registered ? (
+                <span className="font-medium text-emerald-700">{t("settings.ownKeyActive", { last4: keyStatus.last4 ?? "" })}</span>
+              ) : me?.keySource === "org" ? (
+                <span className="font-medium text-emerald-700">{t("settings.ready")}</span>
+              ) : (
+                <span className="font-medium text-amber-700">{t("settings.unavailable")}</span>
+              )}
+            </div>
+          ) : (
+            <div className="mb-2 text-xs" data-testid="key-status">
+              {t("settings.status")}{" "}
+              {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
             </div>
           )}
-          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className={input} autoComplete="off" />
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              disabled={busy || apiKey.trim().length < 20}
-              className={btn}
-              onClick={() =>
-                void run(async () => {
-                  const r = await api.setApiKey(apiKey.trim());
-                  setKeyStatus(r);
-                  setApiKey("");
-                  await refreshMe();
-                }, t("settings.keySaved"))
-              }
-            >
-              <Save size={14} /> {t("settings.register")}
-            </button>
-            {keyStatus?.registered && (
-              <button
-                disabled={busy}
-                className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
-                onClick={() =>
-                  void run(async () => {
-                    await api.deleteApiKey();
-                    setKeyStatus({ registered: false, last4: null });
-                    await refreshMe();
-                  }, t("settings.keyDeleted"))
-                }
-              >
-                <Trash2 size={14} /> {t("delete")}
-              </button>
-            )}
-          </div>
+          {approved && !keyStatus?.registered ? (
+            <details className="text-sm" data-testid="own-key-form">
+              <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-800">{t("settings.useOwnKey")}</summary>
+              <div className="mt-2">{keyForm}</div>
+            </details>
+          ) : (
+            keyForm
+          )}
         </section>
 
         <section className={card}>

@@ -187,7 +187,8 @@ describe("create screen composer", () => {
     expect(options).toHaveLength(3);
     expect(options.slice(1)).toEqual(["gpt-6-luna", "gpt-5.6-luna"]);
     expect(menu.textContent).not.toContain("その他（手入力）");
-    expect($("default-key-note")?.textContent).toBe("デフォルトの API キーを使用");
+    expect($("default-key-note")).toBeNull();
+    expect(menu.textContent).not.toContain("API キー");
     expect(menu.textContent).not.toMatch(/tier/i);
   });
 });

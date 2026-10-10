@@ -27,14 +27,11 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 
 If sign-up is closed, ask an admin.
 
-### Get an API key
+### Get approved
 
-Runs need an OpenAI API key. You need one of these:
+To run agents, have an admin approve you. Once approved, Settings shows "No key needed. You can run jobs as you are." and you can start right away.
 
-- **Your own key**: paste it under "OpenAI API key" in Settings and press "Register / update". It is stored encrypted, and usage is billed to your OpenAI account.
-- **The default API key**: without a key of your own, ask an admin to approve you for it. Once approved, Settings shows "Using the default API key".
-
-If you have both, your own key is used.
+To run on your own OpenAI account instead, open "Use your own key" under "Your own OpenAI API key (optional)" in Settings, paste the key and press "Register / update". It is stored encrypted, later jobs run with your key, and usage is billed to your OpenAI account. Delete it to go back. Without approval, registering your own key also lets you run jobs.
 
 ## Create a project
 
@@ -210,7 +207,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 "Settings" in the sidebar has:
 
-- **OpenAI API key**: register, update or delete it, and the status of the default API key
+- **OpenAI API key**: whether you can run jobs, and registering, updating or deleting your own key
 - **Profile**: display name and Contributor name (written to Project.csv and the xlsx; English is recommended)
 - **Default model / reasoning effort / Canon**: starting values for new projects
 - **Change password**
@@ -222,11 +219,11 @@ The display language and the theme (light or dark) can also be switched at the b
 
 ### I cannot run a project
 
-If the screen says that no OpenAI API key is available, register your own key in Settings or ask an admin to approve you for the default API key ([get an API key](#get-an-api-key)).
+If the screen says that no OpenAI API key is available, ask an admin to approve you or register your own key in Settings ([get approved](#get-approved)). If it says that jobs cannot run right now, ask an admin.
 
 ### The model I want is not in the list
 
-With the default API key, the lists show only the models it can use. Register your own key to use other models.
+The lists show only the models you can use. To use others, ask an admin or register your own key.
 
 ### The run seems stuck
 

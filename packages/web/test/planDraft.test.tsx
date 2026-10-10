@@ -424,11 +424,12 @@ describe("a draft written by the plan job", () => {
     expect(q('[data-testid="plan-models"]')!.innerHTML).not.toContain("uppercase");
   });
 
-  it("shows one note under the models when both run with the default API key", async () => {
+  it("says nothing about the API key under the models of an approved user", async () => {
     api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "org", orgTier: null, restricted: false, pricedModels: [] });
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
-    expect(qa('[data-testid="default-key-note"]').map((n) => n.textContent)).toEqual(["Both run with the default API key."]);
+    expect(qa('[data-testid="default-key-note"]')).toHaveLength(0);
+    expect(q('[data-testid="plan-models"]')!.textContent).not.toMatch(/API key/i);
   });
 
   it("sends rebuild for an existing project and keeps the priorities when the rows are saved", async () => {
@@ -570,12 +571,12 @@ describe("a draft written by the plan job", () => {
   });
 
   it("gives the reason a draft could not be started for the owner in the language of the screen", async () => {
-    const error = "No API key to run the job with: register one in Settings, or ask an admin for the default API key.";
+    const error = "No API key to run the job with: register one in Settings, or ask an admin to approve you.";
     api.getPlan.mockResolvedValue(drafted({ draft: { kind: "draft", jobId: null, status: "failed", requestedAt: now, requestedBy: "alice", error, errorCode: "no_key" } }));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
     const failed = q('[data-testid="plan-draft-failed"]')!.textContent!;
-    expect(failed).toBe("下書きを作成できませんでした: ジョブを実行する API キーがありません。設定画面でキーを登録するか、管理者にデフォルトの API キーの利用承認を依頼してください。");
+    expect(failed).toBe("下書きを作成できませんでした: ジョブを実行する API キーがありません。設定画面でキーを登録するか、管理者に利用の承認を依頼してください。");
     expect(failed).not.toContain("No API key");
   });
 
