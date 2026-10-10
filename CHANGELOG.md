@@ -5,6 +5,14 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-10
+
+### Changed
+- The sidebar history is easier to read: project names wrap to two lines instead of being cut short, and the status shows only when a project is not completed (a small coloured dot with "Running", "Waiting for answer", "Failed" and so on) instead of a "Completed" badge on every row. The sidebar links are slightly tighter, leaving more room for the history
+- Projects made by an Orchestrator plan no longer fill the sidebar history one by one: each plan is one row (its name and the number of projects, with the status of any project that is running, waiting or failed) that opens the plan
+- "Projects" is no longer a sidebar link: the project list opens from "See all" next to the History heading
+- Admins: the specification is no longer a sidebar link; it opens from the "Specification" button at the top of the admin page
+
 ### Fixed
 - Projects list (desktop): rows are no longer several lines tall. A long project name now shows on at most two lines (the full name appears on hover), the Project ID stays on one line, and the "Status" heading, status badges and the hypothesis-mode badge no longer break into vertical text. Before, the ROI and TLF columns took their full width and squeezed the name column
 - The first column of the Projects list and the admin page's project table is headed "Project name" (「プロジェクト名」, all languages) instead of "Project ID": it shows the name, with the ID below it

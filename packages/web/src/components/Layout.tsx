@@ -1,14 +1,13 @@
-import { BookMarked, FileText, FolderKanban, Globe, Layers, ListChecks, LogOut, Menu, MessageSquarePlus, Settings, Shield, X } from "lucide-react";
+import { BookMarked, Globe, Layers, ListChecks, LogOut, Menu, MessageSquarePlus, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { ProjectRecord } from "@cobrac/shared";
+import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
-import { LanguageSelect, useT } from "../i18n";
+import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
-import { StatusBadge } from "./StatusBadge";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Layout() {
@@ -21,7 +20,12 @@ export function Layout() {
   // Below lg the sidebar is an off-canvas drawer.
   const [navOpen, setNavOpen] = useState(false);
 
-  const reload = useCallback(() => api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined), []);
+  const [plans, setPlans] = useState<Record<string, PlanSummary>>({});
+
+  const reload = useCallback(() => {
+    void api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
+    void api.listPlans().then((r) => setPlans(Object.fromEntries(r.items.map((x) => [x.planId, x])))).catch(() => undefined);
+  }, []);
   useProjectsChanged(reload);
 
   useEffect(() => {
@@ -42,7 +46,7 @@ export function Layout() {
   }, [navOpen]);
 
   const navCls = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-md px-3 py-2 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
+    `flex items-center gap-2 rounded-md px-3 py-1.5 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
   // Settings and sign-out sit as icons beside the email.
   const accountBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:h-11 coarse:w-11";
   const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-200 hover:bg-slate-800";
@@ -72,33 +76,80 @@ export function Layout() {
             <MessageSquarePlus size={16} /> {t("nav.newProject")}
           </button>
         </div>
-        <div className="mt-3 px-3 text-xs uppercase tracking-wide text-slate-500">{t("nav.history")}</div>
+        <div className="mt-3 flex items-center justify-between gap-2 pl-3 pr-2">
+          <span className="text-xs uppercase tracking-wide text-slate-500">{t("nav.history")}</span>
+          <Link
+            to="/projects"
+            data-testid="nav-projects"
+            className={`rounded px-1.5 py-0.5 text-xs hover:bg-slate-800/60 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:px-2 coarse:py-2 ${
+              location.pathname === "/projects" ? "text-white" : "text-slate-400"
+            }`}
+          >
+            {t("nav.seeAll")}
+          </Link>
+        </div>
         <nav className="flex-1 overflow-y-auto px-2 py-1">
           {projects.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
-          {projects.map((p) => (
-            <button
-              key={p.projectId}
-              onClick={() => {
-                navigate(`/projects/${encodeURIComponent(p.projectId)}`);
-                setNavOpen(false);
-              }}
-              className={`mb-0.5 block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-slate-800 ${
-                projectId === p.projectId ? "bg-slate-800" : ""
-              }`}
-              title={`${p.projectId}\nROI: ${p.roi}\nTLF: ${p.tlf}`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate">{projectDisplayName(p)}</span>
-                <StatusBadge status={p.status} compact />
-              </div>
-              <div className="truncate text-xs text-slate-400">{[p.roi, p.tlf].filter((s) => s?.trim()).join(" · ")}</div>
-            </button>
-          ))}
+          {historyEntries(projects).map((e) => {
+            if (e.kind === "plan") {
+              const plan = plans[e.planId];
+              const status = planRowStatus(e.projects);
+              const label = status && t(`status.${status}` as MessageKey);
+              const name = plan?.name || t("nav.planner");
+              const count = t("canon.memberCount", { n: e.projects.length });
+              return (
+                <button
+                  key={`plan:${e.planId}`}
+                  onClick={() => {
+                    navigate(`/plans/${encodeURIComponent(e.planId)}`);
+                    setNavOpen(false);
+                  }}
+                  className={`mb-px block w-full rounded-md px-3 py-1.5 text-left hover:bg-slate-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 ${
+                    location.pathname === `/plans/${e.planId}` ? "bg-slate-800 text-white" : "text-slate-200"
+                  }`}
+                  title={[name, `${t("nav.planner")} · ${count}`, label].filter(Boolean).join("\n")}
+                  data-testid="nav-plan"
+                >
+                  <span className="flex items-start gap-1.5">
+                    <ListChecks size={14} className="mt-0.5 shrink-0 text-slate-400" aria-hidden />
+                    <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
+                  </span>
+                  <span className="mt-0.5 flex pl-5 min-w-0 items-center gap-1.5 text-[11px] leading-tight text-slate-500">
+                    {status && <SidebarStatus status={status} label={label!} />}
+                    <span className="min-w-0 truncate">{count}</span>
+                  </span>
+                </button>
+              );
+            }
+            const p = e.project;
+            const name = projectDisplayName(p);
+            const sub = [p.roi, p.tlf].filter((s) => s?.trim()).join(" · ");
+            const status = t(`status.${p.status}` as MessageKey);
+            return (
+              <button
+                key={p.projectId}
+                onClick={() => {
+                  navigate(`/projects/${encodeURIComponent(p.projectId)}`);
+                  setNavOpen(false);
+                }}
+                className={`mb-px block w-full rounded-md px-3 py-1.5 text-left hover:bg-slate-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 ${
+                  projectId === p.projectId ? "bg-slate-800 text-white" : "text-slate-200"
+                }`}
+                title={[name, sub, status].filter(Boolean).join("\n")}
+                data-testid="nav-project"
+              >
+                <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
+                {(sub || p.status !== "COMPLETED") && (
+                  <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-slate-500">
+                    {p.status !== "COMPLETED" && <SidebarStatus status={p.status} label={status} />}
+                    {sub && <span className="min-w-0 truncate">{sub}</span>}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
         <div className="border-t border-slate-800 p-2">
-          <NavLink to="/projects" className={navCls}>
-            <FolderKanban size={16} /> {t("nav.projects")}
-          </NavLink>
           <NavLink to="/plans" className={navCls}>
             <ListChecks size={16} /> {t("nav.planner")}
           </NavLink>
@@ -113,10 +164,8 @@ export function Layout() {
           </NavLink>
           {me?.role === "admin" && (
             <>
-              <NavLink to="/docs" className={navCls}>
-                <FileText size={16} /> {t("nav.spec")}
-              </NavLink>
-              <NavLink to="/admin" className={navCls}>
+              {/* the specification opens from the admin page; its route keeps 管理 highlighted */}
+              <NavLink to="/admin" className={({ isActive }) => navCls({ isActive: isActive || location.pathname.startsWith("/docs") })}>
                 <Shield size={16} /> {t("nav.admin")}
               </NavLink>
             </>
@@ -172,4 +221,53 @@ export function Layout() {
       </div>
     </div>
   );
+}
+
+// Colours for the always-dark sidebar. Completed projects show no status: most of the history is done.
+const SIDEBAR_STATUS: Record<ProjectStatus, { dot: string; text: string }> = {
+  QUEUED: { dot: "bg-slate-400", text: "text-slate-300" },
+  RUNNING: { dot: "bg-blue-400 animate-pulse", text: "text-blue-300" },
+  WAITING_USER_INPUT: { dot: "bg-amber-400", text: "text-amber-300" },
+  FINALIZING: { dot: "bg-indigo-400 animate-pulse", text: "text-indigo-300" },
+  COMPLETED: { dot: "bg-emerald-400", text: "text-emerald-300" },
+  FAILED: { dot: "bg-rose-400", text: "text-rose-300" },
+  CANCELLED: { dot: "bg-slate-500", text: "text-slate-400" },
+};
+
+function SidebarStatus({ status, label }: { status: ProjectStatus; label: string }) {
+  const c = SIDEBAR_STATUS[status];
+  return (
+    <span className={`inline-flex shrink-0 items-center gap-1 font-medium ${c.text}`} data-testid="nav-project-status">
+      <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} aria-hidden />
+      {label}
+    </span>
+  );
+}
+
+type HistoryEntry = { kind: "project"; project: ProjectRecord } | { kind: "plan"; planId: string; projects: ProjectRecord[] };
+
+/** Projects made by an Orchestrator plan collapse into one row per plan, placed where its latest project would be. */
+export function historyEntries(projects: ProjectRecord[]): HistoryEntry[] {
+  const out: HistoryEntry[] = [];
+  const groups = new Map<string, ProjectRecord[]>();
+  for (const p of projects) {
+    if (!p.planId) {
+      out.push({ kind: "project", project: p });
+      continue;
+    }
+    const g = groups.get(p.planId);
+    if (g) g.push(p);
+    else {
+      const members = [p];
+      groups.set(p.planId, members);
+      out.push({ kind: "plan", planId: p.planId, projects: members });
+    }
+  }
+  return out;
+}
+
+/** The status worth showing for a plan's row: what needs the owner first, then what is still moving. Nothing when all are done. */
+export function planRowStatus(projects: ProjectRecord[]): ProjectStatus | null {
+  const order: ProjectStatus[] = ["WAITING_USER_INPUT", "FAILED", "RUNNING", "FINALIZING", "QUEUED"];
+  return order.find((s) => projects.some((p) => p.status === s)) ?? null;
 }

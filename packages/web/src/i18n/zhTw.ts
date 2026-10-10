@@ -31,6 +31,7 @@ export const zhTw: Record<MessageKey, string> = {
 
   "nav.newProject": "新增專案",
   "nav.history": "歷程",
+  "nav.seeAll": "查看全部",
   "nav.noProjects": "尚無專案",
   "nav.projects": "專案",
   "nav.settings": "設定",
