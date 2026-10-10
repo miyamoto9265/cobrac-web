@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
-import { countRows, planEstimate } from "@cobrac/shared";
+import { countRows, planEstimate, planEstimateFor } from "@cobrac/shared";
 
 const api = vi.hoisted(() => ({
   getPlan: vi.fn(),
@@ -496,7 +496,8 @@ describe("a draft written by the plan job", () => {
   });
 
   it("counts a seed moved next to other rows as a body row in the estimate of unsaved rows, as the headings", async () => {
-    api.getPlan.mockResolvedValue(drafted());
+    // ordered by hand: estimated by waves (an automatically ordered draft is estimated as a flow, below)
+    api.getPlan.mockResolvedValue(drafted({ ordering: "manual" }));
     await render(`/plans/${PLAN}`);
     const editor = q('[data-testid="plan-editor"]')!;
     await openDetails(editor);
@@ -525,6 +526,22 @@ describe("a draft written by the plan job", () => {
     expect(q('[data-testid="plan-estimate"]')!.textContent).toContain(`Estimate: ~${Math.round((e.minutes / 60) * 10) / 10} h`);
     expect(q('[data-testid="plan-estimate"]')!.textContent).toContain("(4 rows, up to 2 at a time)");
     expect(planEstimate(rows, 2).minutes).not.toBe(e.minutes);
+  });
+
+  it("estimates unsaved rows of an automatically ordered draft as the flow it will run as, with its lanes", async () => {
+    api.getPlan.mockResolvedValue(drafted());
+    await render(`/plans/${PLAN}`);
+    const editor = q('[data-testid="plan-editor"]')!;
+    await openDetails(editor);
+    await type(qa<HTMLInputElement>('input[aria-label="Wave"]', editor)[1], "3");
+    const e = planEstimateFor(
+      { ordering: "auto", status: "DRAFT" },
+      rows.map((r, i) => ({ ...r, seed: i === 0, order: i })),
+      2,
+    );
+    expect(e.lanes).toBeGreaterThan(0);
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toContain(`Estimate: ${e.minutes} min`);
+    expect(q('[data-testid="plan-estimate-lanes"]')!.textContent).toBe(`· Lanes ${e.lanes}`);
   });
 
   it("orders the rows automatically, saving unsaved rows first", async () => {
@@ -1097,5 +1114,61 @@ describe("helpers", () => {
     expect(fmtElapsed(now, at + 12_000, t as never)).toBe('plan.seconds:{"s":12}');
     expect(fmtElapsed(now, at + 5 * 60_000, t as never)).toBe('plan.minutes:{"m":5}');
     expect(fmtElapsed(null, at, t as never)).toBe("—");
+  });
+});
+
+describe("a flow plan", () => {
+  const rows = [
+    row("r1", "left IFG", "speech production", "done", 1, { seed: true, lane: 1 }),
+    row("r2", "left IFG", "syntactic processing", "running", 2, { lane: 1, projectId: "p0000002" }),
+    row("r3", "left IFG", "verbal working memory", "pending", 2, { lane: 1, dependsOn: ["r2"], wait: { kind: "dependency", rowIds: ["r2"] } }),
+    row("r4", "FG", "reading", "pending", 2, { lane: 2, wait: { kind: "slot", rowIds: [] } }),
+    row("r5", "FG", "writing", "pending", 3, { lane: 2, wait: { kind: "overlap", rowIds: ["r4", "r2", "r1"] } }),
+    row("r6", "MTG", "semantic memory", "question", 2, { lane: 3, projectId: "p0000006" }),
+  ];
+  const flow = (extra: Partial<PlanRecord> = {}) =>
+    detail("RUNNING", rows, { ordering: "auto", scheduling: "flow", ...extra }, { slots: { used: 3, orchestrator: 1, limit: 6 } });
+
+  it("maps the rows on their lanes, shows the slots in use and why each row waits", async () => {
+    api.getPlan.mockResolvedValue(flow());
+    await render(`/plans/${PLAN}`);
+    const map = q('[data-testid="plan-flow-map"]')!;
+    const lanes = qa('[data-testid="flow-lane"]', map);
+    expect(lanes.map((l) => l.dataset.lane)).toEqual(["1", "2", "3"]);
+    // a lane fills from the left: done, then running, then waiting
+    expect(qa("button", lanes[0]).map((b) => b.dataset.tone)).toEqual(["done", "building", "waiting"]);
+    expect(qa("button", lanes[1]).map((b) => b.dataset.tone)).toEqual(["next", "waiting"]);
+    expect(qa("button", lanes[2]).map((b) => b.dataset.tone)).toEqual(["needs"]);
+    expect(lanes[0].textContent).toContain("1/3");
+    expect(q('[data-testid="flow-legend"]', map)!.textContent).toBe("Done1Running1Needs you1Next1Waiting2");
+    // slots: 2 rows (blue), 1 AI job (violet), 3 free
+    const slots = q('[data-testid="plan-slots"]')!;
+    expect(slots.textContent).toContain("3 / 6");
+    expect(slots.textContent).toContain("AI 1");
+    expect(qa("[data-slot]", slots).map((s) => s.dataset.slot)).toEqual(["row", "row", "ai", "free", "free", "free"]);
+    // the list goes by lane; a waiting row says what it waits on instead of 「Waiting」
+    expect(qa('[data-testid="plan-lane-heading"]').map((h) => h.textContent)).toEqual(["Lane 11/3", "Lane 20/2", "Lane 30/1"]);
+    expect(qa('[data-testid="plan-wave"]')).toHaveLength(0);
+    expect(qa('[data-testid="row-wait"]').map((w) => w.textContent)).toEqual(["After syntactic processing", "Next", "After reading, syntactic processing, +1"]);
+    // the progress bar goes by lane too
+    expect(qa("[data-lane]", q('[data-testid="plan-bar"]')!).map((s) => s.dataset.lane)).toEqual(["1", "2", "3"]);
+  });
+
+  it("scrolls to a row picked on the map", async () => {
+    api.getPlan.mockResolvedValue(flow());
+    await render(`/plans/${PLAN}`);
+    const target = document.getElementById("plan-row-r5")!;
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    await click(q<HTMLButtonElement>('[data-testid="plan-flow-map"] button[aria-label^="writing"]'));
+    expect(scroll).toHaveBeenCalled();
+    expect(target.classList.contains("plan-pick")).toBe(true);
+  });
+
+  it("holds the whole plan only for back-pressure", async () => {
+    api.getPlan.mockResolvedValue({ ...flow({ canonId: "c1" }), rows: rows.map((r) => (r.rowId === "r4" ? { ...r, wait: { kind: "prs" as const, rowIds: [] } } : r)) });
+    await render(`/plans/${PLAN}`);
+    expect(q('[data-testid="plan-back-pressure"]')).not.toBeNull();
+    expect(q('[data-testid="plan-seed-gate"]')).toBeNull();
   });
 });

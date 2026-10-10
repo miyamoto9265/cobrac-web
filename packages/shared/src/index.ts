@@ -37,6 +37,7 @@ export * from "./bradb.js";
 export * from "./motifs.js";
 export * from "./plan.js";
 export * from "./planOrder.js";
+export * from "./planFlow.js";
 export * from "./planJob.js";
 export * from "./planRowJob.js";
 export * from "./hypothesis.js";

@@ -1,7 +1,7 @@
 import { AlertTriangle, ArrowDown, ArrowUp, ChevronRight, FileUp, List, ListChecks, MoreHorizontal, Plus, Save, Wand2, X } from "lucide-react";
 import { Fragment, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PlanDetailResponse, PlanEstimate, PlanRowRejected, PlanRowView } from "@cobrac/shared";
-import { MAX_SEED_ROWS, OVERLAP_LIMIT, PLAN_LIMITS, planEstimate } from "@cobrac/shared";
+import { MAX_SEED_ROWS, OVERLAP_LIMIT, PLAN_LIMITS, planEstimateFor } from "@cobrac/shared";
 import { useT } from "../../i18n";
 import { api } from "../../lib/api";
 import { planWaves, seedIndexes, splitIntoWaves, waveRuns } from "../../lib/plan";
@@ -101,11 +101,13 @@ export function useDraftRows(d: PlanDetailResponse) {
     if (!dirty) return d.estimate;
     const facts = seedFactsOf(rows);
     const seeds = seedIndexes(facts);
-    return planEstimate(
-      facts.map((f, i) => ({ ...f, seed: seeds.has(i) })),
+    // an automatically ordered draft is estimated as the flow it will run as
+    return planEstimateFor(
+      d.plan,
+      facts.map((f, i) => ({ ...f, seed: seeds.has(i), rowId: rows[i].rowId ?? rows[i].key, order: i, anchors: rows[i].view?.anchors, dependsOn: rows[i].view?.dependsOn })),
       d.limits.effective,
     );
-  }, [dirty, rows, d.estimate, d.limits.effective]);
+  }, [dirty, rows, d.plan, d.estimate, d.limits.effective]);
   const edit = (next: DraftRow[]) => setEdited({ base: edited?.base ?? d.rows, rows: next });
   /** Stores the rows as edited; the plan read next shows the stored rows. */
   const save = async () => {
