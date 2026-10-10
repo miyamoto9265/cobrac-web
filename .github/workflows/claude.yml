@@ -60,6 +60,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Tools for `npm run spec:build` (docs/spec-guide/build.mjs), so Claude can rebuild the specification PDF
+      # after changing its sources or the prompts it quotes: pdftotext, pypdf, and Playwright's Chromium.
+      # build.mjs loads playwright with require, so the global install is found through NODE_PATH (and survives npm ci).
+      - name: Install specification PDF tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q poppler-utils
+          python3 -m pip install --break-system-packages "pypdf==6.17.0"
+          npm install -g playwright@1.56.1
+          npx -y playwright@1.56.1 install --with-deps chromium
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
       - uses: anthropics/claude-code-action@6c690188da61cf16ee7debb28383ba67f02abb4c # v1.0.242
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -70,5 +81,5 @@ jobs:
           branch_prefix: claude/
           claude_args: |
             --max-turns 80
-            --allowedTools "Bash(npm ci),Bash(npm run build),Bash(npm run typecheck),Bash(npm test),Bash(npm test:*),Bash(npm run docs:figures),Bash(npm run release:check),Bash(npm run release -- patch --no-git),Bash(npm run release -- minor --no-git),Bash(npm run release -- major --no-git),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*),Bash(gh pr view:*)"
-            --append-system-prompt "Repository rules for cobrac-web: read AGENTS.md and README.md before changing anything and follow them (also CLAUDE.md if it exists). Work only on the branch this action gives you (a claude/ branch for issues, the PR head branch for an open PR); never push to main, never push tags, never merge, never force-push. When you made a code change on a claude/ branch, open a draft PR against main with gh pr create --draft, and say in the PR whether a release is needed. Merging is the owner's decision because merging a version-bumped PR deploys to production. Versioning: write user-visible changes under [Unreleased] in CHANGELOG.md; bump the version only right before merge and only when asked, with npm run release -- patch|minor|major --no-git (never without --no-git, never edit versions by hand). UI text must be added to all 10 locales in packages/web/src/i18n (ja, en, de, es, fr, ko, pt, ru, zh, zhTw). Infrastructure: never replace or remove RETAIN resources (DynamoDB, S3, KMS, Cognito, BRA-DB instance and volume); the deploy RETAIN guard stops such changes and only the owner may override it, so call out any such risk in the PR. Run npm run build, npm run typecheck and npm test before committing. Never print, log or commit secrets or tokens."
+            --allowedTools "Bash(npm ci),Bash(npm run build),Bash(npm run typecheck),Bash(npm test),Bash(npm test:*),Bash(npm run docs:figures),Bash(npm run spec:build),Bash(npm run release:check),Bash(npm run release -- patch --no-git),Bash(npm run release -- minor --no-git),Bash(npm run release -- major --no-git),Bash(git status),Bash(git diff:*),Bash(git log:*),Bash(gh pr create:*),Bash(gh pr view:*)"
+            --append-system-prompt "Repository rules for cobrac-web: read AGENTS.md and README.md before changing anything and follow them (also CLAUDE.md if it exists). Work only on the branch this action gives you (a claude/ branch for issues, the PR head branch for an open PR); never push to main, never push tags, never merge, never force-push. When you made a code change on a claude/ branch, open a draft PR against main with gh pr create --draft, and say in the PR whether a release is needed. Merging is the owner's decision because merging a version-bumped PR deploys to production. Versioning: write user-visible changes under [Unreleased] in CHANGELOG.md; bump the version only right before merge and only when asked, with npm run release -- patch|minor|major --no-git (never without --no-git, never edit versions by hand). UI text must be added to all 10 locales in packages/web/src/i18n (ja, en, de, es, fr, ko, pt, ru, zh, zhTw). Infrastructure: never replace or remove RETAIN resources (DynamoDB, S3, KMS, Cognito, BRA-DB instance and volume); the deploy RETAIN guard stops such changes and only the owner may override it, so call out any such risk in the PR. Specification: when you change behaviour, docs/spec-guide/src, a prompt the specification quotes, or the code it reads values from, update the matching section and run npm run spec:build, then commit docs/CoBRAC_仕様書.pdf and docs/spec-guide/build.json in the same commit (npm test fails otherwise). Run npm run build, npm run typecheck and npm test before committing. Never print, log or commit secrets or tokens."
