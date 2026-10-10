@@ -111,6 +111,9 @@ describe("plan screen while running", () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
     await render("/plans/n4h8w2rk");
     expect(q('[data-testid="plan-summary"]')!.textContent).toContain("1 / 4 done");
+    // batches, time and cost share one card, with the actual values only (no estimates)
+    expect(q('[data-testid="plan-facts"]')!.textContent).toContain("$0.18");
+    expect(q('[data-testid="plan-summary"]')!.textContent).not.toContain("Estimate");
     const inbox = q('[data-testid="plan-inbox"]')!;
     expect(inbox.textContent).toContain("Questions (1)");
     expect(inbox.textContent).toContain("Left or both hemispheres?");

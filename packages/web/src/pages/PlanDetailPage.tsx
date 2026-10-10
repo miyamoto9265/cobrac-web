@@ -42,7 +42,7 @@ function Stat({ label, help, children }: { label: string; help?: string; childre
 
 function Summary({ d }: { d: PlanDetailResponse }) {
   const t = useT();
-  const { plan, rows, limits, estimate, actual } = d;
+  const { plan, rows, limits, actual } = d;
   const counts = plan.rowCounts!;
   // wave numbers as stored (the headings of the rows show the same numbers)
   const waves = planWaves(rows);
@@ -51,7 +51,7 @@ function Summary({ d }: { d: PlanDetailResponse }) {
   const shown = ROW_STATE_ORDER.filter((s) => n(s) > 0);
   const flow = isFlowPlan(plan);
   const concurrency = (
-    <div className="mt-1 flex items-center gap-1 text-xs text-slate-600">
+    <div className="mt-0.5 flex items-center gap-1 text-xs text-slate-600">
       {t("plan.concurrency", { n: limits.effective })}
       <HelpTip
         text={t("plan.concurrencyHelp", {
@@ -62,7 +62,7 @@ function Summary({ d }: { d: PlanDetailResponse }) {
     </div>
   );
   return (
-    <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" data-testid="plan-summary">
+    <div className="mb-5 grid gap-3 sm:grid-cols-2" data-testid="plan-summary">
       <Stat label={t("plan.progress")}>
         <div className="font-medium">{t("plan.doneOf", { done: counts.done, n: rows.length })}</div>
         <PlanBar waves={waveCounts(rows)} lanes={flow ? laneCounts(rows) : undefined} activeWave={plan.activeWave} live={plan.status === "RUNNING"} className="mt-1.5" />
@@ -77,46 +77,30 @@ function Summary({ d }: { d: PlanDetailResponse }) {
           ))}
         </div>
       </Stat>
-      {flow && d.slots ? (
-        <Stat label={t("flow.slots")} help={t("flow.slotsHelp")}>
-          <SlotPips slots={d.slots} live={plan.status === "RUNNING"} />
+      {/* batches (or slots), time and cost in one card; estimates are not shown (they were too rough to rely on) */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-white p-3 text-sm" data-testid="plan-facts">
+        <div className="text-xs text-slate-500">{flow && d.slots ? t("flow.slots") : flow ? t("flow.lanes") : t("plan.waves")}</div>
+        <div className="min-w-0">
+          {flow && d.slots ? <SlotPips slots={d.slots} live={plan.status === "RUNNING"} /> : <span className="font-medium">{flow ? new Set(rows.map((r) => r.lane ?? 0)).size : wavesText(waves, plan.activeWave, t)}</span>}
           {concurrency}
-        </Stat>
-      ) : (
-        <Stat label={flow ? t("flow.lanes") : t("plan.waves")}>
-          <div className="font-medium">{flow ? new Set(rows.map((r) => r.lane ?? 0)).size : wavesText(waves, plan.activeWave, t)}</div>
-          {concurrency}
-        </Stat>
-      )}
-      <Stat label={t("plan.time")} help={t(flow ? "flow.estimateHelp" : "plan.estimateHelp")}>
-        <div>
-          <span className="text-slate-500">{t("plan.estimate")}</span> <span className="font-medium">{fmtDuration(estimate.minutes, t)}</span>
         </div>
-        <div>
-          <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium">{fmtDuration(actual.minutes, t)}</span>
-        </div>
-      </Stat>
-      <Stat label={t("plan.cost")}>
-        <div>
-          <span className="text-slate-500">{t("plan.estimate")}</span>{" "}
-          <span className="font-medium">
-            {formatUsd(estimate.costUsd.min)}–{formatUsd(estimate.costUsd.max)}
-          </span>
-        </div>
-        <div>
-          <span className="text-slate-500">{t("plan.actual")}</span> <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
+        <div className="text-xs text-slate-500">{t("plan.time")}</div>
+        <div className="font-medium">{fmtDuration(actual.minutes, t)}</div>
+        <div className="text-xs text-slate-500">{t("plan.cost")}</div>
+        <div className="min-w-0">
+          <span className="font-medium text-emerald-700">{formatUsd(actual.costUsd)}</span>
           {plan.settings.autonomous && (
             <span className="ml-1.5 text-xs text-violet-700" data-testid="plan-cost-limit">
               {t("auto.limit", { cost: formatUsd(plan.settings.autonomous.maxCostUsd) })}
             </span>
           )}
+          {typeof d.planJobsCostUsd === "number" && (
+            <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
+              {t("plan.planJobsCost", { cost: formatUsd(d.planJobsCostUsd) })}
+            </div>
+          )}
         </div>
-        {typeof d.planJobsCostUsd === "number" && (
-          <div className="text-xs text-slate-500" data-testid="plan-jobs-cost">
-            {t("plan.planJobsCost", { cost: formatUsd(d.planJobsCostUsd) })}
-          </div>
-        )}
-      </Stat>
+      </div>
     </div>
   );
 }
