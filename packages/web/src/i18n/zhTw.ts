@@ -1032,7 +1032,7 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.createDraft": "產生草稿",
   "plan.createDraftNote": "「產生草稿」會依目標與能力清單寫出列、錨點、依賴關係與粒度方針的草稿，並自動排定順序。會執行 1 個規劃工作，其費用會被記錄：通常需要數分鐘，讀取 xlsx 或 PDF 清單或超過 {n} 列時最長約半小時。",
   "plan.redraftQ": "要產生草稿嗎？規劃工作會讀取目標、能力清單與目前各列，寫出列、錨點、依賴關係與粒度方針，並自動排定順序。目前各列會保留。此工作與其他工作一樣計費。",
-  "plan.drafting": "草稿產生中：{state}（已過 {time}）",
+  "plan.drafting": "草稿產生中：{state}",
   "plan.draftingNote": "草稿完成前無法編輯各列，通常數分鐘內完成。",
   "plan.draftingNoteLong": "草稿完成前無法編輯各列。讀取 xlsx 或 PDF 清單、或超過 {n} 列的草稿，最長可能需要半小時左右。",
   "plan.cancelDraft": "取消草稿",

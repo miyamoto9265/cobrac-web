@@ -260,13 +260,14 @@ describe("a draft being written", () => {
       attachments: [{ kind: "file", id: "f1", name: "abilities.xlsx", key: "attachments/files/01-abilities.xlsx", size: 10, contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }],
     });
 
-  it("shows the job state with the time since the request, locks the rows and cancels", async () => {
+  it("shows the job state without the elapsed time, locks the rows and cancels", async () => {
     api.getPlan.mockResolvedValue(drafting("running"));
     await render(`/plans/${PLAN}`);
     // the job's state and its cancel button are in 「1. 作るもの」, next to what the job reads
     const banner = q('[data-testid="plan-drafting"]')!;
     expect(q('[data-testid="plan-what"]')!.contains(banner)).toBe(true);
-    expect(banner.textContent).toContain("Drafting: running (1 min so far)");
+    expect(banner.textContent).toContain("Drafting: running");
+    expect(banner.textContent).not.toContain("so far");
     expect(q('[data-testid="plan-attachments"]')!.textContent).toBe("abilities.xlsx");
     // the goal and the files are read-only while the job runs
     expect(q('textarea[data-testid="plan-goal"]')).toBeNull();

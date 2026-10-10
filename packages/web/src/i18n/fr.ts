@@ -1032,7 +1032,7 @@ export const fr: Record<MessageKey, string> = {
   "plan.createDraft": "Créer un brouillon",
   "plan.createDraftNote": "« Créer un brouillon » rédige, à partir de l’objectif et des listes de capacités, les lignes, les ancres, les dépendances et la politique de granularité, puis ordonne les lignes automatiquement. Une tâche de planification est exécutée et son coût est enregistré : en général quelques minutes, jusqu’à une demi-heure environ pour des listes xlsx ou PDF ou plus de {n} lignes.",
   "plan.redraftQ": "Créer un brouillon ? Une tâche de planification lit l’objectif, les listes de capacités et les lignes actuelles, rédige lignes, ancres, dépendances et politique de granularité, puis ordonne les lignes automatiquement. Les lignes actuelles sont conservées. La tâche est facturée comme toute autre tâche.",
-  "plan.drafting": "Brouillon en cours : {state} (depuis {time})",
+  "plan.drafting": "Brouillon en cours : {state}",
   "plan.draftingNote": "Les lignes ne sont pas modifiables tant que le brouillon n’est pas prêt ; cela prend en général quelques minutes.",
   "plan.draftingNoteLong": "Les lignes ne sont pas modifiables tant que le brouillon n’est pas prêt. Un brouillon qui lit des listes xlsx ou PDF, ou qui couvre plus de {n} lignes, peut prendre jusqu’à une demi-heure environ.",
   "plan.cancelDraft": "Annuler le brouillon",

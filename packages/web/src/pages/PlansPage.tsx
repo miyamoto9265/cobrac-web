@@ -394,7 +394,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
           <div className="mt-3">
             <div className="flex items-center gap-2 text-sm text-blue-700">
               <Sparkles size={15} aria-hidden className="plan-beat" />
-              {t("plan.drafting", { state: t(`plan.job.${p.draft?.status ?? "waiting"}` as MessageKey), time: fmtElapsed(p.draft?.requestedAt, now, t) })}
+              {t("plan.drafting", { state: t(`plan.job.${p.draft?.status ?? "waiting"}` as MessageKey) })}
             </div>
             <div className="plan-sweep mt-2 h-1.5 rounded-full bg-blue-100" aria-hidden />
             {p.goal && <p className="mt-2 line-clamp-2 whitespace-pre-line text-xs text-slate-600">{p.goal}</p>}
