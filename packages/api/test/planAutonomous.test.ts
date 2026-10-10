@@ -393,6 +393,11 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect((await call(A, "POST", `/plans/${planId}/resume`, { maxCostUsd: 1.5 })).status).toBe(400);
     await json(call(A, "POST", `/plans/${planId}/resume`, { maxCostUsd: 10 }));
     expect(planOf(planId)).toMatchObject({ status: "RUNNING", settings: { autonomous: { maxCostUsd: 10 } }, costLimitAt: null });
+    // the re-plan job asked once the first row was done takes the one slot first, then the second row starts
+    const replan = planOf(planId).replan!;
+    expect(replan).toMatchObject({ kind: "replan", status: "queued" });
+    fake.put("jobs", { ...jobs().find((j) => j.jobId === replan.jobId)!, status: "FAILED", error: "x" } as never);
+    await advancePlan(planId);
     expect(rowOf(planId, second.roi).state).toBe("running");
   });
 

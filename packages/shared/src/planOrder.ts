@@ -90,13 +90,13 @@ export function anchorKeys(anchor: string): string[] {
   return [a.toLowerCase()];
 }
 
-const keySet = (anchors: readonly string[] | undefined) => new Set((anchors ?? []).flatMap(anchorKeys));
+export const anchorKeySet = (anchors: readonly string[] | undefined): Set<string> => new Set((anchors ?? []).flatMap(anchorKeys));
 
 /** How many anchors two rows share (after expanding BNA groups). */
 export function sharedAnchors(a: readonly string[] | undefined, b: readonly string[] | undefined): number {
-  const ka = keySet(a);
+  const ka = anchorKeySet(a);
   let n = 0;
-  for (const k of keySet(b)) if (ka.has(k)) n++;
+  for (const k of anchorKeySet(b)) if (ka.has(k)) n++;
   return n;
 }
 
@@ -107,7 +107,7 @@ export interface AnchoredRow {
 
 /** Hub score of every row: the number of other rows sharing at least one anchor with it. */
 export function hubScores(rows: readonly AnchoredRow[]): Map<string, number> {
-  const keys = rows.map((r) => keySet(r.anchors));
+  const keys = rows.map((r) => anchorKeySet(r.anchors));
   const out = new Map<string, number>();
   rows.forEach((r, i) => {
     let n = 0;
