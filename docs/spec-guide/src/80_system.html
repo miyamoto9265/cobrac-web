@@ -1,0 +1,582 @@
+<section class="part psys">
+<div class="opener">
+  <div class="no">第 8 部</div>
+  <h1 class="part" id="p8">システムの構成</h1>
+  <p class="lead">この部は開発者向けです。CoBRAC Agents を動かしている AWS の構成、部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、S3 の成果物、フロントエンド、非機能の目標、開発の約束を、実装に沿って説明します。BRA の作り方そのものは第 3 部、権限・秘密情報・費用は第 9 部で扱います。リリースとデプロイの手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
+  <div class="map">
+    <div><b>プログラムの部品</b>API、dispatcher、broadcaster、janitor、計画ランナーの Lambda と、Fargate 上のワーカーです。どれも LLM を呼ばず、決まったコードで判断します。</div>
+    <div><b>エージェント</b>ワーカーが子プロセスとして起動する Codex の中で動く LLM です。BRA を作るほか、解説記事・AI レビュー・計画のジョブも同じ仕組みで動きます（8.4）。</div>
+    <div><b>人</b>利用者はプロジェクトを作り、質問に答え、成果物を受け取ります。管理者は利用者、デフォルトの API キー、同時実行数を管理します（4.1）。</div>
+  </div>
+</div>
+
+<h2 id="s8-1">8.1 設計方針と全体構成</h2>
+<p>アプリ本体は、東京リージョン（<code>ap-northeast-1</code>）の 1 つの CDK スタック <code>CobracAgents</code>（<code>packages/infra/lib/cobrac-stack.ts</code>）にまとまったサーバーレス構成です。BRA-DB だけは別のスタック <code>BraDb</code>（<code>bradb-stack.ts</code>）にあります（第 7 部）。</p>
+
+<h3>設計方針</h3>
+<p>構成は次の 4 つの方針で決めています。</p>
+<ol class="steps">
+  <li><b>使われていないときの固定費を小さくする。</b>常時稼働の EC2 や NAT Gateway を置きません。例外は BRA-DB のスタックです。</li>
+  <li><b>費用のかかる計算には、ジョブが動いている間だけ払う。</b>ワーカーは 1 ジョブにつき 1 つの Fargate タスクとして起動し、Spot を優先します。</li>
+  <li><b>質問への回答を待つ間はタスクを止める。</b>状態を S3 に保存してタスクを終了し、回答が届いたら新しいタスクで続きから再開します。</li>
+  <li><b>独自ドメインと証明書を CDK で持たない。</b>CloudFront の既定のドメインで配信します。<code>cobrac.site</code> は CDK の外で distribution に付けた別名で、DNS は別の AWS アカウントの Route 53 にあります。</li>
+</ol>
+<p><b>NAT Gateway を置かない理由：</b>東京では NAT Gateway 1 つ（1 AZ）あたり、月に約 $32 とデータ処理料が固定でかかります。ワーカーは短い時間しか動かないので、パブリックサブネットでパブリック IP を付け、インターネットゲートウェイから外に出れば足ります。ワーカーのセキュリティグループには受信の規則が 1 つもありません。</p>
+<p>画面が使う HTTP API・WebSocket・Cognito の接続先は、CDK がデプロイのたびに <code>config.json</code> として Web のバケットに書きます。CloudFront はこのファイルをキャッシュしないので、環境ごとに Web をビルドし直す必要はありません。</p>
+<p>システムの中で LLM が動くのは、ワーカーが Codex を通じて実行するジョブだけです。Lambda の部品はどれも LLM を呼びません。API が OpenAI を呼ぶのは、キーの確認で <code>/v1/models</code> を読むときだけです。</p>
+
+<h3>プロジェクトの作成から画面への通知まで</h3>
+<p>図 8.1 は主な部品と、プロジェクトを作ってから進捗が画面に届くまでの流れを示します。</p>
+<figure>
+<svg viewBox="0 0 680 414" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif" style="width:92%;margin:0 auto">
+  <defs>
+    <marker id="p1a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#1d4ed8"/></marker>
+    <marker id="p1g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#64748b"/></marker>
+    <marker id="p1v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6d28d9"/></marker>
+  </defs>
+  <!-- person and browser -->
+  <rect x="10" y="6" width="98" height="26" rx="13" fill="#fff" stroke="#64748b"/>
+  <text x="59" y="23" font-size="9" text-anchor="middle" fill="#1f2937">利用者・管理者（人）</text>
+  <rect x="6" y="44" width="106" height="272" rx="8" fill="#eef4ff" stroke="#1d4ed8" stroke-width="1.4"/>
+  <g text-anchor="middle" fill="#374151" font-size="8.6">
+    <text x="59" y="64" font-size="11" font-weight="800" fill="#111827">ブラウザ</text>
+    <text x="59" y="78" font-size="9" fill="#475569">React SPA</text>
+    <text x="59" y="100">画面とグラフ</text>
+    <text x="59" y="146">ID トークンを付けて</text>
+    <text x="59" y="159">API を呼ぶ</text>
+    <text x="59" y="206">WebSocket で</text>
+    <text x="59" y="219">進み具合を受ける</text>
+    <text x="59" y="246">実行中は 20 秒</text>
+    <text x="59" y="259">ごとに読み直す</text>
+  </g>
+  <!-- column 2: entry points (AWS managed) -->
+  <g fill="#f1f5f9" stroke="#94a3b8">
+    <rect x="132" y="44" width="118" height="40" rx="6"/>
+    <rect x="132" y="102" width="118" height="40" rx="6"/>
+    <rect x="132" y="160" width="118" height="40" rx="6"/>
+    <rect x="132" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="191" y="60" font-size="9.6" font-weight="700">HTTP API</text><text x="191" y="75" font-size="8.2" fill="#475569">API Gateway・JWT を検証</text>
+    <text x="191" y="118" font-size="9.6" font-weight="700">Cognito</text><text x="191" y="133" font-size="8.2" fill="#475569">ログイン・ID トークン</text>
+    <text x="191" y="176" font-size="9.6" font-weight="700">CloudFront + S3</text><text x="191" y="191" font-size="8.2" fill="#475569">SPA と config.json</text>
+    <text x="191" y="292" font-size="9.6" font-weight="700">WebSocket API</text><text x="191" y="307" font-size="8.2" fill="#475569">API Gateway・token を検証</text>
+  </g>
+  <!-- column 3: Lambdas (programs) -->
+  <g fill="#fff" stroke="#1d4ed8" stroke-width="1.3">
+    <rect x="270" y="44" width="118" height="40" rx="6"/>
+    <rect x="270" y="102" width="118" height="40" rx="6"/>
+    <rect x="270" y="160" width="118" height="40" rx="6"/>
+    <rect x="270" y="218" width="118" height="40" rx="6"/>
+    <rect x="270" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="329" y="60" font-size="9.6" font-weight="700">API（Hono）</text><text x="329" y="75" font-size="8.2" fill="#475569">REST の全ルート</text>
+    <text x="329" y="118" font-size="9.6" font-weight="700">計画ランナー</text><text x="329" y="133" font-size="8.2" fill="#475569">毎分・計画を 1 歩進める</text>
+    <text x="329" y="176" font-size="9.6" font-weight="700">janitor</text><text x="329" y="191" font-size="8.2" fill="#475569">5 分ごと・止まったジョブ</text>
+    <text x="329" y="234" font-size="9.6" font-weight="700">broadcaster</text><text x="329" y="249" font-size="8.2" fill="#475569">変更を購読者に送る</text>
+    <text x="329" y="292" font-size="9.6" font-weight="700">ws ハンドラ</text><text x="329" y="307" font-size="8.2" fill="#475569">接続と購読を記録</text>
+  </g>
+  <!-- column 4: data -->
+  <g fill="#f1f5f9" stroke="#94a3b8">
+    <rect x="408" y="44" width="118" height="156" rx="6"/>
+    <rect x="408" y="218" width="118" height="40" rx="6"/>
+    <rect x="408" y="276" width="118" height="40" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="467" y="64" font-size="10" font-weight="700">DynamoDB</text>
+    <g font-size="8.4" fill="#374151">
+      <text x="467" y="84">Users・Projects</text>
+      <text x="467" y="98">Jobs・Messages</text>
+      <text x="467" y="112">WsConnections</text>
+      <text x="467" y="126">Catalog・Canons</text>
+      <text x="467" y="140">Plans</text>
+      <text x="467" y="164" fill="#475569">Streams：</text>
+      <text x="467" y="177" fill="#475569">Projects・Messages</text>
+    </g>
+    <text x="467" y="234" font-size="9.6" font-weight="700">S3（成果物）</text><text x="467" y="249" font-size="8.2" fill="#475569">作業領域・成果物・版</text>
+    <text x="467" y="292" font-size="9.6" font-weight="700">KMS</text><text x="467" y="307" font-size="8.2" fill="#475569">API キーの暗号化</text>
+  </g>
+  <!-- column 5: queue, dispatcher, worker -->
+  <rect x="546" y="44" width="128" height="40" rx="6" fill="#f1f5f9" stroke="#94a3b8"/>
+  <rect x="546" y="102" width="128" height="40" rx="6" fill="#fff" stroke="#1d4ed8" stroke-width="1.3"/>
+  <rect x="546" y="160" width="128" height="156" rx="8" fill="#fff" stroke="#1d4ed8" stroke-width="1.7"/>
+  <g text-anchor="middle" fill="#111827">
+    <text x="610" y="60" font-size="9.6" font-weight="700">SQS</text><text x="610" y="75" font-size="8.2" fill="#475569">ジョブのキュー（DLQ つき）</text>
+    <text x="610" y="118" font-size="9.6" font-weight="700">dispatcher</text><text x="610" y="133" font-size="8.2" fill="#475569">同時実行数を確かめる</text>
+    <text x="610" y="175" font-size="8.2" fill="#475569">ECS Fargate（Spot）</text>
+    <text x="610" y="190" font-size="10.5" font-weight="800">ワーカー</text>
+    <text x="610" y="203" font-size="8.2" font-weight="700" fill="#1d4ed8">TypeScript・LLM なし</text>
+    <text x="610" y="218" font-size="8.4" fill="#374151">段階の進行と検証</text>
+    <text x="610" y="231" font-size="8.4" fill="#374151">CSV・xlsx・グラフ・版</text>
+  </g>
+  <rect x="556" y="240" width="108" height="68" rx="6" fill="#f4f0fe" stroke="#6d28d9" stroke-width="1.3"/>
+  <g text-anchor="middle">
+    <text x="610" y="254" font-size="8" fill="#475569">Codex CLI（子プロセス）</text>
+    <text x="610" y="269" font-size="9.4" font-weight="800" fill="#6d28d9">CoBRAC エージェント</text>
+    <text x="610" y="283" font-size="8.2" fill="#374151">LLM（OpenAI のモデル）</text>
+    <text x="610" y="298" font-size="8" fill="#475569">Web 検索・MCP の道具</text>
+  </g>
+  <!-- external services and other stacks -->
+  <g fill="#fff" stroke="#94a3b8" stroke-dasharray="4 3">
+    <rect x="6" y="340" width="106" height="38" rx="6"/>
+    <rect x="132" y="340" width="118" height="38" rx="6"/>
+    <rect x="270" y="340" width="118" height="38" rx="6"/>
+    <rect x="408" y="340" width="118" height="38" rx="6"/>
+    <rect x="546" y="340" width="128" height="38" rx="6"/>
+  </g>
+  <g text-anchor="middle" fill="#111827">
+    <text x="59" y="355" font-size="9" font-weight="700">SES</text><text x="59" y="369" font-size="8" fill="#475569">アカウントのメール</text>
+    <text x="191" y="355" font-size="9" font-weight="700">BRA-DB（別スタック）</text><text x="191" y="369" font-size="8" fill="#475569">API が登録を依頼（第 5 部）</text>
+    <text x="329" y="355" font-size="9" font-weight="700">PubMed・Europe PMC</text><text x="329" y="369" font-size="8" fill="#475569">Crossref（文献と照合）</text>
+    <text x="467" y="355" font-size="9" font-weight="700">RCS MCP</text><text x="467" y="369" font-size="8" fill="#475569">SABRA の単位を引く</text>
+    <text x="610" y="355" font-size="9" font-weight="700">OpenAI API</text><text x="610" y="369" font-size="8" fill="#475569">モデルの推論</text>
+  </g>
+  <!-- main flow (blue) -->
+  <g stroke="#1d4ed8" stroke-width="1.4" fill="none" marker-end="url(#p1a)">
+    <path d="M112 64H130"/>
+    <path d="M250 64H268"/>
+    <path d="M388 64H406"/>
+    <path d="M329 44V28H610V42"/>
+    <path d="M610 84V100"/>
+    <path d="M610 142V158"/>
+    <path d="M546 180H528"/>
+    <path d="M546 238H528"/>
+    <path d="M418 200V209H360V216"/>
+    <path d="M270 238H191V274"/>
+    <path d="M132 296H114"/>
+  </g>
+  <text x="470" y="23" font-size="8.2" text-anchor="middle" fill="#1d4ed8">ジョブを積む</text>
+  <text x="616" y="154" font-size="7.6" fill="#1d4ed8">RunTask</text>
+  <text x="424" y="213" font-size="7.6" fill="#1d4ed8">Streams</text>
+  <!-- secondary (grey) -->
+  <g stroke="#64748b" stroke-width="1.1" fill="none" marker-end="url(#p1g)">
+    <path d="M59 32V42"/>
+    <path d="M112 122H130"/>
+    <path d="M132 180H114"/>
+    <path d="M250 296H268"/>
+    <path d="M388 122H406" stroke-dasharray="4 3"/>
+    <path d="M388 180H406" stroke-dasharray="4 3"/>
+    <path d="M546 296H528"/>
+    <path d="M566 316V328H329V338" stroke-dasharray="4 3"/>
+    <path d="M467 328V338" stroke-dasharray="4 3"/>
+  </g>
+  <path d="M610 308V338" stroke="#6d28d9" stroke-width="1.4" fill="none" marker-end="url(#p1v)"/>
+  <!-- legend -->
+  <g font-size="8.2" fill="#374151">
+    <rect x="6" y="394" width="14" height="10" rx="2" fill="#fff" stroke="#1d4ed8" stroke-width="1.3"/><text x="24" y="403">プログラム（LLM なし）</text>
+    <rect x="132" y="394" width="14" height="10" rx="2" fill="#f4f0fe" stroke="#6d28d9"/><text x="150" y="403">LLM</text>
+    <rect x="186" y="394" width="14" height="10" rx="2" fill="#f1f5f9" stroke="#94a3b8"/><text x="204" y="403">AWS のサービス（入口・認証・データ）</text>
+    <rect x="370" y="394" width="14" height="10" rx="2" fill="#fff" stroke="#94a3b8" stroke-dasharray="3 2"/><text x="388" y="403">外部のサービス・別スタック</text>
+    <path d="M520 399H548" stroke="#1d4ed8" stroke-width="1.4" marker-end="url(#p1a)"/><text x="554" y="403">主な流れ</text>
+    <path d="M598 399H622" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 3" marker-end="url(#p1g)"/><text x="626" y="403">読み書き</text>
+  </g>
+</svg>
+<figcaption><b>図 8.1</b>　システムの構成。青い線は、プロジェクトの作成からワーカーの起動を経て、進捗が画面に届くまでの流れ。LLM が動くのはワーカーの中のエージェント（Codex の子プロセス）だけ。図中の BRA-DB の説明は第 7 部を指す</figcaption>
+</figure>
+<ol class="steps">
+  <li>利用者がブラウザでプロジェクトを作ると、SPA が Cognito の ID トークンを付けて HTTP API（<code>POST /projects</code>）を呼びます。API Gateway がトークンを検証し、API の Lambda がプロジェクトとジョブを <code>QUEUED</code> で DynamoDB に書き、SQS にジョブのメッセージを積みます。</li>
+  <li>dispatcher が SQS からメッセージを受け取り、同時実行数に空きがあれば ECS の RunTask で Fargate のタスクを 1 つ起動します。空きがなければ 60 秒後に積み直します（8.3）。</li>
+  <li>ワーカーが KMS で API キーを復号し、Codex CLI を子プロセスとして起動して、エージェントにターンを依頼します。エージェントは OpenAI API のモデルとして推論し、Web 検索と MCP のツールで文献と SABRA を調べ、プロジェクトフォルダに JSON を書きます。</li>
+  <li>ワーカーはターンごとにファイルを検査し、状態とメッセージを DynamoDB に、作業ディレクトリと成果物を S3 に書きます。</li>
+  <li>DynamoDB Streams が Projects と Messages の変更を broadcaster に渡します。broadcaster は WebSocket API を通じて、そのプロジェクトを購読している<b>所有者の</b>ブラウザにだけ送ります。</li>
+  <li>これとは別に、janitor が 5 分ごとに止まったジョブを再開するか失敗にし（8.3）、計画ランナーが毎分オーケストレーターの計画を進めます（第 6 部）。</li>
+</ol>
+<p>通常のデプロイは、バージョンを上げた PR を <code>main</code> にマージしたときに GitHub Actions が行います（8.9）。ワーカーのコンテナイメージはデプロイ時に CodeBuild がビルドして ECR に置くので（<code>@cdklabs/deploy-time-build</code>）、ローカルに Docker は要りません。ローカルからの <code>npm run deploy</code> は緊急時だけに使う経路で、対象のアカウントで <code>cdk bootstrap</code> が済んでいる必要があります。手順は運用手順書にあります。</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/infra/bin/app.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/worker/Dockerfile</code>、<code>AGENTS.md</code></p>
+
+<h2 id="s8-2">8.2 部品とパッケージ</h2>
+<h3>主な部品</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">部品</th><th style="width:24%">実体</th><th style="width:17%">動くとき</th><th>仕事</th></tr></thead>
+  <tbody>
+    <tr><td>SPA</td><td><code>packages/web</code>（React・Vite）</td><td>ブラウザで常に</td><td>画面とグラフ、API の呼び出し、WebSocket の購読、ポーリング（4.4、8.7）</td></tr>
+    <tr><td>CloudFront + S3（Web）</td><td>CDK の <code>WebDistribution</code>・<code>WebBucket</code></td><td>ページを開くとき</td><td>SPA と <code>/config.json</code>（キャッシュしない）を配る。403・404 には <code>index.html</code> を返し、画面のパスの解釈を SPA に任せる</td></tr>
+    <tr><td>Cognito</td><td>ユーザープールとクライアント <code>WebClient</code></td><td>ログインのとき</td><td>メールアドレスとパスワード（10 文字以上、小文字と数字を含む）、SRP 認証、ID トークン（2 時間）、更新トークン（30 日）、グループ <code>admin</code></td></tr>
+    <tr><td>AuthMessage（Lambda）</td><td><code>handlers/authMessage.ts</code></td><td>Cognito がメールを送るとき</td><td>確認コード・再送・パスワード再設定・メールアドレス変更・招待のメールの文面を、日本語と英語で作る。送信は SES</td></tr>
+    <tr><td>HTTP API</td><td>API Gateway の HTTP API</td><td>リクエストごと</td><td><code>/health</code> 以外は JWT を検証して API の Lambda に渡す（付録 A）</td></tr>
+    <tr><td>API（Lambda）</td><td><code>handlers/http.ts</code> → <code>app.ts</code>（Hono）</td><td>リクエストごと</td><td>すべてのルート。所有者の確認、ジョブの登録、API キーの暗号化、署名付き URL の発行。LLM は呼ばない</td></tr>
+    <tr><td>SQS</td><td><code>JobQueue</code> と <code>JobDlq</code></td><td>ジョブを積んだとき</td><td>1 ジョブにつき 1 メッセージ <code>{version, userId, projectId, jobId, mode}</code>。可視性タイムアウト 120 秒、保持 4 日。5 回受け取っても処理できなければ DLQ に移す（保持 14 日）</td></tr>
+    <tr><td>dispatcher（Lambda）</td><td><code>handlers/dispatcher.ts</code></td><td>SQS のメッセージごと（1 件ずつ）</td><td>同時実行数を検査して Fargate のタスクを起動する（8.3）</td></tr>
+    <tr><td>ワーカー</td><td><code>packages/worker</code></td><td>ジョブごとに 1 タスク</td><td>ハーネスの本体。段階の進行、検査、CSV・xlsx・グラフ・版の作成（8.4、第 3 部）</td></tr>
+    <tr><td>Codex CLI</td><td><code>@openai/codex-sdk</code> が起動する子プロセス</td><td>ワーカーがターンを依頼したとき</td><td>エージェントのターンを実行し、OpenAI API を呼ぶ。MCP サーバー（<code>lit</code>・RCS）を起動して接続する</td></tr>
+    <tr><td>DynamoDB</td><td>8 つのテーブル</td><td>常に</td><td>状態・メッセージ・設定（8.5）</td></tr>
+    <tr><td>S3（成果物）</td><td>バケット <code>Artifacts</code></td><td>常に</td><td>作業ディレクトリ・会話・成果物・版・Canon・計画の資料（8.6）</td></tr>
+    <tr><td>KMS</td><td><code>ApiKeyKmsKey</code></td><td>キーの登録とジョブの開始</td><td>API が暗号化し、ワーカーだけが復号する（9.3）</td></tr>
+    <tr><td>broadcaster（Lambda）</td><td><code>handlers/broadcaster.ts</code></td><td>Projects・Messages の Streams</td><td>新しいメッセージとプロジェクトの変更を、所有者の接続にだけ送る</td></tr>
+    <tr><td>WebSocket API・ws（Lambda）</td><td><code>handlers/ws.ts</code>（authorizer・connect・disconnect・defaultRoute）</td><td>接続とメッセージごと</td><td>トークンの検証、接続と購読の記録（付録 A）</td></tr>
+    <tr><td>janitor（Lambda）</td><td><code>handlers/janitor.ts</code></td><td>EventBridge で 5 分ごと</td><td>止まったジョブの自動リトライと打ち切り（8.3）</td></tr>
+    <tr><td>計画ランナー（Lambda）</td><td><code>handlers/planRunner.ts</code> → <code>lib/planRunner.ts</code></td><td>EventBridge で毎分</td><td>下書き中・実行中・一時停止中の計画を 1 ステップずつ進める。LLM のジョブ（<code>plan</code>）はキューに積むだけ（第 6 部）</td></tr>
+    <tr><td>BRA-DB の登録 Lambda</td><td>別スタック <code>BraDb</code> の <code>handlers/bradbImport.ts</code></td><td>API が呼んだとき</td><td>版を BRA-DB に登録する（第 7 部）</td></tr>
+  </tbody>
+</table>
+
+<h3>外部のサービス</h3>
+<table class="compact">
+  <thead><tr><th style="width:24%">サービス</th><th>使い方</th></tr></thead>
+  <tbody>
+    <tr><td>OpenAI API</td><td>モデルの推論。利用者のキーか、デフォルトの API キーで呼ぶ（4.1）</td></tr>
+    <tr><td>RCS MCP</td><td>rosetta-candidate-search の <code>rcs-mcp</code>。同じアカウントにある別のシステムで、SABRA の単位の候補を返す。トークンは Secrets Manager にある</td></tr>
+    <tr><td>PubMed・Europe PMC</td><td>エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ（3.7）</td></tr>
+    <tr><td>Crossref・PubMed・Europe PMC・Semantic Scholar</td><td>ワーカーが文献の DOI・PMID と引用文を照合する（3.10）</td></tr>
+    <tr><td>参考資料の URL</td><td>作成時に指定された URL の中身を、ワーカーが取得する（4.2）</td></tr>
+    <tr><td>SES</td><td>アカウントのメールの送信</td></tr>
+  </tbody>
+</table>
+
+<h3>AWS の構成</h3>
+<p>図 8.2 は、AWS のリソースの配置を示します。</p>
+<figure>
+<svg viewBox="0 0 680 394" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="a71" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#0e7490"/></marker></defs>
+  <rect x="4" y="30" width="86" height="58" rx="7" fill="#fff" stroke="#94a3b8"/>
+  <text x="47" y="54" text-anchor="middle" font-size="10" font-weight="800" fill="#111827">ブラウザ</text>
+  <text x="47" y="70" text-anchor="middle" font-size="8.4" fill="#5b6474">利用者・管理者</text>
+  <rect x="106" y="4" width="570" height="344" rx="9" fill="#fff" stroke="#94a3b8" stroke-dasharray="6 4"/>
+  <path d="M90 59H114" stroke="#0e7490" stroke-width="1.4" marker-end="url(#a71)"/>
+  <text x="116" y="19" font-size="8.8" fill="#5b6474">AWS アカウント ／ ap-northeast-1 ／ スタック CobracAgents</text>
+  <g font-size="8.5" fill="#1f2937" text-anchor="middle">
+    <rect x="116" y="28" width="130" height="58" rx="6" fill="#fff" stroke="#0e7490" stroke-width="1.2"/>
+    <text x="181" y="45" font-weight="800" font-size="9.6">CloudFront + S3</text><text x="181" y="60">SPA と config.json</text><text x="181" y="74">HTTPS・OAC</text>
+    <rect x="256" y="28" width="130" height="58" rx="6" fill="#fff" stroke="#0e7490" stroke-width="1.2"/>
+    <text x="321" y="45" font-weight="800" font-size="9.6">Cognito</text><text x="321" y="60">メールでログイン（SRP）</text><text x="321" y="74">メールの文面 → SES</text>
+    <rect x="396" y="28" width="130" height="58" rx="6" fill="#fff" stroke="#0e7490" stroke-width="1.2"/>
+    <text x="461" y="45" font-weight="800" font-size="9.6">HTTP API</text><text x="461" y="60">JWT（ID トークン）</text><text x="461" y="74">/health だけ匿名</text>
+    <rect x="536" y="28" width="130" height="58" rx="6" fill="#fff" stroke="#0e7490" stroke-width="1.2"/>
+    <text x="601" y="45" font-weight="800" font-size="9.6">WebSocket API</text><text x="601" y="60">ステージ prod</text><text x="601" y="74">接続時に token を検証</text>
+  </g>
+  <text x="116" y="103" font-size="8.6" font-weight="700" fill="#0e7490">Lambda（プログラム。LLM を含まない）</text>
+  <g font-size="8.3" fill="#1f2937" text-anchor="middle">
+    <rect x="116" y="110" width="102" height="58" rx="6" fill="#e8f6f9" stroke="#0e7490"/>
+    <text x="167" y="127" font-weight="800" font-size="9">janitor</text><text x="167" y="141">5 分ごと</text><text x="167" y="155">planRunner 1 分ごと</text>
+    <rect x="228" y="110" width="102" height="58" rx="6" fill="#e8f6f9" stroke="#0e7490"/>
+    <text x="279" y="127" font-weight="800" font-size="9">dispatcher</text><text x="279" y="141">同時実行数を確認</text><text x="279" y="155">ECS RunTask</text>
+    <rect x="340" y="110" width="102" height="58" rx="6" fill="#e8f6f9" stroke="#0e7490"/>
+    <text x="391" y="127" font-weight="800" font-size="9">broadcaster</text><text x="391" y="141">Streams の変更を</text><text x="391" y="155">WebSocket で配信</text>
+    <rect x="452" y="110" width="102" height="58" rx="6" fill="#e8f6f9" stroke="#0e7490"/>
+    <text x="503" y="127" font-weight="800" font-size="9">API（http）</text><text x="503" y="141">Hono・1,024 MB</text><text x="503" y="155">キーの暗号化だけ</text>
+    <rect x="564" y="110" width="102" height="58" rx="6" fill="#e8f6f9" stroke="#0e7490"/>
+    <text x="615" y="127" font-weight="800" font-size="9">WebSocket</text><text x="615" y="141">接続・切断・購読</text><text x="615" y="155">オーソライザー</text>
+  </g>
+  <g stroke="#0e7490" stroke-width="1.3" fill="none" marker-end="url(#a71)"><path d="M480 86V108"/><path d="M610 86V108"/></g>
+  <text x="116" y="185" font-size="8.6" font-weight="700" fill="#0e7490">データ・鍵・キュー</text>
+  <g font-size="8.3" fill="#1f2937" text-anchor="middle">
+    <rect x="116" y="192" width="130" height="58" rx="6" fill="#fff" stroke="#94a3b8"/>
+    <text x="181" y="209" font-weight="800" font-size="9">SQS JobQueue</text><text x="181" y="223">＋ DLQ（5 回失敗で移す）</text><text x="181" y="237">dispatcher が受け取る</text>
+    <rect x="256" y="192" width="130" height="58" rx="6" fill="#fff" stroke="#94a3b8"/>
+    <text x="321" y="209" font-weight="800" font-size="9">DynamoDB × 8</text><text x="321" y="223">オンデマンド・PITR なし</text><text x="321" y="237">Streams → broadcaster</text>
+    <rect x="396" y="192" width="130" height="58" rx="6" fill="#fff" stroke="#94a3b8"/>
+    <text x="461" y="209" font-weight="800" font-size="9">S3 成果物バケット</text><text x="461" y="223">非公開・SSE-S3</text><text x="461" y="237">版の削除を禁止</text>
+    <rect x="536" y="192" width="130" height="58" rx="6" fill="#fff" stroke="#94a3b8"/>
+    <text x="601" y="209" font-weight="800" font-size="9">KMS（CMK）</text><text x="601" y="223">API キーの暗号化</text><text x="601" y="237">復号はワーカーだけ</text>
+  </g>
+  <g stroke="#0e7490" stroke-width="1.3" fill="none" marker-end="url(#a71)"><path d="M236 192V170"/><path d="M366 192V170"/><path d="M500 168V190"/></g>
+  <rect x="116" y="266" width="270" height="74" rx="7" fill="#f4f6f9" stroke="#94a3b8" stroke-dasharray="4 3"/>
+  <text x="126" y="281" font-size="8.4" fill="#5b6474">VPC</text>
+  <text x="260" y="281" font-size="8.2" fill="#5b6474">公開サブネット × 2・NAT なし</text>
+  <rect x="126" y="288" width="250" height="44" rx="6" fill="#fff" stroke="#0e7490" stroke-width="1.6"/>
+  <text x="251" y="305" text-anchor="middle" font-size="9.4" font-weight="800" fill="#111827">ECS Fargate（Spot 優先）：ワーカー</text>
+  <text x="251" y="321" text-anchor="middle" font-size="8.1" fill="#1f2937">1 ジョブ 1 タスク・受信なし・Codex を子プロセスで実行</text>
+  <rect x="396" y="266" width="130" height="74" rx="7" fill="#fdf8f1" stroke="#b45309"/>
+  <text x="461" y="285" text-anchor="middle" font-size="9" font-weight="800" fill="#b45309">スタック BraDb</text>
+  <text x="461" y="301" text-anchor="middle" font-size="8.3">EC2 PostgreSQL + AGE</text>
+  <text x="461" y="316" text-anchor="middle" font-size="8.3">登録 Lambda</text>
+  <text x="461" y="331" text-anchor="middle" font-size="8.3" fill="#5b6474">（第 5 部）</text>
+  <rect x="536" y="266" width="130" height="74" rx="7" fill="#fff" stroke="#94a3b8"/>
+  <text x="601" y="285" text-anchor="middle" font-size="9" font-weight="800">RCS MCP</text>
+  <text x="601" y="301" text-anchor="middle" font-size="8.3">別のシステム</text>
+  <text x="601" y="316" text-anchor="middle" font-size="8.3">（同じアカウント）</text>
+  <text x="601" y="331" text-anchor="middle" font-size="8.3" fill="#5b6474">SABRA の候補を返す</text>
+  <g stroke="#0e7490" stroke-width="1.3" fill="none" marker-end="url(#a71)"><path d="M251 168V286"/><path d="M531 168V256H500V264"/><path d="M200 332V356"/></g>
+  <text x="256" y="262" font-size="7.8" fill="#0e7490">RunTask</text>
+  <text x="536" y="259" font-size="7.8" fill="#0e7490">Invoke</text>
+  <rect x="116" y="358" width="550" height="32" rx="7" fill="#fff" stroke="#94a3b8"/>
+  <text x="391" y="378" text-anchor="middle" font-size="8.5" fill="#1f2937">外部：OpenAI API（Codex のモデル）／ 文献サービス（Crossref・PubMed・Europe PMC・Semantic Scholar）／ 参考資料の URL</text>
+</svg>
+<figcaption><b>図 8.2</b>　AWS の構成。Lambda とワーカーはどれも LLM を含まないプログラムで、エージェントはワーカーが起動する Codex を通して OpenAI API で推論する。図中の BraDb の説明は第 7 部を指す</figcaption>
+</figure>
+
+<h3>計算のリソース</h3>
+<table class="compact">
+  <thead><tr><th style="width:17%">リソース</th><th>仕様</th><th style="width:26%">動くとき</th></tr></thead>
+  <tbody>
+    <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトの Template-v2-2 のブックをその場で作るため）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
+    <tr><td>ECS クラスター</td><td>Fargate と Fargate Spot のキャパシティプロバイダー。Container Insights は無効</td><td>常時（クラスター自体はほぼ無料）</td></tr>
+    <tr><td>Fargate タスク（ワーカー）</td><td>1 vCPU・2 GB・一時ストレージ 21 GB、x86_64。停止の猶予（<code>stopTimeout</code>）は Fargate の上限の 120 秒</td><td>1 ジョブにつき 1 タスク</td></tr>
+    <tr><td>CodeBuild</td><td>ワーカーのイメージをデプロイ時にビルドする。土台のイメージ <code>node:22-bookworm-slim</code> は、Docker Hub ではなく ECR Public のミラー（<code>public.ecr.aws/docker/library/</code>）から取得する。CodeBuild の共有 IP からの匿名の取得は Docker Hub のレート制限に当たり、デプロイが失敗するため</td><td><code>cdk deploy</code> でイメージが変わるとき</td></tr>
+    <tr><td>ECR</td><td>ワーカーのイメージ 1 つ（圧縮で約 0.5 GB）</td><td>常時</td></tr>
+  </tbody>
+</table>
+<p class="small">Lambda 10 本の内訳は、<code>ApiFn</code>（HTTP API）、<code>WsAuthorizerFn</code>・<code>WsConnectFn</code>・<code>WsDisconnectFn</code>・<code>WsDefaultFn</code>（WebSocket）、<code>BroadcasterFn</code>、<code>DispatcherFn</code>、<code>JanitorFn</code>、<code>PlanRunnerFn</code>（計画ランナー）、<code>AuthMessageFn</code> です。このほかに、CDK が配置のために作る補助の Lambda（Web の配置、バケットの自動削除、イメージのビルド）があります。BRA-DB の登録 Lambda は <code>BraDb</code> スタックにあります。</p>
+
+<h3>データのリソース</h3>
+<p>DynamoDB のテーブルは 8 つで、どれもオンデマンド課金です。ポイントインタイムリカバリ（PITR）は使いません。キー・索引・削除方針・属性は 8.5 に、S3 の成果物バケットの設定と中身は 8.6 にまとめます。Web のバケットは非公開で、CloudFront が OAC で読みます。このバケットは DESTROY で、スタックを消すと中身も自動で消えます。</p>
+
+<h3>ネットワーク・配信・認証</h3>
+<table class="compact">
+  <thead><tr><th style="width:18%">リソース</th><th>設定</th></tr></thead>
+  <tbody>
+    <tr><td>VPC</td><td>CDK の既定の /16。2 つの AZ にパブリックサブネット（/24）を 1 つずつ置く。インターネットゲートウェイあり、NAT なし</td></tr>
+    <tr><td>ワーカーのセキュリティグループ</td><td>受信の規則なし。送信はすべて許可（OpenAI、AWS の API、文献サービス）</td></tr>
+    <tr><td>CloudFront</td><td>Price Class 200（北米・欧州・アジア）。HTTP は HTTPS へ転送する。403・404 には <code>index.html</code> を返す（SPA）。<code>/config.json</code> はキャッシュしない</td></tr>
+    <tr><td>HTTP API（<code>cobrac-agents-api</code>）</td><td>JWT オーソライザーが、Cognito の ID トークンの発行者と対象を検査する。匿名で呼べるのは <code>GET /health</code> だけ。CORS のプリフライトには API Gateway 自身が答える</td></tr>
+    <tr><td>WebSocket API（<code>cobrac-agents-ws</code>）</td><td>ステージ <code>prod</code>。接続時に Lambda オーソライザーが、クエリの <code>token</code>（ID トークン）を検査する。1 つの接続は最長 2 時間（API Gateway の上限）</td></tr>
+    <tr><td>Cognito ユーザープール</td><td>メールアドレスでサインイン、SRP、ID トークンとアクセストークンは 2 時間、リフレッシュトークンは 30 日、グループ <code>admin</code>、RETAIN（9.4）</td></tr>
+    <tr><td>アカウントのメール</td><td>確認コード・再送・パスワードの再設定・メールアドレスの変更・管理者による招待のメールは、カスタムメッセージのトリガー <code>authMessage</code> が文面を作る。UI の言語に合わせて日本語か英語にし、分からなければ両方を書く。SES から <code>CoBRAC Agents &lt;no-reply@cobrac.site&gt;</code> で送る。SES のドメイン ID は <code>cobrac.site</code>（ap-northeast-1、Easy DKIM）。DKIM の CNAME と <code>_dmarc</code> の TXT は、別の AWS アカウントの Route 53 のゾーンにある。Cognito はサービスリンクロール <code>AWSServiceRoleForAmazonCognitoIdpEmailService</code> で送る</td></tr>
+    <tr><td>SES の評判のアラーム</td><td>アカウント単位の <code>AWS/SES</code> の <code>Reputation.BounceRate</code> が 5% 以上、または <code>Reputation.ComplaintRate</code> が 0.1% 以上（1 時間の最大値。データがないときは正常とみなす）で、SNS トピック <code>SesAlarmTopic</code> に通知する。復旧も通知する。購読者は SSM の String パラメータ <code>/cobrac-web/alarm-email</code> に入れたアドレス 1 つで、CloudFormation がデプロイ時に値を解決する。アドレスはリポジトリにもテンプレートにも入らない。初回のデプロイの後に一度、購読の確認メールに応じる必要がある。トピックは暗号化しない。CloudWatch は AWS 管理の SNS キーで暗号化したトピックに送れないためで、アラームに個人情報は入らない</td></tr>
+    <tr><td>KMS（CMK）</td><td>利用者の OpenAI API キーを暗号化する鍵。年に 1 回の自動ローテーション、RETAIN</td></tr>
+  </tbody>
+</table>
+
+<h3>ログ</h3>
+<p>CloudWatch Logs の保持期間は、すべての Lambda とワーカーで 14 日です。ロググループ自体は DESTROY です。Logs Insights と Container Insights は使いません。ワーカーのロググループ名は、スタックの出力 <code>WorkerLogGroup</code> で分かります。</p>
+
+<h3>BRA-DB のスタック</h3>
+<p>BRA-DB は常時稼働のスタックで、次のものからなり、月に約 $34 かかります。</p>
+<ul>
+  <li>専用の VPC（<code>10.42.0.0/24</code>、1 AZ）に置いた EC2（t4g.small、PostgreSQL 17 + Apache AGE 1.7）</li>
+  <li>外向きの通信だけを通す NAT インスタンス（t4g.micro）</li>
+  <li>登録 Lambda <code>cobrac-bradb-import</code></li>
+</ul>
+<p>インターネットから受ける通信はなく、5432 番ポートは登録 Lambda からしか受けません。データ用のボリュームは RETAIN で、毎日スナップショットを取って 7 世代を残します。synth のときに <code>COBRAC_BRADB=false</code> にすると、このスタックは作られません。構成と費用の内訳は 7.6 で説明します。</p>
+<p class="small">実装の注意：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。既定のスクリプトは、t4g.nano では <code>yum install</code> がメモリ不足で強制終了され、AL2023 には <code>route</code> もないためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しません。そのため設定を変えたときは、新しい論理 ID（いまは <code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので、RETAIN ガード（8.9）の対象外です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
+
+<h3>パッケージ</h3>
+<p>リポジトリは npm workspaces のモノレポです。リポジトリ全体の構成と作業の規則は 8.9 で説明します。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">パッケージ・フォルダ</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td><code>@cobrac/shared</code></td><td>型、ハーネスの JSON Schema・検査・CSV の生成、グラフ JSON（<code>buildGraphs()</code>）、Project ID と名前の規則（<code>projectId.ts</code>）、単価表（<code>pricing.ts</code>）。API・ワーカー・Web のすべてが使う</td></tr>
+    <tr><td><code>@cobrac/api</code></td><td>Hono のアプリと Lambda のハンドラ（http・dispatcher・ws・broadcaster・janitor・planRunner・authMessage・bradbImport）</td></tr>
+    <tr><td><code>@cobrac/worker</code></td><td>Codex の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>、Python 3、poppler）</td></tr>
+    <tr><td><code>@cobrac/web</code></td><td>SPA（認証、エージェント欄、グラフ、設定、管理画面）</td></tr>
+    <tr><td><code>@cobrac/infra</code></td><td>CDK のスタック <code>CobracAgents</code> と <code>BraDb</code>。Lambda は esbuild でまとめ、ワーカーのイメージはデプロイ時に CodeBuild で作る</td></tr>
+    <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-2.bra.xlsx</code>）。全文は付録 B</td></tr>
+    <tr><td><code>scripts/</code></td><td>リリース、RETAIN ガード、BRA のエラーコードの判定、ID の移行、文書の図の生成など（8.9）</td></tr>
+  </tbody>
+</table>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>・<code>bradb-stack.ts</code>、<code>packages/api/src/handlers/*.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>packages/worker/Dockerfile</code></p>
+
+<h2 id="s8-3">8.3 ジョブの実行と回復</h2>
+<p>ジョブは、API が記録してキューに入れ、dispatcher がワーカーを起動し、ワーカーがエージェントを動かして進めます。止まったジョブを見つけて再開させるのは janitor です。この節では、ジョブの状態とその遷移、ワーカーの起動と同時実行数、実行中の監視、停止と中断、janitor の処理を説明します。ワーカーの中の処理は 8.4、BRA の中身の進み方は第 3 部（長いジョブと保存は 3.15）で説明します。</p>
+
+<h3>状態</h3>
+<p>プロジェクトとジョブは同じ 7 つの状態を使います。</p>
+<table class="compact">
+  <thead><tr><th style="width:24%">状態</th><th style="width:16%">画面</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>QUEUED</code></td><td>待機中</td><td>ワーカーの起動を待っている</td></tr>
+    <tr><td><code>RUNNING</code></td><td>実行中</td><td>ワーカーのタスクが動いている。dispatcher がタスクを起動したときに、プロジェクトを先に <code>RUNNING</code> にする</td></tr>
+    <tr><td><code>WAITING_USER_INPUT</code></td><td>回答待ち</td><td>エージェントが質問した。タスクは終わっていて、Fargate の費用はかからない</td></tr>
+    <tr><td><code>FINALIZING</code></td><td>仕上げ中</td><td>xlsx・グラフ・版を作っている</td></tr>
+    <tr><td><code>COMPLETED</code></td><td>完了</td><td>BRA データができた。フォローアップと解説記事を受け付ける</td></tr>
+    <tr><td><code>FAILED</code></td><td>失敗</td><td>止まった。「続きからリトライ」で前回の成果物から再開できる</td></tr>
+    <tr><td><code>CANCELLED</code></td><td>中止</td><td>利用者・管理者・計画の中止で止めた。リトライできる</td></tr>
+  </tbody>
+</table>
+<figure>
+<svg viewBox="0 0 680 232" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
+  <defs><marker id="p1s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
+  <g font-family="JetBrains Mono, monospace" font-size="10.5" font-weight="700" text-anchor="middle">
+    <rect x="16" y="92" width="120" height="32" rx="16" fill="#f1f5f9" stroke="#64748b"/><text x="76" y="112">QUEUED</text>
+    <rect x="196" y="92" width="120" height="32" rx="16" fill="#eef4ff" stroke="#1d4ed8" stroke-width="1.6"/><text x="256" y="112">RUNNING</text>
+    <rect x="376" y="92" width="120" height="32" rx="16" fill="#eef4ff" stroke="#1d4ed8"/><text x="436" y="112">FINALIZING</text>
+    <rect x="556" y="92" width="116" height="32" rx="16" fill="#ecfdf5" stroke="#047857"/><text x="614" y="112">COMPLETED</text>
+    <rect x="166" y="24" width="180" height="32" rx="16" fill="#fff7ed" stroke="#d97706"/><text x="256" y="44">WAITING_USER_INPUT</text>
+    <rect x="196" y="180" width="120" height="32" rx="16" fill="#fef2f2" stroke="#b91c1c"/><text x="256" y="200">FAILED</text>
+    <rect x="376" y="180" width="120" height="32" rx="16" fill="#f3f4f6" stroke="#6b7280"/><text x="436" y="200">CANCELLED</text>
+  </g>
+  <g stroke="#475569" stroke-width="1.3" fill="none" marker-end="url(#p1s)">
+    <path d="M136 108H194"/>
+    <path d="M316 108H374"/>
+    <path d="M496 108H554"/>
+    <path d="M246 92V58"/>
+    <path d="M166 40H76V90"/>
+    <path d="M614 92V10H56V90"/>
+    <path d="M246 124V178"/>
+    <path d="M196 196H96V126"/>
+    <path d="M268 124V150H436V178"/>
+    <path d="M436 212V222H86V126"/>
+  </g>
+  <g font-size="8.4" fill="#374151">
+    <text x="165" y="102" text-anchor="middle">起動</text>
+    <text x="345" y="102" text-anchor="middle">検証が通る</text>
+    <text x="525" y="102" text-anchor="middle">xlsx・版</text>
+    <text x="240" y="78" text-anchor="end">質問</text>
+    <text x="122" y="34" text-anchor="middle">回答（resume）</text>
+    <text x="470" y="22" text-anchor="middle">追加の指示・解説記事（新しいジョブ）</text>
+    <text x="240" y="150" text-anchor="end">失敗・6 時間</text>
+    <text x="240" y="162" text-anchor="end">応答なし</text>
+    <text x="350" y="145" text-anchor="middle">停止</text>
+    <text x="146" y="190" text-anchor="middle">リトライ</text>
+    <text x="520" y="218">リトライ</text>
+  </g>
+</svg>
+<figcaption><b>図 8.3</b>　プロジェクトとジョブの状態。停止は待機中・回答待ち・仕上げ中からもできる。解説記事のジョブが終わるか失敗すると、プロジェクトは <code>COMPLETED</code> に戻る</figcaption>
+</figure>
+
+<h3>ジョブの状態遷移</h3>
+<ol class="steps">
+  <li><b>依頼</b>：API がプロジェクトとジョブを <code>QUEUED</code> で書き、SQS にメッセージを積みます。</li>
+  <li><b>起動</b>：dispatcher が同時実行数を検査し、空きがあればワーカーのタスクを起動して、ジョブとプロジェクトを <code>RUNNING</code> にします（次の「ワーカーの起動」）。</li>
+  <li><b>実行</b>：ワーカーがジョブを <code>RUNNING</code> にし、ターンを繰り返します（8.4）。</li>
+  <li><b>質問</b>：エージェントがターンを <code>status: "question"</code> で終えると、ワーカーは作業ディレクトリと会話（Codex のスレッド）を S3 に保存し、ジョブとプロジェクトを <code>WAITING_USER_INPUT</code> にしてタスクを終えます。回答（<code>POST /projects/{id}/answer</code>）が届くと同じジョブが <code>QUEUED</code> に戻り、<code>resume</code> モードで同じ会話を再開します（<code>resumeThread</code>）。</li>
+  <li><b>仕上げ</b>：HCD と FRG が受理され、JSON から CSV ができると <code>FINALIZING</code> になります。<code>csv_to_excel.py</code>、Template-v2-2 の書き出し、<code>buildGraphs()</code> の後に版を凍結し、<code>COMPLETED</code> になります。</li>
+  <li><b>完了後</b>：フォローアップ（画面では「追加の指示」。<code>POST /projects/{id}/followup</code>）は、同じ会話で新しいジョブを作ります。解説記事（<code>POST /projects/{id}/articles</code>）も新しいジョブで、BRA データには触れません。</li>
+  <li><b>失敗</b>：ターンの失敗、6 時間の上限、Spot の中断などで <code>FAILED</code> になります。応答のなくなったジョブは、janitor が自動で再開します（後述）。</li>
+</ol>
+<p>実行モード（<code>mode</code>）ごとの動き方は 3.6 で説明します。</p>
+
+<h3>ワーカーの起動</h3>
+<ol class="steps">
+  <li>dispatcher が SQS のメッセージを 1 件ずつ受け取ります。ジョブが見つからないか、もう <code>QUEUED</code> でなければ、メッセージを捨てます。</li>
+  <li>同時実行数を検査します。<code>RUNNING</code> と <code>FINALIZING</code> のジョブを、全体と利用者ごとに数えます。回答待ちのジョブはタスクが終わっているので数えません。どちらかが上限に達していれば、60 秒後に届くようにメッセージを積み直します。待っている間、メッセージは SQS の中にあり、費用はかかりません。</li>
+  <li>Fargate Spot でタスクを起動します（<code>RunTask</code>）。Spot の容量がないなどで失敗したら、通常の Fargate（On-Demand）で起動し直します。タスクには <code>cobrac:projectId</code>・<code>cobrac:jobId</code> のタグを付けます。</li>
+  <li>起動できたら、タスクの ARN とハートビートの時刻をジョブに書き、プロジェクトを <code>RUNNING</code> にして、エージェント欄に「ワーカーを起動しました（Fargate Spot）。」を出します。On-Demand で起動したときは、その旨を括弧の中に書きます。</li>
+  <li>起動そのものに失敗したら、理由を付けて「ワーカー起動を再試行します（…）。」と出し、60 秒後に積み直します。</li>
+</ol>
+<p>プロジェクトを持たないジョブ（Canon の AI レビュー、計画のジョブ）では、エージェント欄に何も出しません。</p>
+
+<h3>同時実行数</h3>
+<p>同時に動かせるワーカーのタスクの数には、全体と 1 人あたりの 2 つの上限があります。</p>
+<table class="compact">
+  <thead><tr><th style="width:22%">上限</th><th style="width:40%">デプロイの値（GitHub の Variables）</th><th>管理画面の設定</th></tr></thead>
+  <tbody>
+    <tr><td>全体（Fargate タスクの数）</td><td><code>COBRAC_MAX_CONCURRENT_JOBS</code>（既定 2）</td><td>1〜16 の整数。空ならデプロイの値</td></tr>
+    <tr><td>1 人あたり</td><td><code>COBRAC_MAX_CONCURRENT_JOBS_PER_USER</code>（既定 1）</td><td>1〜16 の整数。空ならデプロイの値</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>管理画面の設定は、<code>Catalog</code> の <code>config</code> / <code>concurrency</code> に、変えた人と時刻とともに保存されます。0 や 17 以上の値は API が拒みます。</li>
+  <li>dispatcher と計画ランナーは、設定を 30 秒のキャッシュを通して読みます。そのため、変更にデプロイは要りません。設定を読めないときはデプロイの値を使います。</li>
+  <li>オーケストレーターは、両方の上限に空きがあるときだけ、行や計画のジョブをキューに入れます。このときは待機中のジョブも数えます。計画の待ちは SQS ではなく DynamoDB の中にあるので、キューの 24 時間の時間切れに当たりません。計画のジョブも、待機中と実行中は両方の上限に数えます（6.11）。</li>
+  <li>上限を上げると、Fargate の費用はほぼ比例して増えます（9.9）。</li>
+  <li>1 回の実行は、OpenAI のトークンを毎分約 14〜17 万使います（測定は付録 D）。デプロイの API キーの組織の上限（TPM）は、<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code> で毎分 200 万です（OpenAI の Build tier の値）。約 10 本を並べても、計画のジョブの分を残して上限に収まります。</li>
+</ul>
+
+<h3>実行中の監視と保存</h3>
+<table class="compact">
+  <thead><tr><th style="width:20%">仕組み</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td>ハートビート</td><td>BRA と解説記事のジョブでは 60 秒ごとにジョブの <code>lastHeartbeat</code> を書く。そのついでにジョブが <code>CANCELLED</code> になっていないかを調べ、なっていれば状態を保存して終了する。AI レビューと計画のジョブは 45 秒ごとに書く</td></tr>
+    <tr><td>途中の保存</td><td>BRA のジョブでは、ハートビートのついでに、前回の保存から 5 分たっていれば作業ディレクトリと会話を S3 に上げる（<code>PERIODIC_PERSIST_MS</code>）。中断で失う作業は、その間の分だけになる。解説記事のジョブは作業ディレクトリを書き戻さないので対象外。ハートビート、段階の受理、SIGTERM のときの保存は、重ならないように 1 本ずつ実行する</td></tr>
+    <tr><td>最長の実行時間</td><td>連続 6 時間（<code>WORKFLOW_TIMEOUT_MS</code>）。ワーカーは 1 分ごとに経過時間を調べ、超えたら打ち切ったターンの使用量を数えて、ジョブを失敗にする（「最大実行時間（6時間）を超過しました。リトライで続きから再開できます。」）</td></tr>
+    <tr><td>質問</td><td>作業ディレクトリと <code>CODEX_HOME</code> を S3 に保存してタスクを終了する。その間 Fargate の費用はかからない。回答が届くと、新しいタスクが会話を再開する</td></tr>
+    <tr><td>OpenAI のレート制限</td><td>Codex が再接続を試み、それでも失敗したターンはワーカーが間を置いて再試行する（8.4）</td></tr>
+  </tbody>
+</table>
+
+<h3>停止と中断</h3>
+<p><b>停止：</b>利用者・管理者・計画が停止すると、API がジョブを <code>CANCELLED</code> にし、ECS の <code>StopTask</code> を送ります。<code>StopTask</code> はコンテナに SIGTERM を送り、ワーカーは状態を保存して終わります。ワーカーはハートビートのたびにジョブの状態も見ているので、SIGTERM が届かなくても 1 分以内に中止に気づきます。</p>
+<p><b>Spot の中断：</b>Fargate Spot は AWS の都合で中断されることがあり、中断の 2 分前にコンテナに SIGTERM が届きます。ECS は停止の猶予（120 秒）の後にコンテナを止めます。SIGTERM を受けたワーカーは、次の順に処理します（<code>handleStop</code>）。</p>
+<ol class="steps">
+  <li>打ち切られたターンの使用量をセッションの記録から数え、ジョブの費用に足します。</li>
+  <li>ジョブが実行中（<code>RUNNING</code>・<code>FINALIZING</code>）なら、エージェント欄に「ワーカーが停止されます（Fargate Spot の中断など）。ここまでの作業を保存し、ジョブは自動で再開します。」と出します。</li>
+  <li>作業ディレクトリと会話を S3 に保存します。</li>
+  <li>ハートビートを古い時刻（1970 年）に書き換えます。次の janitor の実行（5 分以内）がこのジョブを自動リトライし、保存した続きから再開します。保存に失敗しても、この書き換えは行います。</li>
+</ol>
+<p>停止による SIGTERM のときは、保存だけを行います。すでに終わったジョブや回答待ちのジョブには何もしません。SIGTERM が届かずにタスクが消えた場合でも、途中の保存があるので、失う作業は最大で 5 分ぶんです。</p>
+<div class="box note">
+  <div class="h">実機で確認していないこと</div>
+  <p>本番の Spot の中断は意図して起こせません。そのため、中断からの再開は単体テストと <code>cdk synth</code>（タスク定義の <code>StopTimeout: 120</code>、janitor の <code>rate(5 minutes)</code>）でだけ確認しています。実際の中断が起きたら、ワーカーのログの <code>SIGTERM handled: retry</code> と、エージェント欄の「ワーカーが停止されます…」で動作を確認します。</p>
+</div>
+
+<h3>janitor の処理</h3>
+<p>janitor は 5 分ごとに動き、次のジョブを見つけて処理します。</p>
+<table class="compact">
+  <thead><tr><th style="width:20%">対象の状態</th><th style="width:22%">条件</th><th>処理</th></tr></thead>
+  <tbody>
+    <tr><td><code>RUNNING</code>・<code>FINALIZING</code></td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA と解説記事のジョブ：試行回数（<code>retryCount</code>）が 2（<code>MAX_AUTO_RETRY</code>）未満なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>QUEUED</code> で作ってキューに入れる。モードは <code>retry</code>、解説記事は <code>article</code>。エージェント欄には「ワーカーからの応答が途絶えたため、自動で再開します（n/2）。」と出す。2 回に達していれば <code>FAILED</code> にし、「続きからリトライ」で再開するよう案内する。AI レビューと計画のジョブ：<code>FAILED</code> にするだけで再開しない。その失敗は PR の画面と計画ランナーが扱う</td></tr>
+    <tr><td><code>WAITING_USER_INPUT</code></td><td>最後の更新から 7 日（<code>WAITING_INPUT_TIMEOUT_MS</code>）</td><td><code>FAILED</code>（回答待ちの時間切れ）。成果物は S3 に残り、「続きからリトライ」で再開できる</td></tr>
+    <tr><td><code>QUEUED</code></td><td>作成から 24 時間</td><td><code>FAILED</code>（24 時間以内にワーカーを起動できなかった）</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>失敗の理由は、英語の本文と翻訳キー（<code>meta.i18n</code>）で保存し、画面は UI の言語で表示します。</li>
+  <li>解説記事のジョブが失敗しても、プロジェクトは <code>COMPLETED</code> のままです。BRA データは変わらないためです。</li>
+  <li>手動のリトライも、前のジョブの試行回数に 1 を足した新しいジョブを作ります。そのため、手動のリトライを 2 回した後のジョブは、janitor の自動リトライの対象になりません。</li>
+</ul>
+<p class="src">典拠：<code>packages/api/src/handlers/dispatcher.ts</code>・<code>janitor.ts</code>、<code>packages/api/src/lib/runs.ts</code>・<code>concurrency.ts</code>、<code>packages/shared/src/plan.ts</code>（同時実行数の定数）・<code>types.ts</code>（<code>HEARTBEAT_STALE_MS</code>・<code>WAITING_INPUT_TIMEOUT_MS</code>）、<code>packages/worker/src/index.ts</code>・<code>interrupt.ts</code>・<code>codex.ts</code>・<code>env.ts</code></p>
+
+<h2 id="s8-4">8.4 ワーカーの処理</h2>
+<p>ワーカーは Fargate のタスクで動く TypeScript のプログラムで、入口は <code>packages/worker/src/index.ts</code> です。dispatcher が環境変数（<code>JOB_USER_ID</code>・<code>JOB_PROJECT_ID</code>・<code>JOB_ID</code>・<code>JOB_MODE</code>）でジョブを指定します。<code>JOB_PROJECT_ID</code> は作業ディレクトリと S3 の接頭辞の名前になるので、ID の形が合わなければ起動しません。<code>canon-review</code> では Canon の ID、<code>plan</code> では計画の ID、それ以外ではプロジェクトの ID の形を求めます。</p>
+
+<h3>BRA のジョブの手順</h3>
+<ol class="steps">
+  <li>Users・Projects・Jobs を読み、使う API キーを選び（<code>runKey.ts</code> の <code>planRunKey</code>）、KMS で復号します。利用者自身のキーがあればそれを使い、なければ、利用承認があって Tier がジョブのモデルを許す間だけデフォルトの API キーを使います（4.1）。RCS の接続先とトークンを Secrets Manager から読みます。読めなければ RCS なしで続けます。</li>
+  <li><code>prompts/AGENTS.md</code> を <code>/work</code> にコピーし（<code>&lt;ProjectID&gt;</code> の箇所を ID に置き換える）、JSON Schema を <code>/work/schemas/</code> に書きます。<code>resume</code>・<code>followup</code>・<code>retry</code> では、作業ディレクトリと会話を S3 から戻します。参考資料を用意し（4.2）、Canon に入っていれば、固定した rev の定義を <code>/work/canon/</code> に置きます（5.5）。<code>followup</code> では、いまのデータにまだ版がなければ、変える前にそれを版として凍結します（4.5、付録 C）。</li>
+  <li><code>createCodex</code> → <code>openThread</code> で会話を開きます。設定は、<code>sandboxMode: danger-full-access</code>、承認なし、ネットワークあり、Web 検索 live、<code>lit</code> MCP と RCS MCP です。Fargate のタスク自体がサンドボックスで、コンテナの中では Landlock も seccomp も使えません（9.5）。ターンごとにそのターンの設定で会話を開くので、調査のターンだけを高い推論の強さで実行できます。</li>
+  <li>調査モードで、作業ディレクトリの調査が終わっていなければ、調査ステップを実行します（3.7）。続いて段階を実行します（次の「ターンの制御」）。出来事を Messages に書き、ファイルが変わるたびにプロジェクトの <code>stepStates</code> と <code>activeStage</code> を更新します。<code>activeStage</code> は、調査中は <code>RESEARCH</code>、調整のターンは <code>ADJUST</code>、それ以外は実行中の段階の名前です。</li>
+  <li>段階を受理するたびと、質問・完了・失敗で終わる直前に、作業ディレクトリと会話を S3 に差分で同期します。ターンの実行中も 5 分ごとに保存します（8.3）。</li>
+  <li>CSV がそろったら、<code>finalize.ts</code> が xlsx・テンプレートの xlsx・グラフ JSON を作って S3 に送り、版を凍結して、ジョブとプロジェクトを <code>COMPLETED</code> にします。</li>
+</ol>
+
+<h3>ターンの制御</h3>
+<p>BRA のジョブは、次の段階を順に進みます。段階を進めるのはワーカーです。</p>
+<pre>（調査）→ HCD → FRG →（HCD と FRG の整合の検査、調整のターン 1 回）→ CSV → xlsx</pre>
+<p>段階を「完了」にするのは、その段階のプログラムによる検査がファイルを受理したときだけです。ファイルがあるだけでは「実行中」にしかなりません。FRG の段階はエージェントを HCD に戻せます（3.11）。CSV と xlsx はエージェントではなくワーカーが作ります。各段階の中身は第 3 部で説明します。</p>
+<p>1 つの段階の中の繰り返しは次のとおりです。ループは <code>packages/worker/src/pipeline.ts</code> の <code>runPhases</code> です。ファイルの受け渡しの詳細は 3.4・3.5・3.10 で説明します。</p>
+<ol class="steps">
+  <li>Codex の <code>runStreamed</code> で 1 ターンを実行し（<code>outputSchema</code> 付き）、出来事を Messages に書きます。</li>
+  <li>最後の返答が <code>status: "question"</code> なら、状態を S3 に書いて終わります（8.3）。</li>
+  <li>ターンのたびに、いまの段階を検査します（<code>packages/shared/src/harness.ts</code> の <code>checkHcd</code> / <code>checkFrg</code>）。検査するのは、JSON Schema、ファイルをまたぐ参照、UC の命名、インターフェース、FRG の制約、値が英語だけであること、レポートの節です。文献も同じ段階で照合します（<code>packages/shared/src/references.ts</code> の <code>checkCitations</code>、<code>packages/worker/src/references.ts</code> の <code>ReferenceVerifier</code>。3.10）。</li>
+  <li>問題があれば、その一覧を修正依頼として返します。修正ターンは 1 段階につき <code>MAX_NUDGES</code>（3）回までです。修正ターンは挙げた問題を直すだけなので、推論の強さを <code>min(プロジェクトの強さ, medium)</code>（<code>fixTurnEffort</code>）にして実行します。問題が残れば警告を出して先に進み、出力が使えなければジョブを失敗にします。</li>
+  <li>段階が受理されたら、次の段階の依頼を送ります。後の段階のファイルがすでに検査に通るとき（フォローアップの後など）は、作り直しません。エージェントが FRG や CSV の段階で HCD のファイルを変えたとき、または CSV の段階で FRG のファイルを変えたときは、後の段階がそれを検査し直し、新しい問題を自分の問題と一緒に返します（3.11）。</li>
+  <li>CSV の段階では、<code>buildCsvs</code> が JSON から 5 つの CSV を機械的に作ります。エージェントは CSV を書きません。生成に失敗したら、その問題を JSON の修正依頼として返します。</li>
+  <li>連続 6 時間の実行で打ち切ります（8.3）。</li>
+</ol>
+
+<h3>ターンの失敗と再試行</h3>
+<ul>
+  <li><b>失敗とみなす条件：</b>ターンが失敗するのは、<code>turn.failed</code> のときか、ストリームが <code>turn.completed</code> なしに <code>error</code> の出来事で終わったときだけです。Codex はレート制限の再試行を <code>error</code> の出来事として報告します（「Reconnecting... 2/5 (rate limit exceeded …)」）。これはお知らせとして出し、ターンは続きます。Codex が <code>error</code> の項目として報告する致命的でない注意（「Model metadata for `x` not found」「Falling back from WebSockets to HTTPS transport」など）もお知らせとして出し、本当のエラーだけをエラーとして扱います。失敗したターンの後、<code>codex exec</code> は終了コード 1 で終わりますが、ワーカーはその終了ではなく、ターン自身のエラーを報告します。</li>
+  <li><b>レート制限：</b>OpenAI のレート制限（TPM・RPM、HTTP 429）に当たると、まず Codex 自身が最大 5 回まで再接続を試みます。それでもターンが失敗したら、ワーカーが間を置いて同じ会話で続きを依頼します。待ち時間は 30 秒〜3 分で、サーバーの「try again in …」に 5 秒を足した値と、30 秒・60 秒・120 秒（回ごとに倍）の大きいほうです。この再試行は 3 回まで（<code>codex.ts</code> の <code>RATE_LIMIT_TURN_RETRIES</code>）で、待つ間もハートビートを送ります。それでも失敗すればジョブを失敗にします。</li>
+  <li><b>再試行しない失敗：</b>利用枠（quota）を使い切ったとき、請求の問題、1 回の依頼が大きすぎるときは、待っても直らないので再試行しません。</li>
+  <li><b>依頼が大きすぎるとき：</b>1 回の依頼が 1 分あたりのトークンの上限より大きいと（「Request too large … Limit …, Requested …」）、待っても通りません。会話の文脈が上限に達すると、その会話のターンはすべて拒まれます。そのため、大きすぎるとして拒まれたターンは同じ会話では再試行せず、ワーカーが新しい会話に切り替えます。新しい会話は 1 回だけ始め、プロジェクトの見出し、ここまでの作業はファイルにあるという注記、HCD と FRG の仕様を付けて、同じ依頼を送ります。</li>
+  <li><b>会話の圧縮：</b>会話を十分小さく保つため、Codex は <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75,000、<code>model_auto_compact_token_limit</code>）で会話を圧縮します。この値は速さのためでもあります。文脈の大きい依頼ほど返答が遅く、ジョブの時間の大半がそうした依頼に使われていたためです（測定は付録 D）。圧縮自体は数秒で終わります。</li>
+</ul>
+
+<h3>モデルの目録と文脈の大きさ</h3>
+<ul>
+  <li>Codex CLI（<code>@openai/codex-sdk</code> と一緒に入る）は、モデルの目録の情報を必要とします。目録にないモデルでは代わりの情報で動き、「Model metadata for `x` not found」と警告します。</li>
+  <li>単価表のすべてのモデルは、入っている CLI の目録（<code>codex debug models --bundled</code>）になければなりません。<code>packages/worker/test/codexCatalog.test.ts</code> がこれを検査します。</li>
+  <li><code>gpt-5.6</code> という別名は目録にないので、ワーカーは OpenAI がそれを振り向ける <code>gpt-5.6-sol</code> を Codex に渡します。ジョブには利用者が選んだモデルを記録します（4.2）。</li>
+  <li><code>model_context_window</code> はどのモデルも 272,000 です。OpenAI は gpt-5.6 と gpt-6 の文脈を 1,050,000 トークンとしていますが、272K を超える入力は 2 倍の料金で、Codex の目録もすべて 272,000 です。圧縮のしきい値（75,000）は、これより十分小さい値です。</li>
+  <li>Codex には、出力の最大トークン（これらのモデルでは 128,000）の設定はありません。</li>
+</ul>
+
+<h3>コードの既定値で動く設定</h3>
+<p>ワーカーと janitor には、インフラで設定せず、コードの既定値で動いている設定があります。デプロイの設定値は運用手順書にまとめています。</p>
+<table class="compact">
+  <thead><tr><th style="width:34%">環境変数</th><th style="width:22%">既定値</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>CODEX_AUTO_COMPACT_TOKENS</code></td><td>75,000</td><td>会話を圧縮するしきい値</td></tr>
+    <tr><td><code>RESEARCH_TIME_BUDGET_MIN</code></td><td>60 分</td><td>調査ステップの時間予算（3.7）</td></tr>
+    <tr><td><code>WORKFLOW_TIMEOUT_MS</code></td><td>6 時間</td><td>最長の実行時間</td></tr>
+    <tr><td><code>MAX_NUDGES</code></td><td>3</td><td>1 段階あたりの修正ターンの上限</td></tr>
+    <tr><td><code>REFERENCE_LOOKUP</code>・<code>QUOTE_CHECK</code></td><td>どちらも有効</td><td>文献の照合と引用文の照合（3.10）</td></tr>
+    <tr><td><code>QUOTE_MATCH_THRESHOLD</code></td><td>0.9</td><td>引用文の一致のしきい値</td></tr>
+    <tr><td><code>CROSSREF_MAILTO</code>・<code>NCBI_API_KEY</code></td><td>未設定</td><td>Crossref に送る連絡先と、NCBI E-utilities のキー</td></tr>
+    <tr><td><code>MAX_AUTO_RETRY</code>（janitor）</td><td>2</td><td>自動リトライの回数（8.3）</td></tr>
+  </tbody>
+</table>
+<p>同時実行数を上げると Fargate の費用が比例して増え、大きいモデルを指定すると OpenAI の費用だけが増えます。</p>
+
+<h3>BRA 以外のジョブ</h3>
+<p>LLM のジョブは次の 4 種類で、それぞれ別の会話です。互いの会話を共有することはありません。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">LLM の仕事</th><th style="width:20%">ジョブ</th><th style="width:26%">会話</th><th style="width:24%">使えるツール</th><th>詳しくは</th></tr></thead>
+  <tbody>
+    <tr><td>BRA を作る（エージェント）</td><td><code>initial</code>・<code>followup</code>（<code>resume</code>・<code>retry</code> で続ける）</td><td>プロジェクトの会話を続けて使う</td><td>Web 検索（live）、<code>lit</code> MCP、RCS MCP、プロジェクトフォルダでのコマンド</td><td>第 3 部</td></tr>
+    <tr><td>解説記事を書く</td><td><code>article</code></td><td>毎回新しい会話</td><td>Web 検索・<code>lit</code>・RCS なし</td><td>3.14</td></tr>
+    <tr><td>Canon の PR の AI レビュー</td><td><code>canon-review</code></td><td>毎回新しい会話。<code>projectId</code> には Canon の ID が入る</td><td>Web 検索・MCP なし</td><td>5.8</td></tr>
+    <tr><td>計画の下書きと再計画</td><td><code>plan</code>（<code>draft</code> / <code>replan</code>）</td><td>毎回新しい会話。<code>projectId</code> には計画の ID が入る</td><td>RCS MCP だけ</td><td>6.4、6.6</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b><code>article</code></b>（<code>index.ts</code> の <code>articleJob</code>、ループは <code>article.ts</code>）：キーを決めた後に BRA のジョブと分かれます。作業ディレクトリだけを戻し、図を描き、記事の 1 ターンと修正ターンを実行します。図と <code>article/&lt;locale&gt;.md</code> / <code>.json</code> を送り、プロジェクトを <code>COMPLETED</code> に戻します（3.14）。</li>
+  <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業ディレクトリも使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意します。RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し、返答が読めなければ 1 回だけ再試行します。時間予算（<code>PLAN_JOB_TIME_BUDGET_MS</code>）は 7 分で、xlsx・PDF を読む下書きと 20 行を超える下書きは 25 分です。RCS が知らない HOMBA のアンカーを除いてから <code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.4）。</li>
+  <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、ツールのない新しい会話で指摘を JSON で返させ、<code>result.json</code> に書きます。自律実行の計画の判断のジョブ（<code>reviewKind: "decide"</code>）は、判定も返します（5.8、6.8）。</li>
+</ul>
+<p>AI レビューと計画のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 で説明します。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>・<code>pipeline.ts</code>・<code>env.ts</code>・<code>codex.ts</code>・<code>runKey.ts</code>・<code>finalize.ts</code>・<code>s3sync.ts</code>・<code>interrupt.ts</code>・<code>article.ts</code>・<code>planJob.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>references.ts</code>・<code>types.ts</code>（<code>fixTurnEffort</code>）・<code>planJob.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/Dockerfile</code></p>
+</section>
