@@ -5,7 +5,7 @@ import { ATTACHMENT_LIMITS, PLAN_LIMITS } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes } from "../../lib/format";
-import { PLAN_FILE_ACCEPT, fmtElapsed } from "../../lib/plan";
+import { PLAN_FILE_ACCEPT } from "../../lib/plan";
 import { checkPlanFiles, uploadPlanFiles } from "../../lib/planFiles";
 import { inputCls, primaryBtn } from "../../pages/CanonsPage";
 import { jobError, secondaryBtn } from "./common";
@@ -61,7 +61,7 @@ function DraftJob({ plan, busy, onCancel }: { plan: PlanRecord; busy: boolean; o
     <div className="flex flex-col gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700 sm:flex-row sm:items-center" data-testid="plan-drafting" role="status">
       <div className="flex min-w-0 flex-1 items-center gap-2 font-medium">
         <Loader2 size={16} className="shrink-0 animate-spin" aria-hidden />
-        <span className="min-w-0 break-words">{t("plan.drafting", { state: t(`plan.job.${j?.status ?? "waiting"}` as MessageKey), time: fmtElapsed(j?.requestedAt, Date.now(), t) })}</span>
+        <span className="min-w-0 break-words">{t("plan.drafting", { state: t(`plan.job.${j?.status ?? "waiting"}` as MessageKey) })}</span>
       </div>
       <button type="button" disabled={busy} onClick={onCancel} className={`${secondaryBtn} shrink-0 text-slate-700`}>
         <Square size={14} aria-hidden /> {t("plan.cancelDraft")}

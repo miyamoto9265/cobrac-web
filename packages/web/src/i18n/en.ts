@@ -1031,7 +1031,7 @@ export const en = {
   "plan.createDraft": "Create draft",
   "plan.createDraftNote": "“Create draft” writes the rows, anchors, dependencies and granularity policy from the goal and the source lists, and orders the rows automatically. It runs one planning job whose cost is recorded: usually a few minutes, up to about half an hour for xlsx or PDF lists or more than {n} rows.",
   "plan.redraftQ": "Create a draft? A planning job reads the goal, the source lists and the current rows, writes rows, anchors, dependencies and the granularity policy, and orders the rows automatically. The current rows stay. The job is billed like any other job.",
-  "plan.drafting": "Drafting: {state} ({time} so far)",
+  "plan.drafting": "Drafting: {state}",
   "plan.draftingNote": "The rows cannot be edited until the draft is ready, usually within a few minutes.",
   "plan.draftingNoteLong": "The rows cannot be edited until the draft is ready. A draft that reads xlsx or PDF lists or covers more than {n} rows can take up to about half an hour.",
   "plan.cancelDraft": "Cancel draft",

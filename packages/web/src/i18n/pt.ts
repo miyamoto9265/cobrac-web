@@ -1033,7 +1033,7 @@ export const pt: Record<MessageKey, string> = {
   "plan.createDraft": "Criar rascunho",
   "plan.createDraftNote": "“Criar rascunho” escreve, a partir do objetivo e das listas de capacidades, as linhas, âncoras, dependências e a política de granularidade, e ordena as linhas automaticamente. Executa um trabalho de planejamento, cujo custo é registrado: costuma levar alguns minutos, e até cerca de meia hora com listas em xlsx ou PDF ou mais de {n} linhas.",
   "plan.redraftQ": "Criar um rascunho? Um trabalho de planejamento lê o objetivo, as listas de capacidades e as linhas atuais, escreve linhas, âncoras, dependências e a política de granularidade e ordena as linhas automaticamente. As linhas atuais são mantidas. O trabalho é cobrado como qualquer outro.",
-  "plan.drafting": "Criando rascunho: {state} (há {time})",
+  "plan.drafting": "Criando rascunho: {state}",
   "plan.draftingNote": "As linhas não podem ser editadas até o rascunho ficar pronto, o que costuma levar alguns minutos.",
   "plan.draftingNoteLong": "As linhas não podem ser editadas até o rascunho ficar pronto. Um rascunho que lê listas em xlsx ou PDF, ou que abrange mais de {n} linhas, pode levar até cerca de meia hora.",
   "plan.cancelDraft": "Cancelar rascunho",

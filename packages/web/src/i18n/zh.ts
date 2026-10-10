@@ -1033,7 +1033,7 @@ export const zh: Record<MessageKey, string> = {
   "plan.createDraft": "生成草稿",
   "plan.createDraftNote": "“生成草稿”会根据目标和能力列表写出行、锚点、依赖关系和粒度方针的草稿，并自动排定顺序。会运行 1 个规划任务，其费用会被记录：通常需要几分钟，读取 xlsx 或 PDF 列表或超过 {n} 行时最长约半小时。",
   "plan.redraftQ": "要生成草稿吗？规划任务会读取目标、能力列表和当前各行，写出行、锚点、依赖关系和粒度方针，并自动排定顺序。当前各行会保留。该任务与其他任务一样计费。",
-  "plan.drafting": "草稿生成中：{state}（已过 {time}）",
+  "plan.drafting": "草稿生成中：{state}",
   "plan.draftingNote": "草稿完成前无法编辑各行，通常几分钟内完成。",
   "plan.draftingNoteLong": "草稿完成前无法编辑各行。读取 xlsx 或 PDF 列表、或超过 {n} 行的草稿，最长可能需要半小时左右。",
   "plan.cancelDraft": "取消草稿",

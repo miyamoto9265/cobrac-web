@@ -11,6 +11,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - "Projects" is no longer a sidebar link: the project list opens from "See all" next to the History heading
 - Admins: the specification is no longer a sidebar link; it opens from the "Specification" button at the top of the admin page
 
+### Fixed
+- CoBRAC Orchestrator: the autonomous-run setting of the new plan form and of a draft's "3. How it runs" now leads with "Autonomous run", what it does and its cost limit; "Handle pull requests and conflicts yourself" is a secondary checkbox below them. Before, that checkbox was the heading, so the autonomous run and its cost limit sat under an unticked box. The cost limit field is a short number field again, and the explanations of the autonomous run and of the cost limit are in their (?) tips instead of paragraphs
+- CoBRAC Orchestrator: the model pickers of a draft's "3. How it runs" (the Orchestrator's model, the agents' model and their reasoning effort) are compact: smaller labels and lower pickers in one row of limited width
+- CoBRAC Orchestrator: the drafting banner and the plan list show only the state of the draft job (for example 「下書きを作成中: 開始を待っています」), without the elapsed time
+
 ## [0.42.0] - 2026-10-10
 
 ### Changed

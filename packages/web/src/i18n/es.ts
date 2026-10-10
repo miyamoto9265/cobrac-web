@@ -1033,7 +1033,7 @@ export const es: Record<MessageKey, string> = {
   "plan.createDraft": "Crear borrador",
   "plan.createDraftNote": "«Crear borrador» redacta, a partir del objetivo y de las listas de capacidades, las filas, las anclas, las dependencias y la política de granularidad, y ordena las filas automáticamente. Ejecuta un trabajo de planificación cuyo costo se registra: suele tardar unos minutos, y hasta media hora aproximadamente con listas en xlsx o PDF o con más de {n} filas.",
   "plan.redraftQ": "¿Crear un borrador? Un trabajo de planificación lee el objetivo, las listas de capacidades y las filas actuales, redacta filas, anclas, dependencias y la política de granularidad, y ordena las filas automáticamente. Las filas actuales se conservan. El trabajo se factura como cualquier otro.",
-  "plan.drafting": "Creando borrador: {state} (desde hace {time})",
+  "plan.drafting": "Creando borrador: {state}",
   "plan.draftingNote": "Las filas no se pueden editar hasta que el borrador esté listo; suele tardar unos minutos.",
   "plan.draftingNoteLong": "Las filas no se pueden editar hasta que el borrador esté listo. Un borrador que lee listas en xlsx o PDF, o que abarca más de {n} filas, puede tardar hasta media hora aproximadamente.",
   "plan.cancelDraft": "Cancelar borrador",
