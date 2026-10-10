@@ -120,6 +120,7 @@ export const ko: Record<MessageKey, string> = {
   "projects.search": "Name / Project ID / ROI / TLF로 검색",
   "projects.allStatus": "모든 상태",
   "projects.status": "상태",
+  "projects.name": "프로젝트 이름",
   "projects.model": "모델",
   "projects.tokensCost": "토큰 / 요금",
   "projects.created": "생성",

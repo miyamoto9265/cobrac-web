@@ -200,7 +200,7 @@ export function ProjectsPage() {
         <table className="w-full text-sm">
           <thead className="whitespace-nowrap bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
-              <th className="px-4 py-2">Project ID</th>
+              <th className="px-4 py-2">{t("projects.name")}</th>
               <th className="px-4 py-2">ROI</th>
               <th className="px-4 py-2">TLF</th>
               <th className="px-4 py-2">{t("projects.status")}</th>

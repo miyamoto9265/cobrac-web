@@ -120,6 +120,7 @@ export const zh: Record<MessageKey, string> = {
   "projects.search": "按 Name / Project ID / ROI / TLF 搜索",
   "projects.allStatus": "全部状态",
   "projects.status": "状态",
+  "projects.name": "项目名称",
   "projects.model": "模型",
   "projects.tokensCost": "Token / 费用",
   "projects.created": "创建",

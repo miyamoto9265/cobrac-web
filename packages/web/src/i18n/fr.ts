@@ -120,6 +120,7 @@ export const fr: Record<MessageKey, string> = {
   "projects.search": "Rechercher par Name / Project ID / ROI / TLF",
   "projects.allStatus": "Tous les statuts",
   "projects.status": "Statut",
+  "projects.name": "Nom du projet",
   "projects.model": "Modèle",
   "projects.tokensCost": "Tokens / coût",
   "projects.created": "Créé",

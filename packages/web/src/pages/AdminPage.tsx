@@ -342,7 +342,7 @@ export function AdminPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2">Project ID</th>
+                <th className="px-3 py-2">{t("projects.name")}</th>
                 <th className="px-3 py-2">{t("admin.owner")}</th>
                 <th className="px-3 py-2">{t("projects.status")}</th>
                 <th className="px-3 py-2">{t("projects.model")}</th>

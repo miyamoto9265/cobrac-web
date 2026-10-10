@@ -118,6 +118,7 @@ export const en = {
   "projects.search": "Search by Name / Project ID / ROI / TLF",
   "projects.allStatus": "All statuses",
   "projects.status": "Status",
+  "projects.name": "Project name",
   "projects.model": "Model",
   "projects.tokensCost": "Tokens / cost",
   "projects.created": "Created",
