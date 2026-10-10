@@ -41,7 +41,7 @@
 
 <h2 id="sc-2">C.2 命名</h2>
 <h3>古い形の Descriptor と Circuit ID</h3>
-<p>v0.16 までは、左右をアンカーで表していました。片側の BNA 領域は単一のラベルで書き（<code>BNA:57</code> が左の A4ul）、DHBA 側や BNA の群は <code>@L</code> / <code>@R</code> を付けました（<code>BNAG:FuG@L</code>）。Circuit ID も <code>A4ul@L</code> の形で、括弧の中の区切りは <code>,</code>、投射は <code>out:</code> と書いていました。v0.17.0 からは、左右を facet <code>side</code> で表し、区切りを <code>.</code>、投射を <code>out-</code> と書きます（2.8）。</p>
+<p>v0.16 までは、左右をアンカーで表していました。片側の BNA 領域は単一のラベルで書き（<code>BNA:57</code> が左の A4ul）、DHBA 側や BNA の群は <code>@L</code> / <code>@R</code> を付けました（<code>BNAG:FuG@L</code>）。Circuit ID も <code>A4ul@L</code> の形で、括弧の中の区切りは <code>,</code>、投射は <code>out:</code> と書いていました。v0.17.0 からは、左右を facet <code>side</code> で表し、区切りを <code>.</code>、投射を <code>out-</code> と書きます（2.8）。たとえば <code>MVOcC(V1,L4Ca)</code> は <code>MVOcC(V1.L4Ca)</code> に、<code>Amyg(BL,out:CEN)</code> は <code>Amyg(BL.out-CEN)</code> になりました。</p>
 <p>v0.16 までに作ったプロジェクトと Canon には、古い形の Descriptor と Circuit ID が残っています。<b>保存済みのデータは書き換えません。</b>読むときに現在の形へ直し、その形で比べます。</p>
 <figure data-figure="circuit-naming-legacy.ja.svg"><figcaption><b>図 C.1</b>　古い形の読み替え。検査は次のフォローアップで書き直しを求め、Canon は同じ回路・同じ ID として比べ、出力は保存された ID をそのまま出す</figcaption></figure>
 <table class="compact">
@@ -58,12 +58,12 @@
   <li><b>検査</b>：古いプロジェクトの次のフォローアップでは、ワーカーの検査が現在の形への書き直しを求めます。対象には、接続、Sub-Circuits、Output Semantics、<code>[U.…]</code> の参照も含みます。書き直すのはエージェントです。</li>
   <li><b>正規化</b>：Descriptor を比べるときの正規化（2.5）は、最初に古い形を現在の形に直してから、<code>mol</code> の値の並べ替えと小文字化を行います。</li>
   <li><b>出力</b>：ビューアと CSV / xlsx は、保存された ID をそのまま出します。<code>,</code> を含む古い ID は、CSV の書き出しが自動でクォートします。</li>
-  <li><b>Canon</b>：古い形と現在の形を、同じ回路・同じ ID として比べます。衝突ルール C4（Circuit ID と Descriptor の 1 対 1）も、古い ID を現在の形に直してから判定します（5.7）。</li>
+  <li><b>Canon</b>：古い形と現在の形を、同じ回路・同じ ID として比べます（<code>currentCanonSnapshot</code>、2.12）。<code>bna:29</code> と <code>bna:29-30/side:left</code> は同じ回路で、<code>A44d@L</code> と <code>A44d(left)</code> は同じ Circuit ID なので、衝突ルール C4（Circuit ID と Descriptor の 1 対 1、5.7）にはなりません。プロジェクトが現在の形を持ち込むと PR には改名として表示され、マージ後の Canon は現在の形になります。</li>
   <li>片側の単一ラベルと逆側の <code>side</code> が混ざった Descriptor（<code>BNA:57/side:right</code>）は、読み替えずにエラーにします。</li>
 </ul>
 
 <h3>SABRA の境界が以前のままのプロジェクト</h3>
-<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは新皮質だけになりました（2.3）。v0.24.0 より前に作ったプロジェクトは、この変更の影響を受けません。</p>
+<p>2026-10-04 の SABRA の仕様の変更で、BNA を使うのは新皮質だけになりました（2.3）。それまでは、扁桃体・海馬・大脳基底核・視床の皮質下の 36 ラベルと、嗅内皮質（<code>A28/34</code>）・側頭無顆粒島皮質（<code>TI</code>）も BNA で表していました。嗅皮質・梨状皮質などの不等皮質も BNA の側でしたが、BNA にラベルはありませんでした。いまはこれらを DHBA の項で表します。v0.24.0 より前に作ったプロジェクトは、この変更の影響を受けません。</p>
 <ul>
   <li><b>プロジェクト</b>：<code>sabraBoundary</code> を持たないプロジェクトは、以前の境界のまま検査します。皮質下の BNA のアンカーのまま読み込み・検査・出力ができ、フォローアップでも書き直しを求めません。新しいプロジェクトは、作成時に <code>sabraBoundary: "neocortex"</code> を持ちます。複製は元の設定を引き継ぎます。</li>
   <li><b>版</b>：版の manifest には、検査が従った境界（<code>neocortex</code> / <code>legacy</code>）と、RCS が返した境界のバージョンが残ります（4.5）。</li>
@@ -146,7 +146,8 @@
 </table>
 <ul>
   <li>頭の <code>u…</code> は利用者の <code>userKey</code> です。利用者の項目の <code>projectSeq</code> / <code>canonSeq</code> は、この形で最後に発行した番号で、もう進めません。</li>
-  <li>v0.7 より前の利用者ごとの slug は、どちらの形にも当てはまりません。移行した古い ID からの転送のためにだけ解決されます。</li>
+  <li>以前の形の ID は仮名の利用者キーを含みますが、Cognito の <code>sub</code> やメールアドレスは含みません。分かるのは 2 つのプロジェクトが同じ利用者のものだということだけなので、そのまま残しています（9.6）。</li>
+  <li>v0.7 より前の利用者ごとの slug は、どちらの形にも当てはまりません。移行した古い ID からの転送のためにだけ解決されます。この古い形の ID のプロジェクトは公開できません。公開できるのは、ランダムな形か <code>&lt;userKey&gt;-&lt;seq&gt;</code> の形の ID のプロジェクトです（4.6）。</li>
   <li>v0.7 より前の古い ID は、2 人の利用者が同じ値を持ちえます。Jobs・Messages・<code>project-index</code> は <code>projectId</code> だけをキーにしているので、読み出しはすべて所有者で絞ります（8.5）。</li>
 </ul>
 
@@ -159,7 +160,7 @@
   <li>もう一度実行すると、移したコピーの隣に残った古い Projects の項目も消します。</li>
   <li>移行前の ID の URL は、新しい ID に転送します（<code>GET /projects/resolve/{id}</code>）。削除したプロジェクトは転送の対象から外れます。</li>
 </ul>
-<p>画面の URL も、古いものは新しい場所へ転送します。古いチャットの URL <code>/chat/:id</code> はプロジェクト画面へ、<code>/docs/CHANGELOG</code> は「リリースノート」ページ（<code>/releases</code>）へ移ります。</p>
+<p>画面の URL も、古いものは新しい場所へ転送します。古いチャットの URL <code>/chat/:id</code> はクエリを保ったままプロジェクト画面へ、<code>/docs/CHANGELOG</code> は「リリースノート」ページ（<code>/releases</code>）へ移ります。</p>
 
 <h3>古い名前</h3>
 <p>自動で付けた名前（<code>nameSource = "auto"</code>）が古い ASCII の slug のままのプロジェクトがあります。たとえば TLF が <code>VOR</code>、ROI が <code>小脳</code> のプロジェクトの名前が <code>VOR</code> になっているものです。こうしたプロジェクトは、画面でもダウンロードのファイル名でも、仮の名前（<code>&lt;TLF&gt; in &lt;ROI&gt;</code>）を使います。</p>
@@ -182,7 +183,7 @@
 </ul>
 
 <h3>Template-v2-2 形式の xlsx がないプロジェクト</h3>
-<p>Template-v2-2 形式の xlsx をワーカーが作るようになる前に完了したプロジェクトと、CoBRAC の xlsx よりファイルが古いプロジェクトには、この出力がありません（3.13）。<code>GET /projects/{id}/artifacts/template-xlsx</code> を呼ぶと、API の Lambda が同梱のテンプレートを使って、作業ディレクトリの CSV と JSON からその場で作って保存し、署名付き URL を返します。<code>CoBRAC-v1-x</code> のどの CSV も読めます。API の Lambda のメモリを 1,024 MB にしているのは、このブックをその場で作るためです（8.2）。</p>
+<p>Template-v2-2 形式の xlsx をワーカーが作るようになる前に完了したプロジェクトと、CoBRAC の xlsx よりファイルが古いプロジェクトには、この出力がありません（3.13）。<code>GET /projects/{id}/artifacts/template-xlsx</code> を呼ぶと、API の Lambda が同梱のテンプレートを使って、作業ディレクトリの CSV と JSON からその場で作って保存し、署名付き URL を返します。<code>CoBRAC-v1-x</code> のどの CSV も読めます。そのため、こうしたプロジェクトではヘッダーの「BRA xlsx (Template-v2-2)」の最初のクリックでファイルを作り、ボタンはその完了を待ちます。API の Lambda のメモリを 1,024 MB にしているのは、このブックをその場で作るためです（8.2）。</p>
 <p class="src">典拠：<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/lib/versions.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>packages/web/src/components/workspace/VersionsView.tsx</code>、<code>packages/api/src/app.ts</code>（template-xlsx）、<code>CHANGELOG.md</code>（0.26.0・0.28.2）</p>
 
 <h2 id="sc-6">C.6 データモデル</h2>
@@ -194,8 +195,11 @@
 <table class="compact">
   <thead><tr><th style="width:16%">テーブル</th><th style="width:24%">属性</th><th style="width:16%">加わった時期</th><th>値がないときの扱い</th></tr></thead>
   <tbody>
+    <tr><td>Users</td><td><code>projectSeq</code> / <code>canonSeq</code></td><td>—（もう進めない）</td><td>ランダムな ID より前に発行した ID の最後の番号として残るだけで、使わない（C.4）</td></tr>
+    <tr><td>Projects</td><td><code>researchMode</code></td><td>v0.11.0</td><td>調査なしで動く</td></tr>
     <tr><td>Projects</td><td><code>sabraBoundary</code></td><td>v0.24.0</td><td>以前の境界で検査する（C.2）</td></tr>
     <tr><td>Projects</td><td><code>harnessRules</code></td><td>v0.25.0</td><td>0 として扱い、ROI 規則も GN 規則も付けない（C.3）</td></tr>
+    <tr><td>Projects</td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code></td><td>v0.32.0</td><td><code>evidenceMode</code> がなければ <code>strict</code> と同じで、文献の裏付けだけを使う。上限がなければ 20%（<code>DEFAULT_HYPOTHESIS_MAX_SHARE</code>）</td></tr>
     <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
     <tr><td>Messages</td><td><code>userId</code></td><td>v0.7</td><td>そのジョブの所有者で絞り込む。WebSocket の配信も同じく判断する</td></tr>
     <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>行のモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
@@ -212,12 +216,16 @@
 <ul>
   <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。いまはこの指示をやめています（6.8）。</li>
   <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、いまは使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
+  <li>開発段階 3（計画の Canon、v0.36.0）より前に作った計画は Canon を持たず、Canon のない計画として動きます。</li>
   <li>計画の資料の CSV では、バッチの列名として「波」もいまの「バッチ」「batch」「wave」と同じに読みます。以前の画面の表記に合わせた名前です。</li>
 </ul>
 
+<h3>以前の既定で保存したグラフの配置</h3>
+<p>グラフのエッジの既定の線の種類はいま曲線です（8.7）。以前の直交の既定で保存した配置は、線の種類を持たずに曲がりだけを持つことがあります。そのエッジは、曲がりを保つために直交のままにします。</p>
+
 <h3>v0.20.0 より前の PR</h3>
 <p>Canon の PR の履歴は、追記専用の項目 <code>PEV#…</code> に残します（5.8）。この項目がない v0.20.0 より前の PR は、push と判断を <code>PR#</code> の項目から組み立て直して表示します。</p>
-<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>QUESTION_REGEX</code>）・<code>systemMessage.ts</code>・<code>plan.ts</code>（<code>orchestratorModelOf</code>、列名の別名）、<code>packages/worker/src/index.ts</code>・<code>codex.ts</code>、<code>packages/web/src/components/MessageItem.tsx</code>、<code>packages/api/src/lib/ownership.ts</code>、<code>packages/api/src/lib/canonReview.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>QUESTION_REGEX</code>）・<code>systemMessage.ts</code>・<code>plan.ts</code>（<code>orchestratorModelOf</code>、列名の別名）、<code>packages/worker/src/index.ts</code>・<code>codex.ts</code>、<code>packages/web/src/components/MessageItem.tsx</code>、<code>packages/api/src/lib/ownership.ts</code>、<code>packages/api/src/lib/canonReview.ts</code>、<code>packages/shared/src/hypothesis.ts</code>、<code>packages/web/src/</code>（グラフの編集）</p>
 
 <h2 id="sc-7">C.7 使用量</h2>
 <p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す会話（Codex のスレッド）の累計を、ターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
