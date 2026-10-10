@@ -45,7 +45,7 @@
     <text x="59" y="146">ID トークンを付けて</text>
     <text x="59" y="159">API を呼ぶ</text>
     <text x="59" y="206">WebSocket で</text>
-    <text x="59" y="219">進み具合を受ける</text>
+    <text x="59" y="219">進捗を受ける</text>
     <text x="59" y="246">実行中は 20 秒</text>
     <text x="59" y="259">ごとに読み直す</text>
   </g>
@@ -127,7 +127,7 @@
   </g>
   <g text-anchor="middle" fill="#111827">
     <text x="59" y="355" font-size="9" font-weight="700">SES</text><text x="59" y="369" font-size="8" fill="#475569">アカウントのメール</text>
-    <text x="191" y="355" font-size="9" font-weight="700">BRA-DB（別スタック）</text><text x="191" y="369" font-size="8" fill="#475569">API が登録を依頼（第 5 部）</text>
+    <text x="191" y="355" font-size="9" font-weight="700">BRA-DB（別スタック）</text><text x="191" y="369" font-size="8" fill="#475569">API が登録を依頼（第 7 部）</text>
     <text x="329" y="355" font-size="9" font-weight="700">PubMed・Europe PMC</text><text x="329" y="369" font-size="8" fill="#475569">Crossref（文献と照合）</text>
     <text x="467" y="355" font-size="9" font-weight="700">RCS MCP</text><text x="467" y="369" font-size="8" fill="#475569">SABRA の単位を引く</text>
     <text x="610" y="355" font-size="9" font-weight="700">OpenAI API</text><text x="610" y="369" font-size="8" fill="#475569">モデルの推論</text>
@@ -172,7 +172,7 @@
     <path d="M598 399H622" stroke="#64748b" stroke-width="1.1" stroke-dasharray="4 3" marker-end="url(#p1g)"/><text x="626" y="403">読み書き</text>
   </g>
 </svg>
-<figcaption><b>図 8.1</b>　システムの構成。青い線は、プロジェクトの作成からワーカーの起動を経て、進捗が画面に届くまでの流れ。LLM が動くのはワーカーの中のエージェント（Codex の子プロセス）だけ。図中の BRA-DB の説明は第 7 部を指す</figcaption>
+<figcaption><b>図 8.1</b>　システムの構成。青い線は、プロジェクトの作成からワーカーの起動を経て、進捗が画面に届くまでの流れ。LLM が動くのはワーカーの中のエージェント（Codex の子プロセス）だけ</figcaption>
 </figure>
 <ol class="steps">
   <li>利用者がブラウザでプロジェクトを作ると、SPA が Cognito の ID トークンを付けて HTTP API（<code>POST /projects</code>）を呼びます。API Gateway がトークンを検証し、API の Lambda がプロジェクトとジョブを <code>QUEUED</code> で DynamoDB に書き、SQS にジョブのメッセージを積みます。</li>
@@ -281,7 +281,7 @@
   <text x="461" y="285" text-anchor="middle" font-size="9" font-weight="800" fill="#b45309">スタック BraDb</text>
   <text x="461" y="301" text-anchor="middle" font-size="8.3">EC2 PostgreSQL + AGE</text>
   <text x="461" y="316" text-anchor="middle" font-size="8.3">登録 Lambda</text>
-  <text x="461" y="331" text-anchor="middle" font-size="8.3" fill="#5b6474">（第 5 部）</text>
+  <text x="461" y="331" text-anchor="middle" font-size="8.3" fill="#5b6474">（第 7 部）</text>
   <rect x="536" y="266" width="130" height="74" rx="7" fill="#fff" stroke="#94a3b8"/>
   <text x="601" y="285" text-anchor="middle" font-size="9" font-weight="800">RCS MCP</text>
   <text x="601" y="301" text-anchor="middle" font-size="8.3">別のシステム</text>
@@ -293,7 +293,7 @@
   <rect x="116" y="358" width="550" height="32" rx="7" fill="#fff" stroke="#94a3b8"/>
   <text x="391" y="378" text-anchor="middle" font-size="8.5" fill="#1f2937">外部：OpenAI API（Codex のモデル）／ 文献サービス（Crossref・PubMed・Europe PMC・Semantic Scholar）／ 参考資料の URL</text>
 </svg>
-<figcaption><b>図 8.2</b>　AWS の構成。Lambda とワーカーはどれも LLM を含まないプログラムで、エージェントはワーカーが起動する Codex を通して OpenAI API で推論する。図中の BraDb の説明は第 7 部を指す</figcaption>
+<figcaption><b>図 8.2</b>　AWS の構成。Lambda とワーカーはどれも LLM を含まないプログラムで、エージェントはワーカーが起動する Codex を通して OpenAI API で推論する</figcaption>
 </figure>
 
 <h3>計算のリソース</h3>
