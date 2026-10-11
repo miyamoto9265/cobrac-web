@@ -336,11 +336,11 @@
 <p>BRA-DB は常時稼働のスタックで、次のものからなり、月に約 $34 かかります。</p>
 <ul>
   <li>専用の VPC（<code>10.42.0.0/24</code>、1 AZ）に置いた EC2（t4g.small、PostgreSQL 17 + Apache AGE 1.7）</li>
-  <li>外向きの通信だけを通す NAT インスタンス（t4g.micro）</li>
+  <li>外向きの通信だけを通す NAT インスタンス（t4g.micro）。Elastic IP を付け、外への通信の出口を 1 つの固定のアドレスにしている</li>
   <li>登録 Lambda <code>cobrac-bradb-import</code></li>
 </ul>
 <p>インターネットから受ける通信はなく、5432 番ポートは登録 Lambda からしか受けません。データ用のボリュームは RETAIN で、毎日スナップショットを取って 7 世代を残します。synth のときに <code>COBRAC_BRADB=false</code> にすると、このスタックは作られません。構成と費用の内訳は 7.6 に記載しています。</p>
-<p class="small">実装の注意：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。既定のスクリプトは、t4g.nano では <code>yum install</code> がメモリ不足で強制終了され、AL2023 には <code>route</code> もないためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しません。そのため設定を変えたときは、新しい論理 ID（現在は<code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので、RETAIN ガード（8.9）の対象外です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
+<p class="small">実装の注意：NAT インスタンス（Amazon Linux 2023、<code>NatProvider.instanceV2</code>）は CDK の既定の初期化スクリプトを使わず、独自のスクリプトで swap（512 MB）、<code>iptables-services</code>、IP 転送、マスカレードを設定します。既定のスクリプトは、t4g.nano では <code>yum install</code> がメモリ不足で強制終了され、AL2023 には <code>route</code> もないためです。NAT インスタンスはユーザーデータを最初の起動で 1 回しか実行しません。そのため設定を変えたときは、新しい論理 ID（現在は<code>NatInstanceMicro</code>）を付けて置き換えます。データを持たないので、RETAIN ガード（8.9）の対象外です。Elastic IP（<code>NatEip</code>）は別のリソースで、置き換えた NAT インスタンスに付け直されるので、出口のアドレスは変わりません。EIP は RETAIN で、RETAIN ガードの対象です。一方、データベースのインスタンスは起動のたびに <code>bootstrap.sh</code> を実行します（<code>cloud_final_modules: scripts-user always</code>）。</p>
 
 <h3>パッケージ</h3>
 <p>リポジトリは npm workspaces のモノレポです。リポジトリ全体の構成と作業の規則は 8.9 に記載しています。</p>

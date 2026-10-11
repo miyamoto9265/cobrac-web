@@ -96,6 +96,9 @@ test("guards the BRA-DB instance and its data volume in the BraDb stack", () => 
     // the NAT instance holds no data and may be replaced
     "[-] AWS::EC2::Instance Vpc/publicSubnet1/NatInstance VpcpublicSubnet1NatInstance6B5DA608 destroy",
     "[~] AWS::EC2::Instance Vpc/publicSubnet1/NatInstance NatInstanceMicro replace",
+    // outside databases allow the NAT's Elastic IP; its association follows a replaced NAT instance
+    "[-] AWS::EC2::EIP NatEip NatEip orphan",
+    "[~] AWS::EC2::EIPAssociation NatEipAssociation NatEipAssociation replace",
     "Stack CobracAgents",
   ].join("\n");
   assert.deepEqual(findRetainRisks(text), {
@@ -104,6 +107,7 @@ test("guards the BRA-DB instance and its data volume in the BraDb stack", () => 
       { type: "AWS::EC2::Instance", resource: "Db Db5D02A0A9", change: "replace" },
       { type: "AWS::EC2::Volume", resource: "DataVolume DataVolume1234", change: "orphan" },
       { type: "AWS::EC2::VolumeAttachment", resource: "DataVolumeAttachment DataVolumeAttachment1", change: "replace" },
+      { type: "AWS::EC2::EIP", resource: "NatEip NatEip", change: "orphan" },
     ],
   });
 });
