@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import type { FileAttachment } from "./attachments.js";
+import type { PlanPolicy } from "./planPolicy.js";
 import { parseCsv } from "./csv.js";
 import type { UiLocale } from "./locale.js";
 import { randomCrockfordId } from "./projectId.js";
@@ -213,10 +214,30 @@ export interface PlanUnread {
 export type PlanJobKind = "draft" | "replan";
 /**
  * waiting: requested, not yet queued (the runner queues it when a slot is free, never ahead of one). queued / running:
- * mirrors its job. done: its result was applied (draft) or stored as proposals (replan). failed / cancelled: ended
- * without a result (`error`).
+ * mirrors its job. asking: a draft job asked the owner questions before writing the rows (`qa`); the draft goes on
+ * once they answer or skip them. done: its result was applied (draft) or stored as proposals (replan). failed /
+ * cancelled: ended without a result (`error`).
  */
-export type PlanJobStatus = "waiting" | "queued" | "running" | "done" | "failed" | "cancelled";
+export type PlanJobStatus = "waiting" | "queued" | "running" | "asking" | "done" | "failed" | "cancelled";
+
+/** Questions the Orchestrator may ask before it drafts: at most `questions` per round, `rounds` rounds (the first, then follow-ups). */
+export const PLAN_ASK_LIMITS = { questions: 3, rounds: 2, choices: 4, question: 300, choice: 120, answer: 1000 } as const;
+
+/** One question of the Orchestrator before a draft, with answers it suggests (the owner may write their own). */
+export interface PlanDraftQuestion {
+  text: string;
+  choices: string[];
+}
+
+/** One round of questions before a draft and the owner's answers (null until answered; "" for a question left open). */
+export interface PlanDraftRound {
+  questions: PlanDraftQuestion[];
+  answers: string[] | null;
+  askedAt: string;
+  answeredAt?: string | null;
+  /** The owner chose to go on without answering: no more questions for this draft */
+  skipped?: boolean;
+}
 
 /** The latest `plan` job of a plan (draft or re-plan), on its `META` item. */
 export interface PlanJobState {
@@ -245,6 +266,8 @@ export interface PlanJobState {
   wave?: number | null;
   /** Reply language of the job */
   locale?: UiLocale | null;
+  /** Draft: the rounds of questions asked before it (the last one is open while `status` is asking) */
+  qa?: PlanDraftRound[];
 }
 
 export type PlanRowCounts = Record<PlanRowState, number>;
@@ -269,8 +292,11 @@ export interface PlanRecord {
   goal: string;
   status: PlanStatus;
   settings: PlanSettings;
-  /** Granularity policy (粒度方針) for the plan's Canon: written by the Orchestrator (the draft, then re-plans), never by the owner */
-  policy?: string;
+  /**
+   * 方針 (planPolicy.ts): written by the Orchestrator (the draft, then re-plans), never by the owner. A string on plans
+   * from before the five items: their granularity (read it with `planPolicyOf`).
+   */
+  policy?: PlanPolicy | string;
   /** Absent on stage-1 plans = manual */
   ordering?: PlanOrdering;
   /** Set at confirmation: flow for plans ordered automatically; absent = waves */
@@ -289,7 +315,7 @@ export interface PlanRecord {
   lastReplanWave?: number | null;
   /** Stage 3: the plan's Canon (one of the owner's; set when chosen, or when a new one is created at confirmation) */
   canonId?: string | null;
-  /** Stage 3: a Canon to create at confirmation (with the plan's policy) */
+  /** Stage 3: a Canon to create at confirmation (with the granularity of the plan's policy) */
   canonNew?: { name: string } | null;
   /** Harness rule set of every row's project, fixed at confirmation (`HARNESS_RULES` then) */
   harnessRules?: number | null;
@@ -411,8 +437,8 @@ export interface PlanProposalRecord {
   row?: { roi: string; tlf: string; rationale: string; anchors: string[]; dependsOn: string[] } | null;
   /** remove: the row to leave out */
   rowId?: string | null;
-  /** policy: the new granularity policy */
-  policy?: string | null;
+  /** policy: the whole new policy (a string on proposals from before the five items: the granularity) */
+  policy?: PlanPolicy | string | null;
   reason: string;
   status: PlanProposalStatus;
   jobId: string;
@@ -444,6 +470,8 @@ export type PlanEventType =
   | "draft_applied"
   | "draft_failed"
   | "draft_cancelled"
+  | "draft_asked"
+  | "draft_answered"
   | "ordered"
   | "replanned"
   | "replan_failed"
@@ -507,6 +535,12 @@ export interface CreatePlanRequest {
 }
 
 /** POST /plans/:id/resume: an autonomous plan paused at its cost limit resumes with a higher limit. */
+/** The owner's answers to the questions the Orchestrator asked before drafting (one per question), or `skip` to go on without them. */
+export interface AnswerDraftRequest {
+  answers?: string[];
+  skip?: boolean;
+}
+
 export interface ResumePlanRequest {
   maxCostUsd?: number;
 }

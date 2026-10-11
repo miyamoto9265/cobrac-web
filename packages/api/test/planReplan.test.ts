@@ -2,7 +2,7 @@
 // actually used, the re-plan job and its proposals), and plans ordered by hand, which never re-plan.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePlanResponse, JobRecord, PlanDetailResponse, PlanEventRecord, PlanJobInput, PlanJobResult, PlanProposalRecord, PlanRecord, PlanRowRecord, ProjectRecord } from "@cobrac/shared";
-import { PLAN_JOB_RESULT_SCHEMA, planJobKey, replanRows } from "@cobrac/shared";
+import { PLAN_JOB_RESULT_SCHEMA, planJobKey, planPolicyOf, replanRows } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -195,7 +195,7 @@ describe("plans: re-planning after each wave", () => {
     expect(proposalsOf(planId).filter((p) => p.status === "open").map((p) => p.kind)).toEqual(expect.arrayContaining(["add", "remove", "remove", "remove"]));
     expect(snapshot(planId)).toEqual(rowsBefore);
     // the policy is the Orchestrator's: applied at once, without the owner
-    expect(planOf(planId).policy).toBe("neocortex = area, subcortex = nucleus");
+    expect(planOf(planId).policy).toEqual(planPolicyOf("neocortex = area, subcortex = nucleus"));
     expect(proposalsOf(planId).find((p) => p.kind === "policy")).toMatchObject({ status: "accepted", decidedBy: "runner" });
     expect(eventsOf(planId).filter((e) => e.type === "proposal_accepted")).toHaveLength(1);
     // stored once even if the step runs again
@@ -384,13 +384,13 @@ describe("plans: re-planning after each wave", () => {
     const planId = await runningLanguagePlan();
     const parsed = {
       proposals: [
-        { kind: "policy" as const, rowId: null, row: null, policy: "neocortex = area", reason: "Projection classes were not separable." },
+        { kind: "policy" as const, rowId: null, row: null, policy: planPolicyOf("neocortex = area"), reason: "Projection classes were not separable." },
         { kind: "remove" as const, rowId: rowOf(planId, "prosody").rowId, row: null, policy: null, reason: "Covered by phonological processing." },
         { kind: "add" as const, rowId: null, row: { roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121), dependsOn: [], wave: 1, priority: null } as never, policy: null, reason: "Nobody owns it yet." },
       ],
     };
     expect(await storeProposals(planId, "job_same", 1, parsed, "runner")).toBe(2);
-    expect(planOf(planId).policy).toBe("neocortex = area");
+    expect(planOf(planId).policy).toEqual(planPolicyOf("neocortex = area"));
     const first = proposalsOf(planId);
     expect(first.find((p) => p.kind === "add")!.row).toEqual({ roi: "left pSTS", tlf: "voice recognition", rationale: "", anchors: bna(121), dependsOn: [] });
     const remove = first.find((p) => p.kind === "remove")!;

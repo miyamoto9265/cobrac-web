@@ -2,7 +2,7 @@
 // existing projects, plan jobs and the limits, the janitor and the dispatcher for plan jobs.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CreatePlanResponse, PlanAttachmentsResponse, JobRecord, PlanDetailResponse, PlanDraftRow, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord, UsageSummary } from "@cobrac/shared";
-import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, sharedAnchors } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEY, OVERLAP_LIMIT, PLAN_JOB_REASONING_EFFORT, PLAN_JOB_RESULT_SCHEMA, byWaveAndOrder, planJobKey, planPolicyOf, sharedAnchors } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -215,7 +215,7 @@ describe("plans: drafting with the plan job", () => {
     finishJob(planId, job.jobId, languageResult(ids));
     await advancePlan(planId);
     const plan = planOf(planId);
-    expect(plan).toMatchObject({ status: "DRAFT", ordering: "auto", policy: POLICY, rowCount: 12, draft: { status: "done", unread: [{ source: "capabilities.xlsx", location: "Sheet1!A14", reason: "not a brain function" }], dropped: 3 } });
+    expect(plan).toMatchObject({ status: "DRAFT", ordering: "auto", policy: planPolicyOf(POLICY), rowCount: 12, draft: { status: "done", unread: [{ source: "capabilities.xlsx", location: "Sheet1!A14", reason: "not a brain function" }], dropped: 3 } });
     expect(eventsOf(planId).at(-1)).toMatchObject({ type: "draft_applied", detail: { rows: 12, added: 10, unread: 1, dropped: 3 } });
 
     const rows = rowsOf(planId);
@@ -391,6 +391,62 @@ describe("plans: drafting with the plan job", () => {
     expect(rowsOf(planId)).toEqual([]);
   });
 
+  it("asks the owner up to 3 questions before drafting, once more after the answers, and drafts with them", async () => {
+    const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, draft: true }))).plan.planId;
+    await advancePlan(planId);
+    const [first] = planJobs(planId);
+    expect(inputOf(planId, first.jobId)).toMatchObject({ kind: "draft", ask: true, qa: [] });
+    expect(await status(call(A, "POST", `/plans/${planId}/draft/answers`, { answers: ["x"] }))).toBe(409);
+    // four questions (one too many) and rows: the plan asks the first three and writes no row yet
+    const q = (text: string, choices: string[] = []) => ({ text, choices });
+    finishJob(planId, first.jobId, { rows: languageResult({ r01: "r01", r02: "r02" }).rows, questions: [q("読み書きも含めますか？", ["含める", "含めない"]), q("優先する機能はありますか？"), q("左半球だけですか？"), q("四つめ")] });
+    await advancePlan(planId);
+    expect(planOf(planId)).toMatchObject({ status: "DRAFTING", draft: { status: "asking", jobId: first.jobId } });
+    expect(planOf(planId).draft!.qa).toEqual([{ questions: [q("読み書きも含めますか？", ["含める", "含めない"]), q("優先する機能はありますか？"), q("左半球だけですか？")], answers: null, askedAt: expect.any(String) }]);
+    expect(rowsOf(planId)).toEqual([]);
+    expect(eventsOf(planId).at(-1)).toMatchObject({ type: "draft_asked", detail: { questions: 3, round: 1 } });
+    // nothing runs while the owner has not answered
+    await advancePlan(planId);
+    expect(planJobs(planId)).toHaveLength(1);
+    expect(await status(call(A, "POST", `/plans/${planId}/draft/answers`, { answers: ["", " "] }))).toBe(400);
+
+    // the answers (one left blank) go to the next draft job, which may still ask a follow-up
+    expect(await status(call(A, "POST", `/plans/${planId}/draft/answers`, { answers: ["含める", "", "はい"] }))).toBe(202);
+    await advancePlan(planId);
+    const second = planJobs(planId).find((j) => j.jobId !== first.jobId)!;
+    expect(inputOf(planId, second.jobId)).toMatchObject({
+      ask: true,
+      qa: [
+        [
+          { question: "読み書きも含めますか？", answer: "含める" },
+          { question: "優先する機能はありますか？", answer: "" },
+          { question: "左半球だけですか？", answer: "はい" },
+        ],
+      ],
+    });
+    finishJob(planId, second.jobId, { questions: [q("書字は Exner 野でよいですか？")] });
+    await advancePlan(planId);
+    expect(planOf(planId).draft).toMatchObject({ status: "asking" });
+    expect(planOf(planId).draft!.qa).toHaveLength(2);
+
+    // skipped: the last job may not ask, and questions it returns anyway are dropped
+    expect(await status(call(A, "POST", `/plans/${planId}/draft/answers`, { skip: true }))).toBe(202);
+    await advancePlan(planId);
+    const third = planJobs(planId).find((j) => j.jobId !== first.jobId && j.jobId !== second.jobId)!;
+    expect(inputOf(planId, third.jobId)).toMatchObject({ ask: false });
+    expect(inputOf(planId, third.jobId).qa).toHaveLength(2);
+    finishJob(planId, third.jobId, { ...languageResult({ r01: "new1", r02: "new2" }), questions: [q("もう一つ")] });
+    await advancePlan(planId);
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", draft: { status: "done" } });
+    expect(rowsOf(planId).length).toBeGreaterThan(5);
+    expect(planOf(planId).draft!.qa![1]).toMatchObject({ skipped: true, answers: [""] });
+    expect(eventsOf(planId).map((e) => e.type)).toEqual(["created", "draft_requested", "draft_asked", "draft_answered", "draft_asked", "draft_answered", "draft_applied"]);
+
+    // a new draft starts without the earlier questions
+    await json(call(A, "POST", `/plans/${planId}/draft`, {}));
+    expect(planOf(planId).draft!.qa).toBeUndefined();
+  });
+
   it("runs its own jobs on the Orchestrator's model and the rows on the Agents' model", async () => {
     const planId = (await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: GOAL, rows: [{ roi: "left IFG", tlf: "speech production" }] }))).plan.planId;
     const p = await json<PlanRecord>(call(A, "PUT", `/plans/${planId}`, { settings: { model: "agents-model", orchestratorModel: "orchestrator-model" } }));
@@ -401,11 +457,13 @@ describe("plans: drafting with the plan job", () => {
     expect(job).toMatchObject({ type: "plan", planJobKind: "draft", model: "orchestrator-model" });
     finishJob(planId, job.jobId, { rows: [], policy: POLICY });
     await advancePlan(planId);
-    expect(planOf(planId)).toMatchObject({ status: "DRAFT", policy: POLICY });
+    expect(planOf(planId)).toMatchObject({ status: "DRAFT", policy: planPolicyOf(POLICY) });
     const confirmed = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, {}));
     expect(confirmed.settings).toMatchObject({ model: "agents-model", orchestratorModel: "orchestrator-model" });
-    const project = fake.items("projects").find((x) => x.planId === planId) as unknown as { model: string };
+    const project = fake.items("projects").find((x) => x.planId === planId) as unknown as ProjectRecord;
     expect(project.model).toBe("agents-model");
+    // the row's agent gets the plan's policy as it was when the row started
+    expect(project.planPolicy).toEqual(planPolicyOf(POLICY));
   });
 
   it("needs a key to run jobs with, and the chosen model", async () => {

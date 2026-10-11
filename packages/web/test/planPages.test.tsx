@@ -15,6 +15,8 @@ const api = vi.hoisted(() => ({
   importPlanRows: vi.fn(),
   confirmPlan: vi.fn(),
   planAction: vi.fn(),
+  answerDraft: vi.fn(),
+  cancelDraft: vi.fn(),
   planRowAction: vi.fn(),
   deletePlan: vi.fn(),
   answer: vi.fn(),
@@ -72,6 +74,7 @@ async function render(path: string, state?: unknown) {
           <Routes>
             <Route path="/plans" element={<PlansPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/projects/:projectId" element={<div data-testid="project-page" />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -90,7 +93,7 @@ async function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
   api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
-  for (const fn of [api.answer, api.planRowAction, api.planAction, api.savePlanRows, api.confirmPlan]) fn.mockResolvedValue({ ok: true });
+  for (const fn of [api.answer, api.planRowAction, api.planAction, api.savePlanRows, api.confirmPlan, api.answerDraft]) fn.mockResolvedValue({ ok: true });
 });
 afterEach(() => {
   act(() => root?.unmount());
@@ -110,6 +113,9 @@ describe("plan screen while running", () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
     await render("/plans/n4h8w2rk");
     expect(q('[data-testid="plan-summary"]')!.textContent).toContain("1 / 4 done");
+    // batches, time and cost share one card, with the actual values only (no estimates)
+    expect(q('[data-testid="plan-facts"]')!.textContent).toContain("$0.18");
+    expect(q('[data-testid="plan-summary"]')!.textContent).not.toContain("Estimate");
     const inbox = q('[data-testid="plan-inbox"]')!;
     expect(inbox.textContent).toContain("Questions (1)");
     expect(inbox.textContent).toContain("Left or both hemispheres?");
@@ -130,6 +136,19 @@ describe("plan screen while running", () => {
     expect([...actions.querySelectorAll("button")].map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel plan"]);
     await act(async () => button("Pause", actions)!.click());
     expect(api.planAction).toHaveBeenCalledWith("n4h8w2rk", "pause");
+  });
+
+  it("opens a row's project from anywhere on its card", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows));
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-rows"] h2')!.textContent).toBe("Projects (4)");
+    const li = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("speech production"))!;
+    expect(li.querySelector('[data-testid="plan-row-link"]')!.getAttribute("href")).toBe("/projects/p0000001");
+    // a row without a project yet is not a link
+    const pending = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("writing"))!;
+    expect(pending.querySelector('[data-testid="plan-row-link"]')).toBeNull();
+    await act(async () => li.click());
+    expect(q('[data-testid="project-page"]')).not.toBeNull();
   });
 
   it("explains why a plan paused itself", async () => {
@@ -177,6 +196,38 @@ describe("draft plan", () => {
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 3 · waves: 2 · up to 2 at a time"));
     expect(api.confirmPlan).toHaveBeenCalledWith("n4h8w2rk", "en");
     expect(api.savePlanRows).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks the Orchestrator's questions before the draft: a suggested answer fills the field, or the owner leaves it to the Orchestrator", async () => {
+    const qa = [{ questions: [{ text: "Include reading and writing?", choices: ["Yes", "No"] }, { text: "Left hemisphere only?", choices: [] }], answers: null, askedAt: now }];
+    api.getPlan.mockResolvedValue(detail("DRAFTING", [], { draft: { kind: "draft", jobId: "job_1", status: "asking", requestedAt: now, requestedBy: "alice", qa } }));
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toContain("the Orchestrator has a few questions");
+    const ask = q('[data-testid="plan-ask"]')!;
+    expect(ask.textContent).toContain("Questions before the draft");
+    expect(ask.textContent).toContain("Include reading and writing?");
+    expect(q('[data-testid="plan-drafting"]')).toBeNull();
+    const send = q<HTMLButtonElement>('[data-testid="plan-ask-send"]')!;
+    expect(send.disabled).toBe(true);
+    await act(async () => button("Yes", ask)!.click());
+    const fields = [...ask.querySelectorAll<HTMLInputElement>('[data-testid="plan-ask-answer"]')];
+    expect(fields[0].value).toBe("Yes");
+    expect(button("Yes", ask)!.getAttribute("aria-pressed")).toBe("true");
+    expect(send.disabled).toBe(false);
+    await act(async () => send.click());
+    expect(api.answerDraft).toHaveBeenCalledWith("n4h8w2rk", { answers: ["Yes", ""] });
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-ask-skip"]')!.click());
+    expect(api.answerDraft).toHaveBeenLastCalledWith("n4h8w2rk", { skip: true });
+  });
+
+  it("keeps the answered questions, folded, with the draft", async () => {
+    const qa = [{ questions: [{ text: "Include reading and writing?", choices: [] }, { text: "Left hemisphere only?", choices: [] }], answers: ["Yes", ""], askedAt: now, answeredAt: now }];
+    api.getPlan.mockResolvedValue(detail("DRAFT", [row("r1", "STG", "hearing", "pending", 1)], { draft: { kind: "draft", jobId: "job_2", status: "done", requestedAt: now, requestedBy: "alice", qa } }));
+    await render("/plans/n4h8w2rk");
+    const done = q('[data-testid="plan-qa"]')!;
+    expect(done.textContent).toContain("Questions and answers 2");
+    expect(done.textContent).toContain("Left to the Orchestrator");
+    expect(q('[data-testid="plan-ask"]')).toBeNull();
   });
 
   it("does not confirm when the owner says no", async () => {
@@ -300,6 +351,38 @@ describe("plan list as a live view", () => {
     expect(drawer.querySelector('input[maxlength="200"]')).toBe(document.activeElement);
     await act(async () => window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
     expect(q('[data-testid="plan-new-drawer"]')).toBeNull();
+  });
+
+  it("pauses and resumes each plan from its lane; a plan paused at its cost limit is resumed on its page", async () => {
+    const paused = summary("n0000004", "PAUSED", { pausedReason: "user", confirmedAt: now });
+    const capped = summary("n0000005", "PAUSED", { pausedReason: "cost_limit", confirmedAt: now });
+    api.listPlans.mockResolvedValue({ items: [live, paused, capped] });
+    await render("/plans");
+    const lanes = [...document.querySelectorAll<HTMLElement>('[data-testid="plan-lane"]')];
+    const toggle = (lane: HTMLElement) => lane.querySelector<HTMLButtonElement>('[data-testid="plan-lane-toggle"]');
+    expect(toggle(lanes[0])!.getAttribute("aria-label")).toBe("Pause: Plan n0000001");
+    // the button is not inside the lane's link
+    expect(toggle(lanes[0])!.closest("a")).toBeNull();
+    await act(async () => toggle(lanes[0])!.click());
+    expect(api.planAction).toHaveBeenCalledWith("n0000001", "pause");
+    expect(api.listPlans).toHaveBeenCalledTimes(2);
+    await act(async () => toggle(lanes[1])!.click());
+    expect(api.planAction).toHaveBeenLastCalledWith("n0000004", "resume");
+    expect(toggle(lanes[2])).toBeNull();
+  });
+
+  it("asks the owner to answer the Orchestrator's questions before a draft, autonomous or not", async () => {
+    const qa = [{ questions: [{ text: "Include reading and writing?", choices: [] }], answers: null, askedAt: now }];
+    const drafting = summary("n0000006", "DRAFTING", {
+      settings: { ...detail("DRAFTING", []).plan.settings, autonomous: { maxCostUsd: 20 } },
+      draft: { kind: "draft", jobId: "job_1", status: "asking", requestedAt: now, requestedBy: "alice", qa },
+    });
+    api.listPlans.mockResolvedValue({ items: [drafting] });
+    await render("/plans");
+    const turn = q('[data-testid="plan-turn"]')!;
+    expect(turn.textContent).toContain("Answer the Orchestrator's questions");
+    expect(turn.textContent).toContain("Include reading and writing?");
+    expect(q('[data-testid="plan-lane"]')!.textContent).toContain("waiting for your answers");
   });
 
   it("says when nothing waits on the owner while plans run", async () => {

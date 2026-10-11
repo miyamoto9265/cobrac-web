@@ -11,8 +11,9 @@ import type { AttachmentType } from "./attachments.js";
 import { attachmentTypeOf } from "./attachments.js";
 import type { UiLocale } from "./locale.js";
 import { uiLanguageName } from "./locale.js";
-import type { PlanJobKind, PlanProposalKind, PlanRowRecord, PlanUnread } from "./plan.js";
-import { PLAN_LIMITS, cleanPlanNote, cleanPlanText, normalizePlanRow, planRowKey } from "./plan.js";
+import type { PlanDraftQuestion, PlanDraftRound, PlanJobKind, PlanProposalKind, PlanRowRecord, PlanUnread } from "./plan.js";
+import { PLAN_ASK_LIMITS, PLAN_LIMITS, cleanPlanText, normalizePlanRow, planRowKey } from "./plan.js";
+import { PLAN_POLICY_ITEMS, type PlanPolicy, isEmptyPlanPolicy, planPolicyOf, samePlanPolicy } from "./planPolicy.js";
 import { planAnchors } from "./planOrder.js";
 import type { ProjectStatus } from "./types.js";
 
@@ -88,7 +89,8 @@ export interface PlanJobInput {
   /** Language of `rationale`, `reason`, `notes` and the policy (null: the language of the goal) */
   locale: UiLocale | null;
   goal: string;
-  policy: string;
+  /** The plan's policy as it is (all items empty before the first draft) */
+  policy: PlanPolicy;
   /** Capability lists for the model to read (key relative to `plans/{planId}/`) */
   attachments: { id: string; name: string; key: string }[];
   /** The plan's rows as they are (a draft: rows already read from CSV or typed in; a re-plan: every row) */
@@ -101,7 +103,19 @@ export interface PlanJobInput {
   concurrency: number;
   /** Re-plan: the wave that has just finished */
   wave: number | null;
+  /** Draft: the owner's answers to the questions asked before it (oldest round first; "" = left open) */
+  qa?: { question: string; answer: string }[][];
+  /** Draft: the job may reply with questions instead of rows (absent or false: it drafts) */
+  ask?: boolean;
 }
+
+/** The answered rounds of a draft's questions, for its next job (a round the owner skipped counts, unanswered). */
+export function planQaInput(qa: PlanDraftRound[] | null | undefined): { question: string; answer: string }[][] {
+  return (qa ?? []).filter((r) => r.answers || r.skipped).map((r) => r.questions.map((q, i) => ({ question: q.text, answer: r.answers?.[i] ?? "" })));
+}
+
+/** Whether a draft's next job may ask: fewer than PLAN_ASK_LIMITS.rounds rounds so far, and none skipped. */
+export const planMayAsk = (qa: PlanDraftRound[] | null | undefined) => (qa ?? []).length < PLAN_ASK_LIMITS.rounds && !(qa ?? []).some((r) => r.skipped);
 
 const clipText = (s: string, n: number = PLAN_JOB_INPUT_LIMITS.text) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
@@ -111,7 +125,7 @@ export function buildPlanJobInput(x: Omit<PlanJobInput, "schema" | "projects" | 
     schema: PLAN_JOB_INPUT_SCHEMA,
     ...x,
     goal: clipText(x.goal, PLAN_LIMITS.maxGoal),
-    policy: clipText(x.policy, 2000),
+    policy: planPolicyOf(x.policy),
     projects: x.projects.slice(0, PLAN_JOB_INPUT_LIMITS.projects).map((p) => ({ ...p, name: clipText(p.name, 200), roi: clipText(p.roi, 300), tlf: clipText(p.tlf, 300) })),
     canons: x.canons.slice(0, PLAN_JOB_INPUT_LIMITS.canons).map((c) => ({ ...c, name: clipText(c.name, 200), policy: clipText(c.policy, 1000) })),
   };
@@ -125,6 +139,16 @@ const ROW_PROPS = {
   rationale: { type: "string" },
   anchors: { type: "array", items: { type: "string" } },
   dependsOn: { type: "array", items: { type: "string" } },
+} as const;
+
+const POLICY_SCHEMA = {
+  type: "object",
+  properties: {
+    ...Object.fromEntries(PLAN_POLICY_ITEMS.map((k) => [k, { type: "string" }])),
+    fromAnswers: { type: "array", items: { type: "string", enum: [...PLAN_POLICY_ITEMS] } },
+  },
+  required: [...PLAN_POLICY_ITEMS, "fromAnswers"],
+  additionalProperties: false,
 } as const;
 
 /** Output schema of the `plan` job (Codex structured output: every property required, no others). */
@@ -155,7 +179,7 @@ export const PLAN_RESULT_SCHEMA = {
         additionalProperties: false,
       },
     },
-    policy: { type: "string" },
+    policy: POLICY_SCHEMA,
     proposals: {
       type: "array",
       items: {
@@ -164,7 +188,7 @@ export const PLAN_RESULT_SCHEMA = {
           kind: { type: "string", enum: ["add", "remove", "policy"] },
           rowId: { type: "string" },
           ...ROW_PROPS,
-          policy: { type: "string" },
+          policy: POLICY_SCHEMA,
           reason: { type: "string" },
         },
         required: ["kind", "rowId", "roi", "tlf", "rationale", "anchors", "dependsOn", "policy", "reason"],
@@ -172,8 +196,17 @@ export const PLAN_RESULT_SCHEMA = {
       },
     },
     notes: { type: "string" },
+    questions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { text: { type: "string" }, choices: { type: "array", items: { type: "string" } } },
+        required: ["text", "choices"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["rows", "unread", "policy", "proposals", "notes"],
+  required: ["rows", "unread", "policy", "proposals", "notes", "questions"],
   additionalProperties: false,
 } as const;
 
@@ -200,8 +233,8 @@ export interface PlanProposalDraft {
   rowId: string | null;
   /** add: the new row (dependencies on input rows only) */
   row: { roi: string; tlf: string; rationale: string; anchors: string[]; dependsOn: string[] } | null;
-  /** policy: the new text */
-  policy: string | null;
+  /** policy: the whole new policy */
+  policy: PlanPolicy | null;
   reason: string;
 }
 
@@ -216,14 +249,17 @@ export interface PlanJobResult {
   createdAt: string;
   rows: PlanDraftRow[];
   unread: PlanUnread[];
-  policy: string;
+  /** The policy the job returned (empty when it wrote none) */
+  policy: PlanPolicy;
   proposals: PlanProposalDraft[];
   notes: string;
+  /** Draft: questions for the owner before the rows (the rows are then empty); absent in results of older jobs */
+  questions?: PlanDraftQuestion[];
   /** Parts that referred to rows, anchors or projects not in the input, or were not usable (removed) */
   dropped: number;
 }
 
-export type ParsedPlanResult = Pick<PlanJobResult, "rows" | "unread" | "policy" | "proposals" | "notes" | "dropped">;
+export type ParsedPlanResult = Pick<PlanJobResult, "rows" | "unread" | "policy" | "proposals" | "notes" | "dropped"> & { questions: PlanDraftQuestion[] };
 
 const str = (v: unknown, n: number) => (typeof v === "string" ? (v.trim().length > n ? `${v.trim().slice(0, n)}…` : v.trim()) : "");
 
@@ -233,7 +269,7 @@ const str = (v: unknown, n: number) => (typeof v === "string" ? (v.trim().length
  * input and finished; proposals of a re-plan that add a row not in the plan yet, remove a row that has not started, or
  * change the policy. Everything else is dropped and counted. null when the reply is not the schema's object.
  */
-export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" | "rows" | "projects" | "policy">): ParsedPlanResult | null {
+export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" | "rows" | "projects" | "policy" | "ask">): ParsedPlanResult | null {
   let raw: unknown;
   try {
     raw = JSON.parse(text.trim().replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, ""));
@@ -242,10 +278,28 @@ export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" |
   }
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
-  if (!Array.isArray(r.rows) || !Array.isArray(r.proposals) || typeof r.policy !== "string") return null;
+  // the policy is the schema's object; a string (a reply in the old shape) is read as the granularity
+  if (!Array.isArray(r.rows) || !Array.isArray(r.proposals) || r.policy === null || (typeof r.policy !== "object" && typeof r.policy !== "string")) return null;
   let dropped = 0;
   const inputRows = new Map(input.rows.map((x) => [x.rowId, x]));
   const completed = new Set(input.projects.filter((p) => p.completed).map((p) => p.projectId));
+
+  // questions only from a draft that may ask (at most PLAN_ASK_LIMITS.questions); a reply that asks drafts nothing yet
+  const asked = Array.isArray(r.questions) ? r.questions : [];
+  const questions: PlanDraftQuestion[] = [];
+  if (input.kind === "draft" && input.ask) {
+    for (const item of asked) {
+      const x = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+      const q = str(x.text, PLAN_ASK_LIMITS.question);
+      if (!q || questions.length >= PLAN_ASK_LIMITS.questions) {
+        dropped++;
+        continue;
+      }
+      const choices = [...new Set((Array.isArray(x.choices) ? x.choices : []).map((c) => str(c, PLAN_ASK_LIMITS.choice)).filter(Boolean))].slice(0, PLAN_ASK_LIMITS.choices);
+      questions.push({ text: q, choices });
+    }
+  } else dropped += asked.length;
+  if (questions.length) return { rows: [], unread: [], policy: planPolicyOf(r.policy), proposals: [], notes: str(r.notes, 4000), dropped, questions };
 
   const rows: PlanDraftRow[] = [];
   if (input.kind === "draft") {
@@ -334,8 +388,8 @@ export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" |
         }
         proposals.push({ kind: "remove", rowId: id, row: null, policy: null, reason });
       } else if (x.kind === "policy") {
-        const policy = cleanPlanNote(x.policy).slice(0, 2000);
-        if (!policy || policy === input.policy.trim() || proposals.some((p) => p.kind === "policy")) {
+        const policy = planPolicyOf(x.policy);
+        if (isEmptyPlanPolicy(policy) || samePlanPolicy(policy, planPolicyOf(input.policy)) || proposals.some((p) => p.kind === "policy")) {
           dropped++;
           continue;
         }
@@ -344,7 +398,7 @@ export function parsePlanResult(text: string, input: Pick<PlanJobInput, "kind" |
     }
   } else if (r.proposals.length) dropped += r.proposals.length;
 
-  return { rows, unread, policy: cleanPlanNote(r.policy).slice(0, 2000), proposals, notes: str(r.notes, 4000), dropped };
+  return { rows, unread, policy: planPolicyOf(r.policy), proposals, notes: str(r.notes, 4000), dropped, questions };
 }
 
 // --- prompt ----------------------------------------------------------------------------------------------------------
@@ -360,8 +414,8 @@ export function planJobPrompt(spec: string, input: PlanJobInput, materialsIndex:
   return [
     spec.trim(),
     "",
-    `Task: ${input.kind === "draft" ? "DRAFT — write the rows of the plan (`rows`), the rows you could not read (`unread`) and the policy (`policy`); leave `proposals` empty." : `REPLAN — wave ${input.wave ?? "?"} has just finished. Propose changes (\`proposals\`) only where the finished rows show they are needed; leave \`rows\` and \`unread\` empty and return the current policy in \`policy\`.`}`,
-    `Write \`rationale\`, \`reason\`, \`notes\` and the policy in ${lang}. Keep ROI and TLF in the language they are given in (English when you write them yourself); keep anchors, row IDs and project IDs exactly as written.`,
+    `Task: ${input.kind === "draft" ? `DRAFT — ${input.ask ? `first decide whether to ask the owner (Questions before the draft): if you ask, reply with 1–${PLAN_ASK_LIMITS.questions} \`questions\` and nothing else. Otherwise ` : ""}write the policy (\`policy\`), the rows of the plan (\`rows\`) and the rows you could not read (\`unread\`); leave \`proposals\`${input.ask ? "" : " and `questions`"} empty.` : `REPLAN — wave ${input.wave ?? "?"} has just finished. Propose changes (\`proposals\`) only where the finished rows show they are needed; leave \`rows\`, \`unread\` and \`questions\` empty and return the current policy in \`policy\`.`}`,
+    `Write \`rationale\`, \`reason\`, \`notes\`, questions and the policy in ${lang}. Keep ROI and TLF in the language they are given in (English when you write them yourself); keep anchors, row IDs and project IDs exactly as written.`,
     materialsIndex ? `Attached capability lists (read each file; the text of xlsx and PDF files is next to it):\n${materialsIndex.trim()}` : "No attached files.",
     "",
     "Input (JSON):",

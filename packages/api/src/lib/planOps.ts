@@ -9,6 +9,7 @@
 import { HTTPException } from "hono/http-exception";
 import type {
   AddPlanAttachmentsRequest,
+  AnswerDraftRequest,
   PlanAttachmentsResponse,
   PlanAutonomous,
   ResumePlanRequest,
@@ -42,6 +43,7 @@ import {
   ACTIVE_PROJECT_STATUSES,
   ATTACHMENT_LIMITS,
   HARNESS_RULES,
+  PLAN_ASK_LIMITS,
   PLAN_LIMITS,
   PLAN_META_SK,
   PLAN_PULSE_EVENTS,
@@ -77,6 +79,7 @@ import {
   planEstimate,
   planEstimateFor,
   planLanes,
+  planPolicyOf,
   planRowKey,
   waitingPrs,
   planRowSk,
@@ -344,8 +347,8 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
   const values: Partial<PlanRecord> = {};
   if (body.name !== undefined) values.name = planName(body.name);
   if (body.goal !== undefined) values.goal = planGoal(body.goal);
-  // the granularity policy is the Orchestrator's to write (the draft, then re-plans), never the owner's
-  if ((body as { policy?: unknown }).policy !== undefined) throw bad("粒度方針はオーケストレーターが決めます");
+  // the policy is the Orchestrator's to write (the draft, then re-plans), never the owner's
+  if ((body as { policy?: unknown }).policy !== undefined) throw bad("方針はオーケストレーターが決めます");
   const canon = body.canon !== undefined ? planCanonChoice(body.canon) : undefined;
   if (body.settings === undefined && canon === undefined) {
     // name and goal can change in any status
@@ -609,6 +612,35 @@ export async function requestDraft(u: UserRecord, plan: PlanRecord, locale: UiLo
   return (await getPlan(plan.planId, true)) ?? plan;
 }
 
+/**
+ * The owner answers the questions the Orchestrator asked before drafting (an answer per question; "" leaves one to the
+ * Orchestrator), or skips them: the draft is asked for again with the answers, and after a skip it asks no more.
+ */
+export async function answerDraft(u: UserRecord, plan: PlanRecord, body: AnswerDraftRequest): Promise<PlanRecord> {
+  const asking = (p: PlanRecord) => p.status === "DRAFTING" && p.draft?.status === "asking" && !!p.draft.qa?.length;
+  if (!asking(plan)) throw conflict("質問に回答できる状態ではありません");
+  const skip = body?.skip === true;
+  const raw = Array.isArray(body?.answers) ? body.answers : [];
+  if (!skip && raw.some((a) => typeof a !== "string")) throw bad("回答が不正です");
+  await requirePlanRun(u, plan);
+  const updated = await withPlanLease(plan.planId, async (fresh) => {
+    if (!asking(fresh)) throw conflict("質問に回答できる状態ではありません");
+    const d = fresh.draft!;
+    const qa = [...d.qa!];
+    const last = qa[qa.length - 1];
+    const answers = last.questions.map((_, i) => (skip ? "" : cleanPlanNote(raw[i] ?? "").slice(0, PLAN_ASK_LIMITS.answer)));
+    if (!skip && answers.every((a) => !a)) throw bad("回答を入力してください");
+    const at = nowIso();
+    qa[qa.length - 1] = { ...last, answers, answeredAt: at, ...(skip ? { skipped: true } : {}) };
+    const draft: PlanJobState = { ...d, jobId: null, status: "waiting", requestedAt: at, endedAt: null, error: null, errorCode: null, qa };
+    if (!(await updatePlan(plan.planId, { draft }, { status: "DRAFTING" }))) throw conflict(STATUS_CHANGED);
+    await putPlanEvent(plan.planId, "draft_answered", u.userId, { detail: skip ? { round: qa.length, skipped: 1 } : { round: qa.length } });
+    return { ...fresh, draft, updatedAt: at };
+  });
+  await kick(plan.planId);
+  return updated;
+}
+
 /** Stops a draft that is waiting or running: its job is cancelled and the plan is an editable draft again. */
 export async function cancelDraft(u: UserRecord, plan: PlanRecord): Promise<PlanRecord> {
   if (plan.status !== "DRAFTING") throw conflict("下書きを作成中の計画ではありません");
@@ -652,7 +684,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     // the plan's Canon: an existing one must still be the owner's; a new one is checked now and created below
     let canonId = fresh.canonId ?? null;
     if (canonId && !(await ownedCanon(canonId, u.userId))) throw conflict("この計画の Canon が見つかりません");
-    const newCanon = !canonId && fresh.canonNew ? canonFields({ name: fresh.canonNew.name, policy: fresh.policy ?? "" }, false) : null;
+    const newCanon = !canonId && fresh.canonNew ? canonFields({ name: fresh.canonNew.name, policy: planPolicyOf(fresh.policy).granularity }, false) : null;
     if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
     if (newCanon) {
       const created = await createCanon(u, newCanon);

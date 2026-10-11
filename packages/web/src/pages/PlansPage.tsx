@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, PauseCircle, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
@@ -221,7 +221,7 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
 const LIVE: ReadonlySet<PlanSummary["status"]> = new Set(["RUNNING", "PAUSED", "DRAFTING"]);
 const rowText = (r: { roi: string; tlf: string }) => [r.tlf.trim(), r.roi.trim()].filter(Boolean).join(" · ") || "—";
 
-type TurnKind = "attention" | "decision" | "question" | "review" | "paused" | "proposals" | "draftFailed" | "draftReady";
+type TurnKind = "attention" | "decision" | "question" | "draftAsk" | "review" | "paused" | "proposals" | "draftFailed" | "draftReady";
 interface TurnItem {
   key: string;
   kind: TurnKind;
@@ -229,11 +229,12 @@ interface TurnItem {
   row?: PlanPulseRow;
   n?: number;
 }
-const TURN_ORDER: TurnKind[] = ["attention", "decision", "question", "review", "paused", "proposals", "draftFailed", "draftReady"];
+const TURN_ORDER: TurnKind[] = ["attention", "decision", "question", "draftAsk", "review", "paused", "proposals", "draftFailed", "draftReady"];
 const TURN: Record<TurnKind, { icon: ReactNode; tone: string }> = {
   attention: { icon: <AlertTriangle size={15} aria-hidden />, tone: "bg-rose-50 text-rose-700" },
   decision: { icon: <Scale size={15} aria-hidden />, tone: "bg-amber-100 text-amber-800" },
   question: { icon: <MessageCircleQuestion size={15} aria-hidden />, tone: "bg-amber-100 text-amber-800" },
+  draftAsk: { icon: <MessageCircleQuestion size={15} aria-hidden />, tone: "bg-violet-50 text-violet-700" },
   review: { icon: <GitPullRequest size={15} aria-hidden />, tone: "bg-violet-50 text-violet-700" },
   paused: { icon: <PauseCircle size={15} aria-hidden />, tone: "bg-amber-100 text-amber-800" },
   proposals: { icon: <Wand2 size={15} aria-hidden />, tone: "bg-violet-50 text-violet-700" },
@@ -260,6 +261,8 @@ export function turnItems(items: PlanSummary[]): TurnItem[] {
     const confirmsItself = auto && !!p.draft?.autoConfirm && !p.autonomousError;
     if (p.status === "DRAFT" && p.draft?.status === "done" && !confirmsItself) out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
     if (p.status === "DRAFT" && p.draft?.status === "failed") out.push({ key: `${p.planId}/draft`, kind: "draftFailed", plan: p });
+    // the Orchestrator asks before drafting, autonomous or not: only the owner can answer
+    if (p.status === "DRAFTING" && p.draft?.status === "asking") out.push({ key: `${p.planId}/ask`, kind: "draftAsk", plan: p, n: p.draft.qa?.at(-1)?.questions.length ?? 0 });
   }
   return out.sort((a, b) => TURN_ORDER.indexOf(a.kind) - TURN_ORDER.indexOf(b.kind));
 }
@@ -300,6 +303,7 @@ function YourTurn({ items, anyLive }: { items: TurnItem[]; anyLive: boolean }) {
                 </span>
                 {it.kind === "question" && it.row?.project?.pendingQuestion && <span className="block line-clamp-1 break-words text-xs text-slate-600">{it.row.project.pendingQuestion}</span>}
                 {it.kind === "decision" && it.row?.decisionReason && <span className="block line-clamp-1 text-xs text-slate-600">{t(`plan.decision.${it.row.decisionReason}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</span>}
+                {it.kind === "draftAsk" && it.plan.draft?.qa?.at(-1)?.questions[0] && <span className="block line-clamp-1 break-words text-xs text-slate-600">{it.plan.draft.qa.at(-1)!.questions[0].text}</span>}
                 {it.kind === "paused" && it.plan.pausedReason && <span className="block line-clamp-2 text-xs text-slate-600">{t(`plan.paused.${it.plan.pausedReason}` as MessageKey)}</span>}
                 {it.kind === "draftReady" && it.plan.autonomousError && <span className="block line-clamp-2 break-words text-xs text-rose-700">{t("auto.confirmError", { error: it.plan.autonomousError })}</span>}
                 <span className="block truncate text-[11px] text-slate-500">{it.plan.name}</span>
@@ -368,19 +372,52 @@ function StateCounts({ counts }: { counts: PlanSummary["rowCounts"] }) {
   );
 }
 
+/**
+ * Pause / resume of one plan from the list: a running plan starts no new row or Orchestrator job until resumed (rows
+ * already running go on). A plan paused at its cost limit is resumed on its page, with a higher limit.
+ */
+function LaneToggle({ p, onDone, onError }: { p: PlanSummary; onDone: () => unknown; onError: (e: unknown) => void }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const pause = p.status === "RUNNING";
+  if (!pause && !(p.status === "PAUSED" && p.pausedReason !== "cost_limit")) return null;
+  const label = t(pause ? "plan.pause" : "plan.resume");
+  const run = () => {
+    setBusy(true);
+    api
+      .planAction(p.planId, pause ? "pause" : "resume")
+      .then(onDone)
+      .catch(onError)
+      .finally(() => setBusy(false));
+  };
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={run}
+      title={label}
+      aria-label={`${label}: ${p.name}`}
+      data-testid="plan-lane-toggle"
+      className={`absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 coarse:h-11 coarse:w-11 ${pause ? "border-slate-200 bg-white text-slate-600 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700" : "border-blue-200 bg-blue-600 text-white hover:bg-blue-700"}`}
+    >
+      {busy ? <Loader2 size={14} className="motion-safe:animate-spin" aria-hidden /> : pause ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}
+    </button>
+  );
+}
+
 /** A running, paused or drafting plan: what it is doing now, how far it got, what happened last. */
-function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
+function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number; onChanged: () => unknown; onError: (e: unknown) => void }) {
   const t = useT();
   const pulse = p.pulse;
   const running = p.status === "RUNNING" || p.status === "DRAFTING";
   const waves = pulse?.waves ?? [{ wave: p.activeWave ?? 1, counts: p.rowCounts }];
   return (
-    <li className="motion-safe:animate-step-in" data-testid="plan-lane" data-status={p.status}>
+    <li className="relative motion-safe:animate-step-in" data-testid="plan-lane" data-status={p.status}>
       <Link
         to={planPath(p.planId)}
         className={`block rounded-2xl border bg-white p-4 transition-colors hover:border-blue-300 ${running ? "border-blue-200" : "border-amber-200"}`}
       >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${p.status === "DRAFTING" ? "" : "pr-10 coarse:pr-12"}`}>
           <LiveDot tone={running ? "running" : "waiting"} />
           <span className="min-w-0 break-words text-base font-semibold text-slate-900">{p.name}</span>
           <span className="font-mono text-[11px] text-slate-500">{p.planId}</span>
@@ -471,6 +508,7 @@ function PlanLane({ p, now }: { p: PlanSummary; now: number }) {
           </>
         )}
       </Link>
+      <LaneToggle p={p} onDone={onChanged} onError={onError} />
     </li>
   );
 }
@@ -654,7 +692,7 @@ export function PlansPage() {
                   <SectionHeading count={live.length}>{t("plan.sec.live")}</SectionHeading>
                   <ul className="grid gap-3">
                     {live.map((p) => (
-                      <PlanLane key={p.planId} p={p} now={now} />
+                      <PlanLane key={p.planId} p={p} now={now} onChanged={load} onError={(e) => setErr(String(e))} />
                     ))}
                   </ul>
                 </section>
