@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-10-11
+
 ### Added
 - CoBRAC Orchestrator: before it drafts a plan, the Orchestrator may ask you 0–3 questions when the goal leaves the scope, granularity or priorities open, and one more round of follow-up questions after your answers. Each question offers suggested answers you can pick or replace; blank questions, or "Leave it to the Orchestrator", are left to its judgement. The answers shape the draft and stay folded under "Questions and answers" on the plan. Autonomous runs wait for your answers too, and the plan list's "Your turn" shows them
 - The site now shows that it is an alpha version: an「アルファ版」(Alpha) badge sits beside the app name in the sidebar, the mobile header and the sign-in page, and its (?) tooltip says features and screens may still change
