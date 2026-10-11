@@ -801,6 +801,8 @@ export const ru: Record<MessageKey, string> = {
   "cc3.leaveOut": "Исключить",
   "settings.defaultCanon": "Canon по умолчанию для новых проектов",
   "help.tip": "Справка",
+  "app.alpha": "Альфа",
+  "app.alphaTip": "Это альфа-версия в разработке. Функции и экраны могут измениться без предупреждения.",
   "help.guide": "Руководство",
   "cc3.help": "Проект в Canon использует общие определения цепей этого Canon. Расхождения возвращаются агенту на исправление.",
   "cc3.newShort": "Новый Canon",

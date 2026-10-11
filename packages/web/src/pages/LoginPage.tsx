@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AlphaBadge } from "../components/AlphaBadge";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { useAuth } from "../lib/auth";
@@ -46,7 +47,10 @@ export function LoginPage() {
     <div className="flex h-full items-center justify-center overflow-y-auto bg-slate-100 px-4 py-[max(1rem,env(safe-area-inset-top))]">
       <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 text-center">
-          <div className="text-xl font-semibold tracking-tight">CoBRAC Agents</div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-xl font-semibold tracking-tight">CoBRAC Agents</span>
+            <AlphaBadge variant="light" />
+          </div>
           <div className="text-xs text-slate-500">
             {mode === "signin" && t("login.signin")}
             {mode === "signup" && t("login.signup")}

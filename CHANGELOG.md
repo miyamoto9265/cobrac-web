@@ -7,6 +7,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Added
 - CoBRAC Orchestrator: before it drafts a plan, the Orchestrator may ask you 0–3 questions when the goal leaves the scope, granularity or priorities open, and one more round of follow-up questions after your answers. Each question offers suggested answers you can pick or replace; blank questions, or "Leave it to the Orchestrator", are left to its judgement. The answers shape the draft and stay folded under "Questions and answers" on the plan. Autonomous runs wait for your answers too, and the plan list's "Your turn" shows them
+- The site now shows that it is an alpha version: an「アルファ版」(Alpha) badge sits beside the app name in the sidebar, the mobile header and the sign-in page, and its (?) tooltip says features and screens may still change
 
 ### Changed
 - CoBRAC Orchestrator: each running plan in the plan list has its own pause button (and a paused plan a resume button), so plans can be paused and resumed one by one without opening them. A paused plan starts neither new rows nor the Orchestrator's AI jobs; running rows go on

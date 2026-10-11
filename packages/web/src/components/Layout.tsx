@@ -8,6 +8,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
+import { AlphaBadge } from "./AlphaBadge";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Layout() {
@@ -61,7 +62,10 @@ export function Layout() {
       >
         <div className="flex items-start justify-between gap-2 py-4 pl-4 pr-2 lg:pr-4">
           <div>
-            <div className="text-lg font-semibold tracking-tight">CoBRAC Agents</div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold tracking-tight">CoBRAC Agents</span>
+              <AlphaBadge />
+            </div>
             <div className="text-xs text-slate-400">BRA data generation</div>
           </div>
           <button type="button" onClick={() => setNavOpen(false)} className={`${iconBtn} -mt-2 lg:hidden`} aria-label={t("nav.closeMenu")} title={t("nav.closeMenu")}>
@@ -208,9 +212,12 @@ export function Layout() {
           <button type="button" data-testid="nav-toggle" onClick={() => setNavOpen(true)} className={iconBtn} aria-label={t("nav.openMenu")} aria-expanded={navOpen} title={t("nav.openMenu")}>
             <Menu size={20} />
           </button>
-          <Link to="/chat" className="min-w-0 flex-1 truncate px-1 py-2.5 text-base font-semibold tracking-tight">
-            CoBRAC Agents
-          </Link>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Link to="/chat" className="min-w-0 truncate px-1 py-2.5 text-base font-semibold tracking-tight">
+              CoBRAC Agents
+            </Link>
+            <AlphaBadge />
+          </div>
           <button type="button" onClick={() => navigate("/chat")} className={iconBtn} aria-label={t("nav.newProject")} title={t("nav.newProject")}>
             <MessageSquarePlus size={20} />
           </button>

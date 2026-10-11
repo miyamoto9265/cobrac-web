@@ -801,6 +801,8 @@ export const es: Record<MessageKey, string> = {
   "cc3.leaveOut": "Excluir",
   "settings.defaultCanon": "Canon predeterminado para proyectos nuevos",
   "help.tip": "Ayuda",
+  "app.alpha": "Alfa",
+  "app.alphaTip": "Esta es una versión alfa en desarrollo. Las funciones y pantallas pueden cambiar sin previo aviso.",
   "help.guide": "Guía",
   "cc3.help": "Un proyecto en un Canon usa las definiciones de circuitos compartidas por el Canon. Los conflictos vuelven al agente para corregirlos.",
   "cc3.newShort": "Canon nuevo",

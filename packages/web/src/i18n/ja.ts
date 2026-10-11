@@ -801,6 +801,8 @@ export const ja: Record<MessageKey, string> = {
   "cc3.leaveOut": "除外する",
   "settings.defaultCanon": "新しいプロジェクトの既定の Canon",
   "help.tip": "ヘルプ",
+  "app.alpha": "アルファ版",
+  "app.alphaTip": "開発中のアルファ版です。機能や画面は予告なく変わることがあります。",
   "help.guide": "使い方",
   "cc3.help": "Canon に入れると、同じ Canon のプロジェクトと回路の定義をそろえて作ります。食い違いはエージェントに直させます。",
   "cc3.newShort": "新しい Canon",
