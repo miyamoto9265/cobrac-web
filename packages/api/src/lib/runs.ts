@@ -2,8 +2,8 @@
 // and the BRA Planner runner call the same functions with the owner's UserRecord, so a plan row starts its project
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
-import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
+import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, PlanPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
@@ -101,7 +101,7 @@ export interface NewProject {
   /** Harness rule set of the project (default: the current `HARNESS_RULES`; a plan passes the one it was confirmed with) */
   harnessRules?: number;
   /** BRA Planner plan that starts the project, and its name for the chat notice */
-  plan?: { planId: string; name: string };
+  plan?: { planId: string; name: string; policy?: PlanPolicy };
   /** IDs reserved beforehand (the plan runner records them on the row before it creates the project) */
   projectId?: string;
   jobId?: string;
@@ -146,6 +146,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     harnessRules: input.harnessRules ?? HARNESS_RULES,
     ...(input.hypothesis ? hypothesisCreateFields(input.hypothesis, jobId, now) : {}),
     ...(input.plan ? { planId: input.plan.planId } : {}),
+    ...(input.plan?.policy && !isEmptyPlanPolicy(input.plan.policy) ? { planPolicy: input.plan.policy } : {}),
     status: "QUEUED",
     currentStep: null,
     stepStates: { HCD: "pending", FRG: "pending", CSV: "pending", XLSX: "pending" },

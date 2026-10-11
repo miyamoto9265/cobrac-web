@@ -88,7 +88,7 @@ describe("runPlanJob", () => {
     // without RCS every valid anchor is kept
     expect(r.parsed.rows[1].anchors).toEqual(["BNA:29-30", "HOMBA:99999", "HOMBA:10339"]);
     expect(r.parsed.unread).toHaveLength(1);
-    expect(r.parsed.policy).toBe("neocortex = area × projection class, subcortex = nucleus");
+    expect(r.parsed.policy.granularity).toBe("neocortex = area × projection class, subcortex = nucleus");
     expect(r.parsed.dropped).toBe(0);
   });
 

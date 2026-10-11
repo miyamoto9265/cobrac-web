@@ -10,6 +10,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - The site now shows that it is an alpha version: an「アルファ版」(Alpha) badge sits beside the app name in the sidebar, the mobile header and the sign-in page, and its (?) tooltip says features and screens may still change
 
 ### Changed
+- Orchestrator plans: the granularity policy (粒度方針) becomes the plan's policy (方針) with five items: scope, granularity, evidence, priority and decisions. The draft job writes it first from the goal, the source files and the answers to the questions before the draft, then writes the rows following it; re-plans may replace it. The Orchestrator's answers and decisions in autonomous runs follow it, and each row's agent gets its scope, granularity and evidence in the research and HCD instructions. A new Canon made at confirmation takes its granularity. The plan screen shows it as a compact "Policy" card, one line per item. Plans from before keep their policy as the granularity item
 - CoBRAC Orchestrator: each running plan in the plan list has its own pause button (and a paused plan a resume button), so plans can be paused and resumed one by one without opening them. A paused plan starts neither new rows nor the Orchestrator's AI jobs; running rows go on
 
 ## [0.45.2] - 2026-10-10

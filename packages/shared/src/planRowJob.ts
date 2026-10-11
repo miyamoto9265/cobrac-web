@@ -9,6 +9,7 @@
 import type { UiLocale } from "./locale.js";
 import { uiLanguageName } from "./locale.js";
 import type { PlanAttentionReason, PlanDecisionReason, PlanRowAction, PlanRowJobKind, PlanRowRecord } from "./plan.js";
+import { type PlanPolicy, planPolicyOf } from "./planPolicy.js";
 import type { ProjectStatus } from "./types.js";
 
 export const PLAN_ROW_JOB_INPUT_SCHEMA = "cobrac.plan-row-job/1";
@@ -27,7 +28,7 @@ export interface PlanRowJobInput {
   createdAt: string;
   /** Language of `answer` and `reason` (null: the language of the question) */
   locale: UiLocale | null;
-  plan: { name: string; goal: string; policy: string };
+  plan: { name: string; goal: string; policy: PlanPolicy };
   canon: { name: string; policy: string } | null;
   row: {
     roi: string;
@@ -114,7 +115,7 @@ export function buildPlanRowJobInput(x: Omit<PlanRowJobInput, "schema">): PlanRo
   return {
     schema: PLAN_ROW_JOB_INPUT_SCHEMA,
     ...x,
-    plan: { name: clip(x.plan.name, 200), goal: clip(x.plan.goal, L.text), policy: clip(x.plan.policy, L.text) },
+    plan: { name: clip(x.plan.name, 200), goal: clip(x.plan.goal, L.text), policy: planPolicyOf(x.plan.policy) },
     canon: x.canon ? { name: clip(x.canon.name, 200), policy: clip(x.canon.policy, L.text) } : null,
     row: { ...x.row, rationale: clip(x.row.rationale, 1000), dependsOn: x.row.dependsOn.slice(0, 50) },
     project: x.project

@@ -30,12 +30,14 @@ import {
   generatePlanRowId,
   hubScores,
   isDeterministicPlanAttachment,
+  isEmptyPlanPolicy,
   matchExistingProject,
   newId,
   nowIso,
   orderDraft,
   parsePlanResult,
   planJobKey,
+  planPolicyOf,
   planProposalSk,
   planRowKey,
   planRowSk,
@@ -77,7 +79,7 @@ export function planJobInput(
     createdAt: nowIso(),
     locale: x.locale ?? null,
     goal: plan.goal,
-    policy: plan.policy ?? "",
+    policy: planPolicyOf(plan.policy),
     // CSV / TSV / text were read into rows by the API already; a re-plan works from the rows only
     attachments: x.kind === "replan" ? [] : (plan.attachments ?? []).filter((a) => !isDeterministicPlanAttachment(a.name)).map((a) => ({ id: a.id, name: a.name, key: a.key })),
     rows: [...x.rows]
@@ -209,8 +211,8 @@ export async function readPlanResult(planId: string, kind: PlanJobKind, jobId: s
   const reply = {
     rows: result.rows,
     unread: Array.isArray(result.unread) ? result.unread : [],
-    policy: typeof result.policy === "string" ? result.policy : "",
-    proposals: result.proposals.map((p) => (p && typeof p === "object" ? { ...(p.row && typeof p.row === "object" ? p.row : {}), kind: p.kind, rowId: p.rowId ?? "", policy: p.policy ?? "", reason: p.reason } : p)),
+    policy: result.policy ?? "",
+    proposals: result.proposals.map((p) => (p && typeof p === "object" ? { ...(p.row && typeof p.row === "object" ? p.row : {}), kind: p.kind, rowId: p.rowId ?? "", policy: p.policy ?? {}, reason: p.reason } : p)),
     notes: typeof result.notes === "string" ? result.notes : "",
     questions: Array.isArray(result.questions) ? result.questions : [],
   };
@@ -353,7 +355,7 @@ export async function storeProposals(planId: string, jobId: string, wave: number
     const proposalId = proposalIdOf(jobId, i);
     // the parsed row also carries the wave and priority of a typed row: keep the proposal's fields only
     const row = p.row ? { roi: p.row.roi, tlf: p.row.tlf, rationale: p.row.rationale, anchors: p.row.anchors, dependsOn: p.row.dependsOn } : null;
-    const applied = p.kind === "policy" && !!p.policy;
+    const applied = p.kind === "policy" && !!p.policy && !isEmptyPlanPolicy(p.policy);
     const record: PlanProposalRecord = {
       planId,
       sk: planProposalSk(proposalId),

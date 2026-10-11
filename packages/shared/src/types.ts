@@ -1,6 +1,7 @@
 import { CLAUDE_MODELS } from "./provider.js";
 import type { ClonedFrom, Visibility } from "./publish.js";
 import type { BraVersionSummary } from "./braVersion.js";
+import type { PlanPolicy } from "./planPolicy.js";
 // ---------------------------------------------------------------------------
 // Domain types shared by API, worker and web
 // ---------------------------------------------------------------------------
@@ -223,6 +224,8 @@ export interface ProjectRecord {
   canonRevision?: number | null;
   /** BRA Planner plan that created this project (absent on projects made otherwise) */
   planId?: string | null;
+  /** The plan's policy when the row started (its agent follows scope, granularity and evidence; see planPolicy.ts) */
+  planPolicy?: PlanPolicy | null;
 }
 
 /** Statuses with a job in flight; a project in one of these cannot be deleted until it is stopped. */

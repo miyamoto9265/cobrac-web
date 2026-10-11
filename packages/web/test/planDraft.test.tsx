@@ -401,7 +401,10 @@ describe("a draft written by the plan job", () => {
     expect(q('[data-testid="plan-summary"]')).toBeNull();
     expect(q('[data-testid="plan-jobs-cost"]')).toBeNull();
     const policy = q('[data-testid="plan-policy"]')!;
-    expect(policy.textContent).toBe("Granularity policy (decided by the Orchestrator)neocortex = area × projection class, subcortex = nucleus");
+    // the policy card: a heading and one line per item that has text (a plan from before the five items: its granularity)
+    expect(policy.querySelector("h2")!.textContent).toBe("Policy");
+    expect(policy.querySelector('[data-testid="plan-policy-granularity"]')!.textContent).toBe("Granularityneocortex = area × projection class, subcortex = nucleus");
+    expect(policy.querySelector('[data-testid="plan-policy-scope"]')).toBeNull();
     expect(q('[data-testid="plan-what"]')!.contains(policy)).toBe(true);
   });
 
@@ -940,7 +943,7 @@ describe("re-planning while running", () => {
     expect(items[0].textContent).toContain("after wave 2");
     expect(items[1].textContent).toContain("Remove a row");
     expect(items[1].textContent).toContain("writing · Exner's area");
-    expect(items[2].textContent).toContain("Change the granularity policy");
+    expect(items[2].textContent).toContain("Change the policy");
     expect(items[2].textContent).toContain("neocortex = area × layer");
 
     await click(button("Accept", items[0]));
@@ -989,7 +992,7 @@ describe("re-planning while running", () => {
     await render(`/plans/${PLAN}`);
     const text = q('[data-testid="plan-proposals"]')!.textContent!;
     expect(text).toContain("After the first wave, and then each time about a tenth of the plan's rows have finished (after every wave in plans of up to 10 rows)");
-    expect(text).toContain("a planning job may propose adding or removing rows; nothing changes until you accept. The Orchestrator may also change the granularity policy, which applies at once.");
+    expect(text).toContain("a planning job may propose adding or removing rows; nothing changes until you accept. The Orchestrator may also change the policy, which applies at once.");
     expect(text).toContain("The order of the rows that have not started is updated after every wave.");
   });
 
