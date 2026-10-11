@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PLAN_RESULT_SCHEMA, buildPlanJobInput, isDeterministicPlanAttachment, parsePlanResult, planAttachmentTypeOf, planJobKey, planJobPrompt, type PlanJobInput } from "../src/index.js";
+import { PLAN_RESULT_SCHEMA, buildPlanJobInput, isDeterministicPlanAttachment, parsePlanResult, planAttachmentTypeOf, planJobKey, planJobPrompt, planMayAsk, planQaInput, type PlanJobInput } from "../src/index.js";
 
 const input = (over: Partial<PlanJobInput> = {}): PlanJobInput =>
   buildPlanJobInput({
@@ -109,6 +109,49 @@ describe("parsePlanResult (draft)", () => {
     const r = parsePlanResult("```json\n" + reply({ proposals: [{ kind: "policy" }] }) + "\n```", input())!;
     expect(r.proposals).toEqual([]);
     expect(r.dropped).toBe(1);
+  });
+});
+
+describe("questions before a draft", () => {
+  const asked = (over: Partial<PlanJobInput>) =>
+    parsePlanResult(
+      reply({
+        rows: [row("new1", "STG", "hearing")],
+        questions: [{ text: " 読み書きも含めますか？ ", choices: ["含める", "含めない", "含める", ""] }, { text: "" }, { text: "2" }, { text: "3" }, { text: "4" }],
+      }),
+      input(over),
+    )!;
+
+  it("keeps up to three questions of a draft that may ask, and no rows with them", () => {
+    const r = asked({ ask: true });
+    expect(r.questions).toEqual([
+      { text: "読み書きも含めますか？", choices: ["含める", "含めない"] },
+      { text: "2", choices: [] },
+      { text: "3", choices: [] },
+    ]);
+    expect(r.rows).toEqual([]);
+    // the empty question and the fourth one
+    expect(r.dropped).toBe(2);
+  });
+
+  it("drops questions when the draft may not ask (the rows are kept)", () => {
+    const r = asked({ ask: false });
+    expect(r.questions).toEqual([]);
+    expect(r.rows).toHaveLength(1);
+    expect(r.dropped).toBe(5);
+  });
+
+  it("tells the job whether it may ask, and gives it the answers", () => {
+    const qa = [[{ question: "読み書きも含めますか？", answer: "含める" }]];
+    expect(planJobPrompt("SPEC", input({ ask: true, qa }), null)).toContain("1–3 `questions`");
+    expect(planJobPrompt("SPEC", input({ ask: true, qa }), null)).toContain('"answer":"含める"');
+    expect(planJobPrompt("SPEC", input({ ask: false, qa }), null)).not.toContain("1–3 `questions`");
+    expect(planMayAsk([])).toBe(true);
+    const round = { questions: [{ text: "q", choices: [] }], answers: ["a"], askedAt: "t" };
+    expect(planMayAsk([round])).toBe(true);
+    expect(planMayAsk([round, round])).toBe(false);
+    expect(planMayAsk([{ ...round, skipped: true }])).toBe(false);
+    expect(planQaInput([round, { ...round, answers: null }])).toEqual([[{ question: "q", answer: "a" }]]);
   });
 });
 

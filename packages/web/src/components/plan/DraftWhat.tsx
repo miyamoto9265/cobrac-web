@@ -1,13 +1,14 @@
-import { FileText, FileUp, Loader2, Plus, Sparkles, Square, X } from "lucide-react";
+import { FileText, FileUp, Loader2, MessageCircleQuestion, Plus, Send, Sparkles, Square, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { PlanRecord, PlanRowRejected } from "@cobrac/shared";
-import { ATTACHMENT_LIMITS, PLAN_LIMITS } from "@cobrac/shared";
+import { ATTACHMENT_LIMITS, PLAN_ASK_LIMITS, PLAN_LIMITS } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
 import { fmtBytes } from "../../lib/format";
 import { PLAN_FILE_ACCEPT } from "../../lib/plan";
 import { checkPlanFiles, uploadPlanFiles } from "../../lib/planFiles";
 import { inputCls, primaryBtn } from "../../pages/CanonsPage";
+import { HelpTip } from "../HelpTip";
 import { jobError, secondaryBtn } from "./common";
 
 /** What the last draft job left: the error of a failed one, or the items a finished one could not read. */
@@ -67,6 +68,93 @@ function DraftJob({ plan, busy, onCancel }: { plan: PlanRecord; busy: boolean; o
         <Square size={14} aria-hidden /> {t("plan.cancelDraft")}
       </button>
     </div>
+  );
+}
+
+/**
+ * The questions the Orchestrator asked before drafting (the open round): a suggested answer fills the field, which the
+ * owner may change; a blank answer leaves the question to the Orchestrator. 「おまかせで進める」 drafts without answers.
+ */
+function DraftQuestions({ plan, busy, act, onCancel }: { plan: PlanRecord; busy: boolean; act: (fn: () => Promise<unknown>) => void; onCancel: () => void }) {
+  const t = useT();
+  const id = useId();
+  const qa = plan.draft?.qa ?? [];
+  const round = qa[qa.length - 1];
+  const [answers, setAnswers] = useState<string[]>(() => round?.questions.map(() => "") ?? []);
+  if (!round) return null;
+  const set = (i: number, v: string) => setAnswers((a) => a.map((x, j) => (j === i ? v : x)));
+  return (
+    <div className="grid gap-3 rounded-xl border border-violet-200 bg-violet-50/60 p-3 motion-safe:animate-step-in sm:p-4" data-testid="plan-ask" role="group" aria-labelledby={`${id}-h`}>
+      <div id={`${id}-h`} className="flex items-center gap-2 text-sm font-semibold text-violet-800">
+        <MessageCircleQuestion size={16} className="shrink-0" aria-hidden />
+        {t(qa.length > 1 ? "ask.round" : "ask.title")}
+        <HelpTip text={t("ask.help")} />
+      </div>
+      <ol className="grid gap-3">
+        {round.questions.map((q, i) => (
+          <li key={i} className="grid gap-1.5 motion-safe:animate-step-in">
+            <label htmlFor={`${id}-a${i}`} className="break-words text-sm text-slate-800">
+              <span className="mr-1.5 font-semibold tabular-nums text-violet-700">{i + 1}.</span>
+              {q.text}
+            </label>
+            {q.choices.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {q.choices.map((c) => {
+                  const on = answers[i] === c;
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      aria-pressed={on}
+                      disabled={busy}
+                      onClick={() => set(i, on ? "" : c)}
+                      className={`rounded-full border px-2.5 py-1 text-xs transition-colors coarse:min-h-11 ${on ? "border-violet-500 bg-violet-600 text-white" : "border-violet-200 bg-white text-violet-800 hover:bg-violet-100"}`}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input id={`${id}-a${i}`} value={answers[i] ?? ""} onChange={(e) => set(i, e.target.value)} maxLength={PLAN_ASK_LIMITS.answer} placeholder={t("ask.placeholder")} className={`${inputCls} bg-white`} data-testid="plan-ask-answer" />
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" disabled={busy || answers.every((a) => !a.trim())} onClick={() => act(() => api.answerDraft(plan.planId, { answers }))} className={primaryBtn} data-testid="plan-ask-send">
+          <Send size={14} aria-hidden /> {t("ask.send")}
+        </button>
+        <button type="button" disabled={busy} onClick={() => act(() => api.answerDraft(plan.planId, { skip: true }))} className={secondaryBtn} data-testid="plan-ask-skip">
+          {t("ask.skip")}
+        </button>
+        <button type="button" disabled={busy} onClick={onCancel} className="ml-auto rounded-md px-2 py-1 text-xs text-slate-500 hover:bg-violet-100 hover:text-slate-700 coarse:min-h-11">
+          {t("plan.cancelDraft")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** The questions answered before the draft, folded (a blank answer was left to the Orchestrator). */
+function DraftQa({ plan }: { plan: PlanRecord }) {
+  const t = useT();
+  const done = (plan.draft?.qa ?? []).filter((r) => r.answers);
+  const n = done.reduce((m, r) => m + r.questions.length, 0);
+  if (!n) return null;
+  return (
+    <details className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" data-testid="plan-qa">
+      <summary className="cursor-pointer text-xs font-semibold text-slate-600">{t("ask.history", { n })}</summary>
+      <dl className="mt-2 grid gap-2">
+        {done.flatMap((r, k) =>
+          r.questions.map((q, i) => (
+            <div key={`${k}-${i}`} className="grid gap-0.5">
+              <dt className="break-words text-xs text-slate-500">{q.text}</dt>
+              <dd className="whitespace-pre-line break-words text-slate-800">{r.answers?.[i]?.trim() || <span className="text-slate-400">{t("ask.blank")}</span>}</dd>
+            </div>
+          )),
+        )}
+      </dl>
+    </details>
   );
 }
 
@@ -267,9 +355,12 @@ export function DraftWhat({
             {t(rows ? "pd.draft.hintRedo" : "pd.draft.hintNew")}
           </span>
         </div>
+      ) : plan.draft?.status === "asking" ? (
+        <DraftQuestions key={plan.draft.qa?.[plan.draft.qa.length - 1]?.askedAt ?? ""} plan={plan} busy={busy} act={act} onCancel={onCancelDraft} />
       ) : (
         <DraftJob plan={plan} busy={busy} onCancel={onCancelDraft} />
       )}
+      <DraftQa plan={plan} />
       {editable && <DraftOutcome plan={plan} />}
 
       {policy && (

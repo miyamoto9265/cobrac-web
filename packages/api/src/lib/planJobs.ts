@@ -25,6 +25,8 @@ import {
   PLAN_LIMITS,
   buildPlanJobInput,
   generatePlanProposalId,
+  planMayAsk,
+  planQaInput,
   generatePlanRowId,
   hubScores,
   isDeterministicPlanAttachment,
@@ -66,7 +68,7 @@ export async function ownerContext(userId: string): Promise<{ projects: ProjectR
 /** The input of a job: the plan's rows as they are, the owner's projects and Canons, the attachments the job reads. */
 export function planJobInput(
   plan: PlanRecord,
-  x: { kind: PlanJobKind; jobId: string; rows: PlanRowRecord[]; projects: ProjectRecord[]; canons: CanonRecord[]; concurrency: number; wave: number | null; locale: PlanJobState["locale"] },
+  x: { kind: PlanJobKind; jobId: string; rows: PlanRowRecord[]; projects: ProjectRecord[]; canons: CanonRecord[]; concurrency: number; wave: number | null; locale: PlanJobState["locale"]; qa?: PlanJobState["qa"] },
 ): PlanJobInput {
   return buildPlanJobInput({
     kind: x.kind,
@@ -100,6 +102,8 @@ export function planJobInput(
     canons: x.canons.map((c) => ({ canonId: c.canonId, name: c.name, policy: c.policy ?? "", headRevision: c.headRevision, memberCount: c.memberCount })),
     concurrency: x.concurrency,
     wave: x.wave,
+    // a draft may first ask the owner (up to PLAN_ASK_LIMITS.rounds rounds); it gets the answers given so far
+    ...(x.kind === "draft" ? { qa: planQaInput(x.qa), ask: planMayAsk(x.qa) } : {}),
   });
 }
 
@@ -119,7 +123,7 @@ export async function queuePlanJob(
 ): Promise<PlanJobState | null> {
   const jobId = newId("job_");
   const { projects, canons } = await ownerContext(owner.userId);
-  const input = planJobInput(plan, { kind, jobId, rows, projects, canons, concurrency, wave: kind === "replan" ? (state.wave ?? null) : null, locale: state.locale ?? null });
+  const input = planJobInput(plan, { kind, jobId, rows, projects, canons, concurrency, wave: kind === "replan" ? (state.wave ?? null) : null, locale: state.locale ?? null, qa: state.qa });
   await putPlanJson(planJobKey(plan.planId, jobId, "input.json"), input);
   const at = nowIso();
   const next: PlanJobState = { ...state, jobId, status: "queued", queuedAt: at, error: null, errorCode: null };
@@ -208,6 +212,7 @@ export async function readPlanResult(planId: string, kind: PlanJobKind, jobId: s
     policy: typeof result.policy === "string" ? result.policy : "",
     proposals: result.proposals.map((p) => (p && typeof p === "object" ? { ...(p.row && typeof p.row === "object" ? p.row : {}), kind: p.kind, rowId: p.rowId ?? "", policy: p.policy ?? "", reason: p.reason } : p)),
     notes: typeof result.notes === "string" ? result.notes : "",
+    questions: Array.isArray(result.questions) ? result.questions : [],
   };
   const parsed = parsePlanResult(JSON.stringify(reply), input);
   if (!parsed) return null;

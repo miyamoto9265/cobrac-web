@@ -1641,7 +1641,7 @@ async function planJobMain() {
       return;
     }
     const p = outcome.parsed;
-    console.log(`[worker] plan ${input.kind} written (${p.rows.length} rows, ${p.proposals.length} proposals, ${p.unread.length} unread, ${p.dropped} dropped, ${outcome.attempts} turn(s))`);
+    console.log(`[worker] plan ${input.kind} written (${p.rows.length} rows, ${p.proposals.length} proposals, ${p.unread.length} unread, ${p.questions.length} questions, ${p.dropped} dropped, ${outcome.attempts} turn(s))`);
   } finally {
     clearInterval(heartbeat);
     planJobOnStop = null;

@@ -597,6 +597,8 @@ async function endDraft(plan: PlanRecord, d: PlanJobState, status: "failed" | "c
 /** A DRAFTING plan: queue its draft job when a slot is free, follow it, and apply its result. */
 async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number, result: AdvanceResult) {
   const d = plan.draft;
+  // the Orchestrator asked the owner before drafting: the draft is asked for again once they answer or skip
+  if (d?.status === "asking") return;
   if (!isOpenPlanJob(d)) {
     // drafting without a draft in progress (should not happen): back to an editable draft
     if (await setPlanStatus(plan.planId, "DRAFTING", "DRAFT")) plan.status = "DRAFT";
@@ -633,6 +635,15 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
   if (p.to !== "completed") return endDraft(plan, d, p.to, p.error);
   const parsed = await readPlanResult(plan.planId, "draft", d.jobId!);
   if (!parsed) return endDraft(plan, d, "failed", "The result of the draft job could not be read.");
+  if (parsed.questions.length) {
+    const qa = [...(d.qa ?? []), { questions: parsed.questions, answers: null, askedAt: nowIso() }];
+    const asking: PlanJobState = { ...d, status: "asking", error: null, endedAt: nowIso(), qa };
+    if (!(await updatePlan(plan.planId, { draft: asking }, { status: "DRAFTING" }))) return;
+    plan.draft = asking;
+    result.changed++;
+    await putPlanEvent(plan.planId, "draft_asked", RUNNER, { detail: { questions: parsed.questions.length, round: qa.length } });
+    return;
+  }
   const limits = await currentLimits(now);
   const projects = (await listUserProjects(plan.ownerUserId)).filter((x) => !x.deletedAt);
   const applied = draftRows(plan.planId, await listRows(plan.planId, true), parsed, projects, limits.effective, nowIso());
