@@ -43,4 +43,16 @@ describe("planRunKey", () => {
     expect(outside).toEqual({ error: "Model gpt-6-sol is not available.", meta: { i18n: "sys.orgKeyModel", model: "gpt-6-sol" } });
     expect(planRunKey(user(tier(2)), null, "gpt-6-luna")).toMatchObject({ meta: { i18n: "sys.orgKeyUnavailable" } });
   });
+
+  it("runs DeepSeek V4.1 Flash on the user's DeepSeek key, else on the default DeepSeek key", () => {
+    const own = user({ apiKeyRegistered: true, encryptedApiKey: "openai-cipher", deepseekKeyRegistered: true, encryptedDeepseekKey: "deepseek-cipher" });
+    expect(planRunKey(own, null, "deepseek-flash")).toEqual({ source: "own", encryptedApiKey: "deepseek-cipher", context: { userId: "sub-alice", purpose: "deepseek-api-key" } });
+    const deepseekDefault = { ...defaultKey, id: "default-deepseek-key" as const, encryptedApiKey: "default-deepseek-cipher" };
+    expect(planRunKey(user(tier(1)), deepseekDefault, "deepseek-flash")).toEqual({
+      source: "org",
+      encryptedApiKey: "default-deepseek-cipher",
+      context: { purpose: "deepseek-api-key", scope: "default" },
+    });
+    expect(planRunKey(user({ apiKeyRegistered: true, encryptedApiKey: "openai-cipher" }), null, "deepseek-flash")).toMatchObject({ meta: { i18n: "sys.noDeepseekKey" } });
+  });
 });

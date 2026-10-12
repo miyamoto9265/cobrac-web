@@ -6,10 +6,10 @@ import { splitAnthropicCredential } from "@cobrac/shared";
 import type { RcsConnection } from "./rcs.js";
 
 /**
- * Local gateway of a Claude run. Claude Code runs as a child process whose environment the agent's shell commands
- * inherit, so the Anthropic key and the RCS token never leave the worker process: Claude Code calls this gateway on
- * 127.0.0.1 with a random per-run token, and the gateway forwards the request with the real key (Anthropic) or bearer
- * token (RCS). The run token is worthless once the worker exits, and the gateway only passes the Messages and Models
+ * Local gateway of a Claude Code run (Claude or DeepSeek models). Claude Code runs as a child process whose
+ * environment the agent's shell commands inherit, so the API key and the RCS token never leave the worker process:
+ * Claude Code calls this gateway on 127.0.0.1 with a random per-run token, and the gateway forwards the request with
+ * the real key (Anthropic, DeepSeek) or bearer token (RCS). The run token is worthless once the worker exits, and the gateway only passes the Messages and Models
  * endpoints, and Messages requests only for the run's models (so the agent cannot spend the key on another model).
  */
 export interface ClaudeGateway {
@@ -28,8 +28,10 @@ export interface ClaudeGatewayOptions {
   rcs: RcsConnection | null;
   /** Models a Messages request may name */
   models: readonly string[];
-  /** Anthropic API origin (tests point it at a mock server) */
+  /** Messages API base URL, with a path for an Anthropic-compatible API (DeepSeek); tests point it at a mock server */
   upstream?: string;
+  /** How the key is sent: Anthropic's x-api-key (default), or also as a bearer token (DeepSeek) */
+  auth?: "x-api-key" | "bearer";
 }
 
 const ANTHROPIC_PATHS = /^\/v1\/(?:messages(?:\/count_tokens)?|models(?:\/[\w.-]+)?)$/;
@@ -43,6 +45,8 @@ const DROP_RESPONSE = new Set(["connection", "keep-alive", "transfer-encoding", 
 export async function startClaudeGateway(o: ClaudeGatewayOptions): Promise<ClaudeGateway> {
   const token = `cobrac-${randomBytes(24).toString("hex")}`;
   const anthropic = new URL(o.upstream ?? "https://api.anthropic.com");
+  // the base URL's own path (DeepSeek's "/anthropic") goes in front of the request's
+  const basePath = anthropic.pathname.replace(/\/+$/, "");
   const { apiKey, workspaceId } = splitAnthropicCredential(o.apiKey);
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://gateway");
@@ -50,8 +54,12 @@ export async function startClaudeGateway(o: ClaudeGatewayOptions): Promise<Claud
       const path = url.pathname.slice("/anthropic".length);
       if (!sameToken(req.headers["x-api-key"], token)) return deny(res, 401);
       if (!ANTHROPIC_PATHS.test(path)) return deny(res, 404);
-      const target = new URL(path + url.search, anthropic);
-      const auth: Record<string, string> = { "x-api-key": apiKey, ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}) };
+      const target = new URL(basePath + path + url.search, anthropic);
+      const auth: Record<string, string> =
+        o.auth === "bearer"
+          ? // DeepSeek's Anthropic-compatible API takes the key either way
+            { authorization: `Bearer ${apiKey}`, "x-api-key": apiKey }
+          : { "x-api-key": apiKey, ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}) };
       if (!MESSAGES_PATHS.test(path)) return forward(req, res, target, auth);
       return void readBody(req).then(
         (body) => {

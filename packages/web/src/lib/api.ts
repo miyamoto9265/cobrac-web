@@ -77,8 +77,8 @@ import type {
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
 
-/** `?provider=anthropic` for the Anthropic key (Claude models); nothing for the OpenAI key. */
-const providerQuery = (p: ModelProvider) => (p === "anthropic" ? "?provider=anthropic" : "");
+/** `?provider=anthropic` / `?provider=deepseek` for that provider's key; nothing for the OpenAI key. */
+const providerQuery = (p: ModelProvider) => (p === "openai" ? "" : `?provider=${p}`);
 
 export class ApiError extends Error {
   constructor(

@@ -359,7 +359,7 @@ export const zhTw: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "未註冊",
   "admin.defaultKeyConfirmDelete": "要刪除預設 API 金鑰嗎？沒有自己金鑰的已核准使用者將無法啟動工作。",
   "admin.orgTier": "預設金鑰",
-  "admin.orgTierHelp": "使用預設 API 金鑰的核准。Tier 1：僅 gpt-6-luna 和 gpt-5.6-luna。Tier 2：所有模型。變更自下一次工作啟動（新建、回答、重試）起生效；執行中的工作不會停止。",
+  "admin.orgTierHelp": "使用預設 API 金鑰的核准。Tier 1：僅 gpt-6-luna、gpt-5.6-luna、Claude Haiku 5.5 和 DeepSeek V4.1 Flash。Tier 2：所有模型。變更自下一次工作啟動（新建、回答、重試）起生效；執行中的工作不會停止。",
   "admin.orgTierOf": "{email} 的預設 API 金鑰 Tier",
   "admin.tierNone": "未核准",
   "admin.ownKeyFirst": "優先用本人金鑰",

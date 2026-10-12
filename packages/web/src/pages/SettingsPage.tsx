@@ -1,4 +1,4 @@
-import { KeyRound, Save, Trash2 } from "lucide-react";
+import { KeyRound, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { CanonRecord, KeySource, ModelProvider, ReasoningEffort } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
@@ -55,8 +55,16 @@ export function SettingsPage() {
       <h1 className="mb-4 text-xl font-semibold">{t("settings.title")}</h1>
       {msg && <div className={`mb-4 rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div className="grid max-w-4xl gap-5 md:grid-cols-2">
-        <ApiKeyCard provider="openai" source={me?.keySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
-        <ApiKeyCard provider="anthropic" source={me?.claudeKeySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
+        <section className={card} data-testid="api-keys-card">
+          <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+            <KeyRound size={16} /> {t("keys.title")} <HelpTip text={t("keys.help")} />
+          </h2>
+          <div className="divide-y divide-slate-100">
+            <ApiKeyRow provider="openai" source={me?.keySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
+            <ApiKeyRow provider="anthropic" source={me?.claudeKeySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
+            <ApiKeyRow provider="deepseek" source={me?.deepseekKeySource ?? null} approved={!!me?.orgAccess} run={run} busy={busy} />
+          </div>
+        </section>
 
         <section className={card}>
           <h2 className="mb-3 text-sm font-semibold">{t("settings.profile")}</h2>
@@ -151,93 +159,79 @@ export function SettingsPage() {
   );
 }
 
-/** Labels and test ids of each provider's key card (the OpenAI one keeps the original ids). */
-const KEY_CARD: Record<ModelProvider, { title: MessageKey; help: MessageKey; ownTitle: MessageKey; ownHelp: MessageKey; ownActive: MessageKey; ready: MessageKey; unavailable: MessageKey; saved: MessageKey; placeholder: string; id: string }> = {
-  openai: {
-    title: "settings.apiKey",
-    help: "settings.apiKeyHelp",
-    ownTitle: "settings.ownKey",
-    ownHelp: "settings.ownKeyHelp",
-    ownActive: "settings.ownKeyActive",
-    ready: "settings.ready",
-    unavailable: "settings.unavailable",
-    saved: "settings.keySaved",
-    placeholder: "sk-...",
-    id: "",
-  },
-  anthropic: {
-    title: "claude.key",
-    help: "claude.keyHelp",
-    ownTitle: "claude.ownKey",
-    ownHelp: "claude.ownKeyHelp",
-    ownActive: "claude.ownKeyActive",
-    ready: "claude.ready",
-    unavailable: "claude.unavailable",
-    saved: "claude.keySaved",
-    placeholder: "sk-ant-...",
-    id: "anthropic-",
-  },
+/** Name, (?) texts and test ids of each provider's key row (the OpenAI one keeps the original ids). */
+const KEY_ROW: Record<ModelProvider, { name: string; help: MessageKey; ownHelp: MessageKey; saved: MessageKey; placeholder: string; id: string }> = {
+  openai: { name: "OpenAI", help: "settings.apiKeyHelp", ownHelp: "settings.ownKeyHelp", saved: "settings.keySaved", placeholder: "sk-...", id: "" },
+  anthropic: { name: "Anthropic", help: "claude.keyHelp", ownHelp: "claude.ownKeyHelp", saved: "claude.keySaved", placeholder: "sk-ant-...", id: "anthropic-" },
+  deepseek: { name: "DeepSeek", help: "deepseek.keyHelp", ownHelp: "deepseek.ownKeyHelp", saved: "deepseek.keySaved", placeholder: "sk-...", id: "deepseek-" },
 };
 
 /**
- * One provider's API key: approved users run on the default key and may add their own; others register theirs. `source`
- * is the key that provider's models run with now.
+ * One provider's API key on one line: its state, and buttons that open the input. Approved users run on the default
+ * key where the organisation has one and may add their own; others register theirs. `source` is the key that
+ * provider's models run with now.
  */
-function ApiKeyCard({ provider, source, approved, run, busy }: { provider: ModelProvider; source: KeySource | null; approved: boolean; run: (fn: () => Promise<void>, okText: string) => Promise<void>; busy: boolean }) {
+function ApiKeyRow({ provider, source, approved, run, busy }: { provider: ModelProvider; source: KeySource | null; approved: boolean; run: (fn: () => Promise<void>, okText: string) => Promise<void>; busy: boolean }) {
   const t = useT();
   const { refreshMe } = useAuth();
   const [apiKey, setApiKey] = useState("");
   const [workspaceId, setWorkspaceId] = useState("");
+  const [editing, setEditing] = useState(false);
   const [keyStatus, setKeyStatus] = useState<{ registered: boolean; last4: string | null } | null>(null);
-  const c = KEY_CARD[provider];
-  // An approved user's own key is optional while the organisation's key covers the provider. There is no default
-  // Anthropic key yet, so Claude then needs the user's own key: the card asks for it with the form open.
-  const optional = approved && (provider === "openai" || source === "org" || !!keyStatus?.registered);
+  const c = KEY_ROW[provider];
+  const own = !!keyStatus?.registered;
+  // the user's own key is optional while the organisation's key covers the provider (OpenAI: always for approved users)
+  const optional = approved && (provider === "openai" || source === "org" || own);
 
   useEffect(() => {
     api.apiKeyStatus(provider).then(setKeyStatus).catch(() => undefined);
   }, [provider, source]);
 
-  const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
-  const btn = "flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 coarse:min-h-11";
-  const keyForm = (
-    <>
-      <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={c.placeholder} className={input} autoComplete="off" aria-label={t(c.title)} />
-      {provider === "anthropic" && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            value={workspaceId}
-            onChange={(e) => setWorkspaceId(e.target.value)}
-            placeholder={t("claude.workspace")}
-            className={input}
-            autoComplete="off"
-            spellCheck={false}
-            aria-label={t("claude.workspace")}
-            data-testid="anthropic-workspace-id"
-          />
-          <HelpTip text={t("claude.workspaceHelp")} />
-        </div>
-      )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          disabled={busy || apiKey.trim().length < 20}
-          className={btn}
-          onClick={() =>
-            void run(async () => {
-              const r = await api.setApiKey(apiKey.trim(), provider, workspaceId.trim());
-              setKeyStatus(r);
-              setApiKey("");
-              setWorkspaceId("");
-              await refreshMe();
-            }, t(c.saved))
-          }
-        >
-          <Save size={14} /> {t("settings.register")}
-        </button>
-        {keyStatus?.registered && (
+  const ok = "text-emerald-700";
+  const warn = "text-amber-700";
+  const [stateText, stateTone] = own
+    ? [t(approved ? "keys.own" : "keys.registered", { last4: keyStatus?.last4 ?? "" }), ok]
+    : source === "org"
+      ? [t("keys.ready"), ok]
+      : !approved
+        ? [t("settings.unregistered"), warn]
+        : provider === "openai"
+          ? [t("keys.askAdmin"), warn]
+          : [t("keys.needed"), warn];
+
+  const input = "min-w-0 flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 coarse:py-2.5";
+  const small = "shrink-0 rounded-md px-2 py-1 text-xs disabled:opacity-50 coarse:min-h-11";
+  const close = () => {
+    setEditing(false);
+    setApiKey("");
+    setWorkspaceId("");
+  };
+
+  return (
+    <div className="py-2.5" data-testid={`${c.id}api-key-card`}>
+      <div className="flex items-center gap-2">
+        <span className="flex w-24 shrink-0 items-center gap-1 text-sm font-medium">
+          {c.name} <HelpTip text={t(optional ? c.ownHelp : c.help)} />
+        </span>
+        <span className={`min-w-0 flex-1 truncate text-xs font-medium ${stateTone}`} data-testid={`${c.id}key-status`}>
+          {stateText}
+        </span>
+        {!editing && (
           <button
             disabled={busy}
-            className="flex items-center gap-1.5 rounded-lg border border-rose-300 px-3 py-2 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50 coarse:min-h-11"
+            className={`${small} ${own || optional ? "border border-slate-300 text-slate-700 hover:bg-slate-50" : "bg-blue-600 font-medium text-white hover:bg-blue-700"}`}
+            onClick={() => setEditing(true)}
+            data-testid={`${c.id}key-edit`}
+          >
+            {own ? t("change") : t("keys.add")}
+          </button>
+        )}
+        {own && !editing && (
+          <button
+            disabled={busy}
+            title={t("delete")}
+            aria-label={t("delete")}
+            className={`${small} text-rose-600 hover:bg-rose-50`}
             onClick={() =>
               void run(async () => {
                 await api.deleteApiKey(provider);
@@ -246,42 +240,47 @@ function ApiKeyCard({ provider, source, approved, run, busy }: { provider: Model
               }, t("settings.keyDeleted"))
             }
           >
-            <Trash2 size={14} /> {t("delete")}
+            <Trash2 size={14} />
           </button>
         )}
       </div>
-    </>
-  );
-
-  return (
-    <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5" data-testid={`${c.id}api-key-card`}>
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <KeyRound size={16} /> {optional ? t(c.ownTitle) : t(c.title)} <HelpTip text={optional ? t(c.ownHelp) : t(c.help)} />
-      </h2>
-      {approved ? (
-        <div className="mb-2 text-xs" data-testid={`${c.id}key-status`}>
-          {keyStatus?.registered ? (
-            <span className="font-medium text-emerald-700">{t(c.ownActive, { last4: keyStatus.last4 ?? "" })}</span>
-          ) : source === "org" ? (
-            <span className="font-medium text-emerald-700">{t(c.ready)}</span>
-          ) : (
-            <span className="font-medium text-amber-700">{t(c.unavailable)}</span>
+      {editing && (
+        <div className="mt-2 flex flex-wrap items-center gap-2" data-testid={`${c.id}own-key-form`}>
+          <input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={c.placeholder} className={input} autoComplete="off" aria-label={`${c.name} ${t("keys.title")}`} autoFocus />
+          {provider === "anthropic" && (
+            <span className="flex min-w-0 basis-40 items-center gap-1">
+              <input
+                value={workspaceId}
+                onChange={(e) => setWorkspaceId(e.target.value)}
+                placeholder={t("claude.workspace")}
+                className={input}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label={t("claude.workspace")}
+                data-testid="anthropic-workspace-id"
+              />
+              <HelpTip text={t("claude.workspaceHelp")} />
+            </span>
           )}
-        </div>
-      ) : (
-        <div className="mb-2 text-xs" data-testid={`${c.id}key-status`}>
-          {t("settings.status")}{" "}
-          {keyStatus?.registered ? <span className="font-medium text-emerald-700">{t("settings.registered", { last4: keyStatus.last4 ?? "" })}</span> : <span className="font-medium text-amber-700">{t("settings.unregistered")}</span>}
+          <button
+            disabled={busy || apiKey.trim().length < 20}
+            className={`${small} flex items-center gap-1 bg-blue-600 font-medium text-white hover:bg-blue-700`}
+            onClick={() =>
+              void run(async () => {
+                const r = await api.setApiKey(apiKey.trim(), provider, workspaceId.trim());
+                setKeyStatus(r);
+                close();
+                await refreshMe();
+              }, t(c.saved))
+            }
+          >
+            <Save size={13} /> {t("save")}
+          </button>
+          <button className={`${small} text-slate-500 hover:bg-slate-100`} title={t("close")} aria-label={t("close")} onClick={close}>
+            <X size={14} />
+          </button>
         </div>
       )}
-      {optional && !keyStatus?.registered ? (
-        <details className="text-sm" data-testid={`${c.id}own-key-form`}>
-          <summary className="cursor-pointer text-xs text-slate-600 hover:text-slate-800">{t("settings.useOwnKey")}</summary>
-          <div className="mt-2">{keyForm}</div>
-        </details>
-      ) : (
-        keyForm
-      )}
-    </section>
+    </div>
   );
 }

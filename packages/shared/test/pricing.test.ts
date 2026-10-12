@@ -25,6 +25,8 @@ describe("pricing", () => {
     // 300k * 4 + 500k * 0.20 + 200k * 5 + 100k * 20 = 1.2 + 0.1 + 1.0 + 2.0
     expect(estimateCostUsd("claude-opus-5-5", usage)).toBeCloseTo(4.3, 6);
     for (const m of ["claude-fable-5-1", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]) expect(resolvePricing(m)?.cacheWrite).toBeCloseTo(resolvePricing(m)!.input * 1.25, 6);
+    // deepseek-flash (DeepSeek V4.1 Flash): $0.30 in, $0.006 cache hit, $1.20 out per 1M
+    expect(estimateCostUsd("deepseek-flash", { inputTokens: 1_000_000, cachedInputTokens: 500_000, outputTokens: 100_000, reasoningOutputTokens: 0 })).toBeCloseTo(0.15 + 0.003 + 0.12, 6);
     // OpenAI usage without cache writes is priced as before
     expect(addUsage(usage, usage).cacheWriteTokens).toBe(400_000);
     expect("cacheWriteTokens" in addUsage(EMPTY_USAGE, EMPTY_USAGE)).toBe(false);

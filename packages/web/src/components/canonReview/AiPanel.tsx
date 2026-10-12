@@ -1,7 +1,7 @@
 import { AlertTriangle, Bot, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { CanonAiFlag, CanonAiState, CanonAiVerdict, UiLocale } from "@cobrac/shared";
-import { formatUsd } from "@cobrac/shared";
+import { formatUsd, modelDisplayName } from "@cobrac/shared";
 import { LOCALES, localeName, useI18n, useT, type MessageKey } from "../../i18n";
 import { fmtDate } from "../../lib/format";
 import { HelpTip } from "../HelpTip";
@@ -85,7 +85,7 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
                 </option>
                 {models.map((m) => (
                   <option key={m} value={m}>
-                    {m}
+                    {modelDisplayName(m)}
                     {isPriced(m, priced) ? "" : t("model.unpriced")}
                   </option>
                 ))}

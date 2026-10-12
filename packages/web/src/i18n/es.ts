@@ -359,7 +359,7 @@ export const es: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "Sin registrar",
   "admin.defaultKeyConfirmDelete": "¿Eliminar la clave de API predeterminada? Los usuarios aprobados sin clave propia ya no podrán iniciar trabajos.",
   "admin.orgTier": "Clave predet.",
-  "admin.orgTierHelp": "Aprobación para usar la clave de API predeterminada. Tier 1: solo gpt-6-luna y gpt-5.6-luna. Tier 2: todos los modelos. Un cambio se aplica desde el próximo inicio de trabajo (nuevo, respuesta, reintento); un trabajo en curso no se detiene.",
+  "admin.orgTierHelp": "Aprobación para usar la clave de API predeterminada. Tier 1: solo gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 y DeepSeek V4.1 Flash. Tier 2: todos los modelos. Un cambio se aplica desde el próximo inicio de trabajo (nuevo, respuesta, reintento); un trabajo en curso no se detiene.",
   "admin.orgTierOf": "Tier de la clave de API predeterminada de {email}",
   "admin.tierNone": "No aprobado",
   "admin.ownKeyFirst": "primero su clave",

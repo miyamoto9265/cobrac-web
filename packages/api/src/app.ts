@@ -21,6 +21,7 @@ import type {
   CsvFileName,
   ListBraVersionsResponse,
   DefaultApiKeyRecord,
+  ModelPolicy,
   ModelProvider,
   ArticleJobState,
   ArticleMeta,
@@ -97,9 +98,10 @@ import {
   addUsage,
   ANTHROPIC_WORKSPACE_ID,
   CLAUDE_MODELS,
+  DEEPSEEK_MODELS,
   joinAnthropicCredential,
-  DEFAULT_ANTHROPIC_KEY_CATALOG_KEY,
-  DEFAULT_KEY_CATALOG_KEY,
+  DEFAULT_KEY_CATALOG_KEYS,
+  messagesOnly,
   isOrgTier,
   policyAllows,
   ARTICLE_FIGURE_KEY_RE,
@@ -343,10 +345,13 @@ const requireAdmin = (u: UserRecord) => {
 // Users
 // ---------------------------------------------------------------------------
 
+/** The key each provider's models run with, and the default-API-key tier (GET /users/me, /users/me/models). */
+const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeKeySource: policy.claude.source, deepseekKeySource: policy.deepseek.source, orgTier: policy.tier });
+
 app.get("/users/me", async (c) => {
   const u = c.get("user");
   const { policy } = await modelPolicy(u);
-  const res: MeResponse = { ...toPublicUser(u), keySource: policy.source, claudeKeySource: policy.claude.source, orgTier: policy.tier };
+  const res: MeResponse = { ...toPublicUser(u), ...keySources(policy) };
   return c.json(res);
 });
 
@@ -370,7 +375,7 @@ app.put("/users/me", async (c) => {
   }
   await updateUser(u.userId, values);
   const { policy } = await modelPolicy(u);
-  const res: MeResponse = { ...toPublicUser({ ...u, ...values }), keySource: policy.source, claudeKeySource: policy.claude.source, orgTier: policy.tier };
+  const res: MeResponse = { ...toPublicUser({ ...u, ...values }), ...keySources(policy) };
   return c.json(res);
 });
 
@@ -378,17 +383,15 @@ app.get("/users/me/models", async (c) => {
   const u = c.get("user");
   const { policy, defaultKey } = await modelPolicy(u);
   const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
-  // a user with an Anthropic key and no OpenAI key chooses among the Claude models only
-  const claudeOnly = policy.source === null && policy.claude.source !== null;
-  const openAiModels = claudeOnly ? [] : policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels);
+  // a user with an Anthropic / DeepSeek key and no OpenAI key chooses among those models only
+  const noOpenAi = messagesOnly(policy);
+  const openAiModels = noOpenAi ? [] : policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels);
   const res: ModelsResponse = {
-    models: [...openAiModels, ...policy.claude.allowed],
+    models: [...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed],
     efforts: REASONING_EFFORTS,
     envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
-    keySource: policy.source,
-    claudeKeySource: policy.claude.source,
-    orgTier: policy.tier,
-    restricted: policy.allowed !== null || claudeOnly,
+    ...keySources(policy),
+    restricted: policy.allowed !== null || noOpenAi,
     pricedModels: Object.keys(PRICING),
   };
   return c.json(res);
@@ -459,12 +462,25 @@ app.get("/users/me/usage", async (c) => {
   return c.json(summary);
 });
 
-/** `?provider=anthropic` selects the Anthropic key (Claude models); otherwise the OpenAI key. */
-const providerParam = (c: { req: { query(name: string): string | undefined } }): ModelProvider => (c.req.query("provider") === "anthropic" ? "anthropic" : "openai");
+/** `?provider=anthropic` / `?provider=deepseek` selects that provider's key (Claude / DeepSeek models); otherwise the OpenAI key. */
+const providerParam = (c: { req: { query(name: string): string | undefined } }): ModelProvider => {
+  const p = c.req.query("provider");
+  return p === "anthropic" || p === "deepseek" ? p : "openai";
+};
+
+/** The user's own key of `provider` as stored on the user record (`encrypted` "" = none). */
+function ownKeyValues(provider: ModelProvider, encrypted: string, last4: string, models: string[]): Partial<UserRecord> {
+  const registered = !!encrypted;
+  if (provider === "anthropic") return { encryptedAnthropicKey: encrypted, anthropicKeyRegistered: registered, anthropicKeyLast4: last4 };
+  if (provider === "deepseek") return { encryptedDeepseekKey: encrypted, deepseekKeyRegistered: registered, deepseekKeyLast4: last4 };
+  return { encryptedApiKey: encrypted, apiKeyRegistered: registered, apiKeyLast4: last4, ...(registered ? { availableModels: models } : {}) };
+}
 
 app.get("/users/me/apikey/status", (c) => {
   const u = c.get("user");
-  if (providerParam(c) === "anthropic") return c.json({ registered: !!u.anthropicKeyRegistered, last4: u.anthropicKeyLast4 ?? null });
+  const provider = providerParam(c);
+  if (provider === "anthropic") return c.json({ registered: !!u.anthropicKeyRegistered, last4: u.anthropicKeyLast4 ?? null });
+  if (provider === "deepseek") return c.json({ registered: !!u.deepseekKeyRegistered, last4: u.deepseekKeyLast4 ?? null });
   return c.json({ registered: !!u.apiKeyRegistered, last4: u.apiKeyLast4 ?? null });
 });
 
@@ -498,6 +514,16 @@ async function verifiedAnthropicKey(apiKey: unknown, workspaceId: unknown): Prom
   return { key, stored: joinAnthropicCredential(key, ws), models: [...CLAUDE_MODELS] };
 }
 
+/** A pasted DeepSeek key, checked against the DeepSeek API (the DeepSeek models are a fixed list, `DEEPSEEK_MODELS`). */
+async function verifiedDeepSeekKey(apiKey: unknown): Promise<{ key: string; stored: string; models: string[] }> {
+  const key = (typeof apiKey === "string" ? apiKey : "").trim();
+  if (!key || key.length < 20 || /\s/.test(key)) throw bad("API キーの形式が不正です");
+  const r = await fetch("https://api.deepseek.com/models", { headers: { Authorization: `Bearer ${key}` } });
+  if (r.status === 401 || r.status === 403) throw bad("DeepSeek がこの API キーを拒否しました（無効なキー）");
+  if (!r.ok) throw new HTTPException(502, { message: `DeepSeek への疎通確認に失敗しました (${r.status})` });
+  return { key, stored: key, models: [...DEEPSEEK_MODELS] };
+}
+
 async function verifiedOpenAi(apiKey: unknown) {
   const { key, models } = await verifiedOpenAiKey(apiKey);
   return { key, stored: key, models };
@@ -505,7 +531,7 @@ async function verifiedOpenAi(apiKey: unknown) {
 
 /** The pasted key of `provider`, checked; `stored` is what gets encrypted (the Anthropic key may carry its workspace ID). */
 const verifiedKey = (provider: ModelProvider, body: { apiKey?: unknown; workspaceId?: unknown }) =>
-  provider === "anthropic" ? verifiedAnthropicKey(body.apiKey, body.workspaceId) : verifiedOpenAi(body.apiKey);
+  provider === "anthropic" ? verifiedAnthropicKey(body.apiKey, body.workspaceId) : provider === "deepseek" ? verifiedDeepSeekKey(body.apiKey) : verifiedOpenAi(body.apiKey);
 
 app.put("/users/me/apikey", async (c) => {
   const provider = providerParam(c);
@@ -513,15 +539,13 @@ app.put("/users/me/apikey", async (c) => {
   const { key, stored, models } = await verifiedKey(provider, body);
   const u = c.get("user");
   const encrypted = await encryptApiKey(stored, u.userId, provider);
-  if (provider === "anthropic") await updateUser(u.userId, { encryptedAnthropicKey: encrypted, anthropicKeyRegistered: true, anthropicKeyLast4: key.slice(-4) });
-  else await updateUser(u.userId, { encryptedApiKey: encrypted, apiKeyRegistered: true, apiKeyLast4: key.slice(-4), availableModels: models });
+  await updateUser(u.userId, ownKeyValues(provider, encrypted, key.slice(-4), models));
   return c.json({ registered: true, last4: key.slice(-4), models });
 });
 
 app.delete("/users/me/apikey", async (c) => {
   const u = c.get("user");
-  if (providerParam(c) === "anthropic") await updateUser(u.userId, { encryptedAnthropicKey: "", anthropicKeyRegistered: false, anthropicKeyLast4: "" });
-  else await updateUser(u.userId, { encryptedApiKey: "", apiKeyRegistered: false, apiKeyLast4: "" });
+  await updateUser(u.userId, ownKeyValues(providerParam(c), "", "", []));
   return c.json({ registered: false, last4: null });
 });
 
@@ -2196,7 +2220,7 @@ app.put("/admin/default-api-key", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { apiKey?: unknown; workspaceId?: unknown };
   const { key, stored, models } = await verifiedKey(provider, body);
   const record: DefaultApiKeyRecord = {
-    ...(provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_CATALOG_KEY : DEFAULT_KEY_CATALOG_KEY),
+    ...DEFAULT_KEY_CATALOG_KEYS[provider],
     encryptedApiKey: await encryptDefaultApiKey(stored, provider),
     last4: key.slice(-4),
     availableModels: models,

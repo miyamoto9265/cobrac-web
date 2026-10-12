@@ -359,7 +359,7 @@ export const pt: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "Não registrada",
   "admin.defaultKeyConfirmDelete": "Excluir a chave de API padrão? Usuários aprovados sem chave própria não poderão mais iniciar tarefas.",
   "admin.orgTier": "Chave padrão",
-  "admin.orgTierHelp": "Aprovação para usar a chave de API padrão. Tier 1: apenas gpt-6-luna e gpt-5.6-luna. Tier 2: todos os modelos. Uma alteração vale a partir do próximo início de tarefa (nova, resposta, nova tentativa); uma tarefa em execução não é interrompida.",
+  "admin.orgTierHelp": "Aprovação para usar a chave de API padrão. Tier 1: apenas gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 e DeepSeek V4.1 Flash. Tier 2: todos os modelos. Uma alteração vale a partir do próximo início de tarefa (nova, resposta, nova tentativa); uma tarefa em execução não é interrompida.",
   "admin.orgTierOf": "Tier da chave de API padrão de {email}",
   "admin.tierNone": "Não aprovado",
   "admin.ownKeyFirst": "chave própria primeiro",

@@ -19,5 +19,8 @@ describe("usableDefaultModel", () => {
     // no key for the model's provider
     expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", orgTier: null, keySource: "own", claudeKeySource: null })).toBeNull();
     expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", orgTier: null, keySource: null, claudeKeySource: "own" })).toBe("claude-opus-5-5");
+    // DeepSeek V4.1 Flash runs on the DeepSeek key, Tier 1 included
+    expect(usableDefaultModel({ defaultModel: "deepseek-flash", orgTier: 1, keySource: "org", claudeKeySource: null, deepseekKeySource: "org" })).toBe("deepseek-flash");
+    expect(usableDefaultModel({ defaultModel: "deepseek-flash", orgTier: null, keySource: "own", claudeKeySource: "own", deepseekKeySource: null })).toBeNull();
   });
 });

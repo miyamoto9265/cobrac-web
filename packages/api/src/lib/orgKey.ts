@@ -1,10 +1,10 @@
 import { DeleteCommand, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, ModelProvider, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
-import { DEFAULT_ANTHROPIC_KEY_CATALOG_KEY, DEFAULT_KEY_CATALOG_KEY, EMPTY_USAGE, addUsage, modelPolicyOf } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEYS, EMPTY_USAGE, addUsage, modelPolicyOf, ownKeyRegistered } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
 
-const catalogKey = (provider: ModelProvider) => (provider === "anthropic" ? DEFAULT_ANTHROPIC_KEY_CATALOG_KEY : DEFAULT_KEY_CATALOG_KEY);
+const catalogKey = (provider: ModelProvider) => DEFAULT_KEY_CATALOG_KEYS[provider];
 
 export async function getDefaultKey(provider: ModelProvider = "openai"): Promise<DefaultApiKeyRecord | null> {
   const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { ...catalogKey(provider) } }));
@@ -24,11 +24,9 @@ export const defaultKeyStatus = (k: DefaultApiKeyRecord | null): DefaultKeyStatu
 
 /** The caller's key and model policy (each default key is read only when it could apply); `defaultKey` is the OpenAI one. */
 export async function modelPolicy(u: UserRecord): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
-  const [defaultKey, claudeKey] = await Promise.all([
-    !u.apiKeyRegistered && u.orgAccess ? getDefaultKey("openai") : null,
-    !u.anthropicKeyRegistered && u.orgAccess ? getDefaultKey("anthropic") : null,
-  ]);
-  return { policy: modelPolicyOf(u, !!defaultKey, !!claudeKey), defaultKey };
+  const lookup = (provider: ModelProvider) => (!ownKeyRegistered(u, provider) && u.orgAccess ? getDefaultKey(provider) : null);
+  const [defaultKey, claudeKey, deepseekKey] = await Promise.all([lookup("openai"), lookup("anthropic"), lookup("deepseek")]);
+  return { policy: modelPolicyOf(u, { openai: !!defaultKey, anthropic: !!claudeKey, deepseek: !!deepseekKey }), defaultKey };
 }
 
 /** Default-API-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */

@@ -359,7 +359,7 @@ export const zh: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "未登记",
   "admin.defaultKeyConfirmDelete": "要删除默认 API 密钥吗？没有自己密钥的已批准用户将无法启动作业。",
   "admin.orgTier": "默认密钥",
-  "admin.orgTierHelp": "使用默认 API 密钥的批准。Tier 1：仅 gpt-6-luna 和 gpt-5.6-luna。Tier 2：所有模型。更改从下一次作业启动（新建、回答、重试）起生效；正在运行的作业不会停止。",
+  "admin.orgTierHelp": "使用默认 API 密钥的批准。Tier 1：仅 gpt-6-luna、gpt-5.6-luna、Claude Haiku 5.5 和 DeepSeek V4.1 Flash。Tier 2：所有模型。更改从下一次作业启动（新建、回答、重试）起生效；正在运行的作业不会停止。",
   "admin.orgTierOf": "{email} 的默认 API 密钥 Tier",
   "admin.tierNone": "未批准",
   "admin.ownKeyFirst": "优先用本人密钥",
