@@ -39,7 +39,7 @@
     <tr><td><b>第 6 部 オーケストレーター</b></td><td>多数の ROI × TLF を計画にまとめ、実行順序の計算、バッチごとの実行、自律実行での判断までを自動で進める仕組み</td></tr>
     <tr><td><b>第 7 部 BRA-DB への登録</b></td><td>凍結した版を、BRA-DB と同じスキーマ（v4.6）のデータベースに来歴付きで登録する手順と規則</td></tr>
     <tr><td><b>第 8 部 システムの構成</b></td><td>AWS の部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、フロントエンド、非機能の目標</td></tr>
-    <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と OpenAI・Anthropic の費用</td></tr>
+    <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と各社のモデルの費用</td></tr>
     <tr><td><b>付録</b></td><td>A API 一覧、B 指示書の原文、C 古いプロジェクトの扱い、D 設計の経緯（速度と費用の測定を含む）、E 典拠</td></tr>
   </tbody>
 </table>
@@ -84,9 +84,9 @@
     <tr><td>SABRA</td><td>組織の混合アトラス。新皮質は BNA（Brainnetome）、それ以外は DHBA を使う。SABRA 自体は独自の ID を持たない（2.3）</td></tr>
     <tr><td>HOMBA / DHBA / BNA</td><td>HOMBA はヒトの脳のオントロジーで、DHBA 側の単位は DHBA 名を持つ HOMBA の項目。BNA は Brainnetome Atlas のラベルで、左が奇数、右が偶数</td></tr>
     <tr><td>RCS</td><td>ROSETTA Candidate Search。名前から HOMBA と BNA の候補と SABRA での扱いを返す MCP サーバー（別リポジトリ <code>rosetta-candidate-search</code>）</td></tr>
-    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で、Anthropic の Claude のモデルを Claude Agent SDK で動かす（4.2）。本書で単に「エージェント」と記した場合はこれを指す</td></tr>
+    <tr><td>CoBRAC エージェント</td><td>BRA を作る LLM。OpenAI のモデルを Codex で、Anthropic の Claude のモデルと DeepSeek のモデルを Claude Agent SDK で動かす（4.2）。本書で単に「エージェント」と記した場合はこれを指す</td></tr>
     <tr><td>Codex</td><td>OpenAI のエージェント実行環境（Codex SDK と CLI）。モデルにツールを使わせ、会話を管理する</td></tr>
-    <tr><td>Claude Agent SDK</td><td>Anthropic のエージェント実行環境。Claude Code を子プロセスとして動かし、Claude のモデルのジョブで Codex と同じ役目を果たす（8.4）</td></tr>
+    <tr><td>Claude Agent SDK</td><td>Anthropic のエージェント実行環境。Claude Code を子プロセスとして動かし、Claude と DeepSeek のモデルのジョブで Codex と同じ役目を果たす（8.4）</td></tr>
     <tr><td>ワーカー</td><td>ジョブごとに AWS Fargate で動く TypeScript のプログラム</td></tr>
     <tr><td>ハーネス</td><td>エージェントを決まった手順で動かし、成果物を検査して直させる仕組みの全体。ワーカーのプログラム、指示書、JSON Schema、検査、変換からなる（第 3 部）</td></tr>
     <tr><td>プロジェクト</td><td>BRA を 1 つ作る単位。ID はシステムが付け（<code>p</code> + 7 文字）、変えず、再利用しない。名前は自由に変えられる（4.3）</td></tr>
@@ -102,7 +102,7 @@
     <tr><td>フォローアップ</td><td>完了したプロジェクトに修正を指示し、同じ会話で成果物を作り直すジョブ。画面では「追加の指示」</td></tr>
     <tr><td>リトライ</td><td>失敗または中止したジョブを、前回の成果物から再開するジョブ（画面の「続きからリトライ」）。API の呼び出しなどを自動でやり直すことは「再試行」と呼んで区別する</td></tr>
     <tr><td>推論の強さ</td><td>モデルの reasoning effort（画面では「Reasoning effort」）</td></tr>
-    <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー（Claude のモデルにはデフォルトの Anthropic API キー）。管理者が利用承認（Tier 1 / Tier 2）した利用者は、自分のキーがなくてもこのキーでジョブを実行できる（4.1）</td></tr>
+    <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー（Claude のモデルにはデフォルトの Anthropic API キー、DeepSeek のモデルにはデフォルトの DeepSeek API キー）。管理者が利用承認（Tier 1 / Tier 2）した利用者は、自分のキーがなくてもこのキーでジョブを実行できる（4.1）</td></tr>
     <tr><td>使用量</td><td>ジョブが使ったトークンの量。費用はここから計算する（4.7、9.10）</td></tr>
     <tr><td>版</td><td>完了したジョブの結果を凍結したもの。ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（4.5）。アプリのバージョンとは別</td></tr>
     <tr><td>Canon / rev</td><td>回路の定義をそろえるプロジェクトのまとまり / Canon の中身の版。PR を承認するたびに 1 つ進み、rev 0 は空の Canon（第 5 部）</td></tr>

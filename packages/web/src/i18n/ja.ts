@@ -359,7 +359,7 @@ export const ja: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "未登録",
   "admin.defaultKeyConfirmDelete": "デフォルトの API キーを削除しますか？自分のキーを持たない承認済みユーザーはジョブを開始できなくなります。",
   "admin.orgTier": "デフォルトキー",
-  "admin.orgTierHelp": "デフォルトの API キーの利用承認です。Tier 1 は gpt-6-luna と gpt-5.6-luna のみ、Tier 2 はすべてのモデル。変更は次にジョブが始まるとき（新規・回答・リトライ）から効き、実行中のジョブは止めません。",
+  "admin.orgTierHelp": "デフォルトの API キーの利用承認です。Tier 1 は gpt-6-luna、gpt-5.6-luna、Claude Haiku 5.5 と DeepSeek V4.1 Flash のみ、Tier 2 はすべてのモデル。変更は次にジョブが始まるとき（新規・回答・リトライ）から効き、実行中のジョブは止めません。",
   "admin.orgTierOf": "{email} のデフォルトの API キーの Tier",
   "admin.tierNone": "未承認",
   "admin.ownKeyFirst": "本人のキーを優先",

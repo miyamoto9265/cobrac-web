@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType, TokenUsage } from "@cobrac/shared";
-import { DEFAULT_CLAUDE_MODEL, DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, isClaudeModel, parseTurnOutput } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, PROVIDER_DEFAULT_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput, providerOf } from "@cobrac/shared";
 import { childEnv } from "./childEnv.js";
 import { ClaudeEngine } from "./claude.js";
 import { env } from "./env.js";
@@ -132,14 +132,16 @@ export function codexModelSlug(model: string): string {
 }
 
 /**
- * The engine of `model`: Claude models run on the Claude Agent SDK (with `apiKey` as the Anthropic key), every other
- * model on Codex. `rcs` and `opts.lit` give the agent the RCS and literature MCP tools.
+ * The engine of `model`: Claude and DeepSeek models run on the Claude Agent SDK (with `apiKey` as that provider's key),
+ * every other model on Codex. `rcs` and `opts.lit` give the agent the RCS and literature MCP tools.
  */
 export function createEngine(model: string | null, apiKey: string, rcs: RcsConnection | null = null, opts: { lit?: boolean } = {}): AgentEngine {
-  if (!isClaudeModel(model)) return createCodex(apiKey, rcs, opts);
+  const provider = providerOf(model);
+  if (provider === "openai") return createCodex(apiKey, rcs, opts);
   return new ClaudeEngine({
+    provider,
     apiKey,
-    models: [...new Set([model!, DEFAULT_CLAUDE_MODEL])],
+    models: [...new Set([model!, PROVIDER_DEFAULT_MODEL[provider]])],
     rcs,
     lit: !!opts.lit,
     configDir: join(env.codexHome, "sessions", "claude"),

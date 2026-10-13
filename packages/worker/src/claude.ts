@@ -4,8 +4,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ReasoningEffort } from "@cobrac/shared";
-import { DEFAULT_CLAUDE_MODEL, LIT_MCP_SERVER } from "@cobrac/shared";
+import type { MessagesProvider, ModelProvider, ReasoningEffort } from "@cobrac/shared";
+import { LIT_MCP_SERVER, MESSAGES_API_BASE, PROVIDER_DEFAULT_MODEL } from "@cobrac/shared";
 import { childEnv } from "./childEnv.js";
 import { type ClaudeGateway, startClaudeGateway } from "./claudeGateway.js";
 import { RCS_TOOLS, type RcsConnection } from "./rcs.js";
@@ -15,12 +15,30 @@ import { RCS_TOOLS, type RcsConnection } from "./rcs.js";
 // input and turn options as a Codex thread and streams the same events (thread / turn / item events with Codex's item
 // types), so the runs, their messages and their usage accounting do not depend on the provider. The token totals go
 // to a Codex-style session file (see `sessionTotalUsage`), so a turn cut off by a cancel or a SIGTERM is billed too.
+// The DeepSeek models run the same way, on DeepSeek's Anthropic-compatible API.
 // ---------------------------------------------------------------------------
 
-/** IDs of Claude threads (`claude-<Claude Code session id>`), so a project's thread tells which provider it belongs to. */
-export const CLAUDE_THREAD_PREFIX = "claude-";
+/**
+ * IDs of Claude Code threads (`claude-<session id>`, `deepseek-<session id>`), so a project's thread tells which
+ * provider it belongs to.
+ */
+export const THREAD_PREFIX: Readonly<Record<MessagesProvider, string>> = { anthropic: "claude-", deepseek: "deepseek-" };
+
+export const CLAUDE_THREAD_PREFIX = THREAD_PREFIX.anthropic;
 
 export const isClaudeThreadId = (id: string | null | undefined): boolean => !!id && id.startsWith(CLAUDE_THREAD_PREFIX);
+
+/** The provider a stored thread ID belongs to (a Codex thread ID has no prefix). */
+export function threadProviderOf(id: string): ModelProvider {
+  for (const [provider, prefix] of Object.entries(THREAD_PREFIX) as [MessagesProvider, string][]) if (id.startsWith(prefix)) return provider;
+  return "openai";
+}
+
+/** DeepSeek's effort levels (low, high, max): Claude's levels between them round up. */
+export function deepseekEffort(effort: ReasoningEffort | string | null | undefined): EffortLevel | undefined {
+  const e = claudeEffort(effort);
+  return e === "medium" ? "high" : e === "xhigh" ? "max" : e;
+}
 
 /** Codex's reasoning efforts on Claude's effort levels. */
 export function claudeEffort(effort: ReasoningEffort | string | null | undefined): EffortLevel | undefined {
@@ -46,6 +64,8 @@ export function claudeEffort(effort: ReasoningEffort | string | null | undefined
 export const CLAUDE_TOOLS = ["Bash", "Read", "Write", "Edit", "Glob", "Grep", "TodoWrite"] as const;
 
 export interface ClaudeEngineOptions {
+  /** Anthropic (the Claude models) or DeepSeek (its Anthropic-compatible API); default Anthropic */
+  provider?: MessagesProvider;
   apiKey: string;
   /** Models the run may call (the gateway refuses the others) */
   models: readonly string[];
@@ -58,7 +78,7 @@ export interface ClaudeEngineOptions {
   /** Context size at which Claude Code compacts the conversation */
   autoCompactWindow: number;
   crossrefMailto?: string;
-  /** Anthropic API origin (tests) */
+  /** Messages API base URL (tests); default: the provider's (`MESSAGES_API_BASE`) */
   upstream?: string;
   /** Claude Code executable (tests); default: the SDK's own */
   executable?: string;
@@ -78,6 +98,15 @@ export class ClaudeEngine {
 
   constructor(readonly options: ClaudeEngineOptions) {}
 
+  get provider(): MessagesProvider {
+    return this.options.provider ?? "anthropic";
+  }
+
+  /** The effort level of a turn at Codex's reasoning effort `effort` */
+  effort(effort: ReasoningEffort | null): EffortLevel | undefined {
+    return this.provider === "deepseek" ? deepseekEffort(effort) : claudeEffort(effort);
+  }
+
   startThread(o: ClaudeThreadOptions): ClaudeThread {
     return new ClaudeThread(this, null, o);
   }
@@ -88,7 +117,14 @@ export class ClaudeEngine {
 
   /** Started on the first turn and shared by the engine's threads */
   gatewayOf(): Promise<ClaudeGateway> {
-    this.gateway ??= startClaudeGateway({ apiKey: this.options.apiKey, models: this.options.models, rcs: this.options.rcs, upstream: this.options.upstream });
+    const provider = this.provider;
+    this.gateway ??= startClaudeGateway({
+      apiKey: this.options.apiKey,
+      models: this.options.models,
+      rcs: this.options.rcs,
+      upstream: this.options.upstream ?? MESSAGES_API_BASE[provider],
+      auth: provider === "deepseek" ? "bearer" : "x-api-key",
+    });
     return this.gateway;
   }
 
@@ -124,9 +160,9 @@ export class ClaudeEngine {
       // the per-run token of the gateway, not the key: the agent's commands inherit this environment
       ANTHROPIC_API_KEY: gw.token,
       CLAUDE_CONFIG_DIR: this.options.configDir,
-      // Claude Code's small background requests use the cheapest model, which the gateway lets every run call
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: DEFAULT_CLAUDE_MODEL,
-      ANTHROPIC_SMALL_FAST_MODEL: DEFAULT_CLAUDE_MODEL,
+      // Claude Code's small background requests use the provider's cheapest model, which the gateway lets every run call
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: PROVIDER_DEFAULT_MODEL[this.provider],
+      ANTHROPIC_SMALL_FAST_MODEL: PROVIDER_DEFAULT_MODEL[this.provider],
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
       DISABLE_AUTOUPDATER: "1",
       CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(this.options.autoCompactWindow),
@@ -300,11 +336,12 @@ export class ClaudeThread {
     id: string | null,
     private readonly o: ClaudeThreadOptions,
   ) {
-    this.sessionId = id && isClaudeThreadId(id) ? id.slice(CLAUDE_THREAD_PREFIX.length) : null;
+    const prefix = THREAD_PREFIX[engine.provider];
+    this.sessionId = id?.startsWith(prefix) ? id.slice(prefix.length) : null;
   }
 
   get id(): string | null {
-    return this.sessionId ? CLAUDE_THREAD_PREFIX + this.sessionId : null;
+    return this.sessionId ? THREAD_PREFIX[this.engine.provider] + this.sessionId : null;
   }
 
   async run(input: Input, turnOptions: TurnOptions = {}): Promise<RunResult> {
@@ -364,7 +401,7 @@ export class ClaudeThread {
     const options: Options = {
       cwd: this.o.workingDirectory,
       ...(this.o.model ? { model: this.o.model } : {}),
-      ...(claudeEffort(this.o.reasoningEffort) ? { effort: claudeEffort(this.o.reasoningEffort) } : {}),
+      ...(engine.effort(this.o.reasoningEffort) ? { effort: engine.effort(this.o.reasoningEffort) } : {}),
       ...(resumed ? { resume: this.sessionId! } : {}),
       abortController: abort,
       permissionMode: "bypassPermissions",

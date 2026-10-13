@@ -3,7 +3,7 @@
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
 import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, PlanPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isDeepSeekModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
@@ -46,6 +46,7 @@ export async function requireRunKey(u: UserRecord): Promise<ModelPolicy> {
 /** 403 when the user's keys and tier do not include `model` (the message never names the tier). */
 export function requireModel(policy: ModelPolicy, model: string) {
   if (isClaudeModel(model) && policy.claude.source === null) throw new HTTPException(403, { message: "Claude のモデルを使うには Anthropic API キーの登録が必要です" });
+  if (isDeepSeekModel(model) && policy.deepseek.source === null) throw new HTTPException(403, { message: "DeepSeek のモデルを使うには DeepSeek API キーの登録が必要です" });
   if (!policyAllows(policy, model)) throw new HTTPException(403, { message: `このモデル（${model}）は利用できません` });
 }
 
@@ -54,7 +55,7 @@ export const implicitModel = (policy: ModelPolicy, preferred: string) => allowed
 
 /** Whose key a job on `model` runs with (the worker checks it again when it starts). */
 export const jobKeySource = (policy: ModelPolicy, model: string | null | undefined): KeySource =>
-  sourceForModel(policy, model || deploymentDefaultModel()) ?? policy.source ?? policy.claude.source ?? "own";
+  sourceForModel(policy, model || deploymentDefaultModel()) ?? policy.source ?? policy.claude.source ?? policy.deepseek.source ?? "own";
 
 /**
  * The model a project's next job runs. A project made with a model the user can no longer run (made with their own

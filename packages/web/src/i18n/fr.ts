@@ -359,7 +359,7 @@ export const fr: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "Non enregistrée",
   "admin.defaultKeyConfirmDelete": "Supprimer la clé API par défaut ? Les utilisateurs approuvés sans clé personnelle ne pourront plus lancer de tâches.",
   "admin.orgTier": "Clé par défaut",
-  "admin.orgTierHelp": "Autorisation d’utiliser la clé API par défaut. Tier 1 : gpt-6-luna et gpt-5.6-luna uniquement. Tier 2 : tous les modèles. Un changement s’applique au prochain démarrage de tâche (nouvelle, réponse, relance) ; une tâche en cours n’est pas arrêtée.",
+  "admin.orgTierHelp": "Autorisation d’utiliser la clé API par défaut. Tier 1 : gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 et DeepSeek V4.1 Flash uniquement. Tier 2 : tous les modèles. Un changement s’applique au prochain démarrage de tâche (nouvelle, réponse, relance) ; une tâche en cours n’est pas arrêtée.",
   "admin.orgTierOf": "Tier de la clé API par défaut pour {email}",
   "admin.tierNone": "Non approuvé",
   "admin.ownKeyFirst": "clé perso en priorité",

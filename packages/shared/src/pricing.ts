@@ -1,5 +1,5 @@
 /**
- * Token usage and the price table (OpenAI and Anthropic models).
+ * Token usage and the price table (OpenAI, Anthropic and DeepSeek models).
  *
  * Prices are USD per 1M tokens. They are a snapshot maintained by hand; when a model is missing
  * the UI shows the tokens but no cost. Update PRICING_AS_OF when editing.
@@ -47,8 +47,10 @@ export const DEFAULT_CODEX_MODEL = "gpt-6-luna";
  * Standard short-context rates (USD / 1M tokens) from https://developers.openai.com/api/docs/pricing and
  * https://platform.claude.com/docs/en/about-claude/pricing (cache writes: the 5-minute rate, 1.25x input). Claude Haiku
  * 5.5 costs 5x above a 100K-token prompt; the worker compacts the conversation before that (CLAUDE_AUTO_COMPACT_WINDOW).
+ * DeepSeek V4.1 Flash (`deepseek-flash`): DeepSeek's list (peak-hour) rate; it charges half outside the weekday peak
+ * hours, and has no cache-write surcharge.
  */
-export const PRICING_AS_OF = "2026-10-10";
+export const PRICING_AS_OF = "2026-10-12";
 
 export const PRICING: Record<string, ModelPrice> = {
   // gpt-5.6 alias routes to Sol
@@ -63,6 +65,7 @@ export const PRICING: Record<string, ModelPrice> = {
   "claude-opus-5-5": { input: 4, cachedInput: 0.2, cacheWrite: 5, output: 20 },
   "claude-sonnet-5-5": { input: 2, cachedInput: 0.2, cacheWrite: 2.5, output: 10 },
   "claude-haiku-5-5": { input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, output: 0.5 },
+  "deepseek-flash": { input: 0.3, cachedInput: 0.006, output: 1.2 },
 };
 
 /** Strip a dated snapshot suffix and look up the price; returns null when unknown. */

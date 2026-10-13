@@ -359,7 +359,7 @@ export const ru: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "Не зарегистрирован",
   "admin.defaultKeyConfirmDelete": "Удалить API-ключ по умолчанию? Одобренные пользователи без своего ключа больше не смогут запускать задания.",
   "admin.orgTier": "Ключ по умолч.",
-  "admin.orgTierHelp": "Разрешение на API-ключ по умолчанию. Tier 1: только gpt-6-luna и gpt-5.6-luna. Tier 2: все модели. Изменение действует со следующего запуска задания (новое, ответ, повтор); выполняющееся задание не останавливается.",
+  "admin.orgTierHelp": "Разрешение на API-ключ по умолчанию. Tier 1: только gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 и DeepSeek V4.1 Flash. Tier 2: все модели. Изменение действует со следующего запуска задания (новое, ответ, повтор); выполняющееся задание не останавливается.",
   "admin.orgTierOf": "Tier API-ключа по умолчанию для {email}",
   "admin.tierNone": "Не одобрен",
   "admin.ownKeyFirst": "сначала свой ключ",

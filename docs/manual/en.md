@@ -29,9 +29,9 @@ If sign-up is closed, ask an admin.
 
 ### Get approved
 
-To run agents, have an admin approve you. Once approved, Settings shows "No key needed. You can run jobs as you are." and you can start right away.
+To run agents, have an admin approve you. Once approved, "API keys" in Settings shows "No key needed" and you can start right away.
 
-To run on your own OpenAI account instead, open "Use your own key" under "Your own OpenAI API key (optional)" in Settings, paste the key and press "Register / update". It is stored encrypted, later jobs run with your key, and usage is billed to your OpenAI account. Delete it to go back. Without approval, registering your own key also lets you run jobs.
+To run on your own account instead, press "Register" on the provider's row (OpenAI, Anthropic or DeepSeek) under "API keys" in Settings, paste the key and press "Save". It is stored encrypted, later jobs on that provider's models run with your key, and usage is billed to your account. Delete it to go back. Without approval, registering your own key also lets you run jobs.
 
 ## Create a project
 
@@ -222,7 +222,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 Settings, the gear icon next to your email address at the bottom of the sidebar, has:
 
-- **OpenAI API key**: whether you can run jobs, and registering, updating or deleting your own key
+- **API keys**: the state of each provider (OpenAI, Anthropic, DeepSeek), and registering, changing or deleting your own key
 - **Profile**: display name and Contributor name (written to Project.csv and the xlsx; English is recommended)
 - **Default model / reasoning effort / Canon**: starting values for new projects
 - **Change password**

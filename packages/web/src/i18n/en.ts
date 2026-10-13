@@ -357,7 +357,7 @@ export const en = {
   "admin.defaultKeyNone": "Not registered",
   "admin.defaultKeyConfirmDelete": "Delete the default API key? Approved users without their own key can no longer start jobs.",
   "admin.orgTier": "Default key",
-  "admin.orgTierHelp": "Approval to use the default API key. Tier 1: gpt-6-luna and gpt-5.6-luna only. Tier 2: every model. A change applies from the next job start (new job, answer, retry); a running job is not stopped.",
+  "admin.orgTierHelp": "Approval to use the default API key. Tier 1: gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 and DeepSeek V4.1 Flash only. Tier 2: every model. A change applies from the next job start (new job, answer, retry); a running job is not stopped.",
   "admin.orgTierOf": "Default API key tier of {email}",
   "admin.tierNone": "Not approved",
   "admin.ownKeyFirst": "own key first",

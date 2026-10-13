@@ -359,7 +359,7 @@ export const de: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "Nicht registriert",
   "admin.defaultKeyConfirmDelete": "Standard-API-Schlüssel löschen? Freigegebene Nutzer ohne eigenen Schlüssel können dann keine Jobs mehr starten.",
   "admin.orgTier": "Standardschlüssel",
-  "admin.orgTierHelp": "Freigabe für den Standard-API-Schlüssel. Tier 1: nur gpt-6-luna und gpt-5.6-luna. Tier 2: alle Modelle. Änderungen gelten ab dem nächsten Jobstart (neu, Antwort, Wiederholung); laufende Jobs werden nicht gestoppt.",
+  "admin.orgTierHelp": "Freigabe für den Standard-API-Schlüssel. Tier 1: nur gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 und DeepSeek V4.1 Flash. Tier 2: alle Modelle. Änderungen gelten ab dem nächsten Jobstart (neu, Antwort, Wiederholung); laufende Jobs werden nicht gestoppt.",
   "admin.orgTierOf": "Tier des Standard-API-Schlüssels für {email}",
   "admin.tierNone": "Nicht freigegeben",
   "admin.ownKeyFirst": "eigener Schlüssel zuerst",

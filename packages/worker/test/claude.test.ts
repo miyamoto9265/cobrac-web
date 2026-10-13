@@ -187,6 +187,13 @@ describe("Claude thread", () => {
     expect(claude.isClaudeThreadId(`claude-${SESSION}`)).toBe(true);
     expect(claude.isClaudeThreadId(SESSION)).toBe(false);
   });
+
+  it("tells a thread's provider and maps efforts onto DeepSeek's levels", () => {
+    expect(claude.threadProviderOf(`claude-${SESSION}`)).toBe("anthropic");
+    expect(claude.threadProviderOf(`deepseek-${SESSION}`)).toBe("deepseek");
+    expect(claude.threadProviderOf(SESSION)).toBe("openai");
+    expect([null, "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].map((e) => claude.deepseekEffort(e))).toEqual([undefined, "low", "low", "high", "high", "max", "max", "max"]);
+  });
 });
 
 describe("Claude gateway", () => {
@@ -261,6 +268,33 @@ describe("Claude gateway", () => {
     expect(r.status).toBe(200);
     expect(seen[0]["x-api-key"]).toBe("sk-ant-usr-secret");
     expect(seen[0]["anthropic-workspace-id"]).toBe("wrkspc_0123456789");
+    await gw.close();
+    upstream.close();
+  });
+
+  it("sends a DeepSeek key to the base URL's path, as a bearer token too", async () => {
+    const seen: { url: string; headers: IncomingHttpHeaders }[] = [];
+    const upstream = createServer((req, res) => {
+      seen.push({ url: req.url ?? "", headers: req.headers });
+      req.resume();
+      req.on("end", () => res.end("{}"));
+    });
+    await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", () => r()));
+    const { startClaudeGateway } = await import("../src/claudeGateway.js");
+    const gw = await startClaudeGateway({
+      apiKey: "sk-deepseek-secret",
+      models: ["deepseek-flash"],
+      rcs: null,
+      upstream: `http://127.0.0.1:${(upstream.address() as AddressInfo).port}/anthropic`,
+      auth: "bearer",
+    });
+    const post = (model: string) => fetch(gw.anthropicBaseUrl + "/v1/messages", { method: "POST", headers: { "x-api-key": gw.token }, body: JSON.stringify({ model }) });
+    expect((await post("deepseek-flash")).status).toBe(200);
+    expect((await post("claude-haiku-5-5")).status).toBe(403);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toBe("/anthropic/v1/messages");
+    expect(seen[0].headers.authorization).toBe("Bearer sk-deepseek-secret");
+    expect(seen[0].headers["x-api-key"]).toBe("sk-deepseek-secret");
     await gw.close();
     upstream.close();
   });

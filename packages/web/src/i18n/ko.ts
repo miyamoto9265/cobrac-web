@@ -359,7 +359,7 @@ export const ko: Record<MessageKey, string> = {
   "admin.defaultKeyNone": "미등록",
   "admin.defaultKeyConfirmDelete": "기본 API 키를 삭제할까요? 본인 키가 없는 승인된 사용자는 작업을 시작할 수 없게 됩니다.",
   "admin.orgTier": "기본 키",
-  "admin.orgTierHelp": "기본 API 키 사용 승인입니다. Tier 1: gpt-6-luna와 gpt-5.6-luna만. Tier 2: 모든 모델. 변경은 다음 작업 시작(신규·답변·재시도)부터 적용되며 실행 중인 작업은 멈추지 않습니다.",
+  "admin.orgTierHelp": "기본 API 키 사용 승인입니다. Tier 1: gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5와 DeepSeek V4.1 Flash만. Tier 2: 모든 모델. 변경은 다음 작업 시작(신규·답변·재시도)부터 적용되며 실행 중인 작업은 멈추지 않습니다.",
   "admin.orgTierOf": "{email}의 기본 API 키 Tier",
   "admin.tierNone": "미승인",
   "admin.ownKeyFirst": "본인 키 우선",

@@ -200,7 +200,7 @@
     <tr><td>dispatcher（Lambda）</td><td><code>handlers/dispatcher.ts</code></td><td>SQS のメッセージごと（1 件ずつ）</td><td>同時実行数を検査して Fargate のタスクを起動する（8.3）</td></tr>
     <tr><td>ワーカー</td><td><code>packages/worker</code></td><td>ジョブごとに 1 タスク</td><td>ハーネスの本体。段階の進行、検査、CSV・xlsx・グラフ・版の作成（8.4、第 3 部）</td></tr>
     <tr><td>Codex CLI</td><td><code>@openai/codex-sdk</code> が起動する子プロセス</td><td>ワーカーがターンを依頼したとき</td><td>エージェントのターンを実行し、OpenAI API を呼ぶ。MCP サーバー（<code>lit</code>・RCS）を起動して接続する</td></tr>
-    <tr><td>Claude Code</td><td><code>@anthropic-ai/claude-agent-sdk</code> が起動する子プロセス</td><td>Claude のモデルのジョブでワーカーがターンを依頼したとき</td><td>Codex CLI と同じ役目。Anthropic API を、ワーカーの中の中継を通して呼ぶ（8.4、9.5）</td></tr>
+    <tr><td>Claude Code</td><td><code>@anthropic-ai/claude-agent-sdk</code> が起動する子プロセス</td><td>Claude と DeepSeek のモデルのジョブでワーカーがターンを依頼したとき</td><td>Codex CLI と同じ役目。Anthropic API（DeepSeek では DeepSeek の Anthropic 互換 API）を、ワーカーの中の中継を通して呼ぶ（8.4、9.5）</td></tr>
     <tr><td>DynamoDB</td><td>8 つのテーブル</td><td>常に</td><td>状態・メッセージ・設定（8.5）</td></tr>
     <tr><td>S3（成果物）</td><td>バケット <code>Artifacts</code></td><td>常に</td><td>作業ディレクトリ・会話・成果物・版・Canon・計画の資料（8.6）</td></tr>
     <tr><td>KMS</td><td><code>ApiKeyKmsKey</code></td><td>キーの登録とジョブの開始</td><td>API が暗号化し、ワーカーだけが復号する（9.3）</td></tr>
@@ -216,7 +216,7 @@
 <table class="compact">
   <thead><tr><th style="width:24%">サービス</th><th>使い方</th></tr></thead>
   <tbody>
-    <tr><td>OpenAI API・Anthropic API</td><td>モデルの推論。ジョブのモデルの提供元を、利用者のキーかデフォルトの API キーで呼ぶ（4.1）</td></tr>
+    <tr><td>OpenAI API・Anthropic API・DeepSeek API</td><td>モデルの推論。ジョブのモデルの提供元を、利用者のキーかデフォルトの API キーで呼ぶ（4.1）</td></tr>
     <tr><td>RCS MCP</td><td>rosetta-candidate-search の <code>rcs-mcp</code>。同じアカウントにある別のシステムで、SABRA の単位の候補を返す。トークンは Secrets Manager にある</td></tr>
     <tr><td>PubMed・Europe PMC</td><td>エージェントの文献検索。ワーカーの中の <code>lit</code> MCP サーバーが呼ぶ（3.7）</td></tr>
     <tr><td>Crossref・PubMed・Europe PMC・Semantic Scholar</td><td>ワーカーが文献の DOI・PMID と引用文を照合する（3.10）</td></tr>
@@ -545,15 +545,16 @@
   <li>Codex には、出力の最大トークン（これらのモデルでは 128,000）の設定はありません。</li>
 </ul>
 
-<h3>Claude のモデルの実行</h3>
+<h3>Claude と DeepSeek のモデルの実行</h3>
+<p>DeepSeek のモデル（4.2）も同じ仕組みで実行し、中継の転送先を DeepSeek の Anthropic 互換 API（<code>https://api.deepseek.com/anthropic</code>）にします。違いは下の表の各行に記しています。</p>
 <p>Claude のモデル（4.2）のジョブは、Codex ではなく Claude Agent SDK（<code>@anthropic-ai/claude-agent-sdk</code>）で実行します。SDK は Claude Code を子プロセスとして動かします（<code>claude.ts</code>）。SDK の出来事を Codex と同じ形（<code>item.*</code>・<code>turn.*</code>）に直すので、ターンの制御、お知らせ、使用量の数え方は Codex のジョブと同じです。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
   <tbody>
     <tr><td>ツール</td><td>Bash・Read・Write・Edit・Glob・Grep・TodoWrite（<code>CLAUDE_TOOLS</code>）と MCP（<code>lit</code>・RCS）。Web 検索が有効なら WebSearch・WebFetch も加える</td></tr>
     <tr><td>指示と出力</td><td><code>AGENTS.md</code> はシステムプロンプトに追記する。利用者やプロジェクトの Claude Code の設定は読まない（<code>settingSources: []</code>）。ターンの出力は同じ JSON Schema（<code>outputFormat</code>）で受ける</td></tr>
-    <tr><td>推論の強さ</td><td><code>minimal</code> を <code>low</code> に、<code>ultra</code>・<code>persistent</code> を <code>max</code> に読み替える（<code>claudeEffort</code>）。ほかはそのまま渡す</td></tr>
-    <tr><td>会話</td><td>Claude Code のセッション。スレッド ID は <code>claude-&lt;セッション ID&gt;</code>。セッションは <code>CODEX_HOME/sessions/claude</code> に置き、Codex のセッションと一緒に S3 に保存する。プロジェクトのモデルの提供元が変わると、新しい会話で続ける（お知らせ <code>sys.newThreadProvider</code>）</td></tr>
+    <tr><td>推論の強さ</td><td><code>minimal</code> を <code>low</code> に、<code>ultra</code>・<code>persistent</code> を <code>max</code> に読み替える（<code>claudeEffort</code>）。ほかはそのまま渡す。DeepSeek では、さらに <code>medium</code> を <code>high</code>、<code>xhigh</code> を <code>max</code> にする（<code>deepseekEffort</code>）</td></tr>
+    <tr><td>会話</td><td>Claude Code のセッション。スレッド ID は <code>claude-&lt;セッション ID&gt;</code>（DeepSeek では <code>deepseek-&lt;セッション ID&gt;</code>）。セッションは <code>CODEX_HOME/sessions/claude</code> に置き、Codex のセッションと一緒に S3 に保存する。プロジェクトのモデルの提供元が変わると、新しい会話で続ける（お知らせ <code>sys.newThreadProvider</code>）</td></tr>
     <tr><td>会話の圧縮</td><td>文脈が <code>CLAUDE_AUTO_COMPACT_WINDOW</code>（既定 100,000 トークン）を超えると、Claude Code が会話を要約する。Haiku 5.5 の単価が上がる長い文脈に入らないため</td></tr>
     <tr><td>キー</td><td>Claude Code には本物のキーを渡さず、ワーカーの中の中継の URL と実行ごとのトークンだけを渡す（9.5）</td></tr>
   </tbody>

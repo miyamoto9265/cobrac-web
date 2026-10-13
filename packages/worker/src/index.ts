@@ -111,7 +111,6 @@ import {
   nowIso,
   planAttachmentTypeOf,
   providerOf,
-  isClaudeModel,
   planJobKey,
   planPrefix,
   projectDisplayName,
@@ -163,7 +162,7 @@ import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type Prepare
 import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { ownKeyOf, planRunKey } from "./runKey.js";
-import { isClaudeThreadId } from "./claude.js";
+import { threadProviderOf } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
@@ -310,8 +309,8 @@ async function main() {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
     threadId = null;
   }
-  if (threadId && isClaudeThreadId(threadId) !== isClaudeModel(resolveModelSettings(project).model)) {
-    // the project moved between an OpenAI and a Claude model: one provider cannot resume the other's thread
+  if (threadId && threadProviderOf(threadId) !== providerOf(resolveModelSettings(project).model)) {
+    // the project moved to a model of another provider (OpenAI, Claude, DeepSeek): one provider cannot resume another's thread
     await log("The model now runs on another provider; continuing on a new thread.", { i18n: "sys.newThreadProvider" });
     threadId = null;
   }

@@ -197,6 +197,7 @@ export function AdminPage() {
 
       <DefaultKeySection provider="openai" onError={setErr} />
       <DefaultKeySection provider="anthropic" onError={setErr} />
+      <DefaultKeySection provider="deepseek" onError={setErr} />
 
       <ConcurrencySection />
 
@@ -337,6 +338,7 @@ export function AdminPage() {
 const DEFAULT_KEY: Record<ModelProvider, { title: MessageKey; help: MessageKey; confirmDelete: MessageKey; placeholder: string; id: string }> = {
   openai: { title: "admin.defaultKey", help: "admin.defaultKeyHelp", confirmDelete: "admin.defaultKeyConfirmDelete", placeholder: "sk-...", id: "" },
   anthropic: { title: "claude.defaultKey", help: "claude.defaultKeyHelp", confirmDelete: "claude.defaultKeyConfirmDelete", placeholder: "sk-ant-...", id: "anthropic-" },
+  deepseek: { title: "deepseek.defaultKey", help: "deepseek.defaultKeyHelp", confirmDelete: "deepseek.defaultKeyConfirmDelete", placeholder: "sk-...", id: "deepseek-" },
 };
 
 /** One provider's default API key: write-only (the last 4 characters and the date are all that is shown). */

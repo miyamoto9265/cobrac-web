@@ -5,6 +5,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- DeepSeek V4.1 Flash (`deepseek-flash`) can run jobs, next to the OpenAI and Claude models. Its API key works like the others: register your own DeepSeek key in Settings, or, once approved, run on the organization's default DeepSeek key, which admins register on the admin page (Tier 1 included). It runs through DeepSeek's Anthropic-compatible API on the same engine as the Claude models, so the key stays inside the worker. Its estimated cost uses DeepSeek's list price ($0.30 in, $0.006 cached, $1.20 out per 1M tokens)
+
+### Changed
+- Settings: the API keys are one compact list, one row per provider (OpenAI, Anthropic, DeepSeek) with its state and a "Register" / "Change" button; the input opens only when you press it, and the explanations moved into (?) tooltips
+
 ## [0.46.0] - 2026-10-11
 
 ### Added

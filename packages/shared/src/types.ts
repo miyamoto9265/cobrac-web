@@ -1,4 +1,4 @@
-import { CLAUDE_MODELS } from "./provider.js";
+import { CLAUDE_MODELS, DEEPSEEK_MODELS } from "./provider.js";
 import type { ClonedFrom, Visibility } from "./publish.js";
 import type { BraVersionSummary } from "./braVersion.js";
 import type { PlanPolicy } from "./planPolicy.js";
@@ -42,6 +42,10 @@ export interface UserRecord {
   encryptedAnthropicKey?: string;
   anthropicKeyRegistered?: boolean;
   anthropicKeyLast4?: string;
+  /** KMS-encrypted DeepSeek API key (base64), for the DeepSeek models. Never returned to clients. */
+  encryptedDeepseekKey?: string;
+  deepseekKeyRegistered?: boolean;
+  deepseekKeyLast4?: string;
   /** Defaults applied to new projects (null/undefined = Codex default) */
   defaultModel?: string | null;
   defaultReasoningEffort?: ReasoningEffort | null;
@@ -53,7 +57,7 @@ export interface UserRecord {
   updatedAt: string;
 }
 
-export type UserPublic = Omit<UserRecord, "encryptedApiKey" | "encryptedAnthropicKey">;
+export type UserPublic = Omit<UserRecord, "encryptedApiKey" | "encryptedAnthropicKey" | "encryptedDeepseekKey">;
 
 /** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the default-API-key tier */
 export interface MeResponse extends UserPublic {
@@ -61,6 +65,8 @@ export interface MeResponse extends UserPublic {
   keySource: KeySource | null;
   /** Key of the Claude models */
   claudeKeySource: KeySource | null;
+  /** Key of the DeepSeek models */
+  deepseekKeySource: KeySource | null;
   orgTier: OrgTier | null;
 }
 
@@ -73,13 +79,14 @@ export interface AdminUpdateUserRequest {
 
 /** GET /users/me/models */
 export interface ModelsResponse {
-  /** Models the user may choose (Tier 1: exactly the Tier 1 models); the Claude models follow the OpenAI ones */
+  /** Models the user may choose (Tier 1: exactly the Tier 1 models); the Claude and DeepSeek models follow the OpenAI ones */
   models: string[];
   efforts: ReasoningEffort[];
   /** Model a job runs when the user picks "default" */
   envDefaultModel: string;
   keySource: KeySource | null;
   claudeKeySource: KeySource | null;
+  deepseekKeySource: KeySource | null;
   orgTier: OrgTier | null;
   /** Only `models` may be chosen (no custom model ID) */
   restricted: boolean;
@@ -120,8 +127,8 @@ export function filterCodexModels(ids: string[]): string[] {
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
 }
 
-/** A model the app can run: an offered Claude model, or an OpenAI model `filterCodexModels` keeps. */
-export const isOfferedModel = (id: string): boolean => CLAUDE_MODELS.includes(id) || filterCodexModels([id]).length > 0;
+/** A model the app can run: an offered Claude or DeepSeek model, or an OpenAI model `filterCodexModels` keeps. */
+export const isOfferedModel = (id: string): boolean => CLAUDE_MODELS.includes(id) || DEEPSEEK_MODELS.includes(id) || filterCodexModels([id]).length > 0;
 
 export type ProjectStatus =
   | "QUEUED"
