@@ -209,7 +209,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 - When an agent asks a question, only its row stops, and the question appears under "Questions" on the plan page. Answering resumes that row.
 - Each plan can be paused on its own, from the plan screen or with the button at the top right of its lane in the plan list. A paused plan starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled plan can be resumed.
-- Deleting a plan keeps the projects it created.
+- Deleting a plan keeps the projects it created. The plan's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) plans.
 
 ## Publishing and cloning
 

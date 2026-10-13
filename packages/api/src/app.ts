@@ -183,6 +183,7 @@ import {
   cancelPlan,
   confirmPlan,
   createPlan,
+  deleteFinishedPlansOfCanon,
   deletePlan,
   importRows,
   loadOwnPlan,
@@ -1302,13 +1303,14 @@ app.put("/canons/:id", async (c) => {
   return c.json({ ...canon, ...fields, updatedAt: nowIso() });
 });
 
-/** Soft delete (owner only): member projects leave the Canon; nothing is removed from DynamoDB or S3. */
+/** Soft delete (owner only): member projects leave the Canon and its finished plans are deleted; nothing is removed from DynamoDB or S3. */
 app.delete("/canons/:id", async (c) => {
   const u = c.get("user");
   const canon = await loadCanon(u, c.req.param("id"), { write: true });
   try {
     const deletedAt = await markCanonDeleted(canon.canonId, u.userId);
     if (canon.visibility === "public") await deleteCatalogItem("canon", canon.canonId);
+    await deleteFinishedPlansOfCanon(canon.ownerUserId, canon.canonId);
     return c.json({ canonId: canon.canonId, deletedAt });
   } catch (e) {
     if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw notFound();

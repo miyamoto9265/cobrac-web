@@ -534,7 +534,7 @@ export const en = {
   "canon.settings": "Settings",
   "canon.saved": "Saved",
   "canon.delete": "Delete Canon",
-  "canon.deleteConfirm": "Delete this Canon? Its projects leave the Canon; the projects themselves are not changed.",
+  "canon.deleteConfirm": "Delete this Canon? Its projects leave the Canon; the projects themselves are not changed. Its finished plans are deleted too and leave the history.",
   "canon.private": "Private",
   "canon.back": "All Canons",
   "canon.band": "Canon",

@@ -536,7 +536,7 @@ export const zhTw: Record<MessageKey, string> = {
   "canon.settings": "設定",
   "canon.saved": "已儲存",
   "canon.delete": "刪除 Canon",
-  "canon.deleteConfirm": "要刪除此 Canon 嗎？其中的專案會離開 Canon，專案本身不會改變。",
+  "canon.deleteConfirm": "要刪除此 Canon 嗎？其中的專案會離開 Canon，專案本身不會改變。此 Canon 已結束的計畫也會被刪除，並從歷史紀錄中消失。",
   "canon.private": "私人",
   "canon.back": "所有 Canon",
   "canon.band": "Canon",

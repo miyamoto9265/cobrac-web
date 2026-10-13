@@ -536,7 +536,7 @@ export const ja: Record<MessageKey, string> = {
   "canon.settings": "設定",
   "canon.saved": "保存しました",
   "canon.delete": "Canon を削除",
-  "canon.deleteConfirm": "この Canon を削除しますか？ プロジェクトは Canon から外れますが、プロジェクト自体は変わりません。",
+  "canon.deleteConfirm": "この Canon を削除しますか？ プロジェクトは Canon から外れますが、プロジェクト自体は変わりません。この Canon の終わった計画も削除され、履歴から消えます。",
   "canon.private": "非公開",
   "canon.back": "Canon 一覧",
   "canon.band": "Canon",

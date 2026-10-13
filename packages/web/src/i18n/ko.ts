@@ -536,7 +536,7 @@ export const ko: Record<MessageKey, string> = {
   "canon.settings": "설정",
   "canon.saved": "저장했습니다",
   "canon.delete": "Canon 삭제",
-  "canon.deleteConfirm": "이 Canon을 삭제할까요? 프로젝트는 Canon에서 빠지지만 프로젝트 자체는 바뀌지 않습니다.",
+  "canon.deleteConfirm": "이 Canon을 삭제할까요? 프로젝트는 Canon에서 빠지지만 프로젝트 자체는 바뀌지 않습니다. 이 Canon의 끝난 계획도 삭제되어 기록에서 사라집니다.",
   "canon.private": "비공개",
   "canon.back": "모든 Canon",
   "canon.band": "Canon",
