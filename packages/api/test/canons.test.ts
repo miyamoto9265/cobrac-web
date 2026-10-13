@@ -189,6 +189,24 @@ describe("canons", () => {
     expect(fake.items("canons").find((i) => i.sk === "META")!.deletedAt).toBeTruthy();
   });
 
+  it("deletes the Canon's finished plans with it, and keeps its draft and active plans", async () => {
+    const c = await json<CanonRecord>(call(A, "POST", "/canons", { name: "one" }));
+    const plan = (planId: string, status: string, canonId: string | null = c.canonId) =>
+      fake.put("plans", { planId, sk: "META", ownerUserId: A.sub, status, canonId, name: planId, createdAt: now, updatedAt: now });
+    plan("pl_done", "COMPLETED");
+    plan("pl_cancelled", "CANCELLED");
+    plan("pl_draft", "DRAFT");
+    plan("pl_running", "RUNNING");
+    plan("pl_other", "COMPLETED", null);
+    await json(call(A, "DELETE", `/canons/${c.canonId}`));
+    const deleted = fake
+      .items("plans")
+      .filter((i) => i.deletedAt)
+      .map((i) => i.planId)
+      .sort();
+    expect(deleted).toEqual(["pl_cancelled", "pl_done"]);
+  });
+
   it("lists no revisions for a new Canon", async () => {
     const c = await json<CanonRecord>(call(A, "POST", "/canons", { name: "one" }));
     expect(await json(call(A, "GET", `/canons/${c.canonId}/revisions`))).toEqual({ items: [] });

@@ -536,7 +536,7 @@ export const ru: Record<MessageKey, string> = {
   "canon.settings": "Настройки",
   "canon.saved": "Сохранено",
   "canon.delete": "Удалить Canon",
-  "canon.deleteConfirm": "Удалить этот Canon? Проекты выйдут из Canon, но сами не изменятся.",
+  "canon.deleteConfirm": "Удалить этот Canon? Проекты выйдут из Canon, но сами не изменятся. Его завершённые планы тоже удалятся и исчезнут из истории.",
   "canon.private": "Приватный",
   "canon.back": "Все Canon",
   "canon.band": "Canon",

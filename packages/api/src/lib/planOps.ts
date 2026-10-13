@@ -102,6 +102,7 @@ import {
   deleteRow,
   getPlan,
   getProposal,
+  listOwnPlans,
   listPlanEvents,
   listProposals,
   listRows,
@@ -860,6 +861,19 @@ export async function deletePlan(u: UserRecord, plan: PlanRecord): Promise<strin
   const at = nowIso();
   if (!(await updatePlan(plan.planId, { deletedAt: at }, { status: plan.status }))) throw conflict(STATUS_CHANGED);
   return at;
+}
+
+/**
+ * Deleting a Canon also deletes the owner's finished (completed or cancelled) plans of that Canon, so they leave the
+ * history with it. Draft and active plans stay: they see the Canon as missing (6.7). Returns the deleted plan IDs.
+ */
+export async function deleteFinishedPlansOfCanon(ownerUserId: string, canonId: string): Promise<string[]> {
+  const done: string[] = [];
+  for (const p of await listOwnPlans(ownerUserId)) {
+    if (p.canonId !== canonId || p.deletedAt || (p.status !== "COMPLETED" && p.status !== "CANCELLED")) continue;
+    if (await updatePlan(p.planId, { deletedAt: nowIso() }, { status: p.status, deletedAt: undefined })) done.push(p.planId);
+  }
+  return done;
 }
 
 // --- proposals of re-plan jobs ---------------------------------------------------------------------------------------

@@ -21,7 +21,8 @@ export function Layout() {
   // Below lg the sidebar is an off-canvas drawer.
   const [navOpen, setNavOpen] = useState(false);
 
-  const [plans, setPlans] = useState<Record<string, PlanSummary>>({});
+  // null until the first list arrives: rows of deleted plans are hidden only once the live plans are known
+  const [plans, setPlans] = useState<Record<string, PlanSummary> | null>(null);
 
   const reload = useCallback(() => {
     void api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
@@ -46,6 +47,7 @@ export function Layout() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
 
+  const entries = historyEntries(projects, plans);
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-3 py-1.5 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
   // Settings and sign-out sit as icons beside the email.
@@ -93,10 +95,10 @@ export function Layout() {
           </Link>
         </div>
         <nav className="flex-1 overflow-y-auto px-2 py-1">
-          {projects.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
-          {historyEntries(projects).map((e) => {
+          {entries.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
+          {entries.map((e) => {
             if (e.kind === "plan") {
-              const plan = plans[e.planId];
+              const plan = plans?.[e.planId];
               const status = planRowStatus(e.projects);
               const label = status && t(`status.${status}` as MessageKey);
               const name = plan?.name || t("nav.planner");
@@ -253,11 +255,15 @@ function SidebarStatus({ status, label }: { status: ProjectStatus; label: string
 
 type HistoryEntry = { kind: "project"; project: ProjectRecord } | { kind: "plan"; planId: string; projects: ProjectRecord[] };
 
-/** Projects made by an Orchestrator plan collapse into one row per plan, placed where its latest project would be. */
-export function historyEntries(projects: ProjectRecord[]): HistoryEntry[] {
+/**
+ * Projects made by an Orchestrator plan collapse into one row per plan, placed where its latest project would be.
+ * When the live plans are known, a deleted plan (deleted itself or with its Canon) has no row.
+ */
+export function historyEntries(projects: ProjectRecord[], plans?: Record<string, unknown> | null): HistoryEntry[] {
   const out: HistoryEntry[] = [];
   const groups = new Map<string, ProjectRecord[]>();
   for (const p of projects) {
+    if (p.planId && plans && !plans[p.planId]) continue;
     if (!p.planId) {
       out.push({ kind: "project", project: p });
       continue;

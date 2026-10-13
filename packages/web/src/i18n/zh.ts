@@ -536,7 +536,7 @@ export const zh: Record<MessageKey, string> = {
   "canon.settings": "设置",
   "canon.saved": "已保存",
   "canon.delete": "删除 Canon",
-  "canon.deleteConfirm": "删除此 Canon？其中的项目会离开 Canon，项目本身不会改变。",
+  "canon.deleteConfirm": "删除此 Canon？其中的项目会离开 Canon，项目本身不会改变。此 Canon 已结束的计划也会被删除，并从历史记录中消失。",
   "canon.private": "私有",
   "canon.back": "所有 Canon",
   "canon.band": "Canon",

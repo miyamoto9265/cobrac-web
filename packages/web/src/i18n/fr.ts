@@ -536,7 +536,7 @@ export const fr: Record<MessageKey, string> = {
   "canon.settings": "Paramètres",
   "canon.saved": "Enregistré",
   "canon.delete": "Supprimer le Canon",
-  "canon.deleteConfirm": "Supprimer ce Canon ? Ses projets quittent le Canon ; les projets eux-mêmes ne changent pas.",
+  "canon.deleteConfirm": "Supprimer ce Canon ? Ses projets quittent le Canon ; les projets eux-mêmes ne changent pas. Ses plans terminés sont aussi supprimés et quittent l’historique.",
   "canon.private": "Privé",
   "canon.back": "Tous les Canons",
   "canon.band": "Canon",

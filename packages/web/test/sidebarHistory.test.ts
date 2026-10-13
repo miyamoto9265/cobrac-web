@@ -10,6 +10,13 @@ describe("sidebar history", () => {
     expect(rows.map((r) => (r.kind === "plan" ? `${r.planId}:${r.projects.map((x) => x.projectId).join("")}` : r.project.projectId))).toEqual(["a", "plan1:bd", "c", "plan2:e"]);
   });
 
+  it("drops the rows of deleted plans once the live plans are known", () => {
+    const all = [p("a"), p("b", "plan1"), p("c", "plan2")];
+    expect(historyEntries(all, null)).toHaveLength(3);
+    const rows = historyEntries(all, { plan2: {} });
+    expect(rows.map((r) => (r.kind === "plan" ? r.planId : r.project.projectId))).toEqual(["a", "plan2"]);
+  });
+
   it("shows what needs the owner first and nothing when every project is done", () => {
     expect(planRowStatus([p("a", "x", "RUNNING"), p("b", "x", "WAITING_USER_INPUT")])).toBe("WAITING_USER_INPUT");
     expect(planRowStatus([p("a", "x", "RUNNING"), p("b", "x", "FAILED")])).toBe("FAILED");
