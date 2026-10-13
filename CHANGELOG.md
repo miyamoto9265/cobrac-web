@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.47.1] - 2026-10-13
+
 ### Fixed
 - Deleting a Canon no longer leaves it in the sidebar history: the Canon's finished (completed or cancelled) plans are deleted with it, and a deleted plan no longer keeps a "CoBRAC Orchestrator" row in the history. Its projects stay in the "See all" list; draft and running plans of the Canon stay and pause as before
 
