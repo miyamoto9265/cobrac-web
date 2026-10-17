@@ -13,7 +13,7 @@ import { CSV_FILES, csvComplete, type ProjectPaths } from "./steps.js";
 
 export interface FinalizeResult {
   xlsxKey: string;
-  /** Null when the Template-v2-2 workbook could not be built (the job still succeeds) */
+  /** Null when the Template-v2-3 workbook could not be built (the job still succeeds) */
   templateXlsxKey: string | null;
   hcdNodes: number;
   hcdEdges: number;
@@ -25,7 +25,7 @@ export interface FinalizeOptions {
   roi?: string;
   /** Crossref / PubMed lookups for the BibTeX of the template export; null = no lookups */
   bibliography?: BibliographyOptions | null;
-  /** Template-v2-2.bra.xlsx (default: `<promptsDir>/templates/`) */
+  /** Template-v2-3.bra.xlsx (default: `<promptsDir>/templates/`) */
   templatePath?: string;
   /** Uploads (default: S3); tests pass a stub */
   put?: (key: string, body: Buffer | string, contentType?: string) => Promise<void>;
@@ -36,7 +36,7 @@ export interface FinalizeOptions {
 /**
  * Deterministic post-processing after the agent produced the CSVs:
  *   1. csv_to_excel.py → {ProjectID}.bra.xlsx
- *   2. the same data in the official Template-v2-2.bra workbook → {ProjectID}.template-v2-2.bra.xlsx
+ *   2. the same data in the official Template-v2-3.bra workbook → {ProjectID}.template-v2-3.bra.xlsx
  *   3. Graph JSON (HCD / FRG) from CSVs
  *   4. Upload to S3 output/ and graph/
  */
@@ -68,7 +68,7 @@ export async function finalizeProject(
   const xlsxKey = `${prefix}output/${projectId}.bra.xlsx`;
   await put(xlsxKey, await readFile(xlsxPath));
 
-  // 2. Template-v2-2 ---------------------------------------------------------
+  // 2. Template-v2-3 ---------------------------------------------------------
   let templateKey: string | null = null;
   try {
     const bytes = await buildTemplateWorkbook(p, projectId, contributor, opts);
@@ -76,7 +76,7 @@ export async function finalizeProject(
     await put(templateKey, bytes);
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
-    await log(`The Template-v2-2 workbook could not be built: ${error}`, { i18n: "sys.templateXlsxFailed", error });
+    await log(`The Template-v2-3 workbook could not be built: ${error}`, { i18n: "sys.templateXlsxFailed", error });
   }
 
   // 3. graphs ----------------------------------------------------------------
@@ -97,7 +97,7 @@ export async function finalizeProject(
 
 const readText = async (file: string) => (existsSync(file) ? readFile(file, "utf8") : null);
 
-/** `{P}.template-v2-2.bra.xlsx` from the CSVs; also refreshes `{P}_CSV/bibliography.json`. */
+/** `{P}.template-v2-3.bra.xlsx` from the CSVs; also refreshes `{P}_CSV/bibliography.json`. */
 async function buildTemplateWorkbook(p: ProjectPaths, projectId: string, contributor: string, opts: FinalizeOptions): Promise<Buffer> {
   const referencesJson = await readText(join(p.hcd, HCD_FILES.references));
   const bibPath = join(p.csv, BIBLIOGRAPHY_FILE);

@@ -133,7 +133,7 @@ describe("Reference IDs and BibTeX", () => {
   });
 });
 
-describe("Template-v2-2 export", () => {
+describe("Template-v2-3 export", () => {
   const small = buildTemplateXlsx(TEMPLATE, modernInput({ refs: 4, ucs: 4, conns: 5 }));
   const big = buildTemplateXlsx(TEMPLATE, modernInput({ refs: 40, ucs: 45, conns: 120 }));
 
@@ -154,7 +154,7 @@ describe("Template-v2-2 export", () => {
   it("fills the Project sheet and the Review End Lines", () => {
     const s = readTemplateSheet(small.bytes, "Project");
     const v = (a: string) => s.get(a)?.text;
-    expect([v("A2"), v("B2"), v("C2"), v("D2"), v("E2")]).toEqual(["Tester", P, "Tester", "Reward learning in the ventral striatum.", "Template-v2-2.bra"]);
+    expect([v("A2"), v("B2"), v("C2"), v("D2"), v("E2")]).toEqual(["Tester", P, "Tester", "Reward learning in the ventral striatum.", "Template-v2-3.bra"]);
     expect([v("B5"), v("B6"), v("B7"), v("B8")]).toEqual(["5", "6", "6", "4"]);
   });
 
@@ -202,11 +202,11 @@ describe("Template-v2-2 export", () => {
   it("writes the FRG input columns and leaves the automatic ones as formulas", () => {
     const s = readTemplateSheet(small.bytes, "FRG");
     expect(["AC", "AD", "AE", "AF", "BI", "BK", "BM"].map((c) => s.get(`${c}2`)?.text ?? "")).toEqual(["R.Top", "U.VTA;U.VTA(DRD2+);U.A9/46d@L;U.X0", "", "", "req", "[VTA] RPE;", "TLF"]);
-    expect(s.get("BA3")!.text).toBe("cap VTA [Schultz, 1997]\n<<mechanism to realize the capability>>\nmech VTA");
+    expect(s.get("BA3")!.text).toBe("cap VTA [Schultz, 1997]\n<<mechanism to realize the capability>>\nmech VTA\n<<mechanism realized by grainest coding scheme>>\n");
     expect(s.get("BI3")!.text).toBe("req VTA [Schultz, 1997b]");
     expect(s.get("BC3")!.text).toBe("[U.VTA] = f([U.X0])");
     expect(s.get("AF3")!.text).toBe("A9/46d@L;X0");
-    expect(s.get("BA4")!.text).toBe(`${OUT_OF_ROI_CAPABILITY}\n<<mechanism to realize the capability>>\n`);
+    expect(s.get("BA4")!.text).toBe(`${OUT_OF_ROI_CAPABILITY}\n<<mechanism to realize the capability>>\n\n<<mechanism realized by grainest coding scheme>>\n`);
     for (const c of ["AX", "AY", "AZ", "BD"]) expect(s.get(`${c}3`)!.formula, c).not.toBeNull();
   });
 

@@ -39,7 +39,7 @@ package.json                 npm workspaces (build / typecheck / test / deploy)
 .github/workflows/           ci.yml (pull requests) / deploy.yml (main → AWS via OIDC) / claude.yml (@claude → Claude Code)
 scripts/                     release.mjs (version + CHANGELOG), retain-guard.mjs (stops risky deploys),
                              bra-appendix-d.mjs (checks a BRA xlsx / CSV folder against the BRA error codes of the Error code List (Master); local `cobrac:` codes for checks without one)
-prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args), templates/Template-v2-2.bra.xlsx (official BRA template)
+prompts/                     agent rules (AGENTS.md), phase specs (phases/), Project.csv template, csv_to_excel.py (CLI args), templates/Template-v2-3.bra.xlsx (official BRA template, slimmed by scripts/slim-bra-template.mjs)
 archive/v0/                  legacy desktop instructions, specs, v0 sample artifacts, user guide (reference only)
 packages/
   shared/   types, harness (JSON Schemas, validators, CSV generation), graph JSON generation (buildGraphs), utilities (vitest)
@@ -122,7 +122,7 @@ npm run dev:web
 - Jobs go SQS → dispatcher Lambda → ECS Fargate **Spot** (On-Demand fallback if Spot is unavailable), one task per job.
 - The worker drives the phases (HCD → FRG). The agent writes its data as JSON files with JSON Schemas (`uc.json`, `connections.json`, `references.json`, `frg.json`); the worker validates each phase with deterministic checks and sends problems back to the agent to fix.
 - When the agent ends a turn with a question, the workspace and `CODEX_HOME` are saved to S3 and the task exits (billing stops). Answering resumes via `resumeThread`.
-- The worker generates the five CSVs from the JSON files itself (the agent never writes CSVs), then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON, and `buildTemplateXlsx()` writes the same data into the official Template-v2-2.bra workbook (`prompts/templates/`; specification 3.13). The free-text `report.md` and `decision_log.md` can be read and downloaded from the chat screen.
+- The worker generates the five CSVs from the JSON files itself (the agent never writes CSVs), then `csv_to_excel.py` and `buildGraphs()` produce xlsx and HCD/FRG graph JSON, and `buildTemplateXlsx()` writes the same data into the official Template-v2-3.bra workbook (`prompts/templates/`; specification 3.13). The free-text `report.md` and `decision_log.md` can be read and downloaded from the chat screen.
 - After completion, a “follow-up instruction” on the same thread can revise and regenerate artifacts.
 - If the worker heartbeat is missing for 15 minutes, janitor marks FAILED and auto-retries up to 2 times (Spot interruption). While a turn runs, the worker saves the workspace and thread to S3 every 5 minutes; on SIGTERM (Spot interruption, 120 s stop timeout) it saves them at once and marks its heartbeat stale, so the next janitor run (every 5 minutes) resumes the job.
 - User OpenAI API keys are KMS-encrypted in DynamoDB and decrypted only inside the worker. The agent shell does not receive AWS credentials.

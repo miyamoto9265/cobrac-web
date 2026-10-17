@@ -150,7 +150,7 @@
     <tr><td><code>phase_baseline.json</code></td><td>ワーカー</td><td>段階を検査したときのデータファイルのハッシュと、そのとき残っていた問題</td><td>ワーカーが後の段階での変更を検知し、検査し直すのに使う</td></tr>
     <tr><td><code>hypotheses.json</code></td><td>ワーカー</td><td>仮説モードのときだけ。仮説の番号・比率・根拠だけの経路の有無・依存する GN（3.12）</td><td>利用者が仮説の範囲・比率・依存を確認する。グラフの印にも使う</td></tr>
     <tr><td><code>&lt;ProjectID&gt;_CSV/*.csv</code></td><td>ワーカー</td><td><code>Project</code>・<code>References</code>・<code>Circuits</code>・<code>Connections</code>・<code>FRG</code> の 5 表</td><td>ワーカーが xlsx とグラフを作る。利用者がダウンロードする</td></tr>
-    <tr><td><code>&lt;ProjectID&gt;_CSV/bibliography.json</code></td><td>ワーカー</td><td>DOI と PMID ごとの、Crossref と PubMed の書誌</td><td>ワーカーが Template-v2-2 の xlsx の BibTeX に使う</td></tr>
+    <tr><td><code>&lt;ProjectID&gt;_CSV/bibliography.json</code></td><td>ワーカー</td><td>DOI と PMID ごとの、Crossref と PubMed の書誌</td><td>ワーカーが Template-v2-3 の xlsx の BibTeX に使う</td></tr>
   </tbody>
 </table>
 <p><code>schemas/</code>・<code>materials/</code>・<code>canon/</code> は、プロジェクトフォルダの外（<code>/work</code> の直下）に置く補助の入力です。これらの資料とワーカーが書くファイルは参照用で、指示書ではエージェントによる変更を禁じています。検査は、ワーカーがデータファイルから行います。CSV はエージェントに書かせません。</p>

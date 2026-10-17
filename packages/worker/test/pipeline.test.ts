@@ -191,7 +191,7 @@ describe("phase pipeline with a mock agent", () => {
     expect(g.hcd.collections).toEqual([expect.objectContaining({ id: "Mesolimbic", members: ["VTA", "NAC"] })]);
     expect(g.frg.nodes.find((n) => n.id === "R.Reward-Prediction-Error-Learning")?.kind).toBe("tlf");
 
-    // the same data in Template-v2-2 (finalize.ts), with BibTeX from the Crossref records
+    // the same data in Template-v2-3 (finalize.ts), with BibTeX from the Crossref records
     const lit = mockLiterature({ crossref: { [SCHULTZ_WORK.DOI]: SCHULTZ_WORK, [HABER_WORK.DOI]: HABER_WORK } });
     const refs = parseReferencesJson(readFileSync(join(p.hcd, "references.json"), "utf8"));
     const bibliography = await updateBibliography(refs, null, { fetch: lit.fetch, crossrefUrl: CROSSREF, eutilsUrl: EUTILS });

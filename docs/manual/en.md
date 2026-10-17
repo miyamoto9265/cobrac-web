@@ -10,7 +10,7 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 
 - **HCD** (circuit diagram): the circuits (UCs) of the region and the connections between them, with the papers that support them.
 - **FRG** (function breakdown): a tree that breaks the TLF down through groups (GNs) to UCs.
-- **CSV and BRA xlsx**: the data for submission, built from the HCD and the FRG. The xlsx comes in two formats: CoBRAC's own and the official Template-v2-2.
+- **CSV and BRA xlsx**: the data for submission, built from the HCD and the FRG. The xlsx comes in two formats: CoBRAC's own and the official Template-v2-3.
 - When the agent needs a decision it asks you a question, and continues once you answer. After completion you can change the result with follow-up instructions.
 - One run takes from tens of minutes to a few hours and costs OpenAI usage ([costs](#where-do-i-see-the-cost)).
 - To build many projects, put them in a plan with the [CoBRAC Orchestrator](#cobrac-orchestrator); it runs them in turn for you.
@@ -95,7 +95,7 @@ Each output appears in its tab when its step is done.
 - **FRG graph**: a tree from the TLF through GNs to UCs. Selecting a UC or a GN can take you to, or highlight, the matching circuits in the HCD.
 - **Tables**: the five CSV files as tables; the raw files can be downloaded.
 - **Report and decision log**: the agent's report of the work, and what it decided and why.
-- **BRA xlsx**: when the data is complete, the header has the download buttons "BRA xlsx" (CoBRAC's format) and "BRA xlsx (Template-v2-2)" (the official template's format).
+- **BRA xlsx**: when the data is complete, the header has the download buttons "BRA xlsx" (CoBRAC's format) and "BRA xlsx (Template-v2-3)" (the official template's format).
 
 ### Versions
 

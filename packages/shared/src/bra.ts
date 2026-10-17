@@ -1,11 +1,11 @@
 /**
- * Value rules of the BRA format (Template-v2-2.bra AdminOnly lists and the BRA Data Preparation Manual) that the
+ * Value rules of the BRA format (Template-v2-3.bra AdminOnly lists and the BRA Data Preparation Manual) that the
  * harness checks in the agent's JSON files: enumerations, Source of ID, Pointers and the Output Semantics notation.
  * Pure functions shared by the validator, the CSV builder and tests.
  */
 import { parseUcDescriptor } from "./ucNaming.js";
 
-/** References "Literature type" (Template-v2-2 AdminOnly). */
+/** References "Literature type" (Template-v2-3 AdminOnly). */
 export const BRA_LITERATURE_TYPES = [
   "Experimental results",
   "Meta review",
@@ -20,10 +20,10 @@ export const BRA_LITERATURE_TYPES = [
   "Opinion",
 ] as const;
 
-/** Connections "Taxon" (Template-v2-2 AdminOnly, common names). */
+/** Connections "Taxon" (Template-v2-3 AdminOnly, common names). */
 export const BRA_TAXA = ["Mouse", "Rat", "Cat", "Marmoset", "Macaque", "Human", "(Mixed)", "Rodent", "Rabbit", "(No description)"] as const;
 
-/** Connections "Measurement method" (Template-v2-2 AdminOnly, the 21 values in their order there). */
+/** Connections "Measurement method" (Template-v2-3 AdminOnly, the 21 values in their order there). */
 export const BRA_MEASUREMENT_METHODS = [
   "Retrograde Trans-synaptic tracing",
   "Axonal tracing",
@@ -66,7 +66,7 @@ export const SOURCE_OF_ID_KEYWORDS = ["DHBA", "MBA", "UBERON", "BNA", "collectio
  */
 export const CIRCUIT_RELATIONS = ["<", "=", ">"] as const;
 
-/** Capability&Mechanism of the FRG rows of UCs outside the ROI (Template-v2-2). */
+/** Capability&Mechanism of the FRG rows of UCs outside the ROI (Template-v2-3). */
 export const OUT_OF_ROI_CAPABILITY = "No need for description due to input/output circuit";
 
 /** Circuit ID of the ROI row, the first data row of the Circuits sheet (Japanese manual 2025-09, "ROI の指定"). */

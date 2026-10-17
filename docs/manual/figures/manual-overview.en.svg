@@ -25,7 +25,7 @@
 <rect x="711" y="24" width="146" height="84" rx="8" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
 <text x="784" y="52.775000000000006" font-size="14" font-weight="700" fill="#1e3a8a" text-anchor="middle"><tspan>BRA xlsx</tspan></text>
 <text x="784" y="72.125" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>CoBRAC format</tspan></text>
-<text x="784" y="90.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Template-v2-2</tspan></text>
+<text x="784" y="90.25" font-size="12.5" font-weight="400" fill="#0f172a" text-anchor="middle"><tspan>Template-v2-3</tspan></text>
 <text x="440" y="140" font-size="12.5" font-weight="400" fill="#475569" text-anchor="middle"><tspan>Each output appears on the project page when its step is done</tspan></text>
 <path d="M440 160 L440 112" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#arrow-f59e0b)"/>
 <rect x="195" y="160" width="490" height="70" rx="8" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5"/>

@@ -831,7 +831,7 @@ app.get("/projects/:id/artifacts/download", async (c) => {
 });
 
 /**
- * The BRA data in the official Template-v2-2.bra workbook. The worker writes it at the end of every job; projects
+ * The BRA data in the official Template-v2-3.bra workbook. The worker writes it at the end of every job; projects
  * finished before that (or whose file is older than the CoBRAC xlsx) get it built here from the workspace files.
  */
 app.get("/projects/:id/artifacts/template-xlsx", async (c) => {

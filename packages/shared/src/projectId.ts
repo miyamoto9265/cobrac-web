@@ -140,9 +140,9 @@ export function braDownloadFileName(name: string | null | undefined, projectId: 
   return { ascii, utf8: base ? `${base}_${projectId}.bra.xlsx` : ascii };
 }
 
-/** `{name}_{ID}.template-v2-2.bra.xlsx`: the BRA data in the official Template-v2-2.bra workbook. */
+/** `{name}_{ID}.template-v2-3.bra.xlsx`: the BRA data in the official Template-v2-3.bra workbook. */
 export function templateDownloadFileName(name: string | null | undefined, projectId: string): { ascii: string; utf8: string } {
-  const ascii = `${projectId}.template-v2-2.bra.xlsx`;
+  const ascii = `${projectId}.template-v2-3.bra.xlsx`;
   const base = sanitizeFileNamePart(name ?? "");
   return { ascii, utf8: base ? `${base}_${ascii}` : ascii };
 }

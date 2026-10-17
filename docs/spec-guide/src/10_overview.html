@@ -38,7 +38,7 @@
     <tr><td>HCD と FRG のデータ（JSON の 4 つのファイル）</td><td>エージェントが書き、ワーカーが検査する</td><td>3.8・3.9・3.10</td></tr>
     <tr><td>レポートと判断ログ（Markdown）</td><td>エージェント</td><td>3.13</td></tr>
     <tr><td>5 つの CSV</td><td>ワーカーが JSON から作る。エージェントは CSV を書かない</td><td>3.13</td></tr>
-    <tr><td>xlsx（CoBRAC の形式と、公式テンプレート Template-v2-2 の形式の 2 つ）</td><td>ワーカー</td><td>3.13</td></tr>
+    <tr><td>xlsx（CoBRAC の形式と、公式テンプレート Template-v2-3 の形式の 2 つ）</td><td>ワーカー</td><td>3.13</td></tr>
     <tr><td>HCD と FRG のグラフ</td><td>ワーカー。LLM を使わない</td><td>3.13・8.7</td></tr>
     <tr><td>版（変わらないコピー）</td><td>ワーカーがジョブの完了時に凍結する</td><td>4.5</td></tr>
     <tr><td>解説記事（任意）</td><td>LLM が記事を書く別のジョブ</td><td>3.14</td></tr>
@@ -58,7 +58,7 @@
     <tr><td>レポートと判断ログ</td><td><code>workspace/</code></td></tr>
     <tr><td>5 つの CSV</td><td><code>workspace/&lt;ProjectID&gt;_CSV/</code></td></tr>
     <tr><td>CoBRAC の xlsx（<code>csv_to_excel.py</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.bra.xlsx</code></td></tr>
-    <tr><td>公式テンプレートの xlsx（<code>buildTemplateXlsx()</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.template-v2-2.bra.xlsx</code></td></tr>
+    <tr><td>公式テンプレートの xlsx（<code>buildTemplateXlsx()</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.template-v2-3.bra.xlsx</code></td></tr>
     <tr><td>グラフの JSON（<code>buildGraphs()</code> が作る）</td><td><code>graph/hcd.json</code>・<code>graph/frg.json</code></td></tr>
     <tr><td>版</td><td><code>revisions/&lt;n&gt;/</code></td></tr>
     <tr><td>解説記事</td><td><code>article/</code></td></tr>

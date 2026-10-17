@@ -1,9 +1,10 @@
 /**
- * The BRA data in the official Template-v2-2.bra workbook (the Google Sheets template of the BRA Data Preparation
+ * The BRA data in the official Template-v2-3.bra workbook (the Google Sheets template of the BRA Data Preparation
  * Manual, exported as xlsx), next to CoBRAC's own xlsx.
  *
- * The template is the base: its sheets, header rows, formulas, AdminOnly lists, validation and the WholeBIF rows it
- * imports stay as they are. Only the contributor-input cells are written; the automatic and admin columns keep their
+ * The template is the base: its sheets, header rows, formulas, AdminOnly lists, validation and the WholeBIF import
+ * stay as they are (the bundled copy keeps only the first WholeBIF row of References and Connections; Google Sheets
+ * fills the rest when the workbook is opened; see scripts/slim-bra-template.mjs). Only the contributor-input cells are written; the automatic and admin columns keep their
  * formulas (the value Excel shows for a Google-only formula is set to what Google Sheets would compute, where CoBRAC
  * knows it). When a sheet needs more rows than the template's input area, rows are inserted above the WholeBIF
  * import, as a contributor would do.
@@ -13,7 +14,7 @@
  */
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from "fflate";
 import { buildBibtex, bibKeyOfDoi, bibKeyOfPmid, templateReferenceIds, type BibRecord, type BibliographyFile } from "./bibtex.js";
-import { OUT_OF_ROI_CAPABILITY, roiCircuitId } from "./bra.js";
+import { roiCircuitId } from "./bra.js";
 import { parseCsv } from "./csv.js";
 import type { RefRow } from "./harness.js";
 import { normalizeDoi, normalizePmid, parseRefId, type RefCheck } from "./references.js";
@@ -38,18 +39,18 @@ import {
 } from "./xlsxSheet.js";
 
 /** File name of the template under `prompts/templates/`. */
-export const BRA_TEMPLATE_FILE = "Template-v2-2.bra.xlsx";
+export const BRA_TEMPLATE_FILE = "Template-v2-3.bra.xlsx";
 /** BRA version the template itself declares (Project!E2). */
-export const BRA_TEMPLATE_VERSION = "Template-v2-2.bra";
-/** Suffix of the exported workbook: `output/{P}.template-v2-2.bra.xlsx`. */
-export const TEMPLATE_XLSX_SUFFIX = ".template-v2-2.bra.xlsx";
+export const BRA_TEMPLATE_VERSION = "Template-v2-3.bra";
+/** Suffix of the exported workbook: `output/{P}.template-v2-3.bra.xlsx`. */
+export const TEMPLATE_XLSX_SUFFIX = ".template-v2-3.bra.xlsx";
 export const templateXlsxKey = (projectId: string) => `output/${projectId}${TEMPLATE_XLSX_SUFFIX}`;
 
 export const TEMPLATE_DATA_SHEETS = ["Project", "References", "Circuits", "Connections", "FRG"] as const;
 export type TemplateSheet = (typeof TEMPLATE_DATA_SHEETS)[number];
 
 /**
- * Input area of each data sheet in Template-v2-2: rows 2..`last`; more rows are inserted before `insertAt` (copies of
+ * Input area of each data sheet in Template-v2-3: rows 2..`last`; more rows are inserted before `insertAt` (copies of
  * row `insertAt - 1`). `importRow` is the first WholeBIF row (IMPORTRANGE), checked so a changed template fails loudly.
  */
 const LAYOUT: Record<Exclude<TemplateSheet, "Project">, { last: number; insertAt: number; importRow: number | null }> = {
@@ -61,6 +62,8 @@ const LAYOUT: Record<Exclude<TemplateSheet, "Project">, { last: number; insertAt
 
 const C = colIndex;
 const MECHANISM_TAG = "<<mechanism to realize the capability>>";
+/** From Template-v2-3, Capability&Mechanism ends with the coding scheme; CoBRAC has none to write, so it stays empty. */
+const CODING_SCHEME_TAG = "<<mechanism realized by grainest coding scheme>>";
 
 export interface TemplateExportInput {
   projectId: string;
@@ -387,7 +390,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
       subnodes: splitList(frgT.get(r, "Subnodes")),
       circuit: frgT.get(r, "Circuit ID"),
       projected: splitList(frgT.get(r, "Projected Circuits")),
-      cm: capability === OUT_OF_ROI_CAPABILITY && !mechanism ? `${capability}\n${MECHANISM_TAG}\n` : `${capability}\n${MECHANISM_TAG}\n${mechanism}`,
+      cm: `${capability}\n${MECHANISM_TAG}\n${mechanism}\n${CODING_SCHEME_TAG}\n`,
       implementation: frgT.get(r, "Implementation of Uniform Circuit"),
       reqRealization: frgT.get(r, "Requirements Realization by Interface"),
       requirements: frgT.get(r, "Requirements"),
