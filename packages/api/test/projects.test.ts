@@ -18,7 +18,7 @@ vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
 
 const presign = vi.hoisted(() => vi.fn(async () => "https://signed.example/x"));
 vi.hoisted(() => {
-  process.env.BRA_TEMPLATE_PATH = new URL("../../../prompts/templates/Template-v2-2.bra.xlsx", import.meta.url).pathname;
+  process.env.BRA_TEMPLATE_PATH = new URL("../../../prompts/templates/Template-v2-3.bra.xlsx", import.meta.url).pathname;
 });
 vi.mock("../src/lib/aws.js", () => ({
   presignDownload: presign,
@@ -241,7 +241,7 @@ describe("project IDs", () => {
     expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv", undefined);
   });
 
-  it("builds the Template-v2-2 workbook on demand from the workspace CSVs, and reuses a current one", async () => {
+  it("builds the Template-v2-3 workbook on demand from the workspace CSVs, and reuses a current one", async () => {
     seedLegacyCollision();
     fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR learning", nameSource: "user" });
     const aws = await import("../src/lib/aws.js");
@@ -259,17 +259,17 @@ describe("project IDs", () => {
     vi.mocked(aws.getObjectText).mockResolvedValue(null);
     expect(r.url).toBe("https://signed.example/x");
     const [, , key, body, type] = vi.mocked(aws.putObjectBytes).mock.calls.at(-1)!;
-    expect(key).toBe("output/u7m2q9xa-2.template-v2-2.bra.xlsx");
+    expect(key).toBe("output/u7m2q9xa-2.template-v2-3.bra.xlsx");
     expect(type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     const { readTemplateSheet } = await import("@cobrac/shared");
     expect(readTemplateSheet(body as Uint8Array, "Circuits").get("A2")!.text).toBe("ROI_u7m2q9xa-2");
-    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.template-v2-2.bra.xlsx", {
-      ascii: "u7m2q9xa-2.template-v2-2.bra.xlsx",
-      utf8: "VOR_learning_u7m2q9xa-2.template-v2-2.bra.xlsx",
+    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.template-v2-3.bra.xlsx", {
+      ascii: "u7m2q9xa-2.template-v2-3.bra.xlsx",
+      utf8: "VOR_learning_u7m2q9xa-2.template-v2-3.bra.xlsx",
     });
 
     const puts = vi.mocked(aws.putObjectBytes).mock.calls.length;
-    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra, { ...bra, key: "output/u7m2q9xa-2.template-v2-2.bra.xlsx", lastModified: "2026-09-03T00:00:00.000Z" }]);
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra, { ...bra, key: "output/u7m2q9xa-2.template-v2-3.bra.xlsx", lastModified: "2026-09-03T00:00:00.000Z" }]);
     await json(call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"));
     expect(vi.mocked(aws.putObjectBytes).mock.calls.length).toBe(puts);
 

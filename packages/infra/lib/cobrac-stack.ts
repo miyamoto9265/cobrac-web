@@ -369,8 +369,8 @@ export class CobracAgentsStack extends Stack {
         ...extra,
       });
 
-    // the API builds the Template-v2-2 workbook of older projects on demand, from the template bundled next to it
-    const braTemplate = resolve(repoRoot, "prompts/templates/Template-v2-2.bra.xlsx");
+    // the API builds the Template-v2-3 workbook of older projects on demand, from the template bundled next to it
+    const braTemplate = resolve(repoRoot, "prompts/templates/Template-v2-3.bra.xlsx");
     const specPdf = resolve(repoRoot, "docs", SPEC_PDF_NAME);
     const apiFn = fn("ApiFn", "handlers/http.ts", "handler", {
       memorySize: 1024,
@@ -382,7 +382,7 @@ export class CobracAgentsStack extends Stack {
           // the admin-only specification PDF, kept out of the public web bundle: GET /admin/spec copies it to S3
           // (admin-docs/spec-<hash>.pdf) and hands out presigned URLs. A missing PDF fails the build on purpose.
           afterBundling: (_input: string, outputDir: string) => [
-            `cp "${braTemplate}" "${outputDir}/Template-v2-2.bra.xlsx"`,
+            `cp "${braTemplate}" "${outputDir}/Template-v2-3.bra.xlsx"`,
             `mkdir -p "${outputDir}/admin-docs"`,
             `cp "${specPdf}" "${outputDir}/admin-docs/${SPEC_PDF_NAME}"`,
           ],
@@ -444,7 +444,7 @@ export class CobracAgentsStack extends Stack {
     artifacts.grantPut(apiFn, "users/*");
     // Canon revision snapshots and pull-request payloads (outside the user prefixes)
     artifacts.grantPut(apiFn, "canons/*");
-    artifacts.grantPut(apiFn, "users/*/output/*.template-v2-2.bra.xlsx");
+    artifacts.grantPut(apiFn, "users/*/output/*.template-v2-3.bra.xlsx");
     artifacts.grantDelete(apiFn, "users/*/graph/*.layout.json");
     // reference materials: presigned browser uploads to staging/, moved into the project on create
     artifacts.grantPut(apiFn, "staging/*");

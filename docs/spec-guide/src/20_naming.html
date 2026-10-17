@@ -452,11 +452,11 @@
     <tr><td><code>BNA.</code> / <code>DHBA.</code> の接頭辞</td><td>付けていない</td><td>仮仕様の接頭辞に合わせるか</td></tr>
     <tr><td>複数の単位にまたがる回路の略称</td><td>暫定で、共通する BNA の L2 の略称を使う</td><td>この扱いでよいか</td></tr>
     <tr><td>Source of ID の <code>BNA</code></td><td>CoBRAC の拡張として書く（Review Tool は 108 を出しうる）</td><td>列挙値への <code>BNA</code> の追加が可能か（U9）</td></tr>
-    <tr><td>Descriptor と facet の保存先</td><td>CoBRAC 形式の xlsx では UC Descriptor の列に書く。Template-v2-2 には専用の列がないので、Template-v2-2 形式の書き出しでは Comments 欄に <code>UC Descriptor: …</code> として書く</td><td>テンプレートに列を加えられるか（U21）</td></tr>
+    <tr><td>Descriptor と facet の保存先</td><td>CoBRAC 形式の xlsx では UC Descriptor の列に書く。Template-v2-3 には専用の列がないので、Template-v2-3 形式の書き出しでは Comments 欄に <code>UC Descriptor: …</code> として書く</td><td>テンプレートに列を加えられるか（U21）</td></tr>
     <tr><td>Master にコードのない検査</td><td><code>cobrac:</code> のローカルコード 13 個（2.10）</td><td>Master に加えるもの、Review Tool の自動判定に入れるものがあるか</td></tr>
     <tr><td>Uniform が BRA ごとに相対的であること</td><td>同じ Descriptor が、粗い HCD では UC、細かい HCD では Collection になりうる</td><td>WholeBIF に統合するとき、Uniform の値が違う場合をどう扱うか（U20）</td></tr>
   </tbody>
 </table>
 <p class="small">CoBRAC の側にも、未決の事項が残っています。BNA の領域を 1 つに決める閾値（<code>p_raw</code>・<code>eff_n</code>）、脊髄のように SABRA の単位にならない領域の扱い、<code>cell</code>・<code>resp</code> の語彙の出典、Circuit ID が衝突したときの修飾の細則です。</p>
-<p class="src">典拠：構文・正規化・古い形の読み替え・名前の検査 <code>packages/shared/src/ucNaming.ts</code> ／ <code>uc.json</code> の検査（重複・Collection・粒度）<code>harness.ts</code>、Source of ID <code>bra.ts</code> ／ BNA の 246 ラベル <code>bnaLabels.ts</code> ／ Template-v2-2 形式の書き出し <code>braTemplate.ts</code> ／ Canon の照合（C1〜C13、古い形の比較）<code>canonMerge.ts</code>・<code>canonConstraints.ts</code> ／ エージェントへの指示 <code>prompts/phases/HCD.md</code> ／ BRA 出力のチェッカー <code>scripts/bra-appendix-d.mjs</code> ／ テスト <code>packages/shared/test/ucNaming.test.ts</code>・<code>harness.test.ts</code>・<code>canonMerge.test.ts</code>、<code>scripts/bra-appendix-d.test.mjs</code></p>
+<p class="src">典拠：構文・正規化・古い形の読み替え・名前の検査 <code>packages/shared/src/ucNaming.ts</code> ／ <code>uc.json</code> の検査（重複・Collection・粒度）<code>harness.ts</code>、Source of ID <code>bra.ts</code> ／ BNA の 246 ラベル <code>bnaLabels.ts</code> ／ Template-v2-3 形式の書き出し <code>braTemplate.ts</code> ／ Canon の照合（C1〜C13、古い形の比較）<code>canonMerge.ts</code>・<code>canonConstraints.ts</code> ／ エージェントへの指示 <code>prompts/phases/HCD.md</code> ／ BRA 出力のチェッカー <code>scripts/bra-appendix-d.mjs</code> ／ テスト <code>packages/shared/test/ucNaming.test.ts</code>・<code>harness.test.ts</code>・<code>canonMerge.test.ts</code>、<code>scripts/bra-appendix-d.test.mjs</code></p>
 </section>

@@ -1,5 +1,5 @@
 /**
- * Bibliographic records for the BibTeX of the Template-v2-2 export: the Crossref work of each DOI, or the PubMed
+ * Bibliographic records for the BibTeX of the Template-v2-3 export: the Crossref work of each DOI, or the PubMed
  * summary of a PMID when there is no DOI. Kept in `{P}_CSV/bibliography.json` so a follow-up only looks up new
  * references and the API can rebuild the export without network access.
  *

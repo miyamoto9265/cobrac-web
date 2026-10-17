@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { updateBibliography } from "../src/bibliography.js";
 import { CROSSREF, EUTILS, SCHULTZ_PUBMED, SCHULTZ_WORK, mockLiterature } from "./mockLiterature.js";
 
-describe("bibliography for the Template-v2-2 BibTeX", () => {
+describe("bibliography for the Template-v2-3 BibTeX", () => {
   it("reads the Crossref work of a DOI and the PubMed summary of a PMID-only reference", async () => {
     const lit = mockLiterature({ crossref: { [SCHULTZ_WORK.DOI]: { ...SCHULTZ_WORK, type: "journal-article", volume: "275", page: "1593-1599" } }, pubmed: { "9054347": SCHULTZ_PUBMED } });
     const b = await updateBibliography(
