@@ -136,13 +136,13 @@
 </table>
 
 <h3>BRA の値の規則</h3>
-<p>HCD の検査は、BRA Data Preparation Manual と Template-v2-2.bra が定める値も強制し、出力が BRA Review Tool でエラーにならないようにします。表のコードは BRA の Error code List（Master）のもので、<code>cobrac:</code> で始まるものは、Master にコードのない CoBRAC 独自の検査です。名前・Source of ID・Collection についての規則は第 2 部にあります。</p>
+<p>HCD の検査は、BRA Data Preparation Manual と Template-v2-3.bra が定める値も強制し、出力が BRA Review Tool でエラーにならないようにします。表のコードは BRA の Error code List（Master）のもので、<code>cobrac:</code> で始まるものは、Master にコードのない CoBRAC 独自の検査です。名前・Source of ID・Collection についての規則は第 2 部にあります。</p>
 <table class="compact">
   <thead><tr><th style="width:22%">項目</th><th>規則</th></tr></thead>
   <tbody>
     <tr><td>接続の文献（252 / 253）</td><td>1 レコードに Reference ID がちょうど 1 つ。同じ送り手 → 受け手は論文ごとに繰り返し、それぞれに Taxon・測定法・Pointers を持たせる</td></tr>
     <tr><td>Pointers（271 / 277、272、278）</td><td>2 つのうち少なくとも 1 つ。Pointers on literature は原文の逐語の引用で 10 語以上（272）、位置の表記で始めない。Pointers on figure は図番号（278）</td></tr>
-    <tr><td>列挙値</td><td>Taxon（10 値）、Measurement method（21 値）、Transmitter（6 値か空）、Modulation Type（3 値か空）、Literature type（11 値）。Template-v2-2 の AdminOnly のとおり</td></tr>
+    <tr><td>列挙値</td><td>Taxon（10 値）、Measurement method（21 値）、Transmitter（6 値か空）、Modulation Type（3 値か空）、Literature type（11 値）。Template-v2-3 の AdminOnly のとおり</td></tr>
     <tr><td>DOI（1）</td><td>DOI のない文献には <code>alternativeUrl</code> か PMID が要る。CSV では PubMed の URL を Alternative URL に書く</td></tr>
     <tr><td>Output Semantics（562 / 563）</td><td>UC はちょうど 1 項目 <code>[&lt;自分の Circuit ID&gt;] 内容;</code>。<code>]</code> の後の空白は任意で、末尾に <code>[Author, Year]</code> の引用を付けてよい。FRG.csv の GN の行には、GN の外へ出力する UC の項目が入る</td></tr>
     <tr><td>Capability（<code>cobrac:capability-required</code>）</td><td>ROI 外部の UC の FRG の行は、固定文 <code>No need for description due to input/output circuit</code></td></tr>

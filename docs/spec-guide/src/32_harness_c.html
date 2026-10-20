@@ -84,7 +84,7 @@
 <table class="compact">
   <thead><tr><th style="width:20%">対象</th><th>扱い</th></tr></thead>
   <tbody>
-    <tr><td>CSV・xlsx</td><td>列は増やさない。仮説の接続・UC と、その FRG の <code>U.</code> の行の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。存在の仮説は測定法 <code>Hypothetical</code>、集団の仮説は Source of ID <code>makeshift</code>。Template-v2-2 の Credibility rating は書かない</td></tr>
+    <tr><td>CSV・xlsx</td><td>列は増やさない。仮説の接続・UC と、その FRG の <code>U.</code> の行の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。存在の仮説は測定法 <code>Hypothetical</code>、集団の仮説は Source of ID <code>makeshift</code>。Template-v2-3 の Credibility rating は書かない</td></tr>
     <tr><td>仮説に依存する GN</td><td>UC に仮説の UC を含む GN と、2 つ以上の UC が仮説の接続なしには連結しない GN。Comments の末尾に <code>Depends on hypotheses: H2, H5</code> を足す</td></tr>
     <tr><td>仮説の記録</td><td>ワーカーだけが書く <code>hypotheses.json</code>。仮説モードだけで、検査のたびに書き直し、スキーマで検査する。許可範囲、比率（接続と UC の件数・全体・比率・上限）、仮説の一覧、根拠だけの経路の有無、FRG ができていれば GN の依存</td></tr>
     <tr><td>整合の記録</td><td>仮説の件数、根拠だけの経路の有無、仮説を含めた経路の有無、GN の依存（記録だけ）</td></tr>
@@ -114,7 +114,7 @@
   <tbody>
     <tr><td>CSV 5 本（<code>&lt;ProjectID&gt;_CSV/</code>）</td><td>JSON から <code>Project</code>・<code>References</code>・<code>Circuits</code>・<code>Connections</code>・<code>FRG</code> を作る。<code>Circuits.csv</code> の Comments には、<code>roi</code> から <code>noROI(...)</code> の印を、<code>uniformityNote</code> から <code>Uniform in this project: …</code> を足す。CSV 段階で問題が出たら、JSON を直す依頼としてエージェントに返す</td></tr>
     <tr><td>CoBRAC 形式の xlsx</td><td>CSV から作る。Capability&amp;Mechanism のセルには、Capability、テンプレートの既定の印 <code>&lt;&lt;mechanism to realize the capability&gt;&gt;</code>、Mechanism を入れる</td></tr>
-    <tr><td>Template-v2-2 の xlsx</td><td>BRA Data Preparation Manual の公式テンプレートに同じデータを書く（後述）。ダウンロード名は <code>{名前}_{ID}.template-v2-2.bra.xlsx</code></td></tr>
+    <tr><td>Template-v2-3 の xlsx</td><td>BRA Data Preparation Manual の公式テンプレートに同じデータを書く（後述）。ダウンロード名は <code>{名前}_{ID}.template-v2-3.bra.xlsx</code></td></tr>
     <tr><td>グラフ</td><td>CSV から HCD / FRG のグラフの JSON を作る。画面のグラフと、解説記事の図の元になる</td></tr>
     <tr><td>レポートと判断ログ</td><td>エージェントが書いた文章を、そのまま閲覧・ダウンロードできるようにする</td></tr>
   </tbody>
@@ -142,7 +142,8 @@
 <h3>実装</h3>
 <ul>
   <li>CSV は <code>buildCsvs</code>（<code>Project.csv</code> は <code>buildProjectCsv</code>）、グラフは <code>buildGraphs</code> が作ります。CoBRAC 形式の xlsx は <code>prompts/csv_to_excel.py</code> が対話なしで作ります（引数 <code>--contributor</code>・<code>--project-id</code>・<code>--base-dir</code>・<code>--output</code>）。</li>
-  <li>公式テンプレートは <code>prompts/templates/Template-v2-2.bra.xlsx</code> で、<code>buildTemplateXlsx</code>（<code>braTemplate.ts</code>）が書きます。表計算のライブラリは Google 固有の部品を落とすので、XML の水準で編集します（<code>xlsxSheet.ts</code>、zip は fflate）。</li>
+  <li>公式テンプレートは <code>prompts/templates/Template-v2-3.bra.xlsx</code> で、<code>buildTemplateXlsx</code>（<code>braTemplate.ts</code>）が書きます。表計算のライブラリは Google 固有の部品を落とすので、XML の水準で編集します（<code>xlsxSheet.ts</code>、zip は fflate）。</li>
+  <li>Template-v2-3 は WholeBIF 全体を取り込むため、Google Sheets から書き出した xlsx は約 25 MB になります。同梱するのは、<code>scripts/slim-bra-template.mjs</code> で References と Connections の WholeBIF の行を最初の 1 行（IMPORTRANGE の数式）だけにしたものです。残りの行は、Google Sheets で開いたときに取り込み直されます。Circuits の WholeBIF の行は DHBA の階層を読むために残します。</li>
   <li>値の分かる数式セル（References の A / G〜J、Circuits の AO）には Google Sheets の計算結果を表示値として入れ、<code>fullCalcOnLoad</code> で残りを Excel に再計算させます。</li>
   <li>入力欄の行は、References 2〜29、Circuits 2〜31、Connections 2〜80、FRG 2〜198 です。行を挿入したときは、ほかのシートからの参照、入力規則の範囲、フィルタ、リンク、名前の定義もずらします。</li>
   <li>書誌の照会は <code>bibliography.ts</code> で、1 要求 10 秒、合計 60 秒までです。失敗したものは次のジョブで再試行し、<code>REFERENCE_LOOKUP=off</code> では照会しません。結果は <code>bibliography.json</code> に、照合の結果は <code>reference_check.json</code> にあります。</li>
@@ -151,11 +152,11 @@
   <caption>シートごとに書く列</caption>
   <thead><tr><th style="width:12%">シート</th><th>書く</th><th style="width:30%">残す（数式・管理用）</th></tr></thead>
   <tbody>
-    <tr><td>Project</td><td>A2 Contributor、B2 Project ID、C2 List of contributors、D2 Description、B5〜B8 Review End Line</td><td>E2 BRA version <code>Template-v2-2.bra</code></td></tr>
+    <tr><td>Project</td><td>A2 Contributor、B2 Project ID、C2 List of contributors、D2 Description、B5〜B8 Review End Line</td><td>E2 BRA version <code>Template-v2-3.bra</code></td></tr>
     <tr><td>References</td><td>D DOI（なければ空）、E BibTeX、F Literature type、K Alternative URL（DOI がないときだけ）、L Contributor、M Project ID</td><td>A Reference ID、B / C リンク、G〜J、N〜W</td></tr>
     <tr><td>Circuits</td><td>2 行目は ROI の行。A Circuit ID、B Source of ID、C Names、D〜R DHBA の graph_order・名前・Lv.2〜14、S Sub-Circuits、U Uniform、V Transmitter、W Modulation Type、AA Comments（+ <code>UC Descriptor: …</code>）、AB Contributor、AC Project ID</td><td>T、X〜Z は空。AD〜AM、AO</td></tr>
     <tr><td>Connections</td><td>A sCID、B / C 関係と表記、D rCID、E / F 関係と表記、H Comments、I Reference ID、J Taxon、K 測定法、L / M Pointers、AE Contributor、AF Project ID（文献ごとに 1 行）</td><td>G、N は空。O〜AD、AG〜AP</td></tr>
-    <tr><td>FRG</td><td>AC Node ID、AD Subnodes、AE Circuit ID、AF Projected Circuits、BA Capability&amp;Mechanism、BC Implementation（UC の行）、BG Requirements Realization、BI Requirements、BK Output Semantics、BM Comments</td><td>A〜AB、AG〜AZ（Region Category・Interface・Implementation は数式）、BB、BD〜BF、BH、BJ、BL、BN〜BX</td></tr>
+    <tr><td>FRG</td><td>AC Node ID、AD Subnodes、AE Circuit ID、AF Projected Circuits、BA Capability&amp;Mechanism（Capability、<code>&lt;&lt;mechanism to realize the capability&gt;&gt;</code>、Mechanism、<code>&lt;&lt;mechanism realized by grainest coding scheme&gt;&gt;</code> の順。coding scheme は CoBRAC にないので空）、BC Implementation（UC の行）、BG Requirements Realization、BI Requirements、BK Output Semantics、BM Comments</td><td>A〜AB、AG〜AZ（Region Category・Interface・Implementation は数式）、BB、BD〜BF、BH、BJ、BL、BN〜BX</td></tr>
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code></p>

@@ -301,7 +301,7 @@
 <table class="compact">
   <thead><tr><th style="width:17%">リソース</th><th>仕様</th><th style="width:26%">動くとき</th></tr></thead>
   <tbody>
-    <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトのために Template-v2-2 のブックをその場で作るため。C.5）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
+    <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトのために Template-v2-3 のブックをその場で作るため。C.5）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
     <tr><td>ECS クラスター</td><td>Fargate と Fargate Spot のキャパシティプロバイダー。Container Insights は無効</td><td>常時（クラスター自体はほぼ無料）</td></tr>
     <tr><td>Fargate タスク（ワーカー）</td><td>1 vCPU・2 GB・一時ストレージ 21 GB、x86_64。停止の猶予（<code>stopTimeout</code>）は Fargate の上限の 120 秒</td><td>1 ジョブにつき 1 タスク</td></tr>
     <tr><td>CodeBuild</td><td>ワーカーのイメージをデプロイ時にビルドする。土台のイメージ <code>node:22-bookworm-slim</code> は、Docker Hub ではなく ECR Public のミラー（<code>public.ecr.aws/docker/library/</code>）から取得する。CodeBuild の共有 IP からの匿名の取得は Docker Hub のレート制限に当たり、デプロイが失敗するため</td><td><code>cdk deploy</code> でイメージが変わるとき</td></tr>
@@ -352,7 +352,7 @@
     <tr><td><code>@cobrac/worker</code></td><td>Codex と Claude Agent SDK の制御ループ、S3 との同期、xlsx・グラフの仕上げ。Dockerfile（Node 22、<code>@openai/codex-sdk</code>・<code>@anthropic-ai/claude-agent-sdk</code>、Python 3、poppler）</td></tr>
     <tr><td><code>@cobrac/web</code></td><td>SPA（認証、エージェント欄、グラフ、設定、管理画面）</td></tr>
     <tr><td><code>@cobrac/infra</code></td><td>CDK のスタック <code>CobracAgents</code> と <code>BraDb</code>。Lambda は esbuild でまとめ、ワーカーのイメージはデプロイ時に CodeBuild で作る</td></tr>
-    <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-2.bra.xlsx</code>）。全文は付録 B</td></tr>
+    <tr><td><code>prompts/</code></td><td>エージェントの共通ルール（<code>AGENTS.md</code>）、段階の仕様（<code>phases/</code>）、<code>csv_to_excel.py</code>、公式テンプレート（<code>templates/Template-v2-3.bra.xlsx</code>）。全文は付録 B</td></tr>
     <tr><td><code>scripts/</code></td><td>リリース、RETAIN ガード、BRA のエラーコードの判定、ID の移行、文書の図の生成など（8.9）</td></tr>
   </tbody>
 </table>
@@ -422,7 +422,7 @@
   <li><b>起動</b>：dispatcher が同時実行数を検査し、空きがあればワーカーのタスクを起動して、ジョブとプロジェクトを <code>RUNNING</code> にします（次の「ワーカーの起動」）。</li>
   <li><b>実行</b>：ワーカーがジョブを <code>RUNNING</code> にし、ターンを繰り返します（8.4）。</li>
   <li><b>質問</b>：エージェントがターンを <code>status: "question"</code> で終えると、ワーカーは作業ディレクトリと会話（Codex のスレッド）を S3 に保存し、ジョブとプロジェクトを <code>WAITING_USER_INPUT</code> にしてタスクを終えます。回答（<code>POST /projects/{id}/answer</code>）が届くと同じジョブが <code>QUEUED</code> に戻り、<code>resume</code> モードで同じ会話を再開します（<code>resumeThread</code>）。</li>
-  <li><b>仕上げ</b>：HCD と FRG が受理され、JSON から CSV ができると <code>FINALIZING</code> になります。<code>csv_to_excel.py</code>、Template-v2-2 の書き出し、<code>buildGraphs()</code> の後に版を凍結し、<code>COMPLETED</code> になります。</li>
+  <li><b>仕上げ</b>：HCD と FRG が受理され、JSON から CSV ができると <code>FINALIZING</code> になります。<code>csv_to_excel.py</code>、Template-v2-3 の書き出し、<code>buildGraphs()</code> の後に版を凍結し、<code>COMPLETED</code> になります。</li>
   <li><b>完了後</b>：フォローアップ（画面では「追加の指示」。<code>POST /projects/{id}/followup</code>）は、同じ会話で新しいジョブを作ります。解説記事（<code>POST /projects/{id}/articles</code>）も新しいジョブで、BRA データには触れません。</li>
   <li><b>失敗</b>：ターンの失敗、6 時間の上限、Spot の中断などで <code>FAILED</code> になります。応答のなくなったジョブは、janitor が自動で再開します（後述）。</li>
 </ol>

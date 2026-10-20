@@ -5,6 +5,10 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The official-template download follows Template-v2-3.bra, released by WBAI on 2026-10-13 (the version BRAES now accepts): the button reads "BRA xlsx (Template-v2-3)", the file is `{name}_{ID}.template-v2-3.bra.xlsx`, Project!E2 says `Template-v2-3.bra`, and each FRG Capability&Mechanism cell ends with the new `<<mechanism realized by grainest coding scheme>>` tag (the coding scheme is left empty, since CoBRAC does not produce one). Projects with only a Template-v2-2 file get the v2-3 file built on their next download
+- Template-v2-3 imports all of WholeBIF, so its Google Sheets download is about 25 MB; CoBRAC bundles a copy whose References and Connections keep only the first WholeBIF row (`scripts/slim-bra-template.mjs`). Google Sheets imports the rest again when the file is opened
+
 ## [0.47.1] - 2026-10-13
 
 ### Fixed

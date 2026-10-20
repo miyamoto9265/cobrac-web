@@ -25,7 +25,7 @@ import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { inflateRawSync } from "node:zlib";
 
-// --- Template-v2-2.bra value lists (AdminOnly) --------------------------------------------------------------------
+// --- Template-v2-2 / v2-3 value lists (AdminOnly, the same in both) --------------------------------------------------
 
 export const LITERATURE_TYPES = ["Experimental results", "Meta review", "Textbook", "Systematic review", "Review", "Modeling", "Simulation", "Hypothesis", "Data description", "Insight", "Opinion"];
 export const TAXA = ["Mouse", "Rat", "Cat", "Marmoset", "Macaque", "Human", "(Mixed)", "Rodent", "Rabbit", "(No description)"];
@@ -293,14 +293,14 @@ const clean = (v) => String(v ?? "").trim();
 
 /**
  * Records of a sheet: the header row is the first row that contains `key` (a header name). With `projectId`, a sheet
- * that has a Project ID column keeps only that project's rows (Template-v2-2 also carries the WholeBIF rows).
+ * that has a Project ID column keeps only that project's rows (Template-v2-2 and v2-3 also carry the WholeBIF rows).
  */
 function table(rows, key, projectId = "") {
   if (!rows) return { present: false, has: () => false, records: [] };
   const h = rows.findIndex((r) => r.some((c) => norm(c) === norm(key)));
   if (h < 0) return { present: true, has: () => false, records: [] };
   const header = rows[h].map(norm);
-  // Template-v2-2 FRG repeats headers (Node ID, Circuit ID) in its formula area; the contributor columns come last
+  // Template-v2-x FRG repeats headers (Node ID, Circuit ID) in its formula area; the contributor columns come last
   const find = (names) => names.map(norm).map((n) => header.lastIndexOf(n)).find((i) => i >= 0) ?? -1;
   const pid = projectId ? header.indexOf("project id") : -1;
   const records = rows
@@ -399,7 +399,7 @@ export function buildModel(bra) {
 const CIRCUIT_ID_CHARS_RE = /^[A-Za-z0-9._~\/+()-]+$/;
 const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 const REF_ID_RE = /^\[[^[\]]+\]$/;
-/** Template-v2-2 writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
+/** Template-v2-x writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
 const refKey = (x) => x.replace(/^\[|\]$/g, "").trim();
 const TEMPLATE_REF_RE = /^[^[\];]+,\s*\d{4}[a-z]?$/;
 const isRefId = (x) => REF_ID_RE.test(x) || TEMPLATE_REF_RE.test(x);

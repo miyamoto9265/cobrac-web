@@ -285,7 +285,7 @@ function Workspace({ projectId }: { projectId: string }) {
                   title={`${t("ws.templateXlsxTip")}: ${templateDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
                   className="flex items-center gap-1 rounded-md border border-emerald-600 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 coarse:min-h-11"
                 >
-                  <FileSpreadsheet size={14} /> BRA xlsx (Template-v2-2)
+                  <FileSpreadsheet size={14} /> BRA xlsx (Template-v2-3)
                 </button>
               )}
               <VisibilityToggle

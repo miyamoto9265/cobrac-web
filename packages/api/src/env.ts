@@ -43,6 +43,6 @@ export const env = {
     clientId: process.env.COGNITO_CLIENT_ID ?? "",
   },
   codexModel: process.env.CODEX_MODEL ?? "",
-  /** Template-v2-2.bra.xlsx bundled next to the handler (prompts/templates/ in the repository) */
+  /** Template-v2-3.bra.xlsx bundled next to the handler (prompts/templates/ in the repository) */
   braTemplatePath: process.env.BRA_TEMPLATE_PATH ?? "",
 };

@@ -968,7 +968,7 @@ describe("CSV export in hypothesis mode", () => {
   });
 });
 
-describe("Template-v2-2 export of the hypothesis CSVs", () => {
+describe("Template-v2-3 export of the hypothesis CSVs", () => {
   const hcd = modelOf();
   const files = csvsOf(hcd);
   const xlsx = buildTemplateXlsx(XLSX_TEMPLATE, {
