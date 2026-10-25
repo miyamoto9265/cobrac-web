@@ -5,6 +5,14 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- A project whose saved agent thread had grown very large (hundreds of MB) could no longer be resumed: every retry stopped within a minute and was reported as a Spot interruption. A thread over 128 MB is now set aside (kept under `thread-archive/`, never shown as an artifact) and the run continues on a new thread from the saved files
+- A run that changes no file for 2 hours (the agent re-reading the same files after each context compaction) is now stopped with a clear message instead of looping until the 6-hour limit
+- When a worker is killed for running out of memory, the job now says so instead of "the worker stopped responding (for example a Fargate Spot interruption)"; the janitor also logs why each stalled worker's task stopped
+
+### Changed
+- Workers run with 4 GB of memory (was 2 GB)
+
 ## [0.48.0] - 2026-10-20
 
 ### Changed

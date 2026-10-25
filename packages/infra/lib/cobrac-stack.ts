@@ -262,7 +262,8 @@ export class CobracAgentsStack extends Stack {
 
     const taskDef = new ecs.FargateTaskDefinition(this, "WorkerTask", {
       cpu: 1024,
-      memoryLimitMiB: 2048,
+      // Codex keeps the whole thread in memory; 2 GB ran out on long threads
+      memoryLimitMiB: 4096,
       runtimePlatform: { cpuArchitecture: ecs.CpuArchitecture.X86_64, operatingSystemFamily: ecs.OperatingSystemFamily.LINUX },
       ephemeralStorageGiB: 21,
     });
@@ -467,6 +468,8 @@ export class CobracAgentsStack extends Stack {
     jobQueue.grantSendMessages(planRunnerFn);
     apiFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
+    // the janitor reads why a stalled worker's task stopped (Spot interruption, out of memory)
+    janitorFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:DescribeTasks"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     dispatcherFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:RunTask"], resources: [taskDef.taskDefinitionArn] }));
     dispatcherFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:TagResource"], resources: ["*"] }));
     dispatcherFn.addToRolePolicy(

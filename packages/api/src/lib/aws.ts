@@ -5,7 +5,7 @@ import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type { ArtifactInfo, BradbRequest, ModelProvider, RunJobMessage } from "@cobrac/shared";
-import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, REVISIONS_PREFIX, contentDisposition, isPlanId, planPrefix } from "@cobrac/shared";
+import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, REVISIONS_PREFIX, contentDisposition, isPlanId, isThreadKey, planPrefix } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 import { safeKeySegments } from "./s3Keys.js";
@@ -55,8 +55,9 @@ export async function listArtifacts(userId: string, projectId: string): Promise<
     for (const o of r.Contents ?? []) {
       if (!o.Key) continue;
       const rel = o.Key.slice(prefix.length);
-      // thread: the agent's session; revisions: frozen versions, listed by GET /projects/{id}/versions
-      if (rel.startsWith("thread/") || rel.startsWith(REVISIONS_PREFIX)) continue;
+      // thread: the agent's session (thread-archive: one set aside as too large to resume); revisions: frozen versions,
+      // listed by GET /projects/{id}/versions
+      if (isThreadKey(rel) || rel.startsWith(REVISIONS_PREFIX)) continue;
       out.push({
         key: rel,
         name: rel.split("/").pop() ?? rel,
@@ -105,7 +106,7 @@ export async function presignDownload(
   fileName?: { ascii: string; utf8: string },
   expiresIn = 900,
 ): Promise<string> {
-  if (rel.includes("..") || rel.startsWith("thread/") || rel.startsWith("/")) throw new Error("invalid key");
+  if (rel.includes("..") || isThreadKey(rel) || rel.startsWith("/")) throw new Error("invalid key");
   const key = projectPrefix(userId, projectId) + rel;
   const base = rel.split("/").pop() ?? "download";
   return getSignedUrl(

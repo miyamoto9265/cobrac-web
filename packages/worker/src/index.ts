@@ -156,6 +156,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
+import { NO_PROGRESS_MESSAGE, NO_PROGRESS_MS, ProgressWatch, THREAD_RESUME_MAX_BYTES, THREAD_TOO_LARGE_MESSAGE, threadBytes, workspaceFingerprint } from "./guards.js";
 import { followupScopeNote, hypothesisRules, returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type PreparedMaterials } from "./materials.js";
@@ -166,7 +167,7 @@ import { threadProviderOf } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
-import { downloadDir, getJsonObject, getObjectBuffer, projectPrefix, putObject, putObjectIfAbsent, uploadDir } from "./s3sync.js";
+import { downloadDir, getJsonObject, getObjectBuffer, listFiles, listPrefix, moveObjects, projectPrefix, putObject, putObjectIfAbsent, uploadDir } from "./s3sync.js";
 import { freezeVersion, promptsSha256, schemasSha256, type FreezeInput, type VersionStore } from "./versions.js";
 import {
   PHASES,
@@ -214,6 +215,9 @@ let cancelled = false;
 let stopping = false;
 /** The workspace was restored or created, so persistState has something to save */
 let workspaceReady = false;
+/** The saved thread was too large to resume and was moved aside (prepareWorkspace); the run starts a new thread. */
+let threadSetAside = false;
+const progress = new ProgressWatch();
 let rcs: RcsClient | null = null;
 let materials: PreparedMaterials | null = null;
 /** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
@@ -305,6 +309,10 @@ async function main() {
   jobUsage = job.usage ?? EMPTY_USAGE;
   jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
   let threadId = mode === "initial" ? null : project.codexThreadId;
+  if (threadId && threadSetAside) {
+    await log(THREAD_TOO_LARGE_MESSAGE, { i18n: "sys.newThreadTooLarge" });
+    threadId = null;
+  }
   if (threadId && !existsSync(join(env.codexHome, "sessions"))) {
     await log("Thread state was missing; resuming on a new thread.", { i18n: "sys.newThread" });
     threadId = null;
@@ -551,7 +559,8 @@ async function main() {
 /**
  * Cancel detection, heartbeat and the run-time limit, once a minute. With `persist` (BRA runs; article jobs never
  * write the workspace back) the workspace and thread also go to S3 every few minutes, so an interruption in the
- * middle of a long turn loses at most that much work.
+ * middle of a long turn loses at most that much work, and a run that changes no workspace file for NO_PROGRESS_MS
+ * is stopped instead of looping until the run-time limit.
  */
 function startHeartbeat(abort: AbortController, o: { persist?: boolean } = {}): NodeJS.Timeout {
   return setInterval(async () => {
@@ -568,6 +577,12 @@ function startHeartbeat(abort: AbortController, o: { persist?: boolean } = {}): 
       if (Date.now() - startedAt > env.workflowTimeoutMs) {
         await countCutOffTurn("run-time limit");
         await fail("Maximum run time (6 hours) exceeded. Retry to continue.", { i18n: "sys.timeout" });
+        process.exit(1);
+      }
+      if (o.persist && workspaceReady && progress.observe(workspaceFingerprint(await listFiles(paths.root)), Date.now()) >= NO_PROGRESS_MS) {
+        console.warn(`[worker] no workspace file changed for ${NO_PROGRESS_MS / 60_000} minutes; stopping the run`);
+        await countCutOffTurn("no progress");
+        await fail(NO_PROGRESS_MESSAGE, { i18n: "sys.noProgress" });
         process.exit(1);
       }
       if (o.persist && workspaceReady && Date.now() - lastPersistAt >= PERIODIC_PERSIST_MS) await persistState();
@@ -1168,7 +1183,7 @@ async function prepareWorkspace(project: ProjectRecord) {
   if (mode !== "initial" || project.codexThreadId) {
     await log("Restoring previous workspace…", { i18n: "sys.restoring" });
     const n1 = await downloadDir(`${prefix}workspace/`, paths.root);
-    const n2 = await downloadDir(`${prefix}thread/`, env.codexHome);
+    const n2 = await restoreThread();
     console.log(`[worker] restored workspace=${n1} thread=${n2}`);
   } else {
     await rm(paths.root, { recursive: true, force: true });
@@ -1177,6 +1192,26 @@ async function prepareWorkspace(project: ProjectRecord) {
   await mkdir(paths.frg, { recursive: true });
   await mkdir(paths.csv, { recursive: true });
   await loadMaterials(project);
+}
+
+/**
+ * The saved thread into the Codex home, unless it is too large to resume: Codex reads the whole rollout when it
+ * resumes, and a few hundred MB kill the task before its first heartbeat. Such a thread is moved to thread-archive/
+ * (kept for inspection, never downloaded again) and the run continues on a new thread from the workspace files.
+ */
+async function restoreThread(): Promise<number> {
+  const from = `${prefix}thread/`;
+  const objs = await listPrefix(from);
+  const bytes = threadBytes(objs);
+  if (bytes <= THREAD_RESUME_MAX_BYTES) return downloadDir(from, env.codexHome);
+  console.warn(`[worker] thread state is ${bytes} bytes (limit ${THREAD_RESUME_MAX_BYTES}); moving it to thread-archive/`);
+  await moveObjects(
+    objs.map((o) => o.key),
+    from,
+    `${prefix}thread-archive/${nowIso().replace(/[:.]/g, "-")}/`,
+  );
+  threadSetAside = true;
+  return 0;
 }
 
 /** Reference materials of the project into materials/; a failure only costs the agent those inputs. */

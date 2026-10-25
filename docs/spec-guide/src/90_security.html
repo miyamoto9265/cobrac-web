@@ -357,7 +357,7 @@
   <caption>想定の利用（月 50 ジョブ、1 件 2〜4 時間、回答待ちの間は停止。実行時間の合計 100〜200 時間）</caption>
   <thead><tr><th style="width:26%">サービス</th><th>前提</th><th class="c" style="width:18%">月額の目安</th></tr></thead>
   <tbody>
-    <tr><td>Fargate Spot 1 vCPU / 2 GB</td><td>1 時間あたり約 $0.013〜0.020</td><td class="c">$2〜4</td></tr>
+    <tr><td>Fargate Spot 1 vCPU / 4 GB</td><td>1 時間あたり約 $0.016〜0.024</td><td class="c">$2〜5</td></tr>
     <tr><td>同、On-Demand に切り替わった分</td><td>Spot のおよそ 2.5〜3 倍</td><td class="c">混ざれば +$1〜3</td></tr>
     <tr><td>CloudFront と Web の S3</td><td>少ないアクセス</td><td class="c">$1</td></tr>
     <tr><td>API Gateway（HTTP と WebSocket）</td><td>数十万リクエスト未満</td><td class="c">$1〜2</td></tr>
@@ -483,7 +483,7 @@
 <ul>
   <li><b>gpt-6-luna・推論の強さ high・調査モード オン</b>で BRA を 1 件作ると、実費で約 $0.13〜0.18 でした（付録 D の測定）。オーケストレーターの見積もりは、1 行あたり $0.18〜0.39、中央値 48 分で計算します（<code>PLAN_ESTIMATE</code>。6.9）。</li>
   <li>単価の高いモデルで推論を強くした長い HCD → FRG → CSV の実行は、1 件で<b>数ドルから数十ドル</b>になりえます。これは約 $10 のインフラの月額（9.9）よりはるかに大きいので、作成画面でモデルと推論の強さを下げることが、費用を抑える近道です。</li>
-  <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間は約 10〜60 分増えます（1 vCPU / 2 GB の Spot で約 $0.01〜0.05）。OpenAI 側では、入力が 150 万〜600 万トークン（大部分はキャッシュ）、出力が 4 万〜15 万トークン（推論の強さ high 以上）増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
+  <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間は約 10〜60 分増えます（1 vCPU / 4 GB の Spot で約 $0.01〜0.05）。OpenAI 側では、入力が 150 万〜600 万トークン（大部分はキャッシュ）、出力が 4 万〜15 万トークン（推論の強さ high 以上）増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
   <li><b>オーケストレーターの下書き・再計画</b>は、推論の強さ <code>medium</code> で RCS の照会をする短い Codex の 1 ターンです（返答が読めなければ 1 回やり直します）。時間の予算は 7 分で、xlsx・PDF の資料を読むか 20 行を超える下書きは 25 分です。BRA の実行に比べれば小さな費用です。ほかのジョブと同じく所有者のキーかデフォルトの API キーで課金され、ジョブに記録され、計画の画面に計画自身のジョブの費用として出ます。計画の PR の AI レビューの費用も、計画の費用に含めます。</li>
 </ul>
 <p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）・<code>claude.ts</code>、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>

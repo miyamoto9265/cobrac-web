@@ -160,6 +160,7 @@ import {
   templateInputFromFiles,
   templateXlsxKey,
   REVISIONS_PREFIX,
+  isThreadKey,
   bradbBlockReason,
   bradbPackagePrefix,
   csvPath,
@@ -869,7 +870,7 @@ app.get("/projects/:id/artifacts/text", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   const key = c.req.query("key");
-  if (!key || key.includes("..") || key.startsWith("thread/")) throw bad("invalid key");
+  if (!key || key.includes("..") || isThreadKey(key)) throw bad("invalid key");
   if (!/\.(md|csv|txt|json)$/i.test(key) && !ARTICLE_FIGURE_KEY_RE.test(key)) throw bad("text files only");
   const text = await getObjectText(u.userId, p.projectId, key);
   if (text === null) throw notFound();

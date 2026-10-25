@@ -303,7 +303,7 @@
   <tbody>
     <tr><td>Lambda（10 本）</td><td>Node.js 22・arm64。標準は 512 MB・30 秒。API（http）は 1,024 MB（古いプロジェクトのために Template-v2-3 のブックをその場で作るため。C.5）。dispatcher と broadcaster は 60 秒、計画ランナーは 50 秒、janitor は 2 分、authMessage は 256 MB・5 秒</td><td>リクエストごと、SQS、DynamoDB Streams、5 分ごと（janitor）、1 分ごと（計画ランナー）、Cognito がメールを作るとき（authMessage）</td></tr>
     <tr><td>ECS クラスター</td><td>Fargate と Fargate Spot のキャパシティプロバイダー。Container Insights は無効</td><td>常時（クラスター自体はほぼ無料）</td></tr>
-    <tr><td>Fargate タスク（ワーカー）</td><td>1 vCPU・2 GB・一時ストレージ 21 GB、x86_64。停止の猶予（<code>stopTimeout</code>）は Fargate の上限の 120 秒</td><td>1 ジョブにつき 1 タスク</td></tr>
+    <tr><td>Fargate タスク（ワーカー）</td><td>1 vCPU・4 GB・一時ストレージ 21 GB、x86_64。停止の猶予（<code>stopTimeout</code>）は Fargate の上限の 120 秒</td><td>1 ジョブにつき 1 タスク</td></tr>
     <tr><td>CodeBuild</td><td>ワーカーのイメージをデプロイ時にビルドする。土台のイメージ <code>node:22-bookworm-slim</code> は、Docker Hub ではなく ECR Public のミラー（<code>public.ecr.aws/docker/library/</code>）から取得する。CodeBuild の共有 IP からの匿名の取得は Docker Hub のレート制限に当たり、デプロイが失敗するため</td><td><code>cdk deploy</code> でイメージが変わるとき</td></tr>
     <tr><td>ECR</td><td>ワーカーのイメージ 1 つ（圧縮で約 0.5 GB）</td><td>常時</td></tr>
   </tbody>
@@ -462,6 +462,8 @@
     <tr><td>ハートビート</td><td>BRA と解説記事のジョブでは 60 秒ごとにジョブの <code>lastHeartbeat</code> を書く。そのついでにジョブが <code>CANCELLED</code> になっていないかを調べ、なっていれば状態を保存して終了する。AI レビューと計画用のジョブは 45 秒ごとに書く</td></tr>
     <tr><td>途中の保存</td><td>BRA のジョブでは、ハートビートのついでに、前回の保存から 5 分たっていれば作業ディレクトリと会話を S3 に上げる（<code>PERIODIC_PERSIST_MS</code>）。中断で失う作業は、その間の分だけになる。解説記事のジョブは作業ディレクトリを書き戻さないので対象外。ハートビート、段階の受理、SIGTERM のときの保存は、重ならないように 1 本ずつ実行する</td></tr>
     <tr><td>最長の実行時間</td><td>連続 6 時間（<code>WORKFLOW_TIMEOUT_MS</code>）。ワーカーは 1 分ごとに経過時間を調べ、超えたら打ち切ったターンの使用量を数えて、ジョブを失敗にする（「最大実行時間（6時間）を超過しました。リトライで続きから再開できます。」）</td></tr>
+    <tr><td>進まない実行の打ち切り</td><td>BRA のジョブでは、ハートビートのついでに作業ディレクトリのファイル（追記されるだけのログ <code>*.jsonl</code> を除く）の大きさと更新時刻を調べる。2 時間（<code>NO_PROGRESS_MS</code>）どのファイルも変わらなければ、同じファイルの読み直しを繰り返していると見なし、打ち切ったターンの使用量を数えてジョブを失敗にする（「2 時間ファイルの更新がなかったため、繰り返しを避けて停止しました。リトライで続きから再開できます。」）</td></tr>
+    <tr><td>大きすぎる会話</td><td>続きから動くとき、S3 に保存した会話（<code>thread/</code>）の合計が 128 MB（<code>THREAD_RESUME_MAX_BYTES</code>）を超えていれば、その会話は読み込まずに同じプロジェクトの <code>thread-archive/&lt;時刻&gt;/</code> へ移し、作業ディレクトリのファイルから新しい会話で続ける（「前回のスレッドが大きくなりすぎたため、保存済みのファイルから新しいスレッドで続けます。」）。Codex は会話を再開するとき記録をすべて読むので、数百 MB の会話ではハートビートを 1 回も書けないままタスクが落ちる。<code>thread-archive/</code> は <code>thread/</code> と同じく成果物の一覧にもダウンロードにも出さない</td></tr>
     <tr><td>質問</td><td>作業ディレクトリと <code>CODEX_HOME</code> を S3 に保存してタスクを終了する。その間 Fargate の費用はかからない。回答が届くと、新しいタスクが会話を再開する</td></tr>
     <tr><td>OpenAI のレート制限</td><td>Codex が再接続を試み、それでも失敗したターンはワーカーが間を置いて再試行する（8.4）</td></tr>
   </tbody>
@@ -487,7 +489,7 @@
 <table class="compact">
   <thead><tr><th style="width:20%">対象の状態</th><th style="width:22%">条件</th><th>処理</th></tr></thead>
   <tbody>
-    <tr><td><code>RUNNING</code>・<code>FINALIZING</code></td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA と解説記事のジョブ：試行回数（<code>retryCount</code>）が 2（<code>MAX_AUTO_RETRY</code>）未満なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>QUEUED</code> で作ってキューに入れる。モードは <code>retry</code>、解説記事は <code>article</code>。エージェント欄には「ワーカーからの応答が途絶えたため、自動で再開します（n/2）。」と出す。2 回に達していれば <code>FAILED</code> にし、「続きからリトライ」で再開するよう案内する。AI レビューと計画用のジョブ：<code>FAILED</code> にするだけで再開しない。その失敗は PR の画面と計画ランナーが扱う</td></tr>
+    <tr><td><code>RUNNING</code>・<code>FINALIZING</code></td><td>ハートビートが 15 分より古い（<code>HEARTBEAT_STALE_MS</code>）</td><td>BRA と解説記事のジョブ：試行回数（<code>retryCount</code>）が 2（<code>MAX_AUTO_RETRY</code>）未満なら、古いジョブを <code>FAILED</code>（heartbeat lost）にし、同じ内容の新しいジョブを <code>QUEUED</code> で作ってキューに入れる。モードは <code>retry</code>、解説記事は <code>article</code>。エージェント欄には「ワーカーからの応答が途絶えたため、自動で再開します（n/2）。」と出す。2 回に達していれば <code>FAILED</code> にし、「続きからリトライ」で再開するよう案内する。janitor は ECS からタスクが止まった理由を読んでログに残し、メモリ不足（<code>OutOfMemoryError</code>）で止まっていたときは「ワーカーのメモリが不足しました。」と案内する。AI レビューと計画用のジョブ：<code>FAILED</code> にするだけで再開しない。その失敗は PR の画面と計画ランナーが扱う</td></tr>
     <tr><td><code>WAITING_USER_INPUT</code></td><td>最後の更新から 7 日（<code>WAITING_INPUT_TIMEOUT_MS</code>）</td><td><code>FAILED</code>（回答待ちの時間切れ）。成果物は S3 に残り、「続きからリトライ」で再開できる</td></tr>
     <tr><td><code>QUEUED</code></td><td>作成から 24 時間</td><td><code>FAILED</code>（24 時間以内にワーカーを起動できなかった）</td></tr>
   </tbody>

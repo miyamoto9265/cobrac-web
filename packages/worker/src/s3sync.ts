@@ -1,4 +1,5 @@
 import {
+  CopyObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
   ListObjectsV2Command,
@@ -138,6 +139,35 @@ export async function putObjectIfAbsent(key: string, body: Buffer | string, cont
     const err = e as { name?: string; $metadata?: { httpStatusCode?: number } };
     if (err.name === "PreconditionFailed" || err.$metadata?.httpStatusCode === 412) return false;
     throw e;
+  }
+}
+
+/** Size and modification time of each file under `dir` (paths relative to it, with "/"); empty when it is missing. */
+export async function listFiles(dir: string): Promise<{ rel: string; size: number; mtimeMs: number }[]> {
+  if (!existsSync(dir)) return [];
+  const out: { rel: string; size: number; mtimeMs: number }[] = [];
+  for await (const file of walk(dir)) {
+    const s = await stat(file).catch(() => null);
+    if (s) out.push({ rel: toKey(relative(dir, file)), size: s.size, mtimeMs: s.mtimeMs });
+  }
+  return out;
+}
+
+/** Moves objects from one prefix to another inside the bucket (copy, then delete the originals). */
+export async function moveObjects(keys: string[], fromPrefix: string, toPrefix: string): Promise<void> {
+  for (const key of keys) {
+    if (!key.startsWith(fromPrefix)) continue;
+    await s3.send(
+      new CopyObjectCommand({
+        Bucket: env.artifactsBucket,
+        Key: toPrefix + key.slice(fromPrefix.length),
+        CopySource: `${env.artifactsBucket}/${key.split("/").map(encodeURIComponent).join("/")}`,
+      }),
+    );
+  }
+  for (let i = 0; i < keys.length; i += 1000) {
+    const chunk = keys.slice(i, i + 1000).filter((k) => k.startsWith(fromPrefix));
+    if (chunk.length) await s3.send(new DeleteObjectsCommand({ Bucket: env.artifactsBucket, Delete: { Objects: chunk.map((Key) => ({ Key })) } }));
   }
 }
 
