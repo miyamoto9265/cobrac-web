@@ -337,6 +337,8 @@ export interface PlanRecord {
   /** A runner invocation works on the plan until then */
   leaseUntil?: string | null;
   deletedAt?: string | null;
+  /** Archived by the owner: hidden from the sidebar history with its projects (the plan runs on, restorable) */
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

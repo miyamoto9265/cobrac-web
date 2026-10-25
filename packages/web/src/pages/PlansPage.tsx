@@ -1,16 +1,16 @@
-import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, ListChecks, Loader2, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
+import type { CanonRecord, PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
 import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtBytes, fmtDate } from "../lib/format";
-import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, ROW_STATE_ORDER, activeStageName, fmtAgo, fmtDuration, fmtElapsed, planEventText, planPath, useNow, wavesText } from "../lib/plan";
+import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, ROW_STATE_ORDER, NEW_PLAN_PATH, activeStageName, fmtAgo, fmtDuration, fmtElapsed, planEventText, planPath, useNow, wavesText } from "../lib/plan";
 import { checkPlanFiles, uploadPlanFiles } from "../lib/planFiles";
-import { inputCls, primaryBtn } from "./CanonsPage";
+import { CreateCanonForm, canonPath, inputCls, primaryBtn } from "./CanonsPage";
 
 const MB = 1024 * 1024;
 
@@ -30,7 +30,7 @@ export function AutonomousBadge({ plan }: { plan: Pick<PlanSummary, "settings"> 
   );
 }
 
-function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; autoFocus?: boolean }) {
+function CreatePlanForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const t = useT();
   const { locale } = useI18n();
   const navigate = useNavigate();
@@ -83,13 +83,12 @@ function CreatePlanForm({ bare = false, autoFocus = false }: { bare?: boolean; a
 
   return (
     <form
-      className={`grid min-w-0 content-start gap-3 ${bare ? "" : "rounded-xl border border-slate-200 bg-white p-4 sm:p-5"}`}
+      className="grid min-w-0 content-start gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (canDraft && !busy && (!autonomous || costOk)) void submit(autonomous);
       }}
     >
-      {!bare && <h2 className="text-sm font-semibold">{t("plan.new")}</h2>}
       <label className="block">
         <span className="mb-1 block text-xs text-slate-500">{t("plan.name")}</span>
         <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} maxLength={200} required autoFocus={autoFocus} />
@@ -538,14 +537,14 @@ function DraftCard({ p, now }: { p: PlanSummary; now: number }) {
   );
 }
 
-function FinishedList({ items, now, open }: { items: PlanSummary[]; now: number; open: boolean }) {
+function FinishedList({ items, now, open, label }: { items: PlanSummary[]; now: number; open: boolean; label: string }) {
   const t = useT();
   const { locale } = useI18n();
   return (
     <details className="group rounded-xl border border-slate-200 bg-white" open={open} data-testid="plan-finished">
       <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-semibold text-slate-700 coarse:py-3">
         <ChevronRight size={14} className="transition-transform group-open:rotate-90" aria-hidden />
-        {t("plan.sec.finished")} <span className="font-normal text-slate-500">{items.length}</span>
+        {label}
       </summary>
       <ul className="divide-y divide-slate-100 border-t border-slate-100">
         {items.map((p) => {
@@ -570,58 +569,138 @@ function FinishedList({ items, now, open }: { items: PlanSummary[]; now: number;
   );
 }
 
-/** The new-plan form in a panel from the right (closes with Esc or the backdrop). */
-function NewPlanDrawer({ onClose }: { onClose: () => void }) {
+/** The new-mission page: the form in the main pane, as the new-project page is (no panel over a list). */
+export function NewPlanPage() {
   const t = useT();
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
   return (
-    <div className="fixed inset-0 z-40 flex justify-end" data-testid="plan-new-drawer">
-      <button type="button" aria-label={t("close")} onClick={onClose} className="absolute inset-0 cursor-default bg-slate-900/40 motion-safe:animate-fade-in" />
-      <div role="dialog" aria-modal="true" aria-labelledby="plan-new-h" className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl motion-safe:animate-drawer-in">
-        <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 sm:px-5">
-          <Plus size={16} className="text-blue-600" aria-hidden />
-          <h2 id="plan-new-h" className="text-sm font-semibold">
-            {t("plan.new")}
-          </h2>
-          <button type="button" onClick={onClose} className="ml-auto rounded-md p-1.5 text-slate-500 hover:bg-slate-100 coarse:min-h-11 coarse:min-w-11" aria-label={t("close")}>
-            <X size={16} />
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
-          <CreatePlanForm bare autoFocus />
-        </div>
+    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+      <div className="mx-auto max-w-xl pt-2 sm:pt-8" data-testid="plan-new-page">
+        <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold">
+          <ListChecks size={20} className="text-blue-600" aria-hidden /> {t("plan.new")} <HelpTip text={t("plan.intro")} />
+          <HelpLink section="planner" />
+        </h1>
+        <CreatePlanForm autoFocus />
       </div>
     </div>
   );
 }
 
-function SectionHeading({ children, count }: { children: ReactNode; count?: number }) {
+/** A group of the Canon page: one of the owner's Canons, a Canon a draft will create, or the missions without a Canon. */
+interface CanonGroup {
+  key: string;
+  canon?: CanonRecord;
+  /** the name of the Canon a mission creates when it starts (自律実行, or 「新しい Canon」 chosen in its draft) */
+  pendingName?: string;
+  plans: PlanSummary[];
+}
+
+/**
+ * Missions by the Canon they build: a group per Canon of the owner (those without a mission too), a group per Canon still to
+ * be created, then the missions without a Canon (or whose Canon is gone). Groups with a live mission come first, then the
+ * most recently active.
+ */
+export function canonGroups(plans: PlanSummary[], canons: CanonRecord[]): CanonGroup[] {
+  const own = new Map(canons.map((c) => [c.canonId, c]));
+  const groups = new Map<string, CanonGroup>(canons.map((c) => [c.canonId, { key: c.canonId, canon: c, plans: [] }]));
+  const none: CanonGroup = { key: "none", plans: [] };
+  for (const p of plans) {
+    if (p.canonId && own.has(p.canonId)) groups.get(p.canonId)!.plans.push(p);
+    else if (!p.canonId && p.canonNew) groups.set(`new:${p.planId}`, { key: `new:${p.planId}`, pendingName: p.canonNew.name, plans: [p] });
+    else none.plans.push(p);
+  }
+  const live = (g: CanonGroup) => g.plans.some((p) => LIVE.has(p.status));
+  const last = (g: CanonGroup) => [g.canon?.updatedAt ?? "", ...g.plans.map((p) => p.updatedAt)].sort().at(-1)!;
+  const out = [...groups.values()].sort((a, b) => Number(live(b)) - Number(live(a)) || (last(a) < last(b) ? 1 : last(a) > last(b) ? -1 : 0));
+  return none.plans.length ? [...out, none] : out;
+}
+
+function GroupHeader({ g }: { g: CanonGroup }) {
+  const t = useT();
+  const { locale } = useI18n();
+  const c = g.canon;
+  if (!c)
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Layers size={15} className={g.pendingName ? "text-blue-500" : "text-slate-400"} aria-hidden />
+        <span className="min-w-0 break-words font-semibold text-slate-800">{g.pendingName ?? t("cm.noCanon")}</span>
+        {g.pendingName && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">{t("cm.pendingCanon")}</span>}
+      </div>
+    );
   return (
-    <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-      {children}
-      {count !== undefined && <span className="font-normal text-slate-500">{count}</span>}
-    </h2>
+    <Link to={canonPath(c.canonId)} className="group/canon block min-w-0">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <Layers size={15} className="text-blue-600" aria-hidden />
+        <span className="min-w-0 break-words font-semibold text-blue-700 group-hover/canon:underline">{c.name}</span>
+        <span className="font-mono text-[11px] text-slate-400">{c.canonId}</span>
+        <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
+          <span>{t("canon.memberCount", { n: c.memberCount })}</span>
+          <span className="flex items-center gap-0.5" title={c.visibility === "public" ? t("vis.public") : t("vis.private")}>
+            {c.visibility === "public" ? <Globe size={11} className="text-emerald-600" /> : <Lock size={11} />}
+          </span>
+          <span title={fmtDate(c.updatedAt, locale)}>{fmtDate(c.updatedAt, locale)}</span>
+        </span>
+      </div>
+      {c.policy && <div className="mt-1 line-clamp-1 whitespace-pre-line pl-6 text-xs text-slate-600">{c.policy}</div>}
+    </Link>
   );
 }
 
-export function PlansPage() {
+/** One Canon with the missions that build it: live missions as lanes, drafts as cards, finished ones folded. */
+function CanonGroupCard({ g, now, onChanged, onError }: { g: CanonGroup; now: number; onChanged: () => unknown; onError: (e: unknown) => void }) {
   const t = useT();
+  const live = g.plans.filter((p) => LIVE.has(p.status));
+  const drafts = g.plans.filter((p) => p.status === "DRAFT");
+  const finished = g.plans.filter((p) => p.status === "COMPLETED" || p.status === "CANCELLED");
+  return (
+    <section className={`rounded-2xl border bg-white p-3 sm:p-4 ${g.canon || g.pendingName ? "border-slate-200" : "border-dashed border-slate-300"}`} data-testid="canon-group" data-canon={g.canon?.canonId ?? g.key}>
+      <GroupHeader g={g} />
+      {live.length > 0 && (
+        <ul className="mt-3 grid gap-3" data-testid="plan-live-list">
+          {live.map((p) => (
+            <PlanLane key={p.planId} p={p} now={now} onChanged={onChanged} onError={onError} />
+          ))}
+        </ul>
+      )}
+      {drafts.length > 0 && (
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2" data-testid="plan-drafts">
+          {drafts.map((p) => (
+            <DraftCard key={p.planId} p={p} now={now} />
+          ))}
+        </ul>
+      )}
+      {finished.length > 0 && (
+        <div className="mt-3">
+          <FinishedList items={finished} now={now} open={false} label={t("cm.finished", { n: finished.length })} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The Canon page: the owner's Canons with the missions (Orchestrator plans) that build them, what waits on the owner across
+ * every mission first, then the Canons shared with the owner. A live view while a mission runs or drafts.
+ */
+export function CanonBoard() {
+  const t = useT();
+  const navigate = useNavigate();
   const [items, setItems] = useState<PlanSummary[] | null>(null);
+  const [canons, setCanons] = useState<CanonRecord[] | null>(null);
+  const [shared, setShared] = useState<(CanonRecord & { ownerName: string })[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(
     () =>
-      api
-        .listPlans()
-        .then((r) => {
-          setItems(r.items);
-          setErr(null);
-        })
+      Promise.all([
+        api.listPlans().then((r) => setItems(r.items)),
+        api.listCanons().then((r) => {
+          setCanons(r.items);
+          setShared(r.shared ?? []);
+        }),
+      ])
+        .then(() => setErr(null))
         .catch((e) => setErr(String(e))),
     [],
   );
@@ -630,9 +709,8 @@ export function PlansPage() {
   }, [load]);
 
   const live = useMemo(() => (items ?? []).filter((p) => LIVE.has(p.status)), [items]);
-  const drafts = useMemo(() => (items ?? []).filter((p) => p.status === "DRAFT"), [items]);
-  const finished = useMemo(() => (items ?? []).filter((p) => p.status === "COMPLETED" || p.status === "CANCELLED"), [items]);
   const turn = useMemo(() => turnItems(items ?? []), [items]);
+  const groups = useMemo(() => canonGroups(items ?? [], canons ?? []), [items, canons]);
 
   // a draft being written is checked often, running plans every 15 s; nothing is read while the tab is hidden
   const pollMs = live.some((p) => p.status === "DRAFTING") ? 5_000 : live.length ? 15_000 : 0;
@@ -648,71 +726,84 @@ export function PlansPage() {
   }, [pollMs, load]);
   // seconds tick while something is live (elapsed clocks); otherwise only the 「… 前」 of drafts and finished plans move
   const now = useNow(live.length ? 1000 : 30_000, !!items?.length);
-  const closeDrawer = useCallback(() => setCreating(false), []);
+  const loading = items === null || canons === null;
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <div className="max-w-5xl">
         <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <ListChecks size={20} /> {t("plan.title")} <HelpTip text={t("plan.intro")} />
+            <Layers size={20} /> {t("canon.title")} <HelpTip text={`${t("canon.intro")} ${t("plan.intro")}`} />
           </h1>
-          <HelpLink section="planner" />
+          <HelpLink section="canon" />
           {pollMs > 0 && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700" data-testid="plan-live" title={t("plan.liveHelp", { s: pollMs / 1000 })}>
               <LiveDot tone="running" className="scale-75" />
               {t("plan.live")}
             </span>
           )}
-          {items !== null && items.length > 0 && (
-            <button type="button" onClick={() => setCreating(true)} className={`${primaryBtn} ml-auto`}>
+          <span className="ml-auto flex flex-wrap gap-2">
+            <button type="button" onClick={() => setCreating((v) => !v)} aria-expanded={creating} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 coarse:min-h-11" data-testid="canon-new-toggle">
+              <Plus size={14} aria-hidden /> {t("cm.newCanon")}
+            </button>
+            <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={primaryBtn}>
               <Plus size={14} aria-hidden /> {t("plan.new")}
             </button>
-          )}
+          </span>
         </div>
+        {creating && (
+          <div className="mb-5 max-w-xl motion-safe:animate-fade-in">
+            <CreateCanonForm onCreated={(c) => navigate(canonPath(c.canonId))} />
+          </div>
+        )}
         {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
         <div data-testid="plan-list">
-          {items === null && <p className="text-sm text-slate-400">{t("loading")}</p>}
-          {items?.length === 0 && (
-            <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-center">
-                <ListChecks size={28} className="mx-auto mb-2 text-slate-300" aria-hidden />
-                <p className="text-sm font-medium text-slate-700">{t("plan.empty")}</p>
-                <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">{t("plan.emptyHint")}</p>
-              </div>
-              <CreatePlanForm />
+          {loading && <p className="text-sm text-slate-400">{t("loading")}</p>}
+          {!loading && !groups.length && (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-center" data-testid="canon-empty">
+              <Layers size={28} className="mx-auto mb-2 text-slate-300" aria-hidden />
+              <p className="mx-auto max-w-sm text-sm text-slate-600">{t("cm.empty")}</p>
+              <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={`${primaryBtn} mx-auto mt-4`}>
+                <Plus size={14} aria-hidden /> {t("plan.new")}
+              </button>
             </div>
           )}
-          {!!items?.length && (
+          {!loading && groups.length > 0 && (
             <>
               <YourTurn items={turn} anyLive={live.length > 0} />
-              {live.length > 0 && (
-                <section className="mb-6" data-testid="plan-live-list">
-                  <SectionHeading count={live.length}>{t("plan.sec.live")}</SectionHeading>
-                  <ul className="grid gap-3">
-                    {live.map((p) => (
-                      <PlanLane key={p.planId} p={p} now={now} onChanged={load} onError={(e) => setErr(String(e))} />
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {drafts.length > 0 && (
-                <section className="mb-6" data-testid="plan-drafts">
-                  <SectionHeading count={drafts.length}>{t("plan.sec.drafts")}</SectionHeading>
-                  <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {drafts.map((p) => (
-                      <DraftCard key={p.planId} p={p} now={now} />
-                    ))}
-                  </ul>
-                </section>
-              )}
-              {finished.length > 0 && <FinishedList items={finished} now={now} open={!live.length && !drafts.length} />}
+              <div className="grid gap-3" data-testid="canon-list">
+                {groups.map((g) => (
+                  <CanonGroupCard key={g.key} g={g} now={now} onChanged={load} onError={(e) => setErr(String(e))} />
+                ))}
+              </div>
             </>
+          )}
+          {shared.length > 0 && (
+            <section className="mt-6" data-testid="canon-shared">
+              <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
+                {t("ed.sharedTitle")} <HelpTip text={t("ed.sharedHelp")} />
+              </h2>
+              <ul className="grid gap-2">
+                {shared.map((c) => (
+                  <li key={c.canonId}>
+                    <Link to={canonPath(c.canonId)} className="block rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/30 coarse:p-4">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="min-w-0 break-words font-medium text-blue-700">{c.name}</span>
+                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700">{t("ed.roleEditor")}</span>
+                        <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
+                          <span>{t("ed.ownerIs", { name: c.ownerName })}</span>
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </div>
       </div>
-      {creating && <NewPlanDrawer onClose={closeDrawer} />}
     </div>
   );
 }

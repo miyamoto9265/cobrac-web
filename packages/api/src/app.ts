@@ -65,6 +65,7 @@ import type {
   Visibility,
   UpdateProjectRequest,
   UpdateProjectResponse,
+  ArchiveRequest,
   UsageSummary,
   UserRecord,
   ConcurrencySettingRecord,
@@ -175,7 +176,7 @@ import { env } from "./env.js";
 import { ensureUser, extractAuth, toPublicUser } from "./lib/auth.js";
 import { bad, notFound } from "./lib/http.js";
 import { concurrencyStatus, currentLimits, getConcurrencySetting, putConcurrencySetting } from "./lib/concurrency.js";
-import { listOwnPlans } from "./lib/plans.js";
+import { listOwnPlans, updatePlan } from "./lib/plans.js";
 import { readHypothesisRequest, requireBradbRegistrable } from "./lib/hypothesisSettings.js";
 import {
   acceptProposal,
@@ -718,6 +719,22 @@ app.put("/projects/:id", async (c) => {
     .map((o) => ({ projectId: o.projectId, name: projectDisplayName(o) }));
   const res: UpdateProjectResponse = { project: { ...p, name: n.name, nameSource: "user", updatedAt: nowIso() }, duplicates };
   return c.json(res);
+});
+
+/** `{ archived }` of PUT /projects/:id/archive and PUT /plans/:id/archive */
+async function archiveBody(c: { req: { json: () => Promise<unknown> } }): Promise<boolean> {
+  const body = (await c.req.json().catch(() => ({}))) as Partial<ArchiveRequest>;
+  if (typeof body.archived !== "boolean") throw bad("archived is required");
+  return body.archived;
+}
+
+/** Archive / restore (owner only): only hides the project from the sidebar history; nothing stops or changes. */
+app.put("/projects/:id/archive", async (c) => {
+  const u = c.get("user");
+  const p = await loadOwnProject(u, c.req.param("id"));
+  const archivedAt = (await archiveBody(c)) ? (p.archivedAt ?? nowIso()) : null;
+  await updateProject(u.userId, p.projectId, { archivedAt });
+  return c.json({ projectId: p.projectId, archivedAt });
 });
 
 /** Soft delete (owner only). Nothing is removed from DynamoDB or S3; running projects must be stopped first. */
@@ -2062,6 +2079,15 @@ app.put("/plans/:id", async (c) => {
   const u = c.get("user");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   return c.json(await updatePlanFields(u, plan, (await c.req.json().catch(() => ({}))) as UpdatePlanRequest));
+});
+
+/** Archive / restore (owner only): hides the plan and its projects from the sidebar history; the plan runs on. */
+app.put("/plans/:id/archive", async (c) => {
+  const u = c.get("user");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const archivedAt = (await archiveBody(c)) ? (plan.archivedAt ?? nowIso()) : null;
+  if (!(await updatePlan(plan.planId, { archivedAt }))) throw new HTTPException(409, { message: "ミッションの状態が変わりました。再読み込みしてください" });
+  return c.json({ planId: plan.planId, archivedAt });
 });
 
 app.delete("/plans/:id", async (c) => {

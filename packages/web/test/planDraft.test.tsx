@@ -33,7 +33,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Erro
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { PlansPage } = await import("../src/pages/PlansPage");
+const { CanonBoard, NewPlanPage } = await import("../src/pages/PlansPage");
 const { waveRuns, isSeedWave, seedIndexes, wavesText, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,7 +84,8 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/plans/new" element={<NewPlanPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
           </Routes>
         </MemoryRouter>
@@ -137,8 +138,8 @@ describe("new plan with a draft", () => {
     uploadFile.mockResolvedValue(undefined);
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFTING", [], { draft: { kind: "draft", jobId: null, status: "waiting", requestedAt: new Date().toISOString(), requestedBy: "alice" } }));
-    await render("/plans");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await render("/plans/new");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
@@ -183,44 +184,44 @@ describe("new plan with a draft", () => {
     expect(q('[data-testid="plan-drafting"]')).not.toBeNull();
   });
 
-  it("sends the capability lists with “Create plan” too, without asking for a draft", async () => {
+  it("sends the capability lists with “Create mission” too, without asking for a draft", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     api.createUpload.mockResolvedValue({ uploadId: "up_file0001", url: "https://s3.example/upload", fields: {} });
     uploadFile.mockResolvedValue(undefined);
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
-    await render("/plans");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await render("/plans/new");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv]);
-    await click(button("Create plan"));
+    await click(button("Create mission"));
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }] });
   });
 
-  it("enables the draft with a goal alone and keeps “Create plan” without a draft", async () => {
+  it("enables the draft with a goal alone and keeps “Create mission” without a draft", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
-    await render("/plans");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await render("/plans/new");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
     expect(button("Create draft")!.disabled).toBe(false);
-    await click(button("Create plan"));
+    await click(button("Create mission"));
     expect(api.createUpload).not.toHaveBeenCalled();
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい" });
   });
 
-  it("keeps “Create plan” disabled until a goal, a file or rows are given besides the name", async () => {
+  it("keeps “Create mission” disabled until a goal, a file or rows are given besides the name", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     localStorage.setItem("cobrac-locale", "ja");
-    await render("/plans");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create plan” and “Create draft”
+    await render("/plans/new");
+    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
-    const create = button("計画を作る")!;
+    const create = button("ミッションを作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     // a name alone is not enough: the API answers 400 「目標・資料・行のどれかが必要です」
@@ -280,8 +281,8 @@ describe("a draft being written", () => {
     expect(qa("input", view)).toHaveLength(0);
     expect(button("Add row", view)).toBeUndefined();
     expect(button("Confirm and start")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("The plan cannot be confirmed while the draft is being written");
-    expect(button("Delete plan")).toBeUndefined();
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("The mission cannot be confirmed while the draft is being written");
+    expect(button("Delete mission")).toBeUndefined();
     // a draft has no progress, waves, time or cost cards
     expect(q('[data-testid="plan-summary"]')).toBeNull();
 
@@ -664,8 +665,8 @@ describe("the draft page", () => {
     // the history and 「計画を削除」 come last
     const bottom = q('[data-testid="plan-bottom"]')!;
     expect(bottom.textContent).toContain("履歴");
-    expect(bottom.textContent).toContain("計画を作成");
-    expect(button("計画を削除", bottom)).toBeTruthy();
+    expect(bottom.textContent).toContain("ミッションを作成");
+    expect(button("ミッションを削除", bottom)).toBeTruthy();
     expect(q('[data-testid="plan-confirm"]')!.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // a row added from the empty state is marked as added and waits to be saved
@@ -871,7 +872,7 @@ describe("the draft page", () => {
     const done = { kind: "draft" as const, jobId: "j1", status: "done" as const, requestedAt: now, requestedBy: "alice", endedAt: now, autoConfirm: true };
     api.getPlan.mockResolvedValue(detail("DRAFT", two(), { settings, draft: done }));
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The draft is ready. The plan is confirmed and started on its own within a minute.");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The draft is ready. The mission is confirmed and started on its own within a minute.");
     expect(q('[data-testid="plan-auto-after-draft"]')).toBeNull();
     act(() => root?.unmount());
     host?.remove();
@@ -958,7 +959,7 @@ describe("re-planning while running", () => {
     expect(decided.textContent).toContain("Accepted");
     // a policy is the Orchestrator's decision: applied without the owner
     expect(decided.textContent).toContain("Applied by the Orchestrator");
-    expect(qa("button", q('[data-testid="plan-actions"]')!).map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel plan"]);
+    expect(qa("button", q('[data-testid="plan-actions"]')!).map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel mission"]);
     // the policy is read-only after confirmation; the cost of the plan's own jobs is shown apart
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
     expect(q('[data-testid="plan-policy"]')!.textContent).toContain("neocortex = area");
@@ -991,7 +992,7 @@ describe("re-planning while running", () => {
     api.getPlan.mockResolvedValue(running());
     await render(`/plans/${PLAN}`);
     const text = q('[data-testid="plan-proposals"]')!.textContent!;
-    expect(text).toContain("After the first wave, and then each time about a tenth of the plan's rows have finished (after every wave in plans of up to 10 rows)");
+    expect(text).toContain("After the first wave, and then each time about a tenth of the mission's rows have finished (after every wave in missions of up to 10 rows)");
     expect(text).toContain("a planning job may propose adding or removing rows; nothing changes until you accept. The Orchestrator may also change the policy, which applies at once.");
     expect(text).toContain("The order of the rows that have not started is updated after every wave.");
   });
@@ -1025,7 +1026,7 @@ describe("re-planning while running", () => {
     localStorage.setItem("cobrac-locale", "de");
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-replan"]')!.textContent).toBe(
-      "Neuplanung nach Welle 2: fehlgeschlagen (Das für diesen Plan gewählte Modell steht Ihnen nicht mehr zur Verfügung. Wenden Sie sich an eine Admin-Person.)",
+      "Neuplanung nach Welle 2: fehlgeschlagen (Das für diese Mission gewählte Modell steht Ihnen nicht mehr zur Verfügung. Wenden Sie sich an eine Admin-Person.)",
     );
   });
 });

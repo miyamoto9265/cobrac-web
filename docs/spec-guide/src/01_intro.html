@@ -36,7 +36,7 @@
     <tr><td><b>第 3 部 BRA の作り方</b></td><td>エージェントとワーカーの役割分担、調査・HCD・FRG の手順、検査と照合、仮説モード、出力、完成した BRA の読み方</td></tr>
     <tr><td><b>第 4 部 プロジェクトと版</b></td><td>利用者と権限、プロジェクトの作成と設定、画面、版、公開と複製、使用量の表示</td></tr>
     <tr><td><b>第 5 部 Canon</b></td><td>WBAI の山川氏が提唱した「整合単位」の実装。どの範囲の BRA で、何を、どうやってそろえるか</td></tr>
-    <tr><td><b>第 6 部 オーケストレーター</b></td><td>多数の ROI × TLF を計画にまとめ、実行順序の計算、バッチごとの実行、自律実行での判断までを自動で進める仕組み</td></tr>
+    <tr><td><b>第 6 部 オーケストレーター</b></td><td>多数の ROI × TLF をミッションにまとめ、実行順序の計算、バッチごとの実行、自律実行での判断までを自動で進める仕組み</td></tr>
     <tr><td><b>第 7 部 BRA-DB への登録</b></td><td>凍結した版を、BRA-DB と同じスキーマ（v4.6）のデータベースに来歴付きで登録する手順と規則</td></tr>
     <tr><td><b>第 8 部 システムの構成</b></td><td>AWS の部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、フロントエンド、非機能の目標</td></tr>
     <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と各社のモデルの費用</td></tr>
@@ -49,21 +49,21 @@
 <table class="compact">
   <thead><tr><th style="width:22%">担い手</th><th style="width:12%">種類</th><th>すること</th><th style="width:16%">詳しくは</th></tr></thead>
   <tbody>
-    <tr><td>利用者・所有者・共同編集者・管理者</td><td>人</td><td>ROI と TLF、指示、参考資料を送る。エージェントの質問に答える。Canon の PR を承認する。計画を作る。管理者は利用者と API キーと上限を管理する</td><td>第 4 部、5.8、第 6 部</td></tr>
+    <tr><td>利用者・所有者・共同編集者・管理者</td><td>人</td><td>ROI と TLF、指示、参考資料を送る。エージェントの質問に答える。Canon の PR を承認する。ミッションを作る。管理者は利用者と API キーと上限を管理する</td><td>第 4 部、5.8、第 6 部</td></tr>
     <tr><td>CoBRAC エージェント</td><td>LLM</td><td>文献を調べ、ROI・回路・接続・機能の分解を判断して、データのファイルと説明を書く</td><td>第 3 部</td></tr>
     <tr><td>ワーカー</td><td>プログラム</td><td>ジョブごとに起動し、段階を進め、エージェントに依頼文を渡し、返ってきたファイルを検査して直させる。CSV・xlsx・グラフ・版を作る</td><td>第 3 部、8.4</td></tr>
-    <tr><td>API・dispatcher・janitor・計画ランナーなど</td><td>プログラム</td><td>プロジェクトとジョブを記録し、ワーカーを起動し、止まったジョブを回復し、計画を進める</td><td>8.2、8.3</td></tr>
+    <tr><td>API・dispatcher・janitor・ミッションランナーなど</td><td>プログラム</td><td>プロジェクトとジョブを記録し、ワーカーを起動し、止まったジョブを回復し、ミッションを進める</td><td>8.2、8.3</td></tr>
     <tr><td><code>lit</code>・RCS</td><td>プログラム</td><td>エージェントが呼ぶツール。文献の検索結果や SABRA の単位の候補を返すだけで、採否は判断しない</td><td>3.7、2.3</td></tr>
   </tbody>
 </table>
-<p>LLM が動くのは、ワーカーが Codex（Claude のモデルでは Claude Agent SDK）を通じて実行するジョブの中だけです。API や計画ランナーなどの Lambda は LLM を呼びません。LLM を使うジョブは次のとおりで、ジョブごとに会話が分かれており、互いの会話は共有しません。</p>
+<p>LLM が動くのは、ワーカーが Codex（Claude のモデルでは Claude Agent SDK）を通じて実行するジョブの中だけです。API やミッションランナーなどの Lambda は LLM を呼びません。LLM を使うジョブは次のとおりで、ジョブごとに会話が分かれており、互いの会話は共有しません。</p>
 <table class="compact">
   <thead><tr><th style="width:26%">LLM の仕事</th><th style="width:26%">ジョブ</th><th style="width:30%">使えるツール</th><th>詳しくは</th></tr></thead>
   <tbody>
     <tr><td>BRA を作る（CoBRAC エージェント）</td><td><code>initial</code>・<code>followup</code>（回答後の再開とリトライもこの会話を続ける）</td><td>Web 検索、<code>lit</code>、RCS、作業ディレクトリでのコマンド</td><td>第 3 部</td></tr>
     <tr><td>解説記事を書く</td><td><code>article</code></td><td>成果物を読むシェルだけ</td><td>3.14</td></tr>
     <tr><td>Canon の PR の AI レビューと判断</td><td><code>canon-review</code>（所見を出す <code>assist</code> と、自律実行で判断する <code>decide</code>）</td><td>なし</td><td>5.8、6.8</td></tr>
-    <tr><td>計画の下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS と添付資料の読み取り。回答と解決ではなし</td><td>6.4、6.6、6.8</td></tr>
+    <tr><td>ミッションの下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS と添付資料の読み取り。回答と解決ではなし</td><td>6.4、6.6、6.8</td></tr>
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code>・<code>claude.ts</code></p>
@@ -107,9 +107,10 @@
     <tr><td>版</td><td>完了したジョブの結果を凍結したもの。ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（4.5）。アプリのバージョンとは別</td></tr>
     <tr><td>Canon / rev</td><td>回路の定義をそろえるプロジェクトのまとまり / Canon の中身の版。PR を承認するたびに 1 つ進み、rev 0 は空の Canon（第 5 部）</td></tr>
     <tr><td>PR / push / 取り込み</td><td>プロジェクト（または別の Canon）の内容を Canon に入れる依頼 / PR を送ること / PR が承認されて新しい rev になること</td></tr>
-    <tr><td>計画 / 行 / バッチ</td><td>オーケストレーターの単位。計画は行（ROI × TLF）の一覧で、行はバッチに分けられる。手動の順序の計画はバッチごとに実行される（第 6 部）</td></tr>
-    <tr><td>フロー実行 / レーン</td><td>自動の順序の計画の進め方。行は依存・基準プロジェクト・重なりの条件を満たした時点で空いた枠から始まり、バッチは始める順の目安になる / 依存と回路の重なりでつながる行のまとまり。表示のためのもの（6.5）</td></tr>
-    <tr><td>自律実行</td><td>新しい計画の既定。確定・回答・PR の判断などを、オーケストレーターが人の代わりに行う。自律実行を切った計画を「人が対応する計画」と呼ぶ（6.8、6.9）</td></tr>
+    <tr><td>ミッション / 計画</td><td>オーケストレーターに目標と費用の上限を渡して任せる 1 回分の仕事 / ミッションの中身としてオーケストレーターが書く行・バッチ・方針。計画用のジョブ（下書き・再計画）が書き、確定すると実行が始まる（第 6 部）。データとコードの名前は <code>plan</code></td></tr>
+    <tr><td>ミッション / 行 / バッチ</td><td>オーケストレーターの単位。ミッションは行（ROI × TLF）の一覧で、行はバッチに分けられる。手動の順序のミッションはバッチごとに実行される（第 6 部）</td></tr>
+    <tr><td>フロー実行 / レーン</td><td>自動の順序のミッションの進め方。行は依存・基準プロジェクト・重なりの条件を満たした時点で空いた枠から始まり、バッチは始める順の目安になる / 依存と回路の重なりでつながる行のまとまり。表示のためのもの（6.5）</td></tr>
+    <tr><td>自律実行</td><td>新しいミッションの既定。確定・回答・PR の判断などを、オーケストレーターが人の代わりに行う。自律実行を切ったミッションを「人が対応するミッション」と呼ぶ（6.8、6.9）</td></tr>
   </tbody>
 </table>
 

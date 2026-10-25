@@ -170,6 +170,7 @@ export function ProjectsPage() {
                 <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
               <HypothesisBadge project={p} className="ml-auto" />
+              {p.archivedAt && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="project-archived">{t("cm.archived")}</span>}
               <StatusBadge status={p.status} />
             </div>
             <dl className="mt-1 space-y-0.5 text-xs text-slate-600">
@@ -243,7 +244,10 @@ export function ProjectsPage() {
                   </div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2">
-                  <StatusBadge status={p.status} />
+                  <span className="inline-flex items-center gap-1.5">
+                    <StatusBadge status={p.status} />
+                    {p.archivedAt && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="project-archived">{t("cm.archived")}</span>}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px] text-slate-600" title={p.usedModels?.join(", ")}>
                   {(p.usedModels?.length ? p.usedModels : [p.model ?? "—"]).join(", ")}

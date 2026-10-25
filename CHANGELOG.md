@@ -5,6 +5,18 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Archive projects and missions from the sidebar: hover a row (always shown on touch screens) and press the archive icon. Archived rows move to a folded "Archived" section and can be restored there. Archiving only hides the row; a running project or mission keeps running. The project list marks archived projects (`PUT /projects/{id}/archive`, `PUT /plans/{id}/archive`, `archivedAt` on both records)
+
+### Changed
+- The Orchestrator's plan container is now called a **mission** (ミッション); "plan" (計画) stays for its content (rows, batches and 方針). zh / zhTw keep 计划 / 計畫, since 任务 / 工作 already name jobs there
+- The sidebar top has two side-by-side buttons, "+ Mission" and "+ Project"; missions appear in the history next to projects, with drafts listed too. The mobile header gets a new-mission button
+- A new mission is created on its own page (`/plans/new`) instead of a drawer sliding in from the right
+- The Canon page and the Orchestrator page are merged: the Canon page lists the missions of each Canon (plus a "New Canon" section for missions whose Canon is made when they start, and "Missions without a Canon"), with "New Canon" and "New mission" buttons on top. `/plans` now redirects to `/canons`
+
+### Removed
+- The "CoBRAC Orchestrator" entry at the bottom of the sidebar and the plan list page (its content is on the Canon page)
+
 ## [0.48.1] - 2026-10-25
 
 ### Fixed

@@ -9,7 +9,6 @@ import { ChatPage } from "./pages/ChatPage";
 import { LoginPage } from "./pages/LoginPage";
 import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspacePage";
 import { ProjectsPage } from "./pages/ProjectsPage";
-import { CanonsPage } from "./pages/CanonsPage";
 import { CanonDetailPage } from "./pages/CanonDetailPage";
 import { ExplorePage } from "./pages/ExplorePage";
 import { PublicCanonPage } from "./pages/PublicCanonPage";
@@ -17,7 +16,7 @@ import { PublicProjectPage } from "./pages/PublicProjectPage";
 import { CanonPullPage } from "./pages/CanonPullPage";
 import { ManualPage } from "./pages/ManualPage";
 import { PlanDetailPage } from "./pages/PlanDetailPage";
-import { PlansPage } from "./pages/PlansPage";
+import { CanonBoard, NewPlanPage } from "./pages/PlansPage";
 import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SpecPage } from "./pages/SpecPage";
@@ -48,9 +47,11 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
-        <Route path="/plans" element={<PlansPage />} />
+        {/* missions are listed on the Canon page, by the Canon they build */}
+        <Route path="/plans" element={<Navigate to="/canons" replace />} />
+        <Route path="/plans/new" element={<NewPlanPage />} />
         <Route path="/plans/:planId" element={<PlanDetailPage />} />
-        <Route path="/canons" element={<CanonsPage />} />
+        <Route path="/canons" element={<CanonBoard />} />
         <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/explore/projects/:projectId" element={<PublicProjectPage />} />

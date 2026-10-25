@@ -434,7 +434,7 @@
   <tbody>
     <tr><td><b>Canon</b>（第 5 部）</td><td>回路を、<b>正規化した Descriptor をキー</b>にして持つ。プロジェクトの JSON は Circuit ID で接続を書くので、push や PR のときに Descriptor に解決する。Circuit ID は改名されることがあるが、Descriptor は Canon の中で一意だからである。Descriptor のないグループは <code>group:&lt;Circuit ID&gt;</code> がキーになる。「より細かい回路」（衝突 C3）の判定は facet で行い、<code>side</code> も facet として数える。たとえば、Canon に両側の Uniform の <code>A4ul</code> があるときに <code>A4ul(left)</code> を足すと C3 になる。左と右だけなら、別の回路として共存できる。エージェントに渡す <code>canon/</code> のファイルと、確認済みの引用のキーは、現在の形で書き出す。古い形のキーと ID の比べ方は付録 C にある。</td></tr>
     <tr><td><b>BRA-DB</b>（第 7 部）</td><td><code>Circuits.csv</code> の UC Descriptor の列として CSV に入る。BRA-DB の Circuits は Circuit ID（<code>circuit_id</code>）がキーで、同じ集団は同じ ID になるので、複数のプロジェクトの回路が同じ行に集まる。他のプロジェクトが定義した回路は、共有の語彙として扱う。</td></tr>
-    <tr><td><b>オーケストレーター</b>（第 6 部）</td><td>計画の行に付ける<b>アンカー</b>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）は、Descriptor のアンカーの部分と同じ形で、facet は付けない。完成した行のアンカーは、そのプロジェクトの <code>uc.json</code> のすべての Descriptor から読み直す（6.5）。</td></tr>
+    <tr><td><b>オーケストレーター</b>（第 6 部）</td><td>ミッションの行に付ける<b>アンカー</b>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）は、Descriptor のアンカーの部分と同じ形で、facet は付けない。完成した行のアンカーは、そのプロジェクトの <code>uc.json</code> のすべての Descriptor から読み直す（6.5）。</td></tr>
   </tbody>
 </table>
 <figure data-figure="circuit-naming-canon.ja.svg"><figcaption><b>図 2.4</b>　Canon は UC Descriptor をキーにする。push や PR のとき、プロジェクトの回路は正規化した Descriptor で Canon のエントリと照合され、C4・C1・C3・C6 などの衝突が判定される（衝突の一覧は 5.7）</figcaption></figure>

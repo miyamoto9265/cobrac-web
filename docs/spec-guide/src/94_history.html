@@ -239,6 +239,8 @@
     <tr><td>開発段階 3（計画の Canon）</td><td>計画ランナー：<code>Canons</code> の読み書き（開発段階 2 の <code>Query</code> を置き換え。行のプロジェクトの参加登録、PR の作成と追跡）、<code>canons/*</code> の読み書き（rev の差分、PR の <code>incoming.json</code>・<code>diff.json</code>、AI レビューの <code>input.json</code>）、<code>users/*/workspace/*</code> の読み取り（開発段階 2 の <code>uc.json</code> の読み取りを置き換え）。API・dispatcher・ワーカーは変えていない</td></tr>
   </tbody>
 </table>
+<h3>「計画」から「ミッション」へ</h3>
+<p>当初は、オーケストレーターに渡す仕事も、その中身の行とバッチも「計画」と呼んでいました。1 つの語が器と中身の両方を指して位置づけが分かりにくく、オーケストレーターが主に触る部分になるにつれて、サイドバーの下部の入口と、一覧の上に右から開く作成のパネルも補助の機能に見えていました。そこで 2026-10-25 に、器を「ミッション」、中身を「計画」と呼び分け、サイドバーの上に新規ミッションと新規プロジェクトを並べ、作成をメイン画面に移しました。仕様では、ミッション 1 つが持てる Canon は 0 か 1 つで、複数のミッションが同じ Canon を育てられます（6.7）。自律実行の既定が「ミッション 1 つ = 新しい Canon 1 つ」なので、ミッションの一覧を「Canon」の画面に統合し、Canon ごとにミッションを並べる形にしました。同時に、履歴の行をアーカイブできるようにしました。データとコードの名前は <code>plan</code> のままです。</p>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.20.0・0.31.0〜0.42.0）、<code>packages/shared/src/canon.ts</code>・<code>plan.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）</p>
 
 <h2 id="sd-9">D.9 速度と費用の測定（2026-10）</h2>

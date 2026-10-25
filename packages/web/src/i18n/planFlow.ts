@@ -24,7 +24,7 @@ export const planFlowEn = {
   "flow.wait.prs": "Waits for approvals",
   "flow.wait.cost": "Cost limit",
   "flow.more": "+{n}",
-  "flow.estimateHelp": "About 48 minutes per row. Each row starts as soon as what it waits on is in and a slot is free; plus rework for 20% of the rows. $0.18–0.39 per row. Waiting for answers and approvals is not included. “So far” is the time since confirmation and what the plan has spent.",
+  "flow.estimateHelp": "About 48 minutes per row. Each row starts as soon as what it waits on is in and a slot is free; plus rework for 20% of the rows. $0.18–0.39 per row. Waiting for answers and approvals is not included. “So far” is the time since confirmation and what the mission has spent.",
 };
 
 export type PlanFlowKey = keyof typeof planFlowEn;
@@ -51,7 +51,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "承認待ちが多いため待機",
     "flow.wait.cost": "費用の上限",
     "flow.more": "ほか {n}",
-    "flow.estimateHelp": "1 行あたり約 48 分です。待っている行が終わり、枠が空けば次の行が始まります。2 割の行の手直しを含みます。費用は 1 行あたり $0.18〜0.39 です。回答や承認を待つ時間は含みません。「実績」は確定からの時間と、計画で使った費用です。",
+    "flow.estimateHelp": "1 行あたり約 48 分です。待っている行が終わり、枠が空けば次の行が始まります。2 割の行の手直しを含みます。費用は 1 行あたり $0.18〜0.39 です。回答や承認を待つ時間は含みません。「実績」は確定からの時間と、ミッションで使った費用です。",
   },
   zh: {
     "flow.lanes": "泳道",
@@ -117,7 +117,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "승인 대기",
     "flow.wait.cost": "비용 한도",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "행당 약 48분입니다. 기다리는 행이 끝나고 슬롯이 비면 바로 시작합니다. 20% 행의 재작업을 포함합니다. 행당 $0.18–0.39. 답변과 승인을 기다리는 시간은 포함하지 않습니다. ‘실적’은 확정 이후의 시간과 계획이 쓴 비용입니다.",
+    "flow.estimateHelp": "행당 약 48분입니다. 기다리는 행이 끝나고 슬롯이 비면 바로 시작합니다. 20% 행의 재작업을 포함합니다. 행당 $0.18–0.39. 답변과 승인을 기다리는 시간은 포함하지 않습니다. ‘실적’은 확정 이후의 시간과 미션이 쓴 비용입니다.",
   },
   de: {
     "flow.lanes": "Bahnen",
@@ -139,7 +139,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "Wartet auf Freigaben",
     "flow.wait.cost": "Kostengrenze",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "Etwa 48 Minuten pro Zeile. Eine Zeile startet, sobald das, worauf sie wartet, fertig ist und ein Platz frei ist; dazu Nacharbeit für 20 % der Zeilen. 0,18–0,39 $ pro Zeile. Warten auf Antworten und Freigaben ist nicht enthalten. „Bisher“ ist die Zeit seit der Bestätigung und was der Plan ausgegeben hat.",
+    "flow.estimateHelp": "Etwa 48 Minuten pro Zeile. Eine Zeile startet, sobald das, worauf sie wartet, fertig ist und ein Platz frei ist; dazu Nacharbeit für 20 % der Zeilen. 0,18–0,39 $ pro Zeile. Warten auf Antworten und Freigaben ist nicht enthalten. „Bisher“ ist die Zeit seit der Bestätigung und was die Mission ausgegeben hat.",
   },
   fr: {
     "flow.lanes": "Couloirs",
@@ -161,7 +161,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "Attend des approbations",
     "flow.wait.cost": "Plafond de coût",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "Environ 48 minutes par ligne. Une ligne démarre dès que ce qu’elle attend est terminé et qu’une place est libre ; plus des reprises pour 20 % des lignes. 0,18–0,39 $ par ligne. L’attente des réponses et des approbations n’est pas comptée. « Jusqu’ici » est le temps depuis la confirmation et ce que le plan a dépensé.",
+    "flow.estimateHelp": "Environ 48 minutes par ligne. Une ligne démarre dès que ce qu’elle attend est terminé et qu’une place est libre ; plus des reprises pour 20 % des lignes. 0,18–0,39 $ par ligne. L’attente des réponses et des approbations n’est pas comptée. « Jusqu’ici » est le temps depuis la confirmation et ce que la mission a dépensé.",
   },
   es: {
     "flow.lanes": "Carriles",
@@ -183,7 +183,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "Espera aprobaciones",
     "flow.wait.cost": "Límite de coste",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "Unos 48 minutos por fila. Cada fila empieza en cuanto termina lo que espera y hay una plaza libre; más retrabajo para el 20 % de las filas. 0,18–0,39 $ por fila. No incluye la espera de respuestas ni de aprobaciones. «Hasta ahora» es el tiempo desde la confirmación y lo que ha gastado el plan.",
+    "flow.estimateHelp": "Unos 48 minutos por fila. Cada fila empieza en cuanto termina lo que espera y hay una plaza libre; más retrabajo para el 20 % de las filas. 0,18–0,39 $ por fila. No incluye la espera de respuestas ni de aprobaciones. «Hasta ahora» es el tiempo desde la confirmación y lo que ha gastado la misión.",
   },
   pt: {
     "flow.lanes": "Faixas",
@@ -205,7 +205,7 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "Aguarda aprovações",
     "flow.wait.cost": "Limite de custo",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "Cerca de 48 minutos por linha. Cada linha começa assim que o que ela espera termina e há uma vaga livre; mais retrabalho para 20% das linhas. US$ 0,18–0,39 por linha. A espera por respostas e aprovações não está incluída. “Até agora” é o tempo desde a confirmação e o que o plano gastou.",
+    "flow.estimateHelp": "Cerca de 48 minutos por linha. Cada linha começa assim que o que ela espera termina e há uma vaga livre; mais retrabalho para 20% das linhas. US$ 0,18–0,39 por linha. A espera por respostas e aprovações não está incluída. “Até agora” é o tempo desde a confirmação e o que a missão gastou.",
   },
   ru: {
     "flow.lanes": "Дорожки",
@@ -227,6 +227,6 @@ export const PLAN_FLOW_CATALOG: Record<UiLocale, Record<PlanFlowKey, string>> = 
     "flow.wait.prs": "Ждёт одобрений",
     "flow.wait.cost": "Лимит затрат",
     "flow.more": "+{n}",
-    "flow.estimateHelp": "Около 48 минут на строку. Строка стартует, как только готово то, чего она ждёт, и есть свободное место; плюс доработка для 20% строк. $0,18–0,39 за строку. Ожидание ответов и одобрений не учитывается. «Пока» — время с подтверждения и потраченное планом.",
+    "flow.estimateHelp": "Около 48 минут на строку. Строка стартует, как только готово то, чего она ждёт, и есть свободное место; плюс доработка для 20% строк. $0,18–0,39 за строку. Ожидание ответов и одобрений не учитывается. «Пока» — время с подтверждения и потраченное миссией.",
   },
 };

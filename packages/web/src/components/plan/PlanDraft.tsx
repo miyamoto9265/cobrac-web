@@ -158,7 +158,7 @@ export function PlanDraft({
           <PlanHistory events={d.events} rows={rows} plan={plan} className="" />
         </div>
         {plan.status === "DRAFT" && (
-          <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate("/plans"))} className={dangerBtn}>
+          <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate("/canons"))} className={dangerBtn}>
             <Trash2 size={14} aria-hidden /> {t("plan.delete")}
           </button>
         )}

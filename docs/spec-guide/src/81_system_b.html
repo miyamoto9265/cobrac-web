@@ -12,7 +12,7 @@
     <tr><td><code>Messages</code></td><td><code>projectId</code> + <code>sk</code>。Streams（新しい項目）</td><td>RETAIN</td><td>エージェント欄の全文（1 件 60,000 字で切る）</td></tr>
     <tr><td><code>Canons</code></td><td><code>canonId</code> + <code>sk</code>。GSI <code>owner-index</code></td><td>RETAIN</td><td>Canon（第 5 部）</td></tr>
     <tr><td><code>Catalog</code></td><td><code>kind</code> + <code>id</code></td><td>RETAIN</td><td>公開の一覧、複製の数、ID の予約、設定</td></tr>
-    <tr><td><code>Plans</code></td><td><code>planId</code> + <code>sk</code>。GSI <code>owner-index</code> と <code>status-index</code></td><td>RETAIN</td><td>オーケストレーターの計画（第 6 部）</td></tr>
+    <tr><td><code>Plans</code></td><td><code>planId</code> + <code>sk</code>。GSI <code>owner-index</code> と <code>status-index</code></td><td>RETAIN</td><td>オーケストレーターのミッション（第 6 部）</td></tr>
     <tr><td><code>WsConnections</code></td><td><code>connectionId</code> + <code>projectId</code>。GSI <code>project-index</code>。TTL</td><td>DESTROY</td><td>WebSocket の接続（約 2 時間 10 分で消える）</td></tr>
   </tbody>
 </table>
@@ -29,21 +29,21 @@
         <li>実行の状態：status、currentStep、stepStates、<code>activeStage</code>（実行中のジョブの段階：<code>RESEARCH</code>、段階の名前、調整のターンの <code>ADJUST</code>）、activeJobId、codexThreadId、pendingQuestion、hasArtifacts、errorMessage、completedAt</li>
         <li>版と登録：<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = 現在の版の番号）、<code>latestVersion</code>（最新の凍結した版の要約。4.5）、<code>bradb</code>（BRA-DB に最後に登録した版）</li>
         <li>費用：<code>usage</code>・<code>costUsd</code>・<code>usedModels</code>（全ジョブの合計）</li>
-        <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作った計画）</li>
+        <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>archivedAt</code>（アーカイブ。サイドバーの履歴から隠すだけ）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作ったミッション）</li>
       </ul></td></tr>
-    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> は計画の ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code>。値がないときは付録 C）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code>）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（ツールごとの文献検索の成功と失敗の数）、<code>researchStep</code>（調査ステップの記録。3.7）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
+    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> はミッションの ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code>。値がないときは付録 C）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code>）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（ツールごとの文献検索の成功と失敗の数）、<code>researchStep</code>（調査ステップの記録。3.7）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
     <tr><td>Messages</td><td><code>projectId</code> / <code>{ISO 時刻}#{seq}</code></td><td>userId、jobId、role（<code>user</code> / <code>agent</code> / <code>system</code>）、type（<code>prompt</code>・<code>agent_message</code>・<code>reasoning</code>・<code>command</code>・<code>file_change</code>・<code>web_search</code>・<code>todo</code>・<code>question</code>・<code>status</code>・<code>error</code>・<code>artifact</code>）、content、step、meta</td></tr>
     <tr><td>WsConnections</td><td><code>connectionId</code> / <code>projectId</code>（<code>_</code> は接続そのものの記録）</td><td>userId、<code>ttl</code>（接続から 2 時間 10 分。API Gateway の接続の上限が 2 時間のため）</td></tr>
     <tr><td>Catalog</td><td><code>kind</code> / <code>id</code></td><td>
       <ul>
         <li><code>project</code>・<code>canon</code>：公開中の項目（ownerUserId、name、publishedAt など。4.6、5.11）</li>
         <li><code>clones</code>：複製の数</li>
-        <li><code>id</code>：ランダムな Project・Canon・計画の ID の予約（type、ownerUserId、createdAt）。消さない</li>
+        <li><code>id</code>：ランダムな Project・Canon・ミッションの ID の予約（type、ownerUserId、createdAt）。消さない</li>
         <li><code>config</code> / <code>default-api-key</code>：デフォルトの API キー（encryptedApiKey、last4、availableModels、updatedAt、updatedBy）</li>
         <li><code>config</code> / <code>concurrency</code>：管理画面で設定した同時実行数（maxConcurrentJobs、maxConcurrentJobsPerUser、updatedAt、updatedBy。8.3）</li>
       </ul></td></tr>
     <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト、PR とその履歴、rev、送った PR、共同編集者（第 5 部）</td></tr>
-    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>計画の設定と状態、行、履歴、再計画の提案（6.12）</td></tr>
+    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>ミッションの設定と状態（<code>META</code> の <code>archivedAt</code> はアーカイブ）、行、履歴、再計画の提案（6.12）</td></tr>
   </tbody>
 </table>
 
@@ -53,7 +53,7 @@
   <li>WsConnections の <code>project-index</code>（projectId）：broadcaster が送り先を探します。</li>
   <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の検査と、<code>userKey</code> から利用者を検索するのに使います。ランダムな ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> の行の <code>ownerUserId</code> で分かります。</li>
   <li>Canons の <code>owner-index</code>（ownerUserId + createdAt）：所有者の Canon の一覧を作ります。<code>META</code> の項目だけがキーを持つ疎な索引です。</li>
-  <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）：所有者の計画の一覧と、計画ランナーが進める下書き中・実行中・一時停止中の計画を探します。どちらも <code>META</code> だけの疎な索引です。</li>
+  <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）：所有者のミッションの一覧と、ミッションランナーが進める下書き中・実行中・一時停止中のミッションを探します。どちらも <code>META</code> だけの疎な索引です。</li>
   <li>Streams：Projects と Messages の <code>NEW_IMAGE</code> を broadcaster に渡します。</li>
 </ul>
 
@@ -116,7 +116,7 @@ admin-docs/spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf   仕様書の PDF</pre>
     <tr><td><code>…/revisions/{n}/</code></td><td>凍結した BRA の版（削除禁止。4.5）</td></tr>
     <tr><td><code>staging/{userId}/</code></td><td>プロジェクトを作る前にアップロードした参考資料（1 日で消える。4.2）</td></tr>
     <tr><td><code>canons/{canonId}/</code></td><td>Canon の rev のスナップショットと PR の内容（第 5 部）</td></tr>
-    <tr><td><code>plans/{planId}/</code></td><td>計画の資料（<code>attachments/</code>）と、計画用のジョブの <code>input.json</code>・<code>result.json</code>（<code>jobs/{jobId}/</code>）。API キーなどの秘密情報は書かない</td></tr>
+    <tr><td><code>plans/{planId}/</code></td><td>ミッションの資料（<code>attachments/</code>）と、計画用のジョブの <code>input.json</code>・<code>result.json</code>（<code>jobs/{jobId}/</code>）。API キーなどの秘密情報は書かない</td></tr>
     <tr><td><code>admin-docs/</code></td><td>仕様書の PDF。API が同梱の PDF をバージョンごとに 1 回だけ置き、管理者に署名付き URL で渡す。古いバージョンの PDF は消さない</td></tr>
   </tbody>
 </table>
@@ -164,7 +164,7 @@ admin-docs/spec-&lt;SHA-256 の先頭 16 桁&gt;.pdf   仕様書の PDF</pre>
   <tbody>
     <tr><td>1280px（<code>xl</code>）以上</td><td>エージェント欄を右に固定する。左端のドラッグで幅を変えられ（300px からウィンドウの 55% まで）、細い帯にたためる。幅と開閉はブラウザに保存する</td></tr>
     <tr><td>1280px 未満</td><td>エージェント欄は、タブの並びの右端の「エージェント」ボタンから、右のドロワー（タブレット）か下のシート（スマホ）として開く。閉じても書きかけは残る。エージェントが質問すると、成果物の上のバナーが欄へのリンクになり、固定した欄は開く。管理画面は利用者ごと・プロジェクトごとのカードになる</td></tr>
-    <tr><td>1024px（<code>lg</code>）未満</td><td>サイドバーは、上の帯のメニューボタンから開くドロワーになる。上の帯には新規プロジェクトのボタンもある。移動、背景のタップ、Escape で閉じる。プロジェクト一覧は表の代わりにカードになる</td></tr>
+    <tr><td>1024px（<code>lg</code>）未満</td><td>サイドバーは、上の帯のメニューボタンから開くドロワーになる。上の帯には新規ミッションと新規プロジェクトのボタンもある。移動、背景のタップ、Escape で閉じる。プロジェクト一覧は表の代わりにカードになる</td></tr>
     <tr><td>グラフの領域が 900px 以上 / 未満</td><td>HCD・FRG の表示はウィンドウではなく自分の領域の幅に合わせる。900px 以上では詳細をグラフの横の列に、未満ではグラフの下部に重なる開閉できるシートに出す（スタイルのパネルも同じ）</td></tr>
     <tr><td>グラフの領域が 560px 未満</td><td>元に戻す / やり直すがツールバーのメニューに入り、凡例はたたんだ状態で始まる。ミニマップは広い配置でだけ出る</td></tr>
     <tr><td>タッチ機器（<code>pointer: coarse</code>）</td><td>ボタンとリンクに約 44px の押せる範囲を取る。入力欄は iOS がフォーカスで拡大しないように 16px の文字にする。セーフエリアを守る（<code>viewport-fit=cover</code>）</td></tr>

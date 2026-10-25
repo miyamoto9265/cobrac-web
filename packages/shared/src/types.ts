@@ -220,6 +220,8 @@ export interface ProjectRecord {
   deletedAt?: string | null;
   /** userId of whoever deleted the project */
   deletedBy?: string | null;
+  /** Archived by the owner: hidden from the sidebar history (still listed, runs on, restorable); absent / null = not archived */
+  archivedAt?: string | null;
   /** Canon this project follows (at most one); absent = not in a Canon */
   canonId?: string | null;
   /** Absent = private. Public projects are listed in the Catalog and can be read and cloned by any signed-in user */
@@ -540,6 +542,11 @@ export interface CreateUploadResponse {
 
 export interface UpdateProjectRequest {
   name?: string;
+}
+
+/** PUT /projects/:id/archive and PUT /plans/:id/archive */
+export interface ArchiveRequest {
+  archived: boolean;
 }
 
 export interface UpdateProjectResponse {
