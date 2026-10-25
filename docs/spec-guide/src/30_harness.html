@@ -85,11 +85,11 @@
   <thead><tr><th style="width:16%">ジョブ</th><th>LLM の役割</th><th style="width:18%">使えるツール</th><th style="width:15%">LLM が出すもの</th><th style="width:22%">結果の扱い</th></tr></thead>
   <tbody>
     <tr><td>解説記事</td><td>完成した BRA の成果物だけを読み、指定された言語で解説記事を書く（3.14）</td><td>シェル（成果物の読み取り）。Web 検索・RCS・<code>lit</code> はなし</td><td>記事の Markdown。図を最大 2 枚足せる</td><td>ワーカーが形式を検査して修正を依頼し、公開する</td></tr>
-    <tr><td>Canon の AI レビュー</td><td>Canon への PR を読み、所見を出す（5.8）</td><td>なし</td><td>所見の JSON。判断のジョブは判定も返す</td><td>人が承認か却下かを判断する。AI レビューは承認の代わりにならない。自律実行の計画が push した PR だけは、判断のジョブの判定をオーケストレーターが反映する（6.8）</td></tr>
-    <tr><td>オーケストレーターの計画</td><td>計画の方針、行（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、行の質問への回答と、要対応・要判断の行の解決も行う（第 6 部、6.8）</td><td>下書きと再計画では RCS、添付資料の読み取り。回答と解決ではなし</td><td>計画の JSON</td><td>ワーカーが形を検査し、計画ランナーが順序を計算して適用する</td></tr>
+    <tr><td>Canon の AI レビュー</td><td>Canon への PR を読み、所見を出す（5.8）</td><td>なし</td><td>所見の JSON。判断のジョブは判定も返す</td><td>人が承認か却下かを判断する。AI レビューは承認の代わりにならない。自律実行のミッションが push した PR だけは、判断のジョブの判定をオーケストレーターが反映する（6.8）</td></tr>
+    <tr><td>オーケストレーターのミッション</td><td>ミッションの方針、行（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、行の質問への回答と、要対応・要判断の行の解決も行う（第 6 部、6.8）</td><td>下書きと再計画では RCS、添付資料の読み取り。回答と解決ではなし</td><td>ミッションの JSON</td><td>ワーカーが形を検査し、ミッションランナーが順序を計算して適用する</td></tr>
   </tbody>
 </table>
-<p>解説記事は、1 回のターンの後に検査と修正のターンを続けます。AI レビューと計画は 1 回のターンで、返答が決められた形でないときだけ、もう 1 回依頼します。どのジョブの使用量も、BRA のジョブと同じ単価表で費用に換算します（9.10）。</p>
+<p>解説記事は、1 回のターンの後に検査と修正のターンを続けます。AI レビューとミッションは 1 回のターンで、返答が決められた形でないときだけ、もう 1 回依頼します。どのジョブの使用量も、BRA のジョブと同じ単価表で費用に換算します（9.10）。</p>
 
 <h3>実装</h3>
 <p>ワーカーは <code>packages/worker</code> にあり、段階のループは <code>pipeline.ts</code> の <code>runPhases</code> です。会話は <code>codexThreadId</code> としてプロジェクトに記録します。JSON Schema の定義は <code>HARNESS_SCHEMAS</code>、指示書は <code>prompts/</code> にあります。BRA 以外のジョブの入口は <code>index.ts</code> の <code>articleMain</code>・<code>canonReviewMain</code>・<code>planJobMain</code> です。</p>
@@ -141,7 +141,7 @@
     <tr><td><code>&lt;ProjectID&gt;_HCD/connections.json</code></td><td>エージェント</td><td><code>bif[]</code>（組織の間の投射）と <code>connections[]</code>（UC の間の接続）。接続は <code>sender</code>・<code>receiver</code>・<code>comment</code>・<code>referenceIds</code>（ちょうど 1 本）・<code>taxon</code>・<code>measurementMethod</code>・<code>pointersOnLiterature</code>・<code>pointersOnFigure</code>・両端の関係と論文中の名前、任意で <code>hypothesis</code></td><td>ワーカーが引用を原文と照合し、FRG の候補・CSV・グラフに使う</td></tr>
     <tr><td><code>&lt;ProjectID&gt;_FRG/frg.json</code></td><td>エージェント</td><td><code>nodes[]</code>（TLF と GN）：<code>id</code>・<code>subnodes</code>・<code>comment</code>・<code>interface</code>・機能項目。3〜4 個の UC からなる GN だけ <code>motifNote</code> も書く</td><td>ワーカーが検査し、整合の確認・CSV・グラフに使う</td></tr>
     <tr><td><code>report.md</code> / <code>decision_log.md</code></td><td>エージェント</td><td>利用者向けのレポート / 判断の記録と <code>## HCD-FRG revisions</code></td><td>利用者が読む。解説記事のジョブの入力になる。調整の後、ワーカーが revisions の節を検査する</td></tr>
-    <tr><td><code>research.json</code></td><td>エージェント</td><td>調査ステップの計画・候補・検索・証拠・被覆・不足（3.7）</td><td>ワーカーが検索のログと照合する。エージェントが HCD の根拠に使う</td></tr>
+    <tr><td><code>research.json</code></td><td>エージェント</td><td>調査ステップのミッション・候補・検索・証拠・被覆・不足（3.7）</td><td>ワーカーが検索のログと照合する。エージェントが HCD の根拠に使う</td></tr>
     <tr><td><code>research_queries.jsonl</code> / <code>rcs_mcp_calls.jsonl</code></td><td>ワーカー</td><td>エージェントの文献検索と Web 検索の記録 / RCS の呼び出しの記録</td><td>前者はワーカーが調査の検査に使う。後者は呼び出しの記録</td></tr>
     <tr><td><code>research_check.json</code></td><td>ワーカー</td><td>調査の被覆と検索のログの照合、終わり方（<code>passed</code>・<code>gaps</code>・<code>budget</code>）、測定値</td><td>不足点が修正依頼になる。<code>done: true</code> なら、以後の実行では調査を飛ばす</td></tr>
     <tr><td><code>reference_check.json</code> / <code>quote_check.json</code></td><td>ワーカー</td><td>文献の実在の照合 / 引用文の原文との照合と、引用の使い回しの警告</td><td>問題が修正依頼になる。利用者が成果物と一緒に読む</td></tr>
@@ -256,12 +256,12 @@ Fix them in the files and finish with status "done".</code></pre>
     <tr><td><code>followup</code></td><td>完成後のフォローアップ</td><td>指示を適用し、HCD と FRG を検査し直し、CSV と xlsx を作り直す。どの段階も受理済みにしないで始める</td></tr>
     <tr><td><code>retry</code></td><td>失敗・中止の後に利用者が行うリトライ、または止まったジョブの自動の再開（8.3）</td><td>まだ受理していない最初の段階から続ける。既存の成果物は残す</td></tr>
     <tr><td><code>article</code></td><td>完成した BRA への解説記事の作成の依頼（付録 A）</td><td>新しい会話で、解説記事の指示書に従って書く。Web 検索と RCS は使わず、作業ディレクトリは読むだけ（3.14）。止まったジョブは、同じモードで自動的に実行し直す</td></tr>
-    <tr><td><code>canon-review</code></td><td>Canon の PR への AI レビューの依頼。ジョブが指すのは Canon で、プロジェクトには触れない</td><td>新しい会話で PR の材料を読み、所見を JSON で返す。自律実行の計画の判断のジョブは、判定も返す（5.8、6.8）。止まったジョブは失敗にするだけ</td></tr>
-    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、計画の行についての判断。計画ランナーが、枠が空いたときだけ積む。ジョブが指すのは計画</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 行を超える下書きは 25 分（6.4）。行についての判断（回答と解決）はツールなしで、上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
+    <tr><td><code>canon-review</code></td><td>Canon の PR への AI レビューの依頼。ジョブが指すのは Canon で、プロジェクトには触れない</td><td>新しい会話で PR の材料を読み、所見を JSON で返す。自律実行のミッションの判断のジョブは、判定も返す（5.8、6.8）。止まったジョブは失敗にするだけ</td></tr>
+    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、ミッションの行についての判断。ミッションランナーが、枠が空いたときだけ積む。ジョブが指すのはミッション</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 行を超える下書きは 25 分（6.4）。行についての判断（回答と解決）はツールなしで、上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
   </tbody>
 </table>
 
 <h3>実装</h3>
-<p>実行モードは SQS のメッセージの <code>mode</code> で渡し、型は <code>packages/shared/src/types.ts</code> の <code>RunMode</code> です。<code>canon-review</code> と <code>plan</code> のジョブでは、<code>projectId</code> に Canon の ID または計画の ID が入ります。解説記事の依頼は <code>POST /projects/{id}/articles</code> です。判断のジョブは <code>canon-review</code> の <code>reviewKind: "decide"</code>、計画用のジョブの種類は <code>planJobKind</code> で区別します。<code>plan</code> の返答の形は <code>PLAN_RESULT_SCHEMA</code>、時間の上限は <code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）と <code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、行のジョブでは <code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>（5 分）です。質問のときの保存は <code>index.ts</code> の <code>persistState</code> で、プロジェクトの状態は <code>WAITING_USER_INPUT</code> になります。</p>
+<p>実行モードは SQS のメッセージの <code>mode</code> で渡し、型は <code>packages/shared/src/types.ts</code> の <code>RunMode</code> です。<code>canon-review</code> と <code>plan</code> のジョブでは、<code>projectId</code> に Canon の ID またはミッションの ID が入ります。解説記事の依頼は <code>POST /projects/{id}/articles</code> です。判断のジョブは <code>canon-review</code> の <code>reviewKind: "decide"</code>、計画用のジョブの種類は <code>planJobKind</code> で区別します。<code>plan</code> の返答の形は <code>PLAN_RESULT_SCHEMA</code>、時間の上限は <code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）と <code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、行のジョブでは <code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>（5 分）です。質問のときの保存は <code>index.ts</code> の <code>persistState</code> で、プロジェクトの状態は <code>WAITING_USER_INPUT</code> になります。</p>
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>RunMode</code>）、<code>packages/shared/src/planJob.ts</code>・<code>planRowJob.ts</code>、<code>packages/worker/src/index.ts</code>（実行モード、<code>runAgentTurn</code>、<code>persistState</code>）、<code>pipeline.ts</code>、<code>packages/api/src/app.ts</code>（回答・フォローアップ・リトライの API、付録 A）</p>
 </section>

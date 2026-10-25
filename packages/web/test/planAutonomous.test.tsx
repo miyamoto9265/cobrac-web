@@ -19,7 +19,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile: vi.fn(), ApiError: class ext
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { PlansPage, turnItems } = await import("../src/pages/PlansPage");
+const { CanonBoard, NewPlanPage, turnItems } = await import("../src/pages/PlansPage");
 const { AUTONOMOUS_CATALOG } = await import("../src/i18n/autonomous");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,7 +48,8 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/plans/new" element={<NewPlanPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
           </Routes>
         </MemoryRouter>
@@ -205,10 +206,10 @@ describe("the history of an autonomous plan", () => {
 describe("the texts of the autonomous run", () => {
   it("says that the Orchestrator acts for the owner", () => {
     expect(AUTONOMOUS_CATALOG.ja["auto.help"]).toBe(
-      "オーケストレーターが人の代わりになって、最後まで進めます。下書きを確定し、エージェントの質問に答え、計画の PR を承認・変更依頼・却下し、要対応・人の判断の行を決め、再計画の提案を反映します。費用の上限に達すると新しい行を始めません。",
+      "オーケストレーターが人の代わりになって、最後まで進めます。下書きを確定し、エージェントの質問に答え、ミッションの PR を承認・変更依頼・却下し、要対応・人の判断の行を決め、再計画の提案を反映します。費用の上限に達すると新しい行を始めません。",
     );
     expect(AUTONOMOUS_CATALOG.en["auto.help"]).toBe(
-      "The Orchestrator acts for you and runs the plan to the end: it confirms the draft, answers the agents' questions, approves, requests changes on or rejects the plan's pull requests, decides on rows that need attention or a decision, and applies re-plan proposals. No new row starts once the cost limit is spent.",
+      "The Orchestrator acts for you and runs the mission to the end: it confirms the draft, answers the agents' questions, approves, requests changes on or rejects the mission's pull requests, decides on rows that need attention or a decision, and applies re-plan proposals. No new row starts once the cost limit is spent.",
     );
     expect(AUTONOMOUS_CATALOG.ja["sys.autoAnswered"]).toBe("オーケストレーター（AI）がエージェントの質問に回答しました。");
     expect(AUTONOMOUS_CATALOG.en["sys.autoAnswered"]).toBe("The Orchestrator's AI answered the agent's question.");
@@ -260,7 +261,7 @@ describe("「あなたの番」 with autonomous plans", () => {
 
   it("shows only what waits on the owner in the list", async () => {
     api.listPlans.mockResolvedValue({ items: [summary("n0000001", "RUNNING"), summary("n0000005", "DRAFT", { pulse: null, draft: draftDone(true), autonomousError: "no rows" })] });
-    await render("/plans");
+    await render("/canons");
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).not.toContain("Answer a question");
     expect(turn.textContent).not.toContain("Left or both?");
@@ -277,7 +278,7 @@ describe("「あなたの番」 with autonomous plans", () => {
         }),
       ],
     });
-    await render("/plans");
+    await render("/canons");
     const events = q('[data-testid="plan-lane-events"]')!.textContent!;
     expect(events).toContain("The Orchestrator's AI decided on the row (Skip)");
     expect(events).toContain("Cost limit reached ($20.40 / $20.00)");

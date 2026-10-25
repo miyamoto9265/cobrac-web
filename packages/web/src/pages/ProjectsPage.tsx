@@ -1,4 +1,4 @@
-import { Coins, Download, FolderOpen, GitFork, Network, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Coins, Download, FolderOpen, GitFork, Network, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared";
@@ -74,7 +74,7 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
   );
 }
 
-function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownload: () => void; onDelete: () => void }) {
+function ProjectActions({ p, onDownload, onArchive, onDelete }: { p: ProjectRecord; onDownload: () => void; onArchive: () => void; onDelete: () => void }) {
   const t = useT();
   const cls = "flex items-center justify-center rounded p-1.5 text-slate-500 hover:bg-slate-100 coarse:h-11 coarse:w-11";
   return (
@@ -95,7 +95,17 @@ function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownl
           </button>
         </>
       )}
-      <span className="ml-auto">
+      <span className="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          title={t(p.archivedAt ? "nav.unarchive" : "nav.archive")}
+          aria-label={t(p.archivedAt ? "nav.unarchive" : "nav.archive")}
+          onClick={onArchive}
+          className={cls}
+          data-testid={p.archivedAt ? "project-unarchive" : "project-archive"}
+        >
+          {p.archivedAt ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+        </button>
         <DeleteProjectButton project={p} variant="icon" onConfirm={onDelete} />
       </span>
     </>
@@ -118,12 +128,30 @@ export function ProjectsPage() {
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return items.filter((p) => (!status || p.status === status) && (!s || [p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((x) => (x ?? "").toLowerCase().includes(s))));
+    // archived projects stay in the list, dimmed and after the others
+    return items
+      .filter((p) => (!status || p.status === status) && (!s || [p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((x) => (x ?? "").toLowerCase().includes(s))))
+      .sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt));
   }, [items, q, status]);
 
   const downloadXlsx = async (p: ProjectRecord) => {
     const { url } = await api.downloadUrl(p.projectId, `output/${p.projectId}.bra.xlsx`);
     window.location.href = url;
+  };
+
+  // archiving only hides the project from the sidebar; restoring brings it back
+  const archiveProject = (p: ProjectRecord) => {
+    const archived = !p.archivedAt;
+    const set = (archivedAt: string | null | undefined) => setItems((list) => list.map((x) => (x.projectId === p.projectId ? { ...x, archivedAt } : x)));
+    set(archived ? new Date().toISOString() : null);
+    setErr(null);
+    api
+      .archiveProject(p.projectId, archived)
+      .then(() => notifyProjectsChanged())
+      .catch((e) => {
+        set(p.archivedAt);
+        setErr(e instanceof Error ? e.message : String(e));
+      });
   };
 
   const deleteProject = (p: ProjectRecord) => {
@@ -163,13 +191,14 @@ export function ProjectsPage() {
       <ul className="grid gap-2 md:grid-cols-2 lg:hidden">
         {filtered.length === 0 && <li className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400 md:col-span-2">{t("projects.empty")}</li>}
         {filtered.map((p) => (
-          <li key={p.projectId} className="rounded-xl border border-slate-200 bg-white p-3">
+          <li key={p.projectId} className={`rounded-xl border border-slate-200 bg-white p-3 ${p.archivedAt ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-2">
               <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-words py-1 text-sm font-medium text-blue-700 coarse:py-3">
                 {projectDisplayName(p)}
                 <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
               <HypothesisBadge project={p} className="ml-auto" />
+              {p.archivedAt && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="project-archived">{t("cm.archived")}</span>}
               <StatusBadge status={p.status} />
             </div>
             <dl className="mt-1 space-y-0.5 text-xs text-slate-600">
@@ -191,7 +220,7 @@ export function ProjectsPage() {
               <span>{fmtDate(p.updatedAt, locale)}</span>
             </div>
             <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2">
-              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
+              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onArchive={() => archiveProject(p)} onDelete={() => deleteProject(p)} />
             </div>
           </li>
         ))}
@@ -220,7 +249,7 @@ export function ProjectsPage() {
               </tr>
             )}
             {filtered.map((p) => (
-              <tr key={p.projectId} className="hover:bg-slate-50">
+              <tr key={p.projectId} className={`hover:bg-slate-50 ${p.archivedAt ? "opacity-60" : ""}`}>
                 <td className="min-w-[14rem] max-w-[22rem] px-4 py-2 text-xs">
                   <Link
                     to={`/projects/${encodeURIComponent(p.projectId)}`}
@@ -243,7 +272,10 @@ export function ProjectsPage() {
                   </div>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2">
-                  <StatusBadge status={p.status} />
+                  <span className="inline-flex items-center gap-1.5">
+                    <StatusBadge status={p.status} />
+                    {p.archivedAt && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="project-archived">{t("cm.archived")}</span>}
+                  </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 font-mono text-[11px] text-slate-600" title={p.usedModels?.join(", ")}>
                   {(p.usedModels?.length ? p.usedModels : [p.model ?? "—"]).join(", ")}
@@ -256,7 +288,7 @@ export function ProjectsPage() {
                 <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
                 <td className="px-2 py-2">
                   <div className="flex items-center justify-end gap-1">
-                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
+                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onArchive={() => archiveProject(p)} onDelete={() => deleteProject(p)} />
                   </div>
                 </td>
               </tr>

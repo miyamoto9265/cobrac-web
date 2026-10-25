@@ -13,7 +13,7 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 - **CSV and BRA xlsx**: the data for submission, built from the HCD and the FRG. The xlsx comes in two formats: CoBRAC's own and the official Template-v2-3.
 - When the agent needs a decision it asks you a question, and continues once you answer. After completion you can change the result with follow-up instructions.
 - One run takes from tens of minutes to a few hours and costs OpenAI usage ([costs](#where-do-i-see-the-cost)).
-- To build many projects, put them in a plan with the [CoBRAC Orchestrator](#cobrac-orchestrator); it runs them in turn for you.
+- To build many projects, start a mission with the [CoBRAC Orchestrator](#cobrac-orchestrator); it plans them and builds them in turn for you.
 
 ## Getting started
 
@@ -35,7 +35,7 @@ To run on your own account instead, press "Register" on the provider's row (Open
 
 ## Create a project
 
-Open "New project" in the sidebar.
+Press "+ Project" at the top of the sidebar.
 
 1. Write a brain region in **ROI** and the function it serves in **TLF**. Either one alone is enough. Typing a region name in the ROI shows suggestions. "Use example" fills in an example.
 2. If needed, use the buttons under the input:
@@ -54,7 +54,9 @@ The project gets a name automatically; you can change it on the project page.
 
 ## The project page and the agent
 
-After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per plan in the history.
+After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per mission in the history.
+
+Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and on the Canon page, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
 
 ![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 
@@ -123,7 +125,7 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### Using a Canon
 
-- Under "Canons" in the sidebar, create a "New Canon" with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" on the "Projects" tab of the Canon page.
+- On the "Canon" page from the sidebar, press "New Canon" and create one with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" on the "Projects" tab of the Canon page.
 - For a new project, choose a Canon with the "Canon" button on the create screen. Settings has a default Canon for new projects.
 - A project can be in one Canon only.
 
@@ -160,13 +162,13 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 ## CoBRAC Orchestrator
 
-**CoBRAC Orchestrator** builds many BRA projects (ROI × TLF) from one **plan**. Once you confirm the plan, the rows run automatically in **waves**, within the concurrency limits. No project is created before you confirm.
+**CoBRAC Orchestrator** takes a goal, plans the BRA projects (ROI × TLF) to build and builds them. One piece of work you hand it, with a goal and a cost limit, is a **mission**; what it writes inside the mission (rows, waves and policy) is the **plan**. Once the plan is confirmed, the rows run automatically in **waves**, within the concurrency limits. No project is created before you confirm.
 
-### Create a plan
+### Create a mission
 
-1. Under "CoBRAC Orchestrator" in the sidebar, press "New plan" and enter a name and a goal (for example "Cover the BRA of language").
+1. Press "+ Mission" at the top of the sidebar and enter a name and a goal (for example "Cover the BRA of language").
 2. Under “Source list”, add files (CSV, xlsx, PDF and others) or choose “Paste rows” and paste them. One row is one project.
-3. "Start autonomous run" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the plan to the end on its own (the default). Turn on "Handle pull requests and conflicts yourself" to get "Create plan" (a plan from the rows read) and "Create draft" instead. None of them can be pressed without a goal, files or rows.
+3. "Start autonomous run" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal, files or rows.
 4. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
 5. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
@@ -181,35 +183,36 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 
 - "Confirm and start" shows the estimate (time and cost) before starting.
 - A failed row is retried automatically up to 2 times; after that it "Needs attention" (choose "Retry" or "Skip").
-- An automatically ordered plan does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the plan page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
-- In an automatically ordered plan, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
-- "Your turn" in the list of plans gathers what is waiting for you, such as questions and approvals.
-- The projects a plan creates open on the usual project page.
+- An automatically ordered mission does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the mission page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
+- In an automatically ordered mission, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
+- The "Canon" page lists, for each Canon, the missions that build it (running, drafts and finished ones); missions without a Canon come last.
+- "Your turn" on the "Canon" page gathers what is waiting for you, such as questions and approvals.
+- The projects a mission creates open on the usual project page.
 
-### Plans with a Canon
+### Missions with a Canon
 
-With a Canon set on the plan, each completed row is pushed to the Canon automatically and is "Awaiting approval"; it is complete once a person approves its PR. The AI review runs automatically too. Rows that cannot go on by themselves, such as ones with unresolved conflicts, need "Your decision", with the reason shown.
+With a Canon set on the mission, each completed row is pushed to the Canon automatically and is "Awaiting approval"; it is complete once a person approves its PR. The AI review runs automatically too. Rows that cannot go on by themselves, such as ones with unresolved conflicts, need "Your decision", with the reason shown.
 
 ### Autonomous run
 
-In an **autonomous run** the Orchestrator acts for you and takes the plan to the end. It is the default for a new plan: enter a **cost limit** (USD) in the new plan form and press "Start autonomous run".
+In an **autonomous run** the Orchestrator acts for you and takes the mission to the end. It is the default for a new mission: enter a **cost limit** (USD) in the new mission form and press "Start autonomous run".
 
-To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the form or under "3. How it runs" of the draft. In such a plan you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
+To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the form or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
-- Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the plan is created.
-- The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the plan's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
+- Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the mission is created.
+- The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the mission's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
 - The AI reads each PR and approves, requests changes or rejects it.
-- When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the plan's Canon is gone does the plan pause for you.
+- When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the mission's Canon is gone does the mission pause for you.
 - Re-plan proposals (rows to add or remove) are applied as soon as they arrive.
 - A failed Orchestrator job is asked again after a short wait (at most an hour).
-- When the cost reaches the limit, nothing new starts and the plan pauses. Raise the limit to resume.
+- When the cost reaches the limit, nothing new starts and the mission pauses. Raise the limit to resume.
 
 ### Questions, pause and cancel
 
-- When an agent asks a question, only its row stops, and the question appears under "Questions" on the plan page. Answering resumes that row.
-- Each plan can be paused on its own, from the plan screen or with the button at the top right of its lane in the plan list. A paused plan starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
-- "Cancel" also stops the running jobs. A cancelled plan can be resumed.
-- Deleting a plan keeps the projects it created. The plan's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) plans.
+- When an agent asks a question, only its row stops, and the question appears under "Questions" on the mission page. Answering resumes that row.
+- Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane on the "Canon" page. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
+- "Cancel" also stops the running jobs. A cancelled mission can be resumed.
+- Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
 
 ## Publishing and cloning
 

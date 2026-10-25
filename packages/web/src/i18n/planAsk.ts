@@ -7,7 +7,7 @@ import type { UiLocale } from "@cobrac/shared";
 export const planAskEn = {
   "ask.title": "Questions before the draft",
   "ask.round": "Follow-up questions",
-  "ask.help": "The Orchestrator asks these to settle the scope or priorities of the plan. Pick an answer or write your own; it decides questions left blank.",
+  "ask.help": "The Orchestrator asks these to settle the scope or priorities of the mission. Pick an answer or write your own; it decides questions left blank.",
   "ask.placeholder": "Your answer (optional)",
   "ask.send": "Answer",
   "ask.skip": "Leave it to the Orchestrator",
@@ -27,7 +27,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   ja: {
     "ask.title": "下書きの前の質問",
     "ask.round": "追加の質問",
-    "ask.help": "計画の範囲や優先度を決めるための質問です。選択肢を選ぶか、ご自由にお書きください。空欄の質問はオーケストレーターが判断します。",
+    "ask.help": "ミッションの範囲や優先度を決めるための質問です。選択肢を選ぶか、ご自由にお書きください。空欄の質問はオーケストレーターが判断します。",
     "ask.placeholder": "回答（空欄でもかまいません）",
     "ask.send": "回答する",
     "ask.skip": "おまかせで進める",
@@ -72,7 +72,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   ko: {
     "ask.title": "초안 전 질문",
     "ask.round": "추가 질문",
-    "ask.help": "계획의 범위와 우선순위를 정하기 위한 질문입니다. 선택지를 고르거나 자유롭게 적어 주세요. 비워 둔 질문은 Orchestrator가 판단합니다.",
+    "ask.help": "미션의 범위와 우선순위를 정하기 위한 질문입니다. 선택지를 고르거나 자유롭게 적어 주세요. 비워 둔 질문은 Orchestrator가 판단합니다.",
     "ask.placeholder": "답변(비워 두어도 됩니다)",
     "ask.send": "답변하기",
     "ask.skip": "Orchestrator에 맡기기",
@@ -87,7 +87,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   de: {
     "ask.title": "Fragen vor dem Entwurf",
     "ask.round": "Weitere Fragen",
-    "ask.help": "Mit diesen Fragen klärt der Orchestrator Umfang oder Prioritäten des Plans. Wählen Sie eine Antwort oder schreiben Sie Ihre eigene; leere Fragen entscheidet er selbst.",
+    "ask.help": "Mit diesen Fragen klärt der Orchestrator Umfang oder Prioritäten der Mission. Wählen Sie eine Antwort oder schreiben Sie Ihre eigene; leere Fragen entscheidet er selbst.",
     "ask.placeholder": "Ihre Antwort (optional)",
     "ask.send": "Antworten",
     "ask.skip": "Dem Orchestrator überlassen",
@@ -102,7 +102,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   fr: {
     "ask.title": "Questions avant le brouillon",
     "ask.round": "Questions complémentaires",
-    "ask.help": "L’Orchestrator pose ces questions pour fixer la portée ou les priorités du plan. Choisissez une réponse ou écrivez la vôtre ; il tranche les questions laissées vides.",
+    "ask.help": "L’Orchestrator pose ces questions pour fixer la portée ou les priorités de la mission. Choisissez une réponse ou écrivez la vôtre ; il tranche les questions laissées vides.",
     "ask.placeholder": "Votre réponse (facultatif)",
     "ask.send": "Répondre",
     "ask.skip": "Laisser l’Orchestrator décider",
@@ -117,7 +117,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   es: {
     "ask.title": "Preguntas antes del borrador",
     "ask.round": "Preguntas adicionales",
-    "ask.help": "El Orchestrator hace estas preguntas para fijar el alcance o las prioridades del plan. Elija una respuesta o escriba la suya; decide él las que queden en blanco.",
+    "ask.help": "El Orchestrator hace estas preguntas para fijar el alcance o las prioridades de la misión. Elija una respuesta o escriba la suya; decide él las que queden en blanco.",
     "ask.placeholder": "Su respuesta (opcional)",
     "ask.send": "Responder",
     "ask.skip": "Dejarlo al Orchestrator",
@@ -132,7 +132,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   pt: {
     "ask.title": "Perguntas antes do rascunho",
     "ask.round": "Perguntas adicionais",
-    "ask.help": "O Orchestrator faz estas perguntas para definir o escopo ou as prioridades do plano. Escolha uma resposta ou escreva a sua; ele decide as que ficarem em branco.",
+    "ask.help": "O Orchestrator faz estas perguntas para definir o escopo ou as prioridades da missão. Escolha uma resposta ou escreva a sua; ele decide as que ficarem em branco.",
     "ask.placeholder": "Sua resposta (opcional)",
     "ask.send": "Responder",
     "ask.skip": "Deixar com o Orchestrator",
@@ -147,7 +147,7 @@ export const PLAN_ASK_CATALOG: Record<UiLocale, Record<PlanAskKey, string>> = {
   ru: {
     "ask.title": "Вопросы перед черновиком",
     "ask.round": "Дополнительные вопросы",
-    "ask.help": "Orchestrator задаёт эти вопросы, чтобы уточнить охват или приоритеты плана. Выберите ответ или напишите свой; вопросы без ответа он решит сам.",
+    "ask.help": "Orchestrator задаёт эти вопросы, чтобы уточнить охват или приоритеты миссии. Выберите ответ или напишите свой; вопросы без ответа он решит сам.",
     "ask.placeholder": "Ваш ответ (необязательно)",
     "ask.send": "Ответить",
     "ask.skip": "Оставить на усмотрение Orchestrator",

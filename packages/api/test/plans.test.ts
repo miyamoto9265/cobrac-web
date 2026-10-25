@@ -83,6 +83,21 @@ beforeEach(() => {
   user(ADMIN, { role: "admin" });
 });
 
+describe("plans: archive", () => {
+  it("archives and restores the owner's plan; it stays listed and its status does not change", async () => {
+    user(A);
+    const id = await newPlan([{ roi: "Broca", tlf: "Speech" }]);
+    const r = await json<{ planId: string; archivedAt: string | null }>(call(A, "PUT", `/plans/${id}/archive`, { archived: true }));
+    expect(planOf(id)).toMatchObject({ archivedAt: r.archivedAt, status: "DRAFT" });
+    const list = await json<{ items: PlanRecord[] }>(call(A, "GET", "/plans"));
+    expect(list.items.find((p) => p.planId === id)?.archivedAt).toBe(r.archivedAt);
+    expect(await status(call(B, "PUT", `/plans/${id}/archive`, { archived: false }))).toBe(404);
+    expect(await status(call(A, "PUT", `/plans/${id}/archive`, { archived: "yes" }))).toBe(400);
+    await json(call(A, "PUT", `/plans/${id}/archive`, { archived: false }));
+    expect(planOf(id).archivedAt).toBeNull();
+  });
+});
+
 describe("plans: drafts", () => {
   it("puts every readable row of a capability-list CSV in the plan, lists the others with a reason, and queues nothing", async () => {
     const lines = ["ROI,TLF,理由"];

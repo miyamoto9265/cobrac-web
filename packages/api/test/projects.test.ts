@@ -293,6 +293,35 @@ describe("project IDs", () => {
   });
 });
 
+describe("archive", () => {
+  const ID = "u7m2q9xa-3";
+  const stored = () => fake.items("projects").find((p) => p.projectId === ID && p.userId === A.sub)!;
+  function seed(status: ProjectRecord["status"]) {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 5), projectId: ID, name: "Saccade", nameSource: "user", status });
+  }
+
+  it("archives and restores the owner's project, running or not, without touching anything else", async () => {
+    seed("RUNNING");
+    const r = await json<{ projectId: string; archivedAt: string | null }>(call(A, "PUT", `/projects/${ID}/archive`, { archived: true }));
+    expect(r.archivedAt).toEqual(expect.any(String));
+    expect(stored()).toMatchObject({ archivedAt: r.archivedAt, status: "RUNNING", name: "Saccade" });
+    // archiving again keeps the first time; the list still has it (the sidebar hides it)
+    expect((await json<{ archivedAt: string }>(call(A, "PUT", `/projects/${ID}/archive`, { archived: true }))).archivedAt).toBe(r.archivedAt);
+    const list = await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects"));
+    expect(list.items.find((p) => p.projectId === ID)?.archivedAt).toBe(r.archivedAt);
+    await json(call(A, "PUT", `/projects/${ID}/archive`, { archived: false }));
+    expect(stored().archivedAt).toBeNull();
+  });
+
+  it("refuses other users and a body without `archived`", async () => {
+    seed("COMPLETED");
+    expect((await call(B, "PUT", `/projects/${ID}/archive`, { archived: true })).status).toBe(404);
+    expect((await call(A, "PUT", `/projects/${ID}/archive`, {})).status).toBe(400);
+    expect(stored().archivedAt).toBeUndefined();
+  });
+});
+
 describe("soft delete", () => {
   const ID = "u7m2q9xa-2";
   function seed(status: ProjectRecord["status"] = "COMPLETED") {

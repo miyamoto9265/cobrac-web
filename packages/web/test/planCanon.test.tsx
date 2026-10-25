@@ -180,7 +180,7 @@ describe("the plan's Canon in a draft", () => {
     const section = q('[data-testid="plan-canon"]')!;
     expect(q<HTMLInputElement>('[data-testid="canon-new"]', section)!.checked).toBe(true);
     expect(q<HTMLInputElement>('[data-testid="canon-new-name"]', section)!.value).toBe("Language canon");
-    expect(section.textContent).toContain("created when the plan is confirmed");
+    expect(section.textContent).toContain("created when the mission is confirmed");
     // no Canon of their own: the existing choice is not offered
     expect(q<HTMLInputElement>('[data-testid="canon-existing"]', section)!.disabled).toBe(true);
     expect(section.textContent).toContain("You have no Canon yet.");
@@ -495,7 +495,7 @@ describe("bulk approval in the Canon", () => {
     api.canonPull.mockResolvedValue(d);
     await render(`/canons/${CANON}/pulls/4`);
     expect(q<HTMLAnchorElement>('[data-testid="pr-plan"]')!.getAttribute("href")).toBe("/plans/n4h8w2rk");
-    expect(q('[data-testid="pr-plan"]')!.textContent).toContain("Plan n4h8w2rk");
+    expect(q('[data-testid="pr-plan"]')!.textContent).toContain("Mission n4h8w2rk");
   });
 });
 
