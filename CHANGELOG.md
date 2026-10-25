@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-10-25
+
 ### Added
 - Archive projects and missions from the sidebar: hover a row (always shown on touch screens) and press the archive icon. Archived rows leave the sidebar but stay in the project list and on the Canon page, dimmed, marked "Archived" and listed last; restore a project from the project list and a mission from its own page (both pages can archive too). Archiving only hides the row; a running project or mission keeps running. The project list marks archived projects (`PUT /projects/{id}/archive`, `PUT /plans/{id}/archive`, `archivedAt` on both records)
 
