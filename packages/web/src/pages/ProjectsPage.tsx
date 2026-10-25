@@ -128,7 +128,10 @@ export function ProjectsPage() {
 
   const filtered = useMemo(() => {
     const s = q.toLowerCase();
-    return items.filter((p) => (!status || p.status === status) && (!s || [p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((x) => (x ?? "").toLowerCase().includes(s))));
+    // archived projects stay in the list, dimmed and after the others
+    return items
+      .filter((p) => (!status || p.status === status) && (!s || [p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((x) => (x ?? "").toLowerCase().includes(s))))
+      .sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt));
   }, [items, q, status]);
 
   const downloadXlsx = async (p: ProjectRecord) => {
@@ -188,7 +191,7 @@ export function ProjectsPage() {
       <ul className="grid gap-2 md:grid-cols-2 lg:hidden">
         {filtered.length === 0 && <li className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-400 md:col-span-2">{t("projects.empty")}</li>}
         {filtered.map((p) => (
-          <li key={p.projectId} className="rounded-xl border border-slate-200 bg-white p-3">
+          <li key={p.projectId} className={`rounded-xl border border-slate-200 bg-white p-3 ${p.archivedAt ? "opacity-60" : ""}`}>
             <div className="flex items-start justify-between gap-2">
               <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="min-w-0 break-words py-1 text-sm font-medium text-blue-700 coarse:py-3">
                 {projectDisplayName(p)}
@@ -246,7 +249,7 @@ export function ProjectsPage() {
               </tr>
             )}
             {filtered.map((p) => (
-              <tr key={p.projectId} className="hover:bg-slate-50">
+              <tr key={p.projectId} className={`hover:bg-slate-50 ${p.archivedAt ? "opacity-60" : ""}`}>
                 <td className="min-w-[14rem] max-w-[22rem] px-4 py-2 text-xs">
                   <Link
                     to={`/projects/${encodeURIComponent(p.projectId)}`}

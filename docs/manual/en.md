@@ -56,7 +56,7 @@ The project gets a name automatically; you can change it on the project page.
 
 After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per mission in the history.
 
-Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
+Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and on the Canon page, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
 
 ![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 

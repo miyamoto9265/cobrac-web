@@ -411,7 +411,7 @@ function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number;
   const running = p.status === "RUNNING" || p.status === "DRAFTING";
   const waves = pulse?.waves ?? [{ wave: p.activeWave ?? 1, counts: p.rowCounts }];
   return (
-    <li className="relative motion-safe:animate-step-in" data-testid="plan-lane" data-status={p.status}>
+    <li className={`relative motion-safe:animate-step-in ${dimArchived(p)}`} data-testid="plan-lane" data-status={p.status}>
       <Link
         to={planPath(p.planId)}
         className={`block rounded-2xl border bg-white p-4 transition-colors hover:border-blue-300 ${running ? "border-blue-200" : "border-amber-200"}`}
@@ -420,6 +420,7 @@ function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number;
           <LiveDot tone={running ? "running" : "waiting"} />
           <span className="min-w-0 break-words text-base font-semibold text-slate-900">{p.name}</span>
           <span className="font-mono text-[11px] text-slate-500">{p.planId}</span>
+          <ArchivedChip p={p} />
           <span className="ml-auto">
             <PlanStatusBadge status={p.status} />
             <AutonomousBadge plan={p} />
@@ -513,11 +514,25 @@ function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number;
 }
 
 /** A draft: its rows and where its draft job got to. */
+/** Archived missions stay on the Canon page, dimmed and after the others in their section. */
+const archivedLast = (list: PlanSummary[]) => [...list].sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt));
+const dimArchived = (p: PlanSummary) => (p.archivedAt ? "opacity-60" : "");
+
+function ArchivedChip({ p }: { p: PlanSummary }) {
+  const t = useT();
+  if (!p.archivedAt) return null;
+  return (
+    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="plan-archived">
+      {t("cm.archived")}
+    </span>
+  );
+}
+
 function DraftCard({ p, now }: { p: PlanSummary; now: number }) {
   const t = useT();
   const j = p.draft?.status;
   return (
-    <li className="motion-safe:animate-fade-in">
+    <li className={`motion-safe:animate-fade-in ${dimArchived(p)}`}>
       <Link to={planPath(p.planId)} className="flex h-full flex-col rounded-xl border border-dashed border-slate-300 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/30 coarse:p-4">
         <div className="flex items-center gap-2">
           <FileText size={14} className="shrink-0 text-slate-400" aria-hidden />
@@ -526,6 +541,7 @@ function DraftCard({ p, now }: { p: PlanSummary; now: number }) {
         {p.goal && <div className="mt-1 line-clamp-2 whitespace-pre-line text-xs text-slate-600">{p.goal}</div>}
         <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 text-[11px] text-slate-500">
           <span>{t("plan.card.rows", { n: p.rowCount })}</span>
+          <ArchivedChip p={p} />
           {j === "done" && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-700">{t("plan.card.drafted")}</span>}
           {j === "failed" && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-rose-700">{t("plan.job.failed")}</span>}
           <span className="ml-auto" title={p.updatedAt}>
@@ -550,11 +566,12 @@ function FinishedList({ items, now, open, label }: { items: PlanSummary[]; now: 
         {items.map((p) => {
           const end = p.completedAt ?? p.cancelledAt ?? p.updatedAt;
           return (
-            <li key={p.planId}>
+            <li key={p.planId} className={dimArchived(p)}>
               <Link to={planPath(p.planId)} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-slate-50 coarse:py-3">
                 {p.status === "COMPLETED" ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" aria-hidden /> : <XCircle size={15} className="shrink-0 text-slate-400" aria-hidden />}
                 <span className="min-w-0 flex-1 break-words text-slate-700">{p.name}</span>
                 <span className="text-xs text-slate-500">{t("plan.doneOf", { done: p.rowCounts.done, n: p.rowCount })}</span>
+                <ArchivedChip p={p} />
                 <PlanStatusBadge status={p.status} />
                 <AutonomousBadge plan={p} />
                 <span className="w-24 text-right text-[11px] text-slate-500" title={fmtDate(end, locale)}>
@@ -649,9 +666,9 @@ function GroupHeader({ g }: { g: CanonGroup }) {
 /** One Canon with the missions that build it: live missions as lanes, drafts as cards, finished ones folded. */
 function CanonGroupCard({ g, now, onChanged, onError }: { g: CanonGroup; now: number; onChanged: () => unknown; onError: (e: unknown) => void }) {
   const t = useT();
-  const live = g.plans.filter((p) => LIVE.has(p.status));
-  const drafts = g.plans.filter((p) => p.status === "DRAFT");
-  const finished = g.plans.filter((p) => p.status === "COMPLETED" || p.status === "CANCELLED");
+  const live = archivedLast(g.plans.filter((p) => LIVE.has(p.status)));
+  const drafts = archivedLast(g.plans.filter((p) => p.status === "DRAFT"));
+  const finished = archivedLast(g.plans.filter((p) => p.status === "COMPLETED" || p.status === "CANCELLED"));
   return (
     <section className={`rounded-2xl border bg-white p-3 sm:p-4 ${g.canon || g.pendingName ? "border-slate-200" : "border-dashed border-slate-300"}`} data-testid="canon-group" data-canon={g.canon?.canonId ?? g.key}>
       <GroupHeader g={g} />

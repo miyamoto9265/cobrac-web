@@ -381,6 +381,18 @@ describe("plan list as a live view", () => {
     expect(groups[3].textContent).toContain("Plan n0000009");
   });
 
+  it("keeps archived missions on the page, dimmed and marked, after the others in their section", async () => {
+    api.listPlans.mockResolvedValue({
+      items: [summary("n0000011", "DRAFT", { archivedAt: now }), summary("n0000012", "DRAFT")],
+    });
+    await render("/canons");
+    const cards = [...q('[data-testid="plan-drafts"]')!.querySelectorAll("li")];
+    expect(cards.map((c) => c.textContent?.includes("Plan n0000012"))).toEqual([true, false]);
+    expect(cards[1].className).toContain("opacity-60");
+    expect(cards[1].querySelector('[data-testid="plan-archived"]')!.textContent).toBe("Archived");
+    expect(cards[0].querySelector('[data-testid="plan-archived"]')).toBeNull();
+  });
+
   it("pauses and resumes each plan from its lane; a plan paused at its cost limit is resumed on its page", async () => {
     const paused = summary("n0000004", "PAUSED", { pausedReason: "user", confirmedAt: now });
     const capped = summary("n0000005", "PAUSED", { pausedReason: "cost_limit", confirmedAt: now });

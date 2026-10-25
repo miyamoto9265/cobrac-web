@@ -6,7 +6,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ## [Unreleased]
 
 ### Added
-- Archive projects and missions from the sidebar: hover a row (always shown on touch screens) and press the archive icon. Archived rows leave the sidebar; restore a project from the project list and a mission from its own page (both pages can archive too). Archiving only hides the row; a running project or mission keeps running. The project list marks archived projects (`PUT /projects/{id}/archive`, `PUT /plans/{id}/archive`, `archivedAt` on both records)
+- Archive projects and missions from the sidebar: hover a row (always shown on touch screens) and press the archive icon. Archived rows leave the sidebar but stay in the project list and on the Canon page, dimmed, marked "Archived" and listed last; restore a project from the project list and a mission from its own page (both pages can archive too). Archiving only hides the row; a running project or mission keeps running. The project list marks archived projects (`PUT /projects/{id}/archive`, `PUT /plans/{id}/archive`, `archivedAt` on both records)
 
 ### Changed
 - The Orchestrator's plan container is now called a **mission** (ミッション); "plan" (計画) stays for its content (rows, batches and 方針). zh / zhTw keep 计划 / 計畫, since 任务 / 工作 already name jobs there
