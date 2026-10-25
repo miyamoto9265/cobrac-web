@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.48.1] - 2026-10-25
+
 ### Fixed
 - A project whose saved agent thread had grown very large (hundreds of MB) could no longer be resumed: every retry stopped within a minute and was reported as a Spot interruption. A thread over 128 MB is now set aside (kept under `thread-archive/`, never shown as an artifact) and the run continues on a new thread from the saved files
 - A run that changes no file for 2 hours (the agent re-reading the same files after each context compaction) is now stopped with a clear message instead of looping until the 6-hour limit
