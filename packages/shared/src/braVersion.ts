@@ -34,6 +34,8 @@ export const isVersionNumber = (v: unknown): v is number => typeof v === "number
 // --- S3 keys (relative to `users/{userId}/{projectId}/`) ----------------------------------------------------------
 
 export const REVISIONS_PREFIX = "revisions/";
+/** The agent's saved session (`thread/`) and sessions set aside as too large to resume (`thread-archive/`): never served to users. */
+export const isThreadKey = (rel: string) => rel.startsWith("thread/") || rel.startsWith("thread-archive/");
 export const versionPrefix = (n: number) => `${REVISIONS_PREFIX}${n}/`;
 export const versionManifestKey = (n: number) => `${versionPrefix(n)}manifest.json`;
 /** `path` is where the file lives in the project prefix (`workspace/…`, `output/…`, `graph/…`). */

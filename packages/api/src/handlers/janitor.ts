@@ -1,6 +1,7 @@
 /**
  * Scheduled housekeeping:
- *  - RUNNING/FINALIZING jobs with a stale heartbeat → auto-retry (up to MAX_AUTO_RETRY, e.g. Spot interruption) or FAILED
+ *  - RUNNING/FINALIZING jobs with a stale heartbeat → auto-retry (up to MAX_AUTO_RETRY, e.g. Spot interruption) or FAILED;
+ *    the task's stop reason (from ECS) is logged, and a worker that ran out of memory is told apart from the generic case
  *  - WAITING_USER_INPUT jobs older than 7 days → FAILED (timeout)
  *  - QUEUED jobs older than 24h → FAILED
  * Jobs without a project (Canon AI reviews, BRA Planner plan jobs) are only marked FAILED, never retried; the PR page
@@ -10,6 +11,7 @@ import type { JobRecord } from "@cobrac/shared";
 import { HEARTBEAT_STALE_MS, WAITING_INPUT_TIMEOUT_MS, isProjectlessMode, newId, nowIso } from "@cobrac/shared";
 import { enqueueRun } from "../lib/aws.js";
 import { listJobsByStatus, putJob, putMessage, updateJob, updateProject } from "../lib/db.js";
+import { describeStoppedTask, isOutOfMemory } from "../lib/ecsTask.js";
 
 const MAX_AUTO_RETRY = Number(process.env.MAX_AUTO_RETRY ?? "2");
 
@@ -22,8 +24,13 @@ export async function handler() {
       if (now - hb <= HEARTBEAT_STALE_MS) continue;
       if (j.type === "canon-review") await failProjectless(j, "The worker stopped responding. Run the AI review again.");
       else if (isProjectlessMode(j.type)) await failProjectless(j, "The worker stopped responding.");
-      else if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
-      else await failJob(j, "The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.", "sys.heartbeatLost");
+      else {
+        const stopped = await describeStoppedTask(j.ecsTaskArn);
+        if (stopped) console.log(`[janitor] ${j.jobId} task stopped: ${JSON.stringify(stopped)}`);
+        if (j.retryCount < MAX_AUTO_RETRY) await autoRetry(j);
+        else if (isOutOfMemory(stopped)) await failJob(j, "The worker ran out of memory. Use “Retry from here” to continue.", "sys.outOfMemory");
+        else await failJob(j, "The worker stopped responding (for example a Fargate Spot interruption). Use “Retry from here” to continue.", "sys.heartbeatLost");
+      }
     }
   }
 
