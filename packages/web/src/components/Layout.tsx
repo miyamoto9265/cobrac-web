@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, BookMarked, ChevronRight, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X } from "lucide-react";
+import { Archive, BookMarked, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
@@ -48,23 +48,19 @@ export function Layout() {
   }, [navOpen]);
 
   const entries = historyEntries(projects, plans);
+  // archived rows are not shown here; they are restored from the project list or the mission's page
   const current = entries.filter((e) => !isArchived(e, plans));
-  const archived = entries.filter((e) => isArchived(e, plans));
-  const [archivedOpen, setArchivedOpen] = useState(false);
-  // archiving only hides a row (nothing stops); the row moves at once and the lists are read again
-  const archive = useCallback(
-    (e: HistoryEntry, value: boolean) => {
-      const at = value ? new Date().toISOString() : null;
-      if (e.kind === "plan") {
-        setPlans((m) => (m && m[e.planId] ? { ...m, [e.planId]: { ...m[e.planId], archivedAt: at } } : m));
-        void api.archivePlan(e.planId, value).catch(() => undefined).finally(notifyProjectsChanged);
-      } else {
-        setProjects((list) => list.map((p) => (p.projectId === e.project.projectId ? { ...p, archivedAt: at } : p)));
-        void api.archiveProject(e.project.projectId, value).catch(() => undefined).finally(notifyProjectsChanged);
-      }
-    },
-    [],
-  );
+  // archiving only hides a row (nothing stops); the row goes at once and the lists are read again
+  const archive = useCallback((e: HistoryEntry) => {
+    const at = new Date().toISOString();
+    if (e.kind === "plan") {
+      setPlans((m) => (m && m[e.planId] ? { ...m, [e.planId]: { ...m[e.planId], archivedAt: at } } : m));
+      void api.archivePlan(e.planId, true).catch(() => undefined).finally(notifyProjectsChanged);
+    } else {
+      setProjects((list) => list.map((p) => (p.projectId === e.project.projectId ? { ...p, archivedAt: at } : p)));
+      void api.archiveProject(e.project.projectId, true).catch(() => undefined).finally(notifyProjectsChanged);
+    }
+  }, []);
   const navCls = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-3 py-1.5 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
   // Settings and sign-out sit as icons beside the email.
@@ -135,19 +131,6 @@ export function Layout() {
           {current.map((e) => (
             <HistoryRow key={entryKey(e)} e={e} plans={plans} onArchive={archive} />
           ))}
-          {archived.length > 0 && (
-            <details className="group mt-2" data-testid="nav-archived" open={archivedOpen} onToggle={(ev) => setArchivedOpen((ev.target as HTMLDetailsElement).open)}>
-              <summary className="flex cursor-pointer list-none items-center gap-1 rounded-md px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-800/60 hover:text-slate-300 coarse:py-2.5 [&::-webkit-details-marker]:hidden">
-                <ChevronRight size={13} className="transition-transform group-open:rotate-90" aria-hidden />
-                <Archive size={12} aria-hidden /> {t("nav.archived")} <span className="tabular-nums">{archived.length}</span>
-              </summary>
-              <div className="opacity-80">
-                {archived.map((e) => (
-                  <HistoryRow key={entryKey(e)} e={e} plans={plans} onArchive={archive} archived />
-                ))}
-              </div>
-            </details>
-          )}
         </nav>
         <div className="border-t border-slate-800 p-2">
           {/* missions are listed on the Canon page, by the Canon they build */}
@@ -300,8 +283,8 @@ export function planRowStatus(projects: ProjectRecord[]): ProjectStatus | null {
 const rowCls = (active: boolean) =>
   `mb-px block w-full rounded-md py-1.5 pl-3 pr-8 text-left hover:bg-slate-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 coarse:pr-12 ${active ? "bg-slate-800 text-white" : "text-slate-200"}`;
 
-/** One row of the history: a plan (its projects as one) or a project, with an archive / restore button beside it. */
-function HistoryRow({ e, plans, onArchive, archived = false }: { e: HistoryEntry; plans: Record<string, PlanSummary> | null; onArchive: (e: HistoryEntry, archived: boolean) => void; archived?: boolean }) {
+/** One row of the history: a plan (its projects as one) or a project, with an archive button beside it. */
+function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<string, PlanSummary> | null; onArchive: (e: HistoryEntry) => void }) {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
@@ -355,19 +338,19 @@ function HistoryRow({ e, plans, onArchive, archived = false }: { e: HistoryEntry
       </button>
     );
   }
-  const action = t(archived ? "nav.unarchive" : "nav.archive");
+  const action = t("nav.archive");
   return (
     <div className="group relative motion-safe:animate-fade-in">
       {body}
       <button
         type="button"
-        onClick={() => onArchive(e, !archived)}
+        onClick={() => onArchive(e)}
         aria-label={action}
         title={action}
-        data-testid={archived ? "nav-unarchive" : "nav-archive"}
+        data-testid="nav-archive"
         className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 hover:bg-slate-700 hover:text-white focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 group-hover:opacity-100 coarse:h-11 coarse:w-11 coarse:top-0 coarse:opacity-100"
       >
-        {archived ? <ArchiveRestore size={14} aria-hidden /> : <Archive size={14} aria-hidden />}
+        <Archive size={14} aria-hidden />
       </button>
     </div>
   );

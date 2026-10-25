@@ -1,4 +1,4 @@
-import { Coins, Download, FolderOpen, GitFork, Network, Search } from "lucide-react";
+import { Archive, ArchiveRestore, Coins, Download, FolderOpen, GitFork, Network, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectRecord, ProjectStatus, UsageSummary } from "@cobrac/shared";
@@ -74,7 +74,7 @@ function UsageSummaryPanel({ s }: { s: UsageSummary }) {
   );
 }
 
-function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownload: () => void; onDelete: () => void }) {
+function ProjectActions({ p, onDownload, onArchive, onDelete }: { p: ProjectRecord; onDownload: () => void; onArchive: () => void; onDelete: () => void }) {
   const t = useT();
   const cls = "flex items-center justify-center rounded p-1.5 text-slate-500 hover:bg-slate-100 coarse:h-11 coarse:w-11";
   return (
@@ -95,7 +95,17 @@ function ProjectActions({ p, onDownload, onDelete }: { p: ProjectRecord; onDownl
           </button>
         </>
       )}
-      <span className="ml-auto">
+      <span className="ml-auto flex items-center gap-1">
+        <button
+          type="button"
+          title={t(p.archivedAt ? "nav.unarchive" : "nav.archive")}
+          aria-label={t(p.archivedAt ? "nav.unarchive" : "nav.archive")}
+          onClick={onArchive}
+          className={cls}
+          data-testid={p.archivedAt ? "project-unarchive" : "project-archive"}
+        >
+          {p.archivedAt ? <ArchiveRestore size={15} /> : <Archive size={15} />}
+        </button>
         <DeleteProjectButton project={p} variant="icon" onConfirm={onDelete} />
       </span>
     </>
@@ -124,6 +134,21 @@ export function ProjectsPage() {
   const downloadXlsx = async (p: ProjectRecord) => {
     const { url } = await api.downloadUrl(p.projectId, `output/${p.projectId}.bra.xlsx`);
     window.location.href = url;
+  };
+
+  // archiving only hides the project from the sidebar; restoring brings it back
+  const archiveProject = (p: ProjectRecord) => {
+    const archived = !p.archivedAt;
+    const set = (archivedAt: string | null | undefined) => setItems((list) => list.map((x) => (x.projectId === p.projectId ? { ...x, archivedAt } : x)));
+    set(archived ? new Date().toISOString() : null);
+    setErr(null);
+    api
+      .archiveProject(p.projectId, archived)
+      .then(() => notifyProjectsChanged())
+      .catch((e) => {
+        set(p.archivedAt);
+        setErr(e instanceof Error ? e.message : String(e));
+      });
   };
 
   const deleteProject = (p: ProjectRecord) => {
@@ -192,7 +217,7 @@ export function ProjectsPage() {
               <span>{fmtDate(p.updatedAt, locale)}</span>
             </div>
             <div className="mt-2 flex items-center gap-1 border-t border-slate-100 pt-2">
-              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
+              <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onArchive={() => archiveProject(p)} onDelete={() => deleteProject(p)} />
             </div>
           </li>
         ))}
@@ -260,7 +285,7 @@ export function ProjectsPage() {
                 <td className="whitespace-nowrap px-4 py-2 text-xs text-slate-500">{fmtDate(p.updatedAt, locale)}</td>
                 <td className="px-2 py-2">
                   <div className="flex items-center justify-end gap-1">
-                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onDelete={() => deleteProject(p)} />
+                    <ProjectActions p={p} onDownload={() => void downloadXlsx(p)} onArchive={() => archiveProject(p)} onDelete={() => deleteProject(p)} />
                   </div>
                 </td>
               </tr>

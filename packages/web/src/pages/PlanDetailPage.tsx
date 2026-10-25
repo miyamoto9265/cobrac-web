@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, RotateCcw, Send, SkipForward, Square, Trash2, Upload, X } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, RotateCcw, Send, SkipForward, Square, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
@@ -15,6 +15,7 @@ import { PlanPolicyView } from "../components/plan/PlanPolicyView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
+import { notifyProjectsChanged } from "../lib/projectList";
 import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
 import { canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
@@ -773,9 +774,29 @@ export function PlanDetailPage() {
             <PlanStatusBadge status={plan.status} />
             <AutonomousBadge plan={plan} />
           </span>
+          {plan.archivedAt && (
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="plan-archived">
+              {t("cm.archived")}
+            </span>
+          )}
           <span className="font-mono text-[11px] text-slate-500" title={t("plan.planId")}>
             {plan.planId}
           </span>
+          {/* archiving only hides the mission from the sidebar; it keeps running */}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => act(() => api.archivePlan(planId, !plan.archivedAt), () => {
+              notifyProjectsChanged();
+              void load();
+            })}
+            className={iconBtn}
+            aria-label={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
+            title={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
+            data-testid={plan.archivedAt ? "plan-unarchive" : "plan-archive"}
+          >
+            {plan.archivedAt ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+          </button>
           <HelpLink section="planner" />
         </div>
 
