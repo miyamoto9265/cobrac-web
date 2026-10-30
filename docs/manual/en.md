@@ -97,7 +97,7 @@ Each output appears in its tab when its step is done.
 - **FRG graph**: a tree from the TLF through GNs to UCs. Selecting a UC or a GN can take you to, or highlight, the matching circuits in the HCD.
 - **Tables**: the five CSV files as tables; the raw files can be downloaded.
 - **Report and decision log**: the agent's report of the work, and what it decided and why.
-- **BRA xlsx**: when the data is complete, the header has the download buttons "BRA xlsx" (CoBRAC's format) and "BRA xlsx (Template-v2-3)" (the official template's format).
+- **BRA xlsx**: when the data is complete, the header has the download buttons "BRA data (xlsx)" (the official Template-v2-3 format) and "CSV set (xlsx)" (CoBRAC's CSV files in one workbook). "BRA data (xlsx)" is the one you normally use.
 
 ### Versions
 

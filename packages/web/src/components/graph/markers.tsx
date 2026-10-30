@@ -66,11 +66,14 @@ function shape(type: ArrowHead, color: string, hollow?: string): { el: ReactElem
 /**
  * SVG <marker> definitions for every (type, color, width) combination currently in use.
  * Rendered once inside the flow; edges reference them with url(#id).
+ * The PNG export copies this element into the captured viewport (it sits outside it), so the arrows survive.
  */
+export const MARKER_DEFS_CLASS = "cobrac-marker-defs";
+
 export function MarkerDefs({ markers }: { markers: MarkerSpec[] }) {
   if (markers.length === 0) return null;
   return (
-    <svg style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
+    <svg className={MARKER_DEFS_CLASS} style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }} aria-hidden>
       <defs>
         {markers.map((m) => {
           if (m.type === "none") return null;

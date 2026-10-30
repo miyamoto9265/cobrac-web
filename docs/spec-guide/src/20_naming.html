@@ -56,7 +56,7 @@
 <table>
   <thead><tr><th style="width:24%">形</th><th>意味</th><th style="width:22%">例</th></tr></thead>
   <tbody>
-    <tr><td><code>HOMBA:&lt;id&gt;</code></td><td>SABRA の DHBA 側の単位。DHBA 名を持つ HOMBA の項に限る</td><td><code>HOMBA:12261</code>（VTA）</td></tr>
+    <tr><td><code>HOMBA:&lt;id&gt;</code></td><td>SABRA の DHBA 側の単位。DHBA 名を持つ HOMBA の項に限る。白質（線維束）の項は使えない</td><td><code>HOMBA:12261</code>（VTA）</td></tr>
     <tr><td><code>BNA:&lt;左&gt;-&lt;右&gt;</code></td><td>BNA の新皮質の 1 領域。常に左右のペア（奇数と、奇数 + 1）</td><td><code>BNA:57-58</code>（A4ul）</td></tr>
     <tr><td><code>BNAG:&lt;L2 略称&gt;</code></td><td>BNA の新皮質の L2 の群（回など）の全体。RCS の結果の分布が広く、1 つの領域に決まらないときに使う</td><td><code>BNAG:MFG</code></td></tr>
     <tr><td><code>A&amp;B</code></td><td>複数の SABRA の単位にまたがる回路</td><td><code>HOMBA:…&amp;HOMBA:…</code></td></tr>
@@ -66,6 +66,7 @@
   <li><code>SABRA:</code> や <code>DHBA:</code> という接頭辞は作りません。SABRA は独自の ID を持たないためです。</li>
   <li>BNA の担当範囲である新皮質の中をさらに細かく分けるときは、BNA のアンカーの下に <code>part:HOMBA:…</code> として書きます。逆向きに、DHBA のアンカーの下に BNA の領域を part として置くことはしません。</li>
   <li>脊髄のように、HOMBA の階層をたどっても DHBA 名を持つ項がない領域は、SABRA の単位になりません。この場合のアンカーには、RCS が返す最も近い DHBA の祖先を使い、細かい部位は <code>part</code> に書きます。投射先や入力元（<code>out</code> / <code>in</code>）の値としては、その項をそのまま書けます。</li>
+  <li>白質（脳の <code>wm</code>、脊髄の <code>spwm</code> の下にある HOMBA の項。脳梁、内包、脳弓、内側前脳束など）は、DHBA 名を持っていてもアンカーに使えません。線維束はニューロンの集団ではないからです。ワーカーの検査は、RCS の <code>get_homba_term</code> が返す祖先でこれを見分け、線維を送るか受ける灰白質の領域をアンカーにするよう直させます。線維束の名前は、出典にあれば Connection のコメントに書けます。</li>
 </ul>
 
 <h3>RCS でアンカーを決める手順</h3>

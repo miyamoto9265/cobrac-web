@@ -33,6 +33,7 @@ const SABRA: SabraLookup = new Map<string, HombaSabraInfo | null>([
   ["HOMBA:12852", dhba("FNCb", "HOMBA:12852")],
   ["HOMBA:AA30423", { atlas: "DHBA", dhbaAcronym: "", dhbaExact: false, dhbaHombaId: "HOMBA:12852", dhbaAncestorAcronym: "FNCb" }],
   ["HOMBA:10339", { atlas: "BNA", dhbaAcronym: "", dhbaExact: false, dhbaHombaId: "", dhbaAncestorAcronym: "" }],
+  ["HOMBA:10561", { ...dhba("cc", "HOMBA:10561", "corpus callosum"), whiteMatter: true }],
   ["HOMBA:99999", null],
 ]);
 
@@ -187,6 +188,10 @@ describe("UC naming convention", () => {
     expect(errorsFor("CH10(purkinje)", "HOMBA:AA30423/cell:purkinje")).toMatch(/no DHBA name.*HOMBA:12852 \(FNCb\); add part:HOMBA:AA30423 only if/);
     expect(errorsFor("NAC", "HOMBA:10339")).toMatch(/BNA territory/);
     expect(errorsFor("X", "HOMBA:99999")).toMatch(/not a HOMBA term known to RCS/);
+  });
+
+  it("rejects white-matter (fibre tract) anchors even when they have a DHBA name", () => {
+    expect(errorsFor("cc", "HOMBA:10561")).toMatch(/HOMBA:10561 is white matter.*gray-matter region/);
   });
 
   it("skips only the abbreviation check when RCS could not be asked", () => {

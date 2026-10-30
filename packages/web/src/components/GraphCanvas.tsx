@@ -5,6 +5,7 @@ import {
   Controls,
   MiniMap,
   ReactFlow,
+  Position,
   ReactFlowProvider,
   getNodesBounds,
   getViewportForBounds,
@@ -32,8 +33,9 @@ import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, parseHandleId, type 
 import { GroupBox, type GGroup, type GroupBoxType, type GroupData } from "./graph/GroupBox";
 import { OverflowMenu, SaveStatus, SearchBox, ToolButton, ToolDivider, type MenuItem } from "./graph/GraphToolbar";
 import { Legend, type LegendItem } from "./graph/Legend";
-import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
+import { MARKER_DEFS_CLASS, MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
 import { EdgeStylePanel, NodeStylePanel } from "./graph/StylePanel";
+import { routeAround, segmentsOf, type Obstacle, type TakenSegment } from "./graph/route";
 import { StyledEdge, resolveEdgeStyle, type EdgeData, type StyledEdgeType } from "./graph/StyledEdge";
 
 export type { GNode } from "./graph/BoxNode";
@@ -154,6 +156,17 @@ function autoHandles(a: XY & Size, b: XY & Size): { source: string; target: stri
     t = dy > 0 ? "top" : "bottom";
   }
   return { source: handleId(s, 0.5), target: handleId(t, 0.5) };
+}
+
+const SIDE_POSITION: Record<HandleSide, Position> = { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left };
+
+/** Where a handle sits on its node (the point an edge starts or ends at), with the side it faces. */
+function handlePoint(handle: string, r: XY & Size): { p: XY; pos: Position } | null {
+  const h = parseHandleId(handle);
+  if (!h) return null;
+  const p =
+    h.side === "top" ? { x: r.x + h.f * r.width, y: r.y } : h.side === "bottom" ? { x: r.x + h.f * r.width, y: r.y + r.height } : h.side === "left" ? { x: r.x, y: r.y + h.f * r.height } : { x: r.x + r.width, y: r.y + h.f * r.height };
+  return { p, pos: SIDE_POSITION[h.side] };
 }
 
 /** How far an edge end may slide from its handle along the node side (keeps a margin to the corner). */
@@ -351,6 +364,12 @@ function Inner({
   // --- edges --------------------------------------------------------------------
   const onWaypointsChange = useCallback((id: string, wps: XY[]) => layout.setEdgeStyle(id, { waypoints: wps.length ? wps : undefined }), [layout]);
 
+  /** Boxes the right-angle lines go around */
+  const obstacles = useMemo<Obstacle[]>(
+    () => nodes.flatMap((n) => (positions[n.id] ? [{ id: n.id, ...positions[n.id], ...(sizes[n.id] ?? { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H }) }] : [])),
+    [nodes, positions, sizes],
+  );
+
   const { rfEdges, markers } = useMemo(() => {
     const mk = new Map<string, MarkerSpec>();
     const addMarker = (m: MarkerSpec) => {
@@ -358,6 +377,9 @@ function Inner({
     };
     const lanes = parallelLanes(edges, (id) => !!L.edges[id]?.waypoints?.length);
     const loops = selfLoopIndex(edges);
+    // right-angle lines are routed one after the other, each avoiding the boxes and the lines routed before it
+    const taken: TakenSegment[] = [];
+    const rect = (id: string) => (positions[id] ? { ...positions[id], ...(sizes[id] ?? { width: DEFAULT_NODE_W, height: DEFAULT_NODE_H }) } : null);
     const list = edges.map<StyledEdgeType>((e) => {
       const override = L.edges[e.id];
       const resolved = resolveEdgeStyle(e.sign, override, e.dashed);
@@ -374,6 +396,18 @@ function Inner({
       const sourceHandle = override?.sourceHandle ?? autoH.source;
       const targetHandle = override?.targetHandle ?? autoH.target;
       const lane = lanes.get(e.id);
+      let route: XY[] | undefined;
+      if (!self && !lane && style.lineType === "orthogonal" && !style.waypoints.length) {
+        const ra = rect(e.source);
+        const rb = rect(e.target);
+        const hs = ra && handlePoint(sourceHandle, ra);
+        const ht = rb && handlePoint(targetHandle, rb);
+        const pts = hs && ht ? routeAround(hs.p, hs.pos, ht.p, ht.pos, obstacles, taken, e.source) : null;
+        if (pts) {
+          route = pts;
+          taken.push(...segmentsOf(pts, e.source));
+        }
+      }
       return {
         id: e.id,
         type: "styled",
@@ -396,12 +430,14 @@ function Inner({
           dim: !!focus && (focus.edges ? !related : !(focus.nodes.has(e.source) && focus.nodes.has(e.target))),
           editing: editing && e.id === selectedEdgeId,
           onWaypointsChange,
+          obstacles,
+          route,
           ...(e.hypothesis ? { hypothesis: { title: e.hypothesis.title, hollow } } : {}),
         } satisfies EdgeData,
       };
     });
     return { rfEdges: list, markers: [...mk.values()] };
-  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing, dark, canvas.bg]);
+  }, [edges, L.edges, positions, sizes, selectedEdgeId, focus, showLabels, onWaypointsChange, editing, dark, canvas.bg, obstacles]);
 
   // Reconnect = move an edge end to another handle of the *same* node.
   const onReconnect = useCallback(
@@ -518,6 +554,9 @@ function Inner({
     const el = canvasRef.current?.querySelector<HTMLElement>(".react-flow__viewport");
     if (!el) return;
     setExporting(true);
+    // the marker <defs> live outside the viewport; without a copy inside it the PNG loses every arrow head
+    const defs = canvasRef.current?.querySelector(`.${MARKER_DEFS_CLASS}`)?.cloneNode(true) ?? null;
+    if (defs) el.prepend(defs);
     try {
       const bounds = getNodesBounds(rf.getNodes());
       const pad = 40;
@@ -538,6 +577,7 @@ function Inner({
       a.download = `${exportName}.png`;
       a.click();
     } finally {
+      if (defs) (defs as ChildNode).remove();
       setExporting(false);
     }
   };

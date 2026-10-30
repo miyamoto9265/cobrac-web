@@ -58,7 +58,12 @@ export interface HombaSabraInfo {
   dhbaAncestorAcronym: string;
   /** The term's DHBA name when `dhbaExact` (empty when RCS did not return it) */
   dhbaName?: string;
+  /** True when the term lies in the white matter (fibre tracts) of the brain or spinal cord: never a UC anchor */
+  whiteMatter?: boolean;
 }
+
+/** HOMBA roots of the white matter: of the brain (`wm`) and of the spinal cord (`spwm`). Terms under them are fibre tracts. */
+export const WHITE_MATTER_HOMBA_IDS: readonly string[] = ["HOMBA:AA30482", "HOMBA:146035088"];
 
 /**
  * HOMBA facts keyed by `HOMBA:<id>`. A missing key means "could not be looked up" (the head check is skipped);
@@ -333,6 +338,9 @@ function anchorHead(a: UcAnchor, sabra: SabraLookup | undefined): { head: string
   if (!sabra?.has(a.id)) return { unknown: true };
   const info = sabra.get(a.id);
   if (!info) return { error: `${a.id} is not a HOMBA term known to RCS` };
+  if (info.whiteMatter) {
+    return { error: `${a.id} is white matter (a fibre tract), not a population of neurons: anchor the UC on the gray-matter region whose neurons send or receive these fibres, and name the tract in the connection's comment if the source gives it` };
+  }
   if (info.atlas === "BNA") {
     return { error: `${a.id} lies in BNA territory of SABRA: anchor on the BNA area (BNA:<label>, BNA:<l>-<r> or BNAG:<L2> from search_bna_candidates); add part:${a.id} only if the UC is finer than that area` };
   }

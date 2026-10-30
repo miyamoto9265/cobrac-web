@@ -11,7 +11,7 @@ import { HideHypothesesButton, HypothesesHiddenBanner, hypothesisLegend } from "
 import { HypothesisDetail, markTitle } from "../components/hypothesis/HypothesisInfo";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
-import { circuitsUnderGroup, frgIdForCircuit, parentGroupsOfCircuit } from "../lib/graphView";
+import { circuitsUnderGroup, detachedNodes, frgIdForCircuit, parentGroupsOfCircuit } from "../lib/graphView";
 import { useGraphLayout, type GraphLayoutController } from "../lib/useGraphLayout";
 import { useProjectName } from "../lib/useProjectName";
 
@@ -152,7 +152,14 @@ export function HcdGraphView({ graph: fullGraph, frg, layout, exportName, frgBas
       collection ? collection.members : motif ? motif.ucs.filter((id) => byId.has(id)) : group ? circuitsUnderGroup(frg, group).filter((id) => byId.has(id)) : [],
     [collection, motif, group, frg, byId],
   );
-  const groupSet = useMemo(() => (groupIds.length ? new Set(groupIds) : emphasis), [groupIds, emphasis]);
+  /** UCs cut off from the part of the HCD that holds the ROI-internal UCs (usually a gap in the connections) */
+  const detached = useMemo(
+    () => detachedNodes(graph.nodes.map((n) => n.id), graph.edges, new Set(graph.nodes.filter((n) => n.roiClass === "roi").map((n) => n.id))),
+    [graph],
+  );
+  const [showDetached, setShowDetached] = useState(false);
+  const shownDetached = showDetached && detached.length > 0 && !groupIds.length;
+  const groupSet = useMemo(() => (groupIds.length ? new Set(groupIds) : shownDetached ? new Set(detached) : emphasis), [groupIds, shownDetached, detached, emphasis]);
   const edge = graph.edges.find((e) => e.id === selectedEdge) ?? null;
 
   const select = useCallback(
@@ -292,7 +299,7 @@ export function HcdGraphView({ graph: fullGraph, frg, layout, exportName, frgBas
           exportName={exportName}
           legend={legend}
           highlightIds={groupSet}
-          focusIds={groupIds}
+          focusIds={shownDetached ? detached : groupIds}
           groups={groups}
           showGroups={showCollections}
           selectedGroupId={collection?.id ?? null}
@@ -342,6 +349,15 @@ export function HcdGraphView({ graph: fullGraph, frg, layout, exportName, frgBas
               </div>
             ) : hideHypotheses && hypothesisCount > 0 ? (
               <HypothesesHiddenBanner onShow={() => setHideHypotheses(false)} />
+            ) : detached.length > 0 ? (
+              <div data-testid="detached-banner" className="flex max-w-full items-center gap-2 rounded-md border border-amber-300 bg-amber-50/95 px-2.5 py-1 text-[11px] text-amber-900 shadow-sm">
+                <span className="min-w-0 truncate" title={detached.join(", ")}>
+                  {t("graph.detached", { n: detached.length })}
+                </span>
+                <button type="button" onClick={() => setShowDetached((v) => !v)} aria-pressed={showDetached} className="shrink-0 rounded px-1 font-medium underline hover:bg-amber-100 coarse:min-h-11">
+                  {showDetached ? t("graph.detachedHide") : t("graph.detachedShow")}
+                </button>
+              </div>
             ) : undefined
           }
         />

@@ -215,6 +215,8 @@ function VersionDetail({
     ["ver.hash", item.contentSha256 ? <span className="font-mono" title={item.contentSha256}>{short(item.contentSha256, 16)}</span> : unknown],
     ["ver.app", g?.appVersion ? <span className="font-mono">v{g.appVersion}{g.gitSha ? ` · ${g.gitSha}` : ""}</span> : unknown],
     ["ver.model", item.model ? <span className="font-mono">{item.model}{item.reasoningEffort ? ` / ${item.reasoningEffort}` : ""}</span> : unknown],
+    ["ver.seed", <span className="text-slate-500">{t("ver.seedNone")}</span>],
+    ["ver.prompts", g?.promptsSha256 ? <span className="font-mono" title={g.promptsSha256}>{short(g.promptsSha256, 16)}</span> : unknown],
     ["ver.research", g?.researchMode === undefined || g?.researchMode === null ? unknown : t(g.researchMode ? "sys.researchOn" : "sys.researchOff")],
     ["ver.canon", g?.canon ? <span className="font-mono">{g.canon.canonId} · rev {g.canon.revision}</span> : "—"],
     ["ver.sabra", g?.sabraBoundary ? <span className="font-mono">{g.sabraBoundary}{g.rcsBoundaryVersion ? ` · RCS ${g.rcsBoundaryVersion}` : ""}</span> : unknown],
