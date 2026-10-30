@@ -179,7 +179,7 @@
 <ul>
   <li>ワーカーは、ジョブがまだ待機中のときだけ引き受けます。キーを解決・復号し（なければジョブを失敗にする）、待機中であることを条件にジョブを実行中にします。その間に取り消された下書きは、取り消されたままです。</li>
   <li>添付ファイルを材料のフォルダにコピーし、xlsx と PDF の本文を、参考資料（4.2）と同じ方法で取り出します。</li>
-  <li>RCS の MCP の 4 つのツールだけを使い、Web 検索も文献ツールも使わずに、LLM を 1 ターン動かします。RCS が設定されていない環境では、アンカーを空にしてその旨をメモに書くよう指示します。</li>
+  <li>RCS の MCP のツールだけを使い、Web 検索も文献ツールも使わずに、LLM を 1 ターン動かします。RCS が設定されていない環境では、アンカーを空にしてその旨をメモに書くよう指示します。</li>
   <li>依頼文は、指示書 <code>prompts/plan.md</code>（付録 B）、仕事の種類（下書きか再計画か）、返答の言語、添付ファイルの索引、入力の JSON からなります。</li>
   <li>返答は、決まった形の JSON のオブジェクト（プロジェクト・読めなかった項目・方針・提案・メモ・質問。すべて必須）だけです。読めなければ 1 回だけ頼み直します。</li>
 </ul>
@@ -286,7 +286,7 @@
   <li><b>質問</b>：上限は <code>PLAN_ASK_LIMITS</code>（1 回 3 個、2 回まで、提案の答え 4 個まで）。質問の回は下書きの状態の <code>qa</code>（<code>PlanDraftRound</code>：<code>questions</code>・<code>answers</code>・<code>askedAt</code>・<code>answeredAt</code>・<code>skipped</code>）。ジョブの入力は <code>ask</code>（<code>planMayAsk</code>）と <code>qa</code>（<code>planQaInput</code>。答えた回だけ、空欄は <code>""</code>）。</li>
   <li><b>ジョブ</b>：<code>type: "plan"</code>、<code>planJobKind: "draft"</code>、<code>projectId</code> にはミッション ID を入れる。入力は <code>plans/{planId}/jobs/{jobId}/input.json</code>、結果はその隣の <code>result.json</code>。ワーカーのキーの解決は <code>planRunKey</code>。</li>
   <li><b>入力</b>：未読の添付は <code>{ id, name, key }</code> で渡す。完成したプロジェクトの印は <code>completed</code>。</li>
-  <li><b>ワーカー</b>（<code>runPlanJob</code>）：<code>QUEUED</code> を条件に <code>RUNNING</code> にする。取り出した本文は <code>plans/{planId}/attachments/derived/</code> に残す。RCS のツールは <code>search_bna_candidates</code>・<code>search_homba_candidates</code>・<code>get_homba_term</code>・<code>get_sabra_definition</code>。依頼文は <code>planJobPrompt</code>、頼み直しは <code>PLAN_RETRY_PROMPT</code>。</li>
+  <li><b>ワーカー</b>（<code>runPlanJob</code>）：<code>QUEUED</code> を条件に <code>RUNNING</code> にする。取り出した本文は <code>plans/{planId}/attachments/derived/</code> に残す。RCS のツールは <code>search_bna_candidates</code>・<code>search_homba_candidates</code>・<code>get_homba_term</code>・<code>get_sabra_definition</code>・<code>map_coordinates</code>（<code>RCS_TOOLS</code>。HCD と共通）。依頼文は <code>planJobPrompt</code>、頼み直しは <code>PLAN_RETRY_PROMPT</code>。</li>
   <li><b>返答の形</b>：<code>PLAN_RESULT_SCHEMA</code>（<code>rows</code>・<code>unread</code>・<code>policy</code>・<code>proposals</code>・<code>notes</code>・<code>questions</code>）。結果のファイルは <code>PlanJobResult</code>（スキーマ <code>cobrac.plan-result/1</code>、種類、ミッションとジョブの ID、モデル、言語、時刻、検査したプロジェクト・<code>unread</code>・方針・提案・<code>notes</code>・<code>dropped</code>）。新しいプロジェクトの出所 <code>source</code> は、目標なら <code>goal</code>、入力のプロジェクトなら <code>input</code>。</li>
   <li><b>時間の予算</b>：<code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）、<code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、件数のしきい値 <code>PLAN_JOB_SHORT_ROWS</code>（20）。打ち切ったターンの使用量はセッションのファイルから測り、SIGTERM のときはそこまでの使用量を記録する。</li>
   <li><b>検査</b>：<code>parsePlanResult</code>。入力のプロジェクトは <code>ref</code>、新しいプロジェクトは <code>id</code> で受け取る。アンカーの正規化は <code>normalizePlanAnchor</code>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）。上限は <code>MAX_ROW_ANCHORS</code>（40）・<code>MAX_PLAN_UNREAD</code>（200）・<code>MAX_PLAN_PROPOSALS</code>（30）。提案の種類は <code>add</code> / <code>remove</code> / <code>policy</code>。ランナーの再検査は <code>readPlanResult</code>。</li>

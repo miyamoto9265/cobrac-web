@@ -143,7 +143,7 @@ const isWhiteMatter = (t: TermResult) => [t.homba_id, ...(t.ancestors ?? []).map
 
 /** Codex `config` entry for the RCS server; the token stays in an env var that agent shell commands do not inherit. */
 export const RCS_TOKEN_ENV = "RCS_MCP_TOKEN";
-export const RCS_TOOLS = ["search_homba_candidates", "search_bna_candidates", "get_homba_term", "get_sabra_definition"];
+export const RCS_TOOLS = ["search_homba_candidates", "search_bna_candidates", "get_homba_term", "get_sabra_definition", "map_coordinates"];
 
 export function rcsCodexConfig(conn: RcsConnection) {
   return {

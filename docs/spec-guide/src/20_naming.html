@@ -83,6 +83,15 @@
 </table>
 <p class="small">BNA の領域を 1 つに決める目安は、上位の候補の <code>p_raw</code> が 0.5 以上で、<code>k_papers</code> が 2 以上であることです。</p>
 
+<h3>座標からアンカーを決める（CBM）</h3>
+<p>論文が領域の座標（MNI か Talairach のピーク、mm）を報告していて、領域の名前があいまいなときは、エージェントは RCS の <code>map_coordinates</code>（CBM、Coordinate-to-Brain Mapper）でその座標を SABRA の単位に対応づけます。座標の空間は論文に従い、Talairach だけ <code>TAL</code> とします（RCS が MNI に変換します）。RCS は CBM_v0 の SABRA のボリューム（MNI152、0.5 mm）を引き、点ごとに次を返します。</p>
+<ul>
+  <li><code>status</code>：灰白質 <code>gray_matter</code>、白質 <code>white_matter</code>、脳室 <code>ventricle</code>、BNA の領域のまわりの帯 <code>cortex_outside_bna</code>、ラベルのない場所 <code>unassigned</code>、ボリュームの外 <code>out_of_bounds</code> など。</li>
+  <li><code>region.anchor</code>：灰白質の点のアンカー（新皮質は <code>BNA:&lt;左&gt;-&lt;右&gt;</code>、それ以外は <code>HOMBA:&lt;id&gt;</code>）。白質などの点では空です。</li>
+  <li><code>overlap</code>：点のまわりの球（既定は半径 3 mm）に占める各領域の割合。<code>nearest_gray_matter</code>：灰白質でない点から近い灰白質の領域と距離。</li>
+</ul>
+<p>最も大きい割合が 0.5 未満の点は境界にあるので、論文の名前か共通の単位を優先します。座標はピークの位置を示すだけなので、論文が述べる領域の名前と食い違うときは名前に従います。アンカーを決めた点は <code>decision_log.md</code> に書きます。</p>
+
 <h3>BNA と DHBA の境界</h3>
 <p>SABRA の仕様（2026-10-04）では、BNA を使うのは<b>新皮質だけ</b>です。BNA にはラベルがあっても、新皮質でない領域は DHBA の項で表します。対象は、扁桃体 <code>Amyg</code>、海馬 <code>Hipp</code>、大脳基底核 <code>BG</code>、視床 <code>Tha</code> の皮質下の 36 ラベルと、海馬体・嗅内皮質などの不等皮質です。領域ごとの表し方は次のとおりです。</p>
 <table class="compact">
