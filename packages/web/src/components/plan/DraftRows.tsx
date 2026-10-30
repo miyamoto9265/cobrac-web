@@ -226,7 +226,7 @@ function rowSummary(r: DraftRow, mark: "changed" | "added" | null, names: Readon
 }
 
 /**
- * 「2. 行とバッチ」: the rows of a draft in a table grouped by wave (a heading row at each change of wave, so a row keeps
+ * 「2. プロジェクトとバッチ」: the rows of a draft in a table grouped by wave (a heading row at each change of wave, so a row keeps
  * its inputs and focus when its wave changes). Each row shows ROI, TLF and a short line of its anchors and relations;
  * its details hold the rationale, the wave, the anchors and 「作り直す」. While the draft is written the table is read-only.
  */

@@ -175,7 +175,7 @@ test("a Hypothetical row without the Hypothesis ( first line violates cobrac:hyp
     const code = r.codes.find((c) => c.code === "cobrac:hypothesis-marked");
     assert.equal(code.status, "violation", JSON.stringify(existenceComment));
     assert.equal(code.count, 1);
-    assert.equal(code.examples[0], `Connections 3 行: A44d -> TE1.0 Comments="${existenceComment.split("\n")[0]}"`);
+    assert.equal(code.examples[0], `Connections #3: A44d -> TE1.0 Comments="${existenceComment.split("\n")[0]}"`);
     assert.match(code.note, /Hypothetical は存在の仮説の印/);
     // the other codes are unaffected; only the unmarked row drops out of the hypothesis count
     assert.deepEqual(r.codes.filter((c) => !["ok", "manual"].includes(c.status)).map((c) => c.code), ["cobrac:hypothesis-marked"]);
@@ -314,5 +314,5 @@ test("CLI prints the report and exits 0", () => {
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /集計（43 コード）: 違反 0/);
   assert.match(r.stdout, /\| cobrac:hypothesis-marked \|  \| Comments \| .* \| OK \|/);
-  assert.match(r.stdout, /\| 仮説（Comments の 1 行目が Hypothesis \( の行） \| Connections 0 \/ 1、/);
+  assert.match(r.stdout, /\| 仮説（Comments の先頭が Hypothesis \( のレコード） \| Connections 0 \/ 1、/);
 });

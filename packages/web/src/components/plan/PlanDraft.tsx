@@ -19,7 +19,7 @@ const costRange = (e: PlanEstimate, t: TFn) => t("pd.costRange", { min: formatUs
 
 /**
  * A plan before confirmation (DRAFT, or DRAFTING while its draft job runs), from the top: the banner, 「1. 作るもの」,
- * 「2. 行とバッチ」, 「3. 進め方」, 「4. 確定して開始」, then the history and 「計画を削除」. No project exists yet, so the
+ * 「2. プロジェクトとバッチ」, 「3. 進め方」, 「4. 確定して開始」, then the history and 「計画を削除」. No project exists yet, so the
  * progress, waves, time and cost of a running plan are not shown.
  */
 export function PlanDraft({
