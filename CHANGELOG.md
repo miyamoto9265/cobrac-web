@@ -9,6 +9,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Saving an HCD, FRG or Canon graph as PNG dropped every arrow head (the lines were drawn, but not their direction). The PNG now shows the arrows as on screen
 
 ### Changed
+- The new mission screen now looks like the new project screen: a centred title over one rounded input card with tagged "Name" and "Goal" fields and a toolbar. Files and pasted lists are added from the "+" menu (files show as removable chips, a pasted list as a "List" field in the card), the "Autonomous run ≤ $limit" chip opens the cost limit and the "Handle pull requests and conflicts yourself" option, and the round blue button on the right starts the mission ("Start", or "Create mission" with "Create draft" beside it when you handle the mission yourself)
 - The project header's xlsx buttons: the official Template-v2-3 workbook is now the main button on the left, named "BRA data (xlsx)"; the workbook that gathers CoBRAC's CSV files follows it as "CSV set (xlsx)"
 - Graph edges are now drawn with right angles by default (they were curves) and go around the other boxes instead of under them, avoiding lines from other nodes where they can. Edges whose line type or bends the user set keep them
 

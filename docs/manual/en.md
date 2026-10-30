@@ -167,8 +167,8 @@ The project header shows the rev the project follows (for example "rev 1 (latest
 ### Create a mission
 
 1. Press "+ Mission" at the top of the sidebar and enter a name and a goal (for example "Cover the BRA of language").
-2. Under “Source list”, add files (CSV, xlsx, PDF and others) or choose “Paste rows” and paste them. One row is one project.
-3. "Start autonomous run" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal, files or rows.
+2. With the “+” under the fields, add files (CSV, xlsx, PDF and others) or choose “Paste a list” and paste one. Each entry of the list is one project.
+3. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
 4. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
 5. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
@@ -195,9 +195,9 @@ With a Canon set on the mission, each completed row is pushed to the Canon autom
 
 ### Autonomous run
 
-In an **autonomous run** the Orchestrator acts for you and takes the mission to the end. It is the default for a new mission: enter a **cost limit** (USD) in the new mission form and press "Start autonomous run".
+In an **autonomous run** the Orchestrator acts for you and takes the mission to the end. It is the default for a new mission: check the **cost limit** (USD) on the "Autonomous run" chip of the new mission screen and press "Start".
 
-To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the form or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
+To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the "Autonomous run" chip of the new mission screen or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
 - Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the mission is created.
 - The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the mission's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
