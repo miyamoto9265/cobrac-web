@@ -199,14 +199,14 @@ describe("the history of an autonomous plan", () => {
     await render(`/plans/${PLAN}`);
     const text = q('[data-testid="plan-history"]')!.textContent!;
     expect(text).toContain("オーケストレーター（AI）が質問に回答");
-    expect(text).toContain("オーケストレーター（AI）が行を判断（リトライ）");
+    expect(text).toContain("オーケストレーター（AI）がプロジェクトを判断（リトライ）");
   });
 });
 
 describe("the texts of the autonomous run", () => {
   it("says that the Orchestrator acts for the owner", () => {
     expect(AUTONOMOUS_CATALOG.ja["auto.help"]).toBe(
-      "オーケストレーターが人の代わりになって、最後まで進めます。下書きを確定し、エージェントの質問に答え、ミッションの PR を承認・変更依頼・却下し、要対応・人の判断の行を決め、再計画の提案を反映します。費用の上限に達すると新しい行を始めません。",
+      "オーケストレーターが人の代わりになって、最後まで進めます。下書きを確定し、エージェントの質問に答え、ミッションの PR を承認・変更依頼・却下し、要対応・人の判断のプロジェクトを決め、再計画の提案を反映します。費用の上限に達すると新しいプロジェクトを始めません。",
     );
     expect(AUTONOMOUS_CATALOG.en["auto.help"]).toBe(
       "The Orchestrator acts for you and runs the mission to the end: it confirms the draft, answers the agents' questions, approves, requests changes on or rejects the mission's pull requests, decides on rows that need attention or a decision, and applies re-plan proposals. No new row starts once the cost limit is spent.",

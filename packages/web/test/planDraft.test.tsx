@@ -228,7 +228,7 @@ describe("new plan with a draft", () => {
     const create = button("ミッションを作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    // a name alone is not enough: the API answers 400 「目標・資料・行のどれかが必要です」
+    // a name alone is not enough: the API answers 400 「目標・資料・プロジェクトのどれかが必要です」
     expect(create.disabled).toBe(true);
     const hint = q('[data-testid="plan-need-input"]')!;
     expect(hint.textContent).toBe("目標を書くか、資料を追加してください");
@@ -240,13 +240,13 @@ describe("new plan with a draft", () => {
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "");
     expect(create.disabled).toBe(true);
     // the paste field opens on demand from the “+” menu, as a field of the card
-    expect(q('textarea[aria-label="一覧を貼り付ける"]')).toBeNull();
+    expect(q('textarea[aria-label="リストを貼り付ける"]')).toBeNull();
     await click(q<HTMLButtonElement>('[data-testid="plan-plus"]'));
     await click(q<HTMLButtonElement>('[data-testid="plan-paste-open"]'));
     expect(q('[data-testid="plan-paste-open"]')).toBeNull();
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="一覧を貼り付ける"]')!, "ROI,TLF\nSTG,hearing\n");
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="リストを貼り付ける"]')!, "ROI,TLF\nSTG,hearing\n");
     expect(create.disabled).toBe(false);
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="一覧を貼り付ける"]')!, "  ");
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="リストを貼り付ける"]')!, "  ");
     expect(create.disabled).toBe(true);
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [new File(["ROI,TLF\n"], "language.csv", { type: "text/csv" })]);
     expect(create.disabled).toBe(false);
@@ -637,8 +637,8 @@ describe("the draft page", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", [], { goal: "" }, { events: [{ planId: PLAN, sk: "EVT#1", at: now, type: "created", by: "alice" }] }));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
-    expect(sections()).toEqual(["1. 作るもの", "2. 行とバッチ", "3. 進め方", "4. 確定して開始"]);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("まだ何も入っていません。目標を書いて「下書きを作成」を押すか、行を追加してください。確定するまでプロジェクトは 1 件も作られません。");
+    expect(sections()).toEqual(["1. 作るもの", "2. プロジェクトとバッチ", "3. 進め方", "4. 確定して開始"]);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("まだ何も入っていません。目標を書いて「下書きを作成」を押すか、プロジェクトを追加してください。プロジェクトの作成は、確定してから始まります。");
     // no progress, waves, time or cost cards, no actions at the top
     expect(q('[data-testid="plan-summary"]')).toBeNull();
     expect(q('[data-testid="plan-actions"]')).toBeNull();
@@ -653,19 +653,19 @@ describe("the draft page", () => {
     expect(what.textContent).toContain("目標か資料を入れると押せます。数分かかり、費用は記録されます。");
     expect(q('[data-testid="plan-policy"]')).toBeNull();
 
-    // 2. 行とバッチ: the empty state offers both ways to add rows
+    // 2. プロジェクトとバッチ: the empty state offers both ways to add rows
     const editor = q('[data-testid="plan-editor"]')!;
-    expect(q('[data-testid="plan-rows-summary"]', editor)!.textContent).toBe("0 行");
+    expect(q('[data-testid="plan-rows-summary"]', editor)!.textContent).toBe("0 件");
     const empty = q('[data-testid="plan-rows-empty"]', editor)!;
-    expect(empty.textContent).toContain("まだ行がありません");
-    expect(qa("button", empty).map((b) => b.textContent?.trim())).toEqual(["行を追加", "CSV を読み込む"]);
+    expect(empty.textContent).toContain("まだプロジェクトがありません");
+    expect(qa("button", empty).map((b) => b.textContent?.trim())).toEqual(["プロジェクトを追加", "CSV を読み込む"]);
     expect(q('[data-testid="plan-rows-toolbar"]')).toBeNull();
     expect(q('[data-testid="plan-save-bar"]')).toBeNull();
 
     // 4. 確定して開始: no estimate and the reason next to the disabled button
-    expect(q('[data-testid="plan-estimate"]')!.textContent).toBe("見積もり：行がないため出せません");
+    expect(q('[data-testid="plan-estimate"]')!.textContent).toBe("見積もり：プロジェクトがないため出せません");
     expect(button("確定して開始")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("行が 0 件のため、まだ確定できません");
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトが 0 件のため、まだ確定できません");
 
     // the history and 「計画を削除」 come last
     const bottom = q('[data-testid="plan-bottom"]')!;
@@ -675,30 +675,30 @@ describe("the draft page", () => {
     expect(q('[data-testid="plan-confirm"]')!.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // a row added from the empty state is marked as added and waits to be saved
-    await click(button("行を追加", empty));
+    await click(button("プロジェクトを追加", empty));
     expect(q('[data-testid="plan-rows-empty"]')).toBeNull();
     expect(headings(editor)).toEqual(["バッチ 1"]);
-    expect(q('[data-change="added"]', editor)!.textContent).toContain("追加した行");
+    expect(q('[data-change="added"]', editor)!.textContent).toContain("追加したプロジェクト");
     expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("保存していない変更が 1 件あります");
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("行の変更を保存してから確定できます");
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトの変更を保存してから確定できます");
   });
 
   it("says when the draft is ready, and redrafts a plan with rows as a secondary action", async () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", two(), { draft: { kind: "draft", jobId: "j1", status: "done", requestedAt: now, requestedBy: "alice", endedAt: now } }));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書きができました。行とバッチを確かめて「確定して開始」を押してください。確定するまでプロジェクトは 1 件も作られません。");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書きができました。プロジェクトとバッチを確かめて「確定して開始」を押してください。プロジェクトの作成は、確定してから始まります。");
     const what = q('[data-testid="plan-what"]')!;
     expect(button("下書きを作り直す", what)!.className).not.toContain("bg-blue-600");
-    expect(what.textContent).toContain("今の行は残します。数分かかり、費用は記録されます。");
-    expect(q('[data-testid="plan-rows-summary"]')!.textContent).toBe("2 行・2 バッチ・手動の順序");
+    expect(what.textContent).toContain("今のプロジェクトは残します。数分かかり、費用は記録されます。");
+    expect(q('[data-testid="plan-rows-summary"]')!.textContent).toBe("2 件・2 バッチ・手動の順序");
     act(() => root?.unmount());
     host?.remove();
 
     // rows, but no finished draft: the usual note
     api.getPlan.mockResolvedValue(detail("DRAFT", two()));
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書き: 行とバッチを整えてから確定してください。確定するまでプロジェクトは 1 件も作られません。");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書き: プロジェクトとバッチを整えてから確定してください。確定すると、プロジェクトの作成が始まります。");
   });
 
   it("stores the goal when the field is left, and before a draft is asked for", async () => {
@@ -862,7 +862,7 @@ describe("the draft page", () => {
     expect(qa("p", on).some((p) => p.textContent?.includes("オーケストレーターが人の代わりになって"))).toBe(false);
     // the cost limit comes before the secondary checkbox
     expect(q('input[type="number"]', on)!.compareDocumentPosition(q('[data-testid="plan-manual-switch"]', on)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(on.textContent).toContain("1〜1000。達すると新しい行を始めず、動いている行が終わったら一時停止します。");
+    expect(on.textContent).toContain("1〜1000。達すると新しいプロジェクトを始めず、動いているプロジェクトが終わったら一時停止します。");
     expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きができたあとで自律実行に切り替えたため、下書きは自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
     expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("確定すると、ここから先はオーケストレーターが人の代わりに進めます。");
     expect(q('[data-testid="plan-autonomous-badge"]')!.textContent).toContain("自律実行");

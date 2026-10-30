@@ -10,6 +10,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - The new mission screen now looks like the new project screen: a centred title over one rounded input card with tagged "Name" and "Goal" fields and a toolbar. Files and pasted lists are added from the "+" menu (files show as removable chips, a pasted list as a "List" field in the card), the "Autonomous run ≤ $limit" chip opens the cost limit and the "Handle pull requests and conflicts yourself" option, and the round blue button on the right starts the mission ("Start", or "Create mission" with "Create draft" beside it when you handle the mission yourself)
+- The Japanese and Chinese UI, API messages, user manual and specification no longer use the word "row". Each ROI × TLF of a mission is now called a project (「2. プロジェクトとバッチ」「まだプロジェクトがありません」), counts read 件, data rows (BRA-DB, CSV sheets, tables) are called レコード, and the paste box is 「リストを貼り付ける」. Before confirmation the draft says that creating the projects starts on confirmation
 - The project header's xlsx buttons: the official Template-v2-3 workbook is now the main button on the left, named "BRA data (xlsx)"; the workbook that gathers CoBRAC's CSV files follows it as "CSV set (xlsx)"
 - Graph edges are now drawn with right angles by default (they were curves) and go around the other boxes instead of under them, avoiding lines from other nodes where they can. Edges whose line type or bends the user set keep them
 

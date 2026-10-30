@@ -40,7 +40,7 @@
     <tr><td>時間</td><td>調査ステップ全体で 60 分。時間切れのときに動いているターンは打ち切り、それまでに書かれた内容で HCD 段階に進む。残りが 10 分未満なら新しい修正ターンを始めない</td></tr>
     <tr><td>打ち切ったターンの使用量</td><td>Codex のセッションファイルから測り、ジョブの使用量に足す（9.10）</td></tr>
     <tr><td>推論の強さ</td><td>調査の本ターンはプロジェクトの値と high の高い方。修正ターンはプロジェクトの値と medium の低い方</td></tr>
-    <tr><td>費用の上限</td><td>金額の上限はない。費用は時間の予算で抑え、使用量の行に表示する</td></tr>
+    <tr><td>費用の上限</td><td>金額の上限はない。費用は時間の予算で抑え、使用量の表示に出す</td></tr>
     <tr><td>見積もり</td><td>作成画面のスイッチの横に、所要時間 +10〜60 分と、費用の目安を表示する。費用は入力 150 万〜600 万トークン（85〜90% がキャッシュ）、出力 4 万〜15 万トークンを、選んだモデルの単価で換算したもの。数件の実行からの概算で、実際の値は各ジョブの使用量で確認する</td></tr>
   </tbody>
 </table>
@@ -69,7 +69,7 @@
 <p>HCD と FRG の検査は、調査モードの有無で変わりません。</p>
 
 <h3>調査の記録</h3>
-<p>調査ステップが終わると、ワーカーは次の値を <code>research_check.json</code> の測定値とジョブの記録に残し、画面に要約の行を出します。</p>
+<p>調査ステップが終わると、ワーカーは次の値を <code>research_check.json</code> の測定値とジョブの記録に残し、画面に要約を出します。</p>
 <ul>
   <li>終わり方、モデル、推論の強さ、開始と終了の時刻、所要時間（分）、ターン数、打ち切りの有無</li>
   <li>費用と使用量</li>
@@ -123,7 +123,7 @@
 </table>
 
 <h3>接続の根拠とインターフェース</h3>
-<p>BIF は文献が述べる組織間の投射で、Connection はその根拠を UC 同士の接続に対応させたものです。<b>接続のレコード 1 行には文献を 1 本</b>だけ対応させます。同じ投射を複数の論文で支える場合は、論文ごとに行を作ります。同じ送り手・受け手・文献の組は 1 回だけです。各行には、種、測定法、論文中の領域名、UC との包含関係、原文か図への参照を持たせます。</p>
+<p>BIF は文献が述べる組織間の投射で、Connection はその根拠を UC 同士の接続に対応させたものです。<b>接続のレコード 1 件には文献を 1 本</b>だけ対応させます。同じ投射を複数の論文で支える場合は、論文ごとにレコードを作ります。同じ送り手・受け手・文献の組は 1 回だけです。各レコードには、種、測定法、論文中の領域名、UC との包含関係、原文か図への参照を持たせます。</p>
 <table class="compact">
   <thead><tr><th style="width:30%">接続の欄</th><th>意味</th></tr></thead>
   <tbody>
@@ -144,11 +144,11 @@
     <tr><td>Pointers（271 / 277、272、278）</td><td>2 つのうち少なくとも 1 つ。Pointers on literature は原文の逐語の引用で 10 語以上（272）、位置の表記で始めない。Pointers on figure は図番号（278）</td></tr>
     <tr><td>列挙値</td><td>Taxon（10 値）、Measurement method（21 値）、Transmitter（6 値か空）、Modulation Type（3 値か空）、Literature type（11 値）。Template-v2-3 の AdminOnly のとおり</td></tr>
     <tr><td>DOI（1）</td><td>DOI のない文献には <code>alternativeUrl</code> か PMID が要る。CSV では PubMed の URL を Alternative URL に書く</td></tr>
-    <tr><td>Output Semantics（562 / 563）</td><td>UC はちょうど 1 項目 <code>[&lt;自分の Circuit ID&gt;] 内容;</code>。<code>]</code> の後の空白は任意で、末尾に <code>[Author, Year]</code> の引用を付けてよい。FRG.csv の GN の行には、GN の外へ出力する UC の項目が入る</td></tr>
-    <tr><td>Capability（<code>cobrac:capability-required</code>）</td><td>ROI 外部の UC の FRG の行は、固定文 <code>No need for description due to input/output circuit</code></td></tr>
+    <tr><td>Output Semantics（562 / 563）</td><td>UC はちょうど 1 項目 <code>[&lt;自分の Circuit ID&gt;] 内容;</code>。<code>]</code> の後の空白は任意で、末尾に <code>[Author, Year]</code> の引用を付けてよい。FRG.csv の GN のレコードには、GN の外へ出力する UC の項目が入る</td></tr>
+    <tr><td>Capability（<code>cobrac:capability-required</code>）</td><td>ROI 外部の UC の FRG のレコードは、固定文 <code>No need for description due to input/output circuit</code></td></tr>
     <tr><td>用語</td><td>機能項目・コメント・FRG の詳細に書く <code>[U.&lt;id&gt;]</code> / <code>[R.&lt;id&gt;]</code> は、実在する UC / ノードを指す</td></tr>
-    <tr><td>ROI の行</td><td><code>Circuits.csv</code> の先頭は <code>ROI_&lt;ProjectID&gt;</code>。Source of ID は <code>collection</code>、Names は ROI、Sub-Circuits は ROI 内部のすべての回路、Uniform は <code>FALSE</code>。グラフはこの行を飛ばす</td></tr>
-    <tr><td>Review End Line</td><td><code>Project.csv</code> に、References・Circuits・Connections・FRG のそれぞれで、最後のレコードがあるシート上の行番号を書く（見出しが 1 行目）</td></tr>
+    <tr><td>ROI のレコード</td><td><code>Circuits.csv</code> の先頭は <code>ROI_&lt;ProjectID&gt;</code>。Source of ID は <code>collection</code>、Names は ROI、Sub-Circuits は ROI 内部のすべての回路、Uniform は <code>FALSE</code>。グラフはこのレコードを飛ばす</td></tr>
+    <tr><td>Review End Line</td><td><code>Project.csv</code> に、References・Circuits・Connections・FRG のそれぞれで、最後のレコードがあるシート上の位置を、見出しを 1 とする番号で書く</td></tr>
     <tr><td>仮説の印（<code>cobrac:hypothesis-marked</code>）</td><td>仮説モードだけ（3.12）。存在の仮説の接続は、ちょうどそれらだけが測定法 <code>Hypothetical</code>。仮説の接続と UC の Comments は <code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code> で始まる。274（引用が接続を保証する）は前提で判断する</td></tr>
   </tbody>
 </table>
@@ -249,7 +249,7 @@
   <li><b>引用の検査</b>：プログラムによる検査で、外部には問い合わせません。<code>uc.json</code>・<code>connections.json</code>・<code>frg.json</code>・<code>report.md</code> の自由な文章に書いた <code>[Author, Year]</code> は、すべて <code>references.json</code> の Reference ID でなければなりません。空白や大文字・小文字だけが違う場合は、正確に書くよう求めます。すべての文献は、レポートの <code>## References</code> 以外のどこかで引用されている必要があります。2 つの Reference ID が同じ DOI / PMID を持つことはできません。</li>
   <li><b>照会</b>：ネットワークを使う照合です。DOI は Crossref で照会し、Crossref になければ doi.org の内容交渉（CSL JSON。DataCite・mEDRA・JaLC）で照会します。PMID は PubMed（NCBI E-utilities の <code>esummary</code>）で照会します。</li>
   <li><b>一致の条件</b>：次の 3 点を確認します。記録に Reference ID の筆頭著者がいること（後ろの著者ならそう報告します）。出版年が ±1 年以内であること（オンライン版と印刷版の差を考えるため）。タイトルがあれば、語の重なりで似ていること。DOI と PMID の両方があれば、PubMed の DOI が同じでなければなりません。雑誌の違いは注記だけにします。識別子のない文献は、Crossref の検索でタイトル・筆頭著者・年が同じ論文が見つかれば、その DOI を提案します。</li>
-  <li><b>状態</b>：照合の結果は、<code>verified</code>、<code>mismatch</code>、<code>not_found</code>、<code>invalid</code>（DOI / PMID の形でない）、<code>no_identifier</code>、<code>unverified</code>（照会に失敗）のいずれかです。<code>mismatch</code>・<code>not_found</code>・<code>invalid</code> と DOI の提案を問題として返します。段階が受理されたとき、画面に 1 行の要約を出します。</li>
+  <li><b>状態</b>：照合の結果は、<code>verified</code>、<code>mismatch</code>、<code>not_found</code>、<code>invalid</code>（DOI / PMID の形でない）、<code>no_identifier</code>、<code>unverified</code>（照会に失敗）のいずれかです。<code>mismatch</code>・<code>not_found</code>・<code>invalid</code> と DOI の提案を問題として返します。段階が受理されたとき、画面に短い要約を出します。</li>
   <li><b>受け持ち</b>：FRG 段階は、<code>frg.json</code> と、レポートの <code>## FRG</code>、そこだけで引用された文献を受け持ちます。それ以外は HCD 段階が受け持ち、HCD の問題を FRG 段階で重ねて送ることはしません。</li>
   <li><b>障害のとき</b>：照会できなかった文献は <code>unverified</code> とし、問題にはしません。外部の障害で段階を止めないためです。結果は実行中キャッシュし、失敗したものは次の検査で再試行します。</li>
 </ul>
@@ -321,7 +321,7 @@
 <ul>
   <li>所見の件数</li>
   <li>統計：ROI 内部の UC の数、GN の数、解析できた interface の数、FRG の深さ、3〜4 UC の GN の数とそのうち候補のループかフィードフォワードであるもの</li>
-  <li>判断ログの revisions の行と、調整の記録</li>
+  <li>判断ログの revisions の記載と、調整の記録</li>
   <li>仮説モードでは、仮説の情報（3.12）</li>
 </ul>
 
@@ -335,7 +335,7 @@
 <p>変わった HCD は、前述のとおり検査し直されます。調整のターンの後には、別に 3 回の修正の枠があります。ほかの所見は記録するだけです。</p>
 
 <h3>調整の記録の書式</h3>
-<p>調整で何を変え、何を残したかは、判断ログの <code>## HCD-FRG revisions</code> の節に 1 行ずつ書きます。行の先頭の印で、どちらの側の理由による変更かを区別します。調整の後にこの節がなければ、FRG の検査が節を書くよう求めます。</p>
+<p>調整で何を変え、何を残したかは、判断ログの <code>## HCD-FRG revisions</code> の節に 1 件ずつ書きます。各件の先頭の印で、どちらの側の理由による変更かを区別します。調整の後にこの節がなければ、FRG の検査が節を書くよう求めます。</p>
 <pre><code>## HCD-FRG revisions
 - [FRG-&gt;HCD] &lt;HCD の変更&gt; — &lt;FRG が必要とした理由&gt; [Author, Year]
 - [HCD-&gt;FRG] &lt;FRG の変更&gt; — &lt;HCD に合わせる理由&gt;

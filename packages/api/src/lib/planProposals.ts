@@ -31,8 +31,8 @@ export async function applyProposal(fresh: PlanRecord, p: PlanProposalRecord, by
   if (p.kind === "add") {
     const add = p.row;
     if (!add) return stale(planId, p, "この提案は適用できません");
-    if (rows.some((r) => r.state !== "skipped" && planRowKey(r.roi, r.tlf) === planRowKey(add.roi, add.tlf))) return stale(planId, p, "同じ ROI × TLF の行がすでにあります");
-    if (rows.length >= PLAN_LIMITS.maxRows) return { ok: false, full: `行は ${PLAN_LIMITS.maxRows} 行までです` };
+    if (rows.some((r) => r.state !== "skipped" && planRowKey(r.roi, r.tlf) === planRowKey(add.roi, add.tlf))) return stale(planId, p, "同じ ROI × TLF のプロジェクトがすでにあります");
+    if (rows.length >= PLAN_LIMITS.maxRows) return { ok: false, full: `プロジェクトは ${PLAN_LIMITS.maxRows} 件までです` };
     const ids = new Set(rows.map((r) => r.rowId));
     const lastWave = rows.reduce((m, r) => Math.max(m, r.wave), 0);
     const rowId = generatePlanRowId();
@@ -79,8 +79,8 @@ export async function applyProposal(fresh: PlanRecord, p: PlanProposalRecord, by
     detail.rowId = row.rowId;
   } else if (p.kind === "remove") {
     const target = rows.find((r) => r.rowId === p.rowId);
-    if (!target || !isMovableRow(target)) return stale(planId, p, "この行はもう外せません（開始済みなど）");
-    if (!(await updateRow(planId, target.rowId, { state: "skipped" }, { state: "pending" }))) return stale(planId, p, "この行はもう外せません（開始済みなど）");
+    if (!target || !isMovableRow(target)) return stale(planId, p, "このプロジェクトはもう外せません（開始済みなど）");
+    if (!(await updateRow(planId, target.rowId, { state: "skipped" }, { state: "pending" }))) return stale(planId, p, "このプロジェクトはもう外せません（開始済みなど）");
     target.state = "skipped";
     await updatePlan(planId, { rowCounts: countRows(rows) });
     detail.rowId = target.rowId;
