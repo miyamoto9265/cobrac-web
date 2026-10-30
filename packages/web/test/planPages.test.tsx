@@ -253,10 +253,14 @@ describe("new mission", () => {
     expect(page.querySelector("h1")!.textContent).toContain("New mission");
     expect(page.querySelector('input[maxlength="200"]')).toBe(document.activeElement);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await act(async () => button("Paste rows")!.click());
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission”
+    // the composer of the new-project screen: the list is pasted from the “+” menu into a field of the card
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
+    await act(async () => button("Paste a list")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
+    // 自律実行 is the default: handling the plan yourself (in the chip's menu) is the opt-in that brings “Create mission”
     expect(button("Create mission")).toBeUndefined();
+    expect(q('[data-testid="plan-manual"]')).toBeNull();
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!.click());
     await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
     await act(async () => button("Create mission")!.click());
     expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
@@ -269,8 +273,13 @@ describe("new mission", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await act(async () => button("Paste rows")!.click());
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste rows"]')!, "ROI,TLF\nSTG,hearing\n");
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
+    await act(async () => button("Paste a list")!.click());
+    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
+    // the chip shows the mode and the limit; its menu holds the limit and the opt-out
+    const chip = q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!;
+    expect(chip.textContent).toContain("≤ $20");
+    await act(async () => chip.click());
     expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
     // the explanations are behind the (?) tips: no paragraph in the box
     expect(document.querySelectorAll('[data-testid="plan-autonomous"] p')).toHaveLength(0);
@@ -279,7 +288,8 @@ describe("new mission", () => {
     expect(q('[data-testid="plan-autonomous"] input[type="number"]')!.compareDocumentPosition(q('[data-testid="plan-manual"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(button("Create mission")).toBeUndefined();
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
-    await act(async () => button("Start autonomous run")!.click());
+    expect(chip.textContent).toContain("≤ $35");
+    await act(async () => button("Start")!.click());
     expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 } }));
   });
 });
