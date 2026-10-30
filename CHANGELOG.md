@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- The agent can name a region from the coordinates a paper reports. RCS's new `map_coordinates` tool (CBM, Coordinate-to-Brain Mapper) maps MNI or Talairach peaks to the SABRA unit at each point, with how much of the area around it each region covers and, for a point in white matter, the nearest gray matter. The HCD instructions tell the agent to use it when a paper gives coordinates but only a vague region name, and to follow the paper's name when the two disagree
+
 ## [0.50.0] - 2026-10-30
 
 ### Fixed
