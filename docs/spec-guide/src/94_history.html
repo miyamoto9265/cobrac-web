@@ -82,7 +82,7 @@
     <tr><td>HCD と FRG が合っているかをだれも見ない</td><td>ワーカーが整合チェック X1〜X6・X8（X7 は欠番）を <code>cross_check.json</code> に記録する。v0.12.0 では記録だけだった。v0.13.0 で X9（粒度）と revisions 節の <code>[instruction]</code> タグを追加</td><td>v0.12.0・v0.13.0</td></tr>
     <tr><td>文献を知識で書き、実在も引用文の原文も確認しない</td><td>ワーカーが DOI を Crossref で、PMID を PubMed で検索し、第一著者・年・タイトルを照合する（v0.9.0）。Pointers on literature を原文の引用に限り（v0.10.0）、ワーカーが全文か抄録と照合する（類似度 0.9 以上、v0.11.0）</td><td>v0.9.0〜v0.11.0</td></tr>
     <tr><td>文献を探す手段が知識と Web 検索だけ</td><td>HCD の前の<b>調査ステップ</b>（調査モード、既定でオン）と、エージェントが使う文献ツール <code>lit</code>（PubMed・Europe PMC の検索、抄録、全文の文）。ワーカーは調査の網羅性を検査する（3.7）</td><td>v0.11.0</td></tr>
-    <tr><td>BRA の Review Tool でエラーになる値</td><td>BRA 仕様の値の規則（BRA version <code>CoBRAC-v1-1</code>）。Source of ID は 1 値、1 行 1 文献、sCID / rCID relation、列挙値、ROI 行、Review End Line</td><td>v0.10.0</td></tr>
+    <tr><td>BRA の Review Tool でエラーになる値</td><td>BRA 仕様の値の規則（BRA version <code>CoBRAC-v1-1</code>）。Source of ID は 1 値、1 レコード 1 文献、sCID / rCID relation、列挙値、ROI レコード、Review End Line</td><td>v0.10.0</td></tr>
     <tr><td>粗い領域が均一な送り手のまま</td><td>Collection（v0.11.0）。複数の SABRA 単位にまたがる送り手には理由（<code>uniformityNote</code>）が要る（コード 203、v0.13.0）</td><td>v0.11.0・v0.13.0</td></tr>
     <tr><td>出力と入力の不足</td><td>Template-v2-2 形式の xlsx もワーカーが作る（v0.11.0、3.13）。Canon の定義を生成時の制約にする（v0.12.0、第 5 部）。参考資料を添付でき、ワーカーが本文を取り出してエージェントに渡す（v0.12.0）</td><td>v0.11.0・v0.12.0</td></tr>
     <tr><td>長いジョブがレート制限や会話の大きさで落ちる</td><td>レート制限は待って同じ会話で再開する（最大 3 回）。会話を自動で圧縮し、それでも大きすぎるターンは新しい会話で続ける（3.15）</td><td>v0.12.0・v0.12.1</td></tr>
@@ -95,7 +95,7 @@
   <thead><tr><th style="width:22%">項目</th><th style="width:22%">v0（デスクトップ版、<code>Aphasia-nonword-reading</code>）</th><th style="width:24%">v0.11.0（<code>ufwwj0jg-1</code>、既定の設定：gpt-6-luna・調査モード）</th><th>戻り道の試行（v0.12.0、<code>-1</code> の複製 <code>ufwwj0jg-5</code>）</th></tr></thead>
   <tbody>
     <tr><td>ROI 内の UC / Collection</td><td>5（自由な名前）/ 0</td><td>4（うち 3 つは回全体）/ 0</td><td><b>7 / 3</b></td></tr>
-    <tr><td>接続の行 / 文献</td><td>17 / 19</td><td>14 / 17</td><td>21 / 21</td></tr>
+    <tr><td>接続のレコード / 文献</td><td>17 / 19</td><td>14 / 17</td><td>21 / 21</td></tr>
     <tr><td>照合済みの引用文</td><td>0（引用文がない）</td><td>14（全文 7、抄録 7）</td><td>21（全文 9、抄録 12）</td></tr>
     <tr><td>FRG</td><td>GN 8、深さ 3（同じ UC が複数の GN に入る）</td><td>GN 2、深さ 2</td><td><b>GN 4、深さ 3</b></td></tr>
     <tr><td>整合チェック X1〜X8 / X9</td><td>測れない</td><td>0 / 3</td><td>0 / <b>0</b></td></tr>
@@ -104,7 +104,7 @@
 </table>
 <ul>
   <li>v0 から v0.11.0 で、違反は 7 コードから 1 コードに減り、引用文はすべて原文になって照合されました。一方で粒度は粗くなりました。紡錘状回・下頭頂小葉・下前頭回は、それぞれ回全体の UC 1 つです。FRG も GN 2 つ・深さ 2 に潰れました。</li>
-  <li>試行では、エージェントが HCD に戻って回全体の UC 3 つを 7 つの UC と 3 つの Collection に分けました。FRG は、腹側の正書法分析・側頭頭頂の音韻分析・前頭の音韻出力に分かれました。revisions 節は <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> 9 行、<code style="font-variant-ligatures:none">[HCD-&gt;FRG]</code> 4 行、<code>[kept]</code> 2 行で、最後の検査で残った問題は 0 件でした。</li>
+  <li>試行では、エージェントが HCD に戻って回全体の UC 3 つを 7 つの UC と 3 つの Collection に分けました。FRG は、腹側の正書法分析・側頭頭頂の音韻分析・前頭の音韻出力に分かれました。revisions 節は <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> 9 件、<code style="font-variant-ligatures:none">[HCD-&gt;FRG]</code> 4 件、<code>[kept]</code> 2 件で、最後の検査で残った問題は 0 件でした。</li>
   <li>この粗さを捉えたのは X9 だけで、X1〜X8 は前後とも 0 件でした。X9 は現在も記録だけです。試行は調整ターン（v0.13.0 から）ではなく利用者の指示で行い、母数は 1 件です。利用者の指示による変更にも <code style="font-variant-ligatures:none">[FRG-&gt;HCD]</code> が付いたため、v0.13.0 で <code>[instruction]</code> タグを加えました。</li>
 </ul>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.9.0〜0.13.0）、<code>packages/worker/src/pipeline.ts</code>（<code>adjustmentPrompt</code>）、<code>packages/shared/src/cross.ts</code>（<code>ADJUSTMENT_CODES</code>）、<code>packages/shared/src/quotes.ts</code>（<code>DEFAULT_QUOTE_THRESHOLD</code>）。実行の記録は本番のプロジェクト <code>ufwwj0jg-1</code>・<code>ufwwj0jg-5</code></p>
@@ -203,7 +203,7 @@
     <tr><td>3</td><td>rev への固定と生成時の制約（<code>canon/</code>・指示・検査）、追従（behind / affected）</td></tr>
     <tr><td>3′</td><td>作成時の Canon の選択と、基準となるプロジェクトからの作成、既定の Canon</td></tr>
     <tr><td>v0.20.0</td><td>審査画面（4 タブ、システムの検査、AI レビュー、履歴）、共同編集者、だれが判断したかの記録</td></tr>
-    <tr><td>オーケストレーターの開発段階 3</td><td>計画ごとに 1 つの Canon。完成した行の自動 push、AI レビューの自動依頼、Canon が進んだときの更新（最大 2 回）、基準プロジェクトの PR の承認待ち、まとめて承認（6.7）</td></tr>
+    <tr><td>オーケストレーターの開発段階 3</td><td>計画ごとに 1 つの Canon。完成したプロジェクトの自動 push、AI レビューの自動依頼、Canon が進んだときの更新（最大 2 回）、基準プロジェクトの PR の承認待ち、まとめて承認（6.7）</td></tr>
   </tbody>
 </table>
 
@@ -212,13 +212,13 @@
 <table class="compact">
   <thead><tr><th style="width:22%">段階</th><th>入ったもの</th></tr></thead>
   <tbody>
-    <tr><td><b>開発段階 1</b>：計画とバッチ実行（v0.31.0）</td><td>行は資料（CSV / TSV / テキストの一覧）か手入力。順序とバッチは所有者が手で決める。確定後、計画ランナーが毎分、同時実行数の範囲で行を起動し、状態を追う。Canon も LLM も使わない。確定は計画のリースの中で行うので、別のタブで行を編集していても、確定後に行が変わることはない</td></tr>
-    <tr><td><b>開発段階 2</b>：LLM の下書きと実行順序（v0.35.0）</td><td>計画用のジョブが、目標と資料から行・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算する（基準プロジェクトのバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
-    <tr><td><b>開発段階 3</b>：計画の Canon（v0.36.0）</td><td>計画ごとに 1 つの Canon。完成した行を自動で push し、本体の行には AI レビューを依頼し、Canon が進んだことによる衝突は更新のフォローアップで直す。行は人が PR を承認して完了する。「まとめて承認」</td></tr>
-    <tr><td><b>v0.37.0</b>：モデルの分離</td><td>モデルを「オーケストレーター」（下書き・バッチ後の再計画・行の PR の AI レビュー）と「エージェント」（各行の BRA）で別々に選ぶ。どちらも「デフォルト」なら確定時に決まり、確定後は両方が表示される。粒度方針はオーケストレーターが決める。計画の画面では読み取り専用で、API も所有者からの方針を拒む。再計画の方針の変更は承認なしですぐに反映され、決定済みの提案に「オーケストレーターが反映」として残る。行の追加・削除の提案は従来どおり承認を待つ</td></tr>
-    <tr><td><b>v0.40.0</b>：自律実行</td><td>計画の設定「自律実行」（<code>settings.autonomous</code>、費用の上限付き）。下書きのあと自動で確定し、行のエージェントは質問せず推奨案で進み、計画の PR は AI が承認・変更依頼・却下を判断し、進められない行はスキップする。費用の上限に達すると新しい行を始めない（6.8）</td></tr>
-    <tr><td><b>v0.41.0</b>：人の代わりの判断</td><td>自律実行で、オーケストレーターが人の代わりに判断する。エージェントの質問に AI が個別に答える（回答のジョブ、回数の上限なし。「質問しない」指示はやめた）。要対応・要判断の行を AI が解決する（解決のジョブ）。再計画の提案をすぐ反映する。PR の判断のジョブが失敗しても上限なく依頼し直す。下書きの画面を作り直し（作るもの・行とバッチ・進め方・確定の 4 つの区切り）、下書きで目標の書き直しと資料の追加・削除ができる。目標・資料・行のどれもない計画は作れない</td></tr>
-    <tr><td><b>v0.42.0</b>：自律実行が既定</td><td>新しい計画は自律実行で始まる。新しい計画のフォームは最初から費用の上限と「自律実行で開始」を出し、人が PR の承認・衝突・質問に対応するのはオプション（「PR の承認や衝突にご自身で対応する」）にした。オプションを選ぶと「計画を作成」「下書きを作成」に戻る。API は変えていない（<code>autonomous</code> を付けた要求だけが自律実行の計画になる）。資料のファイルと貼り付けた行を 1 つの「資料」の区切りにまとめた</td></tr>
+    <tr><td><b>開発段階 1</b>：計画とバッチ実行（v0.31.0）</td><td>プロジェクトは資料（CSV / TSV / テキストの一覧）か手入力。順序とバッチは所有者が手で決める。確定後、計画ランナーが毎分、同時実行数の範囲でプロジェクトを起動し、状態を追う。Canon も LLM も使わない。確定は計画のリースの中で行うので、別のタブでプロジェクトを編集していても、確定後にプロジェクトが変わることはない</td></tr>
+    <tr><td><b>開発段階 2</b>：LLM の下書きと実行順序（v0.35.0）</td><td>計画用のジョブが、目標と資料からプロジェクト・アンカー・依存・粒度方針を書く。実行順序はアンカーと依存からコードが計算する（基準プロジェクトのバッチ）。バッチごとの並べ直しと再計画（提案）</td></tr>
+    <tr><td><b>開発段階 3</b>：計画の Canon（v0.36.0）</td><td>計画ごとに 1 つの Canon。完成したプロジェクトを自動で push し、本体のプロジェクトには AI レビューを依頼し、Canon が進んだことによる衝突は更新のフォローアップで直す。プロジェクトは人が PR を承認して完了する。「まとめて承認」</td></tr>
+    <tr><td><b>v0.37.0</b>：モデルの分離</td><td>モデルを「オーケストレーター」（下書き・バッチ後の再計画・プロジェクトの PR の AI レビュー）と「エージェント」（各プロジェクトの BRA）で別々に選ぶ。どちらも「デフォルト」なら確定時に決まり、確定後は両方が表示される。粒度方針はオーケストレーターが決める。計画の画面では読み取り専用で、API も所有者からの方針を拒む。再計画の方針の変更は承認なしですぐに反映され、決定済みの提案に「オーケストレーターが反映」として残る。プロジェクトの追加・削除の提案は従来どおり承認を待つ</td></tr>
+    <tr><td><b>v0.40.0</b>：自律実行</td><td>計画の設定「自律実行」（<code>settings.autonomous</code>、費用の上限付き）。下書きのあと自動で確定し、プロジェクトのエージェントは質問せず推奨案で進み、計画の PR は AI が承認・変更依頼・却下を判断し、進められないプロジェクトはスキップする。費用の上限に達すると新しいプロジェクトを始めない（6.8）</td></tr>
+    <tr><td><b>v0.41.0</b>：人の代わりの判断</td><td>自律実行で、オーケストレーターが人の代わりに判断する。エージェントの質問に AI が個別に答える（回答のジョブ、回数の上限なし。「質問しない」指示はやめた）。要対応・要判断のプロジェクトを AI が解決する（解決のジョブ）。再計画の提案をすぐ反映する。PR の判断のジョブが失敗しても上限なく依頼し直す。下書きの画面を作り直し（作るもの・プロジェクトとバッチ・進め方・確定の 4 つの区切り）、下書きで目標の書き直しと資料の追加・削除ができる。目標・資料・プロジェクトのどれもない計画は作れない</td></tr>
+    <tr><td><b>v0.42.0</b>：自律実行が既定</td><td>新しい計画は自律実行で始まる。新しい計画のフォームは最初から費用の上限と「自律実行で開始」を出し、人が PR の承認・衝突・質問に対応するのはオプション（「PR の承認や衝突にご自身で対応する」）にした。オプションを選ぶと「計画を作成」「下書きを作成」に戻る。API は変えていない（<code>autonomous</code> を付けた要求だけが自律実行の計画になる）。資料のファイルと貼り付けたリストを 1 つの「資料」の区切りにまとめた</td></tr>
   </tbody>
 </table>
 <p>画面の日本語の表記も、次のように改めました。コードの識別子（<code>wave</code>、<code>seed</code> など）は変えていません。</p>
@@ -235,12 +235,12 @@
   <thead><tr><th style="width:14%">段階</th><th>計画ランナーと API に足した権限</th></tr></thead>
   <tbody>
     <tr><td>開発段階 1</td><td>API：<code>Plans</code> の読み書き。計画ランナー：<code>Plans</code>・<code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き、<code>Catalog</code> の <code>config</code> の <code>GetItem</code> と <code>id</code> の <code>PutItem</code>、キューへの送信、タスクの停止</td></tr>
-    <tr><td>開発段階 2（下書き・再計画）</td><td>API：<code>plans/*</code> への <code>PutObject</code>（作成時の資料を <code>staging/</code> から <code>plans/{planId}/attachments/files/</code> に移す）。計画ランナー：<code>Canons</code> の <code>owner-index</code> の <code>Query</code>（計画用のジョブの入力に所有者の Canon を並べる）、<code>plans/*</code> の読み書き、完了した行の <code>users/*_HCD/uc.json</code> の読み取り（1 ステップで 20 件まで）</td></tr>
-    <tr><td>開発段階 3（計画の Canon）</td><td>計画ランナー：<code>Canons</code> の読み書き（開発段階 2 の <code>Query</code> を置き換え。行のプロジェクトの参加登録、PR の作成と追跡）、<code>canons/*</code> の読み書き（rev の差分、PR の <code>incoming.json</code>・<code>diff.json</code>、AI レビューの <code>input.json</code>）、<code>users/*/workspace/*</code> の読み取り（開発段階 2 の <code>uc.json</code> の読み取りを置き換え）。API・dispatcher・ワーカーは変えていない</td></tr>
+    <tr><td>開発段階 2（下書き・再計画）</td><td>API：<code>plans/*</code> への <code>PutObject</code>（作成時の資料を <code>staging/</code> から <code>plans/{planId}/attachments/files/</code> に移す）。計画ランナー：<code>Canons</code> の <code>owner-index</code> の <code>Query</code>（計画用のジョブの入力に所有者の Canon を並べる）、<code>plans/*</code> の読み書き、完了したプロジェクトの <code>users/*_HCD/uc.json</code> の読み取り（1 ステップで 20 件まで）</td></tr>
+    <tr><td>開発段階 3（計画の Canon）</td><td>計画ランナー：<code>Canons</code> の読み書き（開発段階 2 の <code>Query</code> を置き換え。プロジェクトの参加登録、PR の作成と追跡）、<code>canons/*</code> の読み書き（rev の差分、PR の <code>incoming.json</code>・<code>diff.json</code>、AI レビューの <code>input.json</code>）、<code>users/*/workspace/*</code> の読み取り（開発段階 2 の <code>uc.json</code> の読み取りを置き換え）。API・dispatcher・ワーカーは変えていない</td></tr>
   </tbody>
 </table>
 <h3>「計画」から「ミッション」へ</h3>
-<p>当初は、オーケストレーターに渡す仕事も、その中身の行とバッチも「計画」と呼んでいました。1 つの語が器と中身の両方を指して位置づけが分かりにくく、オーケストレーターが主に触る部分になるにつれて、サイドバーの下部の入口と、一覧の上に右から開く作成のパネルも補助の機能に見えていました。そこで 2026-10-25 に、器を「ミッション」、中身を「計画」と呼び分け、サイドバーの上に新規ミッションと新規プロジェクトを並べ、作成をメイン画面に移しました。仕様では、ミッション 1 つが持てる Canon は 0 か 1 つで、複数のミッションが同じ Canon を育てられます（6.7）。自律実行の既定が「ミッション 1 つ = 新しい Canon 1 つ」なので、ミッションの一覧を「Canon」の画面に統合し、Canon ごとにミッションを並べる形にしました。同時に、履歴の行をアーカイブできるようにしました。データとコードの名前は <code>plan</code> のままです。</p>
+<p>当初は、オーケストレーターに渡す仕事も、その中身のプロジェクトとバッチも「計画」と呼んでいました。1 つの語が器と中身の両方を指して位置づけが分かりにくく、オーケストレーターが主に触る部分になるにつれて、サイドバーの下部の入口と、一覧の上に右から開く作成のパネルも補助の機能に見えていました。そこで 2026-10-25 に、器を「ミッション」、中身を「計画」と呼び分け、サイドバーの上に新規ミッションと新規プロジェクトを並べ、作成をメイン画面に移しました。仕様では、ミッション 1 つが持てる Canon は 0 か 1 つで、複数のミッションが同じ Canon を育てられます（6.7）。自律実行の既定が「ミッション 1 つ = 新しい Canon 1 つ」なので、ミッションの一覧を「Canon」の画面に統合し、Canon ごとにミッションを並べる形にしました。同時に、履歴のプロジェクトをアーカイブできるようにしました。データとコードの名前は <code>plan</code> のままです。</p>
 <p class="src">典拠：<code>CHANGELOG.md</code>（0.20.0・0.31.0〜0.42.0）、<code>packages/shared/src/canon.ts</code>・<code>plan.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）</p>
 
 <h2 id="sd-9">D.9 速度と費用の測定（2026-10）</h2>
@@ -488,8 +488,8 @@
     <tr><td>v0.39.0</td><td>10-08</td><td>仕様を本書（CoBRAC Agents 仕様書）1 冊にまとめ、管理者の「仕様書」ページで見せる。それまで <code>/docs</code> は <code>docs/*.md</code> を表示していた。<code>docs/*.md</code> と README・AGENTS を返していた <code>GET /admin/docs</code>・<code>/admin/docs/{slug}</code> は廃止</td></tr>
     <tr><td>v0.40.0・v0.41.0</td><td>10-09</td><td>オーケストレーターの自律実行と、人の代わりの判断（D.8）</td></tr>
     <tr><td>v0.42.0</td><td>10-10</td><td>新しい計画は自律実行が既定。承認済みの利用者にデフォルトの API キーを見せず、自分のキーは任意に。Canon の画面をプロジェクトの画面と同じ構成に。設定とログアウトをサイドバー下部のアイコンに</td></tr>
-    <tr><td>v0.43.0</td><td>10-10</td><td>サイドバーの整理（履歴の名前を 2 行に、完了以外だけ状態を出す、オーケストレーターの計画ごとに 1 行にまとめる、「プロジェクト一覧」は「すべて表示」から、仕様書は管理画面から開く）。プロジェクト一覧の行の高さと、先頭列の「プロジェクト名」。自律実行の設定を「自律実行」と費用の上限から始める</td></tr>
-    <tr><td>v0.44.0</td><td>10-10</td><td>自動の順序の計画をフロー実行に（条件を満たした行から枠に詰める）。レーンの図と同時実行の枠の表示、オーケストレーターの AI のジョブの枠の上限、自律実行の費用の予約（6.5、6.6、6.8）</td></tr>
+    <tr><td>v0.43.0</td><td>10-10</td><td>サイドバーの整理（履歴の名前を 2 段に、完了以外だけ状態を出す、オーケストレーターの計画ごとに 1 つにまとめる、「プロジェクト一覧」は「すべて表示」から、仕様書は管理画面から開く）。プロジェクト一覧の各項目の高さと、先頭列の「プロジェクト名」。自律実行の設定を「自律実行」と費用の上限から始める</td></tr>
+    <tr><td>v0.44.0</td><td>10-10</td><td>自動の順序の計画をフロー実行に（条件を満たしたプロジェクトから枠に詰める）。レーンの図と同時実行の枠の表示、オーケストレーターの AI のジョブの枠の上限、自律実行の費用の予約（6.5、6.6、6.8）</td></tr>
     <tr><td>v0.45.0</td><td>10-10</td><td>Anthropic の Claude のモデルでジョブを実行（Claude Agent SDK）。Anthropic の API キーとデフォルトの Anthropic API キー、キーを渡さない中継（4.1、8.4、9.5）</td></tr>
     <tr><td>v0.45.1</td><td>10-10</td><td>仕様書を全面的に書き直した（章立て・書き言葉・付録 C/D への分離）</td></tr>
   </tbody>

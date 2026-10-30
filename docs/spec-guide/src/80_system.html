@@ -450,7 +450,7 @@
 <ul>
   <li>管理画面の設定は、<code>Catalog</code> の <code>config</code> / <code>concurrency</code> に、変えた人と時刻とともに保存されます。0 や 17 以上の値は API が拒みます。</li>
   <li>dispatcher とミッションランナーは、設定を 30 秒のキャッシュを通して読みます。そのため、変更にデプロイは要りません。設定を読めないときはデプロイの値を使います。</li>
-  <li>オーケストレーターは、両方の上限に空きがあるときだけ、行や計画用のジョブをキューに入れます。このときは待機中のジョブも数えます。ミッションの待ちは SQS ではなく DynamoDB の中にあるので、待機中のジョブの 24 時間の時間切れ（後述の janitor）に当たりません。計画用のジョブも、待機中と実行中は両方の上限に数えます（6.11）。</li>
+  <li>オーケストレーターは、両方の上限に空きがあるときだけ、プロジェクトや計画用のジョブをキューに入れます。このときは待機中のジョブも数えます。ミッションの待ちは SQS ではなく DynamoDB の中にあるので、待機中のジョブの 24 時間の時間切れ（後述の janitor）に当たりません。計画用のジョブも、待機中と実行中は両方の上限に数えます（6.11）。</li>
   <li>上限を上げると、Fargate の費用はほぼ比例して増えます（9.9）。</li>
   <li>1 回の実行は、OpenAI のトークンを毎分約 14〜17 万使います（測定は付録 D）。デフォルトの API キーを持つ組織の TPM の上限は、<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code> で毎分 200 万です（OpenAI の Build tier の値）。約 10 本を並べても、計画用のジョブの分を残して上限に収まります。</li>
 </ul>
@@ -548,7 +548,7 @@
 </ul>
 
 <h3>Claude と DeepSeek のモデルの実行</h3>
-<p>DeepSeek のモデル（4.2）も同じ仕組みで実行し、中継の転送先を DeepSeek の Anthropic 互換 API（<code>https://api.deepseek.com/anthropic</code>）にします。違いは下の表の各行に記しています。</p>
+<p>DeepSeek のモデル（4.2）も同じ仕組みで実行し、中継の転送先を DeepSeek の Anthropic 互換 API（<code>https://api.deepseek.com/anthropic</code>）にします。違いは下の表に項目ごとに記しています。</p>
 <p>Claude のモデル（4.2）のジョブは、Codex ではなく Claude Agent SDK（<code>@anthropic-ai/claude-agent-sdk</code>）で実行します。SDK は Claude Code を子プロセスとして動かします（<code>claude.ts</code>）。SDK の出来事を Codex と同じ形（<code>item.*</code>・<code>turn.*</code>）に直すので、ターンの制御、お知らせ、使用量の数え方は Codex のジョブと同じです。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
@@ -593,7 +593,7 @@
 </table>
 <ul>
   <li><b><code>article</code></b>（<code>index.ts</code> の <code>articleJob</code>、ループは <code>article.ts</code>）：キーを決めた後に BRA のジョブと分かれます。作業ディレクトリだけを戻し、図を描き、記事の 1 ターンと修正ターンを実行します。図と <code>article/&lt;locale&gt;.md</code> / <code>.json</code> を送り、プロジェクトを <code>COMPLETED</code> に戻します（3.14）。</li>
-  <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業ディレクトリも使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意します。RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し、返答が読めなければ 1 回だけ再試行します。時間予算（<code>PLAN_JOB_TIME_BUDGET_MS</code>）は 7 分で、xlsx・PDF を読む下書きと 20 行を超える下書きは 25 分です。RCS が知らない HOMBA のアンカーを除いてから <code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.4）。</li>
+  <li><b><code>plan</code></b>（<code>index.ts</code> の <code>planJobMain</code>、<code>planJob.ts</code> の <code>runPlanJob</code>）：プロジェクトも作業ディレクトリも使いません。<code>plans/{planId}/jobs/{jobId}/input.json</code> を読み、添付の資料を参考資料と同じように用意します。RCS MCP と <code>PLAN_RESULT_SCHEMA</code> で Codex の 1 ターンを実行し、返答が読めなければ 1 回だけ再試行します。時間予算（<code>PLAN_JOB_TIME_BUDGET_MS</code>）は 7 分で、xlsx・PDF を読む下書きと 20 件を超える下書きは 25 分です。RCS が知らない HOMBA のアンカーを除いてから <code>result.json</code> を書き、使用量と費用をジョブにだけ記録します（6.4）。</li>
   <li><b><code>canon-review</code></b>（<code>index.ts</code> の <code>canonReviewJob</code>）：<code>canons/{canonId}/pr/{no}/ai/{jobId}/input.json</code> の材料を読み、ツールのない新しい会話で指摘を JSON で返させ、<code>result.json</code> に書きます。自律実行のミッションの判断のジョブ（<code>reviewKind: "decide"</code>）は、判定も返します（5.8、6.8）。</li>
 </ul>
 <p>AI レビューと計画用のジョブは 45 秒ごとにハートビートを送ります。止まったときは、janitor が失敗にするだけです（8.3）。子プロセスに秘密情報を渡さない仕組みは 9.5 に記載しています。</p>

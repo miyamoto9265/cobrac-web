@@ -43,7 +43,7 @@
         <li><code>config</code> / <code>concurrency</code>：管理画面で設定した同時実行数（maxConcurrentJobs、maxConcurrentJobsPerUser、updatedAt、updatedBy。8.3）</li>
       </ul></td></tr>
     <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト、PR とその履歴、rev、送った PR、共同編集者（第 5 部）</td></tr>
-    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>ミッションの設定と状態（<code>META</code> の <code>archivedAt</code> はアーカイブ）、行、履歴、再計画の提案（6.12）</td></tr>
+    <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>ミッションの設定と状態（<code>META</code> の <code>archivedAt</code> はアーカイブ）、プロジェクト、履歴、再計画の提案（6.12）</td></tr>
   </tbody>
 </table>
 
@@ -51,7 +51,7 @@
 <ul>
   <li>Jobs の <code>status-index</code>（status + createdAt）：dispatcher と janitor が、状態ごとにジョブを探します。</li>
   <li>WsConnections の <code>project-index</code>（projectId）：broadcaster が送り先を探します。</li>
-  <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の検査と、<code>userKey</code> から利用者を検索するのに使います。ランダムな ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> の行の <code>ownerUserId</code> で分かります。</li>
+  <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の検査と、<code>userKey</code> から利用者を検索するのに使います。ランダムな ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> のレコードの <code>ownerUserId</code> で分かります。</li>
   <li>Canons の <code>owner-index</code>（ownerUserId + createdAt）：所有者の Canon の一覧を作ります。<code>META</code> の項目だけがキーを持つ疎な索引です。</li>
   <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）：所有者のミッションの一覧と、ミッションランナーが進める下書き中・実行中・一時停止中のミッションを探します。どちらも <code>META</code> だけの疎な索引です。</li>
   <li>Streams：Projects と Messages の <code>NEW_IMAGE</code> を broadcaster に渡します。</li>

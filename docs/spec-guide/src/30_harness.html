@@ -86,7 +86,7 @@
   <tbody>
     <tr><td>解説記事</td><td>完成した BRA の成果物だけを読み、指定された言語で解説記事を書く（3.14）</td><td>シェル（成果物の読み取り）。Web 検索・RCS・<code>lit</code> はなし</td><td>記事の Markdown。図を最大 2 枚足せる</td><td>ワーカーが形式を検査して修正を依頼し、公開する</td></tr>
     <tr><td>Canon の AI レビュー</td><td>Canon への PR を読み、所見を出す（5.8）</td><td>なし</td><td>所見の JSON。判断のジョブは判定も返す</td><td>人が承認か却下かを判断する。AI レビューは承認の代わりにならない。自律実行のミッションが push した PR だけは、判断のジョブの判定をオーケストレーターが反映する（6.8）</td></tr>
-    <tr><td>オーケストレーターのミッション</td><td>ミッションの方針、行（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、行の質問への回答と、要対応・要判断の行の解決も行う（第 6 部、6.8）</td><td>下書きと再計画では RCS、添付資料の読み取り。回答と解決ではなし</td><td>ミッションの JSON</td><td>ワーカーが形を検査し、ミッションランナーが順序を計算して適用する</td></tr>
+    <tr><td>オーケストレーターのミッション</td><td>ミッションの方針、プロジェクト（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、プロジェクトの質問への回答と、要対応・要判断のプロジェクトの解決も行う（第 6 部、6.8）</td><td>下書きと再計画では RCS、添付資料の読み取り。回答と解決ではなし</td><td>ミッションの JSON</td><td>ワーカーが形を検査し、ミッションランナーが順序を計算して適用する</td></tr>
   </tbody>
 </table>
 <p>解説記事は、1 回のターンの後に検査と修正のターンを続けます。AI レビューとミッションは 1 回のターンで、返答が決められた形でないときだけ、もう 1 回依頼します。どのジョブの使用量も、BRA のジョブと同じ単価表で費用に換算します（9.10）。</p>
@@ -192,7 +192,7 @@
     <tr><td>整合の調整</td><td>所見 X1・X2・X3・X8 とその意味、片方または両方を直す依頼</td><td>根拠に基づいて選ぶことと、revisions の節に記録することを求める。推論の強さはプロジェクトの値のまま</td></tr>
     <tr><td>質問への回答</td><td>利用者の回答と、続ける指示</td><td>新しい会話から再開するときだけ、プロジェクトの情報と仕様を補う</td></tr>
     <tr><td>リトライ</td><td>既存のファイルを読み、終わっていない段階を終える指示</td><td>必要な仕様。完成したファイルは作り直さない</td></tr>
-    <tr><td>フォローアップ</td><td>プロジェクトの情報、利用者の指示、許可した仮説の scope の 1 行</td><td>HCD と FRG の両方の仕様、調査ステップと仮説モードの追加の規則</td></tr>
+    <tr><td>フォローアップ</td><td>プロジェクトの情報、利用者の指示、許可した仮説の scope を示す 1 文</td><td>HCD と FRG の両方の仕様、調査ステップと仮説モードの追加の規則</td></tr>
     <tr><td>新しい会話への切り替え</td><td>会話が大きくなりすぎたことと、ファイルと判断の記録を読んで続ける指示</td><td>HCD と FRG の両方の仕様と、各モードの追加の規則</td></tr>
     <tr><td>CSV</td><td>エージェントのターンはない</td><td>ワーカーが変換する。問題があれば JSON を直す依頼を送る</td></tr>
   </tbody>
@@ -226,7 +226,7 @@ Fix them in the files and finish with status "done".</code></pre>
 
 <h3>返答の言語</h3>
 <p>成果物の JSON の値、レポート、判断の記録は英語で書きます。一方、<code>message</code> と <code>question</code> は利用者が読むため、画面の言語に合わせます。</p>
-<p>作成・回答・フォローアップ・リトライの依頼は、Web 画面の言語（<code>en</code>・<code>ja</code>・<code>zh</code>・<code>zhTw</code>・<code>ko</code>・<code>de</code>・<code>fr</code>・<code>es</code>・<code>pt</code>・<code>ru</code>）を運び、その値はジョブに保存されます。ワーカーは毎ターンの依頼文の最後に、<code>message</code> と <code>question</code> をその言語で書くよう指示する 1 行を付けます。この行は画面には出ません。言語の値がないときは、エージェントは利用者が書いた言語で返答します。言語の値を持たないリトライは、前のジョブの言語を引き継ぎます。</p>
+<p>作成・回答・フォローアップ・リトライの依頼は、Web 画面の言語（<code>en</code>・<code>ja</code>・<code>zh</code>・<code>zhTw</code>・<code>ko</code>・<code>de</code>・<code>fr</code>・<code>es</code>・<code>pt</code>・<code>ru</code>）を運び、その値はジョブに保存されます。ワーカーは毎ターンの依頼文の最後に、<code>message</code> と <code>question</code> をその言語で書くよう指示する 1 文を付けます。この文は画面には出ません。言語の値がないときは、エージェントは利用者が書いた言語で返答します。言語の値を持たないリトライは、前のジョブの言語を引き継ぎます。</p>
 
 <h3>実装</h3>
 <p>依頼文は <code>packages/worker/src/index.ts</code> で組み立てます。画面に出す部分は <code>shown</code>、内部で付ける仕様は <code>hidden</code> です。プロジェクトの見出しは <code>header</code>、段階ごとの依頼は <code>phasePrompt</code>・<code>firstPrompt</code>、新しい会話への切り替えは <code>freshThreadPrompt</code>、修正依頼は <code>fixPrompt</code>、仕様の組み立ては <code>rawPhaseSpec</code>・<code>phaseSpec</code> です。調整の依頼は <code>pipeline.ts</code> の <code>adjustmentPrompt</code> で、1 ターン分の入力は <code>turnInput</code> でまとめます。言語の値はジョブの <code>locale</code> で、一覧は <code>packages/shared/src/locale.ts</code> にあります。</p>
@@ -257,11 +257,11 @@ Fix them in the files and finish with status "done".</code></pre>
     <tr><td><code>retry</code></td><td>失敗・中止の後に利用者が行うリトライ、または止まったジョブの自動の再開（8.3）</td><td>まだ受理していない最初の段階から続ける。既存の成果物は残す</td></tr>
     <tr><td><code>article</code></td><td>完成した BRA への解説記事の作成の依頼（付録 A）</td><td>新しい会話で、解説記事の指示書に従って書く。Web 検索と RCS は使わず、作業ディレクトリは読むだけ（3.14）。止まったジョブは、同じモードで自動的に実行し直す</td></tr>
     <tr><td><code>canon-review</code></td><td>Canon の PR への AI レビューの依頼。ジョブが指すのは Canon で、プロジェクトには触れない</td><td>新しい会話で PR の材料を読み、所見を JSON で返す。自律実行のミッションの判断のジョブは、判定も返す（5.8、6.8）。止まったジョブは失敗にするだけ</td></tr>
-    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、ミッションの行についての判断。ミッションランナーが、枠が空いたときだけ積む。ジョブが指すのはミッション</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 行を超える下書きは 25 分（6.4）。行についての判断（回答と解決）はツールなしで、上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
+    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、ミッションの各プロジェクトについての判断。ミッションランナーが、枠が空いたときだけ積む。ジョブが指すのはミッション</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 件を超える下書きは 25 分（6.4）。各プロジェクトについての判断（回答と解決）はツールなしで、上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
   </tbody>
 </table>
 
 <h3>実装</h3>
-<p>実行モードは SQS のメッセージの <code>mode</code> で渡し、型は <code>packages/shared/src/types.ts</code> の <code>RunMode</code> です。<code>canon-review</code> と <code>plan</code> のジョブでは、<code>projectId</code> に Canon の ID またはミッションの ID が入ります。解説記事の依頼は <code>POST /projects/{id}/articles</code> です。判断のジョブは <code>canon-review</code> の <code>reviewKind: "decide"</code>、計画用のジョブの種類は <code>planJobKind</code> で区別します。<code>plan</code> の返答の形は <code>PLAN_RESULT_SCHEMA</code>、時間の上限は <code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）と <code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、行のジョブでは <code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>（5 分）です。質問のときの保存は <code>index.ts</code> の <code>persistState</code> で、プロジェクトの状態は <code>WAITING_USER_INPUT</code> になります。</p>
+<p>実行モードは SQS のメッセージの <code>mode</code> で渡し、型は <code>packages/shared/src/types.ts</code> の <code>RunMode</code> です。<code>canon-review</code> と <code>plan</code> のジョブでは、<code>projectId</code> に Canon の ID またはミッションの ID が入ります。解説記事の依頼は <code>POST /projects/{id}/articles</code> です。判断のジョブは <code>canon-review</code> の <code>reviewKind: "decide"</code>、計画用のジョブの種類は <code>planJobKind</code> で区別します。<code>plan</code> の返答の形は <code>PLAN_RESULT_SCHEMA</code>、時間の上限は <code>PLAN_JOB_TIME_BUDGET_MS</code>（7 分）と <code>PLAN_JOB_LONG_TIME_BUDGET_MS</code>（25 分）、プロジェクトのジョブでは <code>PLAN_ROW_JOB_TIME_BUDGET_MS</code>（5 分）です。質問のときの保存は <code>index.ts</code> の <code>persistState</code> で、プロジェクトの状態は <code>WAITING_USER_INPUT</code> になります。</p>
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>RunMode</code>）、<code>packages/shared/src/planJob.ts</code>・<code>planRowJob.ts</code>、<code>packages/worker/src/index.ts</code>（実行モード、<code>runAgentTurn</code>、<code>persistState</code>）、<code>pipeline.ts</code>、<code>packages/api/src/app.ts</code>（回答・フォローアップ・リトライの API、付録 A）</p>
 </section>

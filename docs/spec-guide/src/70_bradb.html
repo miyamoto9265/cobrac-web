@@ -48,7 +48,7 @@
   <g stroke="#b45309" stroke-width="1.4" fill="none" marker-end="url(#a5)"><path d="M124 66H140"/><path d="M270 66H286"/><path d="M408 66H424"/><path d="M542 66H558"/></g>
   <rect x="4" y="128" width="672" height="48" rx="6" fill="#f8fafc" stroke="#cbd5e1"/>
   <text x="340" y="148" text-anchor="middle" font-size="9" fill="#374151">結果（registered / unchanged / rejected / failed）は <tspan font-family="JetBrains Mono, monospace">Projects.bradb</tspan> と版タブの BRA-DB 欄に表示</text>
-  <text x="340" y="165" text-anchor="middle" font-size="9" fill="#374151">BRA-DB の行は、版 ID と内容のハッシュから S3 の凍結ファイルと生成条件までたどれる</text>
+  <text x="340" y="165" text-anchor="middle" font-size="9" fill="#374151">BRA-DB のレコードは、版 ID と内容のハッシュから S3 の凍結ファイルと生成条件までたどれる</text>
 </svg>
 <figcaption><b>図 7.1</b>　凍結した版から BRA-DB に登録するまで</figcaption>
 </figure>
@@ -62,7 +62,7 @@
 <table class="compact">
   <thead><tr><th style="width:27%">テーブル</th><th>内容（主な列）</th></tr></thead>
   <tbody>
-    <tr><td><code>bradb_projects</code></td><td>BRA 1 つにつき 1 行。<code>project_key</code>（連番の主キー）、<code>project_id</code>（一意。CoBRAC の Project ID をそのまま文字列で）、ROI・TLF、Contributor、<code>source_file</code>（<code>cobrac:&lt;版 ID&gt;</code>）、<code>cobrac_generated</code>、<code>version</code>、<code>import_status</code>（imported / validated / published / deprecated）、シートの見出しとメタ情報</td></tr>
+    <tr><td><code>bradb_projects</code></td><td>BRA 1 つにつき 1 件。<code>project_key</code>（連番の主キー）、<code>project_id</code>（一意。CoBRAC の Project ID をそのまま文字列で）、ROI・TLF、Contributor、<code>source_file</code>（<code>cobrac:&lt;版 ID&gt;</code>）、<code>cobrac_generated</code>、<code>version</code>、<code>import_status</code>（imported / validated / published / deprecated）、シートの見出しとメタ情報</td></tr>
     <tr><td><code>bradb_local_circuits</code></td><td>回路。<code>circuit_id</code> が一意。<code>circuit_kind</code>（local / bif）、Source of ID、names、<code>is_uniform</code>、伝達物質、修飾（Excitatory / Inhibitory / Modulatory）、<code>sub_circuit_ids</code>、Output Semantics、<code>approval_status</code>（approved / provisional / unverified）、<code>origin_project_key</code>（定義したプロジェクト）、<code>extra</code>（JSONB）</td></tr>
     <tr><td><code>bradb_literature</code> / <code>bradb_project_literature</code></td><td>文献の共有のマスタ（<code>literature_id</code> と DOI が一意）と、プロジェクトとの対応</td></tr>
     <tr><td><code>bradb_connections</code></td><td>接続。送り手と受け手の Circuit ID、relation（<code>=</code> <code>&lt;</code> <code>&gt;</code>）と表記、Reference ID、Taxon、測定法、引用文と図の指示、承認状態、<code>extra</code></td></tr>
@@ -84,7 +84,7 @@
     <tr><td><code>SUBNODE</code></td><td>FRG の親ノードから子ノードへ（順序付き）</td></tr>
     <tr><td><code>PROJECTS_TO</code></td><td>FRG のノードから、その Projected Circuits へ</td></tr>
     <tr><td><code>MAPS_TO_LOCAL</code> / <code>MAPS_TO_BIF</code></td><td>FRG の UC のノードから、対応する回路へ</td></tr>
-    <tr><td><code>PROJECTS</code></td><td>回路から回路へ（Connections の 1 行。<code>project_id</code> と <code>connection_key</code> を持つ）</td></tr>
+    <tr><td><code>PROJECTS</code></td><td>回路から回路へ（Connections の 1 件。<code>project_id</code> と <code>connection_key</code> を持つ）</td></tr>
     <tr><td><code>HAS_SUBCIRCUIT</code></td><td>Collection から、その Sub-Circuit へ（順序付き）</td></tr>
   </tbody>
 </table>
@@ -92,7 +92,7 @@
 <h3>CoBRAC の記録とロール</h3>
 <p>CoBRAC 独自の記録は、スキーマ <code>cobrac</code> にあります。</p>
 <ul>
-  <li><b>登録の記録</b>（<code>cobrac.registrations</code>）：登録の試み 1 回につき 1 行を足す、<b>追記だけ</b>の表です。Project ID、<code>project_key</code>、版 ID、版の番号、親の版 ID、内容のハッシュを持ちます。さらに、状態（<code>registered</code> / <code>unchanged</code> / <code>rejected</code> / <code>failed</code>）、モード（<code>create</code> / <code>replace</code> / <code>none</code>）、理由、件数、ノードの変化、スキップした回路、警告を持ちます。生成条件（<code>provenance</code>）、パッケージの manifest の全体、依頼者、時刻も記録します。UPDATE と DELETE はトリガーが拒否します。</li>
+  <li><b>登録の記録</b>（<code>cobrac.registrations</code>）：登録の試み 1 回につき 1 件を足す、<b>追記だけ</b>の表です。Project ID、<code>project_key</code>、版 ID、版の番号、親の版 ID、内容のハッシュを持ちます。さらに、状態（<code>registered</code> / <code>unchanged</code> / <code>rejected</code> / <code>failed</code>）、モード（<code>create</code> / <code>replace</code> / <code>none</code>）、理由、件数、ノードの変化、スキップした回路、警告を持ちます。生成条件（<code>provenance</code>）、パッケージの manifest の全体、依頼者、時刻も記録します。UPDATE と DELETE はトリガーが拒否します。</li>
   <li><b>現在の版</b>（ビュー <code>cobrac.current_versions</code>）：各プロジェクトについて、最後に成功した登録の版、つまり BRA-DB が現在持っている版を示します。</li>
 </ul>
 <table class="compact">
@@ -131,13 +131,13 @@
       <li>BRA-DB の制約が拒む値（Modulation Type、Region Category、長すぎる文字列）は NULL にして警告を出し、元の値を <code>extra</code> に残します。</li>
     </ul>
   </li>
-  <li><b>トランザクションの開始</b>：プロジェクトごとの advisory lock を取ります。そのプロジェクトの行が BRA-DB にあれば置き換え（<code>replace</code>）、なければ新規（<code>create</code>）として進めます。</li>
+  <li><b>トランザクションの開始</b>：プロジェクトごとの advisory lock を取ります。そのプロジェクトのレコードが BRA-DB にあれば置き換え（<code>replace</code>）、なければ新規（<code>create</code>）として進めます。</li>
   <li><b>同じ内容の判定</b>：BRA-DB が持つ版と内容のハッシュが同じなら、<code>unchanged</code> を記録して終わります。</li>
   <li><b>回路の分類と検査</b>：回路を BIF と Local に分類し、インポート v3.10 の検査を行います。Collection は接続を送れない（エラー 203）、relation は <code>=</code> <code>&lt;</code> <code>&gt;</code> のどれか、という検査です。</li>
   <li><b>置き換えの条件</b>：BRA-DB でレビューコメントが付いたプロジェクトは置き換えません（理由 <code>review_comments</code>）。回路か接続が減る場合は、所有者の確認がない限り拒否します（理由 <code>shrink</code>。前後の件数を付ける）。</li>
-  <li><b>書き込み</b>：プロジェクトの行、回路、文献、プロジェクトと文献の対応、FRG のノードと履歴、接続、グラフを書きます。置き換えでは、プロジェクトの行とその連番のキーを保ち、<code>version</code> を上げます。回路は、自分が定義したものと所有者のいないものを upsert します。ほかのプロジェクトが定義した回路は共有の語彙として残し、スキップとして報告します。自分が定義しなくなった回路は削除します。</li>
+  <li><b>書き込み</b>：プロジェクトのレコード、回路、文献、プロジェクトと文献の対応、FRG のノードと履歴、接続、グラフを書きます。置き換えでは、プロジェクトのレコードとその連番のキーを保ち、<code>version</code> を上げます。回路は、自分が定義したものと所有者のいないものを upsert します。ほかのプロジェクトが定義した回路は共有の語彙として残し、スキップとして報告します。自分が定義しなくなった回路は削除します。</li>
   <li><b>整合性の検査</b>：書いた辺の数とグラフを照合します。端が BRA-DB にない辺は、エラーではなく警告にします。食い違えば <code>rejected</code>（理由 <code>integrity</code>）にします。</li>
-  <li><b>記録と確定</b>：登録の記録に <code>registered</code> を、インポートの記録に 1 行を足して COMMIT します。インポートの記録には、<code>import_type</code> を <code>cobrac</code>、<code>agent</code> を <code>CoBRAC Agents v&lt;app&gt; (&lt;git sha&gt;)</code> とし、<code>notes</code> に版 ID・親・内容のハッシュ・登録 ID を書きます。途中のエラーはすべて ROLLBACK し、<code>rejected</code> か <code>failed</code> として記録します。</li>
+  <li><b>記録と確定</b>：登録の記録に <code>registered</code> を、インポートの記録に 1 件を足して COMMIT します。インポートの記録には、<code>import_type</code> を <code>cobrac</code>、<code>agent</code> を <code>CoBRAC Agents v&lt;app&gt; (&lt;git sha&gt;)</code> とし、<code>notes</code> に版 ID・親・内容のハッシュ・登録 ID を書きます。途中のエラーはすべて ROLLBACK し、<code>rejected</code> か <code>failed</code> として記録します。</li>
 </ol>
 
 <h3>実装</h3>
@@ -145,18 +145,18 @@
 <p class="src">典拠：<code>packages/api/src/lib/bradb/register.ts</code>・<code>sheets.ts</code>・<code>cypher.ts</code>、<code>packages/api/src/handlers/bradbImport.ts</code>、<code>packages/api/src/lib/hypothesisSettings.ts</code>、<code>packages/shared/src/hypothesisVersion.ts</code>（<code>bradbBlockReason</code>）、<code>packages/web/src/components/workspace/BradbPanel.tsx</code></p>
 
 <h2 id="s7-4">7.4 履歴を失わない設計</h2>
-<p>BRA-DB のインポート v3.10 の置き換え（<code>--replace</code>）は、プロジェクトの行を削除して作り直します。そのため、インポートの記録とノードの履歴も消えてしまいます。CoBRAC の登録は、これを避けるように作られています。</p>
+<p>BRA-DB のインポート v3.10 の置き換え（<code>--replace</code>）は、プロジェクトのレコードを削除して作り直します。そのため、インポートの記録とノードの履歴も消えてしまいます。CoBRAC の登録は、これを避けるように作られています。</p>
 <div class="grid2">
   <div class="card"><div class="h">置き換えても残るもの</div><ul>
-    <li>プロジェクトの行と連番のキー（<code>bradb_projects</code> の行と <code>project_key</code>）。<code>version</code> は上がる</li>
+    <li>プロジェクトのレコードと連番のキー（<code>bradb_projects</code> のレコードと <code>project_key</code>）。<code>version</code> は上がる</li>
     <li>インポートの記録とノードの履歴（<code>bradb_import_log</code> と <code>bradb_bra_node_history</code>）</li>
     <li>回路。その場で更新するので、ほかのプロジェクトからその回路への辺も残る</li>
-    <li>登録の記録の全行（<code>cobrac.registrations</code>。トリガーで変更と削除を拒否）</li>
+    <li>登録の記録の全レコード（<code>cobrac.registrations</code>。トリガーで変更と削除を拒否）</li>
   </ul></div>
   <div class="card"><div class="h">置き換えで作り直すもの</div><ul>
     <li>そのプロジェクトの接続、FRG のノード、文献との対応</li>
     <li>グラフの、そのプロジェクトのノードと接続の辺</li>
-    <li>ノードの履歴は続く。新しいノードは <code>current_version</code> が 1（import）、変わったノードは n+1（update）になり、変わらないノードは番号を保つ（履歴の行を足さない）</li>
+    <li>ノードの履歴は続く。新しいノードは <code>current_version</code> が 1（import）、変わったノードは n+1（update）になり、変わらないノードは番号を保つ（履歴のレコードを足さない）</li>
   </ul></div>
 </div>
 <table>
@@ -172,9 +172,9 @@
 <p class="src">典拠：<code>packages/api/src/lib/bradb/register.ts</code>、<code>packages/infra/bradb/sql/</code></p>
 
 <h2 id="s7-5">7.5 来歴をたどる</h2>
-<p>BRA-DB の行からは、次の順に来歴をたどれます。</p>
+<p>BRA-DB のレコードからは、次の順に来歴をたどれます。</p>
 <ol class="steps">
-  <li>プロジェクトの行の Project ID（<code>bradb_projects.project_id</code>）</li>
+  <li>プロジェクトのレコードの Project ID（<code>bradb_projects.project_id</code>）</li>
   <li>登録の記録の版 ID と内容のハッシュ（<code>cobrac.registrations</code>）</li>
   <li>S3 に凍結したファイル（<code>revisions/{n}/</code>）と、その生成条件（manifest。4.5）</li>
 </ol>
