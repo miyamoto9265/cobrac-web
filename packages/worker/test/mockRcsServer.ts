@@ -5,7 +5,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-type Term = { homba_id: string; name: string; acronym: string; dhba_acronym: string | null; sabra: Record<string, unknown> };
+type Term = { homba_id: string; name: string; acronym: string; dhba_acronym: string | null; sabra: Record<string, unknown>; ancestors?: { homba_id: string }[] };
 
 export const TERMS: Record<string, Term> = {
   "HOMBA:12261": {
@@ -35,6 +35,14 @@ export const TERMS: Record<string, Term> = {
     acronym: "NAC",
     dhba_acronym: null,
     sabra: { atlas: "BNA", bna_territory: "regions of basal ganglia", bna_territory_root: "HOMBA:AA30190" },
+  },
+  "HOMBA:10561": {
+    homba_id: "HOMBA:10561",
+    name: "corpus callosum",
+    acronym: "cc",
+    dhba_acronym: "cc",
+    sabra: { atlas: "DHBA", dhba_name: "corpus callosum", dhba_acronym: "cc", dhba_homba_id: "HOMBA:10561", dhba_exact: true },
+    ancestors: [{ homba_id: "HOMBA:10154" }, { homba_id: "HOMBA:10155" }, { homba_id: "HOMBA:AA30482" }, { homba_id: "HOMBA:AA30483" }],
   },
 };
 
@@ -66,7 +74,7 @@ export async function startMockRcs(token: string): Promise<MockRcs> {
       const id = String(msg.params?.arguments?.homba_id ?? "");
       if (failing.has(id)) return send(500, { error: "boom" });
       const term = TERMS[id];
-      const data = term ? { ...term, ancestors: [], children: [] } : { error: `unknown HOMBA ID: ${id}` };
+      const data = term ? { ancestors: [], ...term, children: [] } : { error: `unknown HOMBA ID: ${id}` };
       send(200, {
         jsonrpc: "2.0",
         id: msg.id,

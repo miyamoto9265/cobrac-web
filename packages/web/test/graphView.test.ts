@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FrgGraph, FrgNode } from "@cobrac/shared";
-import { circuitsUnderGroup, frgIdForCircuit, groupBoxes, groupLevels, groupParents, lineage, neighborhood, parentGroupsOfCircuit, pathFromRoot, searchNodes } from "../src/lib/graphView";
+import { circuitsUnderGroup, detachedNodes, frgIdForCircuit, groupBoxes, groupLevels, groupParents, lineage, neighborhood, parentGroupsOfCircuit, pathFromRoot, searchNodes } from "../src/lib/graphView";
 
 const nodes = [
   { id: "LC4", label: "LC4", sublabel: "Lobula columnar neuron LC4" },
@@ -113,5 +113,22 @@ describe("Collection boxes", () => {
 
   it("gives each node and nested group its smallest enclosing group", () => {
     expect(Object.fromEntries(groupParents(groups))).toEqual({ GC: "Cb", PC: "Cb", IO: "Loop", Cb: "Loop", Missing: "Empty" });
+  });
+});
+
+describe("detachedNodes", () => {
+  const e = (source: string, target: string) => ({ id: `${source}->${target}`, source, target });
+  it("is empty when the graph is in one piece", () => {
+    expect(detachedNodes(["A", "B", "C"], [e("A", "B"), e("C", "B")])).toEqual([]);
+  });
+  it("lists the nodes outside the part that holds the ROI-internal UCs", () => {
+    const ids = ["Pul", "V5", "A21r", "A40c", "A44op"];
+    const edges = [e("Pul", "V5"), e("A21r", "A40c"), e("A40c", "A44op")];
+    expect(detachedNodes(ids, edges, new Set(["A40c"]))).toEqual(["Pul", "V5"]);
+    // the ROI-internal UCs win over a larger part
+    expect(detachedNodes(ids, edges, new Set(["V5"]))).toEqual(["A21r", "A40c", "A44op"]);
+  });
+  it("keeps the largest part when no node is marked, and counts a node without edges as its own part", () => {
+    expect(detachedNodes(["A", "B", "C", "D"], [e("A", "B"), e("B", "C")])).toEqual(["D"]);
   });
 });

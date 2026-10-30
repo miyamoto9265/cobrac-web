@@ -5,6 +5,7 @@ import { useT } from "../../i18n";
 import { SELF_LOOP_STEP, laneGeometry, laneLabelPlacement, type Lane, type LaneRoom, type Side } from "../../lib/parallelEdges";
 import { HypothesisMark, hypothesisDash } from "../hypothesis/HypothesisMark";
 import { markerBoxSize, markerUrl } from "./markers";
+import { routeAround, type Obstacle } from "./route";
 
 export type XY = { x: number; y: number };
 
@@ -38,19 +39,24 @@ export type EdgeData = {
   /** true when this edge is selected → show waypoint editing handles */
   editing: boolean;
   onWaypointsChange?: (id: string, wps: XY[]) => void;
+  /** Node boxes an orthogonal line without bends of its own goes around (shared by all edges of the canvas) */
+  obstacles?: Obstacle[];
+  /** That line's route, worked out with the other lines of the canvas (route.ts); its ends follow the drawn handles */
+  route?: XY[];
 };
 
 export type StyledEdgeType = Edge<EdgeData, "styled">;
 
 /**
  * Default look per physiological sign (HCD) – FRG edges use "unknown".
- * Curves are the default: orthogonal routes of different edges overlap on shared segments and read as buses.
+ * Right-angle lines are the default: without bends of their own they go around the boxes in their way (route.ts), so
+ * a line never passes under a box and reads as going through it.
  */
 export const SIGN_DEFAULTS: Record<EdgeSign, Omit<ResolvedEdgeStyle, "waypoints">> = {
-  excitatory: { lineType: "bezier", color: "#475569", width: 1.5, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
-  inhibitory: { lineType: "bezier", color: "#2563eb", width: 1.7, dashed: false, markerStart: "none", markerEnd: "square", rounded: true },
-  modulatory: { lineType: "bezier", color: "#7c3aed", width: 1.5, dashed: true, markerStart: "none", markerEnd: "circle", rounded: true },
-  unknown: { lineType: "bezier", color: "#94a3b8", width: 1.4, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
+  excitatory: { lineType: "orthogonal", color: "#475569", width: 1.5, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
+  inhibitory: { lineType: "orthogonal", color: "#2563eb", width: 1.7, dashed: false, markerStart: "none", markerEnd: "square", rounded: true },
+  modulatory: { lineType: "orthogonal", color: "#7c3aed", width: 1.5, dashed: true, markerStart: "none", markerEnd: "circle", rounded: true },
+  unknown: { lineType: "orthogonal", color: "#94a3b8", width: 1.4, dashed: false, markerStart: "none", markerEnd: "arrow", rounded: true },
 };
 
 /** The earlier default line type: layouts saved with it may carry bends without an explicit line type. */
@@ -269,6 +275,31 @@ function laneBezier(
   return { path: `M${sx},${sy} C${c1.x},${c1.y} ${c2.x},${c2.y} ${tx},${ty}`, labelX: want.x, labelY: want.y, renderPts: [p0, p3] };
 }
 
+/**
+ * A precomputed route moved onto the handles as drawn (they may sit a pixel or two off the computed points): the ends
+ * and the corner next to each end follow, so the first and last runs stay straight.
+ */
+function fitRoute(route: XY[], s: XY, t: XY): XY[] | null {
+  const n = route.length;
+  if (n < 2 || Math.hypot(route[0].x - s.x, route[0].y - s.y) > 4 || Math.hypot(route[n - 1].x - t.x, route[n - 1].y - t.y) > 4) return null;
+  const pts = route.map((p) => ({ ...p }));
+  const follow = (i: number, j: number, to: XY) => {
+    if (Math.abs(pts[i].x - pts[j].x) < 0.5) pts[j].x = to.x;
+    else pts[j].y = to.y;
+    pts[i] = to;
+  };
+  if (n === 2) return [s, t];
+  follow(0, 1, s);
+  follow(n - 1, n - 2, t);
+  return pts;
+}
+
+/** Path of a route from `routeAround` (its corners are the render points, so dragging one starts from them). */
+function routedPath(pts: XY[], rounded: boolean) {
+  const m = midpoint(pts);
+  return { path: pointsToPath(pts, rounded ? 8 : 0), labelX: m.x, labelY: m.y, renderPts: pts };
+}
+
 const EDITABLE: EdgeLineType[] = ["orthogonal", "polyline"];
 
 // ---------------------------------------------------------------------------
@@ -293,9 +324,19 @@ function StyledEdgeImpl({ id, sourceX, sourceY, targetX, targetY, sourcePosition
   const sy = geo?.source.y ?? sourceY;
   const tx = geo?.target.x ?? targetX;
   const ty = geo?.target.y ?? targetY;
+  const routed =
+    loop || geo || wps.length || s.lineType !== "orthogonal"
+      ? null
+      : d.route
+        ? fitRoute(d.route, { x: sx, y: sy }, { x: tx, y: ty })
+        : d.obstacles
+          ? routeAround({ x: sx, y: sy }, sourcePosition, { x: tx, y: ty }, targetPosition, d.obstacles)
+          : null;
   const { path, labelX, labelY, renderPts } = loop
     ? selfLoopPath(sourceX, sourceY, targetX, targetY, d.loopIndex ?? 0)
-    : buildEdgePath(s, wps, sx, sy, tx, ty, sourcePosition, targetPosition, geo ? { ...geo, base: { source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } } } : undefined);
+    : routed
+      ? routedPath(routed, s.rounded)
+      : buildEdgePath(s, wps, sx, sy, tx, ty, sourcePosition, targetPosition, geo ? { ...geo, base: { source: { x: sourceX, y: sourceY }, target: { x: targetX, y: targetY } } } : undefined);
   const labelPlace = geo
     ? laneLabelPlacement(geo.outward, labelX, labelY, Math.abs(tx - sx), markerBoxSize(s.width))
     : { transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` };
