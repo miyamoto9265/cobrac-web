@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-10-30
+
 ### Fixed
 - Saving an HCD, FRG or Canon graph as PNG dropped every arrow head (the lines were drawn, but not their direction). The PNG now shows the arrows as on screen
 
