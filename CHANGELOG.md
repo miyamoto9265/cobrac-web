@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The Japanese and Chinese UI, API messages, user manual and specification no longer use the word 行 (row). Each ROI × TLF of a mission is now called a project (「2. プロジェクトとバッチ」「まだプロジェクトがありません」), counts read 件, data rows (BRA-DB, CSV sheets, tables) are called レコード, and the paste box is 「リストを貼り付ける」. Before confirmation the draft says that creating the projects starts on confirmation
+
 ## [0.49.0] - 2026-10-25
 
 ### Added

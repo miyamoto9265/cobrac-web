@@ -78,7 +78,7 @@ def main():
 def process_project(csv_dir: str, contributor: str, project_id: str) -> pd.DataFrame:
     """
     Project.csv を読み込み、A2 に Contributor、B2 に Project ID を設定して返す。
-    Review End Line（References / Circuits / Connections / FRG の行の B 列）はワーカーが埋めた値を数値にする。
+    Review End Line（References / Circuits / Connections / FRG のレコードの B 列）はワーカーが埋めた値を数値にする。
     """
     project_csv = os.path.join(csv_dir, "Project.csv")
     if not os.path.isfile(project_csv):
@@ -92,7 +92,7 @@ def process_project(csv_dir: str, contributor: str, project_id: str) -> pd.DataF
     )
     df.iloc[0, 0] = contributor
     df.iloc[0, 1] = project_id
-    # Review End Line（各シートの最終レコードの行番号）は自然数としてセルに書く
+    # Review End Line（各シートの最終レコードの番号）は自然数としてセルに書く
     df = df.astype(object)
     for i in range(len(df)):
         if df.iloc[i, 0] in REVIEW_SHEETS and str(df.iloc[i, 1]).strip().isdigit():
@@ -124,8 +124,8 @@ def process_circuits(csv_dir: str, contributor: str, project_id: str) -> pd.Data
     元の列構成: A Circuit ID / B Source of ID / C Names /
                 D Transmitter / E Modulation Type / F Comments / G UC Descriptor /
                 H Sub-Circuits / I Uniform（H・I は CoBRAC-v1-1 から。無い CSV は空欄・TRUE とみなす）
-    2 行目（最初のデータ行）は ROI 行（ROI_<ProjectID>、Uniform=FALSE、Sub-Circuits に ROI 内の全 Circuit）。
-    続いて Collection の行（Uniform=FALSE、Sub-Circuits あり）、その後に UC の行（Uniform=TRUE、Sub-Circuits 空欄）。
+    最初のデータ（シートの 2 段目）は ROI のレコード（ROI_<ProjectID>、Uniform=FALSE、Sub-Circuits に ROI 内の全 Circuit）。
+    続いて Collection のレコード（Uniform=FALSE、Sub-Circuits あり）、その後に UC のレコード（Uniform=TRUE、Sub-Circuits 空欄）。
 
     処理後の列構成:
         A Circuit ID
@@ -248,7 +248,7 @@ def process_frg(csv_dir: str) -> pd.DataFrame:
         B Subnodes
         C Circuit ID
         D Projected Circuits
-        E Capability&Mechanism  (E+改行+タグ+改行+F。タグはテンプレートの既定値。ROI 外 UC の行は E の定型文だけ)
+        E Capability&Mechanism  (E+改行+タグ+改行+F。タグはテンプレートの既定値。ROI 外 UC のレコードは E の定型文だけ)
         F Implementation of Uniform Circuit  (元 G)
         G Requirements Realization by Interface  (元 H)
         H Requirements  (元 I)

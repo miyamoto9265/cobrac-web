@@ -178,25 +178,25 @@ function csvText(v: unknown): string {
 
 /** 409 unless the rows of the plan may be changed (a draft that is not being drafted). */
 function requireEditable(plan: PlanRecord) {
-  if (plan.status === "DRAFTING") throw conflict("下書きの作成中は行を変更できません");
-  if (plan.status !== "DRAFT") throw conflict("確定後の計画の行は変更できません");
+  if (plan.status === "DRAFTING") throw conflict("下書きの作成中はプロジェクトを変更できません");
+  if (plan.status !== "DRAFT") throw conflict("確定後のミッションのプロジェクトは変更できません");
 }
 
 /** Rows of a form, checked; any unusable row is a 400 that names it. Existing rows keep their ID, state and history. */
 function checkRowInputs(inputs: unknown): { input: PlanRowInput; row: NormalizedPlanRow }[] {
   if (!Array.isArray(inputs)) throw bad("rows が不正です");
-  if (inputs.length > PLAN_LIMITS.maxRows) throw bad(`行は ${PLAN_LIMITS.maxRows} 行までです`);
+  if (inputs.length > PLAN_LIMITS.maxRows) throw bad(`プロジェクトは ${PLAN_LIMITS.maxRows} 件までです`);
   const seen = new Set<string>();
   return inputs.map((raw, i) => {
     const input = (raw ?? {}) as PlanRowInput;
-    if (input.rebuild !== undefined && input.rebuild !== null && typeof input.rebuild !== "boolean") throw bad(`${i + 1} 行目: rebuild が不正です`);
+    if (input.rebuild !== undefined && input.rebuild !== null && typeof input.rebuild !== "boolean") throw bad(`${i + 1} 件目: rebuild が不正です`);
     // an automatic order may number more waves than a typed one (at concurrency 1 every body row is a wave of its own)
     const longWave = typeof input.wave === "number" && Number.isInteger(input.wave) && input.wave > PLAN_LIMITS.maxWave && input.wave <= PLAN_LIMITS.maxRows;
     const n = normalizePlanRow(longWave ? { ...input, wave: undefined } : input);
-    if ("reason" in n) throw bad(`${i + 1} 行目: ${REASON_JA[n.reason]}`);
+    if ("reason" in n) throw bad(`${i + 1} 件目: ${REASON_JA[n.reason]}`);
     const row = longWave ? { ...n.row, wave: input.wave! } : n.row;
     const key = planRowKey(row.roi, row.tlf);
-    if (seen.has(key)) throw bad(`${i + 1} 行目: ${REASON_JA.duplicate}`);
+    if (seen.has(key)) throw bad(`${i + 1} 件目: ${REASON_JA.duplicate}`);
     seen.add(key);
     return { input, row };
   });
@@ -205,10 +205,10 @@ function checkRowInputs(inputs: unknown): { input: PlanRowInput; row: Normalized
 const REASON_JA: Record<PlanRowRejected["reason"], string> = {
   noRoiTlf: "ROI と TLF のどちらか一方は必須です",
   tooLong: "長すぎる値があります",
-  duplicate: "同じ ROI × TLF の行がすでにあります",
+  duplicate: "同じ ROI × TLF のプロジェクトがすでにあります",
   badWave: "バッチは 1〜99 の整数です",
   badPriority: "優先度は整数です",
-  tooMany: `行は ${PLAN_LIMITS.maxRows} 行までです`,
+  tooMany: `プロジェクトは ${PLAN_LIMITS.maxRows} 件までです`,
 };
 
 function newRow(planId: string, order: number, r: NormalizedPlanRow, source: PlanRowRecord["source"], sourceRow: number | null, now: string): PlanRowRecord {
@@ -277,7 +277,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   const canonChoice = body.canon !== undefined ? planCanonChoice(body.canon) : autonomous ? ({ mode: "new", name } as const) : null;
   if (canonChoice?.mode === "existing" && !(await ownedCanon(canonChoice.canonId, u.userId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
   // a plan starts from something to build: a goal (for a draft), capability lists or rows
-  if (!goal && !staged.length && !manual.length && !csv?.rows.length) throw bad(draft ? "下書きを作成するには目標か資料が必要です" : "目標・資料・行のどれかが必要です");
+  if (!goal && !staged.length && !manual.length && !csv?.rows.length) throw bad(draft ? "下書きを作成するには目標か資料が必要です" : "目標・資料・プロジェクトのどれかが必要です");
   if (draft) await requireRunKey(u);
 
   // capability lists in CSV / TSV / text are read now (before they are moved); xlsx and PDF wait for the draft job
@@ -578,7 +578,7 @@ export async function orderPlan(u: UserRecord, plan: PlanRecord): Promise<{ plan
   return withPlanLease(plan.planId, async (fresh) => {
     requireEditable(fresh);
     const rows = await listRows(plan.planId, true);
-    if (!rows.length) throw bad("行が 1 つもありません");
+    if (!rows.length) throw bad("プロジェクトが 1 件もありません");
     const o = autoOrder(rows, (await currentLimits()).effective);
     const now = nowIso();
     if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
@@ -669,7 +669,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     if (fresh.status === "DRAFTING") throw conflict("下書きの作成中は確定できません");
     if (fresh.status !== "DRAFT") throw conflict("この計画は確定済みです");
     const rows = await listRows(plan.planId, true);
-    if (!rows.length) throw bad("行が 1 つもありません");
+    if (!rows.length) throw bad("プロジェクトが 1 件もありません");
     const policy = await requirePlanRun(u, fresh);
     const fallback = () => implicitModel(policy, u.defaultModel || deploymentDefaultModel());
     const chosen = fresh.settings.modelChosen ? fresh.settings.model : null;
@@ -812,18 +812,18 @@ export async function cancelPlan(u: UserRecord, plan: PlanRecord): Promise<void>
 export async function retryRow(u: UserRecord, plan: PlanRecord, rowId: string): Promise<void> {
   if (plan.status !== "RUNNING" && plan.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
   const ok = await updateRow(plan.planId, rowId, { state: "pending", attentionReason: null, claimedAt: null }, { state: "attention" });
-  if (!ok) throw conflict("要対応の行ではありません");
+  if (!ok) throw conflict("要対応のプロジェクトではありません");
   await putPlanEvent(plan.planId, "row_retry", u.userId, { rowId, detail: { manual: 1 } });
   if (plan.status === "RUNNING") await kick(plan.planId);
 }
 
 /** The owner leaves a waiting row or one that needs attention out of the plan. */
 export async function skipRow(u: UserRecord, plan: PlanRecord, rowId: string): Promise<void> {
-  if (plan.status === "DRAFT" || plan.status === "DRAFTING" || plan.status === "COMPLETED") throw conflict("確定済みで終了していない計画の行だけをスキップできます");
+  if (plan.status === "DRAFT" || plan.status === "DRAFTING" || plan.status === "COMPLETED") throw conflict("確定済みで終了していないミッションのプロジェクトだけをスキップできます");
   const row = (await listRows(plan.planId)).find((r) => r.rowId === rowId);
   if (!row) throw notFound();
-  if (row.state !== "pending" && row.state !== "attention" && row.state !== "decision") throw conflict("待ち・要対応・人の判断の行だけをスキップできます");
-  if (!(await updateRow(plan.planId, rowId, { state: "skipped" }, { state: row.state }))) throw conflict("行の状態が変わりました。再読み込みしてください");
+  if (row.state !== "pending" && row.state !== "attention" && row.state !== "decision") throw conflict("待ち・要対応・人の判断のプロジェクトだけをスキップできます");
+  if (!(await updateRow(plan.planId, rowId, { state: "skipped" }, { state: row.state }))) throw conflict("プロジェクトの状態が変わりました。再読み込みしてください");
   await putPlanEvent(plan.planId, "row_skipped", u.userId, { rowId });
   if (plan.status === "RUNNING" || plan.status === "PAUSED") await kick(plan.planId);
 }
@@ -839,15 +839,15 @@ export async function resolveRow(u: UserRecord, plan: PlanRecord, rowId: string,
     if (fresh.status !== "RUNNING" && fresh.status !== "PAUSED") throw conflict("実行中または一時停止中の計画ではありません");
     const row = (await listRows(plan.planId, true)).find((r) => r.rowId === rowId);
     if (!row) throw notFound();
-    if (row.state !== "decision") throw conflict("人の判断を待つ行ではありません");
+    if (row.state !== "decision") throw conflict("人の判断を待つプロジェクトではありません");
     let values: Partial<PlanRowRecord>;
     if (action === "done") values = { state: "done", completedAt: nowIso(), lastError: null };
     else {
       const p = row.projectId ? await getProject(u.userId, row.projectId) : null;
-      if (!p || isProjectDeleted(p) || p.status !== "COMPLETED") throw conflict("完了したプロジェクトの行だけをもう一度 push できます");
+      if (!p || isProjectDeleted(p) || p.status !== "COMPLETED") throw conflict("完了したプロジェクトだけをもう一度 push できます");
       values = { state: "running", decisionReason: null, lastError: null, claimedAt: null };
     }
-    if (!(await updateRow(plan.planId, rowId, values, { state: "decision" }))) throw conflict("行の状態が変わりました。再読み込みしてください");
+    if (!(await updateRow(plan.planId, rowId, values, { state: "decision" }))) throw conflict("プロジェクトの状態が変わりました。再読み込みしてください");
     await putPlanEvent(plan.planId, "row_resolved", u.userId, { rowId, ...(row.projectId ? { projectId: row.projectId } : {}), detail: { action, reason: row.decisionReason ?? null } });
     return fresh.status === "RUNNING";
   });

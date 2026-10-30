@@ -331,13 +331,13 @@
     <tr><td>Collection は、この HCD で接続の送り手にも受け手にもならない。フィードバックは、その中の UC を挙げる。オントロジーは受け手が Collection であることを許すが、CoBRAC はインターフェースを UC どうしに保つため、より厳しくしている。単位の全体について報告された証拠は、UC の接続に relation <code>&lt;</code> と論文の表記で引用する</td><td>203（送り手）、<code>cobrac:collection-end</code>（受け手。Master より厳しい）</td></tr>
     <tr><td>ある回路とその中のより細かい回路を、両方とも UC にしない（上の「入れ子の禁止」）</td><td><code>cobrac:nested-uc</code></td></tr>
     <tr><td>複数の SABRA の単位にまたがる送り手には <code>uniformityNote</code> が要る</td><td>203</td></tr>
-    <tr><td>Collection の ID は UC と同じ ID の空間を使い、<code>ROI_</code> で始めない（ROI の行はワーカーが書く）。Descriptor があれば、UC と同じ命名規則に従う。Descriptor は UC と Collection を通じて一意</td><td>—</td></tr>
+    <tr><td>Collection の ID は UC と同じ ID の空間を使い、<code>ROI_</code> で始めない（ROI のレコードはワーカーが書く）。Descriptor があれば、UC と同じ命名規則に従う。Descriptor は UC と Collection を通じて一意</td><td>—</td></tr>
     <tr><td>Collection の Source of ID は常に <code>collection</code>。Collection は Sub-Circuits で定義されるため。<code>DHBA</code> / <code>BNA</code> / Reference ID は UC のための値</td><td><code>cobrac:collection-source</code></td></tr>
     <tr><td><code>[U.&lt;Collection&gt;]</code> は <code>comments</code> の中でだけ書ける。FRG の Subnodes と機能の文では UC を名指す</td><td>—</td></tr>
   </tbody>
 </table>
-<h3>ROI の行</h3>
-<p><code>Circuits.csv</code> の先頭には、ROI 全体を表す行をワーカーが書きます。ROI の行は Collection の一種として書かれ、各欄は次のとおりです。グラフを組み立てるときは、この行を飛ばします。</p>
+<h3>ROI のレコード</h3>
+<p><code>Circuits.csv</code> の先頭には、ROI 全体を表すレコードをワーカーが書きます。ROI のレコードは Collection の一種として書かれ、各欄は次のとおりです。グラフを組み立てるときは、このレコードを飛ばします。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">欄</th><th>値</th></tr></thead>
   <tbody>
@@ -350,9 +350,9 @@
 </table>
 <h3>出力での扱い</h3>
 <ul>
-  <li><code>Circuits.csv</code> には、ROI の行の後に、各 Collection を Uniform <code>FALSE</code> として書きます。Sub-Circuits は <code>;</code> でつなぎます。UC は Uniform <code>TRUE</code> で、Sub-Circuits は空です。</li>
-  <li>Collection は FRG のノードになりません。FRG の葉と Projected Circuits は UC です。<code>FRG.csv</code> に Collection の行はありません。</li>
-  <li>グラフを組み立てるときは、ROI の行以外の Uniform <code>FALSE</code> の行を、ノードではなく Collection の一覧として扱います。この一覧には、入れ子を展開した構成要素が付きます。ただし、まだ検査を通っていないファイルで接続の端になっている Collection は、ノードのまま残します。</li>
+  <li><code>Circuits.csv</code> には、ROI のレコードの後に、各 Collection を Uniform <code>FALSE</code> として書きます。Sub-Circuits は <code>;</code> でつなぎます。UC は Uniform <code>TRUE</code> で、Sub-Circuits は空です。</li>
+  <li>Collection は FRG のノードになりません。FRG の葉と Projected Circuits は UC です。<code>FRG.csv</code> に Collection のレコードはありません。</li>
+  <li>グラフを組み立てるときは、ROI のレコード以外の Uniform <code>FALSE</code> のレコードを、ノードではなく Collection の一覧として扱います。この一覧には、入れ子を展開した構成要素が付きます。ただし、まだ検査を通っていないファイルで接続の端になっている Collection は、ノードのまま残します。</li>
 </ul>
 <p class="small">決まっていないこと：プロジェクトによって Uniform の値が違う回路を、WholeBIF に統合するときにどう扱うか（上流への質問 U20、2.13）。</p>
 <h3>実装</h3>
@@ -378,7 +378,7 @@
   <tbody>
     <tr><td><code>cobrac:circuit-id-chars</code></td><td>Circuit ID が許容文字（<code>A-Za-z0-9 . _ ~ - / +</code> と <code>( )</code>）を外れる</td></tr>
     <tr><td><code>cobrac:nested-uc</code></td><td>ある回路とその中のより細かい回路が、両方とも UC になっている</td></tr>
-    <tr><td><code>cobrac:uc-no-sub-circuits</code></td><td>UC の行に Sub-Circuits がある</td></tr>
+    <tr><td><code>cobrac:uc-no-sub-circuits</code></td><td>UC のレコードに Sub-Circuits がある</td></tr>
     <tr><td><code>cobrac:collection-members</code></td><td>Collection が自分自身を含む、循環する、または構成要素がすべて <code>makeshift</code></td></tr>
     <tr><td><code>cobrac:collection-end</code></td><td>Collection が接続の受け手になっている（Master より厳しい）</td></tr>
     <tr><td><code>cobrac:collection-source</code></td><td>Collection の Source of ID が <code>collection</code> でない</td></tr>
@@ -388,7 +388,7 @@
     <tr><td><code>cobrac:gn-no-circuit-id</code></td><td>U. 以外のノードに Circuit ID がある</td></tr>
     <tr><td><code>cobrac:capability-required</code></td><td>Capability が未記載</td></tr>
     <tr><td><code>cobrac:frg-acyclic</code></td><td>FRG の循環</td></tr>
-    <tr><td><code>cobrac:hypothesis-marked</code></td><td>Measurement method が <code>Hypothetical</code> の接続で、Comments の 1 行目が仮説の行（<code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code>）でない。仮説モードだけの検査（3.12）</td></tr>
+    <tr><td><code>cobrac:hypothesis-marked</code></td><td>Measurement method が <code>Hypothetical</code> の接続で、Comments の先頭が仮説の印（<code>Hypothesis (&lt;claims&gt;; &lt;basis&gt;): &lt;rationale&gt;</code>）でない。仮説モードだけの検査（3.12）</td></tr>
   </tbody>
 </table>
 <p class="small">このうち <code>cobrac:nested-uc</code>・<code>cobrac:collection-members</code>・<code>cobrac:collection-end</code>・<code>cobrac:collection-source</code> の 4 つは、ワーカーが <code>uc.json</code> と <code>connections.json</code> を受け取った時点で、スキーマと検査によって担保します。BRA の出力を判定するチェッカーの表には、出力から判定できる残りの 9 個が並びます。Canon の審査画面に出るシステムの検査は、このほかに <code>cobrac:uc-descriptor</code>（Descriptor の構文）、<code>cobrac:circuit-id-form</code>（Circuit ID と Descriptor の形の対応）、<code>cobrac:ref-check</code>、<code>cobrac:canon-…</code>（衝突の種類）を使います（5.8）。Canon の衝突コード（C1〜C13、5.7）と、HCD と FRG の整合チェック（X1〜X9、3.11）は、CoBRAC 独自の体系です。</p>
@@ -406,7 +406,7 @@
     <tr><td><code>uniformityNote</code></td><td>任意。複数の SABRA の単位にまたがる送り手では必要（2.9）</td></tr>
   </tbody>
 </table>
-<p class="small">Source of ID に <code>BNA</code> と書くのは CoBRAC の拡張です。BRA の列挙値には SABRA の BNA 側を表す値がなく、追加を上流に依頼しています（未決、2.13）。それまでは、Review Tool がこれらの行にコード 108 を出す可能性があります。</p>
+<p class="small">Source of ID に <code>BNA</code> と書くのは CoBRAC の拡張です。BRA の列挙値には SABRA の BNA 側を表す値がなく、追加を上流に依頼しています（未決、2.13）。それまでは、Review Tool がこれらのレコードにコード 108 を出す可能性があります。</p>
 <p>次は <code>uc.json</code> の例です（テストの fixture からの抜粋で、一部を省略しています）。</p>
 <pre><code>{
   "ucs": [
@@ -433,8 +433,8 @@
   <thead><tr><th style="width:22%">使う場所</th><th>Descriptor と facet の役割</th></tr></thead>
   <tbody>
     <tr><td><b>Canon</b>（第 5 部）</td><td>回路を、<b>正規化した Descriptor をキー</b>にして持つ。プロジェクトの JSON は Circuit ID で接続を書くので、push や PR のときに Descriptor に解決する。Circuit ID は改名されることがあるが、Descriptor は Canon の中で一意だからである。Descriptor のないグループは <code>group:&lt;Circuit ID&gt;</code> がキーになる。「より細かい回路」（衝突 C3）の判定は facet で行い、<code>side</code> も facet として数える。たとえば、Canon に両側の Uniform の <code>A4ul</code> があるときに <code>A4ul(left)</code> を足すと C3 になる。左と右だけなら、別の回路として共存できる。エージェントに渡す <code>canon/</code> のファイルと、確認済みの引用のキーは、現在の形で書き出す。古い形のキーと ID の比べ方は付録 C にある。</td></tr>
-    <tr><td><b>BRA-DB</b>（第 7 部）</td><td><code>Circuits.csv</code> の UC Descriptor の列として CSV に入る。BRA-DB の Circuits は Circuit ID（<code>circuit_id</code>）がキーで、同じ集団は同じ ID になるので、複数のプロジェクトの回路が同じ行に集まる。他のプロジェクトが定義した回路は、共有の語彙として扱う。</td></tr>
-    <tr><td><b>オーケストレーター</b>（第 6 部）</td><td>ミッションの行に付ける<b>アンカー</b>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）は、Descriptor のアンカーの部分と同じ形で、facet は付けない。完成した行のアンカーは、そのプロジェクトの <code>uc.json</code> のすべての Descriptor から読み直す（6.5）。</td></tr>
+    <tr><td><b>BRA-DB</b>（第 7 部）</td><td><code>Circuits.csv</code> の UC Descriptor の列として CSV に入る。BRA-DB の Circuits は Circuit ID（<code>circuit_id</code>）がキーで、同じ集団は同じ ID になるので、複数のプロジェクトの回路が同じレコードに集まる。他のプロジェクトが定義した回路は、共有の語彙として扱う。</td></tr>
+    <tr><td><b>オーケストレーター</b>（第 6 部）</td><td>ミッションの各プロジェクトに付ける<b>アンカー</b>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）は、Descriptor のアンカーの部分と同じ形で、facet は付けない。完成したプロジェクトのアンカーは、そのプロジェクトの <code>uc.json</code> のすべての Descriptor から読み直す（6.5）。</td></tr>
   </tbody>
 </table>
 <figure data-figure="circuit-naming-canon.ja.svg"><figcaption><b>図 2.4</b>　Canon は UC Descriptor をキーにする。push や PR のとき、プロジェクトの回路は正規化した Descriptor で Canon のエントリと照合され、C4・C1・C3・C6 などの衝突が判定される（衝突の一覧は 5.7）</figcaption></figure>

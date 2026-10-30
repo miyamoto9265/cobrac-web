@@ -15,7 +15,7 @@
 <ul>
   <li><b>印を持ち続ける</b>：プロジェクトは作成時に、検査規則の水準（<code>harnessRules</code>）、SABRA の境界（<code>sabraBoundary</code>）、調査モードなどの設定を保存します。後のフォローアップとリトライも、その設定に従います。</li>
   <li><b>複製は元の印を引き継ぐ</b>：公開プロジェクトの複製は、元の調査モード、SABRA の境界、<code>harnessRules</code>、仮説モードの設定をそのままコピーします（4.6）。</li>
-  <li><b>ミッションは確定時の規則で作る</b>：オーケストレーターのミッションは、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、そのミッションの行はすべて確定時の規則で作られます（6.9）。</li>
+  <li><b>ミッションは確定時の規則で作る</b>：オーケストレーターのミッションは、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、そのミッションのプロジェクトはすべて確定時の規則で作られます（6.9）。</li>
   <li><b>保存したデータは書き換えない</b>：古い形の名前、古い境界のアンカー、多く数えすぎた使用量は、保存先の上ではそのままです。読むときに現在の形へ直すか、補正して表示します。</li>
 </ul>
 <p>主な変化と、それより前に作られたものの扱いは次の表のとおりです。詳しい扱いは右の列の節にあります。</p>
@@ -34,7 +34,7 @@
     <tr><td>GN 規則（GN の UC の連結、3〜4 UC の GN）</td><td>v0.28.0</td><td><code>harnessRules: 2</code>（現行）</td><td>1 以下は GN の UC が 2 つまで。X4 を記録する</td><td>C.3</td></tr>
     <tr><td>版に検査の前提を記録</td><td>v0.28.2</td><td>版の <code>harnessRules</code>・<code>sabraBoundary</code></td><td>それより前の版は「不明」と表示する</td><td>C.5</td></tr>
     <tr><td>ランダムな ID</td><td>v0.29.0</td><td>ID の形</td><td>以前の形の ID もそのまま有効</td><td>C.4</td></tr>
-    <tr><td>ミッションのモデルを 2 つに分ける</td><td>v0.37.0</td><td>ミッションの <code>orchestratorModel</code></td><td>行のモデルをオーケストレーターにも使う</td><td>C.6</td></tr>
+    <tr><td>ミッションのモデルを 2 つに分ける</td><td>v0.37.0</td><td>ミッションの <code>orchestratorModel</code></td><td>プロジェクトのモデルをオーケストレーターにも使う</td><td>C.6</td></tr>
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 2</code>）、<code>packages/shared/src/types.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>CHANGELOG.md</code>（0.8.0〜0.37.0）</p>
@@ -109,7 +109,7 @@
   <li>Circuits.csv：UC Descriptor の後ろの Sub-Circuits と Uniform。</li>
   <li>Connections.csv：Pointers on figure の後ろの 2 つの関係と、論文中の表記。</li>
 </ul>
-<p>グラフは v1-0 と v1-1 の CSV を列名で読みます。v0.9 以前に書かれたファイルは、次のフォローアップで通常どおり検査され、BRA の値の規則に合わない点が修正依頼として戻ります。直るまでの間も CSV は作れます。そのときは、Source of ID のリストは先頭の値を使い、複数の文献を持つ接続は文献ごとの行に分け、関係のない接続は <code>=</code> と Circuit ID で書きます。</p>
+<p>グラフは v1-0 と v1-1 の CSV を列名で読みます。v0.9 以前に書かれたファイルは、次のフォローアップで通常どおり検査され、BRA の値の規則に合わない点が修正依頼として戻ります。直るまでの間も CSV は作れます。そのときは、Source of ID のリストは先頭の値を使い、複数の文献を持つ接続は文献ごとのレコードに分け、関係のない接続は <code>=</code> と Circuit ID で書きます。</p>
 
 <h3>エラーコードの古い番号</h3>
 <p>v0.16 まで、CoBRAC の検査メッセージとチェッカー（<code>scripts/bra-appendix-d.mjs</code>）は、オントロジー報告書の付録 D の番号を使っていました。v0.17.0 からは WBAI の Error code List (Master) のコードと、<code>cobrac:</code> で始まるローカルコードを使います（2.10）。以前の報告と照合できるように、チェッカーの JSON の出力では各コードに古い番号を <code>appendixD</code> として残し、Markdown の報告にも「付録 D」の列を設けています。古い番号と現在のコードの対応は次のとおりです。変えたのはコードの番号と文言だけで、判定の挙動は変えていません。</p>
@@ -202,7 +202,7 @@
     <tr><td>Projects</td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code></td><td>v0.32.0</td><td><code>evidenceMode</code> がなければ <code>strict</code> と同じで、文献の裏付けだけを使う。上限がなければ 20%（<code>DEFAULT_HYPOTHESIS_MAX_SHARE</code>）</td></tr>
     <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
     <tr><td>Messages</td><td><code>userId</code></td><td>v0.7</td><td>そのジョブの所有者で絞り込む。WebSocket の配信も同じく判断する</td></tr>
-    <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>行のモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
+    <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>プロジェクトのモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
   </tbody>
 </table>
 
@@ -214,7 +214,7 @@
 
 <h3>古いミッションの記録</h3>
 <ul>
-  <li>v0.40.0 の自律実行では、行のエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。現在はこの指示を使っていません（6.8）。</li>
+  <li>v0.40.0 の自律実行では、プロジェクトのエージェントに質問させない指示（<code>prompts/autonomous.md</code> と <code>questionMode</code>）を使っていました。現在はこの指示を使っていません（6.8）。</li>
   <li>v0.40.0 の記録では、スキップの理由 <code>row.autoSkip.reason</code> に、現在は使わない値が残っていることがあります。要対応・人の判断の理由のほか、<code>question_limit</code> と <code>decide_failed</code>（判断のジョブが 3 回失敗したときのスキップ）です。</li>
   <li>フロー実行（6.5）が入った v0.44.0 より前に確定したミッションは、実行の仕方 <code>scheduling</code> を持たないか <code>waves</code> で、自動の順序でもバッチごとに進みます。</li>
   <li>開発段階 3（ミッションの Canon、v0.36.0）より前に作ったミッションは Canon を持たず、Canon のないミッションとして動きます。</li>
@@ -232,8 +232,8 @@
 <p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
 <ul>
   <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブ。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
-  <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の行（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
-  <li><b>補正する画面</b>：プロジェクトの一覧、プロジェクトのジョブの表と合計、エージェント欄の使用量の行、利用状況のまとめ、管理画面のプロジェクト一覧。対応する API は、プロジェクトの詳細、メッセージ、<code>/users/me/usage</code>、<code>/admin/projects</code> です。DB には書きません。終わったジョブの補正は、Lambda のコンテナごとに保持します。</li>
+  <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の表示（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
+  <li><b>補正する画面</b>：プロジェクトの一覧、プロジェクトのジョブの表と合計、エージェント欄の使用量の表示、利用状況のまとめ、管理画面のプロジェクト一覧。対応する API は、プロジェクトの詳細、メッセージ、<code>/users/me/usage</code>、<code>/admin/projects</code> です。DB には書きません。終わったジョブの補正は、Lambda のコンテナごとに保持します。</li>
 </ul>
 <p>この補正には、次の限界があります。</p>
 <ul>

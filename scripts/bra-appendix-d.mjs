@@ -64,10 +64,10 @@ export const ENFORCEMENT = {
   "cobrac:circuit-id-chars": { kind: "validator", level: "partial", how: "Circuit ID の文字を A-Za-z0-9 . _ ~ - / + と、項目を囲む ( ) に限って検査（WBAI 仮仕様の 8/6 の文字と 8/19 に合意した / +）。仮仕様から外れるのは CoBRAC の ( ) だけ" },
   107: { kind: "schema", level: "full", how: "sourceOfId は空文字不可" },
   108: { kind: "schema", level: "partial", how: "1 値の enum／Reference ID に制限し、UC Descriptor と整合するかを検証。`BNA` は CoBRAC の拡張値（上流に追加を依頼中、U9）" },
-  120: { kind: "schema", level: "full", how: "collections の subCircuits は 1 件以上（schema）。ROI 行の Sub-Circuits は ROI 内の全回路（ワーカーが生成）" },
+  120: { kind: "schema", level: "full", how: "collections の subCircuits は 1 件以上（schema）。ROI レコードの Sub-Circuits は ROI 内の全回路（ワーカーが生成）" },
   121: { kind: "validator", level: "full", how: "subCircuits の各要素が uc.json の UC か Collection であることを検査（自分自身・循環・全員 makeshift は cobrac:collection-members）" },
-  127: { kind: "generator", level: "full", how: "UC 行は TRUE、Collection と ROI 行は FALSE をワーカーが必ず書く" },
-  "cobrac:uc-no-sub-circuits": { kind: "generator", level: "full", how: "UC 行の Sub-Circuits は常に空欄（uc.json の ucs にはキーが無い）" },
+  127: { kind: "generator", level: "full", how: "UC のレコードは TRUE、Collection と ROI のレコードは FALSE をワーカーが必ず書く" },
+  "cobrac:uc-no-sub-circuits": { kind: "generator", level: "full", how: "UC のレコードの Sub-Circuits は常に空欄（uc.json の ucs にはキーが無い）" },
   201: { kind: "schema", level: "full", how: "sender は空文字不可" },
   202: { kind: "validator", level: "full", how: "sender が uc.json にあるかを検査" },
   203: { kind: "validator", level: "partial", how: "Collection を sender にすると返す。複数の SABRA 単位にまたがる sender は uniformityNote が無ければ返す。均質かどうかの判断そのものはエージェント" },
@@ -93,21 +93,21 @@ export const ENFORCEMENT = {
     kind: "generator",
     level: "partial",
     how:
-      "仮説モードでは、検証器が measurementMethod Hypothetical を存在（existence）の仮説にちょうど一致させ（存在の仮説なのに別の値、Hypothetical なのに存在の仮説が無い、のどちらも差し戻す）、ワーカーが Comments の 1 行目に「Hypothesis (<claims>; <basis>): <rationale>」を書く。" +
-      "仮説を許さない（既定の厳格モードの）プロジェクトでは hypothesis キーを差し戻す。ただし厳格モードでは Hypothetical は schema と HCD.md の列挙値のままで差し戻さないため、印の無い Hypothetical の行が出うる",
+      "仮説モードでは、検証器が measurementMethod Hypothetical を存在（existence）の仮説にちょうど一致させ（存在の仮説なのに別の値、Hypothetical なのに存在の仮説が無い、のどちらも差し戻す）、ワーカーが Comments の先頭に「Hypothesis (<claims>; <basis>): <rationale>」を書く。" +
+      "仮説を許さない（既定の厳格モードの）プロジェクトでは hypothesis キーを差し戻す。ただし厳格モードでは Hypothetical は schema と HCD.md の列挙値のままで差し戻さないため、印の無い Hypothetical のレコードが出うる",
   },
-  402: { kind: "schema", level: "full", how: "GN は ^R\\.\\S+$。U. 行はワーカーが U.+Circuit ID を生成" },
-  403: { kind: "prompt", level: "partial", how: "GN の kebab-case は指示のみ（空白なしだけを schema で検査）。U. 行は Circuit ID の形式に従う（cobrac:circuit-id-chars）" },
-  "cobrac:u-node-circuit": { kind: "generator", level: "full", how: "U. 行のノード ID はワーカーが U.+Circuit ID で生成" },
-  "cobrac:node-id-unique": { kind: "validator", level: "full", how: "frg.json のノード ID の重複を検査（U. 行は Circuit ID の一意性で担保）" },
-  420: { kind: "generator", level: "full", how: "U. 行の Circuit ID は uc.json の UC からワーカーが書く" },
-  421: { kind: "generator", level: "full", how: "UC ごとに U. 行を 1 行だけ書く（GN の親が 2 つでも 1 行）" },
-  424: { kind: "generator", level: "full", how: "U. 行には Circuit ID を必ず書く" },
-  "cobrac:gn-no-circuit-id": { kind: "generator", level: "full", how: "GN 行の Circuit ID は空欄" },
+  402: { kind: "schema", level: "full", how: "GN は ^R\\.\\S+$。U. ノードはワーカーが U.+Circuit ID で生成" },
+  403: { kind: "prompt", level: "partial", how: "GN の kebab-case は指示のみ（空白なしだけを schema で検査）。U. ノードは Circuit ID の形式に従う（cobrac:circuit-id-chars）" },
+  "cobrac:u-node-circuit": { kind: "generator", level: "full", how: "U. ノードの ID はワーカーが U.+Circuit ID で生成" },
+  "cobrac:node-id-unique": { kind: "validator", level: "full", how: "frg.json のノード ID の重複を検査（U. ノードは Circuit ID の一意性で担保）" },
+  420: { kind: "generator", level: "full", how: "U. ノードの Circuit ID は uc.json の UC からワーカーが書く" },
+  421: { kind: "generator", level: "full", how: "UC ごとに U. ノードを 1 つだけ書く（GN の親が 2 つでも 1 つ）" },
+  424: { kind: "generator", level: "full", how: "U. ノードには Circuit ID を必ず書く" },
+  "cobrac:gn-no-circuit-id": { kind: "generator", level: "full", how: "GN ノードの Circuit ID は空欄" },
   430: { kind: "generator", level: "full", how: "Projected Circuits は connections の receiver から生成（receiver は uc.json にあると検証済み）" },
   562: { kind: "validator", level: "full", how: "UC は `[自分の Circuit ID] 内容;` 1 項目ちょうどを検証。GN は UC の項目からワーカーが生成" },
   563: { kind: "validator", level: "full", how: "UC の項目は自分の Circuit ID だけ。GN の項目は子の UC のもの（ワーカーが生成）" },
-  "cobrac:capability-required": { kind: "validator", level: "full", how: "ROI 内 UC と GN の capability を必須にし、ROI 外 UC の行は定型文をワーカーが書く" },
+  "cobrac:capability-required": { kind: "validator", level: "full", how: "ROI 内 UC と GN の capability を必須にし、ROI 外 UC のレコードは定型文をワーカーが書く" },
   "cobrac:frg-acyclic": { kind: "validator", level: "full", how: "FRG の循環と根の数を検査" },
 };
 
@@ -146,18 +146,18 @@ export const CODES = [
   [273, "Pointers on literature（手動）", "引用文が文献中に無い", 273],
   [274, "Pointers on literature（手動）", "引用文から接続の存在を保証できない", 274],
   [279, "Pointers on figure（手動）", "図から接続の存在を保証できない", 279],
-  ["cobrac:hypothesis-marked", "Comments", "Measurement method が Hypothetical なのに Comments の 1 行目が「Hypothesis (」で始まらない（Master にコードなし）", null],
+  ["cobrac:hypothesis-marked", "Comments", "Measurement method が Hypothetical なのに Comments の先頭が「Hypothesis (」で始まらない（Master にコードなし）", null],
   [402, "Node ID", "接頭辞が R. / C. / A. / U. でない", 415],
   [403, "Node ID", "GN の接頭辞の後が kebab-case でない", 415],
   ["cobrac:u-node-circuit", "Node ID", "U. ノードの ID が U.+定義済みの Circuit ID でない（Master にコードなし）", 415],
   ["cobrac:node-id-unique", "Node ID", "重複（Master にコードなし）", 416],
   [420, "Circuit ID", "Circuits に無い Circuit ID", null],
-  [421, "Circuit ID", "異なる行に同じ Circuit ID", null],
+  [421, "Circuit ID", "異なるレコードに同じ Circuit ID", null],
   [424, "Circuit ID", "U. ノードで Circuit ID 未記載", 420],
   ["cobrac:gn-no-circuit-id", "Circuit ID", "U. 以外のノードに Circuit ID（Master にコードなし）", 421],
   [430, "Projected Circuits", "Circuits に無い Circuit ID", 418],
   [562, "Output Semantics", "「[Circuit ID] 説明;」の記法でない", 430],
-  [563, "Output Semantics", "その行の回路以外の Circuit ID", 430],
+  [563, "Output Semantics", "そのレコードの回路以外の Circuit ID", 430],
   ["cobrac:capability-required", "Capability", "未記載（Master にコードなし）", 440],
   ["cobrac:frg-acyclic", "Subnodes", "循環参照（Master にコードなし）", 445],
 ];
@@ -324,7 +324,7 @@ export function buildModel(bra) {
   const frgT = table(S.FRG, "Node ID", projectId);
   const defaults = [];
   const hasUniform = cirT.has("Uniform");
-  if (!hasUniform && cirT.records.length) defaults.push(bra.format === "csv" ? "Circuits に Uniform 列が無い（xlsx 変換で全行 TRUE になる前提で判定）" : "Circuits に Uniform 列が無い");
+  if (!hasUniform && cirT.records.length) defaults.push(bra.format === "csv" ? "Circuits に Uniform 列が無い（xlsx 変換ですべて TRUE になる前提で判定）" : "Circuits に Uniform 列が無い");
   const refs = refT.records.map((x) => ({
     line: x.line,
     id: x.get("Reference ID"),
@@ -455,7 +455,7 @@ function results(m, opts) {
   const out = new Map();
   const put = (code, status, found = [], note = "") => out.set(code, { code, status, count: found.length, examples: found.slice(0, 5), note });
   const verdict = (code, found, note = "") => put(code, found.length ? "violation" : "ok", found, note);
-  const at = (sheet, x, text) => `${sheet} ${x.line} 行: ${text}`;
+  const at = (sheet, x, text) => `${sheet} #${x.line}: ${text}`;
 
   const ids = new Set(m.circuits.map((c) => c.id).filter(Boolean));
   const circuitOf = new Map(m.circuits.map((c) => [c.id, c]));
@@ -498,7 +498,7 @@ function results(m, opts) {
   verdict(
     120,
     m.circuits.filter((c) => (c.uniform === false || c.sourceOfId === "collection") && !c.subCircuits).map((c) => at("Circuits", c, c.id)),
-    m.circuits.some((c) => isRoiRow(c.id)) ? "" : "ROI 行（ROI_<Project ID>）が無い",
+    m.circuits.some((c) => isRoiRow(c.id)) ? "" : "ROI レコード（ROI_<Project ID>）が無い",
   );
   verdict(121, m.circuits.flatMap((c) => splitList(c.subCircuits).filter((k) => !ids.has(k)).map((k) => at("Circuits", c, `${c.id} -> ${k}`))));
   verdict(127, m.circuits.filter((c) => c.id && c.uniform === null).map((c) => at("Circuits", c, c.id)), m.defaults.join(" / "));
@@ -543,7 +543,7 @@ function results(m, opts) {
   verdict(
     "cobrac:hypothesis-marked",
     unmarked.map((c) => at("Connections", c, `${c.sender} -> ${c.receiver} Comments="${c.comments.split(/\r?\n/)[0].slice(0, 60)}"`)),
-    unmarked.length ? "Hypothetical は存在の仮説の印。仮説の行は Comments の 1 行目が Hypothesis (<claims>; <basis>): <rationale>" : "",
+    unmarked.length ? "Hypothetical は存在の仮説の印。仮説のレコードは Comments の先頭が Hypothesis (<claims>; <basis>): <rationale>" : "",
   );
 
   // FRG
@@ -556,7 +556,7 @@ function results(m, opts) {
   verdict(
     430,
     badProjected.map(({ f, p }) => at("FRG", f, `${f.nodeId} -> ${p}`)),
-    badProjected.some(({ p }) => p.startsWith("R.")) ? "GN 行の Projected Circuits に FRG ノード（R.）が書かれている" : "",
+    badProjected.some(({ p }) => p.startsWith("R.")) ? "GN ノードの Projected Circuits に FRG ノード（R.）が書かれている" : "",
   );
   verdict(420, m.frg.filter((f) => f.circuitId && !ids.has(f.circuitId)).map((f) => at("FRG", f, `${f.nodeId} Circuit ID="${f.circuitId}"`)));
   verdict(421, dupes(m.frg.map((f) => f.circuitId)).map((id) => `FRG: ${id}`));
@@ -565,7 +565,7 @@ function results(m, opts) {
   const withOs = m.frg.filter((f) => f.outputSemantics).map((f) => ({ f, items: parseOutputSemantics(f.outputSemantics) }));
   const osAt = ({ f }) => at("FRG", f, `${f.nodeId} "${f.outputSemantics.slice(0, 60)}"`);
   const gnNoOs = m.frg.filter((f) => !f.nodeId.startsWith("U.") && !f.outputSemantics).length;
-  verdict(562, withOs.filter((x) => !x.items).map(osAt), gnNoOs ? `GN ${gnNoOs} 行が空欄（書式の違反ではないが、日本語版マニュアルは GN にも記載を求める）` : "");
+  verdict(562, withOs.filter((x) => !x.items).map(osAt), gnNoOs ? `GN ${gnNoOs} 件が空欄（書式の違反ではないが、日本語版マニュアルは GN にも記載を求める）` : "");
   verdict(
     563,
     withOs
@@ -607,17 +607,17 @@ function extras(m, opts) {
     { item: "Transmitter が列挙値でない", values: uniq(list(ucs.map((c) => c.transmitter), TRANSMITTERS)), total: ucs.length },
     { item: "Modulation Type が列挙値でない", values: uniq(list(ucs.map((c) => c.modulationType), MODULATION_TYPES)), total: ucs.length },
     { item: "sCID / rCID relation が < = > でない", values: uniq(list(m.connections.flatMap((c) => [c.senderRelation, c.receiverRelation]), RELATIONS)), total: m.connections.length },
-    { item: "relation の分布（sCID / rCID）", info: m.columns.relation ? Object.entries(m.connections.flatMap((c) => [c.senderRelation, c.receiverRelation]).reduce((a, v) => ((a[v || "(空)"] = (a[v || "(空)"] ?? 0) + 1), a), {})).map(([k, v]) => `${k}: ${v}`).join(", ") : "列なし（変換で全行 =）" },
+    { item: "relation の分布（sCID / rCID）", info: m.columns.relation ? Object.entries(m.connections.flatMap((c) => [c.senderRelation, c.receiverRelation]).reduce((a, v) => ((a[v || "(空)"] = (a[v || "(空)"] ?? 0) + 1), a), {})).map(([k, v]) => `${k}: ${v}`).join(", ") : "列なし（変換ですべて =）" },
     { item: "Notation が Circuit ID の写し", info: `${m.connections.filter((c) => !m.columns.relation || c.senderNotation === c.sender).length} / ${m.connections.length}（sCID）` },
-    { item: "ROI 行（ROI_<Project ID>）", info: m.circuits.some((c) => isRoiRow(c.id)) ? "あり" : "なし" },
-    { item: "Uniform=FALSE（Collection）の Circuit", info: `${m.circuits.filter((c) => c.uniform === false && !isRoiRow(c.id)).length}（ROI 行を除く）/ UC ${ucs.length}` },
+    { item: "ROI レコード（ROI_<Project ID>）", info: m.circuits.some((c) => isRoiRow(c.id)) ? "あり" : "なし" },
+    { item: "Uniform=FALSE（Collection）の Circuit", info: `${m.circuits.filter((c) => c.uniform === false && !isRoiRow(c.id)).length}（ROI レコードを除く）/ UC ${ucs.length}` },
     { item: "UC Descriptor", info: `${ucs.filter((c) => c.descriptor).length} / ${ucs.length}` },
     { item: "ファセット付き UC（層・細胞種など）", info: `${ucs.filter((c) => /\/(part|lay|cell|nt|mol|in|out|resp):/.test(c.descriptor)).length} / ${ucs.length}` },
     { item: "Source of ID の内訳", info: Object.entries(ucs.reduce((a, c) => { const k = SOURCE_OF_ID_KEYWORDS.includes(c.sourceOfId) || SOURCE_OF_ID_EXTENSIONS.includes(c.sourceOfId) ? c.sourceOfId : (c.sourceOfId.match(/\[[^\]]+\]/g)?.length ?? 0) > 1 ? "複数文献" : REF_ID_RE.test(c.sourceOfId) ? "文献 1 件" : c.sourceOfId ? "その他" : "(空)"; a[k] = (a[k] ?? 0) + 1; return a; }, {})).map(([k, v]) => `${k}: ${v}`).join(", ") },
     { item: "Pointers on literature の語数（中央値・最小・最大）", info: m.connections.length ? `${median(words_)} / ${Math.min(...words_)} / ${Math.max(...words_)}（${minWords} 語以上: ${words_.filter((w) => w >= minWords).length} / ${m.connections.length}）` : "—" },
-    { item: "Connections（行 / sender→receiver の組 / 引用文献）", info: `${m.connections.length} / ${pairs.size} / ${refsCited.size}` },
+    { item: "Connections（件数 / sender→receiver の組 / 引用文献）", info: `${m.connections.length} / ${pairs.size} / ${refsCited.size}` },
     {
-      item: "仮説（Comments の 1 行目が Hypothesis ( の行）",
+      item: "仮説（Comments の先頭が Hypothesis ( のレコード）",
       info: `Connections ${m.connections.filter(isHypothesis).length} / ${m.connections.length}、Circuits ${ucRows.filter(isHypothesis).length} / ${ucRows.length} UC（Measurement method Hypothetical ${m.connections.filter((c) => c.method === "Hypothetical").length}）`,
     },
     { item: "References（件数 / DOI あり）", info: `${m.refs.length} / ${m.refs.filter((r) => !NO_DOI_RE.test(r.doi)).length}` },
@@ -626,7 +626,7 @@ function extras(m, opts) {
       item: "Review End Line",
       info: Object.keys(m.reviewEndLines).length
         ? Object.entries(m.reviewEndLines).map(([k, v]) => `${k}=${/^\d+$/.test(v) ? v : v ? `数値でない（"${v.slice(0, 30)}"）` : "空"}`).join(", ")
-        : "（行なし）",
+        : "（記載なし）",
     },
   ];
 }

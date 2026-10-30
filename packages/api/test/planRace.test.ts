@@ -202,7 +202,7 @@ describe("plans: the lease on reads that lag", () => {
         const res = await call(A, method, path, body);
         caughtUp();
         expect(res.status, `${method} ${path}`).toBe(409);
-        expect(await res.text()).toMatch(snapshot === draft ? PLAN_BUSY_MESSAGE : "確定後の計画の行は変更できません");
+        expect(await res.text()).toMatch(snapshot === draft ? PLAN_BUSY_MESSAGE : "確定後のミッションのプロジェクトは変更できません");
       }
     }
     expect(rowsKey(planId)).toEqual(rows);
