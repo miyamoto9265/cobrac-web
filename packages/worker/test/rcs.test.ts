@@ -44,6 +44,8 @@ describe("RcsClient against a mock RCS MCP server", () => {
     expect(lookup.get("HOMBA:AA30423")).toMatchObject({ dhbaExact: false, dhbaHombaId: "HOMBA:12852", dhbaAncestorAcronym: "FNCb" });
     expect(lookup.get("HOMBA:10339")).toMatchObject({ atlas: "BNA" });
     expect(lookup.get("HOMBA:99999")).toBeNull();
+    expect(lookup.get("HOMBA:12261")?.whiteMatter).toBeUndefined();
+    expect((await client.lookupHomba(["HOMBA:10561"])).get("HOMBA:10561")).toMatchObject({ dhbaAcronym: "cc", whiteMatter: true });
     expect(mock.calls.every((c) => c.auth === `Bearer ${TOKEN}` && c.body.method === "tools/call" && c.body.params?.name === "get_homba_term")).toBe(true);
   });
 

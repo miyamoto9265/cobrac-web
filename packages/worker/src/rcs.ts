@@ -3,7 +3,7 @@
  * The server is stateless Streamable HTTP: every POST carries one JSON-RPC message and gets one JSON reply.
  */
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import type { HombaSabraInfo, SabraLookup } from "@cobrac/shared";
+import { WHITE_MATTER_HOMBA_IDS, type HombaSabraInfo, type SabraLookup } from "@cobrac/shared";
 
 export interface RcsConnection {
   url: string;
@@ -112,6 +112,7 @@ interface TermResult {
   homba_id: string;
   dhba_acronym?: string | null;
   sabra?: { atlas?: string; dhba_name?: string; dhba_acronym?: string; dhba_homba_id?: string; dhba_exact?: boolean } | null;
+  ancestors?: { homba_id?: string }[];
 }
 
 function parseText(r: ToolResult): unknown {
@@ -133,8 +134,12 @@ function toInfo(t: TermResult): HombaSabraInfo {
     dhbaHombaId: s.dhba_homba_id ?? "",
     dhbaAncestorAcronym: s.dhba_acronym ?? "",
     dhbaName: exact ? (s.dhba_name ?? "") : "",
+    ...(isWhiteMatter(t) ? { whiteMatter: true } : {}),
   };
 }
+
+/** The term or one of its ancestors is a white-matter root. */
+const isWhiteMatter = (t: TermResult) => [t.homba_id, ...(t.ancestors ?? []).map((a) => a.homba_id)].some((id) => !!id && WHITE_MATTER_HOMBA_IDS.includes(id));
 
 /** Codex `config` entry for the RCS server; the token stays in an env var that agent shell commands do not inherit. */
 export const RCS_TOKEN_ENV = "RCS_MCP_TOKEN";
