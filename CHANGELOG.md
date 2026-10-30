@@ -5,6 +5,16 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- Saving an HCD, FRG or Canon graph as PNG dropped every arrow head (the lines were drawn, but not their direction). The PNG now shows the arrows as on screen
+
+### Changed
+- The project header's xlsx buttons: the official Template-v2-3 workbook is now the main button on the left, named "BRA data (xlsx)"; the workbook that gathers CoBRAC's CSV files follows it as "CSV set (xlsx)"
+
+### Added
+- The HCD graph tells when some UCs are not connected to the rest of it ("2 UCs are not connected to the rest of the HCD") and highlights them on "Show". The main part is the one with the most ROI-internal UCs
+- The "Article" tab has a blue dot while the BRA data is complete and no article exists yet: articles are not written automatically, and the dot's tooltip says to create one from the tab
+
 ## [0.49.0] - 2026-10-25
 
 ### Added

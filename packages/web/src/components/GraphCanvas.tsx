@@ -32,7 +32,7 @@ import { BoxNode, DEFAULT_NODE_H, DEFAULT_NODE_W, handleId, parseHandleId, type 
 import { GroupBox, type GGroup, type GroupBoxType, type GroupData } from "./graph/GroupBox";
 import { OverflowMenu, SaveStatus, SearchBox, ToolButton, ToolDivider, type MenuItem } from "./graph/GraphToolbar";
 import { Legend, type LegendItem } from "./graph/Legend";
-import { MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
+import { MARKER_DEFS_CLASS, MarkerDefs, markerKey, type MarkerSpec } from "./graph/markers";
 import { EdgeStylePanel, NodeStylePanel } from "./graph/StylePanel";
 import { StyledEdge, resolveEdgeStyle, type EdgeData, type StyledEdgeType } from "./graph/StyledEdge";
 
@@ -518,6 +518,9 @@ function Inner({
     const el = canvasRef.current?.querySelector<HTMLElement>(".react-flow__viewport");
     if (!el) return;
     setExporting(true);
+    // the marker <defs> live outside the viewport; without a copy inside it the PNG loses every arrow head
+    const defs = canvasRef.current?.querySelector(`.${MARKER_DEFS_CLASS}`)?.cloneNode(true) ?? null;
+    if (defs) el.prepend(defs);
     try {
       const bounds = getNodesBounds(rf.getNodes());
       const pad = 40;
@@ -538,6 +541,7 @@ function Inner({
       a.download = `${exportName}.png`;
       a.click();
     } finally {
+      if (defs) (defs as ChildNode).remove();
       setExporting(false);
     }
   };

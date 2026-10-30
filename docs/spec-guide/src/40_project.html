@@ -223,18 +223,18 @@
   <li>名前（押すと変えられる）とその下の ID、状態、ROI・TLF・モデル・使用量。</li>
   <li>参考資料の折りたたみの一覧（4.2）と、段階の進捗。</li>
   <li>停止とリトライ、削除（確認付き。削除後は一覧に戻る）。</li>
-  <li>2 つのダウンロード：「BRA xlsx」（CoBRAC の xlsx）と「BRA xlsx (Template-v2-3)」（公式テンプレート。3.13）。</li>
+  <li>2 つのダウンロード：主ボタンの「BRA データ (xlsx)」（公式テンプレート Template-v2-3 の形式。3.13）と、その右の「CSV 一式 (xlsx)」（CoBRAC の CSV を 1 つにまとめた xlsx）。</li>
   <li>Canon・ミッション・版・公開の印（第 5 部・第 6 部、4.5、4.6）。</li>
 </ul>
 <p><b>段階の進捗</b>は、調査（調査モードのとき）、HCD ⇄ FRG（整合の確認付き）、CSV、xlsx の順に段階を示します。ジョブの実行中は動いている段階が動き、終わった段階にはチェックが付き、まだの段階は灰色のままです。HCD と FRG の調整のターン（3.11）の間は、HCD ⇄ FRG の輪と両方のチップが動きます。質問で止まっている間は動きません。同じ表示は空の状態にも出ます。</p>
 <table class="compact">
   <thead><tr><th style="width:13%">タブ</th><th style="width:15%">画面の名前</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><code>hcd</code></td><td>HCD グラフ</td><td>回路と接続のグラフ。ノードとエッジの詳細を開ける。ROI ごとに色分けし、抑制性のエッジは青で四角の矢じり。Collection（2.9）は UC の後ろの破線の枠で示し、「Collection を表示」で隠せる。枠のラベルから Collection の詳細を開き、その UC を強調する。ROI に 3〜4 個の UC のループかフィードフォワードの三角形があるとき（3.9）、「モチーフ（n）」で 1 つを強調でき、その UC の上に作られた GN を FRG へのリンクとして出す。回路の詳細には、その回路が属するモチーフを出す。ノードの位置と大きさ、エッジの線の種類・色・太さ・経由点・接続点を編集して保存できる</td></tr>
+    <tr><td><code>hcd</code></td><td>HCD グラフ</td><td>回路と接続のグラフ。ノードとエッジの詳細を開ける。ROI ごとに色分けし、抑制性のエッジは青で四角の矢じり。Collection（2.9）は UC の後ろの破線の枠で示し、「Collection を表示」で隠せる。枠のラベルから Collection の詳細を開き、その UC を強調する。ROI に 3〜4 個の UC のループかフィードフォワードの三角形があるとき（3.9）、「モチーフ（n）」で 1 つを強調でき、その UC の上に作られた GN を FRG へのリンクとして出す。回路の詳細には、その回路が属するモチーフを出す。ノードの位置と大きさ、エッジの線の種類・色・太さ・経由点・接続点を編集して保存できる。グラフがいくつかに分かれているとき、ROI 内の UC を最も多く含む部分から離れた UC の数をバナーに出し、「表示」でその UC を強調する（ROI 内の UC が無ければ最も大きい部分を本体とする）。PNG の書き出しは矢じりを含めて画面と同じ図を描く</td></tr>
     <tr><td><code>frg</code></td><td>FRG グラフ</td><td>TLF・GN・UC を左から右に並べる。子のノードを折りたためる。HCD と相互にリンクする（UC ⇄ 回路、GN → HCD 上のその UC）。HCD と同じ編集ができる</td></tr>
     <tr><td><code>tables</code></td><td>表データ</td><td>5 つの CSV を、作業の順（Project、Circuits、Connections、FRG、References）に表で出す。ハーネスの JSON は出さない。列の見出しで並べ替え、語で行を絞り込み、長い文は折り返すか行を押して開く。元のファイルをダウンロードできる。ジョブの実行中でも、CSV ができればすぐに出る</td></tr>
     <tr><td><code>report</code>・<code>log</code></td><td>レポート・判断ログ</td><td><code>report.md</code> と <code>decision_log.md</code></td></tr>
-    <tr><td><code>article</code></td><td>解説記事</td><td>選んだ言語で作る・読む・ダウンロードする（3.14）</td></tr>
+    <tr><td><code>article</code></td><td>解説記事</td><td>選んだ言語で作る・読む・ダウンロードする（3.14）。記事は自動では作らない。BRA データが完成していて記事がまだ無いとき、タブに青い点を付けて、ここから作れることを示す</td></tr>
     <tr><td><code>versions</code></td><td>版</td><td>版の一覧、表、差分、BRA-DB への登録（4.5、第 7 部）</td></tr>
   </tbody>
 </table>

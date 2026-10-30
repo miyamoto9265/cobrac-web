@@ -49,6 +49,44 @@ export function neighborhood(edges: EdgeRef[], id: string): { nodes: Set<string>
   return { nodes, edges: es };
 }
 
+/**
+ * Nodes cut off from the main part of a graph (edges taken both ways): every node outside the connected part that holds
+ * the most `main` nodes (e.g. ROI-internal UCs; the most nodes when none is `main`, the first such part on a tie).
+ * Empty when the graph is in one piece. Isolated nodes without any edge count as their own part.
+ */
+export function detachedNodes(nodeIds: string[], edges: EdgeRef[], main: Set<string> = new Set()): string[] {
+  const adj = new Map<string, string[]>(nodeIds.map((id) => [id, []]));
+  for (const e of edges) {
+    if (!adj.has(e.source) || !adj.has(e.target)) continue;
+    adj.get(e.source)!.push(e.target);
+    adj.get(e.target)!.push(e.source);
+  }
+  const parts: string[][] = [];
+  const seen = new Set<string>();
+  for (const id of nodeIds) {
+    if (seen.has(id)) continue;
+    const part: string[] = [];
+    const stack = [id];
+    seen.add(id);
+    while (stack.length) {
+      const x = stack.pop()!;
+      part.push(x);
+      for (const y of adj.get(x)!) if (!seen.has(y)) seen.add(y), stack.push(y);
+    }
+    parts.push(part);
+  }
+  if (parts.length < 2) return [];
+  const score = (p: string[]) => [p.filter((x) => main.has(x)).length, p.length] as const;
+  let best = parts[0];
+  for (const p of parts.slice(1)) {
+    const [m, n] = score(p);
+    const [bm, bn] = score(best);
+    if (m > bm || (m === bm && n > bn)) best = p;
+  }
+  const keep = new Set(best);
+  return nodeIds.filter((id) => !keep.has(id));
+}
+
 /** All ancestors and descendants of a node in a directed hierarchy (FRG), with the edges on those paths. */
 export function lineage(edges: EdgeRef[], id: string): { nodes: Set<string>; edges: Set<string> } {
   const down = new Map<string, EdgeRef[]>();

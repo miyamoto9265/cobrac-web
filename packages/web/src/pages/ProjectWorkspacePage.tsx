@@ -269,23 +269,23 @@ function Workspace({ projectId }: { projectId: string }) {
               )}
               {available.xlsx && (
                 <button
-                  data-testid="xlsx-download"
-                  onClick={() => void download(available.xlsx!.key)}
-                  title={`${t("ws.xlsxTip")}: ${braDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
-                  className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 coarse:min-h-11"
-                >
-                  <Download size={14} /> BRA xlsx
-                </button>
-              )}
-              {available.xlsx && (
-                <button
                   data-testid="template-xlsx-download"
                   onClick={() => void downloadTemplate()}
                   disabled={templateBusy}
                   title={`${t("ws.templateXlsxTip")}: ${templateDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
-                  className="flex items-center gap-1 rounded-md border border-emerald-600 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 coarse:min-h-11"
+                  className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50 coarse:min-h-11"
                 >
-                  <FileSpreadsheet size={14} /> BRA xlsx (Template-v2-3)
+                  <Download size={14} /> {t("ws.braXlsx")}
+                </button>
+              )}
+              {available.xlsx && (
+                <button
+                  data-testid="xlsx-download"
+                  onClick={() => void download(available.xlsx!.key)}
+                  title={`${t("ws.xlsxTip")}: ${braDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
+                  className="flex items-center gap-1 rounded-md border border-emerald-600 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 coarse:min-h-11"
+                >
+                  <FileSpreadsheet size={14} /> {t("ws.csvXlsx")}
                 </button>
               )}
               <VisibilityToggle
@@ -392,6 +392,9 @@ function Workspace({ projectId }: { projectId: string }) {
                 >
                   <Icon size={14} className={on ? "text-blue-600" : undefined} /> {t(label)}
                   {v === "tables" && ready && <span className="rounded-full bg-slate-200 px-1.5 text-[10px] text-slate-600">{available.tables.length}</span>}
+                  {v === "article" && braReady && available.articles.length === 0 && (
+                    <span data-testid="article-tab-hint" className="h-1.5 w-1.5 rounded-full bg-blue-500" title={t("ws.articleHint")} aria-label={t("ws.articleHint")} />
+                  )}
                 </Link>
               );
             })}
