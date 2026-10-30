@@ -1,9 +1,10 @@
-import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { CanonRecord, PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
 import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
+import { MenuHeading, Popover } from "../components/create/Popover";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
@@ -586,17 +587,214 @@ function FinishedList({ items, now, open, label }: { items: PlanSummary[]; now: 
   );
 }
 
-/** The new-mission page: the form in the main pane, as the new-project page is (no panel over a list). */
+/** The new-mission page: the same composer as the new-project page (centred title, one rounded card, a toolbar of chips). */
 export function NewPlanPage() {
+  return <CreatePlanComposer />;
+}
+
+function CreatePlanComposer() {
   const t = useT();
+  const { locale } = useI18n();
+  const navigate = useNavigate();
+  const [name, setName] = useState("");
+  const [goal, setGoal] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileMsg, setFileMsg] = useState<string | null>(null);
+  const [pasted, setPasted] = useState("");
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState<{ i: number; n: number } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
+  const autonomous = !manual;
+  const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
+  const [focused, setFocused] = useState<"name" | "goal" | "list" | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = (list: FileList) => {
+    const { files: picked, problems } = checkPlanFiles(files, Array.from(list), t);
+    setFiles([...files, ...picked]);
+    setFileMsg(problems.length ? problems.join("\n") : null);
+  };
+  const submit = async (draft: boolean) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const attachments = await uploadPlanFiles(files, setUploading);
+      setUploading(null);
+      const auto = draft && autonomous ? { autonomous: { maxCostUsd: Number(maxCost) } } : {};
+      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto });
+      navigate(planPath(r.plan.planId), { state: { rejected: r.rejected } });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(null);
+      setBusy(false);
+    }
+  };
+  const hasInput = !!goal.trim() || files.length > 0 || !!pasted.trim();
+  const canDraft = !!name.trim() && hasInput;
+  const costOk = Number(maxCost) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(maxCost) <= AUTONOMOUS_MAX_COST_RANGE.max;
+  const canStart = !busy && canDraft && (!autonomous || costOk);
+  const nAttached = files.length + (pasted.trim() ? 1 : 0);
+
+  const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:h-11 coarse:w-11";
+  const field = "w-full resize-none bg-transparent p-0 text-base leading-7 text-slate-900 caret-blue-600 outline-none placeholder:text-slate-400";
+  const row = (k: typeof focused) => `flex items-start gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5 ${focused === k ? "bg-blue-50/50" : ""}`;
+  const tag = (k: typeof focused, label: string, sub: string) => (
+    <div className="w-10 shrink-0 select-none pt-1 text-center sm:w-11" aria-hidden>
+      <span className={`block text-[13px] font-semibold tracking-wider ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
+      <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>
+    </div>
+  );
+  const divider = <div className="ml-[4rem] mr-4 border-t border-dashed border-slate-200 sm:ml-[4.75rem]" aria-hidden />;
+
   return (
-    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <div className="mx-auto max-w-xl pt-2 sm:pt-8" data-testid="plan-new-page">
-        <h1 className="mb-4 flex items-center gap-2 text-xl font-semibold">
-          <ListChecks size={20} className="text-blue-600" aria-hidden /> {t("plan.new")} <HelpTip text={t("plan.intro")} />
-          <HelpLink section="planner" />
-        </h1>
-        <CreatePlanForm autoFocus />
+    <div className="flex h-full flex-col overflow-y-auto">
+      <div className="flex flex-1 flex-col items-center justify-center px-3 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:px-6">
+        <h1 className="mb-5 text-center text-2xl font-semibold tracking-tight sm:mb-7">{t("plan.new")}</h1>
+        <div role="group" aria-label={t("plan.new")} data-testid="plan-composer" className="relative w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-sm transition-[border-color,box-shadow] focus-within:border-slate-300 focus-within:shadow-md">
+          <div className="pt-1.5">
+            <div className={`${row("name")} -mt-1.5 rounded-t-3xl pt-[1.125rem] sm:pt-5`}>
+              {tag("name", "名前", "Name")}
+              <input value={name} onChange={(e) => setName(e.target.value)} onFocus={() => setFocused("name")} onBlur={() => setFocused(null)} placeholder="例: 言語ネットワーク" aria-label={t("plan.name")} maxLength={200} autoFocus className={`${field} min-w-0 flex-1 font-medium`} />
+              <span className="w-4 shrink-0" />
+            </div>
+            {divider}
+            <div className={row("goal")}>
+              {tag("goal", "目標", "Goal")}
+              <textarea value={goal} onChange={(e) => setGoal(e.target.value)} onFocus={() => setFocused("goal")} onBlur={() => setFocused(null)} rows={2} placeholder={t("plan.goalHint")} aria-label={t("plan.goal")} maxLength={4000} className={`${field} min-w-0 flex-1`} />
+              <span className="w-4 shrink-0 pt-1.5">
+                <HelpTip text={t("plan.intro")} />
+              </span>
+            </div>
+            {pasteOpen && (
+              <>
+                {divider}
+                <div className={row("list")}>
+                  {tag("list", "一覧", "List")}
+                  <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} onFocus={() => setFocused("list")} onBlur={() => setFocused(null)} rows={3} placeholder={t("plan.pasteHint")} aria-label={t("plan.csv")} className={`${field} min-w-0 flex-1 font-mono text-xs leading-5`} autoFocus />
+                  <button type="button" onClick={() => (setPasteOpen(false), setPasted(""))} aria-label={t("attach.remove")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                    <X size={12} />
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          {files.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5 px-3 pb-1 sm:px-4" data-testid="plan-file-list" aria-label={t("plan.files")}>
+              {files.map((f, i) => (
+                <li key={`${f.name}-${f.size}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 py-0.5 pl-2 pr-0.5 text-xs text-slate-700" title={`${f.name} · ${fmtBytes(f.size)}`}>
+                  <FileText size={13} className="shrink-0 text-slate-500" aria-hidden />
+                  <span className="max-w-[12rem] truncate">{f.name}</span>
+                  <button type="button" disabled={busy} onClick={() => setFiles(files.filter((_, j) => j !== i))} aria-label={`${t("attach.remove")}: ${f.name}`} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-200 hover:text-slate-700">
+                    <X size={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {fileMsg && <div className="mx-3 mb-1 whitespace-pre-line rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-800 [overflow-wrap:anywhere] sm:mx-4">{fileMsg}</div>}
+          <input ref={fileRef} type="file" multiple accept={PLAN_FILE_ACCEPT} className="hidden" data-testid="plan-files" onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }} />
+          <div className="flex items-center gap-1 px-2 pb-2 pt-1 sm:gap-1.5 sm:px-3">
+            <Popover
+              testId="plan-plus"
+              title={t("plan.files")}
+              disabled={busy}
+              width="w-64"
+              trigger={{
+                label: t("plan.files"),
+                className: tool,
+                content: (
+                  <span className="relative">
+                    <Plus size={18} aria-hidden />
+                    {nAttached > 0 && <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-semibold leading-none text-white">{nAttached}</span>}
+                  </span>
+                ),
+              }}
+            >
+              {(close) => (
+                <div className="p-1.5">
+                  <MenuHeading>
+                    {t("plan.files")} <HelpTip text={`${t("plan.filesHelp", { n: ATTACHMENT_LIMITS.maxFiles, size: ATTACHMENT_LIMITS.maxFileBytes / MB })} ${t("plan.csvHelp")}`} />
+                  </MenuHeading>
+                  <button type="button" onClick={() => (close(), fileRef.current?.click())} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100">
+                    <FileUp size={15} className="text-slate-500" aria-hidden /> {t("plan.addFiles")}
+                  </button>
+                  <button type="button" onClick={() => (close(), setPasteOpen(true))} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100">
+                    <ClipboardPaste size={15} className="text-slate-500" aria-hidden /> 一覧を貼り付ける
+                  </button>
+                </div>
+              )}
+            </Popover>
+            <Popover
+              testId="plan-auto-chip"
+              title={t("auto.label")}
+              disabled={busy}
+              width="w-80"
+              trigger={{
+                label: t("auto.label"),
+                className: `flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 coarse:min-h-11 ${
+                  autonomous ? "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100" : "border-slate-200 text-slate-500 hover:bg-slate-100"
+                }`,
+                content: (
+                  <>
+                    <Wand2 size={14} className="shrink-0" aria-hidden />
+                    <span>{autonomous ? t("auto.label") : "自分で進める"}</span>
+                    {autonomous && <span className="font-mono text-[11px] text-violet-500">≤ ${maxCost || "—"}</span>}
+                    <ChevronDown size={13} className="shrink-0 opacity-60" aria-hidden />
+                  </>
+                ),
+              }}
+            >
+              {() => (
+                <div className="grid gap-2 px-3 pb-3">
+                  <div className="-mx-3">
+                    <MenuHeading>
+                      {t("auto.label")} <HelpTip text={t("auto.help")} />
+                    </MenuHeading>
+                  </div>
+                  <label className={`flex items-center justify-between gap-2 px-0 text-sm ${autonomous ? "text-slate-700" : "text-slate-400"}`}>
+                    <span className="flex items-center gap-1">
+                      {t("auto.cost")} <HelpTip text={`${t("auto.costHint", { min: AUTONOMOUS_MAX_COST_RANGE.min, max: AUTONOMOUS_MAX_COST_RANGE.max })} ${t("auto.note")}`} />
+                    </span>
+                    <input type="number" min={AUTONOMOUS_MAX_COST_RANGE.min} max={AUTONOMOUS_MAX_COST_RANGE.max} step="1" value={maxCost} disabled={!autonomous} onChange={(e) => setMaxCost(e.target.value)} className={inputCls.replace("w-full", "w-24")} aria-invalid={!costOk} data-autofocus />
+                  </label>
+                  <label className="flex items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-700 coarse:min-h-11">
+                    <input type="checkbox" checked={manual} onChange={(e) => setManual(e.target.checked)} data-testid="plan-manual" />
+                    {t("auto.manual.label")}
+                    <HelpTip text={t("auto.manual.help")} />
+                  </label>
+                </div>
+              )}
+            </Popover>
+            <div className="ml-auto flex min-w-0 items-center gap-1 sm:gap-1.5">
+              {!autonomous && (
+                <button type="button" disabled={!canDraft || busy} onClick={() => void submit(false)} className="h-9 shrink-0 rounded-full px-3 text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-50 coarse:h-11">
+                  {t("plan.create")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void submit(true)}
+                disabled={!canStart}
+                data-testid="plan-start"
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-blue-600 text-sm font-medium max-sm:w-11 sm:pl-3 sm:pr-3.5 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none coarse:h-11"
+              >
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Sparkles size={16} aria-hidden />} <span className="max-sm:sr-only">{autonomous ? "開始" : t("plan.createDraft")}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="mt-2 flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 text-xs text-slate-400" data-testid="plan-meta">
+          <span>{hasInput ? "" : "目標か資料のどちらかを入れてください"}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <HelpLink section="planner" />
+            <HelpTip text={`${t("plan.createDraftNote", { n: PLAN_JOB_SHORT_ROWS })}${autonomous ? "" : `\n${t("plan.draftNote")}`}`} />
+          </span>
+        </div>
+        {uploading && <div className="mt-2 text-xs text-slate-500">{t("plan.uploading", uploading)}</div>}
+        {err && <div className="mt-3 w-full max-w-2xl rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700 [overflow-wrap:anywhere]">{err}</div>}
       </div>
     </div>
   );
