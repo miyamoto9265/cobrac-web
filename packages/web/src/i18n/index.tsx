@@ -12,6 +12,7 @@ import { PLAN_POLICY_CATALOG, type PlanPolicyKey } from "./planPolicy";
 import { PLAN_ASK_CATALOG, type PlanAskKey } from "./planAsk";
 import { WORKER_GUARD_CATALOG, type WorkerGuardKey } from "./workerGuard";
 import { MISSIONS_CATALOG, type MissionsKey } from "./missions";
+import { MISSION_CREATE_CATALOG, type MissionCreateKey } from "./missionCreate";
 import { de } from "./de";
 import { es } from "./es";
 import { fr } from "./fr";
@@ -22,8 +23,8 @@ import { ru } from "./ru";
 import { zh } from "./zh";
 import { zhTw } from "./zhTw";
 
-/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts, planFlow.ts, planAsk.ts, claude.ts, apiKeys.ts, planPolicy.ts, workerGuard.ts, missions.ts) */
-export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey | PlanFlowKey | PlanAskKey | ClaudeKey | ApiKeysKey | PlanPolicyKey | WorkerGuardKey | MissionsKey;
+/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts, planFlow.ts, planAsk.ts, claude.ts, apiKeys.ts, planPolicy.ts, workerGuard.ts, missions.ts, missionCreate.ts) */
+export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey | PlanFlowKey | PlanAskKey | ClaudeKey | ApiKeysKey | PlanPolicyKey | WorkerGuardKey | MissionsKey | MissionCreateKey;
 
 export type Locale = UiLocale;
 
@@ -44,7 +45,7 @@ export const DEFAULT_LOCALE: Locale = "en";
 const STORAGE = "cobrac-locale";
 
 const BASE: Record<Locale, Record<BaseMessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
-const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale], ...PLAN_DRAFT_CATALOG[l as Locale], ...CANON_VIEW_CATALOG[l as Locale], ...PLAN_FLOW_CATALOG[l as Locale], ...PLAN_ASK_CATALOG[l as Locale], ...CLAUDE_CATALOG[l as Locale], ...API_KEYS_CATALOG[l as Locale], ...PLAN_POLICY_CATALOG[l as Locale], ...WORKER_GUARD_CATALOG[l as Locale], ...MISSIONS_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
+const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale], ...PLAN_DRAFT_CATALOG[l as Locale], ...CANON_VIEW_CATALOG[l as Locale], ...PLAN_FLOW_CATALOG[l as Locale], ...PLAN_ASK_CATALOG[l as Locale], ...CLAUDE_CATALOG[l as Locale], ...API_KEYS_CATALOG[l as Locale], ...PLAN_POLICY_CATALOG[l as Locale], ...WORKER_GUARD_CATALOG[l as Locale], ...MISSIONS_CATALOG[l as Locale], ...MISSION_CREATE_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
 
 /** Name of a UI language in the current UI language (`ja` → "日本語" / "Japanese"); unknown ids come back unchanged. */
 export function localeName(id: string, t: TFn): string {

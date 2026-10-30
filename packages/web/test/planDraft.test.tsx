@@ -140,6 +140,7 @@ describe("new plan with a draft", () => {
     api.getPlan.mockResolvedValue(detail("DRAFTING", [], { draft: { kind: "draft", jobId: null, status: "waiting", requestedAt: new Date().toISOString(), requestedBy: "alice" } }));
     await render("/plans/new");
     // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
+    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
@@ -192,6 +193,7 @@ describe("new plan with a draft", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
+    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
@@ -206,6 +208,7 @@ describe("new plan with a draft", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
+    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
@@ -220,6 +223,7 @@ describe("new plan with a draft", () => {
     localStorage.setItem("cobrac-locale", "ja");
     await render("/plans/new");
     // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
+    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     const create = button("ミッションを作る")!;
     expect(create.disabled).toBe(true);
@@ -227,7 +231,7 @@ describe("new plan with a draft", () => {
     // a name alone is not enough: the API answers 400 「目標・資料・プロジェクトのどれかが必要です」
     expect(create.disabled).toBe(true);
     const hint = q('[data-testid="plan-need-input"]')!;
-    expect(hint.textContent).toBe("目標・資料・プロジェクトのどれかを入れてください");
+    expect(hint.textContent).toBe("目標を書くか、資料を追加してください");
     expect(create.getAttribute("aria-describedby")).toBe(hint.id);
     // each of the three is enough
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
@@ -235,8 +239,9 @@ describe("new plan with a draft", () => {
     expect(q('[data-testid="plan-need-input"]')).toBeNull();
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "");
     expect(create.disabled).toBe(true);
-    // the paste box sits in the same 資料 section and opens on demand
+    // the paste field opens on demand from the “+” menu, as a field of the card
     expect(q('textarea[aria-label="リストを貼り付ける"]')).toBeNull();
+    await click(q<HTMLButtonElement>('[data-testid="plan-plus"]'));
     await click(q<HTMLButtonElement>('[data-testid="plan-paste-open"]'));
     expect(q('[data-testid="plan-paste-open"]')).toBeNull();
     await type(q<HTMLTextAreaElement>('textarea[aria-label="リストを貼り付ける"]')!, "ROI,TLF\nSTG,hearing\n");
@@ -247,9 +252,9 @@ describe("new plan with a draft", () => {
     expect(create.disabled).toBe(false);
     // the autonomous run needs the same
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
-    expect(button("自律実行で開始")!.disabled).toBe(false);
+    expect(button("開始")!.disabled).toBe(false);
     await click(q<HTMLButtonElement>('button[aria-label="削除: language.csv"]'));
-    expect(button("自律実行で開始")!.disabled).toBe(true);
+    expect(button("開始")!.disabled).toBe(true);
     expect(q('[data-testid="plan-need-input"]')).not.toBeNull();
   });
 });
