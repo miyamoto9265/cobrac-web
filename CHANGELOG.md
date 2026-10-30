@@ -10,9 +10,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - The project header's xlsx buttons: the official Template-v2-3 workbook is now the main button on the left, named "BRA data (xlsx)"; the workbook that gathers CoBRAC's CSV files follows it as "CSV set (xlsx)"
+- Graph edges are now drawn with right angles by default (they were curves) and go around the other boxes instead of under them, avoiding lines from other nodes where they can. Edges whose line type or bends the user set keep them
 
 ### Added
 - The HCD graph tells when some UCs are not connected to the rest of it ("2 UCs are not connected to the rest of the HCD") and highlights them on "Show". The main part is the one with the most ROI-internal UCs
+- The Versions tab shows the prompt hash of each version and a "Seed" row ("not settable": the models CoBRAC uses take no seed), next to the creation time, app version, model and reasoning effort it already showed
+- White matter cannot anchor a UC: a HOMBA term under the brain's or spinal cord's white matter (corpus callosum, internal capsule, fornix, …) is a fibre tract, not a population of neurons, even when it has a DHBA name. The HCD check asks the agent to anchor the UC on the gray-matter region whose neurons send or receive the fibres (it reads the term's ancestors from RCS `get_homba_term`), and the HCD instructions say so
 - The "Article" tab has a blue dot while the BRA data is complete and no article exists yet: articles are not written automatically, and the dot's tooltip says to create one from the tab
 
 ## [0.49.0] - 2026-10-25
