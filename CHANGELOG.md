@@ -26,6 +26,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Journal names in the template's References are written in the spelling of the template's journal list when they differ only in case, braces, a leading "The", "&"/"and" or punctuation (e.g. "The Journal of Neuroscience" → "Journal of Neuroscience", "PLOS ONE" → "{PLoS} {ONE}"), so they no longer get Journal score 0 and Credibility rating 0. Journals that are not in the list are named in the export notes
 - A UC that spans several SABRA units (anchors joined with `&`) no longer depends on the order the anchors are written in. `BNA:65-66&BNA:63-64` and `BNA:63-64&BNA:65-66` used to be two different circuits (two Canon keys, passing the duplicate check and taking different Circuit ID heads); the anchors are now a set in a fixed order (BNA areas by label, then BNA groups, then HOMBA terms), the validator asks for that order, and Canon keys written in another order are read as the same circuit
 
+### Security
+- Updated indirect dependencies with known vulnerabilities (zod, body-parser, hono, qs, fast-uri, ip-address) to their patched versions, without breaking changes
+
 ## [0.51.0] - 2026-10-30
 
 ### Added
