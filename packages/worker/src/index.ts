@@ -1,33 +1,4 @@
-/**
- * CoBRAC Agents worker (ECS Fargate task) — the "CoBRAC harness".
- *
- * The worker drives the workflow phase by phase instead of letting the agent read instruction files:
- *   HCD (agent turn → validator → fix turns) → FRG (same) → CSV (generated from the JSON data files; problems go
- *   back to the agent as fixes to those files) → xlsx + graphs (deterministic). The loop itself is in pipeline.ts.
- * Shared rules live in prompts/AGENTS.md (auto-loaded by Codex); each phase prompt inlines prompts/phases/<PHASE>.md,
- * and the JSON Schemas of the data files are written to schemas/ next to AGENTS.md.
- *
- * Run modes:
- *   - initial : fresh workspace, start at HCD
- *   - resume  : restore workspace + thread, deliver the user's answer, continue the current phase
- *   - followup: restore, apply the instruction, re-validate every phase, regenerate CSV/xlsx
- *   - retry   : restore, continue from the first phase not accepted yet
- *   - article : restore the workspace read-only and write an explanatory article in the requested language on a
- *               fresh thread (article.ts); the BRA data, step states, revision and project thread stay untouched
- *   - canon-review: AI review of a Canon pull request (canonReview.ts). JOB_PROJECT_ID is the Canon ID; the worker
- *               reads the packet the API wrote, runs one turn without tools and writes the result; no project is touched
- *   - plan    : a BRA Planner draft or re-plan (planJob.ts). JOB_PROJECT_ID is the plan ID; the worker reads the input
- *               the plan runner wrote, runs one turn with the RCS tools (and the attached capability lists) within the
- *               job's time budget and writes the result; no project is touched
- *
- * The `lit` MCP tools (PubMed / Europe PMC, litMcp.ts) are available in every BRA run. Research mode (on by default for
- * new projects) adds a research step before the HCD: a literature survey into research.json at a raised reasoning
- * effort within a time budget, and a coverage check that sends gaps back as fix turns (pipeline.ts runResearch).
- * The HCD / FRG validators are unchanged.
- *
- * Whenever the agent asks a question we persist state to S3 and exit so no compute is billed while waiting.
- */
-import { DecryptCommand, KMSClient } from "@aws-sdk/client-kms";
+
 import { existsSync, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -35,10 +6,7 @@ import type {
   ArticleJobState,
   AutoFix,
   ArticleMeta,
-  BraVersionRef,
-  BraVersionSummary,
   CrossCode,
-  EvidenceSettings,
   JobRecord,
   PipelineStage,
   ProjectRecord,
@@ -46,42 +14,20 @@ import type {
   ResearchCheck,
   ResearchOutcome,
   ResearchStepMetrics,
-  StepState,
   TokenUsage,
   WorkflowStep,
 } from "@cobrac/shared";
 import {
   ATTACHMENT_DERIVED_PREFIX,
-  ATTACHMENT_FILES_PREFIX,
   CANON_AGENT_DIR,
-  canonAiReviewKey,
-  type CanonAiPacket,
-  type CanonAiReviewResult,
-  DEFAULT_BRA_RULES,
-  DEFAULT_CODEX_MODEL,
   EMPTY_USAGE,
   canonAgentFiles,
   canonRevisionKey,
-  canonSpecNote,
   planPolicyNote,
   planPolicyOf,
   type CanonRunInfo,
   type CanonSnapshot,
-  type FileAttachment,
-  type FrgCandidates,
   LIT_MCP_SERVER,
-  PLAN_JOB_INPUT_SCHEMA,
-  PLAN_ROW_JOB_INPUT_SCHEMA,
-  PLAN_ROW_JOB_RESULT_SCHEMA,
-  PLAN_ROW_JOB_TIME_BUDGET_MS,
-  PLAN_JOB_REASONING_EFFORT,
-  PLAN_JOB_RESULT_SCHEMA,
-  planJobBudgetMs,
-  PLAN_RESULT_SCHEMA,
-  type PlanJobInput,
-  type PlanJobResult,
-  type PlanRowJobInput,
-  type PlanRowJobResult,
   ADJUSTMENT_CODES,
   CROSS_CODES,
   PROJECT_FILES,
@@ -95,10 +41,8 @@ import {
   articleKey,
   articleMetaKey,
   braDownloadFileName,
-  braVersionId,
   estimateCostUsd,
   fixTurnEffort,
-  formatFrgCandidates,
   formatTokens,
   formatUsd,
   harnessPromptNotice,
@@ -110,20 +54,14 @@ import {
   isHypothesisMode,
   isUiLocale,
   nowIso,
-  planAttachmentTypeOf,
   providerOf,
-  planJobKey,
-  planPrefix,
   projectDisplayName,
   replyLanguageInstruction,
-  summarizeManifest,
-  versionManifestKey,
   researchEffort,
   uiLanguageName,
   withReferenceList,
 } from "@cobrac/shared";
 import { articlePrompt, prepareArticleFigures, readReferences, runArticle } from "./article.js";
-import { runCanonReview } from "./canonReview.js";
 import {
   createEngine,
   fromCodexUsage,
@@ -133,8 +71,6 @@ import {
   openThread,
   resolveModelSettings,
   runTurn,
-  sessionTotalUsage,
-  turnUsage,
   type ModelSettings,
   type TurnSink,
   type TurnUsage,
@@ -145,31 +81,26 @@ import {
   getProject,
   getDefaultApiKey,
   getUser,
-  ensureProjectRevision,
   incrementProjectRevision,
-  listProjectJobs,
   putMessage,
   refreshProjectUsage,
   updateAutoProjectName,
   updateJob,
-  updateJobIfStatus,
   updateProject,
 } from "./db.js";
 import { env } from "./env.js";
 import { finalizeProject } from "./finalize.js";
 import { NO_PROGRESS_MESSAGE, NO_PROGRESS_MS, ProgressWatch, THREAD_RESUME_MAX_BYTES, THREAD_TOO_LARGE_MESSAGE, threadBytes, workspaceFingerprint } from "./guards.js";
-import { followupScopeNote, hypothesisRules, returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
+import { returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
-import { materialsHeaderLine, prepareMaterials, type MaterialEntry, type PreparedMaterials } from "./materials.js";
-import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
+import { prepareMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { ownKeyOf, planRunKey } from "./runKey.js";
 import { threadProviderOf } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
 import { ReferenceVerifier } from "./references.js";
-import { downloadDir, getJsonObject, getObjectBuffer, listFiles, listPrefix, moveObjects, projectPrefix, putObject, putObjectIfAbsent, uploadDir } from "./s3sync.js";
-import { freezeVersion, promptsSha256, schemasSha256, type FreezeInput, type VersionStore } from "./versions.js";
+import { downloadDir, getJsonObject, listFiles, listPrefix, moveObjects, putObject, uploadDir } from "./s3sync.js";
 import {
   PHASES,
   adjustmentPrompt,
@@ -191,64 +122,44 @@ import {
   type ReferenceReport,
   type ResearchTurn,
 } from "./pipeline.js";
-import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, liveStageOf, projectPaths } from "./steps.js";
+import { MAX_REPORTED_ERRORS, jobId, log, mode, paths, prefix, projectId, runState, startedAt, userId, decryptApiKey, taskArn } from "./jobContext.js";
+import { phaseSpec, frgCandidatesSection, rawPhaseSpec, hypothesisNotes, header, phasePrompt, firstPrompt, freshThreadPrompt, fixPrompt } from "./jobPrompts.js";
+import { freezeJobVersion, freezeBaseline } from "./jobVersions.js";
+import { canonReviewJob } from "./canonReviewJob.js";
+import { planJobMain, endPlanJob, planJobOnStop } from "./planJobMain.js";
+import { csvComplete, currentStepOf, detectStepStates, isLegacyWorkspace, liveStageOf } from "./steps.js";
 
-const MAX_REPORTED_ERRORS = 30;
 const LEGACY_WORKSPACE_MESSAGE =
   "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.";
 const LEGACY_ARTICLE_MESSAGE = "Explanatory articles need a project made with v0.8 or later.";
 
-const { userId, projectId, jobId, mode } = env.job;
-const prefix = projectPrefix(userId, projectId);
-const paths = projectPaths(env.workDir, projectId);
-const kms = new KMSClient({ region: env.region });
-
-const startedAt = Date.now();
 /** Phases the harness has accepted (validated) */
 const accepted = new Set<WorkflowStep>();
 let xlsxDone = false;
-let lastStepStates: Record<WorkflowStep, StepState> | null = null;
 /** The research step or the adjustment turn while it runs (the step states cannot tell either apart) */
 let stageOverride: "RESEARCH" | "ADJUST" | null = null;
 let lastStage: PipelineStage | null | undefined;
 let cancelled = false;
-/** SIGTERM received: the task is being stopped and the job goes back to the janitor */
-let stopping = false;
 /** The workspace was restored or created, so persistState has something to save */
 let workspaceReady = false;
 /** The saved thread was too large to resume and was moved aside (prepareWorkspace); the run starts a new thread. */
 let threadSetAside = false;
 const progress = new ProgressWatch();
-let rcs: RcsClient | null = null;
 /** Translation of non-English values in the data files (QC-03-03 / QC-08-01), set for each BRA run */
 let translator: ((texts: string[]) => Promise<Map<string, string>>) | null = null;
-let materials: PreparedMaterials | null = null;
-/** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
-let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
-/** The plan's policy for its row's agent (research and HCD specs); empty for a project made outside a plan */
-let planNote = "";
-/** Research mode of this run (the project's setting; article jobs never research) */
-let research = false;
-/** The project's harness rule set (0: created before the ROI rules) */
-let harnessRules = 0;
-/** The project's evidence mode, hypothesis scopes and share limit (strict unless the project allows hypotheses) */
-let evidence: EvidenceSettings = evidenceSettingsOf(null);
 const literatureHttp = new LiteratureHttp({ mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey });
 const referenceVerifier = env.referenceLookup ? new ReferenceVerifier({ http: literatureHttp }) : null;
 const quoteVerifier = env.quoteCheck ? new QuoteVerifier({ http: literatureHttp, threshold: env.quoteMatchThreshold }) : null;
 
-const log = async (content: string, meta?: Record<string, unknown>): Promise<void> => {
-  await putMessage(projectId, jobId, "system", "status", content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
-};
 
 async function main() {
   console.log(`[worker] start job=${jobId} project=${projectId} mode=${mode}`);
   if (mode === "canon-review") {
-    await canonReviewJob();
+    await canonReviewJob(fail);
     return;
   }
   if (mode === "plan") {
-    await planJobMain();
+    await planJobMain(fail);
     return;
   }
   const [user, project, job] = await Promise.all([getUser(userId), getProject(userId, projectId), getJob(projectId, jobId)]);
@@ -270,7 +181,7 @@ async function main() {
     { url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region },
     (m) => console.warn(`[worker] ${m}`),
   );
-  rcs = rcsConn ? new RcsClient(rcsConn) : null;
+  runState.rcs = rcsConn ? new RcsClient(rcsConn) : null;
   console.log(`[worker] rcs=${rcsConn ? rcsConn.url : "(disabled)"}`);
 
   await updateJob(projectId, jobId, { status: "RUNNING", startedAt: job.startedAt ?? nowIso(), lastHeartbeat: nowIso(), ecsTaskArn: await taskArn() });
@@ -295,8 +206,8 @@ async function main() {
   }
   if (mode === "followup") await freezeBaseline(project);
   await prepareCanon(project);
-  planNote = project.planPolicy ? planPolicyNote(planPolicyOf(project.planPolicy)) : "";
-  if (!rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
+  runState.planNote = project.planPolicy ? planPolicyNote(planPolicyOf(project.planPolicy)) : "";
+  if (!runState.rcs) await log("RCS (SABRA lookup) is not available in this run; UC anchors are not checked against RCS.");
   // a follow-up re-validates every phase, so it starts with nothing accepted
   const carryOver = mode === "resume" || mode === "retry";
   xlsxDone = carryOver && project.stepStates?.XLSX === "done";
@@ -304,14 +215,14 @@ async function main() {
   await syncStepStates();
 
   // --- codex ----------------------------------------------------------------
-  research = isResearchMode(project);
-  harnessRules = project.harnessRules ?? 0;
-  evidence = evidenceSettingsOf(project);
+  runState.research = isResearchMode(project);
+  runState.harnessRules = project.harnessRules ?? 0;
+  runState.evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
   const codex = createEngine(resolveModelSettings(project).model, apiKey, rcsConn, { lit: true });
   translator = (texts) => translateTexts(resolveModelSettings(project).model, apiKey, texts);
-  jobUsage = job.usage ?? EMPTY_USAGE;
-  jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
+  runState.jobUsage = job.usage ?? EMPTY_USAGE;
+  runState.jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
   let threadId = mode === "initial" ? null : project.codexThreadId;
   if (threadId && threadSetAside) {
     await log(THREAD_TOO_LARGE_MESSAGE, { i18n: "sys.newThreadTooLarge" });
@@ -328,10 +239,10 @@ async function main() {
   }
   const freshThread = !threadId;
   const settings = resolveModelSettings(project);
-  resolvedModel = settings.model;
-  resolvedEffort = settings.reasoningEffort;
-  console.log(`[worker] model=${settings.model ?? "(default)"} effort=${settings.reasoningEffort ?? "(default)"} research=${research}`);
-  await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null, researchMode: research });
+  runState.resolvedModel = settings.model;
+  runState.resolvedEffort = settings.reasoningEffort;
+  console.log(`[worker] model=${settings.model ?? "(default)"} effort=${settings.reasoningEffort ?? "(default)"} research=${runState.research}`);
+  await updateJob(projectId, jobId, { model: runState.resolvedModel, reasoningEffort: (runState.resolvedEffort as JobRecord["reasoningEffort"]) ?? null, researchMode: runState.research });
 
   const replyLanguage = replyLanguageInstruction(job.locale);
   console.log(`[worker] reply locale=${job.locale ?? "(user's language)"}`);
@@ -341,13 +252,13 @@ async function main() {
 
   const sink: TurnSink = {
     onMessage: async (type, content, meta) => {
-      await putMessage(projectId, jobId, "agent", type, content, { meta, step: lastStepStates ? currentStepOf(lastStepStates) : null });
+      await putMessage(projectId, jobId, "agent", type, content, { meta, step: runState.lastStepStates ? currentStepOf(runState.lastStepStates) : null });
     },
     onFileChange: async () => {
       await syncStepStates();
     },
     onHeartbeat: async () => {
-      if (!stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+      if (!runState.stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
     },
     onMcpCall: async (item) => {
       if (item.server === "rcs") await recordRcsCall(item);
@@ -425,10 +336,10 @@ async function main() {
     const ctx: PhaseContext = { hcd: null, frg: null };
     const firstOpen = PHASES.findIndex((p) => !accepted.has(p));
     const startIdx = firstOpen === -1 ? PHASES.length - 1 : firstOpen;
-    const researchFirst = research && startIdx === 0 && mode !== "followup" && !researchDone(paths);
+    const researchFirst = runState.research && startIdx === 0 && mode !== "followup" && !researchDone(paths);
     let first = researchFirst ? await researchFirstPrompt(project, job, freshThread) : await firstPrompt(project, job, PHASES[startIdx], freshThread);
     // a new thread has not seen the attached images yet
-    if (first && freshThread && materials?.images.length) first.images = materials.images;
+    if (first && freshThread && runState.materials?.images.length) first.images = runState.materials.images;
     if (first) {
       const notice = harnessPromptNotice(mode, first.shown);
       await putMessage(projectId, jobId, "system", "status", notice.content, { meta: notice.meta });
@@ -513,7 +424,7 @@ async function main() {
       const r = await finalizeProject(paths, userId, projectId, project.contributor, (m, meta) => log(m, meta), {
         roi: project.roi,
         bibliography: env.referenceLookup ? { mailto: env.crossrefMailto, ncbiApiKey: env.ncbiApiKey } : null,
-        hypothesisLines: isHypothesisMode(evidence),
+        hypothesisLines: isHypothesisMode(runState.evidence),
       });
       xlsxDone = true;
       await syncStepStates();
@@ -539,7 +450,7 @@ async function main() {
     await log(mode === "followup" ? "Follow-up completed." : "BRA data generation completed.", {
       i18n: mode === "followup" ? "sys.followupDone" : "sys.braDone",
     });
-    if (csvComplete(paths) && returnsToStrict(evidence, versionHypotheses(paths, project))) {
+    if (csvComplete(paths) && returnsToStrict(runState.evidence, versionHypotheses(paths, project))) {
       // no hypothesis in the result: the project is literature-supported only again (its scopes stay as a record)
       await updateProject(userId, projectId, { evidenceMode: "strict" });
       await log("The result has no hypotheses, so the project uses literature-supported evidence only again.", { i18n: "sys.hypothesisStrict" });
@@ -556,7 +467,7 @@ async function main() {
     process.exitCode = 1;
   } finally {
     clearInterval(heartbeat);
-    console.log(`[metrics] ${JSON.stringify({ jobId, mode, research, model: resolvedModel, usage: jobUsage, costUsd: jobCostUsd, minutes: Math.round((Date.now() - startedAt) / 6_000) / 10, searches: searchCounts })}`);
+    console.log(`[metrics] ${JSON.stringify({ jobId, mode, research: runState.research, model: runState.resolvedModel, usage: runState.jobUsage, costUsd: runState.jobCostUsd, minutes: Math.round((Date.now() - startedAt) / 6_000) / 10, searches: searchCounts })}`);
   }
 }
 
@@ -568,7 +479,7 @@ async function main() {
  */
 function startHeartbeat(abort: AbortController, o: { persist?: boolean } = {}): NodeJS.Timeout {
   return setInterval(async () => {
-    if (stopping) return;
+    if (runState.stopping) return;
     try {
       const j = await getJob(projectId, jobId);
       if (j?.status === "CANCELLED" && !cancelled) {
@@ -635,9 +546,9 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
 
   // the model chosen for the article (job), else the project's
   const settings = resolveModelSettings({ model: job.model || project.model, reasoningEffort: job.reasoningEffort || project.reasoningEffort });
-  resolvedModel = settings.model;
-  resolvedEffort = settings.reasoningEffort;
-  await updateJob(projectId, jobId, { model: resolvedModel, reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
+  runState.resolvedModel = settings.model;
+  runState.resolvedEffort = settings.reasoningEffort;
+  await updateJob(projectId, jobId, { model: runState.resolvedModel, reasoningEffort: (runState.resolvedEffort as JobRecord["reasoningEffort"]) ?? null });
   const thread = openThread(createEngine(settings.model, apiKey, null), null, settings, { webSearch: false });
   const abort = new AbortController();
   const heartbeat = startHeartbeat(abort);
@@ -647,7 +558,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
     },
     onFileChange: async () => undefined,
     onHeartbeat: async () => {
-      if (!stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
+      if (!runState.stopping) await updateJob(projectId, jobId, { lastHeartbeat: nowIso() });
     },
   };
   try {
@@ -713,7 +624,7 @@ async function articleJob(apiKey: string, project: ProjectRecord, job: JobRecord
       createdAt: nowIso(),
       sourceRevision,
       jobId,
-      model: resolvedModel,
+      model: runState.resolvedModel,
       citedReferences: run.check.cited,
       figures: figureFiles,
     };
@@ -740,14 +651,14 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
   const budget = AbortSignal.timeout(budgetMs);
   const started = Date.now();
   const deadline = started + budgetMs;
-  const effort = researchEffort(resolvedEffort as ReasoningEffort | null);
-  const usageAtStart = jobUsage;
-  const costAtStart = jobCostUsd ?? 0;
+  const effort = researchEffort(runState.resolvedEffort as ReasoningEffort | null);
+  const usageAtStart = runState.jobUsage;
+  const costAtStart = runState.jobCostUsd ?? 0;
   const searchesAtStart = structuredClone(searchCounts);
   let turns = 0;
   let aborted = false;
-  const spent = () => (jobCostUsd === null ? null : Math.max(0, jobCostUsd - costAtStart));
-  console.log(`[research] start model=${resolvedModel} effort=${effort} budget=${time.minutes}min`);
+  const spent = () => (runState.jobCostUsd === null ? null : Math.max(0, runState.jobCostUsd - costAtStart));
+  console.log(`[research] start model=${runState.resolvedModel} effort=${effort} budget=${time.minutes}min`);
   await log(`Research step: surveying the literature before the HCD (up to ${time.minutes} min, reasoning effort ${effort}).`, {
     i18n: "sys.researchStart",
     minutes: time.minutes,
@@ -762,7 +673,7 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
     const c0 = spent();
     return {
       outcome,
-      model: resolvedModel,
+      model: runState.resolvedModel,
       effort,
       startedAt: new Date(started).toISOString(),
       endedAt: nowIso(),
@@ -770,7 +681,7 @@ async function researchStep(project: ProjectRecord, first: Prompt | null, turn: 
       turns,
       aborted,
       costUsd: c0 === null ? null : Math.round(c0 * 10_000) / 10_000,
-      usage: subtractUsage(jobUsage, usageAtStart),
+      usage: subtractUsage(runState.jobUsage, usageAtStart),
       timeBudgetMinutes: time.minutes,
       candidates: c.summary?.candidates ?? 0,
       supported: c.summary?.byStatus.supported ?? 0,
@@ -843,7 +754,7 @@ async function researchSpec(): Promise<string> {
       .replaceAll("{P}", projectId)
       .replaceAll("{MAX_CANDIDATES}", String(RESEARCH_BUDGET.maxCandidates))
       .replaceAll("{MIN_QUERIES}", String(RESEARCH_BUDGET.minQueriesPerCandidate))
-      .replaceAll("{BUDGET_MINUTES}", String(env.researchTimeBudgetMin)) + planNote
+      .replaceAll("{BUDGET_MINUTES}", String(env.researchTimeBudgetMin)) + runState.planNote
   );
 }
 
@@ -872,7 +783,7 @@ function researchFixPrompt(errors: string[], attempt: number): Prompt {
   if (errors.length > MAX_REPORTED_ERRORS) list.push(`- …and ${errors.length - MAX_REPORTED_ERRORS} more of the same kinds`);
   return {
     shown: `The research coverage check found ${errors.length} gap(s) in ${RESEARCH_FILES.plan} (fix attempt ${attempt}/${RESEARCH_BUDGET.maxFixTurns}):\n${list.join("\n")}\n\nRun the missing searches, update ${RESEARCH_FILES.plan} and finish with status "done". Do not start the HCD yet.`,
-    effort: fixTurnEffort(resolvedEffort as ReasoningEffort | null),
+    effort: fixTurnEffort(runState.resolvedEffort as ReasoningEffort | null),
   };
 }
 
@@ -889,7 +800,7 @@ async function recordSearch(item: { tool: string; arguments: unknown; status: st
   let result = item.result?.structured_content ?? null;
   const text = JSON.stringify(result);
   if (text && text.length > SEARCH_LOG_MAX_RESULT) result = { truncated: true, head: text.slice(0, SEARCH_LOG_MAX_RESULT) };
-  const step = lastStepStates ? currentStepOf(lastStepStates) : null;
+  const step = runState.lastStepStates ? currentStepOf(runState.lastStepStates) : null;
   const line = { at: nowIso(), jobId, step, tool: item.tool, arguments: item.arguments, status: item.status, error: mcpErrorText(item), result };
   try {
     await appendFile(paths.researchLog, JSON.stringify(line) + "\n", "utf8");
@@ -961,13 +872,13 @@ async function logAutoFixes(phase: Phase, fixes: AutoFix[]): Promise<void> {
 /** checkPhase with this run's RCS client, meta adoption and Project.csv options. */
 async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseContext): Promise<PhaseCheck> {
   const deps: CheckDeps = {
-    lookupSabra: rcs ? (ids) => rcs!.lookupHomba(ids) : undefined,
+    lookupSabra: runState.rcs ? (ids) => runState.rcs!.lookupHomba(ids) : undefined,
     verifyReferences: referenceVerifier ? (refs) => referenceVerifier.verify(refs) : undefined,
     quoteChecker: quoteVerifier ? { threshold: quoteVerifier.threshold, verify: (reqs) => quoteVerifier.verify(reqs) } : undefined,
-    canon: canonRun ? { ...canonRun, onNotes: logCanonNotes } : undefined,
+    canon: runState.canonRun ? { ...runState.canonRun, onNotes: logCanonNotes } : undefined,
     sabraBoundary: project.sabraBoundary,
     harnessRules: project.harnessRules,
-    ...(isHypothesisMode(evidence) ? { evidence: { ...evidence, researchMode: research } } : {}),
+    ...(isHypothesisMode(runState.evidence) ? { evidence: { ...runState.evidence, researchMode: runState.research } } : {}),
     onMetaAccepted: (meta) => adoptMeta(project, meta),
     translate: translator ?? undefined,
     onAutoFix: (phase, fixes) => logAutoFixes(phase, fixes),
@@ -1089,139 +1000,6 @@ async function adoptMeta(project: ProjectRecord, meta: { roi: string; tlf: strin
   await updateProject(userId, projectId, patch);
 }
 
-// --- prompts -----------------------------------------------------------------
-
-const specCache = new Map<Phase, string>();
-/**
- * The phase spec, followed by the research-mode notes when the project researches, the hypothesis rules when it allows
- * hypotheses, and for the FRG the bottom-up candidates.
- */
-async function phaseSpec(phase: Phase): Promise<string> {
-  const spec = await rawPhaseSpec(phase);
-  const withNotes = research ? `${spec}\n\n${await researchModeNotes()}` : spec;
-  const rules = await hypothesisNotes();
-  const withRules = rules ? `${withNotes}\n\n${rules}` : withNotes;
-  const candidates = phase === "FRG" ? await frgCandidatesSection() : "";
-  return candidates ? `${withRules}\n\n---\n\n${candidates}` : withRules;
-}
-
-/** The bottom-up candidates of the FRG phase as the last check wrote them from the HCD; empty before the HCD was checked. */
-async function frgCandidatesSection(): Promise<string> {
-  try {
-    const c = JSON.parse(await readFile(paths.frgCandidates, "utf8")) as FrgCandidates;
-    return formatFrgCandidates(c, `${projectId}/${PROJECT_FILES.frgCandidates}`);
-  } catch {
-    return "";
-  }
-}
-
-async function rawPhaseSpec(phase: Phase): Promise<string> {
-  if (!specCache.has(phase)) {
-    let spec = (await readFile(join(env.promptsDir, "phases", `${phase}.md`), "utf8"))
-      .replaceAll("{P}", projectId)
-      .replaceAll("{MIN_QUOTE_WORDS}", String(DEFAULT_BRA_RULES.minQuoteWords));
-    if (phase === "HCD" && harnessRules >= 1) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "HCD_roi_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
-    if (phase === "FRG" && harnessRules >= 2) spec += `\n\n${(await readFile(join(env.promptsDir, "phases", "FRG_gn_rules.md"), "utf8")).replaceAll("{P}", projectId).trim()}\n`;
-    if (phase === "HCD") spec += planNote;
-    if (phase === "HCD" && canonRun) spec += canonSpecNote(canonRun.info);
-    if (phase === "HCD" && !rcs) {
-      spec +=
-        "\n\nNote for this run: the RCS MCP server is not available. Still anchor every UC on a SABRA unit from your best knowledge " +
-        `(HOMBA/DHBA or BNA IDs), keep UC Descriptors and Circuit IDs in the same format, and state in ${PROJECT_FILES.decisionLog} that the anchors were not checked with RCS.\n`;
-    }
-    specCache.set(phase, spec);
-  }
-  return specCache.get(phase)!;
-}
-
-async function researchModeNotes(): Promise<string> {
-  return (await readFile(join(env.promptsDir, "research_mode.md"), "utf8")).replaceAll("{P}", projectId).trim();
-}
-
-/** HYPOTHESIS.md with this project's scopes and limit; "" for projects that do not allow hypotheses (their prompts are unchanged). */
-async function hypothesisNotes(): Promise<string> {
-  return hypothesisRules(env.promptsDir, projectId, evidence, { researchMode: research });
-}
-
-/** `\n\n---\n\n<rules>` after the reference specs of a hypothesis-mode project; "" otherwise. */
-async function hypothesisNotesSection(): Promise<string> {
-  const rules = await hypothesisNotes();
-  return rules ? `\n\n---\n\n${rules}` : "";
-}
-
-function header(project: ProjectRecord): string {
-  const lines = [
-    `Project ID: ${projectId}`,
-    `ROI: ${project.roi?.trim() || "(not given: determine it by research)"}`,
-    `TLF: ${project.tlf?.trim() || "(not given: determine it by research)"}`,
-    `Contributor: ${project.contributor}`,
-  ];
-  const m = materialsHeaderLine(materials);
-  if (m) lines.push(m);
-  return lines.join("\n");
-}
-
-async function phasePrompt(project: ProjectRecord, phase: Phase): Promise<Prompt> {
-  return { shown: `${header(project)}\n\nRun phase ${phase}.`, hidden: await phaseSpec(phase) };
-}
-
-async function firstPrompt(project: ProjectRecord, job: JobRecord, phase: Phase, freshThread: boolean): Promise<Prompt | null> {
-  const spec = async () => (freshThread && phase !== "CSV" ? await phaseSpec(phase) : undefined);
-  switch (mode) {
-    case "initial":
-    case "article":
-    case "canon-review":
-    case "plan":
-      return phasePrompt(project, "HCD");
-    case "resume":
-      return {
-        shown: answerPreamble(job),
-        hidden: freshThread ? `${header(project)}\n\n${(await spec()) ?? ""}` : undefined,
-      };
-    case "retry":
-      if (phase === "CSV") return null;
-      return {
-        shown: `${header(project)}\n\nThe previous run stopped midway. Check the existing files in ${projectId}/ and finish phase ${phase}; do not recreate files that are already complete.`,
-        hidden: await spec(),
-      };
-    case "followup":
-      // specs are always attached: the thread may be new, and follow-ups can touch every file
-      return {
-        shown: `${header(project)}\n\nFollow-up instruction:\n${job.instruction ?? ""}${followupScopeNote(project, job)}`,
-        hidden:
-          `Apply the follow-up instruction to the project files (see "Follow-up instructions" in AGENTS.md). Reference specs:\n\n` +
-          `${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
-          (research ? `\n\n---\n\n${await researchModeNotes()}` : "") +
-          (await hypothesisNotesSection()),
-      };
-  }
-}
-
-/** The same request on a new thread: the project header, where the work so far is, and every phase spec. */
-async function freshThreadPrompt(project: ProjectRecord, p: Prompt): Promise<Prompt> {
-  return {
-    ...p,
-    shown:
-      `${header(project)}\n\nThe previous conversation of this project grew larger than the OpenAI request limit, so this turn starts a new conversation. ` +
-      `Everything done so far is in the files of ${projectId}/ (${PROJECT_FILES.decisionLog} has the decisions and their reasons); read them instead of redoing the work. ` +
-      `Continue with this request:\n\n${p.shown}`,
-    hidden:
-      `${p.hidden ? `${p.hidden}\n\n---\n\n` : ""}Reference specs:\n\n${await rawPhaseSpec("HCD")}\n\n---\n\n${await rawPhaseSpec("FRG")}` +
-      (research ? `\n\n---\n\n${await researchModeNotes()}` : "") +
-      (await hypothesisNotesSection()),
-  };
-}
-
-function fixPrompt(phase: Phase, errors: string[], attempt: number): Prompt {
-  const list = errors.slice(0, MAX_REPORTED_ERRORS).map((e) => `- ${e}`);
-  if (errors.length > MAX_REPORTED_ERRORS) list.push(`- …and ${errors.length - MAX_REPORTED_ERRORS} more of the same kinds`);
-  const where = phase === "CSV" ? "while generating the CSVs from the HCD/FRG data files" : `in phase ${phase}`;
-  return {
-    shown: `The validator found ${errors.length} problem(s) ${where} (fix attempt ${attempt}/${env.maxNudges}):\n${list.join("\n")}\n\nFix them in the files and finish with status "done".`,
-    effort: fixTurnEffort(resolvedEffort as ReasoningEffort | null),
-  };
-}
-
 // --- state -------------------------------------------------------------------
 
 async function prepareWorkspace(project: ProjectRecord) {
@@ -1270,22 +1048,22 @@ async function restoreThread(): Promise<number> {
 /** Reference materials of the project into materials/; a failure only costs the agent those inputs. */
 async function loadMaterials(project: ProjectRecord) {
   try {
-    materials = await prepareMaterials(env.workDir, project.attachments, {
+    runState.materials = await prepareMaterials(env.workDir, project.attachments, {
       download: async (dir) => void (await downloadDir(`${prefix}attachments/`, dir)),
       uploadDerived: async (dir) => void (await uploadDir(dir, prefix + ATTACHMENT_DERIVED_PREFIX)),
     });
   } catch (e) {
     console.error("[worker] materials failed", e);
-    materials = null;
+    runState.materials = null;
     if (project.attachments?.length) await log(`Reference materials could not be prepared: ${e instanceof Error ? e.message : String(e)}`);
     return;
   }
-  if (!materials || mode !== "initial") return;
-  const open = materials.entries.filter((e) => e.status !== "ok");
-  await log(`Prepared ${materials.entries.length} reference material(s) for the agent.`, {
+  if (!runState.materials || mode !== "initial") return;
+  const open = runState.materials.entries.filter((e) => e.status !== "ok");
+  await log(`Prepared ${runState.materials.entries.length} reference material(s) for the agent.`, {
     i18n: "sys.materials",
-    count: materials.entries.length,
-    details: materials.entries.map((e) => `${e.id} ${e.source}: ${e.status}${e.note ? ` (${e.note})` : ""}`).join("\n"),
+    count: runState.materials.entries.length,
+    details: runState.materials.entries.map((e) => `${e.id} ${e.source}: ${e.status}${e.note ? ` (${e.note})` : ""}`).join("\n"),
     ...(open.length ? { failed: open.length } : {}),
   });
 }
@@ -1308,7 +1086,7 @@ async function prepareCanon(project: ProjectRecord) {
     const info: CanonRunInfo = { canonId: meta.canonId, name: meta.name, policy: meta.policy, revision };
     await mkdir(dir, { recursive: true });
     for (const [name, text] of Object.entries(canonAgentFiles(snapshot, info, projectId))) await writeFile(join(dir, name), text, "utf8");
-    canonRun = { snapshot, info };
+    runState.canonRun = { snapshot, info };
     await log(`Canon "${meta.name}" revision ${revision}: the agent follows its definitions (files in ${CANON_AGENT_DIR}/).`, {
       i18n: "sys.canonLoaded",
       name: meta.name,
@@ -1317,115 +1095,6 @@ async function prepareCanon(project: ProjectRecord) {
   } catch (e) {
     console.warn("[canon] not loaded", e);
     await log(`The Canon of this project could not be loaded (${e instanceof Error ? e.message : String(e)}); this run does not use it.`);
-  }
-}
-
-// --- BRA data versions ----------------------------------------------------------
-
-const versionStore: VersionStore = { get: getObjectBuffer, put: putObject, putIfAbsent: putObjectIfAbsent };
-const versionRef = (pid: string, version: number): BraVersionRef => ({ versionId: braVersionId(pid, version), projectId: pid, version });
-
-/** The version before `n`: the previous one, or for a clone's first version the public project version it copied. */
-function parentOf(project: ProjectRecord, n: number): BraVersionRef | null {
-  if (n > 1) return versionRef(projectId, n - 1);
-  const src = project.clonedFrom;
-  return src && src.revision >= 1 ? versionRef(src.projectId, src.revision) : null;
-}
-
-async function writeVersion(input: Omit<FreezeInput, "prefix" | "projectId" | "workspaceDir">): Promise<BraVersionSummary | null> {
-  const r = await freezeVersion({ ...input, prefix, projectId, workspaceDir: paths.root }, versionStore);
-  if (r.status === "conflict") {
-    console.warn(`[version] v${input.version} already exists for job ${r.manifest.job?.jobId ?? "(none)"}; not replaced`);
-    await log(`Version ${input.version} already exists from another run, so this result was not saved as a version.`, { i18n: "sys.versionConflict", version: input.version });
-    return null;
-  }
-  return summarizeManifest(r.manifest);
-}
-
-/** Freezes this job's result as version revision + 1 (the job is COMPLETED right after). A failure only costs the snapshot. */
-async function freezeJobVersion(project: ProjectRecord, job: JobRecord): Promise<BraVersionSummary | null> {
-  try {
-    const fresh = await getProject(userId, projectId);
-    const n = (fresh?.revision ?? project.revision ?? 0) + 1;
-    const summary = await writeVersion({
-      version: n,
-      parent: parentOf(fresh ?? project, n),
-      origin: "job",
-      createdAt: nowIso(),
-      contributor: project.contributor,
-      job: { jobId, type: job.type, instruction: job.instruction },
-      generator: {
-        appVersion: env.appVersion,
-        gitSha: env.gitSha,
-        promptsSha256: await promptsSha256(env.promptsDir),
-        schemasSha256: schemasSha256(agentHarnessSchemas(evidence.mode)),
-        model: resolvedModel,
-        reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
-        researchMode: research,
-        canon: canonRun ? { canonId: canonRun.info.canonId, revision: canonRun.info.revision } : null,
-        sabraBoundary: project.sabraBoundary ?? "legacy",
-        rcsBoundaryVersion: rcs ? await rcs.sabraBoundaryVersion() : null,
-        harnessRules: project.harnessRules ?? 0,
-        // provenance of a project a BRA Planner plan created (absent otherwise, so other manifests are unchanged)
-        ...(project.planId ? { planId: project.planId } : {}),
-        // hypothesis mode: evidence mode, scopes, share limit and hypothesis counts (the BRA-DB guard reads them)
-        ...versionHypotheses(paths, { ...project, evidenceMode: evidence.mode }),
-      },
-    });
-    if (summary) await log(`Saved the result as version ${n} (${summary.versionId}).`, { i18n: "sys.versionSaved", version: n, versionId: summary.versionId });
-    return summary;
-  } catch (e) {
-    console.error("[version] freeze failed", e);
-    await log(`The result could not be saved as a version: ${e instanceof Error ? e.message : String(e)}`, { i18n: "sys.versionFailed" });
-    return null;
-  }
-}
-
-/**
- * A follow-up on a project whose current data has no version yet (finished before versioning) first freezes that data
- * as version `revision`, so the follow-up's result has a parent to compare with. The project is COMPLETED when a
- * follow-up is queued, so the restored workspace and `output/` belong to the same run.
- */
-async function freezeBaseline(project: ProjectRecord) {
-  if (!project.hasArtifacts || !csvComplete(paths)) return;
-  const n = project.revision || 1;
-  try {
-    if (await versionStore.get(prefix + versionManifestKey(n))) return;
-    const last =
-      (await listProjectJobs(userId, projectId))
-        .filter((j) => j.jobId !== jobId && j.status === "COMPLETED" && (j.type === "initial" || j.type === "followup"))
-        .sort((a, b) => ((a.endedAt ?? a.createdAt) < (b.endedAt ?? b.createdAt) ? -1 : 1))
-        .at(-1) ?? null;
-    const summary = await writeVersion({
-      version: n,
-      parent: parentOf(project, n),
-      origin: "baseline",
-      createdAt: project.completedAt ?? nowIso(),
-      contributor: project.contributor,
-      job: last ? { jobId: last.jobId, type: last.type, instruction: last.instruction } : null,
-      generator: {
-        appVersion: null,
-        gitSha: null,
-        promptsSha256: null,
-        schemasSha256: null,
-        model: last?.model ?? null,
-        reasoningEffort: last?.reasoningEffort ?? null,
-        researchMode: last?.researchMode ?? null,
-        canon: null,
-        sabraBoundary: project.sabraBoundary ?? "legacy",
-        rcsBoundaryVersion: null,
-        harnessRules: project.harnessRules ?? 0,
-        ...(project.planId ? { planId: project.planId } : {}),
-      },
-    });
-    if (!summary) return;
-    if (!project.revision) await ensureProjectRevision(userId, projectId, n);
-    if (last && !last.braVersion) await updateJob(projectId, last.jobId, { braVersion: summary });
-    await updateProject(userId, projectId, { latestVersion: summary });
-    await log(`Saved the current BRA data as version ${n} before applying the follow-up.`, { i18n: "sys.versionBaseline", version: n });
-  } catch (e) {
-    console.error("[version] baseline failed", e);
-    await log(`The current BRA data could not be saved as a version before the follow-up: ${e instanceof Error ? e.message : String(e)}`, { i18n: "sys.versionFailed" });
   }
 }
 
@@ -1443,8 +1112,8 @@ const persistState = serialized(async () => {
  * task definition's stop timeout leaves time to save the running turn's work; the janitor then retries the job.
  */
 async function onSigterm() {
-  if (stopping) return;
-  stopping = true;
+  if (runState.stopping) return;
+  runState.stopping = true;
   console.log("[worker] SIGTERM: saving state before the task stops");
   try {
     await countCutOffTurn("SIGTERM");
@@ -1477,10 +1146,10 @@ async function setStage(override: typeof stageOverride) {
 async function syncStepStates() {
   const states = detectStepStates(paths, accepted, xlsxDone);
   const stage = liveStageOf(states, stageOverride);
-  const changed = !lastStepStates || JSON.stringify(states) !== JSON.stringify(lastStepStates);
+  const changed = !runState.lastStepStates || JSON.stringify(states) !== JSON.stringify(runState.lastStepStates);
   if (!changed && stage === lastStage) return;
-  const prev = lastStepStates;
-  lastStepStates = states;
+  const prev = runState.lastStepStates;
+  runState.lastStepStates = states;
   lastStage = stage;
   await updateProject(userId, projectId, { ...(changed ? { stepStates: states, currentStep: currentStepOf(states) } : {}), activeStage: stage });
   if (!changed) return;
@@ -1490,12 +1159,6 @@ async function syncStepStates() {
     }
   }
 }
-
-let resolvedModel: string | null = null;
-let resolvedEffort: string | null = null;
-/** This job's usage and estimated cost so far (null cost: unpriced model) */
-let jobUsage: TokenUsage = EMPTY_USAGE;
-let jobCostUsd: number | null = 0;
 
 function subtractUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
   const cacheWrite = (a.cacheWriteTokens ?? 0) - (b.cacheWriteTokens ?? 0);
@@ -1511,15 +1174,15 @@ function subtractUsage(a: TokenUsage, b: TokenUsage): TokenUsage {
 async function accumulateUsage(u: TurnUsage) {
   const j = await getJob(projectId, jobId);
   const usage = addUsage(j?.usage, tokenUsageOf(u));
-  const costUsd = estimateCostUsd(resolvedModel, usage);
-  jobUsage = usage;
-  jobCostUsd = costUsd;
+  const costUsd = estimateCostUsd(runState.resolvedModel, usage);
+  runState.jobUsage = usage;
+  runState.jobCostUsd = costUsd;
   await updateJob(projectId, jobId, {
     usage,
     costUsd,
     searches: searchCounts,
-    model: resolvedModel,
-    reasoningEffort: (resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
+    model: runState.resolvedModel,
+    reasoningEffort: (runState.resolvedEffort as JobRecord["reasoningEffort"]) ?? null,
   });
   await refreshProjectUsage(userId, projectId);
   await putMessage(
@@ -1528,7 +1191,7 @@ async function accumulateUsage(u: TurnUsage) {
     "system",
     "status",
     `Tokens: in ${formatTokens(usage.inputTokens)} (cached ${formatTokens(usage.cachedInputTokens)}) / out ${formatTokens(usage.outputTokens)} · est. ${formatUsd(costUsd)}`,
-    { meta: { i18n: "sys.usage", kind: "usage", usage, costUsd, model: resolvedModel } },
+    { meta: { i18n: "sys.usage", kind: "usage", usage, costUsd, model: runState.resolvedModel } },
   );
 }
 
@@ -1551,7 +1214,7 @@ async function countCutOffTurn(why: string): Promise<void> {
 }
 
 async function fail(message: string, meta?: Record<string, unknown>) {
-  if (cancelled || stopping) return;
+  if (cancelled || runState.stopping) return;
   if (isProjectlessMode(mode)) {
     const values = { status: "FAILED", errorMessage: message, endedAt: nowIso() } as const;
     if (mode === "plan") await endPlanJob(values);
@@ -1568,298 +1231,6 @@ async function fail(message: string, meta?: Record<string, unknown>) {
   await updateJob(projectId, jobId, { status: "FAILED", errorMessage: message, endedAt: nowIso() });
   await updateProject(userId, projectId, { status: "FAILED", errorMessage: message, activeJobId: null, activeStage: null });
   await putMessage(projectId, jobId, "system", "error", message, { meta });
-}
-
-// --- AI review of a Canon pull request -------------------------------------------
-
-/** `projectId` is the Canon ID here; the job, the packet and the result are all that is read or written. */
-async function canonReviewJob() {
-  const [user, job] = await Promise.all([getUser(userId), getJob(projectId, jobId)]);
-  if (!user || !job || job.type !== "canon-review" || !job.reviewPrNo || !isUiLocale(job.reviewLocale)) throw new Error("user/review job not found");
-  if (job.status !== "QUEUED") {
-    console.log(`[worker] review job is ${job.status}; exiting`);
-    return;
-  }
-  const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
-  const key = planRunKey(user, ownKeyOf(user, model) ? null : await getDefaultApiKey(providerOf(model)), model);
-  if ("error" in key) {
-    await fail(key.error);
-    return;
-  }
-  const apiKey = await decryptApiKey(key.encryptedApiKey, key.context);
-  await updateJob(projectId, jobId, { status: "RUNNING", startedAt: nowIso(), lastHeartbeat: nowIso(), ecsTaskArn: await taskArn(), keySource: key.source });
-  const packet = await getJsonObject<CanonAiPacket>(canonAiReviewKey(projectId, job.reviewPrNo, jobId, "input.json"));
-  if (!packet) {
-    await fail("The material of the pull request could not be read.");
-    return;
-  }
-  const settings: ModelSettings = { model, reasoningEffort: (env.codexReasoningEffort as ModelSettings["reasoningEffort"]) ?? null };
-  const thread = openThread(createEngine(settings.model, apiKey), null, settings, { webSearch: false });
-  const heartbeat = setInterval(() => void updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined), 45_000);
-  try {
-    const outcome = await runCanonReview({
-      packet,
-      locale: job.reviewLocale,
-      decide: job.reviewKind === "decide",
-      turn: async (prompt, schema) => {
-        const t = await thread.run(prompt, { outputSchema: schema });
-        return { text: t.finalResponse, usage: t.usage ? tokenUsageOf(fromCodexUsage(t.usage)) : { ...EMPTY_USAGE } };
-      },
-    });
-    const usage = { usage: outcome.usage, costUsd: estimateCostUsd(model, outcome.usage), model };
-    if (outcome.result === "failed") {
-      await updateJob(projectId, jobId, { ...usage, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
-      return;
-    }
-    const result: CanonAiReviewResult = { review: outcome.review, ...(outcome.decision ? { decision: outcome.decision } : {}), dropped: outcome.dropped, model, locale: job.reviewLocale, createdAt: nowIso() };
-    await putObject(canonAiReviewKey(projectId, job.reviewPrNo, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
-    await updateJob(projectId, jobId, { ...usage, status: "COMPLETED", endedAt: nowIso() });
-    console.log(`[worker] canon review written (${outcome.review.flags.length} flags, ${outcome.dropped} dropped)`);
-  } finally {
-    clearInterval(heartbeat);
-  }
-}
-
-// --- BRA Planner draft / re-plan ----------------------------------------------------
-
-/** While a plan job's turns run: records their usage so far on the job (SIGTERM calls it before the process ends). */
-let planJobOnStop: (() => Promise<void>) | null = null;
-
-/**
- * `projectId` is the plan ID here; the job, its input.json and result.json (and the plan's attachments) are all that
- * is read or written. The plan runner applies the result.
- */
-async function planJobMain() {
-  const [user, job] = await Promise.all([getUser(userId), getJob(projectId, jobId)]);
-  if (!user || !job || job.type !== "plan" || !job.planJobKind) throw new Error("user/plan job not found");
-  if (job.status !== "QUEUED") {
-    console.log(`[worker] plan job is ${job.status}; exiting`);
-    return;
-  }
-  const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
-  const key = planRunKey(user, ownKeyOf(user, model) ? null : await getDefaultApiKey(providerOf(model)), model);
-  if ("error" in key) {
-    await fail(key.error);
-    return;
-  }
-  const apiKey = await decryptApiKey(key.encryptedApiKey, key.context);
-  const reasoningEffort = job.reasoningEffort ?? PLAN_JOB_REASONING_EFFORT;
-  const ecsTaskArn = await taskArn();
-  // the owner may have cancelled the draft meanwhile: never turn a cancelled job back into a running one
-  if (stopping || !(await updateJobIfStatus(projectId, jobId, "QUEUED", { status: "RUNNING", startedAt: nowIso(), lastHeartbeat: nowIso(), ecsTaskArn, keySource: key.source }))) {
-    console.log("[worker] plan job is no longer queued (cancelled, or the worker is stopping); exiting");
-    return;
-  }
-  // after SIGTERM the job is left to the janitor (its heartbeat is marked stale), so no beat may follow
-  const heartbeat = setInterval(() => void (stopping ? undefined : updateJob(projectId, jobId, { lastHeartbeat: nowIso() }).catch(() => undefined)), 45_000);
-  try {
-    if (job.planJobKind === "answer" || job.planJobKind === "resolve") {
-      await planRowJob(job, apiKey, model, reasoningEffort);
-      return;
-    }
-    const input = await getJsonObject<PlanJobInput>(planJobKey(projectId, jobId, "input.json"));
-    if (!input || input.schema !== PLAN_JOB_INPUT_SCHEMA || input.planId !== projectId || input.jobId !== jobId || input.kind !== job.planJobKind) {
-      await fail("The input of the plan job could not be read.");
-      return;
-    }
-    const rcsConn = await resolveRcsConnection(
-      { url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region },
-      (m) => console.warn(`[worker] ${m}`),
-    );
-    console.log(`[worker] rcs=${rcsConn ? rcsConn.url : "(disabled)"}`);
-    let spec = await readFile(join(env.promptsDir, "plan.md"), "utf8");
-    if (!rcsConn) {
-      spec +=
-        "\n\nNote for this job: the RCS MCP tools are not available. Leave `anchors` empty instead of guessing IDs, and say in `notes` that the anchors are missing because RCS was not available.\n";
-    }
-    await mkdir(env.workDir, { recursive: true });
-    const materialsIndex = await planMaterials(input);
-
-    const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
-    const thread = openThread(createEngine(settings.model, apiKey, rcsConn), null, settings, { webSearch: false });
-    const rcsClient = rcsConn ? new RcsClient(rcsConn) : null;
-    // Codex reports the thread's running total with each turn; a retry turn counts only what it added
-    let total: TurnUsage | null = null;
-    const toTokens = tokenUsageOf;
-    // SIGTERM (the StopTask of a cancelled draft, a Spot interruption) ends the process before the job ends; what the
-    // turns used is billed all the same: the thread is this job's own, so its running total is the job's usage
-    planJobOnStop = async () => {
-      const u = thread.id ? sessionTotalUsage(thread.id) : null;
-      if (!u) return;
-      const stopped = toTokens(u);
-      await updateJob(projectId, jobId, { usage: stopped, costUsd: estimateCostUsd(model, stopped), model, reasoningEffort });
-    };
-    const outcome = await runPlanJob({
-      input,
-      spec,
-      materialsIndex,
-      turn: async (prompt, signal) => {
-        const t = await thread.run(prompt, { outputSchema: PLAN_RESULT_SCHEMA, signal });
-        const after = t.usage ? fromCodexUsage(t.usage) : null;
-        const usage = turnUsage(after, total);
-        if (after) total = after;
-        return { text: t.finalResponse, usage: toTokens(usage) };
-      },
-      lookupHomba: rcsClient ? (ids) => rcsClient.lookupHomba(ids) : undefined,
-      // the budget counts from the worker's start, so the draft is ready in time after the request (long lists get more)
-      deadlineMs: startedAt + planJobBudgetMs(input),
-    });
-    let usage = outcome.usage;
-    if (outcome.result === "failed" && thread.id) {
-      // a turn cut off by the time budget is billed too: count it from the session file
-      const cut = turnUsage(sessionTotalUsage(thread.id), total);
-      usage = addUsage(usage, toTokens(cut));
-    }
-    const cost = { usage, costUsd: estimateCostUsd(model, usage), model, reasoningEffort };
-    if (outcome.result === "failed") {
-      console.log(`[worker] plan job failed: ${outcome.error}`);
-      await endPlanJob({ ...cost, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
-      return;
-    }
-    const result: PlanJobResult = {
-      schema: PLAN_JOB_RESULT_SCHEMA,
-      kind: input.kind,
-      planId: projectId,
-      jobId,
-      model,
-      locale: input.locale,
-      createdAt: nowIso(),
-      ...outcome.parsed,
-    };
-    try {
-      await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
-      await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
-    } catch (e) {
-      // the turns ran and are billed: keep their usage on the failed job
-      console.error("[worker] plan result could not be stored", e);
-      await endPlanJob({ ...cost, status: "FAILED", errorMessage: "The result of the plan job could not be stored.", endedAt: nowIso() });
-      return;
-    }
-    const p = outcome.parsed;
-    console.log(`[worker] plan ${input.kind} written (${p.rows.length} rows, ${p.proposals.length} proposals, ${p.unread.length} unread, ${p.questions.length} questions, ${p.dropped} dropped, ${outcome.attempts} turn(s))`);
-  } finally {
-    clearInterval(heartbeat);
-    planJobOnStop = null;
-  }
-}
-
-/**
- * A row job of an autonomous plan (自律実行): the Orchestrator's AI answers the question of the row's agent or resolves a
- * row that needs attention or a decision, in one turn without tools (prompts/orchestrator.md). The plan runner applies
- * the result after checking it against the input again.
- */
-async function planRowJob(job: JobRecord, apiKey: string, model: string, reasoningEffort: NonNullable<JobRecord["reasoningEffort"]>): Promise<void> {
-  const input = await getJsonObject<PlanRowJobInput>(planJobKey(projectId, jobId, "input.json"));
-  if (!input || input.schema !== PLAN_ROW_JOB_INPUT_SCHEMA || input.planId !== projectId || input.jobId !== jobId || input.kind !== job.planJobKind || input.rowId !== job.planRowId) {
-    await fail("The input of the plan job could not be read.");
-    return;
-  }
-  const spec = await readFile(join(env.promptsDir, "orchestrator.md"), "utf8");
-  const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
-  const thread = openThread(createEngine(settings.model, apiKey, null), null, settings, { webSearch: false });
-  let total: TurnUsage | null = null;
-  const toTokens = tokenUsageOf;
-  planJobOnStop = async () => {
-    const u = thread.id ? sessionTotalUsage(thread.id) : null;
-    if (!u) return;
-    const stopped = toTokens(u);
-    await updateJob(projectId, jobId, { usage: stopped, costUsd: estimateCostUsd(model, stopped), model, reasoningEffort });
-  };
-  const outcome = await runPlanRowJob({
-    input,
-    spec,
-    turn: async (prompt, schema, signal) => {
-      const t = await thread.run(prompt, { outputSchema: schema, signal });
-      const after = t.usage ? fromCodexUsage(t.usage) : null;
-      const usage = turnUsage(after, total);
-      if (after) total = after;
-      return { text: t.finalResponse, usage: toTokens(usage) };
-    },
-    deadlineMs: startedAt + PLAN_ROW_JOB_TIME_BUDGET_MS,
-  });
-  let usage = outcome.usage;
-  if (outcome.result === "failed" && thread.id) usage = addUsage(usage, toTokens(turnUsage(sessionTotalUsage(thread.id), total)));
-  const cost = { usage, costUsd: estimateCostUsd(model, usage), model, reasoningEffort };
-  if (outcome.result === "failed") {
-    console.log(`[worker] plan ${input.kind} job failed: ${outcome.error}`);
-    await endPlanJob({ ...cost, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
-    return;
-  }
-  const result: PlanRowJobResult = { schema: PLAN_ROW_JOB_RESULT_SCHEMA, kind: input.kind, planId: projectId, jobId, rowId: input.rowId, model, createdAt: nowIso(), decision: outcome.decision };
-  try {
-    await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
-    await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
-  } catch (e) {
-    console.error("[worker] plan row result could not be stored", e);
-    await endPlanJob({ ...cost, status: "FAILED", errorMessage: "The result of the plan job could not be stored.", endedAt: nowIso() });
-    return;
-  }
-  console.log(`[worker] plan ${input.kind} written for row ${input.rowId} (${outcome.attempts} turn(s))`);
-}
-
-/**
- * The capability lists the job reads (xlsx / PDF; CSV / TSV / text were read by the API) into materials/, with their
- * extracted text; the derived text is stored under the plan's `attachments/derived/` for later jobs. A file that cannot
- * be prepared is listed as failed, so the model reports it in `unread`.
- */
-async function planMaterials(input: PlanJobInput): Promise<string | null> {
-  if (!input.attachments.length) return null;
-  const failed = (a: { id: string; name: string }, note: string): MaterialEntry => ({ id: a.id, kind: "file", source: a.name, path: null, textPath: null, image: false, status: "failed", note });
-  // keys come from the plan's META; anything outside its files folder is not read
-  const inFiles = (key: string) => {
-    const name = key.startsWith(ATTACHMENT_FILES_PREFIX) ? key.slice(ATTACHMENT_FILES_PREFIX.length) : "";
-    // one file name, no path (a name may contain dots, e.g. `list..v2.xlsx`)
-    return !!name && name !== "." && name !== ".." && !name.includes("/") && !name.includes("\\");
-  };
-  const files: FileAttachment[] = input.attachments
-    .filter((a) => inFiles(a.key))
-    .map((a) => ({ kind: "file", id: a.id, name: a.name, key: a.key, size: 0, contentType: (planAttachmentTypeOf(a.name) ?? planAttachmentTypeOf(a.key))?.mime ?? "application/octet-stream" }));
-  const outside = input.attachments.filter((a) => !inFiles(a.key)).map((a) => failed(a, "not stored with the plan"));
-  const base = planPrefix(projectId);
-  try {
-    const m = await prepareMaterials(env.workDir, files, {
-      download: async (dir) => void (await downloadDir(`${base}attachments/`, dir)),
-      uploadDerived: async (dir) => void (await uploadDir(dir, base + ATTACHMENT_DERIVED_PREFIX)),
-    });
-    return planMaterialsIndex([...(m?.entries ?? []), ...outside]);
-  } catch (e) {
-    console.error("[worker] plan materials failed", e);
-    const note = `could not be prepared: ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
-    return planMaterialsIndex(input.attachments.map((a) => failed(a, note)));
-  }
-}
-
-/**
- * Ends a plan job; one its owner cancelled meanwhile stays cancelled and only gets its usage (the runner reads the
- * status). A job that does not exist is not created by the write.
- */
-async function endPlanJob(values: Parameters<typeof updateJob>[2]): Promise<void> {
-  const status = (await getJob(projectId, jobId))?.status;
-  if (!status) return;
-  if (status === "CANCELLED") {
-    console.log("[worker] plan job was cancelled meanwhile; keeping it cancelled");
-    if (values.usage) await updateJob(projectId, jobId, { usage: values.usage, costUsd: values.costUsd, model: values.model });
-    return;
-  }
-  await updateJob(projectId, jobId, values);
-}
-
-async function decryptApiKey(ciphertextB64: string, context: Record<string, string>): Promise<string> {
-  const r = await kms.send(new DecryptCommand({ CiphertextBlob: Buffer.from(ciphertextB64, "base64"), EncryptionContext: context }));
-  if (!r.Plaintext) throw new Error("KMS decrypt returned empty plaintext");
-  return Buffer.from(r.Plaintext).toString("utf8");
-}
-
-async function taskArn(): Promise<string | null> {
-  const uri = process.env.ECS_CONTAINER_METADATA_URI_V4;
-  if (!uri) return null;
-  try {
-    const r = await fetch(`${uri}/task`);
-    const j = (await r.json()) as { TaskARN?: string };
-    return j.TaskARN ?? null;
-  } catch {
-    return null;
-  }
 }
 
 main().catch(async (e) => {

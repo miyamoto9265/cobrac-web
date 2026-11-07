@@ -193,7 +193,7 @@
   <li>ダウンロード名は <code>filename*=UTF-8''…</code> で送り、ASCII の代わりとして <code>filename="&lt;ProjectID&gt;.bra.xlsx"</code> を付けます。</li>
   <li>削除：<code>DELETE /projects/{id}</code> は Projects の項目に <code>deletedAt</code> / <code>deletedBy</code> を書きます。条件は、まだ削除されておらず、状態が <code>QUEUED</code>・<code>RUNNING</code>・<code>WAITING_USER_INPUT</code>・<code>FINALIZING</code> でないことです。索引は増やさず、API が印で絞ります。<code>/users/me/usage</code> は <code>byProject</code> に <code>deleted</code> の印を付け、<code>/admin/projects</code> は <code>deletedAt</code> 付きで返します。復元するには項目から <code>deletedAt</code> を消します（将来の管理用 API）。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>、<code>packages/api/src/app.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>、<code>packages/api/src/routes/projects.ts</code></p>
 
 <h2 id="s4-4">4.4 画面</h2>
 <p>本書の画面の名前は、サイドバーと利用マニュアルの表記と一致しています。サイドバーの上には「＋ ミッション」（新規ミッション、6.3）と「＋ プロジェクト」（新規プロジェクト）が同じ幅で並び、その下に「履歴」、下部に「Canon」「公開ライブラリ」「利用マニュアル」が並び、管理者にはさらに「管理」が出ます。ミッションの一覧は「Canon」の画面にあります（6.10）。「履歴」は自分のプロジェクトとミッションの履歴で、見出しの横の「すべて表示」でプロジェクト一覧が開きます。ミッションが作ったプロジェクトはミッションごとに 1 件にまとまり、プロジェクトがまだないミッション（下書き）も作った時刻の位置に出ます。</p>
@@ -294,7 +294,7 @@
   <li>DynamoDB には版の要約（<code>BraVersionSummary</code>：番号、ID、親の ID、由来、作成時刻、内容のハッシュ、アプリのバージョン、git commit、差分の要約、パッケージの有無、記録している版では仮説の数）を持ちます。その版を作ったジョブの <code>Jobs.braVersion</code> と、最新の版を表すプロジェクトの <code>Projects.latestVersion</code> です。テーブルとインデックスは増やさず、既存の項目の属性として持ちます。</li>
   <li>API：<code>GET /projects/{id}/versions</code>（一覧）、<code>…/versions/{n}</code>（manifest とファイル）、<code>…/versions/{n}/diff?base=</code>（差分）。表のビューアは凍結したファイルを <code>GET /projects/{id}/artifacts/text</code> で読みます。<code>GET /projects/{id}/artifacts/download</code> は <code>revisions/</code> の下のキーを拒みます。差分の計算は <code>diffBraCsvs</code> です。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>index.ts</code>、<code>packages/api/src/app.ts</code>（版のルート）</p>
+<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>jobVersions.ts</code>、<code>packages/api/src/routes/projects.ts</code>（版のルート）</p>
 
 <h2 id="s4-6">4.6 公開・複製・共同編集</h2>
 <p>プロジェクトは所有者だけのものですが、所有者は 2 つの方法でほかの利用者と共有できます。プロジェクトを公開して閲覧と複製を許す方法と、Canon に共同編集者を加える方法です。Canon の公開と、Canon から Canon への PR は 5.11 に記載しています。</p>
@@ -341,7 +341,7 @@
   <li>公開の切り替えは <code>PUT /projects/{id}/visibility</code> です。公開できる ID かどうかは <code>isPublishableProjectId</code>（<code>PROJECT_ID_REGEX</code>）で判定します。公開したプロジェクトは Catalog テーブルに <code>kind = project</code> のレコードを持ち、非公開にするか削除するとレコードを消します。一覧と閲覧のたびに、プロジェクトそのものの状態を検査し直します。閲覧の API は <code>/public/projects/{id}</code> です。</li>
   <li>複製は <code>POST /public/projects/{id}/clone</code> です。新しいプロジェクトの保存先は <code>users/&lt;複製した人&gt;/&lt;新しい ID&gt;/</code>、複製元の記録は <code>clonedFrom</code> です。引き継ぐ設定は <code>sabraBoundary</code>、<code>harnessRules</code>、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> などです。複製の数は Catalog テーブルの <code>clones</code> のレコードに数えます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/public.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code></p>
 
 <h2 id="s4-7">4.7 使用量と費用の表示</h2>
 <p>ジョブごとに、モデルが使ったトークンの量（<b>使用量</b>）と、そこから計算した推定費用を記録し、画面に表示します。費用は単価表から計算した推定値で、実際の請求額の正本は OpenAI と Anthropic のダッシュボードです。測り方と単価表は 9.10 にあります。</p>
@@ -372,5 +372,5 @@
   <li>使用量は <code>{ inputTokens, cachedInputTokens, outputTokens, reasoningOutputTokens }</code>、モデルは <code>model</code>、推定費用は <code>costUsd</code>（<code>estimateCostUsd()</code>）です。</li>
   <li>利用者ごとの集計は <code>GET /users/me/usage</code>（<code>byProject</code> に <code>deleted</code> の印）、管理画面の集計は <code>GET /admin/org-usage</code>（<code>keySource: "org"</code> のジョブ）です。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>・<code>usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/api/src/app.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>・<code>usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/api/src/routes/projects.ts</code></p>
 </section>
