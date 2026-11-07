@@ -114,6 +114,9 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run release:check
+      # The specification PDF is not committed: build it so the deploy bundles it into the API Lambda
+      - uses: ./.github/actions/spec-tools
+      - run: npm run spec:build
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:

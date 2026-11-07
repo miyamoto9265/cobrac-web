@@ -3,8 +3,8 @@
 Web application that runs the BRA (Brain Reference Architecture) data-creation workflow
 (HCD → FRG → CSV → xlsx) with the Codex SDK on the server. The specification — system, harness, circuit naming,
 Canons, versions and BRA-DB, the orchestrator, AWS, security and operations — is one Japanese PDF,
-[`docs/CoBRAC_仕様書.pdf`](docs/CoBRAC_仕様書.pdf), the single source of truth (admins read it on the site's
-“Specification” page). Change history is `CHANGELOG.md`; the user manual is `docs/manual/`. Working rules, including
+`docs/CoBRAC_仕様書.pdf`, the single source of truth (admins read it on the site's “Specification” page). The PDF is
+not committed: it is built from `docs/spec-guide/` by CI and by the deploy. Change history is `CHANGELOG.md`; the user manual is `docs/manual/`. Working rules, including
 versioning, are in `AGENTS.md`.
 
 ## Versioning and release
@@ -130,9 +130,9 @@ npm run dev:web
 ## Specification sources
 
 The PDF is built from `docs/spec-guide/src/*.html` with `npm run spec:build` (Playwright's Chromium, `pdftotext` and
-Python `pypdf` are needed); commit the PDF together with `docs/spec-guide/build.json`. Appendix B quotes every prompt
-file in full, so a prompt change also needs a rebuild: `npm test` (`scripts/spec-guide.test.mjs`) fails when the sources,
-the embedded figures or the quoted prompts changed after the PDF was built. Figures are generated with
+Python `pypdf` are needed). The PDF and `docs/spec-guide/build.json` are not committed: the PR check (CI) builds the PDF
+to catch a broken source, and the deploy builds it again and bundles it with the API. Appendix B quotes every prompt
+file in full, so it follows prompt changes by itself. Figures are generated with
 `npm run docs:figures`. Structure and writing rules are in `docs/spec-guide/README.md`; release, deploy and
 emergency procedures are in `docs/ops/README.md`. The PDF is bundled with the API Lambda and served to admins by `GET /admin/spec`.
 

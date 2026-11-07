@@ -1,6 +1,6 @@
 # 仕様書の生成元
 
-`docs/CoBRAC_仕様書.pdf` は、このディレクトリの HTML から作ります。サイトの「仕様書」（管理者だけ）はこの PDF を表示します。
+`docs/CoBRAC_仕様書.pdf` は、このディレクトリの HTML から作ります。サイトの「仕様書」（管理者だけ）はこの PDF を表示します。PDF はコミットしません。PR の CI とデプロイが毎回作ります。
 
 ## ファイル
 
@@ -10,7 +10,7 @@
 | `src/style.css` | A4 の版面、部ごとの色、表・囲み・図の書式 |
 | `build.mjs` | Chromium（Playwright）で PDF にする。目次のページ番号は 2 回の描画で決める。`<figure data-figure="…">` に `docs/figures` の SVG を埋め込み、付録 B を `prompts/` から作る |
 | `inputs.mjs` | 入力ファイル（本文、取り込む図、指示書、差し込み値を読むコード）の一覧と、そのハッシュ |
-| `build.json` | 最後に作った PDF の入力のハッシュ・ページ数・バイト数 |
+| `build.json` | 最後に作った PDF の入力のハッシュ・ページ数・バイト数（コミットしない） |
 | `fetch-fonts.sh` | 本文のフォント（Noto Sans JP、JetBrains Mono）を npm のレジストリから `.fonts/` に取る（コミットしない） |
 
 ## 作り直しの手順
@@ -18,8 +18,8 @@
 1. 挙動を変えたら、同じ変更の中で該当する節の HTML を直す。数値・上限・ファイル名はコードの定数を確認して書く。
 2. 1 ファイルだけを確認するときは `node build.mjs --preview src/<ファイル>.html`（`out/preview-*.pdf`）。表紙と目次は付かない。
 3. 全体を作り直す：リポジトリの直下で `npm run spec:build`（`./fetch-fonts.sh && node build.mjs`）。Playwright の Chromium、`pdftotext`、Python の `pypdf` が要る。目次のページ番号が本文と合わなければ失敗する。
-4. `docs/CoBRAC_仕様書.pdf` と `docs/spec-guide/build.json` をコミットする。`npm test`（`scripts/spec-guide.test.mjs`）は、本文・取り込む図・指示書・差し込み値のコードが PDF を作った後に変わっていれば失敗する。指示書だけを直した場合も、付録 B が変わるので作り直す。
-5. バージョンを上げた変更を main にマージすると、デプロイで API に同梱され、サイトの「仕様書」に出る。
+4. コミットするのは HTML（と図）だけ。PDF と `build.json` は `.gitignore` に入っている。PR の CI が `npm run spec:build` で PDF を作るので、作れない変更（図がない、目次が合わない、差し込み値のコードが読めない）は CI で止まる。指示書だけを直した場合も、付録 B は次のビルドで自動的に新しくなる。
+5. バージョンを上げた変更を main にマージすると、デプロイが PDF を作って API に同梱し、サイトの「仕様書」に出る。
 
 ## 構成
 
