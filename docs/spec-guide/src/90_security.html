@@ -438,21 +438,21 @@
   <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-10-12</code>、標準の短いコンテキストの単価。キャッシュ書き込みは Claude のモデルだけで、5 分のキャッシュの単価。DeepSeek は平日のピーク時間帯の定価で、ほかの時間帯は半額）</caption>
   <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">キャッシュ書き込み</th><th class="c">出力（推論を含む）</th></tr></thead>
   <tbody>
-    <tr><td><code>gpt-6-luna</code>（デフォルトのモデル）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.50</td></tr>
+    <tr><td><code>gpt-6-luna</code>（OpenAI のキーの利用者の代わりの既定）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.50</td></tr>
     <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.20</td><td class="c">0.02</td><td class="c">—</td><td class="c">1.20</td></tr>
     <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">10</td></tr>
     <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">12</td></tr>
     <tr><td><code>gpt-5.6-sol</code>（<code>gpt-5.6</code> は Sol への別名）</td><td class="c">4</td><td class="c">0.40</td><td class="c">—</td><td class="c">20</td></tr>
     <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">—</td><td class="c">50</td></tr>
     <tr><td><code>claude-haiku-5-5</code></td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.125</td><td class="c">0.50</td></tr>
-    <tr><td><code>claude-sonnet-5-5</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">2.5</td><td class="c">10</td></tr>
-    <tr><td><code>claude-opus-5-5</code></td><td class="c">4</td><td class="c">0.20</td><td class="c">5</td><td class="c">20</td></tr>
+    <tr><td><code>claude-sonnet-5-5</code>（エージェントの既定）</td><td class="c">2</td><td class="c">0.20</td><td class="c">2.5</td><td class="c">10</td></tr>
+    <tr><td><code>claude-opus-5-5</code>（オーケストレーターの既定）</td><td class="c">4</td><td class="c">0.20</td><td class="c">5</td><td class="c">20</td></tr>
     <tr><td><code>claude-fable-5-1</code></td><td class="c">10</td><td class="c">0.25</td><td class="c">12.5</td><td class="c">50</td></tr>
     <tr><td><code>deepseek-flash</code>（DeepSeek V4.1 Flash）</td><td class="c">0.30</td><td class="c">0.006</td><td class="c">—</td><td class="c">1.20</td></tr>
   </tbody>
 </table>
 <ul>
-  <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、<code>gpt-6-luna</code>（<code>DEFAULT_CODEX_MODEL</code>）を使います。そのため、費用は常にどこかのモデルに帰属します。</li>
+  <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、エージェントは <code>claude-sonnet-5-5</code>（<code>DEFAULT_AGENT_MODEL</code>）、オーケストレーターは <code>claude-opus-5-5</code>（<code>DEFAULT_ORCHESTRATOR_MODEL</code>）を使います。キーや Tier で使えなければ <code>gpt-6-luna</code> などの使えるモデルに置き換えます（4.2）。API は必ず具体的なモデル名を保存するので、費用は常にどこかのモデルに帰属します。</li>
   <li>推論のトークンは出力として課金されます。日付付きのスナップショット名は、末尾の日付を外して単価を探します。表にないモデルは、トークン数だけを表示し、費用は「$—」になります。</li>
   <li>単価表は、コードの定数として手で保守するスナップショットです。OpenAI・Anthropic・DeepSeek が値段を変えたら <code>PRICING</code> と <code>PRICING_AS_OF</code> を直し、patch のバージョンとしてデプロイします。実際の請求額の正本は各社のダッシュボードです。</li>
   <li>Codex に伝えるコンテキスト長は 272,000 トークンに固定しています（<code>CODEX_CONTEXT_WINDOW</code>）。OpenAI は gpt-5.6・gpt-6 に 1,050,000 トークンを掲げていますが、272K を超える入力は 2 倍の単価になるためです（8.4）。</li>

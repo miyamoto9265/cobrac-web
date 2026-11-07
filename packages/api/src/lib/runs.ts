@@ -3,7 +3,7 @@
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
 import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, PlanPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isDeepSeekModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
+import { DEFAULT_AGENT_MODEL, DEFAULT_CODEX_MODEL, DEFAULT_ORCHESTRATOR_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isDeepSeekModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
 import { reserveNewId } from "./catalog.js";
@@ -27,8 +27,17 @@ export const normModel = (v: unknown): string | null => {
   return v;
 };
 
-/** Model of a job when neither the job nor the project names one (the worker resolves it the same way). */
-export const deploymentDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
+/** Model of a job when neither the job nor the project names one (the API always stores a concrete model on new projects and jobs): the agents' default. */
+export const deploymentDefaultModel = () => env.codexModel || DEFAULT_AGENT_MODEL;
+
+/**
+ * Model a stored project or job without one ran on (made before the API always stored a concrete model); the worker
+ * resolves a missing model the same way, so these keep running on the model they started with.
+ */
+export const legacyDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
+
+/** Model of the Orchestrator's own jobs when the owner picked none. */
+export const orchestratorDefaultModel = () => DEFAULT_ORCHESTRATOR_MODEL;
 
 /** The key a user's jobs would run with and the model policy; `source` null when the user has none. */
 export async function runPolicy(u: UserRecord): Promise<ModelPolicy> {
@@ -55,14 +64,14 @@ export const implicitModel = (policy: ModelPolicy, preferred: string) => allowed
 
 /** Whose key a job on `model` runs with (the worker checks it again when it starts). */
 export const jobKeySource = (policy: ModelPolicy, model: string | null | undefined): KeySource =>
-  sourceForModel(policy, model || deploymentDefaultModel()) ?? policy.source ?? policy.claude.source ?? policy.deepseek.source ?? "own";
+  sourceForModel(policy, model || legacyDefaultModel()) ?? policy.source ?? policy.claude.source ?? policy.deepseek.source ?? "own";
 
 /**
  * The model a project's next job runs. A project made with a model the user can no longer run (made with their own
  * key, or before the tier changed) moves to the tier's default model and keeps it; null when nothing changes.
  */
 export async function moveToAllowedModel(u: UserRecord, p: ProjectRecord, policy: ModelPolicy): Promise<string | null> {
-  const current = p.model || deploymentDefaultModel();
+  const current = p.model || legacyDefaultModel();
   const model = implicitModel(policy, current);
   if (model === current) return null;
   await updateProject(u.userId, p.projectId, { model });
