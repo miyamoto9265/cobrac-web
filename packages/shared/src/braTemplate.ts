@@ -524,9 +524,10 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
   frgRows.forEach((f, i) => {
     put("FRG", 2 + i, {
       AC: f.node,
-      AD: f.subnodes.join(";"),
+      // BRA 410 / 431: every listed ID ends with ";"
+      AD: f.subnodes.map((x) => `${x};`).join(""),
       AE: f.circuit,
-      AF: f.projected.join(";"),
+      AF: f.projected.map((x) => `${x};`).join(""),
       BA: cite(f.cm),
       BC: f.subnodes.length ? "" : cite(f.implementation),
       BG: cite(f.reqRealization),

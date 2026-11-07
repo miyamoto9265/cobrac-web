@@ -300,6 +300,7 @@ export const zhTw: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "在允許的修正次數內未能完成 {step} 步驟。請使用後續指示或重試。",
   "sys.legacyWorkspace": "此專案使用 v0.8 之前的檔案格式，無法繼續執行。xlsx 與圖仍可使用；如需繼續，請建立新專案。",
   "sys.csvBuilt": "已根據 HCD/FRG 資料檔產生 CSV。",
+  "sys.autoFixed": "{phase}：已自動修正 {count} 個值，然後重新檢查（{summary}）。",
   "sys.researchOn": "調研模式：開",
   "sys.researchOff": "調研模式：關",
   "sys.researchStart": "調研步驟：在 HCD 之前調研文獻（最多 {minutes} 分鐘，reasoning effort {effort}）。",

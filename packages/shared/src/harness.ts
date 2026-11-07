@@ -15,6 +15,7 @@ import {
   isRoiCircuitId,
   normalizeFigurePointer,
   parseOutputSemantics,
+  isKebabNodeId,
   pointerProblems,
   relationProblems,
   roiCircuitId,
@@ -75,6 +76,8 @@ export const PROJECT_FILES = {
   /** Bottom-up candidates for the FRG (motifs.ts), rewritten from the HCD at every check */
   frgCandidates: "frg_candidates.json",
   phaseBaseline: "phase_baseline.json",
+  /** Every automatic fix the worker made to the data files (autofix.ts), appended at each check */
+  autoFixLog: "autofix_log.json",
   /** Hypothesis mode only: the hypotheses with their IDs, the share and the GNs that depend on them (hypothesis.ts) */
   hypotheses: HYPOTHESES_FILE,
 } as const;
@@ -1152,6 +1155,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel, opts: CheckFrgOptions 
     for (const g of gns) {
       if (!g.id.startsWith("R.")) errors.push(`frg.json: node id \`${g.id}\` must start with "R." (UCs are subnodes, not nodes).`);
       if (hasSpace(g.id)) errors.push(`frg.json: node id \`${g.id}\` contains spaces.`);
+      else if (g.id.startsWith("R.") && !isKebabNodeId(g.id)) errors.push(`frg.json: node id \`${g.id}\` must be kebab-case: \`R.\` + words of letters and digits joined by single hyphens (e.g. \`R.Motor-Learning\`).`);
       if (gnIds.has(g.id)) errors.push(`frg.json: duplicate node id \`${g.id}\`.`);
       gnIds.add(g.id);
     }

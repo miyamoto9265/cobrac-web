@@ -300,6 +300,7 @@ export const ru: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "Шаг {step} не удалось завершить за допустимое число исправлений. Используйте доработку или повтор.",
   "sys.legacyWorkspace": "Проект создан в формате файлов до v0.8, и его нельзя продолжить. xlsx и графы остаются доступными; чтобы продолжить работу, создайте новый проект.",
   "sys.csvBuilt": "CSV созданы из файлов данных HCD/FRG.",
+  "sys.autoFixed": "{phase}: автоматически исправлено значений: {count}, затем выполнена повторная проверка ({summary}).",
   "sys.researchOn": "Режим исследования: вкл.",
   "sys.researchOff": "Режим исследования: выкл.",
   "sys.researchStart": "Этап исследования: обзор литературы перед HCD (до {minutes} мин, reasoning effort {effort}).",

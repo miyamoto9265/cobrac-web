@@ -298,6 +298,7 @@ export const en = {
   "sys.phaseIncomplete": "The {step} step could not be completed after the allowed fix attempts. Use a follow-up or retry.",
   "sys.legacyWorkspace": "This project uses the file format from before v0.8 and can no longer be continued. Its xlsx and graphs stay available; start a new project to continue the work.",
   "sys.csvBuilt": "CSVs generated from the HCD/FRG data files.",
+  "sys.autoFixed": "{phase}: fixed {count} value(s) automatically before checking again ({summary}).",
   "sys.researchOn": "Research mode: on",
   "sys.researchOff": "Research mode: off",
   "sys.researchStart": "Research step: surveying the literature before the HCD (up to {minutes} min, reasoning effort {effort}).",

@@ -6,9 +6,13 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import type { BuildCsvOptions, JsonSchema, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, EvidenceSettings, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
+import type { AutoFix, AutoFixFiles, BuildCsvOptions, JsonSchema, ReasoningEffort, CanonRunInfo, CanonSnapshot, CheckResult, CrossCheck, CrossFinding, EvidenceSettings, FrgModel, HcdModel, ProjectMeta, QuoteCheck, QuoteRequest, QuoteStatus, RefCheck, RefRow, RefStatus, ResearchCheck, ResearchOutcome, ResearchStepMetrics, ResearchSummary, RevisionCounts, SabraBoundary, SabraLookup, CheckHcdOptions } from "@cobrac/shared";
 import {
   ADJUSTMENT_CODES,
+  AUTO_FIX_CODES,
+  autoFixFiles,
+  nonEnglishStrings,
+  replaceStrings,
   CROSS_RULES,
   canonCheckedQuotes,
   canonDescriptorKeys,
@@ -183,6 +187,13 @@ export interface CheckDeps {
   onMetaAccepted?: (meta: ProjectMeta) => Promise<void>;
   /** Options for Project.csv, resolved when the CSV phase runs (the user may have renamed the project) */
   csvOptions: () => Promise<BuildCsvOptions>;
+  /**
+   * Translates non-English values of the data files into English (QC-03-03 / QC-08-01): each text → its translation.
+   * Omitted (or failing): the values are sent back to the agent as before.
+   */
+  translate?: (texts: string[]) => Promise<Map<string, string>>;
+  /** Called with the automatic fixes made before a check is repeated (also appended to autofix_log.json) */
+  onAutoFix?: (phase: Phase, fixes: AutoFix[]) => Promise<void>;
 }
 
 /**
@@ -215,6 +226,77 @@ async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
  * after their own phase checked them are validated again, and their new problems are sent back with this phase's.
  */
 export async function checkPhase(phase: Phase, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<PhaseCheck> {
+  const first = await checkPhaseOnce(phase, paths, deps, ctx);
+  if (!first.errors.length) return first;
+  // problems the worker can fix itself are fixed here, and the files are checked once more; the rest goes to the agent
+  const fixes = await applyAutoFixes(phase, paths, deps, ctx);
+  if (!fixes.length) return first;
+  await deps.onAutoFix?.(phase, fixes);
+  return checkPhaseOnce(phase, paths, deps, ctx);
+}
+
+/** Paths of the files the automatic fixes may rewrite. */
+function autoFixPaths(paths: ProjectPaths): Record<keyof AutoFixFiles, string> {
+  return {
+    references: join(paths.hcd, HCD_FILES.references),
+    uc: join(paths.hcd, HCD_FILES.uc),
+    connections: join(paths.hcd, HCD_FILES.connections),
+    frg: join(paths.frg, FRG_FILES.frg),
+    report: paths.report,
+  };
+}
+
+/**
+ * The automatic fixes (autofix.ts) of the current files, from the latest reference, quote and Canon checks, then the
+ * translation of non-English values. Changed files are written back and every fix is appended to autofix_log.json.
+ */
+export async function applyAutoFixes(phase: Phase, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<AutoFix[]> {
+  const where = autoFixPaths(paths);
+  const files: AutoFixFiles = Object.fromEntries(Object.entries(where).map(([k, f]) => [k, readText(f)]));
+  const ids = ctx.hcd ? hombaAnchorIds([...ctx.hcd.ucs, ...ctx.hcd.collections].map((u) => u.descriptor).filter(Boolean)) : [];
+  let sabra: SabraLookup | undefined;
+  try {
+    sabra = deps.lookupSabra && ids.length ? await deps.lookupSabra(ids) : undefined;
+  } catch {
+    sabra = undefined;
+  }
+  const code = autoFixFiles(files, {
+    refChecks: ctx.references?.references,
+    quoteChecks: ctx.quotes?.quotes,
+    sabra,
+    canon: deps.canon?.snapshot,
+  });
+  const fixes = [...code.fixes];
+  Object.assign(files, code.files);
+  if (deps.translate) {
+    const texts = nonEnglishStrings(files);
+    if (texts.length) {
+      try {
+        const t = replaceStrings(files, await deps.translate(texts), phase === "CSV" ? AUTO_FIX_CODES.csvEnglish : AUTO_FIX_CODES.english);
+        Object.assign(files, t.files);
+        Object.assign(code.files, t.files);
+        fixes.push(...t.fixes);
+      } catch (e) {
+        console.warn(`[autofix] translation failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  }
+  if (!fixes.length) return [];
+  for (const [k, text] of Object.entries(code.files) as [keyof AutoFixFiles, string | null | undefined][]) {
+    if (typeof text === "string") await writeFile(where[k], text, "utf8");
+  }
+  try {
+    const log = JSON.parse(readText(paths.autoFixLog) ?? "[]") as unknown;
+    const entries = Array.isArray(log) ? log : [];
+    entries.push({ fixedAt: new Date().toISOString(), phase, fixes });
+    await writeFile(paths.autoFixLog, JSON.stringify(entries, null, 2) + "\n", "utf8");
+  } catch (e) {
+    console.warn(`[autofix] ${paths.autoFixLog} could not be written: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return fixes;
+}
+
+async function checkPhaseOnce(phase: Phase, paths: ProjectPaths, deps: CheckDeps, ctx: PhaseContext): Promise<PhaseCheck> {
   const hcd = await checkHcdWithRcs(paths, deps);
   ctx.hcd = hcd.model;
   if (hcd.model) await writeFrgCandidates(hcd.model, paths);
