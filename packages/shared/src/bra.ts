@@ -100,16 +100,29 @@ export function sourceOfIdProblem(u: { id: string; descriptor: string; sourceOfI
   }
   const parsed = u.descriptor ? parseUcDescriptor(u.descriptor) : null;
   if (!parsed || "errors" in parsed) return null;
-  const d = parsed.descriptor;
-  const anchorOnly = d.facets.length === 0;
-  if (anchorOnly && d.anchors.length === 1 && d.anchors[0].kind === "homba") {
+  const expected = anchorOnlySourceOfId(u.descriptor);
+  if (expected === "DHBA") {
     return v === "DHBA" ? null : `${where} is "${v}"; the UC is a whole DHBA term (anchor only), so write DHBA.`;
   }
-  if (anchorOnly && d.anchors.every((a) => a.kind !== "homba")) {
+  if (expected === "BNA") {
     return v === "BNA" ? null : `${where} is "${v}"; the UC is a whole BNA area (anchor only), so write BNA.`;
   }
   if (isReferenceId(v) || v === "makeshift") return null;
   return `${where} is "${v}"; the UC is finer than its SABRA unit, so write the one Reference ID that defines the population, or makeshift when no paper does.`;
+}
+
+/**
+ * Source of ID that an anchor-only UC must have (QC-03-10): `DHBA` for one HOMBA anchor, `BNA` for BNA anchors only;
+ * null for a faceted, mixed-atlas or unparsable descriptor (those cite a paper or `makeshift`).
+ */
+export function anchorOnlySourceOfId(descriptor: string): "DHBA" | "BNA" | null {
+  const parsed = descriptor ? parseUcDescriptor(descriptor) : null;
+  if (!parsed || "errors" in parsed) return null;
+  const d = parsed.descriptor;
+  if (d.facets.length) return null;
+  if (d.anchors.length === 1 && d.anchors[0].kind === "homba") return "DHBA";
+  if (d.anchors.length && d.anchors.every((a) => a.kind !== "homba")) return "BNA";
+  return null;
 }
 
 const wordCount = (x: string) => x.split(/\s+/).filter((w) => /[A-Za-z]/.test(w)).length;

@@ -7,12 +7,25 @@
  * Translation (QC-03-03 / QC-08-01) needs a model and lives in the worker; `nonEnglishStrings` / `replaceStrings`
  * are its helpers.
  */
-import { BRA_MEASUREMENT_METHODS, BRA_MODULATION_TYPES, BRA_TAXA, BRA_TRANSMITTERS, DEFAULT_BRA_RULES, formatOutputSemantics, isKebabNodeId, normalizeFigurePointer, parseOutputSemantics, pointerProblems } from "./bra.js";
+import {
+  BRA_MEASUREMENT_METHODS,
+  BRA_MODULATION_TYPES,
+  BRA_TAXA,
+  BRA_TRANSMITTERS,
+  DEFAULT_BRA_RULES,
+  anchorOnlySourceOfId,
+  formatOutputSemantics,
+  isKebabNodeId,
+  isReferenceId,
+  normalizeFigurePointer,
+  parseOutputSemantics,
+  pointerProblems,
+} from "./bra.js";
 import { currentCanonSnapshot, type CanonSnapshot } from "./canonMerge.js";
 import { FRG_FILES, HCD_FILES } from "./harness.js";
 import type { QuoteCheck } from "./quotes.js";
-import { checkCitations, normalizeDoi, normalizePmid, type RefCheck } from "./references.js";
-import { namesStartWithOfficial, normalizeUcDescriptor, sabraOfficialName, type SabraLookup } from "./ucNaming.js";
+import { BIBLIOGRAPHY_RE, checkCitations, extractCitations, normalizeDoi, normalizePmid, refKey, type RefCheck } from "./references.js";
+import { namesStartWithOfficial, normalizeUcDescriptor, repairFacetValues, sabraOfficialName, type SabraLookup } from "./ucNaming.js";
 
 /** Check IDs of the catalog that have an automatic fix here. */
 export const AUTO_FIX_CODES = {
@@ -22,6 +35,8 @@ export const AUTO_FIX_CODES = {
   quote: "QC-02-09",
   english: "QC-03-03",
   sabraName: "QC-03-09",
+  sourceOfId: "QC-03-10",
+  descriptor: "QC-03-11",
   transmitter: "QC-03-17",
   quoteLocator: "QC-03-23",
   figure: "QC-03-24",
@@ -182,7 +197,7 @@ export function autoFixFiles(input: AutoFixFiles, ctx: AutoFixContext = {}): Aut
     }
     if (merged.length) refsJson.references = refs.filter((r) => !merged.includes(str(r.id)));
 
-    // QC-02-08: references cited nowhere (not even in the report's bibliography) are removed
+    // QC-02-08: references cited nowhere outside the report's bibliography are removed, with their bibliography entries
     const remaining = list(refsJson, "references");
     const citations = checkCitations({
       references: JSON.stringify(refsJson),
@@ -192,11 +207,19 @@ export function autoFixFiles(input: AutoFixFiles, ctx: AutoFixContext = {}): Aut
       report,
     });
     const unused = new Set(
-      citations.problems.filter((p) => p.file === HCD_FILES.references && / is not cited in /.test(p.message) && !p.message.includes("bibliography")).map((p) => p.refId),
+      citations.problems.filter((p) => p.file === HCD_FILES.references && / is not cited in /.test(p.message)).map((p) => p.refId),
     );
     if (unused.size) {
       refsJson.references = remaining.filter((r) => !unused.has(str(r.id)));
       for (const id of unused) fix("references", { code: AUTO_FIX_CODES.refUnused, file: HCD_FILES.references, where: id, before: id, after: "(removed)" });
+      if (report) {
+        const gone = new Set([...unused].map(refKey));
+        const next = dropBibliographyEntries(report, gone);
+        if (next !== report) {
+          report = next;
+          touched.add("report");
+        }
+      }
     }
   }
 
@@ -206,6 +229,25 @@ export function autoFixFiles(input: AutoFixFiles, ctx: AutoFixContext = {}): Aut
     : new Map();
   const ucs = list(ucJson, "ucs");
   const named = [...ucs.map((u) => ({ u, kind: "" })), ...list(ucJson, "collections").map((u) => ({ u, kind: "Collection " }))];
+  // QC-03-11: facet values with characters outside the descriptor's set (`part:oculomotor_region`) → words joined by `-`
+  for (const { u, kind } of named) {
+    const d = str(u.descriptor);
+    const repaired = d ? repairFacetValues(d) : null;
+    if (repaired) {
+      u.descriptor = repaired;
+      fix("uc", { code: AUTO_FIX_CODES.descriptor, file: HCD_FILES.uc, where: `${kind}\`${stripUc(str(u.circuitId))}\` descriptor`, before: d, after: repaired });
+    }
+  }
+  // QC-03-10: an anchor-only UC has Source of ID DHBA (one HOMBA anchor) or BNA (BNA anchors); a Reference ID that
+  // stood there moves to the comments so the citation stays
+  for (const u of ucs) {
+    const expected = anchorOnlySourceOfId(str(u.descriptor));
+    const v = Array.isArray(u.sourceOfId) ? (u.sourceOfId as unknown[]).map(str).filter(Boolean).join(", ") : str(u.sourceOfId);
+    if (!expected || v === expected) continue;
+    u.sourceOfId = expected;
+    if (isReferenceId(v) && !str(u.comments).includes(v)) u.comments = [str(u.comments), v].filter(Boolean).join(" ");
+    fix("uc", { code: AUTO_FIX_CODES.sourceOfId, file: HCD_FILES.uc, where: `\`${stripUc(str(u.circuitId))}\` sourceOfId`, before: v, after: expected });
+  }
   for (const { u, kind } of named) {
     const id = stripUc(str(u.circuitId));
     const descriptor = str(u.descriptor).replace(/\s+/g, "");
@@ -342,6 +384,20 @@ export function autoFixFiles(input: AutoFixFiles, ctx: AutoFixContext = {}): Aut
   if (touched.has("frg")) files.frg = out(frgJson);
   if (touched.has("report") && report !== null) files.report = report;
   return { files, fixes };
+}
+
+/** The report without the bibliography lines whose citations are all in `gone` (refKey form). */
+function dropBibliographyEntries(report: string, gone: Set<string>): string {
+  let inBib = false;
+  return report
+    .split("\n")
+    .filter((line) => {
+      if (/^##\s/.test(line)) inBib = BIBLIOGRAPHY_RE.test(line.trim());
+      if (!inBib) return true;
+      const cites = extractCitations(line);
+      return !cites.length || !cites.every((c) => gone.has(refKey(c)));
+    })
+    .join("\n");
 }
 
 /** `names` with `official` as its first item; `replaceFirst`: the first item is a wrong official name and goes. */

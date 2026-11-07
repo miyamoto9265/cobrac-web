@@ -88,6 +88,10 @@ describe("matching a record", () => {
     ]);
     expect(other.notes).toEqual(['journal is "Science", not "Nature"']);
     expect(compareWithRecord({ id: "[Hausser, 2004]" }, { ...SCHULTZ, authors: ["Häusser"], years: [2004] }).problems).toEqual([]);
+    // a letter the record lost (U+FFFD) matches any letter there
+    expect(compareWithRecord({ id: "[Pitkänen, 2000]" }, { ...SCHULTZ, authors: ["Pitk\uFFFDnen"], years: [2000] }).problems).toEqual([]);
+    expect(compareWithRecord({ id: "[Pitkanen, 2000]" }, { ...SCHULTZ, authors: ["Pitk\uFFFD\uFFFDnen"], years: [2000] }).problems).toEqual([]);
+    expect(compareWithRecord({ id: "[Smith, 2000]" }, { ...SCHULTZ, authors: ["Pitk\uFFFDnen"], years: [2000] }).problems).toEqual(["the first author is Pitk\uFFFDnen, not Smith"]);
   });
 });
 

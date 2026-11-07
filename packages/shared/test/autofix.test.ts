@@ -105,6 +105,34 @@ describe("autoFixFiles", () => {
     expect(parse(r.files.references).references).toHaveLength(1);
   });
 
+  it("removes references cited only in the report's bibliography, with their entries", () => {
+    const f = files({
+      refs: [{ id: "[Amaral, 1990]", doi: "10.1002/a", literatureType: "Review" }, { id: "[Bib, 2001]", doi: "10.1002/b", literatureType: "Review" }],
+      report: "## HCD\n\nSee [Amaral, 1990].\n\n## References\n\n- [Amaral, 1990] Amaral DG. Hippocampus.\n- [Bib, 2001] Bib A. Other.\n",
+    });
+    const r = autoFixFiles(f);
+    expect(r.fixes.map((x) => `${x.code} ${x.where}`)).toEqual(["QC-02-08 [Bib, 2001]"]);
+    expect(parse(r.files.references).references).toHaveLength(1);
+    expect(r.files.report).toBe("## HCD\n\nSee [Amaral, 1990].\n\n## References\n\n- [Amaral, 1990] Amaral DG. Hippocampus.\n");
+  });
+
+  it("joins facet value words with hyphens and sets the Source of ID of anchor-only UCs", () => {
+    const f = files({
+      ucs: [
+        { circuitId: "DG", descriptor: "HOMBA:10297", names: "dentate gyrus", roi: "internal", sourceOfId: "[Amaral, 1990]", transmitter: "Glutamate", modulationType: "Excitatory", comments: "", interface: "", outputSemantics: "[DG] pattern separation;" },
+        { circuitId: "A4ul", descriptor: "BNA:57-58", names: "area 4", roi: "internal", sourceOfId: "makeshift", transmitter: "Glutamate", modulationType: "Excitatory", comments: "[Amaral, 1990]", interface: "", outputSemantics: "[A4ul] motor;" },
+        { circuitId: "SC(oculomotor_region)", descriptor: "HOMBA:12402/part:oculomotor_region", names: "superior colliculus", roi: "internal", sourceOfId: "makeshift", transmitter: "Glutamate", modulationType: "Excitatory", comments: "", interface: "", outputSemantics: "[SC(oculomotor_region)] saccade;" },
+        { circuitId: "SC(rostral)", descriptor: "HOMBA:12402/part:rostral intermediate (deep)", names: "superior colliculus", roi: "internal", sourceOfId: "makeshift", transmitter: "Glutamate", modulationType: "Excitatory", comments: "", interface: "", outputSemantics: "[SC(rostral)] fixation;" },
+      ],
+    });
+    const r = autoFixFiles(f);
+    const ucs = parse(r.files.uc).ucs;
+    expect(ucs.map((u: { descriptor: string }) => u.descriptor)).toEqual(["HOMBA:10297", "BNA:57-58", "HOMBA:12402/part:oculomotor-region", "HOMBA:12402/part:rostral-intermediate-deep"]);
+    expect(ucs.map((u: { sourceOfId: string }) => u.sourceOfId)).toEqual(["DHBA", "BNA", "makeshift", "makeshift"]);
+    expect(ucs[0].comments).toBe("[Amaral, 1990]");
+    expect(r.fixes.map((x) => x.code).filter((c) => c !== "QC-03-09").sort()).toEqual(["QC-03-10", "QC-03-10", "QC-03-11", "QC-03-11"]);
+  });
+
   it("takes the record's title when only the title differs", () => {
     const checks: RefCheck[] = [
       { id: "[Amaral, 1990]", doi: "10.1002/a", pmid: "", status: "mismatch", problems: ['its title is "Hippocampal formation"'], notes: [], record: { source: "crossref", title: "Hippocampal formation", firstAuthor: "Amaral", year: 1990, journal: "J" } },
