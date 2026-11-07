@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
-import { I18nProvider } from "../src/i18n";
+import { I18nProvider, loadLocale } from "../src/i18n";
 import { ManualPage } from "../src/pages/ManualPage";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -12,6 +12,8 @@ let root: Root | undefined;
 let host: HTMLDivElement | undefined;
 async function render(path: string, locale: string) {
   localStorage.setItem("cobrac-locale", locale);
+  // languages other than English and Japanese load on demand
+  await loadLocale(locale as Parameters<typeof loadLocale>[0]);
   host = document.createElement("div");
   document.body.appendChild(host);
   const r = (root = createRoot(host));

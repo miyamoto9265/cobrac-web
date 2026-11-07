@@ -31,7 +31,7 @@ const api = vi.hoisted(() => ({
 const uploadFile = vi.hoisted(() => vi.fn());
 vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Error {} }));
 
-const { I18nProvider } = await import("../src/i18n");
+const { I18nProvider, loadLocale } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
 const { CanonBoard, NewPlanPage } = await import("../src/pages/PlansPage");
 const { waveRuns, isSeedWave, seedIndexes, wavesText, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
@@ -1033,6 +1033,7 @@ describe("re-planning while running", () => {
       detail("RUNNING", rows, { ordering: "auto", activeWave: 4, replan: { kind: "replan", jobId: null, status: "failed", requestedAt: now, requestedBy: "runner", wave: 2, error: "The model chosen for this plan is not available to the owner.", errorCode: "model_not_allowed" } }),
     );
     localStorage.setItem("cobrac-locale", "de");
+    await loadLocale("de");
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-replan"]')!.textContent).toBe(
       "Neuplanung nach Welle 2: fehlgeschlagen (Das für diese Mission gewählte Modell steht Ihnen nicht mehr zur Verfügung. Wenden Sie sich an eine Admin-Person.)",

@@ -36,7 +36,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           amplify: ["aws-amplify"],
-          flow: ["@xyflow/react", "@dagrejs/dagre"],
           react: ["react", "react-dom", "react-router-dom"],
         },
       },
