@@ -33,6 +33,7 @@ import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
   ArticleJobState,
+  AutoFix,
   ArticleMeta,
   BraVersionRef,
   BraVersionSummary,
@@ -219,6 +220,8 @@ let workspaceReady = false;
 let threadSetAside = false;
 const progress = new ProgressWatch();
 let rcs: RcsClient | null = null;
+/** Translation of non-English values in the data files (QC-03-03 / QC-08-01), set for each BRA run */
+let translator: ((texts: string[]) => Promise<Map<string, string>>) | null = null;
 let materials: PreparedMaterials | null = null;
 /** Pinned Canon revision of this project (null: not in a Canon, or the Canon is still empty) */
 let canonRun: { snapshot: CanonSnapshot; info: CanonRunInfo } | null = null;
@@ -306,6 +309,7 @@ async function main() {
   evidence = evidenceSettingsOf(project);
   // the lit tools are on in every BRA run (quotes, PMIDs); research mode only adds the survey step
   const codex = createEngine(resolveModelSettings(project).model, apiKey, rcsConn, { lit: true });
+  translator = (texts) => translateTexts(resolveModelSettings(project).model, apiKey, texts);
   jobUsage = job.usage ?? EMPTY_USAGE;
   jobCostUsd = job.costUsd ?? (job.usage ? null : 0);
   let threadId = mode === "initial" ? null : project.codexThreadId;
@@ -907,6 +911,53 @@ function mcpErrorText(item: { status: string; result?: { content?: unknown[] } |
 
 // --- phases ------------------------------------------------------------------
 
+const TRANSLATION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["items"],
+  properties: {
+    items: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, required: ["index", "english"], properties: { index: { type: "integer" }, english: { type: "string" } } },
+    },
+  },
+} as const;
+const MAX_TRANSLATION_TEXTS = 200;
+
+/**
+ * English for non-English values of the data files, from a separate low-effort turn of the run's model (no tools, no
+ * web search). Citations, Circuit IDs and brackets are kept; the usage is added to the job.
+ */
+async function translateTexts(model: string | null, apiKey: string, texts: string[]): Promise<Map<string, string>> {
+  const batch = texts.slice(0, MAX_TRANSLATION_TEXTS);
+  const thread = openThread(createEngine(model, apiKey, null), null, { model, reasoningEffort: "low" }, { webSearch: false });
+  const prompt =
+    "Translate each text below into English for a neuroscience dataset. Keep Reference IDs such as [Smith, 2001], Circuit IDs such as [U.CA1], " +
+    "brackets, semicolons, numbers and anatomical abbreviations exactly as they are; translate only the words. Do not read or change any file; " +
+    "answer only with the JSON object.\n\n" +
+    batch.map((t, i) => `${i}: ${JSON.stringify(t)}`).join("\n");
+  const t = await thread.run(prompt, { outputSchema: TRANSLATION_SCHEMA });
+  if (t.usage) await accumulateUsage(fromCodexUsage(t.usage));
+  const out = new Map<string, string>();
+  const parsed = JSON.parse(t.finalResponse) as { items?: { index: number; english: string }[] };
+  for (const it of parsed.items ?? []) if (batch[it.index] !== undefined && typeof it.english === "string") out.set(batch[it.index], it.english.trim());
+  return out;
+}
+
+/** One status line per automatic fix run: how many values were fixed, by check ID (details in autofix_log.json). */
+async function logAutoFixes(phase: Phase, fixes: AutoFix[]): Promise<void> {
+  const byCode = new Map<string, number>();
+  for (const f of fixes) byCode.set(f.code, (byCode.get(f.code) ?? 0) + 1);
+  const summary = [...byCode].map(([c, n]) => `${c} ×${n}`).join(", ");
+  await log(`${phase}: the worker fixed ${fixes.length} value(s) itself before checking again (${summary}).`, {
+    i18n: "sys.autoFixed",
+    phase,
+    count: fixes.length,
+    summary,
+    details: fixes.map((f) => `[${f.code}] ${f.file} ${f.where}: ${f.before.slice(0, 80)} → ${f.after.slice(0, 80)}`).join("\n"),
+  });
+}
+
 /** checkPhase with this run's RCS client, meta adoption and Project.csv options. */
 async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseContext): Promise<PhaseCheck> {
   const deps: CheckDeps = {
@@ -918,6 +969,8 @@ async function acceptPhase(phase: Phase, project: ProjectRecord, ctx: PhaseConte
     harnessRules: project.harnessRules,
     ...(isHypothesisMode(evidence) ? { evidence: { ...evidence, researchMode: research } } : {}),
     onMetaAccepted: (meta) => adoptMeta(project, meta),
+    translate: translator ?? undefined,
+    onAutoFix: (phase, fixes) => logAutoFixes(phase, fixes),
     csvOptions: async () => {
       const latest = await getProject(userId, projectId);
       if (latest) {

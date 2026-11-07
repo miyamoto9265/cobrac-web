@@ -243,6 +243,27 @@
 <h3>検査に通らないとき</h3>
 <p>HCD・FRG・CSV の各段階では、ワーカーが問題を列挙し、エージェントに修正を依頼します。修正依頼は各段階で最大 3 回です。それでも問題が残る場合、データを読み込めない致命的な問題ならジョブを失敗にします。読み込める場合は、未解決の問題を警告として残して次の段階に進みます。HCD と FRG の調整のターン（3.11）の後の修正には、別に 3 回の枠があります。</p>
 
+<h3>自動修正</h3>
+<p>検査に問題があるとき、ワーカーは修正を依頼する前に、自分で直せる値を直してから検査をやり直します。直すのは、決まった手順で正しい値が 1 つに決まるものだけです。直せなかった問題は、これまでどおりエージェントに返します。直した内容は <code>autofix_log.json</code> に追記し、画面に件数を出します。表の番号は検査項目一覧の ID です。</p>
+<table class="compact">
+  <thead><tr><th style="width:13%">ID</th><th style="width:30%">問題</th><th>直し方</th></tr></thead>
+  <tbody>
+    <tr><td>QC-02-04</td><td>文献のタイトルが書誌と違う</td><td>筆頭著者と年が合い、タイトルだけが違うとき、Crossref / PubMed のタイトルに置き換える。著者か年が違えば別の論文なので返す</td></tr>
+    <tr><td>QC-02-05</td><td>同じ DOI / PMID に 2 つの Reference ID</td><td>最初の ID に統合し、データファイルとレポートの引用を書き換える</td></tr>
+    <tr><td>QC-02-08</td><td>どこにも引用されていない文献</td><td><code>references.json</code> から削除する。レポートの <code>## References</code> だけにある文献は返す</td></tr>
+    <tr><td>QC-02-09</td><td>引用が論文の本文に見つからない</td><td>最も近い箇所の類似度が 0.6 以上で、その箇所が引用の形式を満たすとき、その箇所を引用し直す</td></tr>
+    <tr><td>QC-03-03 / QC-08-01</td><td>英語でない値</td><td>実行中のモデルを推論の少ない設定で別に呼び、英語に訳す。訳しても英語でない値は返す</td></tr>
+    <tr><td>QC-03-09</td><td>Names が SABRA の正式名で始まらない</td><td>RCS の正式名を先頭に置く</td></tr>
+    <tr><td>QC-03-17 / QC-03-26</td><td>Transmitter・Modulation Type・Taxon・Measurement method が BRA の値と違う</td><td>大文字・小文字や記号の違い、決まった言い換え（<code>glutamatergic</code>、<code>rats</code> など）なら BRA の値にする</td></tr>
+    <tr><td>QC-03-23</td><td>引用がページや節の表記で始まる</td><td>表記を外す。残りが 10 語未満なら返す</td></tr>
+    <tr><td>QC-03-24</td><td>図番号の形が違う</td><td>図番号を見つけて <code>Fig. 3B</code> の形にする</td></tr>
+    <tr><td>QC-03-30</td><td>Output Semantics の形が違う</td><td>自分の Circuit ID の 1 項目 <code>[ID] 内容;</code> にまとめる</td></tr>
+    <tr><td>QC-05-16</td><td>FRG のノード ID がケバブケースでない</td><td>空白や記号をハイフンにし、ほかのノードとレポートの参照も書き換える</td></tr>
+    <tr><td>QC-07-07 / QC-07-09</td><td>正式名か DOI / PMID が Canon と違う</td><td>Canon の値に合わせる。問題の付いた Canon の項目には合わせない</td></tr>
+  </tbody>
+</table>
+<p>Template-v2-3 に書き出すときは、FRG の Subnodes と Projected Circuits の各 ID の後に <code>;</code> を付けます（BRA 410 / 431）。</p>
+
 <h3>文献の照合</h3>
 <p>HCD と FRG の検査のたびに文献も検査し、架空の論文や誤った識別子を、ほかの問題と同じ修正依頼でエージェントに返します。</p>
 <ul>
@@ -274,6 +295,7 @@
 
 <h3>実装</h3>
 <ul>
+  <li>自動修正は <code>packages/shared/src/autofix.ts</code> の <code>autoFixFiles</code> で、ワーカーの <code>applyAutoFixes</code> が直前の文献・引用・Canon の検査結果を渡して呼びます。翻訳は 1 回に 200 件までです。</li>
   <li>段階ごとの修正の上限はワーカーの環境変数 <code>MAX_NUDGES</code>（既定 3）で決まります。致命的な問題と警告の扱いは <code>runPhases</code> の <code>fatal</code> と <code>onWarn</code> です。</li>
   <li>引用の検査は <code>checkCitations</code>、文献の照会はワーカーの <code>ReferenceVerifier</code> で、結果は <code>reference_check.json</code> に書きます。引用文の照合はワーカーの <code>QuoteVerifier</code> と <code>packages/shared/src/quotes.ts</code> で、結果は <code>quote_check.json</code> に書きます。一致のしきい値は <code>QUOTE_MATCH_THRESHOLD</code> です。</li>
   <li>文献の照会：1 要求のタイムアウトは 10 秒で、タイムアウト・ネットワークエラー・429・5xx のときは 2 回まで再試行します。<code>Retry-After</code> には 10 秒まで従います。3 件続けて失敗した相手は 5 分飛ばし、1 回の検査で照会に使う時間は最大 3 分です。PubMed への要求は毎秒 3 件（API キーがあれば 10 件）になるよう間を空けます。</li>
@@ -287,7 +309,7 @@
     </ul>
   </li>
 </ul>
-<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>：<code>maxNudges</code>・<code>fatal</code>・<code>onWarn</code>）、<code>packages/worker/src/env.ts</code>、<code>packages/shared/src/harness.ts</code>（<code>checkCitations</code>）、<code>quotes.ts</code>、<code>packages/worker/src/references.ts</code>・<code>quotes.ts</code></p>
+<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>：<code>maxNudges</code>・<code>fatal</code>・<code>onWarn</code>、<code>applyAutoFixes</code>）、<code>packages/shared/src/autofix.ts</code>、<code>packages/worker/src/env.ts</code>、<code>packages/shared/src/harness.ts</code>（<code>checkCitations</code>）、<code>quotes.ts</code>、<code>packages/worker/src/references.ts</code>・<code>quotes.ts</code></p>
 
 <h2 id="s3-11">3.11 HCD と FRG の調整</h2>
 <p>HCD と FRG は別々の段階で作りますが、両者は同じ回路を別の側から記述したものであるため、食い違いが生じえます。FRG の指示書は、FRG と HCD が食い違うときに関連するファイルを直すようエージェントに求めます。そのため HCD のファイルは、HCD 段階が終わった後でも変わることがあります。ワーカーは、変わったファイルを検査し直す仕組みと、両者の整合を計算して 1 回だけ調整を依頼する仕組みを持ちます。</p>

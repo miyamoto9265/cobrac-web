@@ -14,6 +14,7 @@ export * from "./harness.js";
 export * from "./cross.js";
 export * from "./ucNaming.js";
 export * from "./bra.js";
+export * from "./autofix.js";
 export * from "./bnaLabels.js";
 export * from "./references.js";
 export * from "./quotes.js";

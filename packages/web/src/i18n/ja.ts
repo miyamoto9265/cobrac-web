@@ -300,6 +300,7 @@ export const ja: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "所定回数の修正後も {step} ステップを完了できませんでした。フォローアップ指示またはリトライで続きを実行してください。",
   "sys.legacyWorkspace": "このプロジェクトは v0.8 より前のファイル形式で作られているため、続きを実行できません。xlsx とグラフは引き続き利用できます。作業を続けるには新しいプロジェクトを作成してください。",
   "sys.csvBuilt": "HCD/FRG のデータファイルから CSV を生成しました。",
+  "sys.autoFixed": "{phase}: {count} 件の値を自動で直してから、もう一度検査しました（{summary}）。",
   "sys.researchOn": "調査モード: オン",
   "sys.researchOff": "調査モード: オフ",
   "sys.researchStart": "調査ステップ: HCD の前に文献を調べています（最大 {minutes} 分、reasoning effort {effort}）。",

@@ -300,6 +300,7 @@ export const pt: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "Não foi possível concluir a etapa {step} após as tentativas de correção permitidas. Use um acompanhamento ou nova tentativa.",
   "sys.legacyWorkspace": "Este projeto usa o formato de arquivos anterior à v0.8 e não pode mais ser continuado. O xlsx e os gráficos continuam disponíveis; crie um novo projeto para continuar.",
   "sys.csvBuilt": "CSVs gerados a partir dos arquivos de dados HCD/FRG.",
+  "sys.autoFixed": "{phase}: {count} valor(es) corrigido(s) automaticamente antes de verificar novamente ({summary}).",
   "sys.researchOn": "Modo pesquisa: ligado",
   "sys.researchOff": "Modo pesquisa: desligado",
   "sys.researchStart": "Etapa de pesquisa: revisando a literatura antes do HCD (até {minutes} min, reasoning effort {effort}).",

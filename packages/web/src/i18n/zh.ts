@@ -300,6 +300,7 @@ export const zh: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "在允许的修复次数内未能完成 {step} 步骤。请使用跟进或重试。",
   "sys.legacyWorkspace": "此项目使用 v0.8 之前的文件格式，无法继续执行。xlsx 和图仍可使用；如需继续，请新建项目。",
   "sys.csvBuilt": "已根据 HCD/FRG 数据文件生成 CSV。",
+  "sys.autoFixed": "{phase}：已自动修正 {count} 个值，然后重新检查（{summary}）。",
   "sys.researchOn": "调研模式：开",
   "sys.researchOff": "调研模式：关",
   "sys.researchStart": "调研步骤：在 HCD 之前调研文献（最多 {minutes} 分钟，reasoning effort {effort}）。",
