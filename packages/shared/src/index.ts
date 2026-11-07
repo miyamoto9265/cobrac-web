@@ -27,6 +27,7 @@ export * from "./braTemplate.js";
 export * from "./attachments.js";
 export * from "./canonMerge.js";
 export * from "./canonConstraints.js";
+export * from "./canonIssues.js";
 export * from "./usageCorrection.js";
 export * from "./orgKey.js";
 export * from "./canonReview.js";

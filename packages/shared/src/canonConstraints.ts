@@ -4,6 +4,7 @@
 // how far a project is behind its Canon.
 // ---------------------------------------------------------------------------
 
+import { canonIssueScope, isOpenIssue } from "./canonIssues.js";
 import { canonFromProject, currentCanonSnapshot, diffCanon, type CanonConflict, type CanonSnapshot, type ProjectCanonFiles } from "./canonMerge.js";
 import { modernCircuitId as cid, normalizeUcDescriptor } from "./ucNaming.js";
 
@@ -24,6 +25,9 @@ const GENERATION_WARNINGS = new Set(["C2b", "C7", "C8b", "C9b", "C12"]);
 /** Files written to `<workDir>/canon/` for the agent (JSON with Circuit IDs in their current form, so the agent can copy them). */
 export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, projectId: string): Record<string, string> {
   const snapshot = currentCanonSnapshot(stored);
+  // an entry an open problem reaches carries the reasons, so the agent checks it instead of copying it
+  const reasons = new Map((snapshot.issues ?? []).filter(isOpenIssue).map((i) => [i.id, `${i.label}: ${i.reason}`]));
+  const problems = (ids: string[] | undefined) => (ids?.length ? { problems: ids.map((id) => reasons.get(id) ?? id) } : {});
   const idOf = new Map(snapshot.circuits.map((c) => [c.key, cid(c.circuitId)]));
   for (const g of snapshot.groups) idOf.set(g.key, cid(g.circuitId));
   const circuits = snapshot.circuits.map((c) => ({
@@ -37,6 +41,7 @@ export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, proje
     sourceOfId: c.sourceOfId,
     outputSemantics: c.outputSemantics,
     state: c.state,
+    ...problems(c.issueIds),
   }));
   const connections = snapshot.connections.map((c) => ({
     sender: cid(c.senderCircuitId),
@@ -53,8 +58,9 @@ export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, proje
     comment: c.comment,
     quoteCheck: c.quoteCheck,
     state: c.state,
+    ...problems(c.issueIds),
   }));
-  const references = snapshot.references.map((r) => ({ id: r.key, doi: r.doi, pmid: r.pmid, title: r.title, journal: r.journal, literatureType: r.literatureType, check: r.check }));
+  const references = snapshot.references.map((r) => ({ id: r.key, doi: r.doi, pmid: r.pmid, title: r.title, journal: r.journal, literatureType: r.literatureType, check: r.check, state: r.state, ...problems(r.issueIds) }));
   // what this project already uses, plus circuits on the same anchors (their parents, children and siblings)
   const mine = new Set(snapshot.roles.find((r) => r.projectId === projectId)?.ucRoles.map((u) => u.key) ?? []);
   const heads = new Set([...mine].map((k) => k.split("/")[0]));
@@ -66,6 +72,7 @@ export function canonAgentFiles(stored: CanonSnapshot, info: CanonRunInfo, proje
     "- `circuits.json`: every circuit of the Canon (Circuit ID, UC Descriptor, names, `uniform`, Sub-Circuits, properties)\n" +
     "- `connections.json`: UC-to-UC connections, one per paper, with their literature fields (already quote-checked when `quoteCheck` starts with `verified`)\n" +
     "- `references.json`: references of the Canon (already checked when `check` is `verified`)\n" +
+    "- `state`: `flagged` entries with `problems` have an open problem in the Canon (the reasons are listed); `invalidated` entries are withdrawn. Do not copy either as they are.\n" +
     (relevant.length ? "- `relevant.json`: Circuit IDs this project already uses and circuits on the same anchors; start there\n" : "");
   const out: Record<string, string> = {
     "README.md": readme,
@@ -92,6 +99,7 @@ export function canonSpecNote(info: CanonRunInfo): string {
     "- If it is a Collection in the Canon (`uniform: false`), make it a Collection here too and connect its Sub-Circuits (the ones this TLF needs), never the Collection itself. Evidence reported for the whole unit goes on the UC connection with relation `<`.\n" +
     "- If it is Uniform in the Canon, do not split it into finer UCs here. If this TLF really needs a finer split, write why in `decision_log.md` and ask the user (status `question`).\n" +
     "- When you use a connection or a reference that is in `canon/connections.json` / `canon/references.json`, copy the record as it is (same Reference ID, relations, literature names, quote); checked records are not re-checked.\n" +
+    "- An entry with `problems` (state `flagged`) has a reported error: do not copy it as it is. Read the reasons, check the paper and use the correct value, or leave the entry out; say which in `decision_log.md`. Never use an `invalidated` entry.\n" +
     "- New circuits, connections and references are allowed; follow the Canon's granularity policy for them. They are proposed to the Canon when the user pushes the project.\n" +
     "\nThe validator enforces these rules: a conflict with the Canon comes back as a problem to fix.\n"
   );
@@ -139,7 +147,15 @@ export function canonGenerationProblems(snapshot: CanonSnapshot, info: CanonRunI
   const prefix = `Canon "${info.name}" rev ${info.revision}: `;
   const errors: string[] = [];
   const notes: string[] = [];
+  // differing from an entry with an open problem is not sent back: the agent is told not to copy it as it is
+  const current = currentCanonSnapshot(snapshot);
+  const withProblem = new Set([
+    ...current.circuits.filter((c) => c.issueIds?.length || c.state === "invalidated").map((c) => `circuit:${c.key}`),
+    ...current.connections.filter((c) => c.issueIds?.length || c.state === "invalidated").map((c) => `connection:${c.key}`),
+    ...current.references.filter((r) => r.issueIds?.length || r.state === "invalidated").map((r) => `reference:${r.key}`),
+  ]);
   for (const c of diff.conflicts) {
+    if (withProblem.has(`${c.kind}:${c.key}`)) continue;
     const msg = prefix + describe(c);
     if (GENERATION_ERRORS.has(c.code)) errors.push(msg);
     else if (GENERATION_WARNINGS.has(c.code)) notes.push(msg);
@@ -168,7 +184,7 @@ export interface CanonFollowStatus {
   head: number;
   state: CanonFollowState;
   /** Circuits / connections this project uses whose definition changed or that were flagged since `pinned` */
-  affected: { key: string; label: string; reason: string }[];
+  affected: { key: string; label: string; reason: string; /** the Canon problem behind it */ issue?: string }[];
 }
 
 /** How the project's pinned revision compares with the head, judged on what the project uses. */
@@ -186,11 +202,24 @@ export function canonFollowStatus(storedPin: CanonSnapshot, storedHead: CanonSna
     if (b.status !== c.status) affected.push({ key: c.key, label: c.circuitId, reason: `now ${c.status === "collection" ? "a Collection" : "Uniform"}` });
     else if (b.subCircuits.join(",") !== c.subCircuits.join(",")) affected.push({ key: c.key, label: c.circuitId, reason: "Sub-Circuits changed" });
     else if (b.circuitId !== c.circuitId) affected.push({ key: c.key, label: c.circuitId, reason: `renamed from ${b.circuitId}` });
-    else if (c.state !== "valid" && b.state === "valid") affected.push({ key: c.key, label: c.circuitId, reason: c.state });
+    // a problem is reported below with its reason
+    else if (c.state !== "valid" && b.state === "valid" && !c.issueIds?.length) affected.push({ key: c.key, label: c.circuitId, reason: c.state });
   }
   for (const c of head.connections) {
-    if (c.state === "flagged" && c.sources.includes(projectId)) affected.push({ key: c.key, label: `${c.senderCircuitId} → ${c.receiverCircuitId}`, reason: "ends on a Collection" });
+    if (c.state === "flagged" && !c.issueIds?.length && c.sources.includes(projectId)) affected.push({ key: c.key, label: `${c.senderCircuitId} → ${c.receiverCircuitId}`, reason: "ends on a Collection" });
   }
+  // problems reported, fixed or withdrawn since the pin, on entries this project uses or pushed
+  for (const i of head.issues ?? []) {
+    const reported = isOpenIssue(i) && i.raisedRevision > pinned.revision;
+    const settled = (i.resolution === "fixed" || i.resolution === "invalidated") && (i.resolvedRevision ?? 0) > pinned.revision;
+    if (!reported && !settled) continue;
+    if (!canonIssueScope(head, i).projects.includes(projectId)) continue;
+    const reason = reported ? `problem reported in the Canon (${i.id}): ${i.reason}` : i.resolution === "fixed" ? `problem fixed in the Canon (${i.id}): ${i.reason}` : `withdrawn from the Canon (${i.id}): ${i.reason}`;
+    affected.push({ key: i.targetKey, label: i.label, reason, issue: i.id });
+  }
+  // an entry a problem names is listed once, with the problem
+  const named = new Set(affected.filter((a) => a.issue).map((a) => a.key));
+  for (let n = affected.length - 1; n >= 0; n--) if (!affected[n].issue && named.has(affected[n].key)) affected.splice(n, 1);
   return { pinned: pinned.revision, head: head.revision, state: affected.length ? "affected" : "behind", affected };
 }
 
@@ -200,6 +229,9 @@ export function canonAlignInstruction(info: CanonRunInfo, status: CanonFollowSta
   return (
     `Align this project with the Canon "${info.name}" revision ${status.head} (the files in canon/ are that revision). ` +
     "Follow the Canon's definitions for every circuit it has (Uniform / Collection, Sub-Circuits, Circuit IDs, names), reconnect connections that end on a Collection to its Sub-Circuits, and keep everything else." +
+    (status.affected.some((a) => a.issue)
+      ? " For a problem reported in the Canon, check this project's copy of the entry (and of what it reaches) against the paper and correct it, or drop it and say why in decision_log.md; for a fixed problem, take the Canon's corrected record; drop a withdrawn entry."
+      : "") +
     (lines.length ? `\nChanged since revision ${status.pinned}:\n${lines.join("\n")}` : "")
   );
 }

@@ -137,9 +137,13 @@
     <tr><td>GET</td><td><code>/projects/{id}/canon</code></td><td>固定した rev と最新の比較（<code>current</code> / <code>behind</code> / <code>affected</code>）、影響する項目、「Canon に合わせる」フォローアップの指示の文</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/canon/preview</code>、<code>/projects/{id}/canon/push</code></td><td>Canon の最新との差分 / push して PR を作る → 201。対象は <code>COMPLETED</code> の参加プロジェクト</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/canon/pull</code></td><td>固定する rev を進める <code>{ revision? }</code>（既定は最新）。次のジョブから効く</td><td>所有者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/issues</code></td><td><code>{ targetKind, targetKey, kind, reason }</code>：最新の rev の回路・接続・文献に問題を付ける → 201 <code>{ revision, issue }</code>。PR なしで rev を 1 つ進める（5.13）</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/issues/{issueId}/resolve</code></td><td><code>{ resolution, note? }</code>（<code>fixed</code> / <code>dismissed</code> / <code>invalidated</code>）：未解決の問題を決着させる。決着済みは 409</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/align</code></td><td>「まとめて Canon に合わせる」<code>{ locale? }</code> → <code>{ queued, skipped }</code>。影響する変更のある完了済みの参加プロジェクトを最新の rev に固定し、フォローアップを積む（LLM を使う）</td><td>所有者（キー）</td></tr>
+    <tr><td>GET</td><td><code>/canons/{id}/upstream-issues</code></td><td>Canon から Canon への PR で取り込んだエントリに、送り元の Canon で付いた未解決の問題（読める送り元だけ）</td><td>Canon を読める人</td></tr>
     <tr><td>GET</td><td><code>/canons/{id}/pulls</code></td><td>PR の一覧</td><td>所有者・共同編集者・管理者</td></tr>
     <tr><td>GET</td><td><code>/canons/{id}/pulls/{no}</code></td><td>審査の材料：差分、検査、各項目の両側、グラフ、来歴、履歴。審査できる人には AI レビューも返す（5.8）</td><td>所有者・共同編集者・管理者・PR を送った人</td></tr>
-    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/approve</code></td><td><code>{ choices, note? }</code> → <code>{ revision }</code>。衝突が残るときと、ほかの承認が先だったときは 409（<code>blocking</code> 付き）</td><td>所有者・共同編集者</td></tr>
+    <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/approve</code></td><td><code>{ choices, note?, resolveIssues? }</code> → <code>{ revision }</code>。<code>resolveIssues</code> に挙げた問題は「直した」で決着する。衝突が残るときと、ほかの承認が先だったときは 409（<code>blocking</code> 付き）</td><td>所有者・共同編集者</td></tr>
     <tr><td>POST</td><td><code>/canons/{id}/pulls/approve-many</code></td><td>「まとめて承認」<code>{ prNos }</code>（1〜50 件。重複は除き、順を保つ）→ <code>{ approved: [{ prNo, revision }], stopped }</code>。各 PR を直前の承認でできた最新の rev と照らし、承認できない最初の PR で止める。止まった理由は <code>conflicts</code>・<code>closed</code>・<code>not_found</code>・<code>approvals</code>・<code>race</code> のどれか</td><td>所有者・共同編集者</td></tr>
     <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/request-changes</code></td><td><code>{ note }</code>：PR を開いたまま「変更を依頼」の状態にする</td><td>所有者・共同編集者</td></tr>
     <tr><td>POST</td><td><code>/canons/{id}/pulls/{no}/reject</code></td><td><code>{ reason }</code> で却下する</td><td>所有者・共同編集者</td></tr>

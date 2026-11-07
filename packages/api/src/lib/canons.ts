@@ -84,6 +84,7 @@ export async function listCanonRevisions(canonId: string): Promise<CanonRevision
       circuitCount: r.circuitCount,
       connectionCount: r.connectionCount,
       ...(r.approvedByName ? { approvedByName: r.approvedByName, approvedAt: r.approvedAt } : {}),
+      ...(r.issueId ? { issueId: r.issueId, issueAction: r.issueAction, actorName: r.actorName } : {}),
     }))
     .sort((a, b) => b.revision - a.revision);
 }

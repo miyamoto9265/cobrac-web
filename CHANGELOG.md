@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Problems on Canon entries. On the Canon page's new "Problems" tab (or "Report a problem" on a graph node), the owner or a co-editor reports an error in a circuit, connection or reference with its kind and reason. The report is a new rev without a pull request; the entry and what it reaches (the Sub-Circuits of a Collection, the connections on them, the connections citing a reference) are flagged together, and the projects that use them are listed. Projects pinned to an earlier rev show it under "Affected changes", and the agent gets the problems in `canon/` and is told not to copy such an entry. A problem is settled as "Fixed" (ticked under "Problems this pull request fixes" when approving a PR, or by hand), "Not a problem", or "Withdraw" (the entry and the connections on it become invalidated). "Align all projects" sends "Align with Canon" to every finished member project the Canon changed something for (running or unfinished projects are skipped and counted). A Canon that took entries from another Canon by a Canon → Canon pull request shows that Canon's open problems on them, with "Report here too"
+
 ### Fixed
 - A UC that spans several SABRA units (anchors joined with `&`) no longer depends on the order the anchors are written in. `BNA:65-66&BNA:63-64` and `BNA:63-64&BNA:65-66` used to be two different circuits (two Canon keys, passing the duplicate check and taking different Circuit ID heads); the anchors are now a set in a fixed order (BNA areas by label, then BNA groups, then HOMBA terms), the validator asks for that order, and Canon keys written in another order are read as the same circuit
 
