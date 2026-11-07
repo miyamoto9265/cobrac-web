@@ -40,7 +40,7 @@ import {
   type Hypothesis,
 } from "./hypothesis.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
-import { isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
+import { detachedNodes, isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
 import { normalizeProjectName } from "./projectId.js";
 import { RESEARCH_FILES, RESEARCH_SCHEMA } from "./research.js";
 import {
@@ -803,6 +803,16 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     if (ucs.some((u) => u.roi === "roi") && !connections.some((c) => external(c.sender) && roiOf.get(c.receiver) === "roi")) {
       errors.push(
         "connections.json: no connection comes into the ROI from outside (a noROI(input) or noROI(input,output) UC sending to an ROI-internal UC); add the external UCs that send the ROI its inputs (the FRG's Input Circuits come from them).",
+      );
+    }
+    const detached = detachedNodes(
+      ucs.map((u) => u.id),
+      connections.map((c) => ({ source: c.sender, target: c.receiver })),
+      new Set(ucs.filter((u) => u.roi === "roi").map((u) => u.id)),
+    );
+    if (detached.length) {
+      errors.push(
+        `connections.json: ${detached.map((x) => `\`${x}\``).join(", ")} ${detached.length > 1 ? "are" : "is"} cut off from the rest of the HCD (no chain of connections, in either direction, links ${detached.length > 1 ? "them" : "it"} to the part with the ROI-internal UCs). The HCD must be one connected circuit: connect ${detached.length > 1 ? "them" : "it"} with connections the literature supports, or remove ${detached.length > 1 ? "them" : "it"} if ${detached.length > 1 ? "they are" : "it is"} not needed for the TLF.`,
       );
     }
     for (const u of ucs) {
