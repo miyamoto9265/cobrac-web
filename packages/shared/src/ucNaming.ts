@@ -248,7 +248,13 @@ export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | 
   const c = canonicalUcDescriptor(text);
   if ("error" in c) return { errors: [c.error] };
   const s = c.text;
-  if (!UC_DESCRIPTOR_RE.test(s)) return { errors: [`\`${s}\` is not a valid UC Descriptor (<anchor>{/axis:value}, e.g. BNA:57-58/lay:L5/side:left)`] };
+  if (!UC_DESCRIPTOR_RE.test(s)) {
+    return {
+      errors: [
+        `\`${s}\` is not a valid UC Descriptor (<anchor>{/axis:value}, e.g. BNA:57-58/lay:L5/side:left; facet values use only A-Z a-z 0-9 and - + ~ : , &, so join words with "-", e.g. part:oculomotor-region, never "_", spaces or parentheses)`,
+      ],
+    };
+  }
   const errors: string[] = [];
   const [head, ...facetParts] = s.split("/");
   const anchors: UcAnchor[] = [];
@@ -285,6 +291,33 @@ export function parseUcDescriptor(text: string): { descriptor: UcDescriptor } | 
   }
   if (errors.length) return { errors };
   return { descriptor: { anchors, facets, side } };
+}
+
+const FACET_VALUE_BAD = /[^A-Za-z0-9:+~,\-&]+/g;
+
+/**
+ * A descriptor whose only problem is characters outside the facet value set (`part:oculomotor_region`,
+ * `part:rostral intermediate`, `part:SC(rostral)`), with each run of them replaced by `-` (QC-03-11 automatic fix).
+ * Null when the descriptor is already valid or when the replacement does not make it valid.
+ */
+export function repairFacetValues(text: string): string | null {
+  const t = text.trim();
+  if (!t || !("errors" in parseUcDescriptor(t))) return null;
+  const [head, ...facets] = t.split("/");
+  const fixed = facets.map((f) => {
+    const i = f.indexOf(":");
+    if (i < 0) return f;
+    const value = f
+      .slice(i + 1)
+      .trim()
+      .replace(FACET_VALUE_BAD, "-")
+      .replace(/-{2,}/g, "-")
+      .replace(/(^|,)-+|-+(?=,|$)/g, "$1");
+    return `${f.slice(0, i).trim()}:${value}`;
+  });
+  const next = [head.trim(), ...fixed].join("/");
+  if (next === t) return null;
+  return "errors" in parseUcDescriptor(next) ? null : next;
 }
 
 /** Case-insensitive comparison key: the current form, mol values sorted, whole string lower-cased. Idempotent. */

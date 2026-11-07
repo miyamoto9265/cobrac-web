@@ -45,6 +45,26 @@ const words = (x: string) => fold(x).split(/[^a-z0-9]+/).filter(Boolean);
 /** Letters only, for surname comparison (`van der Meer` → `vandermeer`) */
 export const foldName = (x: string) => fold(x).replace(/[^a-z]/g, "");
 
+/**
+ * Whether a surname from a Reference ID and one from a record are the same person's (equal, or one ends with the
+ * other: `Meer` / `van der Meer`). A record name with U+FFFD (a character Crossref or PubMed lost, `Pitk�nen`) matches
+ * any one or two letters there.
+ */
+export function sameSurname(refAuthor: string, recordAuthor: string): boolean {
+  const a = foldName(refAuthor);
+  if (!a) return false;
+  if (!recordAuthor.includes("\uFFFD")) {
+    const f = foldName(recordAuthor);
+    return !!f && (f === a || f.endsWith(a) || a.endsWith(f));
+  }
+  const parts = fold(recordAuthor)
+    .replace(/[^a-z\uFFFD]/g, "")
+    .split(/\uFFFD+/);
+  if (!parts.some(Boolean)) return false;
+  const pattern = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[a-z]{0,2}");
+  return new RegExp(`${pattern}$`).test(a);
+}
+
 /** Dice coefficient of the word multisets (0–1), and how much of the shorter title the longer one contains. */
 export function titleSimilarity(a: string, b: string): { dice: number; containment: number } {
   const wa = words(a);
@@ -127,11 +147,7 @@ export function compareWithRecord(ref: Pick<RefRow, "id" | "title" | "journal">,
   const notes: string[] = [];
   const { author, year } = parseRefId(ref.id);
   if (author && rec.authors.length) {
-    const a = foldName(author);
-    const at = rec.authors.findIndex((x) => {
-      const f = foldName(x);
-      return !!f && (f === a || f.endsWith(a) || a.endsWith(f));
-    });
+    const at = rec.authors.findIndex((x) => sameSurname(author, x));
     if (at !== 0) {
       problems.push(
         at > 0
@@ -255,7 +271,7 @@ export interface CitationCheck {
 const STRUCTURED_KEYS = new Set(["sourceOfId", "referenceIds"]);
 /** The `premises` of a `hypothesis` key are a Reference ID list too (hypothesis mode; `checkHcd` reports unknown premises). */
 const isPremises = (key: string, parentPath: string) => key === "premises" && parentPath.endsWith("/hypothesis");
-const BIBLIOGRAPHY_RE = /^##\s+references?\b/i;
+export const BIBLIOGRAPHY_RE = /^##\s+references?\b/i;
 
 /** Normalized form for comparing citations with IDs (spacing and case around the comma). */
 export const refKey = (id: string) => id.replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").replace(/\[\s*/, "[").replace(/\s*\]/, "]").toLowerCase();

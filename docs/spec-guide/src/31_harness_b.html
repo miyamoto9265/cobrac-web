@@ -250,10 +250,12 @@
   <tbody>
     <tr><td>QC-02-04</td><td>文献のタイトルが書誌と違う</td><td>筆頭著者と年が合い、タイトルだけが違うとき、Crossref / PubMed のタイトルに置き換える。著者か年が違えば別の論文なので返す</td></tr>
     <tr><td>QC-02-05</td><td>同じ DOI / PMID に 2 つの Reference ID</td><td>最初の ID に統合し、データファイルとレポートの引用を書き換える</td></tr>
-    <tr><td>QC-02-08</td><td>どこにも引用されていない文献</td><td><code>references.json</code> から削除する。レポートの <code>## References</code> だけにある文献は返す</td></tr>
+    <tr><td>QC-02-08</td><td>どこにも引用されていない文献</td><td><code>references.json</code> から削除する。レポートの <code>## References</code> だけにある文献も削除し、その行を参考文献一覧から外す</td></tr>
     <tr><td>QC-02-09</td><td>引用が論文の本文に見つからない</td><td>最も近い箇所の類似度が 0.6 以上で、その箇所が引用の形式を満たすとき、その箇所を引用し直す</td></tr>
     <tr><td>QC-03-03 / QC-08-01</td><td>英語でない値</td><td>実行中のモデルを推論の少ない設定で別に呼び、英語に訳す。訳しても英語でない値は返す</td></tr>
     <tr><td>QC-03-09</td><td>Names が SABRA の正式名で始まらない</td><td>RCS の正式名を先頭に置く</td></tr>
+    <tr><td>QC-03-10</td><td>アンカーだけの UC の Source of ID が違う</td><td>HOMBA のアンカー 1 つなら <code>DHBA</code>、BNA のアンカーだけなら <code>BNA</code> にする。そこにあった Reference ID は Comments に移す</td></tr>
+    <tr><td>QC-03-11</td><td>UC Descriptor のファセットの値に使えない文字がある</td><td><code>_</code>・空白・括弧などをハイフンにする（<code>part:oculomotor_region</code> → <code>part:oculomotor-region</code>）。直しても文法に合わなければ返す</td></tr>
     <tr><td>QC-03-17 / QC-03-26</td><td>Transmitter・Modulation Type・Taxon・Measurement method が BRA の値と違う</td><td>大文字・小文字や記号の違い、決まった言い換え（<code>glutamatergic</code>、<code>rats</code> など）なら BRA の値にする</td></tr>
     <tr><td>QC-03-23</td><td>引用がページや節の表記で始まる</td><td>表記を外す。残りが 10 語未満なら返す</td></tr>
     <tr><td>QC-03-24</td><td>図番号の形が違う</td><td>図番号を見つけて <code>Fig. 3B</code> の形にする</td></tr>
@@ -269,7 +271,7 @@
 <ul>
   <li><b>引用の検査</b>：プログラムによる検査で、外部には問い合わせません。<code>uc.json</code>・<code>connections.json</code>・<code>frg.json</code>・<code>report.md</code> の自由な文章に書いた <code>[Author, Year]</code> は、すべて <code>references.json</code> の Reference ID でなければなりません。空白や大文字・小文字だけが違う場合は、正確に書くよう求めます。すべての文献は、レポートの <code>## References</code> 以外のどこかで引用されている必要があります。2 つの Reference ID が同じ DOI / PMID を持つことはできません。</li>
   <li><b>照会</b>：ネットワークを使う照合です。DOI は Crossref で照会し、Crossref になければ doi.org の内容交渉（CSL JSON。DataCite・mEDRA・JaLC）で照会します。PMID は PubMed（NCBI E-utilities の <code>esummary</code>）で照会します。</li>
-  <li><b>一致の条件</b>：次の 3 点を確認します。記録に Reference ID の筆頭著者がいること（後ろの著者ならそう報告します）。出版年が ±1 年以内であること（オンライン版と印刷版の差を考えるため）。タイトルがあれば、語の重なりで似ていること。DOI と PMID の両方があれば、PubMed の DOI が同じでなければなりません。雑誌の違いは注記だけにします。識別子のない文献は、Crossref の検索でタイトル・筆頭著者・年が同じ論文が見つかれば、その DOI を提案します。</li>
+  <li><b>一致の条件</b>：次の 3 点を確認します。記録に Reference ID の筆頭著者がいること（後ろの著者ならそう報告します。記録の著者名に文字化けした文字 U+FFFD があれば、そこは 1〜2 文字のどの文字とも一致するとみなします）。出版年が ±1 年以内であること（オンライン版と印刷版の差を考えるため）。タイトルがあれば、語の重なりで似ていること。DOI と PMID の両方があれば、PubMed の DOI が同じでなければなりません。雑誌の違いは注記だけにします。識別子のない文献は、Crossref の検索でタイトル・筆頭著者・年が同じ論文が見つかれば、その DOI を提案します。</li>
   <li><b>状態</b>：照合の結果は、<code>verified</code>、<code>mismatch</code>、<code>not_found</code>、<code>invalid</code>（DOI / PMID の形でない）、<code>no_identifier</code>、<code>unverified</code>（照会に失敗）のいずれかです。<code>mismatch</code>・<code>not_found</code>・<code>invalid</code> と DOI の提案を問題として返します。段階が受理されたとき、画面に短い要約を出します。</li>
   <li><b>受け持ち</b>：FRG 段階は、<code>frg.json</code> と、レポートの <code>## FRG</code>、そこだけで引用された文献を受け持ちます。それ以外は HCD 段階が受け持ち、HCD の問題を FRG 段階で重ねて送ることはしません。</li>
   <li><b>障害のとき</b>：照会できなかった文献は <code>unverified</code> とし、問題にはしません。外部の障害で段階を止めないためです。結果は実行中キャッシュし、失敗したものは次の検査で再試行します。</li>

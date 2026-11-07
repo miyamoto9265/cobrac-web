@@ -388,7 +388,8 @@ describe("projects written before the BRA value rules (0.9 format)", () => {
     expect(turns).toHaveLength(1);
     const fix = turns[0];
     expect(fix).toMatch(/references\.json: \/references\/0\/literatureType is required/);
-    expect(fix).toMatch(/uc\.json: \/ucs\/1\/sourceOfId must be string \(got array\)/);
+    // the Source of ID list of the anchor-only VTA is fixed by the worker (DHBA; the papers move to Comments)
+    expect(fix).not.toMatch(/sourceOfId/);
     expect(fix).toMatch(/`VTA` -> `NAC` cites 2 references; write one connection per reference/);
     expect(fix).toMatch(/\/connections\/1\/taxon must be one of/);
     expect(fix).toMatch(/pointersOnLiterature starts with a page or section locator/);
@@ -396,7 +397,8 @@ describe("projects written before the BRA value rules (0.9 format)", () => {
     expect(warnings).toHaveLength(1);
 
     const csv = (f: string) => parseCsvObjects(readFileSync(join(p.csv, f), "utf8"));
-    expect(csv("Circuits.csv").find((r) => r["Circuit ID"] === "VTA")?.["Source of ID"]).toBe("[Schultz, 1997]");
+    expect(csv("Circuits.csv").find((r) => r["Circuit ID"] === "VTA")?.["Source of ID"]).toBe("DHBA");
+    expect(JSON.parse(readFileSync(join(p.hcd, "uc.json"), "utf8")).ucs[1].comments).toMatch(/\[Schultz, 1997\] \[Haber, 2010\]$/);
     const vtaNac = csv("Connections.csv").filter((r) => r["Sender Circuit ID (sCID)"] === "VTA" && r["Receiver Circuit ID (rCID)"] === "NAC");
     expect(vtaNac.map((r) => r["Reference ID"])).toEqual(["[Schultz, 1997]", "[Haber, 2010]"]);
     expect(vtaNac[0]).toMatchObject({ "sCID relation": "=", "Notation of sCID in Literature": "VTA", "rCID relation": "=", "Notation of rCID in Literature": "NAC" });
