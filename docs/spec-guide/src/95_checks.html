@@ -1,0 +1,259 @@
+<section class="part app">
+<div class="opener">
+  <div class="no">付録 E</div>
+  <h1 class="part" id="pe">検査項目の一覧</h1>
+  <p class="lead">本付録は、ワーカーが BRA を作るときに行う検査をすべて挙げ、それぞれに検査 ID を付けた一覧です。検査の流れと直し方は 3.10 に、名前の検査は 2.10 に、HCD と FRG の整合は 3.11 に、Canon との照合は第 5 部に記載しています。本付録は、それらの検査を 1 つの番号の体系でたどるための索引です。</p>
+  <div class="map">
+    <div><b>検査 ID</b>CoBRAC の検査につける番号です。<code>QC-種別-連番</code> の形で、種別も連番も 2 けたです。</div>
+    <div><b>Master の番号</b>WBAI の BRA data: Error code List (Master) の番号です。検査が BRA の決まりに由来するとき、その番号を併記します。</div>
+    <div><b>扱い</b>問題が見つかったとき、エージェントに直させるか、ワーカーが直すか、記録だけにするかを示します。</div>
+  </div>
+</div>
+
+<h2 id="se-1">E.1 検査 ID と番号の体系</h2>
+<p>検査 ID は <code>QC-種別-連番</code> の形です（QC は Quality Control の略）。種別の番号は、ワーカーが検査する順に振られています。新しい検査はその種別の最後に追加し、廃止した番号は使い回しません。整合の所見（X1 など）と Canon の衝突（C1 など）は、以前からのコードがログや画面に出るため、表に旧コードを併記しています。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">種別</th><th style="width:30%">対象</th><th>本文の節</th></tr></thead>
+  <tbody>
+    <tr><td>QC-01</td><td>調査（<code>research.json</code>）</td><td>3.7</td></tr>
+    <tr><td>QC-02</td><td>文献と引用</td><td>3.10</td></tr>
+    <tr><td>QC-03</td><td>HCD（<code>uc.json</code>・<code>connections.json</code>・<code>meta.json</code>）</td><td>2.10、3.8</td></tr>
+    <tr><td>QC-04</td><td>仮説モード</td><td>3.12</td></tr>
+    <tr><td>QC-05</td><td>FRG</td><td>3.9</td></tr>
+    <tr><td>QC-06</td><td>HCD と FRG の整合</td><td>3.11</td></tr>
+    <tr><td>QC-07</td><td>Canon との食い違い</td><td>5.5、5.7</td></tr>
+    <tr><td>QC-08</td><td>CSV と Template-v2-3 の出力</td><td>3.13</td></tr>
+    <tr><td>QC-09</td><td>LLM による記述の審査（番号だけを確保し、検査はまだない）</td><td>E.10</td></tr>
+    <tr><td>QC-10</td><td>BRA-DB の方針に関する検査（番号だけを確保し、検査はまだない）</td><td>―</td></tr>
+  </tbody>
+</table>
+
+<h3>出どころ</h3>
+<p>各表の「出どころ」の列は、検査の根拠を示します。</p>
+<ul>
+  <li><b>Master の番号</b>：WBAI の BRA data: Error code List (Master) に番号がある検査です。Master は Review Tool 4.4 が参照する表で、リポジトリの <code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code> に保存されています。番号はシートごとに分かれ、References が 1〜28、Circuits が 101〜171、Connections が 201〜294、FRG が 401〜571、FRG_FunctionalityReview が 1001〜2206 です。</li>
+  <li><b>BRA（番号なし）</b>：Template-v2-3 や Data Preparation Manual の決まりで、Master に番号がないものです。</li>
+  <li><b>CoBRAC</b>：CoBRAC が独自に加えた検査です。Master の決まりに CoBRAC が照合を加えたものは、Master の番号を先に書き、CoBRAC が加えた部分を添えています。</li>
+</ul>
+<p>Master の各番号には Error type があり、0 は自動エラー、1 は人が確認するエラー、2 は自動警告、3 は人が確認する警告です。CoBRAC の扱いは Error type とは別に決めています。</p>
+
+<h3>扱い</h3>
+<table class="compact">
+  <thead><tr><th style="width:18%">扱い</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td>差し戻し</td><td>修正ターンでエージェントに直させる。各段階で最大 3 回（調査は 2 回）。直らなければ警告として残し、次の段階に進む（3.10）</td></tr>
+    <tr><td>自動修正</td><td>エージェントに返す前に、ワーカーが決まった手順で直してから検査し直す。直せなかった問題は差し戻す。直し方は 3.10 の表、記録は <code>autofix_log.json</code></td></tr>
+    <tr><td>警告</td><td>エージェントには返さず、記録と画面に出す</td></tr>
+    <tr><td>記録</td><td>整合の記録などのファイルに書くだけ</td></tr>
+    <tr><td>調整</td><td>記録したうえで、実行ごとに 1 回の調整のターンの契機にする（3.11）</td></tr>
+    <tr><td>失敗</td><td>直らなければジョブを失敗で終える</td></tr>
+  </tbody>
+</table>
+
+<h3>件数</h3>
+<table class="compact">
+  <thead><tr><th style="width:30%">種別</th><th>全体</th><th>Master の番号あり</th><th>BRA（番号なし）</th><th>CoBRAC</th><th>自動修正あり</th></tr></thead>
+  <tbody>
+    <tr><td>QC-01 調査</td><td>9</td><td>0</td><td>0</td><td>9</td><td>0</td></tr>
+    <tr><td>QC-02 文献と引用</td><td>10</td><td>7</td><td>0</td><td>3</td><td>4</td></tr>
+    <tr><td>QC-03 HCD</td><td>41</td><td>17</td><td>1</td><td>23</td><td>9</td></tr>
+    <tr><td>QC-04 仮説モード</td><td>9</td><td>0</td><td>0</td><td>9</td><td>0</td></tr>
+    <tr><td>QC-05 FRG</td><td>16</td><td>2</td><td>1</td><td>13</td><td>1</td></tr>
+    <tr><td>QC-06 整合</td><td>8</td><td>0</td><td>0</td><td>8</td><td>0</td></tr>
+    <tr><td>QC-07 Canon</td><td>12</td><td>3</td><td>0</td><td>9</td><td>2</td></tr>
+    <tr><td>QC-08 出力</td><td>3</td><td>0</td><td>0</td><td>3</td><td>2</td></tr>
+    <tr><td><b>合計</b></td><td><b>108</b></td><td><b>29</b></td><td><b>2</b></td><td><b>77</b></td><td><b>18</b></td></tr>
+  </tbody>
+</table>
+
+<h3>ほかのコードとの関係</h3>
+<p>Canon の審査画面と BRA の出力のチェッカーは、検査 ID ではなく、Master の番号と <code>cobrac:</code> で始まるコードを使います（2.10、5.8）。オントロジー報告書の付録 D の番号との対応は C.3 にあります。</p>
+
+<h2 id="se-2">E.2 調査</h2>
+<p>調査モードのプロジェクトだけで行います。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-01-01</td><td><code>research.json</code> がスキーマに合う</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-02</td><td>候補の ID が重複しない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-03</td><td>候補ごとに異なる検索が 2 件以上ある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-04</td><td>PubMed か Europe PMC の検索が 1 件以上ある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-05</td><td>書かれた検索文字列が、ワーカーの検索ログにある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-06</td><td>候補の状態と証拠が合う（<code>supported</code> などは証拠あり、<code>not_found</code> は証拠なし）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-07</td><td>被覆（<code>found</code> / <code>searched_none</code>）と証拠が合う</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-08</td><td>証拠に PMID か DOI がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-01-09</td><td>支持以外の状態と <code>not_applicable</code> に理由がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+  </tbody>
+</table>
+
+<h2 id="se-3">E.3 文献と引用</h2>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-02-01</td><td>文献種別があり、11 の値のいずれか</td><td>Master 10 / 11</td><td>差し戻し</td></tr>
+    <tr><td>QC-02-02</td><td>Reference ID が重複しない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-02-03</td><td>DOI のない文献に <code>alternativeUrl</code> か PMID がある</td><td>Master 1</td><td>差し戻し</td></tr>
+    <tr><td>QC-02-04</td><td>DOI / PMID が実在し、著者・年・タイトルが書誌と合う</td><td>Master 2（形式）。照会は CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-02-05</td><td>同じ DOI / PMID を別の Reference ID で登録していない</td><td>Master 3</td><td>自動修正</td></tr>
+    <tr><td>QC-02-06</td><td>接続の Reference ID が <code>references.json</code> にある</td><td>Master 253</td><td>差し戻し</td></tr>
+    <tr><td>QC-02-07</td><td>本文やレポートで引いた <code>[Author, Year]</code> が <code>references.json</code> にあり、表記が一致する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-02-08</td><td><code>references.json</code> の文献が、どこかで引用されている</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-02-09</td><td>引用文が論文の全文か要旨に見つかる（類似度 0.9 以上）</td><td>Master 273（人が確認する項目）</td><td>自動修正</td></tr>
+    <tr><td>QC-02-10</td><td>同じ引用文を、別の回路の接続に使い回していない</td><td>Master 274 の一部</td><td>警告</td></tr>
+  </tbody>
+</table>
+<p>QC-02-04 と QC-02-09 は、照会先に届かないときや本文を取得できないときは未照合として通します（3.10）。</p>
+
+<h2 id="se-4">E.4 HCD</h2>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-03-01</td><td>ファイルがあり、JSON として読める</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-02</td><td>JSON Schema に合う。Master 101・107・201・219・252 の空欄の禁止もここで確認する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-03</td><td>値がすべて英語</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-03-04</td><td><code>report.md</code> に <code>## HCD</code> の節がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-05</td><td>プロジェクト名（TLF in ROI）が正しい形</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-06</td><td>Circuit ID と UC Descriptor が重複しない</td><td>Master 103</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-07</td><td>Circuit ID の文字が英数字と <code>. _ ~ - / + ( )</code> だけ</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-08</td><td><code>ROI_</code> で始まる ID を使わない</td><td>Master 105</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-09</td><td>Names が SABRA の正式名で始まる</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-03-10</td><td>Source of ID が 1 つの値で、Descriptor と合う</td><td>Master 107 / 108（値 <code>BNA</code> は CoBRAC の拡張）</td><td>自動修正</td></tr>
+    <tr><td>QC-03-11</td><td>UC Descriptor があり、文法どおりで正規形</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-03-12</td><td>Circuit ID が Descriptor と対応する（SABRA の略称、括弧の項目、左右）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-13</td><td>新皮質は BNA、それ以外は DHBA という境界を守る</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-14</td><td>より細かい UC に分けた回路を UC のまま残さない（Collection にする）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-15</td><td>Collection に Sub-Circuits が 1 件以上ある</td><td>Master 120</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-16</td><td>Sub-Circuits が実在し、自分自身・循環・すべて <code>makeshift</code> のいずれでもない</td><td>Master 121。循環などは CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-17</td><td>Transmitter と Modulation Type が BRA の値</td><td>Master 131 / 134</td><td>自動修正</td></tr>
+    <tr><td>QC-03-18</td><td>接続 1 件に文献 1 本。同じ送り手・受け手・文献の組は 1 回だけ</td><td>Master 252。重複は CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-19</td><td>sender と receiver が <code>uc.json</code> にある</td><td>Master 202 / 224</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-20</td><td>Collection を sender や receiver にしない</td><td>Master 203（sender）。receiver は CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-21</td><td>複数の SABRA 単位にまたがる sender には <code>uniformityNote</code> がある</td><td>Master 203</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-22</td><td>Pointers on literature と Pointers on figure の少なくとも一方がある</td><td>Master 271 / 277</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-23</td><td>引用文は 10 語以上で、ページや節の表記で始まらない</td><td>Master 272</td><td>自動修正</td></tr>
+    <tr><td>QC-03-24</td><td>図番号が <code>Fig. 3B</code> の形</td><td>Master 278</td><td>自動修正</td></tr>
+    <tr><td>QC-03-25</td><td>Relation が <code>&lt;</code>・<code>=</code>・<code>&gt;</code> のいずれかで、論文中の名前が書かれている</td><td>Master 207 / 208 / 213 / 229 / 230 / 235</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-26</td><td>Taxon と Measurement method が BRA の値</td><td>Master 259 / 260 / 265 / 266</td><td>自動修正</td></tr>
+    <tr><td>QC-03-27</td><td>ROI 内部の UC が 1 つ以上ある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-28</td><td>どの UC にも接続がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-29</td><td>Output Semantics がある（出力のない外部の UC を除く）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-30</td><td>Output Semantics が自分の ID の 1 項目 <code>[ID] 内容;</code></td><td>Master 561 / 562 / 563</td><td>自動修正</td></tr>
+    <tr><td>QC-03-31</td><td>文中の <code>[U.id]</code> が実在の UC を指し、Collection を指さない</td><td>BRA（番号なし）</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-32</td><td>ROI 内部の UC の interface と 5 つの機能の項目が空でない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-33</td><td>interface が <code>(出力) = 自分の ID(入力)</code> の形</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-34</td><td>interface の入力と出力が接続と一致する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-35</td><td>ROI の各要素に固有の内部 UC があり、内部 UC はすべていずれかの要素に属する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-36</td><td>ROI が挙げる領域の数が、要素の数を超えない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-37</td><td>左右が書かれている。利用者の指定がなければ両側とし、判断ログに書く</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-38</td><td>左右の指定と UC の左右が合う</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-40</td><td>ROI の外（<code>noROI(input)</code> か <code>noROI(input,output)</code>）から ROI の UC に入る接続が 1 つ以上ある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-41</td><td>Implementation の左辺は UC 自身で、右辺は Interface の入力（と UC 自身）だけを使う</td><td>Master 462 の一部</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-42</td><td>HCD が 1 つにつながっている。ROI の UC を含む部分から切り離された UC がない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+  </tbody>
+</table>
+<p>QC-03-39 は、Source of ID や Reference ID が <code>makeshift</code> のときに編集者へ知らせる検査（Master 109 / 254）のために確保した番号で、検査はまだありません。</p>
+
+<h2 id="se-5">E.5 仮説モード</h2>
+<p>仮説モードのプロジェクトだけで行います（3.12）。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-04-01</td><td>仮説を許さないプロジェクトでは、仮説を書かない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-02</td><td>仮説が、利用者の許した範囲の中にある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-03</td><td>仮説に理由があり、前提の文献を照合できる</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-04</td><td>対応する調査の候補が <code>not_found</code> か <code>weak</code></td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-05</td><td>種類ごとの要件を満たす（population は <code>makeshift</code>、伝達物質と修飾は値あり）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-06</td><td>存在の仮説と <code>Hypothetical</code> の接続が過不足なく対応し、根拠のある投射に重ならない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-07</td><td>接続の仮説の最初の前提が、その接続の文献</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-08</td><td>仮説の比率が上限以内</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-04-09</td><td><code>report.md</code> に仮説の表と、根拠だけの経路がない旨の記載がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+  </tbody>
+</table>
+
+<h2 id="se-6">E.6 FRG</h2>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-05-01</td><td><code>frg.json</code> が読めて、スキーマに合う</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-02</td><td>ノード ID が <code>R.</code> で始まり、空白を含まない</td><td>Master 402</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-03</td><td>ノード ID が重複しない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-04</td><td>subnodes があり、実在のノードか UC を指す</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-05</td><td>Collection や ROI の外の UC を葉にしない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-06</td><td>GN の UC は 2 個まで。ループなどは理由を書けば 3〜4 個</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-07</td><td>UC が 1 個だけの GN を作らない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-08</td><td>GN の UC 同士が ROI 内部の接続でつながる</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-09</td><td>GN の interface と機能の項目が空でない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-10</td><td>1 つの UC の親になる GN は 2 つまで</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-11</td><td>ROI 内部の UC がすべて、いずれかの GN に属する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-12</td><td>文中の <code>[U.id]</code>・<code>[R.id]</code> が実在する</td><td>BRA（番号なし）</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-13</td><td>根は TLF の 1 つだけで、循環がない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-14</td><td><code>report.md</code> に <code>## FRG</code> の節がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-15</td><td>調整の後、<code>decision_log.md</code> に変更の記録がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-05-16</td><td>ノード ID の <code>R.</code> に続く部分がケバブケース（英数字とハイフン）</td><td>Master 403</td><td>自動修正</td></tr>
+  </tbody>
+</table>
+
+<h2 id="se-7">E.7 HCD と FRG の整合</h2>
+<p>所見の詳しい定義は 3.11 にあります。X4 は古い規則のプロジェクトでだけ算出します（付録 C）。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th style="width:8%">旧コード</th><th>内容</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-06-01</td><td>X1</td><td>GN の interface が、UC の接続にある入出力を落としている</td><td>調整</td></tr>
+    <tr><td>QC-06-02</td><td>X2</td><td>ROI の入出力と <code>noROI</code> の印が食い違う</td><td>調整</td></tr>
+    <tr><td>QC-06-03</td><td>X3</td><td>GN の interface に、どの接続にもない入出力がある</td><td>調整</td></tr>
+    <tr><td>QC-06-04</td><td>X4</td><td>GN の 2 つの UC がつながっていない</td><td>記録</td></tr>
+    <tr><td>QC-06-05</td><td>X5</td><td>ROI 内部の UC が、属する GN の機能の文に出てこない</td><td>記録</td></tr>
+    <tr><td>QC-06-06</td><td>X6</td><td>GN の Requirement realization が、interface の UC をすべて挙げていない</td><td>記録</td></tr>
+    <tr><td>QC-06-07</td><td>X8</td><td>FRG が潰れている（GN が 1 つだけ、内部の UC が 3 未満など）</td><td>調整</td></tr>
+    <tr><td>QC-06-08</td><td>X9</td><td>内部の UC が回全体などで粗すぎる</td><td>記録</td></tr>
+  </tbody>
+</table>
+<p>出どころはすべて CoBRAC です。</p>
+
+<h2 id="se-8">E.8 Canon との食い違い</h2>
+<p>Canon を使うプロジェクトだけで、HCD の検査の後に行います（5.5）。衝突の定義は 5.7 にあります。</p>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th style="width:8%">旧コード</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-07-01</td><td>C1</td><td>UC か Collection かが Canon と違う</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-07-02</td><td>C2b</td><td>Collection のメンバーが Canon より多い</td><td>CoBRAC</td><td>警告</td></tr>
+    <tr><td>QC-07-03</td><td>C2c</td><td>Collection の分け方が Canon と矛盾する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-07-04</td><td>C3</td><td>Canon で Uniform の回路を、さらに細かく分けている</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-07-05</td><td>C4</td><td>同じ Circuit ID が別の回路を指す</td><td>Master 103</td><td>差し戻し</td></tr>
+    <tr><td>QC-07-06</td><td>C5</td><td>Canon で Collection の回路を、接続の端にしている</td><td>Master 203</td><td>差し戻し</td></tr>
+    <tr><td>QC-07-07</td><td>C6</td><td>正式名が Canon と違う</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-07-08</td><td>C7</td><td>伝達物質などの属性が Canon と違う</td><td>CoBRAC</td><td>警告</td></tr>
+    <tr><td>QC-07-09</td><td>C8</td><td>同じ Reference ID の DOI / PMID が Canon と違う</td><td>CoBRAC</td><td>自動修正</td></tr>
+    <tr><td>QC-07-10</td><td>C8b</td><td>Canon にある文献を、別の Reference ID で登録している</td><td>Master 3</td><td>警告</td></tr>
+    <tr><td>QC-07-11</td><td>C9b</td><td>同じ接続の内容が Canon と違う</td><td>CoBRAC</td><td>警告</td></tr>
+    <tr><td>QC-07-12</td><td>C12</td><td>グループのメンバーが Canon と違う</td><td>CoBRAC</td><td>警告</td></tr>
+  </tbody>
+</table>
+<p>C8c と C9c は、文献と引用文の照合（QC-02-04、QC-02-09）に任せます。C13 は Canon の PR の審査だけで使います。</p>
+
+<h2 id="se-9">E.9 CSV と Template の出力</h2>
+<table class="compact">
+  <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:20%">扱い</th></tr></thead>
+  <tbody>
+    <tr><td>QC-08-01</td><td>CSV に英語以外の文字がない</td><td>CoBRAC</td><td>自動修正。直らなければ CSV を出さずに失敗</td></tr>
+    <tr><td>QC-08-02</td><td>CSV からグラフを作れる（空でない）</td><td>CoBRAC</td><td>差し戻し。直らなければ失敗（CSV は出る）</td></tr>
+    <tr><td>QC-08-03</td><td>Template の References に書く雑誌名が、Template の雑誌一覧の綴りと合う</td><td>CoBRAC</td><td>自動修正</td></tr>
+  </tbody>
+</table>
+<p>QC-08-03 は、Template-v2-3 に書き出すときに行います。大文字と小文字、括弧、先頭の The、<code>&amp;</code> と and、記号の違いだけであれば、一覧の綴りに直します。一覧にない雑誌は、書き出しの注記に出します（3.13）。</p>
+
+<h2 id="se-10">E.10 検査の対象にしない項目</h2>
+<p>Master の番号のうち、次のものは CoBRAC の検査の対象にしていません。</p>
+<table class="compact">
+  <thead><tr><th style="width:34%">Master の番号</th><th>理由</th></tr></thead>
+  <tbody>
+    <tr><td>127・420・421・424・430</td><td>ワーカーが自分で書く列なので、検査は要らない。ROI のレコード、Review End Line、ROI の外の UC の Capability の定型文も同じ</td></tr>
+    <tr><td>170・171・404・412・413・422・423・432</td><td>人が BIF や FRG の図と見比べる項目。CoBRAC はこれらの図を作らない</td></tr>
+    <tr><td>6・124・137・143・241・283</td><td>空欄でも問題にならない列（BibTex、Super Class、Size、Physiological Data、In-depth literature）</td></tr>
+    <tr><td>FRG_FunctionalityReview の 1001〜2206、FRG の 453〜459・462・471・472・542・564</td><td>記述の中身を人や LLM が判断する項目。QC-09 の番号を確保しているが、CoBRAC にはまだ検査がない。462 の一部は QC-03-41 で確認する</td></tr>
+    <tr><td>274 / 279</td><td>引用文や図が接続の存在を示しているかを人が確認する項目。CoBRAC は引用文が論文にあることだけを確かめる（QC-02-09）</td></tr>
+  </tbody>
+</table>
+<p>このほか、Master 12（Alternative URL が URL の形）と、109 / 254（<code>makeshift</code> の通知）には、まだ検査がありません。</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>cross.ts</code>・<code>canonConstraints.ts</code>・<code>autofix.ts</code>（<code>AUTO_FIX_CODES</code>）・<code>braTemplate.ts</code>、<code>packages/worker/src/pipeline.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>、<code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code></p>
+</section>
