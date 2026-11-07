@@ -1,8 +1,9 @@
-import { ChevronDown, ChevronUp, CheckCheck, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronUp, CheckCheck, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName, toCsv } from "@cobrac/shared";
+import { CanonIssuesView, issueTargetParam } from "../components/CanonIssues";
 import { Section } from "../components/DetailPanel";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PlanChip } from "../components/PlanChip";
@@ -26,6 +27,7 @@ import { workspacePath } from "./ProjectWorkspacePage";
 const VIEW_TABS: { view: CanonView; label: MessageKey; Icon: LucideIcon }[] = [
   { view: "hcd", label: "chat.hcd", Icon: Network },
   { view: "tables", label: "ws.tables", Icon: Table2 },
+  { view: "issues", label: "iss.tab", Icon: AlertTriangle },
   { view: "projects", label: "canon.members", Icon: FolderOpen },
   { view: "pulls", label: "pr.list", Icon: GitPullRequest },
   { view: "history", label: "canon.history", Icon: History },
@@ -390,7 +392,12 @@ function HistoryView({ canonId, revisions }: { canonId: string; revisions: Canon
         {revisions.map((r) => (
           <li key={r.revision} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2 text-sm">
             <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-700">{t("canon.revision", { n: r.revision })}</span>
-            {r.prNo ? (
+            {r.issueId && r.issueAction ? (
+              <Link to={canonPath(canonId, "issues")} className="min-w-0 break-words text-amber-800 hover:underline">
+                {t(`iss.history.${r.issueAction}` as MessageKey, { id: r.issueId })}
+                {r.actorName && <span className="text-slate-500"> · {r.actorName}</span>}
+              </Link>
+            ) : r.prNo ? (
               <Link to={canonPullPath(canonId, r.prNo)} className="min-w-0 break-words text-blue-700 hover:underline">
                 <span className="font-mono text-slate-500">#{r.prNo}</span> {r.source}
               </Link>
@@ -446,6 +453,9 @@ function CanonTablesView({ snapshot }: { snapshot: CanonSnapshot }) {
   );
 }
 
+/** Emphasis choice of the Canon graph that highlights the circuits an open problem reaches. */
+const ISSUES_EMPHASIS = "__issues";
+
 /** The Canon's graph: its shared layer drawn like a project's HCD, with one member project's circuits emphasised on request. */
 function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; snapshot: CanonSnapshot }) {
   const t = useT();
@@ -453,7 +463,9 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
   const graph = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
   const layout = useGraphLayout(canonId, "hcd", { canon: true });
   const [emphasis, setEmphasis] = useState("");
-  const emphasised = useMemo(() => (emphasis ? circuitsOfProject(snapshot, emphasis) : null), [snapshot, emphasis]);
+  // "problems": the circuits an open problem reaches; otherwise one member project's circuits
+  const flaggedIds = useMemo(() => new Set(snapshot.circuits.filter((c) => c.issueIds?.length).map((c) => c.circuitId)), [snapshot]);
+  const emphasised = useMemo(() => (emphasis === ISSUES_EMPHASIS ? flaggedIds : emphasis ? circuitsOfProject(snapshot, emphasis) : null), [snapshot, emphasis, flaggedIds]);
   const sourcesOf = useMemo(() => new Map(snapshot.circuits.map((c) => [c.circuitId, c] as const)), [snapshot]);
   const names = useMemo(() => new Map(detail.members.map((m) => [m.projectId, m.name] as const)), [detail.members]);
   // projects that pushed something, members first (a project that left the Canon keeps its entries)
@@ -462,6 +474,8 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
     return [...detail.members.filter((m) => ids.has(m.projectId)).map((m) => m.projectId), ...[...ids].filter((id) => !names.has(id)).sort()];
   }, [snapshot, detail.members, names]);
   const owner = detail.role === "owner";
+  const reviewer = owner || detail.role === "editor";
+  const issueOf = useMemo(() => new Map((snapshot.issues ?? []).map((i) => [i.id, i] as const)), [snapshot]);
   return (
     <HcdGraphView
       graph={graph}
@@ -471,7 +485,7 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
       frgBase={null}
       emphasis={emphasised}
       headerExtra={
-        pushers.length > 1 && (
+        (pushers.length > 1 || flaggedIds.size > 0) && (
           <select
             value={emphasis}
             onChange={(e) => setEmphasis(e.target.value)}
@@ -481,7 +495,8 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
             className="ml-auto w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11"
           >
             <option value="">{t("cv.emphasisAll")}</option>
-            {pushers.map((id) => (
+            {flaggedIds.size > 0 && <option value={ISSUES_EMPHASIS}>{`${t("iss.tab")} (${flaggedIds.size})`}</option>}
+            {(pushers.length > 1 ? pushers : []).map((id) => (
               <option key={id} value={id}>
                 {names.get(id) ?? id}
               </option>
@@ -494,7 +509,24 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
         if (!c) return null;
         return (
           <>
-            {c.state === "flagged" && <div className="mb-3 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800">{t("cv.flagged")}</div>}
+            {c.state === "flagged" && (
+              <div className="mb-3 grid gap-1 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-800" data-testid="node-issues">
+                {c.issueIds?.length ? (
+                  c.issueIds.map((id) => (
+                    <Link key={id} to={canonPath(canonId, "issues")} className="whitespace-pre-line break-words hover:underline">
+                      {t("iss.node", { id, reason: issueOf.get(id)?.reason ?? "" })}
+                    </Link>
+                  ))
+                ) : (
+                  <span>{t("cv.flagged")}</span>
+                )}
+              </div>
+            )}
+            {reviewer && c.state !== "invalidated" && (
+              <Link to={`${canonPath(canonId, "issues")}?${issueTargetParam("circuit", c.key)}`} className="mb-3 inline-flex items-center gap-1 text-xs text-amber-800 hover:underline coarse:min-h-11" data-testid="node-report">
+                <AlertTriangle size={12} /> {t("iss.report")}
+              </Link>
+            )}
             <Section title={t("canon.sources")} />
             <ul className="mb-3 flex flex-col gap-1">
               {c.sources.map((id) => (
@@ -617,13 +649,22 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
       setErr(e instanceof Error ? e.message : String(e));
     }
   };
-  const ready = (v: CanonView) => (v === "hcd" || v === "tables" ? hasContent : true);
+  const ready = (v: CanonView) => (v === "hcd" || v === "tables" || v === "issues" ? hasContent : true);
+  const openIssues = (snapshot?.issues ?? []).filter((i) => !i.resolution).length;
   const btn = "flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs coarse:min-h-11 disabled:opacity-50";
 
   const center = (() => {
     switch (view) {
       case null:
         return null;
+      case "issues":
+        if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
+        if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
+        return (
+          <CardPane>
+            <CanonIssuesView detail={detail} snapshot={snapshot} onChanged={reload} />
+          </CardPane>
+        );
       case "hcd":
       case "tables":
         if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
@@ -731,7 +772,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
         <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("cv.views")}>
           {VIEW_TABS.map(({ view: v, label, Icon }) => {
             const on = v === view;
-            const count = v === "pulls" ? openPulls : v === "projects" ? detail.members.length : 0;
+            const count = v === "pulls" ? openPulls : v === "projects" ? detail.members.length : v === "issues" ? openIssues : 0;
             return (
               <Link
                 key={v}
@@ -743,7 +784,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
                 }`}
               >
                 <Icon size={14} className={on ? "text-blue-600" : undefined} /> {t(label)}
-                {count > 0 && <span className={`rounded-full px-1.5 text-[10px] ${v === "pulls" ? "bg-violet-100 text-violet-800" : "bg-slate-200 text-slate-600"}`}>{count}</span>}
+                {count > 0 && <span className={`rounded-full px-1.5 text-[10px] ${v === "pulls" ? "bg-violet-100 text-violet-800" : v === "issues" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600"}`}>{count}</span>}
               </Link>
             );
           })}

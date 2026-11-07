@@ -8,6 +8,7 @@
 
 import { checkHcd, type HcdModel } from "./harness.js";
 import { DEFAULT_HYPOTHESIS_MAX_SHARE, hypothesisRecords, type EvidenceOptions, type HypothesisRecord } from "./hypothesis.js";
+import type { CanonIssue } from "./canonIssues.js";
 import { modernCircuitId, normalizeUcDescriptor, parseUcDescriptor, ucFacetValues } from "./ucNaming.js";
 
 export type CanonCircuitStatus = "uniform" | "collection";
@@ -39,6 +40,8 @@ export interface CanonCircuit {
   /** Every project that pushed this entry */
   sources: string[];
   state: CanonEntryState;
+  /** Open problems that reach this entry (its own or one upstream of it); absent when none (canonIssues.ts) */
+  issueIds?: string[];
 }
 
 /** A Collection that groups several units and has no descriptor (e.g. a named loop). Key `group:<Circuit ID>`. */
@@ -74,6 +77,8 @@ export interface CanonConnection {
   origin: CanonOrigin;
   sources: string[];
   state: CanonEntryState;
+  /** Open problems that reach this connection; absent when none (canonIssues.ts) */
+  issueIds?: string[];
 }
 
 export interface CanonBif {
@@ -99,6 +104,8 @@ export interface CanonReference {
   origin: CanonOrigin;
   sources: string[];
   state: CanonEntryState;
+  /** Open problems that reach this reference; absent when none (canonIssues.ts) */
+  issueIds?: string[];
 }
 
 export interface CanonUcRole {
@@ -150,6 +157,8 @@ export interface CanonSnapshot extends CanonContent {
   canonId: string;
   revision: number;
   createdAt: string;
+  /** Problems reported on entries of this Canon, open and settled (absent in revisions written before them) */
+  issues?: CanonIssue[];
 }
 
 /** What a project (or another Canon) brings to a Canon (same shape; origins carry pr = 0 until merged). */
@@ -452,7 +461,16 @@ export function currentCanonSnapshot(snapshot: CanonSnapshot): CanonSnapshot {
       receiver: k(c.receiver),
     })),
     roles: snapshot.roles.map((r) => ({ ...r, ucRoles: r.ucRoles.map((u) => ({ ...u, key: k(u.key) })) })),
+    ...(snapshot.issues ? { issues: snapshot.issues.map((i) => ({ ...i, targetKey: issueTargetKey(i.targetKind, i.targetKey, k) })) } : {}),
   };
+}
+
+/** An issue's target key in the current descriptor form (connection keys are `<sender>|<receiver>|<Reference ID>`). */
+function issueTargetKey(kind: CanonIssue["targetKind"], key: string, k: (key: string) => string): string {
+  if (kind === "circuit") return k(key);
+  if (kind === "reference") return key;
+  const [s, r, ...ref] = key.split("|");
+  return connKey(k(s), k(r ?? ""), ref.join("|"));
 }
 
 /** b is finer than a: same anchors (and side) and a strict superset of a's facet values. */
@@ -753,6 +771,8 @@ export function mergeCanon(stored: CanonSnapshot, incoming: CanonIncoming, diff:
     bif: byKey(bif),
     references: byKey(references),
     roles,
+    // problems stay with the Canon; applyCanonIssues (canonIssues.ts) spreads them over the merged entries
+    ...(base.issues ? { issues: clone(base.issues) } : {}),
   };
 }
 

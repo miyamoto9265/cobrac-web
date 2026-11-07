@@ -238,6 +238,11 @@ export interface CanonRevisionRecord {
   approvedAt?: string;
   /** Approved by the AI of an autonomous plan for the owner */
   approvedVia?: CanonAiActor;
+  /** A revision that only reported or settled a problem (`source` is `issue:<id>`, `prNo` 0) */
+  issueId?: string;
+  issueAction?: "raised" | "fixed" | "dismissed" | "invalidated";
+  /** Who reported or settled it */
+  actorName?: string;
 }
 export const canonMemberSk = (projectId: string) => `${CANON_MEMBER_PREFIX}${projectId}`;
 
@@ -317,6 +322,9 @@ export interface CanonRevisionSummary {
   connectionCount?: number;
   approvedByName?: string;
   approvedAt?: string;
+  issueId?: string;
+  issueAction?: "raised" | "fixed" | "dismissed" | "invalidated";
+  actorName?: string;
 }
 
 /** Canon of a new project: none, an existing Canon of the owner, or a new Canon seeded from existing projects. */

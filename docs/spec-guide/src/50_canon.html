@@ -143,7 +143,7 @@
   <li><b>回路</b>は、正規化した UC Descriptor をキーにします（第 2 部）。プロジェクトの JSON では接続を Circuit ID で書くので、push のときに Descriptor に解決します。Descriptor のない UC は取り込まれず、その旨が一覧で示されます。</li>
   <li><b>接続</b>は、送り手・受け手・Reference ID の組をキーにし、文献の欄と引用文の照合状態を持ちます。<b>文献</b>は Reference ID をキーにし、照合状態を持ちます。</li>
   <li>すべてのエントリは<b>来歴</b>を持ちます。来歴には、どのプロジェクトのどの rev から、どの PR で入ったかを記録し、別の Canon を経由したときはその Canon と rev も記録します。あわせて、そのエントリを push したプロジェクトの一覧も持ちます。</li>
-  <li>エントリの状態は、有効（<code>valid</code>）、要注意（<code>flagged</code>。Collection に変わった回路に接続が残っているときなど）、無効（<code>invalidated</code>）のどれかです。</li>
+  <li>エントリの状態は、有効（<code>valid</code>）、要注意（<code>flagged</code>。Collection に変わった回路に接続が残っているときや、未解決の問題が付いたとき）、無効（<code>invalidated</code>）のどれかです。問題（5.13）は rev の <code>issues</code> に記録し、問題が届くエントリには <code>issueIds</code> を付けます。</li>
   <li>プロジェクトがエントリを使わなくなっても、Canon からは消しません。差分では「プロジェクトで使わなくなった」と表示するだけです。</li>
   <li>保存済みの回路は、アンカーの境界の変更（2.3）や古い命名の形を含んでいても書き換えません。比べるときに現在の形に直します。</li>
   <li><b>仮説</b>（仮説モード、3.12）は共有層に入れません。push のときに、次のものを共有層から外し、そのプロジェクトの役割層にだけ置きます。仮説の付いた接続、仮説の集団で終わる接続、集団そのものが仮説の UC、仮説の性質です。</li>
@@ -168,6 +168,7 @@
     <li>Uniform の回路を分割しません。この TLF でどうしても細かく分ける必要があれば、理由を <code>decision_log.md</code> に書いて利用者に質問します。</li>
     <li>Canon の接続と文献を使うときは、記録をそのままコピーします。</li>
     <li>新しいエントリは粒度方針に従います。新しいエントリは、push のときに Canon への提案になります。</li>
+    <li>問題（<code>problems</code>）の付いたエントリは、そのままコピーしません。直すか、使わないかを決め、どちらにしたかを <code>decision_log.md</code> に書きます。無効のエントリは使いません（5.13）。</li>
   </ul>
 </div>
 <p>仮説は、この照合では証拠と同じに扱い、Canon の制約を緩めません。Canon で照合済みの文献・引用文と同じものは、もう一度照合しません。その場合は、文献と引用文の照合の記録に「Canon で照合済み」と残します。</p>
@@ -176,9 +177,9 @@
   <thead><tr><th style="width:22%">ファイル</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><code>README.md</code></td><td>Canon の名前・ID・rev、粒度方針、ファイルの説明</td></tr>
-    <tr><td><code>circuits.json</code></td><td>Canon のすべての回路（Circuit ID、UC Descriptor、正式名、<code>uniform</code>、Sub-Circuits、性質、Output Semantics、状態）</td></tr>
-    <tr><td><code>connections.json</code></td><td>UC どうしの接続（論文ごとに 1 件。文献の欄と引用文の照合状態付き。<code>quoteCheck</code> が <code>verified</code> で始まれば照合済み）</td></tr>
-    <tr><td><code>references.json</code></td><td>Canon の文献（<code>check</code> が <code>verified</code> なら照合済み）</td></tr>
+    <tr><td><code>circuits.json</code></td><td>Canon のすべての回路（Circuit ID、UC Descriptor、正式名、<code>uniform</code>、Sub-Circuits、性質、Output Semantics、状態、未解決の問題 <code>problems</code>）</td></tr>
+    <tr><td><code>connections.json</code></td><td>UC どうしの接続（論文ごとに 1 件。文献の欄と引用文の照合状態付き。<code>quoteCheck</code> が <code>verified</code> で始まれば照合済み。状態と <code>problems</code> 付き）</td></tr>
+    <tr><td><code>references.json</code></td><td>Canon の文献（<code>check</code> が <code>verified</code> なら照合済み。状態と <code>problems</code> 付き）</td></tr>
     <tr><td><code>relevant.json</code></td><td>このプロジェクトがすでに使っている回路と、同じアンカーの回路（親・子・兄弟）の Circuit ID。該当があるときだけ置く</td></tr>
   </tbody>
 </table>
@@ -384,9 +385,10 @@
   <tbody>
     <tr><td><b>最新</b></td><td>最新の rev に固定されている</td><td>—</td></tr>
     <tr><td><b>新しい rev あり</b></td><td>Canon は進んだが、このプロジェクトが使う定義は変わっていない</td><td>「最新の rev にする」で固定を進める。次の実行から従う</td></tr>
-    <tr><td><b>影響する変更あり</b></td><td>使っている回路が Collection / Uniform に変わった、Sub-Circuits や ID が変わった、使っている接続の端が Collection になった。変更の一覧と、フォローアップの文が付く</td><td>「Canon に合わせる」で固定を進め、プロジェクトを直すフォローアップを送る</td></tr>
+    <tr><td><b>影響する変更あり</b></td><td>使っている回路が Collection / Uniform に変わった、Sub-Circuits や ID が変わった、使っている接続の端が Collection になった。使っているエントリに問題が付いた、または問題が直った・無効になった（5.13）。変更の一覧と、フォローアップの文が付く</td><td>「Canon に合わせる」で固定を進め、プロジェクトを直すフォローアップを送る</td></tr>
   </tbody>
 </table>
+<p>Canon の所有者は、Canon の「問題」タブの「まとめて Canon に合わせる」で、影響する変更のある参加プロジェクトすべてに、この操作をまとめて行えます（5.13）。</p>
 <h3>実装</h3>
 <p>状態は <code>GET /projects/{id}/canon</code> が <code>current</code> / <code>behind</code> / <code>affected</code> で返します。「最新の rev にする」は <code>POST /projects/{id}/canon/pull</code> です。</p>
 
@@ -440,4 +442,34 @@
 <p>自律実行のミッションでは、push したすべての PR に判断のジョブを依頼し、その判定を所有者の代わりに反映します。エラーの衝突がある PR や、変更を依頼した PR は、プロジェクトを直すフォローアップに回します。フォローアップは 1 件につき 3 回までです（6.8）。人が対応するミッションでは、オーケストレーターは push と AI レビューの依頼までを行い、承認は人が行います。Canon が進んだときの更新は 1 件につき 2 回までです（6.9）。</p>
 <p>どちらのミッションでも、PR の承認は 5.6〜5.8 と同じ処理と検査を通ります。人は自律実行のミッションの PR を Canon の画面で直接判断することもでき、その場合はオーケストレーターが次の処理でその結果に従います。</p>
 <p class="src">典拠：型 <code>packages/shared/src/canon.ts</code> ／ 変換・差分・衝突・合成 <code>canonMerge.ts</code> ／ 生成時の検査 <code>canonConstraints.ts</code> ／ 審査の材料 <code>canonReview.ts</code>・<code>canonAiReview.ts</code> ／ 判断の規則 <code>canonAiDecision.ts</code> ／ API <code>packages/api/src/lib/canons.ts</code>・<code>canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code> ／ AI レビューのジョブ <code>packages/worker/src/canonReview.ts</code></p>
+
+<h2 id="s5-13">5.13 問題の伝播</h2>
+<p>Canon から作ったプロジェクトは、Canon の回路・接続・文献をそのままコピーして使います。そのため、元のエントリに誤りが見つかると、同じ誤りがそれを使うすべてのプロジェクトに入っています。この節の仕組みで、Canon の 1 つのエントリに<b>問題</b>を付けると、それを使う回路・接続・プロジェクトまで一度に印が付き、まとめて直せます。</p>
+<h3>問題を付ける</h3>
+<ul>
+  <li>Canon の所有者と共同編集者は、Canon の画面の「問題」タブか、グラフのノードの「問題を付ける」から、回路・接続・文献の 1 件に問題を付けます。種類（アンカー・性質・接続・文献・引用文・その他）と理由を書きます。</li>
+  <li>問題を付けると、PR なしで新しい rev ができます。この rev は問題の記録だけを変え、定義は変えません。履歴には「問題を付けた」と出ます。</li>
+  <li>問題が<b>届く範囲</b>は自動で計算します。回路の問題は、その回路と、それが Collection ならその Sub-Circuits（下へたどる）、それらで終わる接続に届きます。文献の問題は、その文献を引く接続に届きます。届いたエントリは要注意（<code>flagged</code>）になり、グラフの「問題」で強調できます。</li>
+  <li>影響するプロジェクトは、届いた回路を役割層で使うプロジェクトと、届いたエントリを push したプロジェクトです。一覧に出ます。</li>
+</ul>
+<h3>プロジェクトへの伝わり方</h3>
+<ul>
+  <li>問題を付けた rev より前の rev に固定したプロジェクトは、「影響する変更あり」（5.9）になり、変更の一覧に問題とその理由が出ます。</li>
+  <li>エージェントには、<code>canon/</code> のファイルの <code>problems</code> で問題が渡ります（5.5）。エージェントはそのエントリをそのままコピーせず、直すか使わないかを決めます。</li>
+  <li>所有者は「まとめて Canon に合わせる」で、影響する変更のある完了済みの参加プロジェクトすべてを最新の rev に固定し、直すフォローアップを送ります。実行中のプロジェクトと未完了のプロジェクトは飛ばし、その数を示します。ミッションのプロジェクトも、完了済みのものはこのボタンで合わせます。</li>
+  <li>この Canon が Canon から Canon への PR（5.11）で取り込んだエントリに、送り元の Canon で問題が付いたときは、「問題」タブに知らせが出ます。「この Canon でも付ける」で同じ問題をこの Canon に付けられます。自動では付けません。</li>
+</ul>
+<h3>問題を決着させる</h3>
+<table class="compact">
+  <thead><tr><th style="width:18%">決着</th><th>意味</th><th style="width:30%">どうなるか</th></tr></thead>
+  <tbody>
+    <tr><td><b>直した</b></td><td>エントリを直した PR を承認した</td><td>PR の画面の「この PR で直す問題」で選ぶと、承認と同時に決着する。手で決着させることもできる</td></tr>
+    <tr><td><b>問題なし</b></td><td>誤りではなかった</td><td>印が外れる</td></tr>
+    <tr><td><b>無効にする</b></td><td>エントリそのものが誤り</td><td>エントリと、それで終わる接続を無効にする</td></tr>
+  </tbody>
+</table>
+<p>決着は rev を増やしません。決着は、そのときの最新の rev の記録を書き換えます。直した問題と無効にした問題は、決着した rev より前の rev に固定したプロジェクトの「影響する変更あり」に出て、まとめて合わせる対象になります。</p>
+<h3>実装</h3>
+<p>問題は <code>CanonSnapshot.issues</code>（ID は <code>I1</code>、<code>I2</code>…）に記録し、届く範囲は <code>canonIssueScope</code>、状態の計算は <code>applyCanonIssues</code> です。API は <code>POST /canons/{id}/issues</code>、<code>POST /canons/{id}/issues/{issueId}/resolve</code> <code>{ resolution, note? }</code>、<code>POST /canons/{id}/align</code>、<code>GET /canons/{id}/upstream-issues</code> で、承認の <code>resolveIssues</code> で直した問題を選びます。問題の rev は <code>source: "issue:&lt;id&gt;"</code> を持ちます。</p>
+<p class="src">典拠：<code>packages/shared/src/canonIssues.ts</code>・<code>canonConstraints.ts</code>（<code>canonFollowStatus</code>）、<code>packages/api/src/lib/canonOps.ts</code>（<code>raiseIssue</code>・<code>settleIssue</code>・<code>alignAffectedProjects</code>）</p>
 </section>

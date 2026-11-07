@@ -6,7 +6,7 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 
 /** Views of the Canon page (the tabs under its header) */
-export const CANON_VIEWS = ["hcd", "tables", "projects", "pulls", "history", "settings"] as const;
+export const CANON_VIEWS = ["hcd", "tables", "issues", "projects", "pulls", "history", "settings"] as const;
 export type CanonView = (typeof CANON_VIEWS)[number];
 
 export const canonPath = (canonId: string, view?: CanonView) => `/canons/${encodeURIComponent(canonId)}${view ? `/${view}` : ""}`;

@@ -28,6 +28,8 @@ import type {
   CanonDetailResponse,
   CanonMemberSummary,
   CanonChoice,
+  CanonIssue,
+  CanonIssueResolution,
   CanonDiff,
   CanonIncoming,
   CanonAiReviewResult,
@@ -133,6 +135,11 @@ import {
   canonFromCanon,
   composeSeeds,
   canonOutSk,
+  CANON_ISSUE_RESOLUTIONS,
+  issuesTouchedByDiff,
+  readCanonIssueInput,
+  upstreamCanonIds,
+  upstreamIssues,
   canonPrKey,
   canonPrSk,
   canonRevisionKey,
@@ -243,6 +250,7 @@ import {
 } from "./lib/aws.js";
 import { loadBraTemplate } from "./lib/braTemplate.js";
 import {
+  alignAffectedProjects,
   approvePullRequest,
   canonFields,
   createCanon,
@@ -253,9 +261,11 @@ import {
   prReviewMaterial,
   projectIncoming,
   pushProject,
+  raiseIssue,
   rejectPullRequest,
   requestAiReview,
   requestPrChanges,
+  settleIssue,
 } from "./lib/canonOps.js";
 import { specLinks } from "./lib/spec.js";
 import {
@@ -1555,6 +1565,7 @@ app.get("/canons/:id/pulls/:no", async (c) => {
     provenance: m.provenance,
     events: prTrail(pr, events, isOwner ? reviews : [], names),
     ai,
+    ...(isOwner && pr.state === "open" && m.diff ? { issues: issuesTouchedByDiff(await loadCanonHead(canon), m.diff) } : {}),
   };
   return c.json(res);
 });
@@ -1621,11 +1632,12 @@ app.post("/canons/:id/pulls/:no/approve", async (c) => {
   const canon = await loadCanon(u, c.req.param("id"), { review: true });
   const pr = await loadPr(canon, c.req.param("no"));
   if (pr.state !== "open") throw new HTTPException(409, { message: "この取り込み依頼は既に閉じています" });
-  const body = (await c.req.json().catch(() => ({}))) as { choices?: Record<string, CanonChoice>; note?: unknown };
+  const body = (await c.req.json().catch(() => ({}))) as { choices?: Record<string, CanonChoice>; note?: unknown; resolveIssues?: unknown };
   const note = reviewNote(body.note, false, "メモが不正です");
   const choices: Record<string, CanonChoice> = {};
   for (const [k, v] of Object.entries(body.choices ?? {})) if (v === "canon" || v === "incoming") choices[k] = v;
-  const r = await approvePullRequest(u, canon, pr, { choices, note });
+  const resolveIssues = Array.isArray(body.resolveIssues) ? body.resolveIssues.filter((x): x is string => typeof x === "string" && /^I[1-9][0-9]*$/.test(x)).slice(0, 100) : [];
+  const r = await approvePullRequest(u, canon, pr, { choices, note, resolveIssues });
   if (!r.ok) return c.json(r.body, r.status);
   return c.json({ revision: r.revision });
 });
@@ -1702,6 +1714,62 @@ app.post("/canons/:id/pulls/:no/withdraw", async (c) => {
   }
   await putPrEvent(canon.canonId, pr.prNo, { type: "withdrawn", at, actor: u.userId, actorName: actorName(u) });
   return c.json({ ok: true });
+});
+
+// --- problems on Canon entries (canonIssues.ts) ------------------------------------
+
+/** Reports a problem on one entry of the head revision (owner or co-editor); writes a revision without a pull request. */
+app.post("/canons/:id/issues", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
+  const input = readCanonIssueInput(await c.req.json().catch(() => ({})));
+  if ("error" in input) throw bad(input.error);
+  const r = await raiseIssue(u, canon, input);
+  if (!r.ok) throw new HTTPException(r.status, { message: r.message });
+  return c.json({ revision: r.revision, issue: r.issue }, 201);
+});
+
+/** Settles an open problem: fixed, not an error (dismissed) or withdrawn with its entry (invalidated). */
+app.post("/canons/:id/issues/:issueId/resolve", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { review: true });
+  const issueId = c.req.param("issueId");
+  if (!/^I[1-9][0-9]*$/.test(issueId)) throw notFound();
+  const body = (await c.req.json().catch(() => ({}))) as { resolution?: unknown; note?: unknown };
+  if (!CANON_ISSUE_RESOLUTIONS.includes(body.resolution as CanonIssueResolution)) throw bad("resolution は fixed / dismissed / invalidated のどれかです");
+  const note = reviewNote(body.note, false, "メモが不正です");
+  const r = await settleIssue(u, canon, issueId, body.resolution as CanonIssueResolution, note);
+  if (!r.ok) throw new HTTPException(r.status, { message: r.message });
+  return c.json({ revision: r.revision });
+});
+
+/** 「まとめて Canon に合わせる」 (owner): a follow-up for every finished member project the head changed something for. */
+app.post("/canons/:id/align", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  const body = (await c.req.json().catch(() => ({}))) as { locale?: unknown };
+  return c.json(await alignAffectedProjects(u, canon, readLocale(body.locale)));
+});
+
+/**
+ * Open problems of the Canons this Canon took entries from (Canon → Canon pull requests), on those entries. Only
+ * Canons the caller may read are looked at (their own, ones they co-edit, public ones).
+ */
+app.get("/canons/:id/upstream-issues", async (c) => {
+  const u = c.get("user");
+  const canon = await loadCanon(u, c.req.param("id"));
+  if (canon.headRevision === 0) return c.json({ items: [] });
+  const head = await loadCanonHead(canon);
+  const items: { canonId: string; name: string; issues: CanonIssue[] }[] = [];
+  for (const id of upstreamCanonIds(head)) {
+    const up = isCanonId(id) ? await getCanon(id) : null;
+    if (!up || isCanonDeleted(up) || up.headRevision === 0) continue;
+    const readable = up.ownerUserId === u.userId || up.visibility === "public" || !!(await getCanonEditor(up.canonId, u.userId));
+    if (!readable) continue;
+    const issues = upstreamIssues(head, await loadCanonHead(up));
+    if (issues.length) items.push({ canonId: up.canonId, name: up.name, issues });
+  }
+  return c.json({ items });
 });
 
 // --- following a Canon (stage 3) -------------------------------------------------
