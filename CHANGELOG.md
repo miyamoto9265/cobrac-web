@@ -5,7 +5,12 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Changed
+- The HCD validator asks for at least one connection into the ROI from an external input UC (`noROI(input)` or `noROI(input,output)`). Without one, the FRG's Input Circuits were empty (`;`) and the template's lookups failed
+- The Implementation of a UC must give the UC itself on the left side (`[U.<own ID>] = …`) and use only its interface inputs on the right side. The agent used to write the receiver on the left (following the interface's outputs), and nothing caught it; the HCD spec now says so and the validator checks it
+
 ### Fixed
+- Journal names in the template's References are written in the spelling of the template's journal list when they differ only in case, braces, a leading "The", "&"/"and" or punctuation (e.g. "The Journal of Neuroscience" → "Journal of Neuroscience", "PLOS ONE" → "{PLoS} {ONE}"), so they no longer get Journal score 0 and Credibility rating 0. Journals that are not in the list are named in the export notes
 - A UC that spans several SABRA units (anchors joined with `&`) no longer depends on the order the anchors are written in. `BNA:65-66&BNA:63-64` and `BNA:63-64&BNA:65-66` used to be two different circuits (two Canon keys, passing the duplicate check and taking different Circuit ID heads); the anchors are now a set in a fixed order (BNA areas by label, then BNA groups, then HOMBA terms), the validator asks for that order, and Canon keys written in another order are read as the same circuit
 
 ## [0.51.0] - 2026-10-30

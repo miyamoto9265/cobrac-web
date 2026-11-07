@@ -29,9 +29,9 @@ Files are in `{P}/` (`meta.json`, `decision_log.md`, `report.md`) and `{P}/{P}_H
    - `requirementRealization` (Requirement realization by interface): how the Requirement is realized by the Interface; verify the two do not contradict.
    - `capability`: the Requirement generalized by removing Output Semantics (task-independent); cite the prior work, biology or computational models it is based on.
    - `mechanism`: how the Capability is carried out as a mechanism.
-   - `implementation`: only equations relating inputs to outputs, necessary and sufficient for the Mechanism (e.g. `[U.A] = [U.B]/[U.C]`, `[U.A] = P([U.B]|[U.C])`). No prose, no code.
+   - `implementation`: only equations that give this UC's own output from its inputs, necessary and sufficient for the Mechanism. The left side is always the UC itself (`[U.<its Circuit ID>]`), never a receiver; the right side uses only the inputs of its `interface` (and the UC itself for recurrence). E.g. for `([U.D]) = A([U.B], [U.C])`: `[U.A] = [U.B]/[U.C]` or `[U.A] = P([U.B]|[U.C])`. No prose, no code.
 
-7. **Verification.** The worker checks the schemas, IDs, references and interface/connection consistency itself. Check what it cannot and fix the files: a processing path from ROI_Input to ROI_Output; no duplicated/missing UCs and suitable granularity; the HCD can realize the TLF. Note what remains uncertain for the report's limitations.
+7. **Verification.** The worker checks the schemas, IDs, references and interface/connection consistency itself. The worker also requires at least one connection from an external input UC (`noROI(input)` or `noROI(input,output)`) into the ROI, since the FRG's Input Circuits come from them. Check what it cannot and fix the files: a processing path from ROI_Input to ROI_Output; no duplicated/missing UCs and suitable granularity; the HCD can realize the TLF. Note what remains uncertain for the report's limitations.
 
 8. **Report -> `report.md`.** A paper-style report the user reads in the app. Write it with these sections (the FRG phase adds `## FRG` later):
    - `# <title naming TLF and ROI>`, then `## Overview` (TLF/ROI, ROI_Input and ROI_Output);

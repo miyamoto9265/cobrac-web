@@ -135,6 +135,7 @@
   <li><b>入力欄の追加</b>：入力欄が足りないときは、投稿者が行うのと同じように、WholeBIF の取り込みの上に入力欄を挿入します。最後の入力欄を数式ごとコピーし、それより下への参照をずらします。テンプレートの配置の変化（IMPORTRANGE の数式の位置）を検出したら、出力を失敗にします。</li>
   <li><b>Reference ID</b>：テンプレートは BibTeX のキーから Reference ID を作ります（<code>Schultz_1997a</code> → <code>Schultz, 1997a</code>）。そこで CoBRAC の ID ごとに、筆頭著者と年からキーを作ります（重なれば次の文字を付けます）。書き込む自由な文章の中の引用も、同じ ID にそろえます。</li>
   <li><b>BibTeX</b>：テンプレートの正規表現に合わせ、1 項目ごとに改行し、<code>=</code> の前後に空白を置きます。ジョブの最後に、ワーカーが DOI を Crossref で、PMID だけの文献を PubMed で照会し、結果を書誌の記録に残します。記録がなければ、<code>references.json</code> と文献の照合の結果から作ります。</li>
+  <li><b>雑誌名</b>：テンプレートは雑誌名をその雑誌一覧（AdminOnly の A 列）と完全一致で比べ、一覧にない名前の Journal score を 0 にします（接続の Credibility rating も 0 になります）。そこで、大文字と小文字、波括弧、先頭の The、<code>&amp;</code> と and、記号だけが違う名前は、一覧の表記で書きます（<code>The Journal of Neuroscience</code> → <code>Journal of Neuroscience</code>、<code>PLOS ONE</code> → <code>{PLoS} {ONE}</code>）。一覧にない雑誌は書誌の記録どおりに書き、変換の注記に挙げます。</li>
   <li><b>DHBA の列</b>：テンプレート自身が持つ WholeBIF の Circuits のレコード（Source of ID が <code>DHBA</code>）を、DHBA のオントロジーとして使います。これは HOMBA の <code>graph_order</code> とは別の番号です。1 つの DHBA 項にアンカーした UC はそのレコードの値を、DHBA 項より細かい UC はその項の graph_order に小数を足した値を書きます。BNA にアンカーした回路、ROI のレコード、UC Descriptor のない回路は空にします。</li>
 </ul>
 <p>テンプレートに書く場所のないもの（UC Descriptor、facet、<code>BNA</code>、CoBRAC の文献の検査など）と、テンプレートの上流に依頼する追加は、別のメモで管理されています。</p>

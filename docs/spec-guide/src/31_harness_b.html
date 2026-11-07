@@ -101,12 +101,12 @@
     <tr><td>3 UC</td><td><code>uc.json</code></td><td>内部か外部か、名前（第 2 部）、均質性、粒度、必要なときの Collection</td></tr>
     <tr><td>4 Connection</td><td><code>connections</code> と UC の <code>interface</code></td><td>1 レコードに 1 文献。すべての端点・引用・入出力をそろえる</td></tr>
     <tr><td>5 Output Semantics</td><td>UC の <code>outputSemantics</code></td><td>自分の ID の 1 項目 <code>[&lt;Circuit ID&gt;] 内容;</code> で、自分が表現する情報を計算論的に説明。出力のない外部の sink は空にできる</td></tr>
-    <tr><td>6 機能項目</td><td>UC の 5 項目</td><td>Requirement は TLF に対する計算、Requirement realization は interface との対応、Capability は意味を外した一般化、Mechanism は実現の機構、Implementation は入出力を結ぶ式だけ</td></tr>
+    <tr><td>6 機能項目</td><td>UC の 5 項目</td><td>Requirement は TLF に対する計算、Requirement realization は interface との対応、Capability は意味を外した一般化、Mechanism は実現の機構、Implementation は入出力を結ぶ式だけ。Implementation の左辺はその UC 自身（<code>[U.&lt;自分の ID&gt;] = …</code>）で、右辺には interface の入力（と再帰のときの自分）だけを使う。ワーカーが検査する</td></tr>
     <tr><td>7 自己点検</td><td>ファイルと残る論点</td><td>ROI の入力から出力までの経路、欠落と重複、粒度、TLF を実現できるか。エージェント自身の見直しで、ワーカーの検査とは別</td></tr>
     <tr><td>8 レポート</td><td><code>report.md</code></td><td>Overview、HCD、Limitations、References。FRG の節は次の段階で足す</td></tr>
   </tbody>
 </table>
-<p>外部の UC の <code>roi</code> は <code>noROI(input)</code> / <code>noROI(output)</code> / <code>noROI(input,output)</code> のいずれか、内部の UC は <code>internal</code> です。外部の UC には、内部の UC 用のインターフェースや 5 つの機能項目を書きません。内部の UC のインターフェースは接続から決まり、入力は送り手、出力は受け手です。</p>
+<p>外部の UC の <code>roi</code> は <code>noROI(input)</code> / <code>noROI(output)</code> / <code>noROI(input,output)</code> のいずれか、内部の UC は <code>internal</code> です。外部の UC には、内部の UC 用のインターフェースや 5 つの機能項目を書きません。内部の UC のインターフェースは接続から決まり、入力は送り手、出力は受け手です。ROI の外から ROI に入る接続（<code>noROI(input)</code> か <code>noROI(input,output)</code> の UC から内部の UC への接続）が最低 1 本必要で、ワーカーが検査します。FRG の Input Circuits はこの外部の UC から決まるため、1 本もないとテンプレートの数式が失敗します。</p>
 <p>UC の粒度と、領域を分けたときの Collection の扱いは 2.9 にまとめています。</p>
 
 <h3>ROI の規則</h3>

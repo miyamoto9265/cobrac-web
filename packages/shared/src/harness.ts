@@ -600,6 +600,36 @@ export interface CheckHcdOptions {
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
 const ucRefs = (text: string) => [...text.matchAll(/\[U\.([^[\]\s]+)\]/g)].map((m) => m[1]);
+
+/**
+ * Implementation of Uniform Circuit: equations whose left side is the UC itself (`[U.<own ID>] = …`) and whose
+ * right side uses only the UC's interface inputs (and the UC itself, for recurrence).
+ */
+export function implementationProblems(id: string, text: string, inputs: string[]): string[] {
+  const out: string[] = [];
+  const allowed = new Set([id, ...inputs]);
+  const eqs = text
+    .replace(/`/g, "")
+    .split(/[;\n]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  let own = 0;
+  for (const eq of eqs) {
+    const i = topLevelEquals(eq);
+    if (i < 0) continue;
+    const lhs = ucRefs(eq.slice(0, i));
+    if (lhs.length && lhs.every((x) => x === id)) own++;
+    else if (lhs.length) {
+      out.push(`uc.json: implementation of \`${id}\` has [U.${lhs.find((x) => x !== id)}] on the left side of "${eq}"; the left side is the UC itself ([U.${id}] = …), the right side its inputs.`);
+    }
+    const bad = [...new Set(ucRefs(eq.slice(i + 1)).filter((x) => !allowed.has(x)))];
+    if (bad.length) {
+      out.push(`uc.json: implementation of \`${id}\` uses ${bad.map((x) => `[U.${x}]`).join(", ")}, which ${bad.length > 1 ? "are" : "is"} not an input of its interface; use only its inputs [${inputs.join(", ")}] on the right side.`);
+    }
+  }
+  if (!own && !out.length) out.push(`uc.json: implementation of \`${id}\` must be equations of the form [U.${id}] = f(<its inputs>).`);
+  return out;
+}
 /** Source of ID: one value; a list written before 0.10 keeps its first entry (the schema reports the list). */
 const firstValue = (v: unknown) => (Array.isArray(v) ? strings(v)[0] ?? "" : s(v));
 
@@ -765,6 +795,13 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       (receivers.get(c.sender) ?? receivers.set(c.sender, []).get(c.sender)!).push(c.receiver);
     }
     errors.push(...multiUnitSenderProblems(ucs.filter((u) => receivers.has(u.id))));
+    const roiOf = new Map(ucs.map((u) => [u.id, u.roi]));
+    const external = (id: string) => roiOf.get(id) === "input" || roiOf.get(id) === "both";
+    if (ucs.some((u) => u.roi === "roi") && !connections.some((c) => external(c.sender) && roiOf.get(c.receiver) === "roi")) {
+      errors.push(
+        "connections.json: no connection comes into the ROI from outside (a noROI(input) or noROI(input,output) UC sending to an ROI-internal UC); add the external UCs that send the ROI its inputs (the FRG's Input Circuits come from them).",
+      );
+    }
     for (const u of ucs) {
       if (!senders.has(u.id) && !receivers.has(u.id)) errors.push(`\`${u.id}\` has no connection in connections.json.`);
       const isSink = u.roi !== "roi" && !receivers.has(u.id);
@@ -822,6 +859,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       if (!sameSet(itf.outputs, outs)) {
         errors.push(`\`${u.id}\`: interface outputs [${itf.outputs.join(", ")}] differ from its receivers in connections.json [${[...new Set(outs)].join(", ")}].`);
       }
+      if (u.implementation) errors.push(...implementationProblems(u.id, u.implementation, itf.inputs));
     }
   }
 
