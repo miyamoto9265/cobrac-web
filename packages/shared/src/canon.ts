@@ -274,7 +274,6 @@ export function normalizeCanonText(input: unknown, max: number): { text: string 
   if (input === undefined || input === null) return { text: "" };
   if (typeof input !== "string") return { error: "must be a string" };
   const text = input.normalize("NFC").replace(/\r\n?/g, "\n").trim();
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/.test(text)) return { error: "must not contain control characters" };
   if ([...text].length > max) return { error: `must be at most ${max} characters` };
   return { text };

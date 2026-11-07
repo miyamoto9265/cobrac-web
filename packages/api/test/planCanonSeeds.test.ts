@@ -1,17 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  ApproveManyResponse,
-  CanonPullRequestRecord,
-  CanonRecord,
   CreatePlanResponse,
   JobRecord,
-  PlanDetailResponse,
-  PlanEventRecord,
   PlanRecord,
   PlanRowRecord,
   ProjectRecord,
 } from "@cobrac/shared";
-import { PLAN_MAX_WAITING_PRS, canonPrSk, conformTitle } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -47,7 +41,6 @@ async function json<T>(r: Response | Promise<Response>): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return (await res.json()) as T;
 }
-const status = async (r: Response | Promise<Response>) => (await r).status;
 
 function user(who: typeof A, extra: Record<string, unknown> = {}) {
   fake.put("users", { userId: who.sub, email: who.email, displayName: who.sub, contributorName: who.sub, role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", createdAt: now, updatedAt: now, ...extra });
@@ -56,14 +49,9 @@ function user(who: typeof A, extra: Record<string, unknown> = {}) {
 const rowsOf = (planId: string) => fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("ROW#")) as unknown as PlanRowRecord[];
 const rowOf = (planId: string, roi: string) => rowsOf(planId).find((r) => r.roi === roi)!;
 const planOf = (planId: string) => fake.items("plans").find((x) => x.planId === planId && x.sk === "META") as unknown as PlanRecord;
-const eventsOf = (planId: string) => fake.items("plans").filter((x) => x.planId === planId && String(x.sk).startsWith("EVT#")) as unknown as PlanEventRecord[];
 const projects = () => fake.items("projects") as unknown as ProjectRecord[];
 const projectOf = (id: string) => projects().find((p) => p.projectId === id)!;
 const jobs = () => fake.items("jobs") as unknown as JobRecord[];
-const reviewJobs = () => jobs().filter((j) => j.type === "canon-review");
-const canonMeta = (canonId: string) => fake.items("canons").find((x) => x.canonId === canonId && x.sk === "META") as unknown as CanonRecord;
-const prOf = (canonId: string, no: number) => fake.items("canons").find((x) => x.canonId === canonId && x.sk === canonPrSk(no)) as unknown as CanonPullRequestRecord;
-const isMember = (canonId: string, projectId: string) => fake.items("canons").some((x) => x.canonId === canonId && x.sk === `MEMBER#${projectId}`);
 
 // --- project contents (as in pulls.test.ts) ---------------------------------------------------------------------------
 
@@ -110,18 +98,8 @@ function workspace(ucs: ReturnType<typeof uc>[], collections: unknown[] = [], co
     put("meta.json", { roi: "perisylvian cortex", tlf: "language", description: "x" });
   };
 }
-/** A44d(left) uniform */
-const coarse = workspace([uc("A44d(left)", "BNA:29-30/side:left"), uc("A22c(left)", "BNA:75-76/side:left")], [], [["A44d(left)", "A22c(left)"]]);
-/** A44d(left) a Collection: error conflicts (C1, C3) against a Canon where it is uniform */
-const fine = workspace(
-  [uc("A44d(L3.IT.left)", "BNA:29-30/lay:L3/cell:IT/side:left"), uc("A44d(L5.PT.left)", "BNA:29-30/lay:L5/cell:PT/side:left"), uc("A22c(left)", "BNA:75-76/side:left")],
-  [{ circuitId: "A44d(left)", descriptor: "BNA:29-30/side:left", names: "A44d(left)", sourceOfId: "collection", subCircuits: ["A44d(L3.IT.left)", "A44d(L5.PT.left)"], comments: "" }],
-  [["A44d(L3.IT.left)", "A22c(left)"]],
-);
 /** A circuit of its own: never conflicts */
 const own = (n: number) => workspace([uc(`R${n}(left)`, `BNA:${2 * n - 1}-${2 * n}/side:left`)]);
-/** A22c(left) with another transmitter: a warning (C7, needs a human) against `coarse` */
-const warned = workspace([uc("A22c(left)", "BNA:75-76/side:left", "Glutamate; GABA")]);
 
 /** What the worker would do: the row's project completes with `content` (its active job with it). */
 function finish(planId: string, roi: string, content: Content) {
@@ -132,39 +110,12 @@ function finish(planId: string, roi: string, content: Content) {
   for (const j of jobs().filter((x) => x.projectId === P && ["QUEUED", "RUNNING"].includes(x.status))) fake.put("jobs", { ...j, status: "COMPLETED" } as never);
 }
 
-/** A completed project of A outside any plan. */
-function ownProject(projectId: string, roi: string, tlf: string, content: Content, extra: Partial<ProjectRecord> = {}) {
-  fake.put("projects", {
-    userId: A.sub,
-    projectId,
-    name: `P ${projectId}`,
-    nameSource: "user",
-    revision: 1,
-    roi,
-    tlf,
-    contributor: "a",
-    status: "COMPLETED",
-    currentStep: "XLSX",
-    stepStates: { HCD: "done", FRG: "done", CSV: "done", XLSX: "done" },
-    activeJobId: null,
-    codexThreadId: null,
-    pendingQuestion: null,
-    hasArtifacts: true,
-    errorMessage: null,
-    createdAt: now,
-    updatedAt: now,
-    completedAt: now,
-    ...extra,
-  } as never);
-  content(projectId);
-}
 
 async function setLimits(global: number | null, perUser: number | null) {
   await json(call(ADMIN, "PUT", "/admin/concurrency", { maxConcurrentJobs: global, maxConcurrentJobsPerUser: perUser }));
   resetLimitsCache();
 }
 
-const newCanon = (who: typeof A, name: string) => json<CanonRecord>(call(who, "POST", "/canons", { name }));
 
 /** A draft plan; rows named in `seeds` are seed rows. */
 async function newPlan(rows: { roi: string; tlf?: string; wave?: number }[], seeds: string[] = []): Promise<string> {

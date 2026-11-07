@@ -39,7 +39,6 @@ export function unescapeXml(s: string): string {
 /** Escapes text for element content and attribute values; drops characters XML 1.0 does not allow. */
 export function escapeXml(s: string): string {
   return s
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")

@@ -78,7 +78,6 @@ function interleave(match: (cmd: Cmd) => boolean, meanwhile: () => Promise<unkno
     return send(cmd as never);
   }) as typeof fake.send;
 }
-const metaRead = (planId: string) => (cmd: Cmd) => !cmd.input.ConsistentRead && cmd.kind === "Get" && cmd.input.Key?.planId === planId && cmd.input.Key?.sk === "META";
 /** The runner's first read of a step is consistent, so it can be out of date only through a whole step running after it. */
 const anyMetaRead = (planId: string) => (cmd: Cmd) => cmd.kind === "Get" && cmd.input.Key?.planId === planId && cmd.input.Key?.sk === "META";
 const rowsRead = (planId: string) => (cmd: Cmd) => cmd.kind === "Query" && cmd.input.ExpressionAttributeValues?.[":p"] === planId && cmd.input.ExpressionAttributeValues?.[":s"] === "ROW#";

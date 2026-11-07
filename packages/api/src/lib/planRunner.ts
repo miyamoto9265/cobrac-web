@@ -27,7 +27,6 @@ import type {
   CanonRecord,
   EffectiveLimits,
   JobRecord,
-  KeySource,
   ModelPolicy,
   PlanAttentionReason,
   PlanAutoSkipReason,

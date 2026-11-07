@@ -778,14 +778,12 @@ export function planEstimate(rows: Pick<PlanRowRecord, "wave" | "state" | "exist
 /** Trimmed single-line text: NFC, control characters and line breaks become spaces, runs of spaces collapse. */
 export function cleanPlanText(s: unknown): string {
   if (typeof s !== "string") return "";
-  // eslint-disable-next-line no-control-regex
   return s.normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/gu, " ").replace(/\s+/gu, " ").trim();
 }
 
 /** Free text with line breaks kept (rationale, goal). */
 export function cleanPlanNote(s: unknown): string {
   if (typeof s !== "string") return "";
-  // eslint-disable-next-line no-control-regex
   return s.normalize("NFC").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/gu, " ").trim();
 }
 

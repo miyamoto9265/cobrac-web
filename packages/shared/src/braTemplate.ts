@@ -318,7 +318,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
   const tid = templateReferenceIds(refIds);
   const tRef = (id: string) => tid.get(id)?.id ?? id.replace(/^\[|\]$/g, "");
   /** Citations in free text follow the template's Reference IDs. */
-  const cite = (text: string) => text.replace(/\[[^\[\]]+\]/g, (m) => (tid.has(m) ? `[${tid.get(m)!.id}]` : m));
+  const cite = (text: string) => text.replace(/\[[^[\]]+\]/g, (m) => (tid.has(m) ? `[${tid.get(m)!.id}]` : m));
 
   const jsonRefs = new Map((input.references ?? []).map((r) => [r.id, r]));
   const checks = new Map((input.referenceChecks ?? []).map((c) => [c.id, c]));

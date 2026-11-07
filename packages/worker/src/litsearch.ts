@@ -428,7 +428,7 @@ export function fullTextBody(xml: string): string {
 export function splitSentences(text: string): string[] {
   const protectedText = text.replace(/\b(et al|Fig|Figs|e\.g|i\.e|cf|vs|approx|ca|resp|Ref|Refs|no|No)\./g, "$1\u0000");
   return protectedText
-    .split(/(?<=[.!?])\s+(?=[A-Z(\[])/)
+    .split(/(?<=[.!?])\s+(?=[A-Z([])/)
     .map((s) => s.replace(/\u0000/g, ".").trim())
     .filter((s) => s.split(/\s+/).length >= 5);
 }

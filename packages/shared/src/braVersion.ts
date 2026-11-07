@@ -106,7 +106,7 @@ export interface BraVersionGenerator {
 }
 
 /** Hypothesis mode (stage 2): evidence mode, scopes, share limit and hypothesis counts of the version (absent before). */
-export interface BraVersionGenerator extends VersionHypothesisInfo {}
+export type BraVersionGenerator = VersionHypothesisInfo;
 
 export interface BraVersionFile {
   path: string;

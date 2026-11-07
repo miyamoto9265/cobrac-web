@@ -396,7 +396,7 @@ export function buildModel(bra) {
 
 // --- checks -------------------------------------------------------------------------------------------------------
 
-const CIRCUIT_ID_CHARS_RE = /^[A-Za-z0-9._~\/+()-]+$/;
+const CIRCUIT_ID_CHARS_RE = /^[A-Za-z0-9._~/+()-]+$/;
 const DOI_RE = /^10\.\d{4,9}\/\S+$/;
 const REF_ID_RE = /^\[[^[\]]+\]$/;
 /** Template-v2-x writes Reference IDs as `Author, Year` (Connections I, References A); CoBRAC as `[Author, Year]`. */
@@ -475,7 +475,7 @@ function results(m, opts) {
   verdict(103, dupes(m.circuits.map((c) => c.id)).map((id) => `Circuits: ${id}`));
   verdict(
     "cobrac:circuit-id-chars",
-    m.circuits.filter((c) => c.id && !CIRCUIT_ID_CHARS_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~\/+()-]/g, ""))].join(" ")}）`)),
+    m.circuits.filter((c) => c.id && !CIRCUIT_ID_CHARS_RE.test(c.id)).map((c) => at("Circuits", c, `${c.id}（${[...new Set(c.id.replace(/[A-Za-z0-9._~/+()-]/g, ""))].join(" ")}）`)),
     "許容文字はマニュアルの英数字と . _ ~、SHACL（§7.6）の -、8/19 に合意した / +、CoBRAC の項目を囲む ( )",
   );
   verdict(107, m.circuits.filter((c) => c.id && !c.sourceOfId).map((c) => at("Circuits", c, c.id)));

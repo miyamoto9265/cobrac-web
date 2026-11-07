@@ -221,7 +221,6 @@ import {
   isEffort,
   moveToAllowedModel,
   normModel,
-  noteModel,
   queueFollowup,
   queueRetry,
   readLocale,
@@ -288,14 +287,13 @@ import {
   putJob,
   putMessage,
   putProject,
-  updateJob,
   updateProject,
   updateUser,
 } from "./lib/db.js";
 import { correctJobs, correctProject, correctProjects, correctUsageMessages, legacyCorrections } from "./lib/usageCorrection.js";
 import { ownedMessages } from "./lib/ownership.js";
 import { liveVersionFiles, liveVersionItem, versionItem } from "./lib/versions.js";
-import { actorName, aiState, isActiveJob, prTrail, reviewJobsOf } from "./lib/canonReview.js";
+import { actorName, aiState, prTrail, reviewJobsOf } from "./lib/canonReview.js";
 import { defaultKeyStatus, deleteDefaultKey, getDefaultKey, modelPolicy, orgUsage, putDefaultKey } from "./lib/orgKey.js";
 import {
   addCanonMember,
@@ -315,7 +313,6 @@ import {
   nextPrNumber,
   putCanonRevision,
   putPullRequest,
-  updatePullRequest,
   listCanonMembers,
   listCanonRevisions,
   listOwnCanons,

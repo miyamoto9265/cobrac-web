@@ -313,6 +313,6 @@ test("CLI prints the report and exits 0", () => {
   const r = spawnSync(process.execPath, [join(here, "bra-appendix-d.mjs"), conformingFolder()], { encoding: "utf8" });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /集計（43 コード）: 違反 0/);
-  assert.match(r.stdout, /\| cobrac:hypothesis-marked \|  \| Comments \| .* \| OK \|/);
+  assert.match(r.stdout, /\| cobrac:hypothesis-marked \| {2}\| Comments \| .* \| OK \|/);
   assert.match(r.stdout, /\| 仮説（Comments の先頭が Hypothesis \( のレコード） \| Connections 0 \/ 1、/);
 });

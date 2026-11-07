@@ -45,7 +45,7 @@ archive/v0/         旧デスクトップ版の指示書・仕様書・成果物
 
 ## 変更時の約束
 
-- 型チェック（`npm run typecheck`）とテスト（`npm test`）を通してからコミットする。
+- 型チェック（`npm run typecheck`）・リント（`npm run lint`。ESLint、設定は `eslint.config.mjs`。CI はエラーで止まる）・テスト（`npm test`）を通してからコミットする。
 - `packages/shared` の型を変えたら api / worker / web すべてをビルドして影響を確認する。
 - インフラ変更（`packages/infra`）は `npm run cdk -- diff` で差分を確認してからデプロイする。RETAIN 指定のリソース（DynamoDB / S3 / KMS / Cognito）を置き換える変更は必ず人間に確認する。
  - CI の RETAIN ガードは、これらの置換（replace / may be replaced）・削除（destroy / orphan / 除去）を検知するとデプロイ前にジョブを止める。Cloud Agent は Actions ログの diff を要約してユーザーに示し、再実行するかどうかはユーザーが判断する。指示を受けたときだけ `gh workflow run deploy.yml --ref main -f allow_retain_replacement=true` で再実行する（通常の「Re-run」では入力が付かず再び止まる）。

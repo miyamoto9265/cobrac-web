@@ -76,7 +76,6 @@ export function isProjectIdLike(id: string): boolean {
   return PROJECT_ID_REGEX.test(id) || LEGACY_PROJECT_ID_REGEX.test(id);
 }
 
-// eslint-disable-next-line no-control-regex
 const CONTROL_RE = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
 
 /**
@@ -150,7 +149,6 @@ export function templateDownloadFileName(name: string | null | undefined, projec
 export function sanitizeFileNamePart(name: string): string {
   const s = name
     .normalize("NFC")
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f/\\:*?"<>|]|\s+/gu, "_")
     .replace(/_+/g, "_")
     .replace(/^[_.\s]+|[_.\s]+$/gu, "");
