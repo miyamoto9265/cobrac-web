@@ -415,6 +415,7 @@ describe("a draft written by the plan job", () => {
   });
 
   it("shows the policy the Orchestrator wrote without a field to edit it, and chooses the two models apart", async () => {
+    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", orchestratorDefaultModel: "orchestrator-default", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
@@ -423,7 +424,10 @@ describe("a draft written by the plan job", () => {
     expect(orchestrator.textContent).toContain("Orchestrator");
     expect(orchestrator.textContent).toContain("Drafts, re-plans, decisions and answers");
     expect(orchestrator.querySelectorAll("select")).toHaveLength(1);
+    // "default" names each picker's own default model
+    expect(orchestrator.querySelector("option")!.textContent).toContain("orchestrator-default");
     const agents = q('[data-testid="plan-agents-model"]')!;
+    expect(agents.querySelector("option")!.textContent).toContain("test-model");
     expect(agents.textContent).toContain("Build each row's BRA");
     expect(agents.querySelectorAll("select")).toHaveLength(2);
     // three equal columns: the agents' model and effort join the grid of the Orchestrator's model, with plain labels

@@ -110,7 +110,7 @@ import { planSpendUsd } from "./planCost.js";
 import { applyProposal } from "./planProposals.js";
 import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
-import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, orchestratorDefaultModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
 
 export const RUNNER = "runner";
 
@@ -139,14 +139,14 @@ export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promi
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
   const policy = await runPolicy(owner);
   if (!canRunJobs(policy)) return { ok: false, reason: "no_key" };
-  const resolve = (chosen: string | null, picked: boolean): string | null => {
-    const model = chosen || deploymentDefaultModel();
+  const resolve = (chosen: string | null, picked: boolean, fallback: string): string | null => {
+    const model = chosen || fallback;
     if (policyAllows(policy, model)) return model;
     return picked ? null : implicitModel(policy, model);
   };
   const o = orchestratorModelOf(plan.settings);
-  const model = resolve(plan.settings.model, plan.settings.modelChosen);
-  const orchestratorModel = resolve(o.model, o.chosen);
+  const model = resolve(plan.settings.model, plan.settings.modelChosen, deploymentDefaultModel());
+  const orchestratorModel = resolve(o.model, o.chosen, orchestratorDefaultModel());
   if (!model || !orchestratorModel) return { ok: false, reason: "model_not_allowed" };
   return { ok: true, policy, model, orchestratorModel };
 }

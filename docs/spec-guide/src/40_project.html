@@ -101,7 +101,7 @@
 <h3>モデルと推論の強さ</h3>
 <p>エージェントを動かすモデルと、<b>推論の強さ</b>（reasoning effort）は、次の規則で決まります。モデルは OpenAI のモデルのほかに、Anthropic の Claude のモデルと DeepSeek のモデルも選べます。</p>
 <ul>
-  <li><b>モデルの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、アプリの既定（<code>gpt-6-luna</code>）の順に、最初に値があるものを使います。プロジェクトを作るとき、API は必ず具体的なモデル名を決めて保存します。費用を計算できるようにするためで、「Codex の既定」のような不明な値は残しません。デフォルトの API キーを使う Tier 1 の利用者では、Tier にない既定は <code>gpt-6-luna</code> に置き換わります（4.1）。</li>
+  <li><b>モデルの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、アプリの既定（<code>claude-sonnet-5-5</code>）の順に、最初に値があるものを使います。利用者のキーや Tier でアプリの既定を使えないときは、OpenAI のキーがあれば <code>gpt-6-luna</code>、Claude のキーだけで Tier 1 なら <code>claude-haiku-5-5</code> を使います。モデルを持たない古いプロジェクトとジョブは、以前のアプリの既定（<code>gpt-6-luna</code>）のまま動きます。プロジェクトを作るとき、API は必ず具体的なモデル名を決めて保存します。費用を計算できるようにするためで、「Codex の既定」のような不明な値は残しません。デフォルトの API キーを使う Tier 1 の利用者では、Tier にない既定は <code>gpt-6-luna</code> に置き換わります（4.1）。</li>
   <li><b>推論の強さの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、Codex の既定の順です。値は <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code>・<code>max</code>・<code>ultra</code>・<code>persistent</code> のどれかで、画面は <code>high</code> を推奨として示します。</li>
   <li><b>選べるモデル</b>：API キーを登録するとき、そのキーで使える GPT-5.6 と GPT-6 の文章のモデルを保存します。日付付きのスナップショットと、音声・画像・検索などの派生モデルは除きます。デフォルトの API キーの利用者には、Tier 2 ならデフォルトの API キーのモデルを、Tier 1 なら Tier 1 のモデルを出します。モデルは作成と設定の画面で選べます。</li>
   <li><b>Claude のモデル</b>：選べるのは <code>claude-fable-5-1</code>・<code>claude-opus-5-5</code>・<code>claude-sonnet-5-5</code>・<code>claude-haiku-5-5</code> の 4 つです。モデル ID が <code>claude-</code> で始まれば Anthropic のモデルとして扱い、Claude Agent SDK で実行します（8.4）。ハーネス、指示書、ターンの制御、成果物は OpenAI のモデルと同じです。選択欄に出るのは、使えるキーがある提供元のモデルだけです（4.1）。</li>

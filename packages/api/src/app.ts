@@ -215,6 +215,8 @@ import {
   answerQuestion,
   createProject,
   deploymentDefaultModel,
+  legacyDefaultModel,
+  orchestratorDefaultModel,
   implicitModel,
   isEffort,
   moveToAllowedModel,
@@ -403,6 +405,7 @@ app.get("/users/me/models", async (c) => {
     models: [...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed],
     efforts: REASONING_EFFORTS,
     envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
+    orchestratorDefaultModel: implicitModel(policy, orchestratorDefaultModel()),
     ...keySources(policy),
     restricted: policy.allowed !== null || noOpenAi,
     pricedModels: Object.keys(PRICING),
@@ -1047,7 +1050,7 @@ app.post("/projects/:id/articles", async (c) => {
   const chosen = normModel(body.model);
   if (chosen && !isOfferedModel(chosen)) throw bad("このモデルは解説記事に使えません");
   if (chosen) requireModel(policy, chosen);
-  const projectModel = p.model || deploymentDefaultModel();
+  const projectModel = p.model || legacyDefaultModel();
   const model = chosen || (policyAllows(policy, projectModel) ? null : implicitModel(policy, projectModel));
   const now = nowIso();
   const jobId = newId("job_");

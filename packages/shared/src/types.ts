@@ -84,6 +84,8 @@ export interface ModelsResponse {
   efforts: ReasoningEffort[];
   /** Model a job runs when the user picks "default" */
   envDefaultModel: string;
+  /** Model the Orchestrator's jobs run when the owner picks "default" (for this user's keys and Tier) */
+  orchestratorDefaultModel?: string;
   keySource: KeySource | null;
   claudeKeySource: KeySource | null;
   deepseekKeySource: KeySource | null;

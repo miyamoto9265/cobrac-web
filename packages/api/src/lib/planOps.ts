@@ -116,7 +116,7 @@ import {
   holdsPlan,
   withPlanLease,
 } from "./plans.js";
-import { deploymentDefaultModel, implicitModel, isEffort, normModel, readLocale, requireModel, requireRunKey, stopProject, type StagedAttachment } from "./runs.js";
+import { deploymentDefaultModel, implicitModel, orchestratorDefaultModel, isEffort, normModel, readLocale, requireModel, requireRunKey, stopProject, type StagedAttachment } from "./runs.js";
 import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
@@ -676,7 +676,8 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const model = chosen || fallback();
     const o = orchestratorModelOf(fresh.settings);
     const orchestratorChosen = o.chosen ? o.model : null;
-    const orchestratorModel = orchestratorChosen || fallback();
+    // the Orchestrator's default is its own (Opus 5.5), not the user's default for new projects
+    const orchestratorModel = orchestratorChosen || implicitModel(policy, orchestratorDefaultModel());
     const settings: PlanSettings = { ...fresh.settings, model, modelChosen: !!chosen, orchestratorModel, orchestratorModelChosen: !!orchestratorChosen, locale };
     const limits = await currentLimits();
     const at = nowIso();

@@ -12,6 +12,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Changed
 - The HCD instructions state the characters a facet value may use (join words with `-`) and that every ROI-internal UC, including one added or made ROI-internal later, needs all six function items; the FRG GN rules ask the agent to check each GN's UCs against the bottom-up candidates before writing `frg.json`
+- New default models: when nobody picks a model, the agents (each project's BRA) run on Claude Sonnet 5.5 and a mission's Orchestrator on Claude Opus 5.5. A user's own default model in Settings still decides the agents' model. A user whose keys or Tier do not allow these models gets the allowed default as before (gpt-6-luna with an OpenAI key, Claude Haiku 5.5 with a Claude key in Tier 1). In a mission, the Orchestrator's "Default" option now names the Orchestrator's own default model
 - The HCD validator no longer accepts UCs that are cut off from the rest of the HCD. Every UC must be linked to the ROI-internal UCs by a chain of connections (in either direction); the agent is asked to connect a cut-off UC with connections the literature supports, or to remove it. The HCD graph used to only show "N UCs are not connected to the rest"
 - The FRG validator asks for kebab-case node IDs (BRA 403)
 - The HCD validator asks for at least one connection into the ROI from an external input UC (`noROI(input)` or `noROI(input,output)`). Without one, the FRG's Input Circuits were empty (`;`) and the template's lookups failed

@@ -157,6 +157,20 @@ describe("plans: drafts", () => {
 });
 
 describe("plans: running", () => {
+  it("runs the Orchestrator on Opus 5.5 and the agents on Sonnet 5.5 when nobody picked a model and the keys allow them", async () => {
+    user(A, { anthropicKeyRegistered: true });
+    const planId = await newPlan([{ roi: "left IFG", tlf: "speech production" }]);
+    const plan = await json<PlanRecord>(call(A, "POST", `/plans/${planId}/confirm`, { locale: "ja" }));
+    expect(plan.settings).toMatchObject({ model: "claude-sonnet-5-5", modelChosen: false, orchestratorModel: "claude-opus-5-5", orchestratorModelChosen: false });
+    expect(projects()[0].model).toBe("claude-sonnet-5-5");
+    // a user's own default model still decides the agents' model, never the Orchestrator's
+    const other = await newPlan([{ roi: "STG", tlf: "hearing" }]);
+    user(A, { anthropicKeyRegistered: true, defaultModel: "gpt-6-sol" });
+    const second = await json<PlanRecord>(call(A, "POST", `/plans/${other}/confirm`, { locale: "ja" }));
+    expect(second.settings).toMatchObject({ model: "gpt-6-sol", orchestratorModel: "claude-opus-5-5" });
+    expect(await json(call(A, "GET", "/users/me/models"))).toMatchObject({ envDefaultModel: "claude-sonnet-5-5", orchestratorDefaultModel: "claude-opus-5-5" });
+  });
+
   it("starts rows on confirmation within the limits, with planId and the plan's harness rules", async () => {
     const planId = await newPlan([
       { roi: "left IFG", tlf: "speech production" },
