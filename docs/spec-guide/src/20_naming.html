@@ -151,7 +151,8 @@
     BNA:57-58/lay:L5/side:left</code></pre>
 <ul>
   <li><b>保存先</b>：<code>uc.json</code> の各回路の <code>descriptor</code> に書きます。<code>Circuits.csv</code> と xlsx の Circuits シートの UC Descriptor の列、HCD のグラフのノードの詳細にも表示されます。</li>
-  <li><b>比較の前の正規化</b>：2 つの Descriptor を比べるときは、まず正規化します。古い形を現在の形に直し（付録 C）、<code>mol</code> の値をアルファベット順に並べ、全体を小文字にします。このため <code>DRD1+</code> と <code>Drd1+</code> は同じものとして扱われます。表示には、大文字小文字を保った元の形を使います。</li>
+  <li><b>アンカーの順序</b>：<code>&amp;</code> でつないだアンカーは集合として扱い、決まった順に書きます。BNA の領域（ラベルの番号順）、BNA の群（略称順）、HOMBA の項（ID 順）の順です。<code>BNA:65-66&amp;BNA:63-64</code> は <code>BNA:63-64&amp;BNA:65-66</code> と同じ回路で、ワーカーは後者の形で書くよう求めます。</li>
+  <li><b>比較の前の正規化</b>：2 つの Descriptor を比べるときは、まず正規化します。古い形を現在の形に直し（付録 C）、アンカーを上の順に並べ、<code>mol</code> の値をアルファベット順に並べ、全体を小文字にします。このため <code>DRD1+</code> と <code>Drd1+</code> は同じものとして扱われます。表示には、大文字小文字を保った元の形を使います。</li>
   <li><b>一意性</b>：1 つの HCD の中で、2 つの回路が同じ正規化 Descriptor を持つことはできません。UC と Collection を合わせて判定します。</li>
   <li><b>Uniform かどうかは含めない</b>：Descriptor は「どの集団か」だけを表します。その HCD で UC（葉）なのか、Collection（分解される回路）なのかは含みません（2.9）。</li>
 </ul>
@@ -213,7 +214,7 @@
 <ul>
   <li>アンカーの SABRA の正式略称を、大文字小文字も含めてそのまま使います。BNA 側は BNA の新皮質の領域の略称（<code>A4ul</code>、<code>A44d</code>、<code>A9/46d</code>）、DHBA 側は DHBA の略称です。たとえば弓状核は、HOMBA の <code>ArH</code> ではなく DHBA の <code>Arc</code> を使います。</li>
   <li>略称に加える変換は、空白を <code>_</code> にすることだけです。該当するのは、BNA の <code>TE1.0 and TE1.2</code> を <code>TE1.0_and_TE1.2</code> にする 1 例だけです。<code>/</code> と <code>+</code> は 2026-08-19 の合意で使える文字に入ったため、<code>A9/46d</code>、<code>A1/2/3ll</code>、<code>V5/MT+</code> はそのまま使います。</li>
-  <li>複数の SABRA の単位にまたがる回路（<code>BNAG:</code> や <code>A&amp;B</code> のアンカー）では、暫定的に、共通する BNA の L2 の略称（例：<code>MFG</code>）を使います。共通の L2 がなければ、最初のアンカーの略称を使います。</li>
+  <li>複数の SABRA の単位にまたがる回路（<code>BNAG:</code> や <code>A&amp;B</code> のアンカー）では、暫定的に、共通する BNA の L2 の略称（例：<code>MFG</code>）を使います。共通の L2 がなければ、決まった順（2.5）で最初のアンカーの略称を使います。</li>
   <li>独自の略称や慣用の略称（<code>NAc</code>、<code>LC</code>）と、SABRA の単位でない細分の略称（片葉の <code>CH10</code> など）は前半に置きません。これらは括弧の中に <code>part</code> の項目として書きます。</li>
 </ul>
 <h3>括弧の中：項目</h3>

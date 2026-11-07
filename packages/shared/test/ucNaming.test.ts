@@ -180,8 +180,24 @@ describe("UC naming convention", () => {
 
   it("uses the common BNA L2 abbreviation for multi-unit anchors, else the first anchor", () => {
     expect(errorsFor("Hipp(CA1)", "BNA:215-216&BNA:217-218/part:HOMBA:10297")).toBe("");
-    expect(errorsFor("VTA(DA)", "HOMBA:12261&BNA:223-224/nt:DA")).toBe("");
+    expect(errorsFor("NAC(DA)", "BNA:223-224&HOMBA:12261/nt:DA")).toBe("");
     expect(errorsFor("rHipp(CA1)", "BNA:215-216&BNA:217-218/part:HOMBA:10297")).toMatch(/must start with `Hipp`/);
+  });
+
+  it("treats several anchors as a set in a fixed order: BNA by label, then BNAG, then HOMBA", () => {
+    expect(canonicalUcDescriptor("BNA:65-66&BNA:63-64")).toEqual({ text: "BNA:63-64&BNA:65-66" });
+    expect(canonicalUcDescriptor("HOMBA:12261&BNAG:MFG&BNA:223-224/nt:DA")).toEqual({ text: "BNA:223-224&BNAG:MFG&HOMBA:12261/nt:DA" });
+    expect(canonicalUcDescriptor("HOMBA:10342&HOMBA:10338&HOMBA:AA30482")).toEqual({ text: "HOMBA:10338&HOMBA:10342&HOMBA:AA30482" });
+    expect(canonicalUcDescriptor("BNA:66&BNA:64/lay:L5")).toEqual({ text: "BNA:63-64&BNA:65-66/lay:L5/side:right" });
+    expect(normalizeUcDescriptor("BNA:65-66&BNA:63-64/lay:L5")).toBe(normalizeUcDescriptor("bna:63-64&bna:65-66/lay:L5"));
+    expect(errorsFor("A1/2/3ll", "BNA:65-66&BNA:63-64")).toMatch(/write the UC Descriptor of `A1\/2\/3ll` as `BNA:63-64&BNA:65-66`/);
+    expect(errorsFor("A6cvl", "BNA:63-64&BNA:65-66")).toBe("");
+    const dup = checkUcNaming([
+      { id: "A6cvl", descriptor: "BNA:63-64&BNA:65-66" },
+      { id: "A6cvl(x)", descriptor: "BNA:65-66&BNA:63-64/part:x" },
+      { id: "A6cvl(y)", descriptor: "BNA:65-66&BNA:63-64" },
+    ]);
+    expect(dup.join("\n")).toMatch(/`A6cvl` and `A6cvl\(y\)` have the same UC Descriptor/);
   });
 
   it("rejects HOMBA anchors that are not SABRA units, with the fix", () => {

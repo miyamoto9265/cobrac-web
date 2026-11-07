@@ -201,8 +201,9 @@ function parseAnchor(s: string): UcAnchor | string {
 const sideOfLabel = (n: number): UcSide => (n % 2 === 1 ? "left" : "right");
 
 /**
- * The descriptor in its current form: single BNA labels become their pair and the side (from the label or from an
- * older `@L` / `@R`) becomes the facet `side:left` / `side:right`. Works on any case (also on normalized keys).
+ * The descriptor in its current form: single BNA labels become their pair, the side (from the label or from an
+ * older `@L` / `@R`) becomes the facet `side:left` / `side:right`, and several anchors are put in their fixed order
+ * (`sortAnchors`). Works on any case (also on normalized keys).
  */
 export function canonicalUcDescriptor(text: string): { text: string } | { error: string } {
   const s = text.trim();
@@ -221,9 +222,25 @@ export function canonicalUcDescriptor(text: string): { text: string } | { error:
   const sideFacet = facets.find((f) => /^side:/i.test(f));
   if (sideFacet && sides.size) sides.add(sideFacet.slice(5).toLowerCase() as UcSide);
   if (sides.size > 1) return { error: `\`${s}\` mixes left and right (single BNA labels are one side: odd = left, even = right); a UC has at most one side:left / side:right` };
-  if (!sides.size) return { text: s };
+  const head = sortAnchors([...new Set(anchors)]).join("&");
+  if (!sides.size) return { text: [head, ...facets].join("/") };
   const side = [...sides][0];
-  return { text: [[...new Set(anchors)].join("&"), ...facets.filter((f) => f !== sideFacet), `side:${side}`].join("/") };
+  return { text: [head, ...facets.filter((f) => f !== sideFacet), `side:${side}`].join("/") };
+}
+
+const ANCHOR_KIND_ORDER = ["bna:", "bnag:", "homba:"];
+
+/**
+ * Anchors joined with `&` are a set, so they are written in one order: BNA areas by label, then BNA groups, then
+ * HOMBA terms (each by ID). `BNA:65-66&BNA:63-64` and `BNA:63-64&BNA:65-66` are the same UC.
+ */
+function sortAnchors(anchors: string[]): string[] {
+  const rank = (a: string) => {
+    const i = ANCHOR_KIND_ORDER.findIndex((p) => a.toLowerCase().startsWith(p));
+    return i < 0 ? ANCHOR_KIND_ORDER.length : i;
+  };
+  const id = (a: string) => a.slice(a.indexOf(":") + 1);
+  return anchors.length < 2 ? anchors : [...anchors].sort((a, b) => rank(a) - rank(b) || id(a).localeCompare(id(b), "en", { numeric: true, sensitivity: "base" }));
 }
 
 /** Parse and semantically check a UC Descriptor (older forms are normalized first); returns the problems when invalid. */
