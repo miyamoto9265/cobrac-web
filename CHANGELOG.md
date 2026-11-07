@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.52.1] - 2026-11-07
+
 ### Fixed
 - On a mission with many projects, scrolling to the end of the list no longer moves the whole window: the sidebar and the page stopped at about half the window height and the rest was blank
 
