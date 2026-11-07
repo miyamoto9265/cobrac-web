@@ -17,6 +17,14 @@ export const CLAUDE_MODELS: readonly string[] = ["claude-fable-5-1", "claude-opu
 /** Claude model chosen when a Claude-only user did not pick one (the low-cost model, as gpt-6-luna for OpenAI). */
 export const DEFAULT_CLAUDE_MODEL = "claude-haiku-5-5";
 
+/**
+ * App defaults when nobody picked a model: the agents (each project's BRA jobs) run on Sonnet 5.5 and the Orchestrator
+ * (a mission's draft, re-plans and AI reviews) on Opus 5.5. A user whose keys or Tier do not allow them gets the
+ * allowed default instead (`allowedDefaultModel`: gpt-6-luna with an OpenAI key, Haiku 5.5 in Claude-only Tier 1).
+ */
+export const DEFAULT_AGENT_MODEL = "claude-sonnet-5-5";
+export const DEFAULT_ORCHESTRATOR_MODEL = "claude-opus-5-5";
+
 /** The DeepSeek models the app offers: DeepSeek V4.1 Flash (API model ID `deepseek-flash`). */
 export const DEEPSEEK_MODELS: readonly string[] = ["deepseek-flash"];
 

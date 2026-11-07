@@ -101,6 +101,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
             effort={null}
             onChange={(v) => choose({ ...choice, orchestratorModel: v.model })}
             hideEffort
+            orchestrator
             labels={{ model: t("pd.models.orchestrator") }}
             modelHint={t("pd.models.orchestratorHint")}
             dense
