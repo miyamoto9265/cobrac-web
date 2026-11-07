@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Problems on Canon entries. On the Canon page's new "Problems" tab (or "Report a problem" on a graph node), the owner or a co-editor reports an error in a circuit, connection or reference with its kind and reason. The report is a new rev without a pull request; the entry and what it reaches (the Sub-Circuits of a Collection, the connections on them, the connections citing a reference) are flagged together, and the projects that use them are listed. Projects pinned to an earlier rev show it under "Affected changes", and the agent gets the problems in `canon/` and is told not to copy such an entry. A problem is settled as "Fixed" (ticked under "Problems this pull request fixes" when approving a PR, or by hand), "Not a problem", or "Withdraw" (the entry and the connections on it become invalidated). "Align all projects" sends "Align with Canon" to every finished member project the Canon changed something for (running or unfinished projects are skipped and counted). A Canon that took entries from another Canon by a Canon → Canon pull request shows that Canon's open problems on them, with "Report here too"
+
 ### Changed
 - The HCD validator asks for at least one connection into the ROI from an external input UC (`noROI(input)` or `noROI(input,output)`). Without one, the FRG's Input Circuits were empty (`;`) and the template's lookups failed
 - The Implementation of a UC must give the UC itself on the left side (`[U.<own ID>] = …`) and use only its interface inputs on the right side. The agent used to write the receiver on the left (following the interface's outputs), and nothing caught it; the HCD spec now says so and the validator checks it

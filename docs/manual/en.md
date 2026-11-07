@@ -160,6 +160,12 @@ The owner can add **co-editors** by the e-mail address they signed up with. Co-e
 
 The project header shows the rev the project follows (for example "rev 1 (latest 2)"). "Update to latest" makes the next run follow the new definitions. When definitions this project uses have changed, "Align with Canon" also sends a follow-up instruction to update the project.
 
+### Reporting a problem
+
+When you find an error in a circuit, connection or reference of a Canon, report it on the "Problems" tab of the Canon page, or with "Report a problem" on a graph node, with its kind and reason. The entry and what it reaches (the Sub-Circuits of a Collection, the connections on them) are flagged together, and the projects that use them are listed. The agent does not copy an entry that has a problem.
+
+Fix the values in a PR: tick the problem under "Problems this pull request fixes" and approve, and it becomes "Fixed". If it was not an error, choose "Not a problem"; if the entry itself is wrong, choose "Withdraw". The owner then presses "Align all projects" to send the follow-up to every finished project it affects.
+
 ## CoBRAC Orchestrator
 
 **CoBRAC Orchestrator** takes a goal, plans the BRA projects (ROI × TLF) to build and builds them. One piece of work you hand it, with a goal and a cost limit, is a **mission**; what it writes inside the mission (rows, waves and policy) is the **plan**. Once the plan is confirmed, the rows run automatically in **waves**, within the concurrency limits. No project is created before you confirm.

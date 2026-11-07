@@ -1,4 +1,5 @@
 import type {
+  AlignResult,
   ModelProvider,
   BraVersionDetailResponse,
   BraVersionDiffResponse,
@@ -14,6 +15,9 @@ import type {
   CanonChoice,
   CanonDetailResponse,
   CanonDiff,
+  CanonIssue,
+  CanonIssueInput,
+  CanonIssueResolution,
   CanonPullRequestRecord,
   CanonRevisionSummary,
   CanonSeedCandidate,
@@ -194,8 +198,13 @@ export const api = {
   pushToCanon: (projectId: string) => request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/projects/${encodeURIComponent(projectId)}/canon/push`),
   canonPulls: (id: string) => request<{ items: CanonPullRequestRecord[] }>("GET", `/canons/${encodeURIComponent(id)}/pulls`),
   canonPull: (id: string, no: number) => request<CanonPullDetailResponse>("GET", `/canons/${encodeURIComponent(id)}/pulls/${no}`),
-  approvePull: (id: string, no: number, choices: Record<string, CanonChoice>, note?: string) =>
-    request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/approve`, { choices, ...(note ? { note } : {}) }),
+  approvePull: (id: string, no: number, choices: Record<string, CanonChoice>, note?: string, resolveIssues?: string[]) =>
+    request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/approve`, { choices, ...(note ? { note } : {}), ...(resolveIssues?.length ? { resolveIssues } : {}) }),
+  raiseCanonIssue: (id: string, b: CanonIssueInput) => request<{ revision: number; issue: CanonIssue }>("POST", `/canons/${encodeURIComponent(id)}/issues`, b),
+  settleCanonIssue: (id: string, issueId: string, resolution: CanonIssueResolution, note?: string) =>
+    request<{ revision: number }>("POST", `/canons/${encodeURIComponent(id)}/issues/${encodeURIComponent(issueId)}/resolve`, { resolution, ...(note ? { note } : {}) }),
+  alignCanonProjects: (id: string, locale: UiLocale) => request<AlignResult>("POST", `/canons/${encodeURIComponent(id)}/align`, { locale }),
+  upstreamCanonIssues: (id: string) => request<{ items: { canonId: string; name: string; issues: CanonIssue[] }[] }>("GET", `/canons/${encodeURIComponent(id)}/upstream-issues`),
   requestChanges: (id: string, no: number, note: string) => request<{ ok: true }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/request-changes`, { note }),
   commentPull: (id: string, no: number, text: string, item?: string | null) =>
     request<{ event: CanonPrEventRecord }>("POST", `/canons/${encodeURIComponent(id)}/pulls/${no}/comments`, { text, ...(item ? { item } : {}) }),
@@ -208,7 +217,7 @@ export const api = {
     request<{ pr: CanonPullRequestRecord; diff: CanonDiff }>("POST", `/canons/${encodeURIComponent(targetId)}/pulls`, { sourceCanonId }),
   canonOutgoing: (id: string) => request<{ items: (CanonPullRequestRecord & { targetName: string })[] }>("GET", `/canons/${encodeURIComponent(id)}/outgoing`),
   projectCanon: (projectId: string) =>
-    request<{ canonId: string; name: string; pinned: number; head: number; state: "current" | "behind" | "affected"; affected: { key: string; label: string; reason: string }[]; alignInstruction: string }>(
+    request<{ canonId: string; name: string; pinned: number; head: number; state: "current" | "behind" | "affected"; affected: { key: string; label: string; reason: string; issue?: string }[]; alignInstruction: string }>(
       "GET",
       `/projects/${encodeURIComponent(projectId)}/canon`,
     ),

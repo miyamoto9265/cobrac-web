@@ -75,6 +75,8 @@ export function CanonPullPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ item: string; text: string } | null>(null);
   const [prDraft, setPrDraft] = useState("");
+  // open Canon problems this pull request changes: checked ones are settled as fixed by the approval (all by default)
+  const [unfixed, setUnfixed] = useState<string[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
 
   const load = useCallback(
@@ -158,6 +160,21 @@ export function CanonPullPage() {
       <label className="hidden items-center gap-1 text-xs font-semibold text-slate-600 lg:flex">
         {t("rv.note")} <HelpTip text={t("rv.decisionHelp")} />
       </label>
+      {!!data?.issues?.length && (
+        <fieldset className="rounded-lg border border-amber-200 bg-amber-50/60 px-2.5 py-1.5" data-testid="pr-fixes-issues">
+          <legend className="flex items-center gap-1 px-1 text-xs font-semibold text-amber-900">
+            {t("iss.prFixes")} <HelpTip text={t("iss.prFixesHelp")} />
+          </legend>
+          {data.issues.map((i) => (
+            <label key={i.id} className="flex items-start gap-2 py-0.5 text-xs text-slate-700 coarse:min-h-11">
+              <input type="checkbox" className="mt-0.5" checked={!unfixed.includes(i.id)} onChange={(e) => setUnfixed((u) => (e.target.checked ? u.filter((x) => x !== i.id) : [...u, i.id]))} />
+              <span className="min-w-0 break-words">
+                <b className="font-mono">{i.id}</b> {i.label}: {i.reason}
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
       <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder={t("rv.notePh")} className="h-10 w-full resize-y rounded-lg lg:h-auto border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" data-testid="review-note" />
       <div className="flex flex-wrap gap-2">
         <button type="button" disabled={busy || !note.trim()} onClick={() => void run(async () => (await api.requestChanges(canonId, prNo, note.trim()), t("rv.changesRequested")))} className={`${btn} border-amber-300 text-amber-800 hover:bg-amber-50`} data-testid="request-changes">
@@ -170,7 +187,9 @@ export function CanonPullPage() {
           type="button"
           disabled={busy || blocking.length > 0}
           title={blocking.length ? t("pr.blocking", { n: blocking.length }) : undefined}
-          onClick={() => void run(async () => t("pr.approved", { n: (await api.approvePull(canonId, prNo, choices, note.trim() || undefined)).revision }))}
+          onClick={() =>
+            void run(async () => t("pr.approved", { n: (await api.approvePull(canonId, prNo, choices, note.trim() || undefined, (data?.issues ?? []).map((i) => i.id).filter((id) => !unfixed.includes(id)))).revision }))
+          }
           className={`${primaryBtn} flex-1 lg:flex-none`}
           data-testid="approve-pr"
         >

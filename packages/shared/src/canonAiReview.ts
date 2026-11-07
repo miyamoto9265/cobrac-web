@@ -1,3 +1,4 @@
+import type { CanonIssue } from "./canonIssues.js";
 // ---------------------------------------------------------------------------
 // AI assistance for a Canon pull request. The API writes a packet (the same material the reviewer sees), the worker
 // runs one model turn with CANON_AI_REVIEW_SCHEMA and keeps only what points at that material. The output has no
@@ -279,4 +280,6 @@ export interface CanonPullDetailResponse {
   provenance: ReviewProvenance | null;
   events: CanonPrEvent[];
   ai: CanonAiState | null;
+  /** Open Canon problems whose entry this pull request changes (offered as fixed by it when approving) */
+  issues?: CanonIssue[];
 }

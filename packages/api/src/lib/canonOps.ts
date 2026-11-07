@@ -3,14 +3,19 @@
 // review of a pull request and approving one. The routes keep their own access checks and request parsing.
 import { HTTPException } from "hono/http-exception";
 import type {
+  AlignResult,
   CanonAiActor,
   CanonAiState,
   CanonApproval,
   CanonChoice,
   CanonDiff,
   CanonIncoming,
+  CanonIssue,
+  CanonIssueInput,
+  CanonIssueResolution,
   CanonPullRequestRecord,
   CanonRecord,
+  CanonRevisionRecord,
   CanonSnapshot,
   CreateCanonRequest,
   JobRecord,
@@ -28,6 +33,9 @@ import {
   CANON_POLICY_MAX,
   FRG_FILES,
   aiActorName,
+  applyCanonIssues,
+  canonAlignInstruction,
+  canonFollowStatus,
   HCD_FILES,
   PROJECT_FILES,
   blockingConflicts,
@@ -50,7 +58,9 @@ import {
   normalizeCanonText,
   nowIso,
   projectDisplayName,
+  raiseCanonIssue,
   requiredApprovals,
+  settleCanonIssues,
   reviewEntries,
   reviewGraph,
 } from "@cobrac/shared";
@@ -60,6 +70,7 @@ import {
   advanceCanonHead,
   closePullRequest,
   getCanon,
+  listCanonMembers,
   listPullRequests,
   nextPrNumber,
   putCanon,
@@ -71,7 +82,7 @@ import {
 import { actorName, aiState, isActiveJob, reviewJobsOf } from "./canonReview.js";
 import { getProject, listJobsForCanon, putJob, updateProject } from "./db.js";
 import { bad } from "./http.js";
-import { jobKeySource } from "./runs.js";
+import { jobKeySource, moveToAllowedModel, queueFollowup, requireRunKey } from "./runs.js";
 
 // --- Canons ------------------------------------------------------------------------------------------------------------
 
@@ -308,7 +319,14 @@ export async function approvePullRequest(
   u: UserRecord,
   canon: CanonRecord,
   pr: CanonPullRequestRecord,
-  opts: { choices: Record<string, CanonChoice>; note?: string | null; /** the AI of an autonomous plan approves for the owner `u` */ via?: CanonAiActor },
+  opts: {
+    choices: Record<string, CanonChoice>;
+    note?: string | null;
+    /** the AI of an autonomous plan approves for the owner `u` */
+    via?: CanonAiActor;
+    /** open Canon problems this pull request fixes (settled as `fixed` in the revision it makes) */
+    resolveIssues?: string[];
+  },
 ): Promise<ApproveResult> {
   const { choices, via } = opts;
   const note = opts.note ?? null;
@@ -333,7 +351,9 @@ export async function approvePullRequest(
   const approvals = [...(pr.approvals ?? []).filter((a) => a.userId !== u.userId || !!a.via !== !!via), approval];
   // one approval is enough for now (requiredApprovals); the list is kept for a future setting
   if (approvals.length < requiredApprovals(canon)) return { ok: false, status: 409, reason: "approvals", body: { error: "承認がまだ足りません", approvals } };
-  const next = mergeCanon(head, incoming, diff, choices, pr.prNo, now);
+  // problems stay on the merged entries; the ones the reviewer marked as fixed by this pull request are settled with it
+  let next = applyCanonIssues(mergeCanon(head, incoming, diff, choices, pr.prNo, now));
+  if (opts.resolveIssues?.length) next = settleCanonIssues(next, opts.resolveIssues, "fixed", { userId: u.userId, name }, now, { pr: pr.prNo }).snapshot;
   await putCanonJson(canonRevisionKey(canon.canonId, next.revision), next);
   if (!(await advanceCanonHead(canon.canonId, head.revision))) {
     return { ok: false, status: 409, reason: "race", body: { error: "ほかの取り込みと重なりました。もう一度承認してください" } };
@@ -384,4 +404,78 @@ export async function requestPrChanges(u: UserRecord, canon: CanonRecord, pr: Ca
   const name = via ? aiActorName(via.model) : actorName(u);
   await updatePullRequest(canon.canonId, pr.prNo, { reviewState: "changes_requested", reviewNote: note, reviewedBy: u.userId, reviewedByName: name, reviewedAt: at });
   await putPrEvent(canon.canonId, pr.prNo, { type: "changes_requested", at, actor: u.userId, actorName: name, note, ...(via ? { via: "ai" as const, jobId: via.jobId, model: via.model } : {}) });
+}
+
+// --- problems on entries (canonIssues.ts) ----------------------------------------------------------------------------------
+
+export type IssueWriteResult = { ok: true; revision: number; snapshot: CanonSnapshot } | { ok: false; status: 400 | 409; message: string };
+
+/** Writes a revision that only reports or settles a problem (no pull request), advancing the head conditionally. */
+async function writeIssueRevision(u: UserRecord, canon: CanonRecord, head: CanonSnapshot, next: CanonSnapshot, issueId: string, action: NonNullable<CanonRevisionRecord["issueAction"]>): Promise<IssueWriteResult> {
+  await putCanonJson(canonRevisionKey(canon.canonId, next.revision), next);
+  if (!(await advanceCanonHead(canon.canonId, head.revision))) return { ok: false, status: 409, message: "ほかの変更と重なりました。もう一度お試しください" };
+  await putCanonRevision({
+    canonId: canon.canonId,
+    sk: canonRevisionSk(next.revision),
+    revision: next.revision,
+    prNo: 0,
+    source: `issue:${issueId}`,
+    createdAt: next.createdAt,
+    circuitCount: next.circuits.length,
+    connectionCount: next.connections.length,
+    issueId,
+    issueAction: action,
+    actorName: actorName(u),
+  });
+  return { ok: true, revision: next.revision, snapshot: next };
+}
+
+/** Reports a problem on one entry of the head revision as `u` (a reviewer): a new revision where it and what it reaches are flagged. */
+export async function raiseIssue(u: UserRecord, canon: CanonRecord, input: CanonIssueInput): Promise<IssueWriteResult & { issue?: CanonIssue }> {
+  if (canon.headRevision === 0) return { ok: false, status: 409, message: "この Canon はまだ空です" };
+  const head = await loadCanonHead(canon);
+  const now = nowIso();
+  const r = raiseCanonIssue(head, input, { userId: u.userId, name: actorName(u) }, now);
+  if ("error" in r) return { ok: false, status: 400, message: r.error };
+  const w = await writeIssueRevision(u, canon, head, r.snapshot, r.issue.id, "raised");
+  return w.ok ? { ...w, issue: r.issue } : w;
+}
+
+/** Settles one open problem as `u` (a reviewer) in a revision of its own. */
+export async function settleIssue(u: UserRecord, canon: CanonRecord, issueId: string, resolution: CanonIssueResolution, note: string | null): Promise<IssueWriteResult> {
+  const head = await loadCanonHead(canon);
+  const now = nowIso();
+  const r = settleCanonIssues({ ...head, revision: head.revision + 1, createdAt: now }, [issueId], resolution, { userId: u.userId, name: actorName(u) }, now, { note });
+  if (!r.settled.length) return { ok: false, status: 409, message: "この問題は見つからないか、既に解決しています" };
+  return writeIssueRevision(u, canon, head, r.snapshot, issueId, resolution);
+}
+
+/**
+ * 「まとめて Canon に合わせる」: every member project that the head changed something for (state "affected") is re-pinned
+ * to the head and gets the same follow-up as 「Canon に合わせる」 on its page. Runs on the owner's key; projects that are
+ * running or not finished are skipped and listed.
+ */
+export async function alignAffectedProjects(u: UserRecord, canon: CanonRecord, locale: UiLocale | null): Promise<AlignResult> {
+  const policy = await requireRunKey(u);
+  const head = await loadCanonHead(canon);
+  const info = { canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: canon.headRevision };
+  const pins = new Map<number, CanonSnapshot>([[head.revision, head]]);
+  const res: AlignResult = { queued: [], skipped: [] };
+  for (const m of await listCanonMembers(canon.canonId)) {
+    const p = await getProject(canon.ownerUserId, m.projectId);
+    if (!p || isProjectDeleted(p) || p.canonId !== canon.canonId) continue;
+    const pinned = Math.min(p.canonRevision ?? 0, head.revision);
+    if (!pins.has(pinned)) pins.set(pinned, await loadCanonRevision(canon, pinned));
+    const status = canonFollowStatus(pins.get(pinned)!, head, p.projectId);
+    if (status.state !== "affected") continue;
+    if (p.status !== "COMPLETED") {
+      res.skipped.push({ projectId: p.projectId, reason: ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"].includes(p.status) ? "running" : "not-completed" });
+      continue;
+    }
+    await pinProject(u, p, canon, head.revision);
+    const moved = await moveToAllowedModel(u, p, policy);
+    const jobId = await queueFollowup(u, p, policy, { instruction: canonAlignInstruction(info, status), locale, moved });
+    res.queued.push({ projectId: p.projectId, jobId });
+  }
+  return res;
 }

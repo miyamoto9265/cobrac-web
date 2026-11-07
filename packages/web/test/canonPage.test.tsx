@@ -13,6 +13,10 @@ const api = vi.hoisted(() => ({
   listProjects: vi.fn(),
   canonOutgoing: vi.fn(),
   listCanons: vi.fn(),
+  upstreamCanonIssues: vi.fn(),
+  raiseCanonIssue: vi.fn(),
+  settleCanonIssue: vi.fn(),
+  alignCanonProjects: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice" } }) }));
@@ -161,6 +165,7 @@ beforeEach(() => {
   api.listProjects.mockResolvedValue({ items: [] });
   api.canonOutgoing.mockResolvedValue({ items: [] });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
+  api.upstreamCanonIssues.mockResolvedValue({ items: [] });
 });
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
@@ -196,5 +201,52 @@ describe("Canon page", () => {
     expect(document.querySelectorAll("tbody tr")).toHaveLength(3);
     await act(async () => $('[data-testid="canon-tab-projects"]')!.click());
     expect($('[data-testid="canon-members"]')!.textContent).toContain("3 circuits in the Canon");
+  });
+});
+
+describe("problems tab", () => {
+  const issue = { id: "I1", targetKind: "circuit" as const, targetKey: "x:fl", label: "FL", kind: "anchor" as const, reason: "FL is the flocculonodular lobe", raisedRevision: 2, raisedAt: now, raisedBy: "alice", raisedByName: "Alice" };
+  const flaggedSnapshot = (): CanonSnapshot => ({
+    ...snapshot,
+    issues: [issue],
+    circuits: snapshot.circuits.map((c) => (["FL", "GC", "PC"].includes(c.circuitId) ? { ...c, state: "flagged" as const, issueIds: ["I1"] } : c)),
+  });
+
+  it("lists an open problem with what it reaches, reports a new one and aligns the projects", async () => {
+    api.getCanon.mockResolvedValue(detail(2));
+    api.canonRevision.mockResolvedValue(flaggedSnapshot());
+    api.raiseCanonIssue.mockResolvedValue({ revision: 3, issue: { ...issue, id: "I2" } });
+    api.alignCanonProjects.mockResolvedValue({ queued: [{ projectId: "p1", jobId: "j" }], skipped: [] });
+    await render(`/canons/${CANON}/issues?target=${encodeURIComponent("circuit:x:mvn")}`);
+    expect($('[data-testid="canon-tab-issues"]')!.textContent).toContain("1");
+    const li = $('[data-issue="I1"]')!;
+    expect(li.textContent).toContain("FL is the flocculonodular lobe");
+    // FL → GC, PC and their connections; p1 uses GC
+    expect(li.textContent).toContain("Reaches 3 circuits · 3 connections · 0 references");
+    expect($('[data-testid="issue-projects"]')!.textContent).toContain("Flocculus VOR");
+
+    // the graph's link opens the form on that circuit
+    expect(($('[data-testid="issue-target"]') as HTMLSelectElement).value).toBe("x:mvn");
+    const reason = $('[data-testid="issue-reason"]') as HTMLTextAreaElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(reason, "MVN is not vestibular");
+      reason.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => $('[data-testid="issue-submit"]')!.click());
+    expect(api.raiseCanonIssue).toHaveBeenCalledWith(CANON, { targetKind: "circuit", targetKey: "x:mvn", kind: "other", reason: "MVN is not vestibular" });
+    expect($('[data-testid="issue-msg"]')!.textContent).toContain("I2");
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await act(async () => $('[data-testid="issue-align"]')!.click());
+    expect(api.alignCanonProjects).toHaveBeenCalledWith(CANON, "en");
+    expect($('[data-testid="issue-msg"]')!.textContent).toContain("Sent to 1 projects");
+  });
+
+  it("names the problem on a flagged node of the graph", async () => {
+    api.getCanon.mockResolvedValue(detail(2));
+    api.canonRevision.mockResolvedValue(flaggedSnapshot());
+    await render(`/canons/${CANON}/hcd`);
+    const emphasis = $('[data-testid="canon-emphasis"]') as HTMLSelectElement;
+    expect([...emphasis.options].map((o) => o.textContent)).toContain("Problems (3)");
   });
 });
