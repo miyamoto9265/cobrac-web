@@ -21,6 +21,8 @@ describe("legacy usage correction", () => {
     expect(isLegacyUsageJob({ createdAt: "2026-10-01T18:40:00Z", startedAt: "2026-10-01T18:40:40Z", usage: u(1, 0, 0, 0) })).toBe(false);
     expect(isLegacyUsageJob({ createdAt: "2026-09-29T12:36:00Z", startedAt: null, usage: undefined })).toBe(false);
     expect(USAGE_FIX_AT < "2026-10-01T18:34:00Z").toBe(true);
+    // rewritten by scripts/migrate-usage-0171.mjs: stored usage is already corrected
+    expect(isLegacyUsageJob({ createdAt: "2026-09-29T12:36:00Z", startedAt: "2026-09-29T12:36:33Z", usage: u(1, 0, 0, 0), usageCorrected: true })).toBe(false);
   });
 
   it("recovers the session file's totals from the usage rows of a production run", () => {

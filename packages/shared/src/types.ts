@@ -304,6 +304,8 @@ export interface JobRecord {
   usage?: TokenUsage;
   /** Estimated OpenAI cost (USD) for this job; null if the model has no price entry */
   costUsd?: number | null;
+  /** usage / costUsd of this pre-0.17.1 job were rewritten with their corrected values (`scripts/migrate-usage-0171.mjs`) */
+  usageCorrected?: boolean;
   /** BRA data version this job froze when it completed (a follow-up's first run may also freeze the baseline on the job before it) */
   braVersion?: BraVersionSummary;
   /** BRA Planner plan whose row started this job (absent on jobs started otherwise); for a `plan` job, the plan itself */

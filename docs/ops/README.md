@@ -17,7 +17,8 @@
 9. [監視の操作](#9-監視の操作)
 10. [緊急停止の操作](#10-緊急停止の操作)
 11. [BRA-DB の保守](#11-bra-db-の保守)
-12. [撤去と残る費用](#12-撤去と残る費用)
+12. [データの移行](#12-データの移行)
+13. [撤去と残る費用](#13-撤去と残る費用)
 
 ---
 
@@ -274,7 +275,16 @@ BRA-DB の構成は仕様書 7.6 にあります。インスタンスには SSH 
 | 外部 DB への出口 IP | VPC から外への通信は、NAT インスタンスの Elastic IP（スタックの出力 `NatPublicIp`）から出る。外部の DB の許可 IP にはこのアドレスを伝える。EIP は RETAIN で、NAT インスタンスを置き換えても同じアドレスを引き継ぐ |
 | インスタンスの置き換え | AMI の更新などで `AWS::EC2::Instance` / `VolumeAttachment` が置き換わると、CI の RETAIN ガードがデプロイを止める（[5](#5-retain-ガード)）。先にデータ用ボリュームを外し、`allow_retain_replacement=true` で再実行する。新しいインスタンスが、起動時にクラスタを登録し直す |
 
-## 12. 撤去と残る費用
+## 12. データの移行
+
+1 回きりの移行スクリプトは `scripts/` にあります。どれも既定では読むだけで、`--apply` を付けたときだけ書き込みます。本番の DynamoDB に書き込むので、所有者の承認を得てから実行します。
+
+| スクリプト | 内容 | 手順 |
+|---|---|---|
+| `migrate-usage-0171.mjs` | v0.17.1 より前のジョブの使用量と費用を、補正した値で書き換える（仕様書 C.7） | `npm run build -w @cobrac/shared` の後、`node scripts/migrate-usage-0171.mjs --json plan.json` で計画を作って件数と費用を確かめ、`--apply --from plan.json` で書き込む。`plan.json` は補正前の値の控えなので残しておく。戻すときは `--apply --revert --from plan.json` |
+| `migrate-project-ids.mjs` | v0.7 より前の Project ID を新しい形に移す（仕様書 C.4） | スクリプトの先頭のコメントを参照 |
+
+## 13. 撤去と残る費用
 
 `cdk destroy` の後も、次のものは残り、わずかな保存の費用がかかり続けます（`RemovalPolicy.RETAIN`）。
 
