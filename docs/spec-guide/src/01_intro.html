@@ -11,7 +11,7 @@
 <table>
   <thead><tr><th style="width:26%">読者</th><th style="width:30%">まず読むところ</th><th>必要に応じて</th></tr></thead>
   <tbody>
-    <tr><td>WBAI のメンバー（研究者）</td><td>第 1 部、第 2 部、第 3 部</td><td>第 5 部（Canon）、3.16（完成した BRA の読み方と限界）、付録 D（設計の経緯）</td></tr>
+    <tr><td>WBAI のメンバー（研究者）</td><td>第 1 部、第 2 部、第 3 部</td><td>第 5 部（Canon）、3.16（完成した BRA の読み方と限界）、付録 D（設計の経緯）、付録 E（検査項目の一覧）</td></tr>
     <tr><td>BRA の審査と統合に関わる人</td><td>第 1 部、3.16、第 5 部、第 7 部</td><td>第 2 部、第 6 部（オーケストレーターが作る BRA）</td></tr>
     <tr><td>CoBRAC の利用者</td><td>第 1 部、第 4 部、第 6 部</td><td>第 3 部、利用マニュアル</td></tr>
     <tr><td>CoBRAC の開発と運用を担う人</td><td>すべて。とくに第 8 部、第 9 部、付録 A〜C</td><td>運用の手順は <code>docs/ops/README.md</code></td></tr>
@@ -40,7 +40,7 @@
     <tr><td><b>第 7 部 BRA-DB への登録</b></td><td>凍結した版を、BRA-DB と同じスキーマ（v4.6）のデータベースに来歴付きで登録する手順と規則</td></tr>
     <tr><td><b>第 8 部 システムの構成</b></td><td>AWS の部品とパッケージ、ジョブの実行と回復、ワーカーの処理、データモデル、フロントエンド、非機能の目標</td></tr>
     <tr><td><b>第 9 部 セキュリティと費用</b></td><td>IAM の権限、扱う情報、暗号化と API キー、認証と認可、ワーカーの隔離、監視、AWS と各社のモデルの費用</td></tr>
-    <tr><td><b>付録</b></td><td>A API 一覧、B 指示書の原文、C 古いプロジェクトの扱い、D 設計の経緯（速度と費用の測定を含む）、E 典拠</td></tr>
+    <tr><td><b>付録</b></td><td>A API 一覧、B 指示書の原文、C 古いプロジェクトの扱い、D 設計の経緯（速度と費用の測定を含む）、E 検査項目の一覧、F 典拠</td></tr>
   </tbody>
 </table>
 
@@ -125,6 +125,7 @@
     <tr><td>BRA の CSV 形式</td><td><code>Project.csv</code> の BRA version</td><td><code>CoBRAC-v1-1</code></td></tr>
     <tr><td>公式 xlsx</td><td>出力先の BRA テンプレート</td><td><code>Template-v2-3</code></td></tr>
     <tr><td>BRA の版</td><td>あるプロジェクトの成果物の履歴</td><td><code>&lt;ProjectID&gt;@v1</code>、<code>@v2</code> など（4.5）</td></tr>
+    <tr><td>検査 ID</td><td>ワーカーの検査の番号</td><td><code>QC-03-23</code> の形（付録 E）。WBAI の Error code List (Master) の番号とは別</td></tr>
     <tr><td>Canon の rev</td><td>Canon の中身の履歴</td><td>rev 0、1、2…（第 5 部）</td></tr>
   </tbody>
 </table>

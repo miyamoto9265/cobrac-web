@@ -381,7 +381,8 @@
 </ol>
 <p>このほか、Circuit ID が UC と Collection を通じて重ならないこと、facet のない UC の <code>names</code> が SABRA の正式名で始まることも検査します。</p>
 <h3>エラーコードの体系</h3>
-<p>検査のコードは、WBAI の <b>BRA data: Error code List (Master)</b> に合わせています。Master は、BRA のテンプレート（Template-v2-2 / v2-3）が参照する表です。Master にコードのない CoBRAC の検査には、<b><code>cobrac:</code> で始まるローカルコード</b>を付けます。番号ではなく名前にしているのは、Master の番号と衝突させないためです。</p>
+<p>ワーカーの検査には、<code>QC-03-23</code> の形の<b>検査 ID</b> が付いています。すべての検査とその扱いは付録 E に一覧しています。</p>
+<p>検査のコードは、WBAI の <b>BRA data: Error code List (Master)</b> に合わせています。Master は、BRA のテンプレート（Template-v2-2 / v2-3）が参照する表で、Review Tool 4.4 が参照する版をリポジトリの <code>docs/bra/</code> に保存しています。付録 E の表には、検査ごとに Master の番号を併記しています。Master にコードのない CoBRAC の検査には、<b><code>cobrac:</code> で始まるローカルコード</b>を付けます。番号ではなく名前にしているのは、Master の番号と衝突させないためです。</p>
 <p>オントロジー報告書の付録 D の番号には、Master にない番号や、Master では別の意味の番号が含まれます。CoBRAC の検査は Master のコードと <code>cobrac:</code> のコードを使います。付録 D の番号との対応は付録 C（C.3）にあります。</p>
 <h3>CoBRAC 独自のコードの一覧</h3>
 <table class="compact">
