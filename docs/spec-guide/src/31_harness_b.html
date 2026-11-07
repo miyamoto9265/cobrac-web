@@ -106,7 +106,7 @@
     <tr><td>8 レポート</td><td><code>report.md</code></td><td>Overview、HCD、Limitations、References。FRG の節は次の段階で足す</td></tr>
   </tbody>
 </table>
-<p>外部の UC の <code>roi</code> は <code>noROI(input)</code> / <code>noROI(output)</code> / <code>noROI(input,output)</code> のいずれか、内部の UC は <code>internal</code> です。外部の UC には、内部の UC 用のインターフェースや 5 つの機能項目を書きません。内部の UC のインターフェースは接続から決まり、入力は送り手、出力は受け手です。ROI の外から ROI に入る接続（<code>noROI(input)</code> か <code>noROI(input,output)</code> の UC から内部の UC への接続）が最低 1 本必要で、ワーカーが検査します。FRG の Input Circuits はこの外部の UC から決まるため、1 本もないとテンプレートの数式が失敗します。</p>
+<p>外部の UC の <code>roi</code> は <code>noROI(input)</code> / <code>noROI(output)</code> / <code>noROI(input,output)</code> のいずれか、内部の UC は <code>internal</code> です。外部の UC には、内部の UC 用のインターフェースや 5 つの機能項目を書きません。内部の UC のインターフェースは接続から決まり、入力は送り手、出力は受け手です。ROI の外から ROI に入る接続（<code>noROI(input)</code> か <code>noROI(input,output)</code> の UC から内部の UC への接続）が最低 1 本必要で、ワーカーが検査します。FRG の Input Circuits はこの外部の UC から決まるため、1 本もないとテンプレートの数式が失敗します。また、HCD は 1 つにつながった回路でなければなりません。どの UC も、接続を（向きを問わず）たどって ROI 内部の UC とつながっている必要があり、切り離された UC があればワーカーが差し戻します。エージェントは、文献で支えられる接続でつなぐか、TLF に要らなければその UC を削除します。</p>
 <p>UC の粒度と、領域を分けたときの Collection の扱いは 2.9 にまとめています。</p>
 
 <h3>ROI の規則</h3>

@@ -211,6 +211,19 @@ describe("checkHcd", () => {
     expect(msg).toMatch(/no connection comes into the ROI from outside/);
   });
 
+  it("asks to connect or remove UCs cut off from the rest of the HCD", () => {
+    const ucs = structuredClone(UC);
+    ucs.ucs.push(
+      uc("X1", "HOMBA:12960", { roi: "noROI(input)" }),
+      uc("X2", "HOMBA:12961", { roi: "noROI(output)", outputSemantics: "" }),
+    );
+    const c = structuredClone(CONN);
+    c.connections.push(conn("X1", "X2", "elsewhere"));
+    const msg = checkHcd({ ...HCD, uc: j(ucs), connections: j(c) }).errors.join("\n");
+    expect(msg).toMatch(/`X1`, `X2` are cut off from the rest of the HCD/);
+    expect(msg).toMatch(/connect them with connections the literature supports, or remove them/);
+  });
+
   it("is fatal without usable UC or connection data", () => {
     expect(checkHcd({ ...HCD, uc: "not json" }).fatal).toBe(true);
     expect(checkHcd({ ...HCD, uc: "not json" }).errors.join("\n")).toMatch(/uc\.json is not valid JSON/);
