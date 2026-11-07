@@ -105,6 +105,31 @@ export interface BibtexInput {
   record?: BibRecord | null;
   /** Used when there is no record (or it lacks the field) */
   fallback: { authors?: string[]; title?: string; container?: string; year?: number | null; doi?: string; pmid?: string; url?: string };
+  /** Journal names of the template (AdminOnly column A); a matching container is written in the list's spelling. */
+  journals?: readonly string[];
+}
+
+/** Key for comparing journal names: case, braces, a leading "The", "&" and punctuation are ignored. */
+const journalKey = (s: string) =>
+  s
+    .replace(/\{\\&\}amp\$\\mathsemicolon\$/g, "&")
+    .replace(/&amp;/g, "&")
+    .replace(/[{}]/g, "")
+    .replace(/&/g, " and ")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/^the /, "");
+
+/**
+ * The template scores a reference's journal by exact match with its journal list (AdminOnly column A, e.g.
+ * "Journal of Neuroscience", "{PLoS} {ONE}"); anything else gets Journal score 0. Returns the list's spelling for
+ * a name that differs only in case, braces, a leading "The", "&"/"and" or punctuation, else null.
+ */
+export function templateJournalName(name: string, journals: readonly string[]): string | null {
+  const k = journalKey(name);
+  if (!k) return null;
+  return journals.find((j) => j !== "-" && journalKey(j) === k) ?? null;
 }
 
 export function buildBibtex(b: BibtexInput): { bibtex: string; type: string; authors: string; title: string; container: string } {
@@ -114,7 +139,9 @@ export function buildBibtex(b: BibtexInput): { bibtex: string; type: string; aut
     ? r.authors.map((a) => bibValue([a.given, a.family].filter(Boolean).join(" ")))
     : (b.fallback.authors ?? []).map(bibValue);
   const title = bibValue(r?.title || b.fallback.title || "");
-  const container = bibValue(r?.container || b.fallback.container || "");
+  const rawContainer = bibValue(r?.container || b.fallback.container || "");
+  // The list's spelling is written as is (its braces are part of the name the template compares).
+  const container = (kind.container === "journal" && b.journals && templateJournalName(rawContainer, b.journals)) || rawContainer;
   const year = r?.year ?? b.fallback.year ?? null;
   const doi = (r?.doi || b.fallback.doi || "").trim();
   const fields: [string, string | number][] = [];

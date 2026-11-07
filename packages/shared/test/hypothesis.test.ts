@@ -765,7 +765,7 @@ describe("report checks", () => {
 
 describe("strict invariance", () => {
   // the inputs of harness.test.ts (a project without any hypothesis key)
-  const fn = (id: string) => ({ requirement: `req of [U.${id}]`, requirementRealization: `real of [U.${id}]`, capability: "cap", mechanism: "mech", implementation: `[U.${id}] = f([U.VN])` });
+  const fn = (id: string, inputs = "[U.VN]") => ({ requirement: `req of [U.${id}]`, requirementRealization: `real of [U.${id}]`, capability: "cap", mechanism: "mech", implementation: `[U.${id}] = f(${inputs})` });
   const noFn = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
   const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown>) => ({
     circuitId,
@@ -809,7 +809,7 @@ describe("strict invariance", () => {
       ucs: [
         uc("VN", "HOMBA:12950", { roi: "noROI(input)", comments: "head velocity" }),
         uc("GC(granule)", "HOMBA:12852/cell:granule", { comments: "parallel fibres", interface: "([U.PC(purkinje)]) = GC(granule)([U.VN])", ...fn("GC(granule)") }),
-        uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC(purkinje)") }),
+        uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC(purkinje)", "[U.GC(granule)], [U.IO]") }),
         uc("IO", "HOMBA:12500", { interface: "([U.PC(purkinje)]) = IO([U.VN])", ...fn("IO") }),
         uc("FTN", "HOMBA:12951", { roi: "noROI(output)", transmitter: "GABA", modulationType: "Inhibitory", outputSemantics: "" }),
       ],

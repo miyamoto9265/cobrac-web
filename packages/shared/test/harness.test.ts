@@ -9,6 +9,7 @@ import {
   buildGraphs,
   checkFrg,
   checkHcd,
+  implementationProblems,
   parseCsvObjects,
   parseInterface,
   parseTurnOutput,
@@ -26,12 +27,12 @@ const REFS = {
   ],
 };
 
-const fn = (id: string) => ({
+const fn = (id: string, inputs = "[U.VN]") => ({
   requirement: `req of [U.${id}]`,
   requirementRealization: `real of [U.${id}]`,
   capability: "cap",
   mechanism: "mech",
-  implementation: `[U.${id}] = f([U.VN])`,
+  implementation: `[U.${id}] = f(${inputs})`,
 });
 const noFn = { interface: "", requirement: "", requirementRealization: "", capability: "", mechanism: "", implementation: "" };
 const uc = (circuitId: string, descriptor: string, extra: Record<string, unknown>) => ({
@@ -52,7 +53,7 @@ const UC = {
   ucs: [
     uc("VN", "HOMBA:12950", { roi: "noROI(input)", comments: "head velocity" }),
     uc("GC(granule)", "HOMBA:12852/cell:granule", { comments: "parallel fibres", interface: "([U.PC(purkinje)]) = GC(granule)([U.VN])", ...fn("GC(granule)") }),
-    uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC(purkinje)") }),
+    uc("PC(purkinje)", "HOMBA:12852/cell:purkinje", { transmitter: "GABA", modulationType: "Inhibitory", interface: "([U.FTN]) = PC(purkinje)([U.GC(granule)], [U.IO])", ...fn("PC(purkinje)", "[U.GC(granule)], [U.IO]") }),
     uc("IO", "HOMBA:12500", { interface: "([U.PC(purkinje)]) = IO([U.VN])", ...fn("IO") }),
     uc("FTN", "HOMBA:12951", { roi: "noROI(output)", transmitter: "GABA", modulationType: "Inhibitory", outputSemantics: "" }),
   ],
@@ -190,6 +191,24 @@ describe("checkHcd", () => {
     const msg = checkHcd({ ...HCD, uc: j(ucs) }).errors.join("\n");
     expect(msg).toMatch(/uc\.json: \/ucs\/3\/implementation is required \(see schemas\/uc\.schema\.json\)/);
     expect(msg).toMatch(/ROI-internal `IO` has empty implementation/);
+  });
+
+  it("asks for the UC itself on the left side of its implementation and only its inputs on the right", () => {
+    const ucs = structuredClone(UC);
+    ucs.ucs[1].implementation = "[U.PC(purkinje)] = f([U.VN])";
+    ucs.ucs[3].implementation = "[U.IO] = g([U.VN], [U.FTN])";
+    const msg = checkHcd({ ...HCD, uc: j(ucs) }).errors.join("\n");
+    expect(msg).toMatch(/implementation of `GC\(granule\)` has \[U\.PC\(purkinje\)\] on the left side/);
+    expect(msg).toMatch(/implementation of `IO` uses \[U\.FTN\], which is not an input of its interface/);
+    expect(implementationProblems("A", "[U.A] = f([U.B], [U.A])", ["B"])).toEqual([]);
+    expect(implementationProblems("A", "x", ["B"])[0]).toMatch(/must be equations of the form \[U\.A\] = f/);
+  });
+
+  it("asks for an external UC that sends into the ROI", () => {
+    const ucs = structuredClone(UC);
+    ucs.ucs[0].roi = "noROI(output)";
+    const msg = checkHcd({ ...HCD, uc: j(ucs) }).errors.join("\n");
+    expect(msg).toMatch(/no connection comes into the ROI from outside/);
   });
 
   it("is fatal without usable UC or connection data", () => {
