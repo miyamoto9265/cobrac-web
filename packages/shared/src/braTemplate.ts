@@ -264,6 +264,23 @@ export function readTemplateSheet(bytes: Uint8Array, sheet: string): Map<string,
   return out;
 }
 
+/** Journal names of the template's journal list (AdminOnly column A below the header, cached values). */
+function templateJournals(files: Record<string, Uint8Array>, paths: Map<string, string>, ss: string[]): string[] {
+  const p = paths.get("AdminOnly");
+  if (!p || !files[p]) return [];
+  const ws = parseWorksheet("AdminOnly", strFromU8(files[p]));
+  const out: string[] = [];
+  for (const row of ws.rows) {
+    if (row.r < 2) continue;
+    for (const c of rowCells(row)) {
+      if (c.col !== C("A")) continue;
+      const t = cellText(c, ss).trim();
+      if (t && t !== "-") out.push(t);
+    }
+  }
+  return out;
+}
+
 // --- export --------------------------------------------------------------------------------------------------------
 
 export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInput): TemplateExportResult {
@@ -284,6 +301,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
   }
   const notes: string[] = [];
   const dhba = dhbaTermsFromTemplate(ws("Circuits"), ss);
+  const journals = templateJournals(files, paths, ss);
 
   // --- data rows from the CSVs --------------------------------------------------------------------------------------
   const refT = table(input.csv.references);
@@ -329,6 +347,7 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
         pmid,
         url: doi ? undefined : alt || undefined,
       },
+      journals,
     });
     return {
       id: tRef(id),
@@ -339,6 +358,10 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
       fromRecord: !!record,
     };
   });
+  const unlisted = [...new Set(references.filter((r) => r.bibtex.container && !journals.includes(r.bibtex.container)).map((r) => r.bibtex.container))];
+  if (journals.length && unlisted.length) {
+    notes.push(`${unlisted.length} journal(s) are not in the template's journal list, so their Journal score is 0: ${unlisted.join("; ")}.`);
+  }
   const withoutRecord = references.filter((r) => !r.fromRecord).length;
   if (withoutRecord) notes.push(`${withoutRecord} reference(s) have no Crossref / PubMed record; their BibTeX is built from references.json and reference_check.json only.`);
 
@@ -501,9 +524,10 @@ export function buildTemplateXlsx(template: Uint8Array, input: TemplateExportInp
   frgRows.forEach((f, i) => {
     put("FRG", 2 + i, {
       AC: f.node,
-      AD: f.subnodes.join(";"),
+      // BRA 410 / 431: every listed ID ends with ";"
+      AD: f.subnodes.map((x) => `${x};`).join(""),
       AE: f.circuit,
-      AF: f.projected.join(";"),
+      AF: f.projected.map((x) => `${x};`).join(""),
       BA: cite(f.cm),
       BC: f.subnodes.length ? "" : cite(f.implementation),
       BG: cite(f.reqRealization),

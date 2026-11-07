@@ -675,3 +675,55 @@ describe("Canon constraints in the phase pipeline", () => {
     expect(notes.flat().some((n) => n.includes("`bna:223-224` is a Collection"))).toBe(false);
   });
 });
+
+describe("automatic fixes", () => {
+  function writeHcd(p: ProjectPaths) {
+    writeFileSync(p.meta, fixture("meta.json"));
+    writeFileSync(p.decisionLog, fixture("decision_log.md"));
+    writeFileSync(p.report, fixture("report_hcd.md"));
+    for (const f of ["references.json", "uc.json", "connections.json"]) cpSync(join(FIXTURE, "HCD", f), join(p.hcd, f));
+  }
+
+  it("fixes what it can before checking again, records it and sends nothing back", async () => {
+    const p = freshWorkspace();
+    writeHcd(p);
+    const conns = JSON.parse(fixture("HCD/connections.json"));
+    conns.connections[0].taxon = "macaque monkey";
+    conns.connections[0].pointersOnFigure = "see Figure 1";
+    writeFileSync(join(p.hcd, "connections.json"), JSON.stringify(conns, null, 2));
+    const uc = JSON.parse(fixture("HCD/uc.json"));
+    uc.ucs[1].transmitter = "dopaminergic";
+    uc.ucs[1].comments = "ドーパミン細胞";
+    writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
+
+    const seen: string[][] = [];
+    const r = await checkPhase("HCD", p, {
+      ...depsOf(),
+      translate: async (texts) => new Map(texts.map((t) => [t, "Dopamine neurons"])),
+      onAutoFix: async (_phase, fixes) => void seen.push(fixes.map((f) => f.code)),
+    }, { hcd: null, frg: null });
+
+    expect(r.errors).toEqual([]);
+    expect(seen).toEqual([["QC-03-17", "QC-03-26", "QC-03-24", "QC-03-03"]]);
+    const c = JSON.parse(readFileSync(join(p.hcd, "connections.json"), "utf8")).connections[0];
+    expect([c.taxon, c.pointersOnFigure]).toEqual(["Macaque", "Fig. 1"]);
+    const u = JSON.parse(readFileSync(join(p.hcd, "uc.json"), "utf8")).ucs[1];
+    expect([u.transmitter, u.comments]).toEqual(["Dopamine", "Dopamine neurons"]);
+    const log = JSON.parse(readFileSync(p.autoFixLog, "utf8"));
+    expect(log).toHaveLength(1);
+    expect(log[0]).toMatchObject({ phase: "HCD" });
+    rmSync(p.root, { recursive: true, force: true });
+  });
+
+  it("sends back what it cannot fix, and non-English text without a translator", async () => {
+    const p = freshWorkspace();
+    writeHcd(p);
+    const uc = JSON.parse(fixture("HCD/uc.json"));
+    uc.ucs[1].comments = "ドーパミン細胞";
+    writeFileSync(join(p.hcd, "uc.json"), JSON.stringify(uc, null, 2));
+    const r = await checkPhase("HCD", p, depsOf(), { hcd: null, frg: null });
+    expect(r.errors.join("\n")).toMatch(/write every value in English/);
+    expect(existsSync(p.autoFixLog)).toBe(false);
+    rmSync(p.root, { recursive: true, force: true });
+  });
+});

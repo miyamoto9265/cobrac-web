@@ -300,6 +300,7 @@ export const de: Record<MessageKey, string> = {
   "sys.phaseIncomplete": "Der Schritt {step} konnte nach den erlaubten Korrekturversuchen nicht abgeschlossen werden. Follow-up oder Retry verwenden.",
   "sys.legacyWorkspace": "Dieses Projekt verwendet das Dateiformat vor v0.8 und kann nicht fortgesetzt werden. xlsx und Graphen bleiben verfügbar; starte ein neues Projekt, um weiterzuarbeiten.",
   "sys.csvBuilt": "CSVs aus den HCD/FRG-Datendateien erzeugt.",
+  "sys.autoFixed": "{phase}: {count} Wert(e) automatisch korrigiert und erneut geprüft ({summary}).",
   "sys.researchOn": "Recherchemodus: an",
   "sys.researchOff": "Recherchemodus: aus",
   "sys.researchStart": "Rechercheschritt: Literaturrecherche vor dem HCD (bis zu {minutes} Min., Reasoning Effort {effort}).",

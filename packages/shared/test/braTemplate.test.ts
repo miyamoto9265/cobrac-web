@@ -10,6 +10,7 @@ import {
   OUT_OF_ROI_CAPABILITY,
   bibKeyOfDoi,
   buildBibtex,
+  templateJournalName,
   buildTemplateXlsx,
   colLetters,
   readTemplateSheet,
@@ -131,6 +132,28 @@ describe("Reference IDs and BibTeX", () => {
     expect(e).toContain("pages = {1593--1599}");
     expect(b).toMatchObject({ type: "Article", authors: "W. Schultz, P. Dayan", title: "A neural substrate", container: "Science" });
   });
+
+  it("writes the journal in the spelling of the template's journal list", () => {
+    const journals = ["Journal of Neuroscience", "{PLoS} {ONE}", "Learning {\\&}amp$\\mathsemicolon$ Memory"];
+    expect(templateJournalName("The Journal of Neuroscience", journals)).toBe("Journal of Neuroscience");
+    expect(templateJournalName("PLOS ONE", journals)).toBe("{PLoS} {ONE}");
+    expect(templateJournalName("Learning & Memory", journals)).toBe(journals[2]);
+    expect(templateJournalName("Brain", journals)).toBeNull();
+    const b = buildBibtex({
+      key: "Doe_2020",
+      record: { source: "crossref", type: "journal-article", authors: [{ family: "Doe", given: "J." }], title: "T", container: "PLOS ONE", year: 2020, doi: "10.1371/x" },
+      fallback: {},
+      journals,
+    });
+    // References!J reads the journal with this expression and Connections!W compares it with the list exactly
+    expect(/journal *= *{(.+)}/.exec(b.bibtex)![1]).toBe("{PLoS} {ONE}");
+  });
+
+  it("notes journals that are not in the template's journal list", () => {
+    const out = buildTemplateXlsx(TEMPLATE, modernInput({ refs: 2, ucs: 3, conns: 3 }));
+    // the template's list (imported as Journals!A1:C50) stops at "Neuroscience", so "Science" is not in it
+    expect(out.notes.find((n) => /not in the template's journal list/.test(n))).toContain("Science");
+  });
 });
 
 describe("Template-v2-3 export", () => {
@@ -201,11 +224,11 @@ describe("Template-v2-3 export", () => {
 
   it("writes the FRG input columns and leaves the automatic ones as formulas", () => {
     const s = readTemplateSheet(small.bytes, "FRG");
-    expect(["AC", "AD", "AE", "AF", "BI", "BK", "BM"].map((c) => s.get(`${c}2`)?.text ?? "")).toEqual(["R.Top", "U.VTA;U.VTA(DRD2+);U.A9/46d@L;U.X0", "", "", "req", "[VTA] RPE;", "TLF"]);
+    expect(["AC", "AD", "AE", "AF", "BI", "BK", "BM"].map((c) => s.get(`${c}2`)?.text ?? "")).toEqual(["R.Top", "U.VTA;U.VTA(DRD2+);U.A9/46d@L;U.X0;", "", "", "req", "[VTA] RPE;", "TLF"]);
     expect(s.get("BA3")!.text).toBe("cap VTA [Schultz, 1997]\n<<mechanism to realize the capability>>\nmech VTA\n<<mechanism realized by grainest coding scheme>>\n");
     expect(s.get("BI3")!.text).toBe("req VTA [Schultz, 1997b]");
     expect(s.get("BC3")!.text).toBe("[U.VTA] = f([U.X0])");
-    expect(s.get("AF3")!.text).toBe("A9/46d@L;X0");
+    expect(s.get("AF3")!.text).toBe("A9/46d@L;X0;");
     expect(s.get("BA4")!.text).toBe(`${OUT_OF_ROI_CAPABILITY}\n<<mechanism to realize the capability>>\n\n<<mechanism realized by grainest coding scheme>>\n`);
     for (const c of ["AX", "AY", "AZ", "BD"]) expect(s.get(`${c}3`)!.formula, c).not.toBeNull();
   });

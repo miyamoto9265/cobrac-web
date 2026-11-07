@@ -15,6 +15,7 @@ import {
   isRoiCircuitId,
   normalizeFigurePointer,
   parseOutputSemantics,
+  isKebabNodeId,
   pointerProblems,
   relationProblems,
   roiCircuitId,
@@ -39,7 +40,7 @@ import {
   type Hypothesis,
 } from "./hypothesis.js";
 import { validateJsonSchema, type JsonSchema } from "./jsonSchema.js";
-import { isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
+import { detachedNodes, isConnectedSet, MAX_MOTIF_UCS } from "./motifs.js";
 import { normalizeProjectName } from "./projectId.js";
 import { RESEARCH_FILES, RESEARCH_SCHEMA } from "./research.js";
 import {
@@ -75,6 +76,8 @@ export const PROJECT_FILES = {
   /** Bottom-up candidates for the FRG (motifs.ts), rewritten from the HCD at every check */
   frgCandidates: "frg_candidates.json",
   phaseBaseline: "phase_baseline.json",
+  /** Every automatic fix the worker made to the data files (autofix.ts), appended at each check */
+  autoFixLog: "autofix_log.json",
   /** Hypothesis mode only: the hypotheses with their IDs, the share and the GNs that depend on them (hypothesis.ts) */
   hypotheses: HYPOTHESES_FILE,
 } as const;
@@ -600,6 +603,36 @@ export interface CheckHcdOptions {
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
 const ucRefs = (text: string) => [...text.matchAll(/\[U\.([^[\]\s]+)\]/g)].map((m) => m[1]);
+
+/**
+ * Implementation of Uniform Circuit: equations whose left side is the UC itself (`[U.<own ID>] = …`) and whose
+ * right side uses only the UC's interface inputs (and the UC itself, for recurrence).
+ */
+export function implementationProblems(id: string, text: string, inputs: string[]): string[] {
+  const out: string[] = [];
+  const allowed = new Set([id, ...inputs]);
+  const eqs = text
+    .replace(/`/g, "")
+    .split(/[;\n]/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+  let own = 0;
+  for (const eq of eqs) {
+    const i = topLevelEquals(eq);
+    if (i < 0) continue;
+    const lhs = ucRefs(eq.slice(0, i));
+    if (lhs.length && lhs.every((x) => x === id)) own++;
+    else if (lhs.length) {
+      out.push(`uc.json: implementation of \`${id}\` has [U.${lhs.find((x) => x !== id)}] on the left side of "${eq}"; the left side is the UC itself ([U.${id}] = …), the right side its inputs.`);
+    }
+    const bad = [...new Set(ucRefs(eq.slice(i + 1)).filter((x) => !allowed.has(x)))];
+    if (bad.length) {
+      out.push(`uc.json: implementation of \`${id}\` uses ${bad.map((x) => `[U.${x}]`).join(", ")}, which ${bad.length > 1 ? "are" : "is"} not an input of its interface; use only its inputs [${inputs.join(", ")}] on the right side.`);
+    }
+  }
+  if (!own && !out.length) out.push(`uc.json: implementation of \`${id}\` must be equations of the form [U.${id}] = f(<its inputs>).`);
+  return out;
+}
 /** Source of ID: one value; a list written before 0.10 keeps its first entry (the schema reports the list). */
 const firstValue = (v: unknown) => (Array.isArray(v) ? strings(v)[0] ?? "" : s(v));
 
@@ -765,6 +798,23 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       (receivers.get(c.sender) ?? receivers.set(c.sender, []).get(c.sender)!).push(c.receiver);
     }
     errors.push(...multiUnitSenderProblems(ucs.filter((u) => receivers.has(u.id))));
+    const roiOf = new Map(ucs.map((u) => [u.id, u.roi]));
+    const external = (id: string) => roiOf.get(id) === "input" || roiOf.get(id) === "both";
+    if (ucs.some((u) => u.roi === "roi") && !connections.some((c) => external(c.sender) && roiOf.get(c.receiver) === "roi")) {
+      errors.push(
+        "connections.json: no connection comes into the ROI from outside (a noROI(input) or noROI(input,output) UC sending to an ROI-internal UC); add the external UCs that send the ROI its inputs (the FRG's Input Circuits come from them).",
+      );
+    }
+    const detached = detachedNodes(
+      ucs.map((u) => u.id),
+      connections.map((c) => ({ source: c.sender, target: c.receiver })),
+      new Set(ucs.filter((u) => u.roi === "roi").map((u) => u.id)),
+    );
+    if (detached.length) {
+      errors.push(
+        `connections.json: ${detached.map((x) => `\`${x}\``).join(", ")} ${detached.length > 1 ? "are" : "is"} cut off from the rest of the HCD (no chain of connections, in either direction, links ${detached.length > 1 ? "them" : "it"} to the part with the ROI-internal UCs). The HCD must be one connected circuit: connect ${detached.length > 1 ? "them" : "it"} with connections the literature supports, or remove ${detached.length > 1 ? "them" : "it"} if ${detached.length > 1 ? "they are" : "it is"} not needed for the TLF.`,
+      );
+    }
     for (const u of ucs) {
       if (!senders.has(u.id) && !receivers.has(u.id)) errors.push(`\`${u.id}\` has no connection in connections.json.`);
       const isSink = u.roi !== "roi" && !receivers.has(u.id);
@@ -822,6 +872,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
       if (!sameSet(itf.outputs, outs)) {
         errors.push(`\`${u.id}\`: interface outputs [${itf.outputs.join(", ")}] differ from its receivers in connections.json [${[...new Set(outs)].join(", ")}].`);
       }
+      if (u.implementation) errors.push(...implementationProblems(u.id, u.implementation, itf.inputs));
     }
   }
 
@@ -1114,6 +1165,7 @@ export function checkFrg(files: FrgInputs, hcd: HcdModel, opts: CheckFrgOptions 
     for (const g of gns) {
       if (!g.id.startsWith("R.")) errors.push(`frg.json: node id \`${g.id}\` must start with "R." (UCs are subnodes, not nodes).`);
       if (hasSpace(g.id)) errors.push(`frg.json: node id \`${g.id}\` contains spaces.`);
+      else if (g.id.startsWith("R.") && !isKebabNodeId(g.id)) errors.push(`frg.json: node id \`${g.id}\` must be kebab-case: \`R.\` + words of letters and digits joined by single hyphens (e.g. \`R.Motor-Learning\`).`);
       if (gnIds.has(g.id)) errors.push(`frg.json: duplicate node id \`${g.id}\`.`);
       gnIds.add(g.id);
     }

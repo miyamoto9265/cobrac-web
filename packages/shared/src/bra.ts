@@ -185,3 +185,6 @@ export function parseOutputSemantics(text: string): OutputSemanticsItem[] | null
 
 /** Items back to the notation (one space after `]`, items separated by a space). */
 export const formatOutputSemantics = (items: OutputSemanticsItem[]) => items.map((i) => `[${i.id}] ${i.text};`).join(" ");
+
+/** FRG node ID in kebab-case (BRA 403): `R.` + letters / digits joined by single hyphens, e.g. `R.Motor-Learning`. */
+export const isKebabNodeId = (id: string) => /^R\.[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$/.test(id);
