@@ -242,10 +242,12 @@ export function autoFixFiles(input: AutoFixFiles, ctx: AutoFixContext = {}): Aut
   // stood there moves to the comments so the citation stays
   for (const u of ucs) {
     const expected = anchorOnlySourceOfId(str(u.descriptor));
-    const v = Array.isArray(u.sourceOfId) ? (u.sourceOfId as unknown[]).map(str).filter(Boolean).join(", ") : str(u.sourceOfId);
+    const values = Array.isArray(u.sourceOfId) ? (u.sourceOfId as unknown[]).map(str).filter(Boolean) : [str(u.sourceOfId)];
+    const v = values.join(", ");
     if (!expected || v === expected) continue;
     u.sourceOfId = expected;
-    if (isReferenceId(v) && !str(u.comments).includes(v)) u.comments = [str(u.comments), v].filter(Boolean).join(" ");
+    const moved = values.filter((x) => isReferenceId(x) && !str(u.comments).includes(x));
+    if (moved.length) u.comments = [str(u.comments), ...moved].filter(Boolean).join(" ");
     fix("uc", { code: AUTO_FIX_CODES.sourceOfId, file: HCD_FILES.uc, where: `\`${stripUc(str(u.circuitId))}\` sourceOfId`, before: v, after: expected });
   }
   for (const { u, kind } of named) {
