@@ -182,7 +182,7 @@ describe("plans: running", () => {
     expect(plan).toMatchObject({
       status: "RUNNING",
       harnessRules: HARNESS_RULES,
-      settings: { model: "gpt-6-luna", modelChosen: false, orchestratorModel: "gpt-6-luna", orchestratorModelChosen: false, researchMode: false, reasoningEffort: "medium", locale: "ja" },
+      settings: { model: "gpt-6-sol", modelChosen: false, orchestratorModel: "gpt-6-sol", orchestratorModelChosen: false, researchMode: false, reasoningEffort: "medium", locale: "ja" },
     });
     // deployment limits: 2 overall, 1 per user → one row starts
     expect(projects()).toHaveLength(1);

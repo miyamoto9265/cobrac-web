@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { MessagesProvider, ModelProvider, ReasoningEffort } from "@cobrac/shared";
-import { LIT_MCP_SERVER, MESSAGES_API_BASE, PROVIDER_DEFAULT_MODEL } from "@cobrac/shared";
+import { LIT_MCP_SERVER, MESSAGES_API_BASE, SMALL_FAST_MODEL } from "@cobrac/shared";
 import { childEnv } from "./childEnv.js";
 import { type ClaudeGateway, startClaudeGateway } from "./claudeGateway.js";
 import { RCS_TOOLS, type RcsConnection } from "./rcs.js";
@@ -161,8 +161,8 @@ export class ClaudeEngine {
       ANTHROPIC_API_KEY: gw.token,
       CLAUDE_CONFIG_DIR: this.options.configDir,
       // Claude Code's small background requests use the provider's cheapest model, which the gateway lets every run call
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: PROVIDER_DEFAULT_MODEL[this.provider],
-      ANTHROPIC_SMALL_FAST_MODEL: PROVIDER_DEFAULT_MODEL[this.provider],
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: SMALL_FAST_MODEL[this.provider],
+      ANTHROPIC_SMALL_FAST_MODEL: SMALL_FAST_MODEL[this.provider],
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
       DISABLE_AUTOUPDATER: "1",
       CLAUDE_CODE_AUTO_COMPACT_WINDOW: String(this.options.autoCompactWindow),

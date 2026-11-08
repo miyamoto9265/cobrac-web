@@ -105,7 +105,6 @@ import {
   joinAnthropicCredential,
   DEFAULT_KEY_CATALOG_KEYS,
   messagesOnly,
-  isOrgTier,
   policyAllows,
   ARTICLE_FIGURE_KEY_RE,
   articleDownloadFileName,
@@ -118,6 +117,7 @@ import {
   braDownloadFileName,
   buildTemplateXlsx,
   filterCodexModels,
+  deprecatedLast,
   isOfferedModel,
   VISIBILITIES,
   cloneName,
@@ -361,7 +361,7 @@ const requireAdmin = (u: UserRecord) => {
 // ---------------------------------------------------------------------------
 
 /** The key each provider's models run with, and the default-API-key tier (GET /users/me, /users/me/models). */
-const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeKeySource: policy.claude.source, deepseekKeySource: policy.deepseek.source, orgTier: policy.tier });
+const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeKeySource: policy.claude.source, deepseekKeySource: policy.deepseek.source });
 
 app.get("/users/me", async (c) => {
   const u = c.get("user");
@@ -400,14 +400,14 @@ app.get("/users/me/models", async (c) => {
   const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
   // a user with an Anthropic / DeepSeek key and no OpenAI key chooses among those models only
   const noOpenAi = messagesOnly(policy);
-  const openAiModels = noOpenAi ? [] : policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels);
+  const openAiModels = noOpenAi ? [] : filterCodexModels(keyModels);
   const res: ModelsResponse = {
-    models: [...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed],
+    models: deprecatedLast([...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed]),
     efforts: REASONING_EFFORTS,
     envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
     orchestratorDefaultModel: implicitModel(policy, orchestratorDefaultModel()),
     ...keySources(policy),
-    restricted: policy.allowed !== null || noOpenAi,
+    restricted: noOpenAi,
     pricedModels: Object.keys(PRICING),
   };
   return c.json(res);
@@ -2298,10 +2298,9 @@ app.put("/admin/users/:id", async (c) => {
   const values: Partial<UserRecord> = {};
   if (typeof body.disabled === "boolean") values.disabled = body.disabled;
   if (body.role === "user" || body.role === "admin") values.role = body.role;
-  if ("orgTier" in body) {
-    if (body.orgTier === null || body.orgTier === 0) values.orgAccess = null;
-    else if (isOrgTier(body.orgTier)) values.orgAccess = { tier: body.orgTier, approvedAt: nowIso(), approvedBy: me.userId };
-    else throw bad("orgTier は 0（未承認）・1・2 のいずれかです");
+  if ("orgApproved" in body) {
+    if (typeof body.orgApproved !== "boolean") throw bad("orgApproved は true か false です");
+    values.orgAccess = body.orgApproved ? { approvedAt: nowIso(), approvedBy: me.userId } : null;
   }
   await updateUser(id, values);
   return c.json({ ok: true });

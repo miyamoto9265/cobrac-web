@@ -94,7 +94,7 @@ async function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
+  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", restricted: false, pricedModels: [] });
   for (const fn of [api.answer, api.planRowAction, api.planAction, api.savePlanRows, api.confirmPlan, api.answerDraft]) fn.mockResolvedValue({ ok: true });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
 });

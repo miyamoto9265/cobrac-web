@@ -40,7 +40,10 @@ export interface ModelPrice {
   cacheWrite?: number;
 }
 
-/** Model used when neither the project, the user nor the deployment picks one. */
+/**
+ * Model a stored project or job without a model ran on (made before the API always stored one); kept so those still
+ * run and are priced as before. New jobs never fall back to it (gpt-6-luna is deprecated: `isDeprecatedModel`).
+ */
 export const DEFAULT_CODEX_MODEL = "gpt-6-luna";
 
 /**

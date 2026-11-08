@@ -17,7 +17,7 @@ export const claudeEn = {
   "claude.keySaved": "API key registered (checked with Anthropic)",
   "claude.defaultKey": "Default Anthropic API key",
   "claude.defaultKeyHelp":
-    "The organization's Anthropic API key, for the Claude models. Approved users who have no Anthropic key of their own run Claude jobs with it, within their tier (Tier 1: Claude Haiku 5.5 only). It belongs to no user account and is stored encrypted; after saving, only its last 4 characters and the date are shown.",
+    "The organization's Anthropic API key, for the Claude models. Approved users who have no Anthropic key of their own run Claude jobs with it. It belongs to no user account and is stored encrypted; after saving, only its last 4 characters and the date are shown.",
   "claude.workspace": "Workspace ID (optional)",
   "claude.workspaceHelp": "Only for a key that is not tied to one workspace (a user key). Enter the ID of the Anthropic workspace that jobs run in (wrkspc_…). Keys made in a workspace of the Anthropic Console do not need it.",
   "claude.defaultKeyConfirmDelete": "Delete the default Anthropic API key? Approved users without their own Anthropic key can no longer run the Claude models.",
@@ -41,7 +41,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "API キーを登録しました（Anthropic への疎通確認済み）",
     "claude.defaultKey": "デフォルトの Anthropic API キー",
     "claude.defaultKeyHelp":
-      "組織の Anthropic API キーで、Claude のモデルに使います。承認したユーザーのうち自分の Anthropic キーを登録していない人は、Tier の範囲で（Tier 1 は Claude Haiku 5.5 だけ）このキーで Claude のジョブを実行します。どのユーザーのアカウントにも属さず、暗号化して保存します。保存後に表示するのは末尾 4 文字と日付だけです。",
+      "組織の Anthropic API キーで、Claude のモデルに使います。承認したユーザーのうち自分の Anthropic キーを登録していない人は、このキーで Claude のジョブを実行します。どのユーザーのアカウントにも属さず、暗号化して保存します。保存後に表示するのは末尾 4 文字と日付だけです。",
     "claude.workspace": "ワークスペース ID（任意）",
     "claude.workspaceHelp": "ワークスペースに紐づかないキー（ユーザーキー）のときだけ、ジョブを実行する Anthropic のワークスペースの ID（wrkspc_…）を入力してください。Anthropic Console のワークスペースで発行したキーには不要です。",
     "claude.defaultKeyConfirmDelete": "デフォルトの Anthropic API キーを削除しますか？自分の Anthropic キーを持たない承認済みユーザーは Claude のモデルを使えなくなります。",
@@ -59,7 +59,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "已登记 API 密钥（已与 Anthropic 确认连通）",
     "claude.defaultKey": "默认 Anthropic API 密钥",
     "claude.defaultKeyHelp":
-      "组织的 Anthropic API 密钥，用于 Claude 模型。已获批准但未登记自己 Anthropic 密钥的用户，在其 Tier 范围内（Tier 1 仅限 Claude Haiku 5.5）用此密钥运行 Claude 任务。它不属于任何用户账户，加密保存；保存后仅显示末尾 4 个字符和日期。",
+      "组织的 Anthropic API 密钥，用于 Claude 模型。已获批准但未登记自己 Anthropic 密钥的用户，用此密钥运行 Claude 任务。它不属于任何用户账户，加密保存；保存后仅显示末尾 4 个字符和日期。",
     "claude.workspace": "工作区 ID（可选）",
     "claude.workspaceHelp": "仅当密钥未绑定到某个工作区（用户密钥）时，请输入运行工作的 Anthropic 工作区 ID（wrkspc_…）。在 Anthropic Console 的工作区中创建的密钥无需填写。",
     "claude.defaultKeyConfirmDelete": "删除默认 Anthropic API 密钥？没有自己 Anthropic 密钥的已批准用户将无法使用 Claude 模型。",
@@ -77,7 +77,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "已登錄 API 金鑰（已與 Anthropic 確認連線）",
     "claude.defaultKey": "預設 Anthropic API 金鑰",
     "claude.defaultKeyHelp":
-      "組織的 Anthropic API 金鑰，用於 Claude 模型。已獲核准但未登錄自己 Anthropic 金鑰的使用者，在其 Tier 範圍內（Tier 1 僅限 Claude Haiku 5.5）以此金鑰執行 Claude 工作。它不屬於任何使用者帳戶，加密儲存；儲存後僅顯示末尾 4 個字元與日期。",
+      "組織的 Anthropic API 金鑰，用於 Claude 模型。已獲核准但未登錄自己 Anthropic 金鑰的使用者，以此金鑰執行 Claude 工作。它不屬於任何使用者帳戶，加密儲存；儲存後僅顯示末尾 4 個字元與日期。",
     "claude.workspace": "工作區 ID（選填）",
     "claude.workspaceHelp": "僅當金鑰未綁定至某個工作區（使用者金鑰）時，請輸入執行工作的 Anthropic 工作區 ID（wrkspc_…）。在 Anthropic Console 的工作區中建立的金鑰無需填寫。",
     "claude.defaultKeyConfirmDelete": "刪除預設 Anthropic API 金鑰？沒有自己 Anthropic 金鑰的已核准使用者將無法使用 Claude 模型。",
@@ -95,7 +95,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "API 키를 등록했습니다 (Anthropic 연결 확인 완료)",
     "claude.defaultKey": "기본 Anthropic API 키",
     "claude.defaultKeyHelp":
-      "조직의 Anthropic API 키로, Claude 모델에 사용합니다. 승인된 사용자 중 자신의 Anthropic 키가 없는 사람은 Tier 범위 안에서(Tier 1은 Claude Haiku 5.5만) 이 키로 Claude 작업을 실행합니다. 어느 사용자 계정에도 속하지 않으며 암호화해 저장합니다. 저장 후에는 끝 4자리와 날짜만 표시합니다.",
+      "조직의 Anthropic API 키로, Claude 모델에 사용합니다. 승인된 사용자 중 자신의 Anthropic 키가 없는 사람은 이 키로 Claude 작업을 실행합니다. 어느 사용자 계정에도 속하지 않으며 암호화해 저장합니다. 저장 후에는 끝 4자리와 날짜만 표시합니다.",
     "claude.workspace": "워크스페이스 ID(선택)",
     "claude.workspaceHelp": "워크스페이스에 연결되지 않은 키(사용자 키)일 때만, 작업을 실행할 Anthropic 워크스페이스의 ID(wrkspc_…)를 입력해 주세요. Anthropic Console의 워크스페이스에서 발급한 키에는 필요하지 않습니다.",
     "claude.defaultKeyConfirmDelete": "기본 Anthropic API 키를 삭제할까요? 자신의 Anthropic 키가 없는 승인된 사용자는 Claude 모델을 사용할 수 없게 됩니다.",
@@ -115,7 +115,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "API-Schlüssel gespeichert (bei Anthropic geprüft)",
     "claude.defaultKey": "Standard-Anthropic-API-Schlüssel",
     "claude.defaultKeyHelp":
-      "Der Anthropic-API-Schlüssel der Organisation für die Claude-Modelle. Freigegebene Nutzer ohne eigenen Anthropic-Schlüssel führen Claude-Jobs im Rahmen ihres Tiers damit aus (Tier 1: nur Claude Haiku 5.5). Er gehört zu keinem Nutzerkonto und wird verschlüsselt gespeichert; nach dem Speichern werden nur die letzten 4 Zeichen und das Datum angezeigt.",
+      "Der Anthropic-API-Schlüssel der Organisation für die Claude-Modelle. Freigegebene Nutzer ohne eigenen Anthropic-Schlüssel führen Claude-Jobs damit aus. Er gehört zu keinem Nutzerkonto und wird verschlüsselt gespeichert; nach dem Speichern werden nur die letzten 4 Zeichen und das Datum angezeigt.",
     "claude.workspace": "Workspace-ID (optional)",
     "claude.workspaceHelp": "Nur für einen Schlüssel, der an keinen Workspace gebunden ist (Nutzerschlüssel): die ID des Anthropic-Workspace, in dem Jobs laufen (wrkspc_…). Schlüssel aus einem Workspace der Anthropic Console brauchen sie nicht.",
     "claude.defaultKeyConfirmDelete": "Standard-Anthropic-API-Schlüssel löschen? Freigegebene Nutzer ohne eigenen Anthropic-Schlüssel können die Claude-Modelle dann nicht mehr nutzen.",
@@ -135,7 +135,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "Clé API enregistrée (vérifiée auprès d'Anthropic)",
     "claude.defaultKey": "Clé API Anthropic par défaut",
     "claude.defaultKeyHelp":
-      "La clé API Anthropic de l'organisation, pour les modèles Claude. Les utilisateurs approuvés sans clé Anthropic personnelle exécutent les tâches Claude avec elle, dans les limites de leur tier (Tier 1 : Claude Haiku 5.5 uniquement). Elle n'appartient à aucun compte utilisateur et est stockée chiffrée ; après l'enregistrement, seuls ses 4 derniers caractères et la date sont affichés.",
+      "La clé API Anthropic de l'organisation, pour les modèles Claude. Les utilisateurs approuvés sans clé Anthropic personnelle exécutent les tâches Claude avec elle. Elle n'appartient à aucun compte utilisateur et est stockée chiffrée ; après l'enregistrement, seuls ses 4 derniers caractères et la date sont affichés.",
     "claude.workspace": "ID d'espace de travail (facultatif)",
     "claude.workspaceHelp": "Uniquement pour une clé qui n'est liée à aucun espace de travail (clé utilisateur) : l'ID de l'espace de travail Anthropic où s'exécutent les tâches (wrkspc_…). Les clés créées dans un espace de travail de l'Anthropic Console n'en ont pas besoin.",
     "claude.defaultKeyConfirmDelete": "Supprimer la clé API Anthropic par défaut ? Les utilisateurs approuvés sans clé Anthropic personnelle ne pourront plus utiliser les modèles Claude.",
@@ -155,7 +155,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "Clave de API registrada (verificada con Anthropic)",
     "claude.defaultKey": "Clave de API de Anthropic predeterminada",
     "claude.defaultKeyHelp":
-      "La clave de API de Anthropic de la organización, para los modelos Claude. Los usuarios aprobados sin clave de Anthropic propia ejecutan con ella los trabajos de Claude, dentro de su tier (Tier 1: solo Claude Haiku 5.5). No pertenece a ninguna cuenta de usuario y se guarda cifrada; tras guardarla solo se muestran sus 4 últimos caracteres y la fecha.",
+      "La clave de API de Anthropic de la organización, para los modelos Claude. Los usuarios aprobados sin clave de Anthropic propia ejecutan con ella los trabajos de Claude. No pertenece a ninguna cuenta de usuario y se guarda cifrada; tras guardarla solo se muestran sus 4 últimos caracteres y la fecha.",
     "claude.workspace": "ID del espacio de trabajo (opcional)",
     "claude.workspaceHelp": "Solo para una clave que no está vinculada a un espacio de trabajo (clave de usuario): el ID del espacio de trabajo de Anthropic donde se ejecutan los trabajos (wrkspc_…). Las claves creadas en un espacio de trabajo de la Anthropic Console no lo necesitan.",
     "claude.defaultKeyConfirmDelete": "¿Eliminar la clave de API de Anthropic predeterminada? Los usuarios aprobados sin clave de Anthropic propia ya no podrán usar los modelos Claude.",
@@ -175,7 +175,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "Chave de API registrada (verificada com a Anthropic)",
     "claude.defaultKey": "Chave de API da Anthropic padrão",
     "claude.defaultKeyHelp":
-      "A chave de API da Anthropic da organização, para os modelos Claude. Usuários aprovados sem chave da Anthropic própria executam com ela os trabalhos do Claude, dentro do seu tier (Tier 1: apenas Claude Haiku 5.5). Ela não pertence a nenhuma conta de usuário e é guardada criptografada; depois de salva, só os 4 últimos caracteres e a data são exibidos.",
+      "A chave de API da Anthropic da organização, para os modelos Claude. Usuários aprovados sem chave da Anthropic própria executam com ela os trabalhos do Claude. Ela não pertence a nenhuma conta de usuário e é guardada criptografada; depois de salva, só os 4 últimos caracteres e a data são exibidos.",
     "claude.workspace": "ID do workspace (opcional)",
     "claude.workspaceHelp": "Somente para uma chave que não está vinculada a um workspace (chave de usuário): o ID do workspace da Anthropic onde os trabalhos são executados (wrkspc_…). Chaves criadas em um workspace do Anthropic Console não precisam dele.",
     "claude.defaultKeyConfirmDelete": "Excluir a chave de API da Anthropic padrão? Usuários aprovados sem chave da Anthropic própria não poderão mais usar os modelos Claude.",
@@ -195,7 +195,7 @@ export const CLAUDE_CATALOG: Record<UiLocale, Record<ClaudeKey, string>> = {
     "claude.keySaved": "API-ключ сохранён (проверен в Anthropic)",
     "claude.defaultKey": "API-ключ Anthropic по умолчанию",
     "claude.defaultKeyHelp":
-      "API-ключ Anthropic организации для моделей Claude. Одобренные пользователи без собственного ключа Anthropic запускают с ним задания Claude в пределах своего уровня (Tier 1: только Claude Haiku 5.5). Он не принадлежит ни одному аккаунту пользователя и хранится в зашифрованном виде; после сохранения показываются только последние 4 символа и дата.",
+      "API-ключ Anthropic организации для моделей Claude. Одобренные пользователи без собственного ключа Anthropic запускают с ним задания Claude. Он не принадлежит ни одному аккаунту пользователя и хранится в зашифрованном виде; после сохранения показываются только последние 4 символа и дата.",
     "claude.workspace": "ID рабочего пространства (необязательно)",
     "claude.workspaceHelp": "Только для ключа, не привязанного к рабочему пространству (пользовательский ключ): ID рабочего пространства Anthropic, в котором выполняются задания (wrkspc_…). Ключам, созданным в рабочем пространстве Anthropic Console, он не нужен.",
     "claude.defaultKeyConfirmDelete": "Удалить API-ключ Anthropic по умолчанию? Одобренные пользователи без собственного ключа Anthropic больше не смогут использовать модели Claude.",

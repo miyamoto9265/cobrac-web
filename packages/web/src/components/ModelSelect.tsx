@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReasoningEffort } from "@cobrac/shared";
-import { REASONING_EFFORTS, modelDisplayName } from "@cobrac/shared";
+import { REASONING_EFFORTS, isDeprecatedModel, modelDisplayName } from "@cobrac/shared";
 import { useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 
@@ -94,6 +94,7 @@ export function ModelSelect({ model, effort, onChange, defaultLabel, compact = f
           {models.map((m) => (
             <option key={m} value={m}>
               {modelDisplayName(m)}
+              {isDeprecatedModel(m) ? t("model.deprecated") : ""}
               {priced.length > 0 && !isPriced(m, priced) ? t("model.unpriced") : ""}
             </option>
           ))}

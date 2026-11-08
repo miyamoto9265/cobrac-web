@@ -100,7 +100,7 @@ beforeEach(() => {
 });
 
 const share = () => json<DefaultKeyStatus>(call(ADMIN, "PUT", "/admin/default-api-key", { apiKey: WBAI_KEY }));
-const approve = (who: typeof ADMIN, tier: 0 | 1 | 2) => json(call(ADMIN, "PUT", `/admin/users/${who.sub}`, { orgTier: tier }));
+const approve = (who: typeof ADMIN, approved: boolean) => json(call(ADMIN, "PUT", `/admin/users/${who.sub}`, { orgApproved: approved }));
 const create = (who: typeof ADMIN, body: Record<string, unknown> = {}) => call(who, "POST", "/projects", { roi: "flocculus", tlf: "VOR", ...body });
 
 describe("default API key", () => {
@@ -108,7 +108,7 @@ describe("default API key", () => {
     expect((await json<MeResponse>(call(ALICE, "GET", "/users/me"))).keySource).toBeNull();
     expect((await create(ALICE)).status).toBe(400);
 
-    await approve(ALICE, 1);
+    await approve(ALICE, true);
     const unshared = await create(ALICE);
     expect(unshared.status).toBe(400);
     expect(await unshared.clone().text()).not.toContain("デフォルト");
@@ -116,7 +116,8 @@ describe("default API key", () => {
 
     const status = await share();
     expect(status).toEqual({ registered: true, last4: "WXYZ", updatedAt: expect.any(String) });
-    expect(await json<MeResponse>(call(ALICE, "GET", "/users/me"))).toMatchObject({ keySource: "org", orgTier: 1, orgAccess: { tier: 1, approvedBy: ADMIN.sub } });
+    expect(await json<MeResponse>(call(ALICE, "GET", "/users/me"))).toMatchObject({ keySource: "org", orgAccess: { approvedBy: ADMIN.sub } });
+    expect(getUser(ALICE).orgAccess).not.toHaveProperty("tier");
     expect((await create(ALICE)).status).toBe(201);
     // approval is per user
     expect((await create(BOB)).status).toBe(400);
@@ -126,10 +127,10 @@ describe("default API key", () => {
     expect((await call(ALICE, "PUT", "/admin/default-api-key", { apiKey: WBAI_KEY })).status).toBe(403);
     expect((await call(ALICE, "GET", "/admin/default-api-key")).status).toBe(403);
     expect((await call(ALICE, "DELETE", "/admin/default-api-key")).status).toBe(403);
-    expect((await call(ALICE, "PUT", `/admin/users/${BOB.sub}`, { orgTier: 2 })).status).toBe(403);
+    expect((await call(ALICE, "PUT", `/admin/users/${BOB.sub}`, { orgApproved: true })).status).toBe(403);
     expect((await call(ALICE, "GET", "/admin/org-usage")).status).toBe(403);
-    expect((await call(ADMIN, "PUT", `/admin/users/${BOB.sub}`, { orgTier: 3 })).status).toBe(400);
-    expect((await call(ADMIN, "PUT", "/admin/users/sub-nobody", { orgTier: 1 })).status).toBe(404);
+    expect((await call(ADMIN, "PUT", `/admin/users/${BOB.sub}`, { orgApproved: 2 })).status).toBe(400);
+    expect((await call(ADMIN, "PUT", "/admin/users/sub-nobody", { orgApproved: true })).status).toBe(404);
     expect(fake.items("catalog")).toEqual([]);
   });
 
@@ -156,7 +157,7 @@ describe("default API key", () => {
 
   it("never sends the encrypted key to clients", async () => {
     await share();
-    await approve(ALICE, 2);
+    await approve(ALICE, true);
     const responses = await Promise.all([
       call(ADMIN, "GET", "/admin/users").then((r) => r.text()),
       call(ADMIN, "GET", "/admin/default-api-key").then((r) => r.text()),
@@ -171,74 +172,75 @@ describe("default API key", () => {
     }
   });
 
-  it("limits Tier 1 to the luna models on every model choice", async () => {
+  it("lets an approved user choose every model of the default key, deprecated ones last", async () => {
     await share();
-    await approve(ALICE, 1);
+    await approve(ALICE, true);
     const models = await json<ModelsResponse>(call(ALICE, "GET", "/users/me/models"));
-    expect(models).toMatchObject({ models: ["gpt-6-luna", "gpt-5.6-luna"], restricted: true, keySource: "org", orgTier: 1, envDefaultModel: "gpt-6-luna" });
+    expect(models).toMatchObject({ models: ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-luna"], restricted: false, keySource: "org", envDefaultModel: "gpt-6-sol" });
+    expect(models).not.toHaveProperty("orgTier");
+    expect((await json<ProjectRecord>(create(ALICE, { model: "gpt-6-astra" }))).model).toBe("gpt-6-astra");
+    // deprecated models are still allowed when chosen
+    expect((await json<ProjectRecord>(create(ALICE, { model: "gpt-6-luna" }))).model).toBe("gpt-6-luna");
+    // the app default (Sonnet 5.5) needs an Anthropic key: the fallback is gpt-6-sol, not a deprecated model
+    expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-sol");
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    expect((await call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" })).status).toBe(200);
+  });
 
-    const sol = await create(ALICE, { model: "gpt-6-sol" });
-    expect(sol.status).toBe(403);
-    // users are never told about tiers
-    const solText = await sol.text();
-    expect(solText).toBe("このモデル（gpt-6-sol）は利用できません");
-    expect(solText).not.toMatch(/tier/i);
-    expect((await call(ALICE, "PUT", "/users/me", { defaultModel: "gpt-6-sol" })).status).toBe(403);
+  it("moves a project to an allowed model when the user's keys no longer allow its model", async () => {
+    await share();
+    await approve(ALICE, true);
+    const opus = await create(ALICE, { model: "claude-opus-5-5" });
+    expect(opus.status).toBe(403);
+    expect(await opus.text()).toBe("Claude のモデルを使うには Anthropic API キーの登録が必要です");
+    expect((await call(ALICE, "PUT", "/users/me", { defaultModel: "claude-opus-5-5" })).status).toBe(403);
 
-    const luna = await json<ProjectRecord>(create(ALICE, { model: "gpt-5.6-luna" }));
-    expect(luna.model).toBe("gpt-5.6-luna");
-    expect(jobsOf(luna.projectId)).toEqual([expect.objectContaining({ keySource: "org", userId: ALICE.sub })]);
+    // a default saved while the user had an Anthropic key falls back instead of failing
+    setUser(ALICE, { defaultModel: "claude-opus-5-5" });
+    expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-sol");
 
-    // a default saved before the tier was lowered falls back to the tier's default instead of failing
-    setUser(ALICE, { defaultModel: "gpt-6-sol" });
-    expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-luna");
-
-    // a chosen article model outside the tier is refused
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-91", "gpt-6-luna"));
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja", model: "gpt-6-astra" })).status).toBe(403);
+    // a chosen article model the keys do not allow is refused
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-91", "gpt-6-sol"));
+    expect((await call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja", model: "claude-opus-5-5" })).status).toBe(403);
     const plain = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-91/articles", { locale: "ja" }));
     expect(jobsOf("ua11ce00-91").find((j) => j.jobId === plain.jobId)).toMatchObject({ model: null });
 
-    // a project made with a model outside the tier is never offered that model: its jobs run the tier's default
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    // a project made with a Claude model runs its next jobs on the allowed default
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "claude-opus-5-5"));
     const art = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/articles", { locale: "ja" }));
-    expect(jobsOf("ua11ce00-90").find((j) => j.jobId === art.jobId)).toMatchObject({ model: "gpt-6-luna", keySource: "org" });
+    expect(jobsOf("ua11ce00-90").find((j) => j.jobId === art.jobId)).toMatchObject({ model: "gpt-6-sol", keySource: "org" });
     // (an article leaves the project's model alone)
-    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("gpt-6-sol");
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("claude-opus-5-5");
+    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "claude-opus-5-5"));
     const fu = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" }));
-    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("gpt-6-luna");
-    expect(fake.items("messages").find((m) => m.jobId === fu.jobId && (m.meta as { i18n?: string })?.i18n === "sys.model")).toMatchObject({ meta: { model: "gpt-6-luna" } });
-    fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-92", "gpt-6-sol"), status: "FAILED" });
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-90")?.model).toBe("gpt-6-sol");
+    expect(fake.items("messages").find((m) => m.jobId === fu.jobId && (m.meta as { i18n?: string })?.i18n === "sys.model")).toMatchObject({ meta: { model: "gpt-6-sol" } });
+    fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-92", "claude-opus-5-5"), status: "FAILED" });
     expect((await call(ALICE, "POST", "/projects/ua11ce00-92/retry", {})).status).toBe(200);
-    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-92")?.model).toBe("gpt-6-luna");
-    fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-93", "gpt-6-sol"), status: "WAITING_USER_INPUT", activeJobId: "job_w" });
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-92")?.model).toBe("gpt-6-sol");
+    fake.put("projects", { ...completed(ALICE.sub, "ua11ce00-93", "claude-opus-5-5"), status: "WAITING_USER_INPUT", activeJobId: "job_w" });
     fake.put("jobs", { projectId: "ua11ce00-93", jobId: "job_w", userId: ALICE.sub, type: "initial", status: "WAITING_USER_INPUT", instruction: null, pendingAnswer: null, ecsTaskArn: null, retryCount: 0, lastHeartbeat: null, startedAt: now, endedAt: null, errorMessage: null, createdAt: now, updatedAt: now });
     expect((await call(ALICE, "POST", "/projects/ua11ce00-93/answer", { answer: "yes" })).status).toBe(200);
-    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-93")?.model).toBe("gpt-6-luna");
-    // a project the tier allows keeps its model
+    expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-93")?.model).toBe("gpt-6-sol");
+    // a project the keys allow keeps its model, a deprecated one too
     fake.put("projects", completed(ALICE.sub, "ua11ce00-94", "gpt-5.6-luna"));
     const { jobId } = await json<{ jobId: string }>(call(ALICE, "POST", "/projects/ua11ce00-94/followup", { instruction: "more" }));
     expect(jobsOf("ua11ce00-94").find((j) => j.jobId === jobId)?.keySource).toBe("org");
     expect(fake.items("projects").find((x) => x.projectId === "ua11ce00-94")?.model).toBe("gpt-5.6-luna");
   });
 
-  it("lets Tier 2 use every model of the default key", async () => {
+  it("treats an approval stored with a legacy tier as an approval for every model", async () => {
     await share();
-    await approve(ALICE, 2);
-    const models = await json<ModelsResponse>(call(ALICE, "GET", "/users/me/models"));
-    expect(models).toMatchObject({ restricted: false, orgTier: 2 });
-    expect(models.models).toEqual(expect.arrayContaining(["gpt-6-sol", "gpt-6-astra", "gpt-6-luna", "gpt-5.6-luna"]));
+    setUser(ALICE, { orgAccess: { tier: 1, approvedAt: now, approvedBy: ADMIN.sub } });
+    expect((await json<MeResponse>(call(ALICE, "GET", "/users/me"))).keySource).toBe("org");
     expect((await json<ProjectRecord>(create(ALICE, { model: "gpt-6-astra" }))).model).toBe("gpt-6-astra");
-    fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
-    expect((await call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" })).status).toBe(200);
   });
 
-  it("uses the user's own key first, without the tier limit", async () => {
+  it("uses the user's own key first", async () => {
     await share();
-    await approve(ALICE, 1);
+    await approve(ALICE, true);
     setUser(ALICE, { apiKeyRegistered: true, encryptedApiKey: "alice-own", availableModels: ["gpt-6-sol"] });
-    expect(await json<MeResponse>(call(ALICE, "GET", "/users/me"))).toMatchObject({ keySource: "own", orgTier: null });
+    expect(await json<MeResponse>(call(ALICE, "GET", "/users/me"))).toMatchObject({ keySource: "own" });
     expect(await json<ModelsResponse>(call(ALICE, "GET", "/users/me/models"))).toMatchObject({ models: ["gpt-6-sol"], restricted: false, keySource: "own" });
     const p = await json<ProjectRecord>(create(ALICE, { model: "gpt-6-sol" }));
     expect(jobsOf(p.projectId)[0].keySource).toBe("own");
@@ -246,10 +248,10 @@ describe("default API key", () => {
 
   it("stops new jobs as soon as the approval is revoked or the default key is deleted", async () => {
     await share();
-    await approve(ALICE, 2);
-    await approve(BOB, 1);
+    await approve(ALICE, true);
+    await approve(BOB, true);
     expect((await create(ALICE)).status).toBe(201);
-    await approve(ALICE, 0);
+    await approve(ALICE, false);
     expect(getUser(ALICE).orgAccess).toBeNull();
     expect((await create(ALICE)).status).toBe(400);
     fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-luna"));
@@ -258,7 +260,7 @@ describe("default API key", () => {
     expect((await create(BOB)).status).toBe(201);
     await json(call(ADMIN, "DELETE", "/admin/default-api-key"));
     expect((await create(BOB)).status).toBe(400);
-    expect(await json<MeResponse>(call(BOB, "GET", "/users/me"))).toMatchObject({ keySource: null, orgAccess: { tier: 1 } });
+    expect(await json<MeResponse>(call(BOB, "GET", "/users/me"))).toMatchObject({ keySource: null, orgAccess: { approvedBy: ADMIN.sub } });
     // the admin's personal key never stands in for the default key
     expect((await create(ADMIN)).status).toBe(201);
   });
