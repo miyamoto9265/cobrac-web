@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-11-09
+
 ### Changed
 - gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 and DeepSeek V4.1 Flash are deprecated. They can still be chosen, but every model picker lists them last with 「非推奨」, and the app no longer falls back to them: a user whose keys do not allow the app default (Claude Sonnet 5.5 for the agents, Claude Opus 5.5 for the Orchestrator) now gets gpt-6-sol with an OpenAI key, or Claude Sonnet 5.5 with a Claude key only (a user with only a DeepSeek key still runs on DeepSeek V4.1 Flash). Projects and saved defaults that already use a deprecated model keep it. Claude Code's small background calls still use Claude Haiku 5.5 / DeepSeek V4.1 Flash
 
