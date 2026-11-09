@@ -44,7 +44,7 @@
     <tr><td>OpenAI API キー</td><td>設定画面</td><td><code>Users.encryptedApiKey</code>（KMS の暗号文）</td><td>Codex の実行</td><td>平文は保存しない。API の応答にも含めない</td></tr>
     <tr><td>API キーの末尾 4 文字</td><td>登録時に計算</td><td><code>Users.apiKeyLast4</code></td><td>「登録済み」の表示</td><td>キーの代わりにはならない</td></tr>
     <tr><td>デフォルトの API キー（組織の OpenAI キー）</td><td>管理画面</td><td><code>Catalog</code> の <code>config</code> / <code>default-api-key</code>（KMS の暗号文、末尾 4 文字、日付）</td><td>自分のキーを持たない、利用承認を受けた利用者のジョブ</td><td>書き込み専用。見えるのは末尾 4 文字と日付だけ</td></tr>
-    <tr><td>利用承認とデフォルトの API キーの利用</td><td>管理画面</td><td><code>Users.orgAccess</code>、<code>Jobs.keySource</code>・<code>usage</code>・<code>costUsd</code></td><td>利用承認（Tier 1 / Tier 2）、管理画面の利用者ごとの費用</td><td>管理者だけが見る</td></tr>
+    <tr><td>利用承認とデフォルトの API キーの利用</td><td>管理画面</td><td><code>Users.orgAccess</code>、<code>Jobs.keySource</code>・<code>usage</code>・<code>costUsd</code></td><td>利用承認、管理画面の利用者ごとの費用</td><td>管理者だけが見る</td></tr>
     <tr><td>使えるモデルの一覧</td><td>OpenAI の <code>/v1/models</code></td><td><code>Users.availableModels</code></td><td>モデルの選択肢</td><td>キーを登録したときの一覧</td></tr>
   </tbody>
 </table>
@@ -129,8 +129,8 @@
   <li>DeepSeek のキーも同じ扱いで、<code>purpose</code> が <code>"deepseek-api-key"</code> です。登録時は <code>GET https://api.deepseek.com/models</code> で確かめます。</li>
 </ul>
 <h3>デフォルトの API キー</h3>
-<p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。Claude のモデルには、同じ扱いのデフォルトの Anthropic API キーを別に登録します。利用承認（Tier 1 / Tier 2）と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
-<p>どのキーで実行するかは、ワーカーが起動のたびに決め直します。新しいジョブ、回答、リトライ、中断後の再開のどれでも同じです。そのため、利用承認を取り消したり、Tier を下げたり、デフォルトの API キーを消したりすると、次の起動から効きます。デフォルトの API キーを復号するのは、利用承認を受けていて自分のキーを持たない利用者のジョブで、そのジョブのモデルを Tier が許すときだけです。</p>
+<p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。Claude のモデルには、同じ扱いのデフォルトの Anthropic API キーを別に登録します。利用承認と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
+<p>どのキーで実行するかは、ワーカーが起動のたびに決め直します。新しいジョブ、回答、リトライ、中断後の再開のどれでも同じです。そのため、利用承認を取り消したり、デフォルトの API キーを消したりすると、次の起動から効きます。デフォルトの API キーを復号するのは、利用承認を受けていて自分のキーを持たない利用者のジョブだけです。</p>
 <h3>アプリでは暗号化しないもの</h3>
 <p>チャットの本文、ROI・TLF、成果物、グラフの JSON、会話の状態は、S3 と DynamoDB のサービスによる暗号化だけで保存します。アプリの層での項目ごとの暗号化は、意図してしていません。管理者と AWS アカウントの権限を持つ人は、コンソールからこれらを読めます。</p>
 <p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/app.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>index.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code></p>
@@ -210,7 +210,7 @@
 <ul>
   <li>ワーカーは自分のプロセスの中で、127.0.0.1 に中継（<code>claudeGateway.ts</code>）を開きます。Claude Code には中継の URL（<code>ANTHROPIC_BASE_URL</code>）と、実行ごとの乱数のトークン（<code>ANTHROPIC_API_KEY</code>）だけを渡します。トークンはワーカーが終われば意味を持ちません。</li>
   <li>中継はトークンを確かめてから、本物の Anthropic のキー（とワークスペース ID の <code>anthropic-workspace-id</code> ヘッダー）に差し替えます。DeepSeek では本物の DeepSeek のキーに差し替え、<code>x-api-key</code> と <code>Authorization: Bearer</code> の両方で送ります。RCS も同じ中継を通し、ベアラートークンを本物に差し替えます。</li>
-  <li>中継が通すのは Messages と Models の API だけです。Messages は、そのジョブのモデルと、提供元のいちばん安いモデル（Claude Code の小さな裏方の呼び出し用。<code>claude-haiku-5-5</code> か <code>deepseek-flash</code>）以外を 403 で拒みます。エージェントがキーを別のモデルに使うことはできません。</li>
+  <li>中継が通すのは Messages と Models の API だけです。Messages は、そのジョブのモデルと、提供元のいちばん安いモデル（Claude Code の小さな裏方の呼び出し用。<code>SMALL_FAST_MODEL</code> の <code>claude-haiku-5-5</code> か <code>deepseek-flash</code>。選択欄では非推奨でも、この用途には使う）以外を 403 で拒みます。エージェントがキーを別のモデルに使うことはできません。</li>
   <li>ワーカーの環境にある <code>CLAUDE*</code>・<code>ANTHROPIC*</code> の変数は、Claude Code に渡しません。</li>
 </ul>
 <p>このため、Anthropic・DeepSeek のキーと RCS のトークンはワーカーのプロセスにだけあり、Claude Code とエージェントのコマンドが持つのは実行ごとのトークンだけです。</p>
@@ -432,27 +432,27 @@
 
 <h2 id="s9-10">9.10 モデルの利用料と記録</h2>
 <h3>だれが払うか</h3>
-<p>OpenAI・Anthropic・DeepSeek の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はこのキーを持つ組織に請求されます。Tier 1 の利用者は <code>gpt-6-luna</code>・<code>gpt-5.6-luna</code>・<code>claude-haiku-5-5</code>・<code>deepseek-flash</code>（下の単価表で安いモデル）だけを、Tier 2 の利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行のミッションの費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクト、Anthropic のワークスペース、DeepSeek のアカウントに、月の予算や残高の上限を設定してください。</p>
+<p>OpenAI・Anthropic・DeepSeek の利用料は AWS の外で、各利用者の API キーか、デフォルトの API キーに請求されます。自分のキーを持たず利用承認を受けた利用者のジョブは、デフォルトの API キーで動くので（4.1・9.3）、その費用はこのキーを持つ組織に請求されます。承認した利用者はすべてのモデルを使えます。管理画面には、利用者ごとのデフォルトの API キーの費用が、累計と今月の分で出ます。<b>アプリ自体には支出の上限がありません</b>（自律実行のミッションの費用の上限は 6.8）。デフォルトの API キーの OpenAI のプロジェクト、Anthropic のワークスペース、DeepSeek のアカウントに、月の予算や残高の上限を設定してください。</p>
 <h3>単価表</h3>
 <table class="compact avoid">
   <caption>USD / 100 万トークン（<code>PRICING_AS_OF = 2026-10-12</code>、標準の短いコンテキストの単価。キャッシュ書き込みは Claude のモデルだけで、5 分のキャッシュの単価。DeepSeek は平日のピーク時間帯の定価で、ほかの時間帯は半額）</caption>
   <thead><tr><th>モデル</th><th class="c">入力</th><th class="c">キャッシュされた入力</th><th class="c">キャッシュ書き込み</th><th class="c">出力（推論を含む）</th></tr></thead>
   <tbody>
-    <tr><td><code>gpt-6-luna</code>（OpenAI のキーの利用者の代わりの既定）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.50</td></tr>
+    <tr><td><code>gpt-6-luna</code>（非推奨）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">—</td><td class="c">0.50</td></tr>
     <tr><td><code>gpt-5.6-luna</code></td><td class="c">0.20</td><td class="c">0.02</td><td class="c">—</td><td class="c">1.20</td></tr>
     <tr><td><code>gpt-6-sol</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">10</td></tr>
     <tr><td><code>gpt-5.6-terra</code></td><td class="c">2</td><td class="c">0.20</td><td class="c">—</td><td class="c">12</td></tr>
     <tr><td><code>gpt-5.6-sol</code>（<code>gpt-5.6</code> は Sol への別名）</td><td class="c">4</td><td class="c">0.40</td><td class="c">—</td><td class="c">20</td></tr>
     <tr><td><code>gpt-6-astra</code></td><td class="c">10</td><td class="c">1</td><td class="c">—</td><td class="c">50</td></tr>
-    <tr><td><code>claude-haiku-5-5</code></td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.125</td><td class="c">0.50</td></tr>
+    <tr><td><code>claude-haiku-5-5</code>（非推奨）</td><td class="c">0.10</td><td class="c">0.01</td><td class="c">0.125</td><td class="c">0.50</td></tr>
     <tr><td><code>claude-sonnet-5-5</code>（エージェントの既定）</td><td class="c">2</td><td class="c">0.20</td><td class="c">2.5</td><td class="c">10</td></tr>
     <tr><td><code>claude-opus-5-5</code>（オーケストレーターの既定）</td><td class="c">4</td><td class="c">0.20</td><td class="c">5</td><td class="c">20</td></tr>
     <tr><td><code>claude-fable-5-1</code></td><td class="c">10</td><td class="c">0.25</td><td class="c">12.5</td><td class="c">50</td></tr>
-    <tr><td><code>deepseek-flash</code>（DeepSeek V4.1 Flash）</td><td class="c">0.30</td><td class="c">0.006</td><td class="c">—</td><td class="c">1.20</td></tr>
+    <tr><td><code>deepseek-flash</code>（DeepSeek V4.1 Flash。非推奨）</td><td class="c">0.30</td><td class="c">0.006</td><td class="c">—</td><td class="c">1.20</td></tr>
   </tbody>
 </table>
 <ul>
-  <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、エージェントは <code>claude-sonnet-5-5</code>（<code>DEFAULT_AGENT_MODEL</code>）、オーケストレーターは <code>claude-opus-5-5</code>（<code>DEFAULT_ORCHESTRATOR_MODEL</code>）を使います。キーや Tier で使えなければ <code>gpt-6-luna</code> などの使えるモデルに置き換えます（4.2）。API は必ず具体的なモデル名を保存するので、費用は常にどこかのモデルに帰属します。</li>
+  <li>プロジェクト・利用者・デプロイのどれもモデルを決めていないときは、エージェントは <code>claude-sonnet-5-5</code>（<code>DEFAULT_AGENT_MODEL</code>）、オーケストレーターは <code>claude-opus-5-5</code>（<code>DEFAULT_ORCHESTRATOR_MODEL</code>）を使います。キーで使えなければ <code>gpt-6-sol</code> か <code>claude-sonnet-5-5</code> に置き換えます（4.2）。API は必ず具体的なモデル名を保存するので、費用は常にどこかのモデルに帰属します。</li>
   <li>推論のトークンは出力として課金されます。日付付きのスナップショット名は、末尾の日付を外して単価を探します。表にないモデルは、トークン数だけを表示し、費用は「$—」になります。</li>
   <li>単価表は、コードの定数として手で保守するスナップショットです。OpenAI・Anthropic・DeepSeek が値段を変えたら <code>PRICING</code> と <code>PRICING_AS_OF</code> を直し、patch のバージョンとしてデプロイします。実際の請求額の正本は各社のダッシュボードです。</li>
   <li>Codex に伝えるコンテキスト長は 272,000 トークンに固定しています（<code>CODEX_CONTEXT_WINDOW</code>）。OpenAI は gpt-5.6・gpt-6 に 1,050,000 トークンを掲げていますが、272K を超える入力は 2 倍の単価になるためです（8.4）。</li>

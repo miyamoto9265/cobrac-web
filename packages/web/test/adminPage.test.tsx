@@ -84,7 +84,7 @@ describe("AdminPage layout", () => {
     expect(all('[data-testid="admin-user-cards"] > li')).toHaveLength(2);
     expect(all('[data-testid="admin-project-cards"] > li')).toHaveLength(1);
     expect(all("table")).toHaveLength(0);
-    expect(all('[data-testid="org-tier-u-2"]')).toHaveLength(1);
+    expect(all('[data-testid="org-access-u-2"]')).toHaveLength(1);
     expect(all("button").filter((b) => b.textContent === "Disable")).toHaveLength(1);
     expect(all("button").filter((b) => b.textContent === "Force stop")).toHaveLength(1);
   });
@@ -93,8 +93,8 @@ describe("AdminPage layout", () => {
     await render(false);
     expect(all("table")).toHaveLength(2);
     expect(all('[data-testid="admin-user-cards"], [data-testid="admin-project-cards"]')).toHaveLength(0);
-    expect(all('[data-testid="org-tier-u-1"]')).toHaveLength(1);
-    expect(all('[data-testid="org-tier-u-2"]')).toHaveLength(1);
+    expect(all('[data-testid="org-access-u-1"]')).toHaveLength(1);
+    expect(all('[data-testid="org-access-u-2"]')).toHaveLength(1);
   });
 });
 

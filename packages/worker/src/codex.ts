@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { MessageType, TokenUsage } from "@cobrac/shared";
-import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, PROVIDER_DEFAULT_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput, providerOf } from "@cobrac/shared";
+import { DEFAULT_CODEX_MODEL, LIT_MCP_SERVER, LIT_TOOLS, SMALL_FAST_MODEL, QUESTION_REGEX, TURN_OUTPUT_SCHEMA, parseTurnOutput, providerOf } from "@cobrac/shared";
 import { childEnv } from "./childEnv.js";
 import { ClaudeEngine } from "./claude.js";
 import { env } from "./env.js";
@@ -141,7 +141,7 @@ export function createEngine(model: string | null, apiKey: string, rcs: RcsConne
   return new ClaudeEngine({
     provider,
     apiKey,
-    models: [...new Set([model!, PROVIDER_DEFAULT_MODEL[provider]])],
+    models: [...new Set([model!, SMALL_FAST_MODEL[provider]])],
     rcs,
     lit: !!opts.lit,
     configDir: join(env.codexHome, "sessions", "claude"),

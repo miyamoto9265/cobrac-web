@@ -270,14 +270,14 @@ describe("cloning", () => {
     }
   });
 
-  it("gives a Tier 1 cloner's copy a model the tier allows", async () => {
+  it("gives a cloner's copy a model the cloner's keys allow", async () => {
     fake.put("catalog", { kind: "config", id: "default-api-key", encryptedApiKey: "default", last4: "abcd", availableModels: [], updatedAt: now, updatedBy: "sub-admin" });
     const bob = fake.items("users").find((u) => u.userId === B.sub)!;
-    fake.put("users", { ...bob, apiKeyRegistered: false, defaultModel: "gpt-6-sol", orgAccess: { tier: 1, approvedAt: now, approvedBy: "sub-admin" } });
-    fake.put("projects", project(A.sub, P, { model: "gpt-6-astra" }));
+    fake.put("users", { ...bob, apiKeyRegistered: false, defaultModel: "claude-opus-5-5", orgAccess: { approvedAt: now, approvedBy: "sub-admin" } });
+    fake.put("projects", project(A.sub, P, { model: "claude-sonnet-5-5" }));
     await json(call(A, "PUT", `/projects/${P}/visibility`, { visibility: "public" }));
     const { projectId } = await json<CloneProjectResponse>(call(B, "POST", `/public/projects/${P}/clone`));
-    expect((await json<ProjectRecord>(call(B, "GET", `/projects/${projectId}`))).model).toBe("gpt-6-luna");
+    expect((await json<ProjectRecord>(call(B, "GET", `/projects/${projectId}`))).model).toBe("gpt-6-sol");
   });
 
   it("lets the clone join the cloner's Canon", async () => {

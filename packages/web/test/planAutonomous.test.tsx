@@ -65,7 +65,7 @@ const rowEl = (tlf: string) => qa("li[data-state]", q('[data-testid="plan-rows"]
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
+  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", restricted: false, pricedModels: [] });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
   for (const fn of [api.planRowAction, api.resolvePlanRow, api.answer]) fn.mockResolvedValue({ ok: true });
   vi.spyOn(window, "confirm").mockReturnValue(true);

@@ -53,7 +53,7 @@ const click = async (el: HTMLElement) => act(async () => el.click());
 
 describe("the API key rows of the settings page", () => {
   it("tells an approved user without a key that none is needed, with the input folded away", async () => {
-    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", apiKeyRegistered: false };
+    auth.me = { ...base, orgAccess: { approvedAt: "2026-09-01T00:00:00.000Z", approvedBy: "admin" }, keySource: "org", apiKeyRegistered: false };
     api.apiKeyStatus.mockResolvedValue({ registered: false, last4: null });
     await render(<SettingsPage />);
     const row = $("api-key-card")!;
@@ -67,7 +67,7 @@ describe("the API key rows of the settings page", () => {
   });
 
   it("shows an approved user's own key as in use, with buttons to change or delete it", async () => {
-    auth.me = { ...base, orgAccess: { tier: 2 }, keySource: "own", apiKeyRegistered: true };
+    auth.me = { ...base, orgAccess: { approvedAt: "2026-09-01T00:00:00.000Z", approvedBy: "admin" }, keySource: "own", apiKeyRegistered: true };
     api.apiKeyStatus.mockResolvedValue({ registered: true, last4: "abcd" });
     await render(<SettingsPage />);
     expect($("key-status")!.textContent).toBe("自分のキー（…abcd）");
@@ -76,7 +76,7 @@ describe("the API key rows of the settings page", () => {
   });
 
   it("asks an approved user to contact an admin when OpenAI jobs cannot run", async () => {
-    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: null, apiKeyRegistered: false };
+    auth.me = { ...base, orgAccess: { approvedAt: "2026-09-01T00:00:00.000Z", approvedBy: "admin" }, keySource: null, apiKeyRegistered: false };
     api.apiKeyStatus.mockResolvedValue({ registered: false, last4: null });
     await render(<SettingsPage />);
     expect($("key-status")!.textContent).toBe("管理者にお問い合わせください");
@@ -92,7 +92,7 @@ describe("the API key rows of the settings page", () => {
   });
 
   it("lists OpenAI, Anthropic and DeepSeek, each with its own status", async () => {
-    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", claudeKeySource: "own", deepseekKeySource: "org", apiKeyRegistered: false, anthropicKeyRegistered: true };
+    auth.me = { ...base, orgAccess: { approvedAt: "2026-09-01T00:00:00.000Z", approvedBy: "admin" }, keySource: "org", claudeKeySource: "own", deepseekKeySource: "org", apiKeyRegistered: false, anthropicKeyRegistered: true };
     api.apiKeyStatus.mockImplementation(async (provider?: string) => (provider === "anthropic" ? { registered: true, last4: "wxyz" } : { registered: false, last4: null }));
     await render(<SettingsPage />);
     expect(api.apiKeyStatus).toHaveBeenCalledWith("anthropic");
@@ -104,7 +104,7 @@ describe("the API key rows of the settings page", () => {
   });
 
   it("asks an approved user for their own key of a provider without a default key, and saves it", async () => {
-    auth.me = { ...base, orgAccess: { tier: 1 }, keySource: "org", claudeKeySource: null, deepseekKeySource: null, apiKeyRegistered: false };
+    auth.me = { ...base, orgAccess: { approvedAt: "2026-09-01T00:00:00.000Z", approvedBy: "admin" }, keySource: "org", claudeKeySource: null, deepseekKeySource: null, apiKeyRegistered: false };
     api.apiKeyStatus.mockResolvedValue({ registered: false, last4: null });
     api.setApiKey.mockResolvedValue({ registered: true, last4: "9876", models: ["deepseek-flash"] });
     await render(<SettingsPage />);

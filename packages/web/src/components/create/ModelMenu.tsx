@@ -1,6 +1,6 @@
 import { BookOpenCheck, Check, ChevronDown } from "lucide-react";
 import type { ReasoningEffort } from "@cobrac/shared";
-import { REASONING_EFFORTS, formatUsd, researchModeEstimate, modelDisplayName } from "@cobrac/shared";
+import { REASONING_EFFORTS, formatUsd, isDeprecatedModel, researchModeEstimate, modelDisplayName } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { HelpLink, HelpTip } from "../HelpTip";
 import type { HypothesisDraft } from "../hypothesis/HypothesisControls";
@@ -67,6 +67,7 @@ export function ModelMenu({ value, onChange, fallbackModel, disabled }: { value:
                 <input type="radio" name="cm-model" className={radio} checked={!custom && value.model === m} onChange={() => (setCustom(false), set({ model: m }))} />
                 {tick(!custom && value.model === m)}
                 <span className="min-w-0 flex-1 truncate font-mono text-[13px]">{modelDisplayName(m)}</span>
+                {isDeprecatedModel(m) && <span className="shrink-0 text-[11px] text-slate-400">{t("model.deprecated")}</span>}
                 {priced.length > 0 && !isPriced(m, priced) && <span className="shrink-0 text-[11px] text-slate-400">{t("model.unpriced")}</span>}
               </label>
             ))}

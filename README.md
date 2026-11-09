@@ -55,7 +55,7 @@ packages/
 - Node.js 22 or later, npm 10 or later
 - Docker is **not** required (the worker image is built on CodeBuild at deploy time: `@cdklabs/deploy-time-build`)
 - `cdk bootstrap` already done in the target account. AWS CLI credentials are needed only for an emergency deploy from your machine
-- Each user’s OpenAI API key (registered in the in-app Settings screen), or the default API key: an admin registers the organization's key on the admin page and approves collaborators at Tier 1 (gpt-6-luna / gpt-5.6-luna) or Tier 2 (every model)
+- Each user’s OpenAI API key (registered in the in-app Settings screen), or the default API key: an admin registers the organization's key on the admin page and approves collaborators, who can then use every model
 
 ## Setup and verification
 

@@ -1,38 +1,27 @@
 // ---------------------------------------------------------------------------
 // Default API key: approved users without their own key run jobs with the organization's key, which an admin registers
-// on the admin page. It belongs to no user ("org" in the code: keySource, orgAccess, orgTier). Each provider (OpenAI,
-// Anthropic, DeepSeek) has its own default key and its own user key; one approval and tier cover all of them.
+// on the admin page. It belongs to no user ("org" in the code: keySource, orgAccess). Each provider (OpenAI, Anthropic,
+// DeepSeek) has its own default key and its own user key; one approval covers all of them and every model.
 // ---------------------------------------------------------------------------
 
 import type { TokenUsage } from "./pricing.js";
-import { DEFAULT_CODEX_MODEL } from "./pricing.js";
 import type { MessagesProvider, ModelProvider } from "./provider.js";
-import { PROVIDER_DEFAULT_MODEL, PROVIDER_MODELS, providerOf } from "./provider.js";
+import { DEFAULT_OPENAI_MODEL, PROVIDER_DEFAULT_MODEL, PROVIDER_MODELS, isDeprecatedModel, providerOf } from "./provider.js";
 
-/** Tier 1: the low-cost models only (`ORG_TIER1_MODELS`). Tier 2: every model. */
-export type OrgTier = 1 | 2;
-
-export const ORG_TIERS: readonly OrgTier[] = [1, 2];
-
-export const ORG_TIER1_MODELS: readonly string[] = ["gpt-6-luna", "gpt-5.6-luna", "claude-haiku-5-5", "deepseek-flash"];
-
-/** An admin's approval to run jobs with the default API key. */
+/** An admin's approval to run jobs with the default API key (every model). */
 export interface OrgAccess {
-  tier: OrgTier;
   approvedAt: string;
-  /** userId of the admin who approved (or last changed the tier) */
+  /** userId of the admin who approved */
   approvedBy: string;
+  /** Legacy: the tier of approvals made while tiers existed (1 or 2); ignored, every approval allows every model */
+  tier?: number;
 }
 
 /** Whose key pays for a job: the user's own key, or the default API key ("org"). */
 export type KeySource = "own" | "org";
 
-export const isOrgTier = (v: unknown): v is OrgTier => v === 1 || v === 2;
-
-/** Whether `tier` may run `model` with the default API key (exact model IDs; Tier 2 is unrestricted). */
-export function orgTierAllows(tier: OrgTier, model: string): boolean {
-  return tier === 2 || ORG_TIER1_MODELS.includes(model);
-}
+/** Whether an admin has approved the user for the default API key (any stored approval counts, a legacy tier too). */
+export const isOrgApproved = (access: OrgAccess | null | undefined): boolean => !!access && typeof access === "object";
 
 interface KeyHolder {
   apiKeyRegistered: boolean;
@@ -44,12 +33,12 @@ interface KeyHolder {
 }
 
 /**
- * The key a job of this user runs with. The user's own key always wins and is not tier-limited; the default API key
- * needs an approval and a registered default key. null: the user cannot run jobs.
+ * The key a job of this user runs with. The user's own key always wins; the default API key needs an approval and a
+ * registered default key. null: the user cannot run jobs.
  */
 export function keySourceOf(user: KeyHolder, defaultKeyAvailable: boolean): KeySource | null {
   if (user.apiKeyRegistered) return "own";
-  if (user.orgAccess && isOrgTier(user.orgAccess.tier) && defaultKeyAvailable) return "org";
+  if (isOrgApproved(user.orgAccess) && defaultKeyAvailable) return "org";
   return null;
 }
 
@@ -60,28 +49,23 @@ export const ownKeyRegistered = (user: KeyHolder, provider: ModelProvider): bool
 /** The key a job on a model of a fixed-list provider runs with: the user's own key, else that provider's default key. */
 export function providerKeySourceOf(user: KeyHolder, provider: MessagesProvider, defaultKeyAvailable: boolean): KeySource | null {
   if (ownKeyRegistered(user, provider)) return "own";
-  if (user.orgAccess && isOrgTier(user.orgAccess.tier) && defaultKeyAvailable) return "org";
+  if (isOrgApproved(user.orgAccess) && defaultKeyAvailable) return "org";
   return null;
 }
 
 /** The Anthropic key a job on a Claude model runs with: the user's own key, else the default Anthropic key. */
 export const claudeKeySourceOf = (user: KeyHolder, defaultKeyAvailable: boolean): KeySource | null => providerKeySourceOf(user, "anthropic", defaultKeyAvailable);
 
-/**
- * The models of a fixed-list provider (Claude, DeepSeek) a key source allows: every offered one with the user's own key
- * or Tier 2, the low-cost ones with Tier 1.
- */
+/** The models of a fixed-list provider (Claude, DeepSeek) a key source allows: every offered one once there is a key. */
 export interface ProviderPolicy {
   source: KeySource | null;
   allowed: readonly string[];
 }
 
-/** Models a user may choose: `allowed` null = every OpenAI model (own key, or Tier 2); Claude / DeepSeek models per `claude` / `deepseek`. */
+/** Models a user may choose: every OpenAI model (with an OpenAI key, or with no key at all); Claude / DeepSeek models per `claude` / `deepseek`. */
 export interface ModelPolicy {
   /** Key of the OpenAI models */
   source: KeySource | null;
-  tier: OrgTier | null;
-  allowed: readonly string[] | null;
   claude: ProviderPolicy;
   deepseek: ProviderPolicy;
 }
@@ -96,15 +80,8 @@ export interface DefaultKeysAvailable {
 export function modelPolicyOf(user: KeyHolder, defaults: DefaultKeysAvailable): ModelPolicy {
   const source = keySourceOf(user, defaults.openai);
   const sources = { anthropic: providerKeySourceOf(user, "anthropic", !!defaults.anthropic), deepseek: providerKeySourceOf(user, "deepseek", !!defaults.deepseek) };
-  const tier = source === "org" || sources.anthropic === "org" || sources.deepseek === "org" ? user.orgAccess!.tier : null;
-  const of = (provider: MessagesProvider): ProviderPolicy => {
-    const s = sources[provider];
-    const models = PROVIDER_MODELS[provider];
-    return { source: s, allowed: s === null ? [] : s === "org" && tier === 1 ? models.filter((m) => ORG_TIER1_MODELS.includes(m)) : models };
-  };
-  const rest = { claude: of("anthropic"), deepseek: of("deepseek") };
-  if (source !== "org") return { source, tier, allowed: null, ...rest };
-  return { source, tier, allowed: tier === 1 ? ORG_TIER1_MODELS.filter((m) => providerOf(m) === "openai") : null, ...rest };
+  const of = (provider: MessagesProvider): ProviderPolicy => ({ source: sources[provider], allowed: sources[provider] === null ? [] : PROVIDER_MODELS[provider] });
+  return { source, claude: of("anthropic"), deepseek: of("deepseek") };
 }
 
 /** The policy of a fixed-list provider's models. */
@@ -129,21 +106,25 @@ export const messagesOnly = (p: ModelPolicy): boolean => p.source === null && (p
 export function policyAllows(p: ModelPolicy, model: string): boolean {
   const provider = providerOf(model);
   if (provider !== "openai") return providerPolicy(p, provider).allowed.includes(model);
-  if (messagesOnly(p)) return false;
-  return p.allowed === null || p.allowed.includes(model);
+  return !messagesOnly(p);
 }
 
-/** A model the policy allows for an implicit choice (user default, deployment default): `preferred` if allowed, else the first allowed. */
+/**
+ * A model the policy allows for an implicit choice (user default, deployment default): `preferred` if allowed, else
+ * a model that is not deprecated: gpt-6-sol with an OpenAI key, Sonnet 5.5 with a Claude key only. A user with a
+ * DeepSeek key only gets DeepSeek V4.1 Flash (deprecated, but the only model they can run).
+ */
 export function allowedDefaultModel(p: ModelPolicy, preferred: string): string {
   if (policyAllows(p, preferred)) return preferred;
   if (messagesOnly(p)) {
     for (const provider of ["anthropic", "deepseek"] as const) {
       const { allowed } = providerPolicy(p, provider);
-      if (allowed.length) return allowed.includes(PROVIDER_DEFAULT_MODEL[provider]) ? PROVIDER_DEFAULT_MODEL[provider] : allowed[0];
+      if (!allowed.length) continue;
+      if (allowed.includes(PROVIDER_DEFAULT_MODEL[provider])) return PROVIDER_DEFAULT_MODEL[provider];
+      return allowed.find((m) => !isDeprecatedModel(m)) ?? allowed[0];
     }
   }
-  if (p.allowed === null) return DEFAULT_CODEX_MODEL;
-  return p.allowed.includes(DEFAULT_CODEX_MODEL) ? DEFAULT_CODEX_MODEL : p.allowed[0];
+  return DEFAULT_OPENAI_MODEL;
 }
 
 /** Default-API-key usage of one user (GET /admin/org-usage). */
@@ -169,7 +150,7 @@ export interface DefaultApiKeyRecord {
   /** KMS ciphertext (base64) under `DEFAULT_KEY_ENCRYPTION_CONTEXT` */
   encryptedApiKey: string;
   last4: string;
-  /** Models of the key (snapshot taken at registration), offered to Tier 2 */
+  /** Models of the key (snapshot taken at registration), offered to approved users without a key of their own */
   availableModels: string[];
   updatedAt: string;
   /** userId of the admin who registered it */

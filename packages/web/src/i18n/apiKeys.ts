@@ -20,7 +20,7 @@ export const apiKeysEn = {
   "deepseek.keySaved": "API key registered (checked with DeepSeek)",
   "deepseek.defaultKey": "Default DeepSeek API key",
   "deepseek.defaultKeyHelp":
-    "The organization's DeepSeek API key, for the DeepSeek model. Approved users who have no DeepSeek key of their own run DeepSeek jobs with it (Tier 1 included). It belongs to no user account and is stored encrypted; after saving, only its last 4 characters and the date are shown.",
+    "The organization's DeepSeek API key, for the DeepSeek model. Approved users who have no DeepSeek key of their own run DeepSeek jobs with it. It belongs to no user account and is stored encrypted; after saving, only its last 4 characters and the date are shown.",
   "deepseek.defaultKeyConfirmDelete": "Delete the default DeepSeek API key? Approved users without their own DeepSeek key can no longer use the DeepSeek model.",
   "sys.noDeepseekKey": "No DeepSeek API key is registered, and an admin has not approved you.",
 };
@@ -44,7 +44,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "API キーを登録しました（DeepSeek への疎通確認済み）",
     "deepseek.defaultKey": "デフォルトの DeepSeek API キー",
     "deepseek.defaultKeyHelp":
-      "組織の DeepSeek API キーで、DeepSeek のモデルに使います。承認したユーザーのうち自分の DeepSeek キーを登録していない人は、このキーで DeepSeek のジョブを実行します（Tier 1 も利用できます）。どのユーザーのアカウントにも属さず、暗号化して保存します。保存後に表示するのは末尾 4 文字と日付だけです。",
+      "組織の DeepSeek API キーで、DeepSeek のモデルに使います。承認したユーザーのうち自分の DeepSeek キーを登録していない人は、このキーで DeepSeek のジョブを実行します。どのユーザーのアカウントにも属さず、暗号化して保存します。保存後に表示するのは末尾 4 文字と日付だけです。",
     "deepseek.defaultKeyConfirmDelete": "デフォルトの DeepSeek API キーを削除しますか？自分の DeepSeek キーを持たない承認済みユーザーは DeepSeek のモデルを使えなくなります。",
     "sys.noDeepseekKey": "DeepSeek API キーが未登録で、管理者による利用の承認もありません。",
   },
@@ -62,7 +62,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "已登记 API 密钥（已与 DeepSeek 确认连通）",
     "deepseek.defaultKey": "默认 DeepSeek API 密钥",
     "deepseek.defaultKeyHelp":
-      "组织的 DeepSeek API 密钥，用于 DeepSeek 模型。已获批准但未登记自己 DeepSeek 密钥的用户用此密钥运行 DeepSeek 任务（Tier 1 也可使用）。它不属于任何用户账户，加密保存；保存后仅显示末尾 4 个字符和日期。",
+      "组织的 DeepSeek API 密钥，用于 DeepSeek 模型。已获批准但未登记自己 DeepSeek 密钥的用户用此密钥运行 DeepSeek 任务。它不属于任何用户账户，加密保存；保存后仅显示末尾 4 个字符和日期。",
     "deepseek.defaultKeyConfirmDelete": "删除默认 DeepSeek API 密钥？没有自己 DeepSeek 密钥的已批准用户将无法使用 DeepSeek 模型。",
     "sys.noDeepseekKey": "未登记 DeepSeek API 密钥，且管理员尚未批准您使用。",
   },
@@ -80,7 +80,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "已登錄 API 金鑰（已與 DeepSeek 確認連線）",
     "deepseek.defaultKey": "預設 DeepSeek API 金鑰",
     "deepseek.defaultKeyHelp":
-      "組織的 DeepSeek API 金鑰，用於 DeepSeek 模型。已獲核准但未登錄自己 DeepSeek 金鑰的使用者以此金鑰執行 DeepSeek 工作（Tier 1 也可使用）。它不屬於任何使用者帳戶，加密儲存；儲存後僅顯示末尾 4 個字元與日期。",
+      "組織的 DeepSeek API 金鑰，用於 DeepSeek 模型。已獲核准但未登錄自己 DeepSeek 金鑰的使用者以此金鑰執行 DeepSeek 工作。它不屬於任何使用者帳戶，加密儲存；儲存後僅顯示末尾 4 個字元與日期。",
     "deepseek.defaultKeyConfirmDelete": "刪除預設 DeepSeek API 金鑰？沒有自己 DeepSeek 金鑰的已核准使用者將無法使用 DeepSeek 模型。",
     "sys.noDeepseekKey": "未登錄 DeepSeek API 金鑰，且管理員尚未核准您使用。",
   },
@@ -98,7 +98,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "API 키를 등록했습니다 (DeepSeek 연결 확인 완료)",
     "deepseek.defaultKey": "기본 DeepSeek API 키",
     "deepseek.defaultKeyHelp":
-      "조직의 DeepSeek API 키로, DeepSeek 모델에 사용합니다. 승인된 사용자 중 자신의 DeepSeek 키가 없는 사람은 이 키로 DeepSeek 작업을 실행합니다(Tier 1도 사용 가능). 어느 사용자 계정에도 속하지 않으며 암호화해 저장합니다. 저장 후에는 끝 4자리와 날짜만 표시합니다.",
+      "조직의 DeepSeek API 키로, DeepSeek 모델에 사용합니다. 승인된 사용자 중 자신의 DeepSeek 키가 없는 사람은 이 키로 DeepSeek 작업을 실행합니다. 어느 사용자 계정에도 속하지 않으며 암호화해 저장합니다. 저장 후에는 끝 4자리와 날짜만 표시합니다.",
     "deepseek.defaultKeyConfirmDelete": "기본 DeepSeek API 키를 삭제할까요? 자신의 DeepSeek 키가 없는 승인된 사용자는 DeepSeek 모델을 사용할 수 없게 됩니다.",
     "sys.noDeepseekKey": "DeepSeek API 키가 등록되어 있지 않고, 관리자의 사용 승인도 없습니다.",
   },
@@ -117,7 +117,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "API-Schlüssel gespeichert (bei DeepSeek geprüft)",
     "deepseek.defaultKey": "Standard-DeepSeek-API-Schlüssel",
     "deepseek.defaultKeyHelp":
-      "Der DeepSeek-API-Schlüssel der Organisation für das DeepSeek-Modell. Freigegebene Nutzer ohne eigenen DeepSeek-Schlüssel führen DeepSeek-Jobs damit aus (auch in Tier 1). Er gehört zu keinem Nutzerkonto und wird verschlüsselt gespeichert; nach dem Speichern werden nur die letzten 4 Zeichen und das Datum angezeigt.",
+      "Der DeepSeek-API-Schlüssel der Organisation für das DeepSeek-Modell. Freigegebene Nutzer ohne eigenen DeepSeek-Schlüssel führen DeepSeek-Jobs damit aus. Er gehört zu keinem Nutzerkonto und wird verschlüsselt gespeichert; nach dem Speichern werden nur die letzten 4 Zeichen und das Datum angezeigt.",
     "deepseek.defaultKeyConfirmDelete": "Standard-DeepSeek-API-Schlüssel löschen? Freigegebene Nutzer ohne eigenen DeepSeek-Schlüssel können das DeepSeek-Modell dann nicht mehr nutzen.",
     "sys.noDeepseekKey": "Es ist kein DeepSeek-API-Schlüssel hinterlegt, und ein Admin hat Sie nicht freigegeben.",
   },
@@ -136,7 +136,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "Clé API enregistrée (vérifiée auprès de DeepSeek)",
     "deepseek.defaultKey": "Clé API DeepSeek par défaut",
     "deepseek.defaultKeyHelp":
-      "La clé API DeepSeek de l'organisation, pour le modèle DeepSeek. Les utilisateurs approuvés sans clé DeepSeek personnelle exécutent les tâches DeepSeek avec elle (Tier 1 compris). Elle n'appartient à aucun compte utilisateur et est stockée chiffrée ; après l'enregistrement, seuls ses 4 derniers caractères et la date sont affichés.",
+      "La clé API DeepSeek de l'organisation, pour le modèle DeepSeek. Les utilisateurs approuvés sans clé DeepSeek personnelle exécutent les tâches DeepSeek avec elle. Elle n'appartient à aucun compte utilisateur et est stockée chiffrée ; après l'enregistrement, seuls ses 4 derniers caractères et la date sont affichés.",
     "deepseek.defaultKeyConfirmDelete": "Supprimer la clé API DeepSeek par défaut ? Les utilisateurs approuvés sans clé DeepSeek personnelle ne pourront plus utiliser le modèle DeepSeek.",
     "sys.noDeepseekKey": "Aucune clé API DeepSeek n'est enregistrée et aucun administrateur ne vous a approuvé.",
   },
@@ -155,7 +155,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "Clave de API registrada (verificada con DeepSeek)",
     "deepseek.defaultKey": "Clave de API de DeepSeek predeterminada",
     "deepseek.defaultKeyHelp":
-      "La clave de API de DeepSeek de la organización, para el modelo de DeepSeek. Los usuarios aprobados sin clave de DeepSeek propia ejecutan con ella los trabajos de DeepSeek (Tier 1 incluido). No pertenece a ninguna cuenta de usuario y se guarda cifrada; después de guardarla, solo se muestran sus 4 últimos caracteres y la fecha.",
+      "La clave de API de DeepSeek de la organización, para el modelo de DeepSeek. Los usuarios aprobados sin clave de DeepSeek propia ejecutan con ella los trabajos de DeepSeek. No pertenece a ninguna cuenta de usuario y se guarda cifrada; después de guardarla, solo se muestran sus 4 últimos caracteres y la fecha.",
     "deepseek.defaultKeyConfirmDelete": "¿Eliminar la clave de API de DeepSeek predeterminada? Los usuarios aprobados sin clave de DeepSeek propia ya no podrán usar el modelo de DeepSeek.",
     "sys.noDeepseekKey": "No hay una clave de API de DeepSeek registrada y ningún administrador te ha aprobado.",
   },
@@ -174,7 +174,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "Chave de API registrada (verificada com a DeepSeek)",
     "deepseek.defaultKey": "Chave de API da DeepSeek padrão",
     "deepseek.defaultKeyHelp":
-      "A chave de API da DeepSeek da organização, para o modelo da DeepSeek. Usuários aprovados sem chave da DeepSeek própria executam com ela os trabalhos da DeepSeek (Tier 1 incluído). Ela não pertence a nenhuma conta de usuário e é guardada criptografada; depois de salva, só os 4 últimos caracteres e a data são exibidos.",
+      "A chave de API da DeepSeek da organização, para o modelo da DeepSeek. Usuários aprovados sem chave da DeepSeek própria executam com ela os trabalhos da DeepSeek. Ela não pertence a nenhuma conta de usuário e é guardada criptografada; depois de salva, só os 4 últimos caracteres e a data são exibidos.",
     "deepseek.defaultKeyConfirmDelete": "Excluir a chave de API da DeepSeek padrão? Usuários aprovados sem chave da DeepSeek própria não poderão mais usar o modelo da DeepSeek.",
     "sys.noDeepseekKey": "Nenhuma chave de API da DeepSeek está registrada, e nenhum administrador aprovou você.",
   },
@@ -193,7 +193,7 @@ export const API_KEYS_CATALOG: Record<UiLocale, Record<ApiKeysKey, string>> = {
     "deepseek.keySaved": "API-ключ зарегистрирован (проверен в DeepSeek)",
     "deepseek.defaultKey": "API-ключ DeepSeek по умолчанию",
     "deepseek.defaultKeyHelp":
-      "API-ключ DeepSeek организации для модели DeepSeek. Одобренные пользователи без собственного ключа DeepSeek выполняют с ним задачи DeepSeek (в том числе в Tier 1). Он не принадлежит ни одному аккаунту пользователя и хранится зашифрованным; после сохранения показываются только последние 4 символа и дата.",
+      "API-ключ DeepSeek организации для модели DeepSeek. Одобренные пользователи без собственного ключа DeepSeek выполняют с ним задачи DeepSeek. Он не принадлежит ни одному аккаунту пользователя и хранится зашифрованным; после сохранения показываются только последние 4 символа и дата.",
     "deepseek.defaultKeyConfirmDelete": "Удалить API-ключ DeepSeek по умолчанию? Одобренные пользователи без собственного ключа DeepSeek больше не смогут использовать модель DeepSeek.",
     "sys.noDeepseekKey": "API-ключ DeepSeek не зарегистрирован, и администратор вас не одобрил.",
   },

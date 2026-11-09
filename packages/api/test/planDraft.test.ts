@@ -474,10 +474,10 @@ describe("plans: drafting with the plan job", () => {
     expect(await status(call(A, "POST", `/plans/${planId}/draft`, {}))).toBe(400);
     expect(planOf(planId).status).toBe("DRAFT");
 
-    // the default API key with a restricted model list: a model outside it is refused
+    // the default OpenAI key only: a chosen Claude model is refused
     fake.put("catalog", { ...DEFAULT_KEY_CATALOG_KEY, encryptedApiKey: "AQICAHh", last4: "abcd", updatedAt: now } as never);
-    user(A, { apiKeyRegistered: false, encryptedApiKey: "", orgAccess: { tier: 1, approvedAt: now, approvedBy: ADMIN.sub } });
-    await json(call(A, "PUT", `/plans/${planId}`, { settings: { model: "custom-model" } }));
+    user(A, { apiKeyRegistered: false, encryptedApiKey: "", orgAccess: { approvedAt: now, approvedBy: ADMIN.sub } });
+    await json(call(A, "PUT", `/plans/${planId}`, { settings: { model: "claude-opus-5-5" } }));
     expect(await status(call(A, "POST", `/plans/${planId}/draft`, {}))).toBe(403);
 
     // a draft that waits while the owner loses the key ends with the reason, without a job

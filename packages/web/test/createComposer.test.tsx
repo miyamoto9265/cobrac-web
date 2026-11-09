@@ -178,17 +178,13 @@ describe("create screen composer", () => {
     expect(document.activeElement).toBe(btn);
   });
 
-  it("offers only the tier's models, without a custom model ID, to a Tier 1 default-API-key user", async () => {
-    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", keySource: "org", orgTier: 1, restricted: true });
+  it("lists deprecated models last with a 「非推奨」 mark", async () => {
+    api.models.mockResolvedValue({ models: ["gpt-6-sol", "claude-sonnet-5-5", "gpt-6-luna", "claude-haiku-5-5", "deepseek-flash"], pricedModels: ["gpt-6-sol", "claude-sonnet-5-5", "gpt-6-luna", "claude-haiku-5-5", "deepseek-flash"], envDefaultModel: "claude-sonnet-5-5", keySource: "org", restricted: false });
     await render(<ChatPage />);
     await click($("composer-model"));
     const menu = $("model-menu")!;
     const options = [...menu.querySelectorAll('input[name="cm-model"]')].map((i) => i.parentElement!.textContent);
-    expect(options).toHaveLength(3);
-    expect(options.slice(1)).toEqual(["gpt-6-luna", "gpt-5.6-luna"]);
-    expect(menu.textContent).not.toContain("その他（手入力）");
-    expect($("default-key-note")).toBeNull();
-    expect(menu.textContent).not.toContain("API キー");
+    expect(options.slice(1, 6)).toEqual(["gpt-6-sol", "claude-sonnet-5-5", "gpt-6-luna（非推奨）", "claude-haiku-5-5（非推奨）", "DeepSeek V4.1 Flash（非推奨）"]);
     expect(menu.textContent).not.toMatch(/tier/i);
   });
 });
