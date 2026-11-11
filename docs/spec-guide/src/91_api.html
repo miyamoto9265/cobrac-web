@@ -10,7 +10,7 @@
   <li><b>認証</b>：<code>GET /health</code> を除くすべてのルートで、Cognito の <b>ID トークン</b>（<code>Authorization: Bearer …</code>）が必要です。API Gateway の JWT オーソライザーが、発行元（ユーザープール）と対象（クライアント ID）を検証します。Lambda はトークンの claims から利用者を決め、最初のアクセスで Users の項目を作ります。無効にされた利用者には 403（<code>account disabled</code>）を返します。</li>
   <li><b>CORS</b>：プリフライト（OPTIONS）は JWT の検証を通らず、API Gateway が応答します。オリジンはすべて許し、ヘッダーは <code>Authorization</code>・<code>Content-Type</code>、メソッドは GET・POST・PUT・DELETE・OPTIONS で、結果は 1 時間保持します。<code>/{proxy+}</code> のルートは GET・POST・PUT・DELETE・PATCH を受けますが、アプリに PATCH のルートはありません。</li>
   <li><b>所有者の判定</b>：プロジェクトとミッションを使えるのは所有者だけです。ほかの利用者のもの、削除したもの、存在しない ID は、どれも同じ 404 になります。Canon は、所有者・共同編集者・管理者で使える範囲が異なります（第 5 部）。</li>
-  <li><b>キーとモデル</b>：ジョブを始めるルート（表で「キー」と記したもの）は、実行に使えるキーがないと 400 を返します。使えるキーとは、自分のキーか、利用承認とデフォルトの API キーの組です。利用者が選んだモデルが利用承認の Tier にないときは 403 です（4.1）。</li>
+  <li><b>キーとモデル</b>：ジョブを始めるルート（表で「キー」と記したもの）は、実行に使えるキーがないと 400 を返します。使えるキーとは、自分のキーか、利用承認とデフォルトの API キーの組です。利用者が選んだモデルの提供元のキーがないときは 403 です（4.1）。</li>
   <li><b>エラー</b>：状態コードと、短い説明の文（多くは日本語）を本文で返します。予期しないエラーは 500 と <code>{ error }</code> です。</li>
 </ul>
 <table class="compact">
@@ -19,7 +19,7 @@
     <tr><td>200・201・202</td><td>成功、作成した、受け付けた（ジョブを積んだか、積む予定にした）</td></tr>
     <tr><td>400</td><td>入力の誤り、上限の超過、実行に使えるキーがない、状態に合わない操作の一部</td></tr>
     <tr><td>401</td><td>トークンがない、または無効</td></tr>
-    <tr><td>403</td><td>無効にされたアカウント、管理者だけのルート、Tier にないモデル、PR を受け付けない Canon、コメントできない PR</td></tr>
+    <tr><td>403</td><td>無効にされたアカウント、管理者だけのルート、キーで使えないモデル、PR を受け付けない Canon、コメントできない PR</td></tr>
     <tr><td>404</td><td>存在しない・権限がない・削除した（区別しない）、BRA-DB のない環境での登録</td></tr>
     <tr><td>409</td><td>状態の衝突。実行中、ほかの承認が先、同じ処理の重複、ミッションの更新中のリース（「ミッションを更新中です。少し待ってからやり直してください」）など</td></tr>
     <tr><td>502</td><td>API キーを OpenAI で検査できなかった</td></tr>
@@ -53,9 +53,9 @@
 <table class="compact">
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
-    <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / null）、<code>orgTier</code></td><td>ログイン</td></tr>
-    <tr><td>PUT</td><td><code>/users/me</code></td><td>次の項目を変える：<code>displayName</code>（80 字まで）、<code>contributorName</code>（120 字まで）、<code>defaultModel</code>（Tier になければ 403）、<code>defaultReasoningEffort</code>、<code>defaultCanonId</code>（自分の Canon だけ）</td><td>ログイン</td></tr>
-    <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル。Tier 2 ではデフォルトの API キーのモデル、Tier 1 ではその 2 つ。Claude と DeepSeek のモデルは、それぞれのキーで使えるものを加える。4.1）、<code>restricted</code>、<code>keySource</code>・<code>claudeKeySource</code>・<code>deepseekKeySource</code>（Anthropic 側・DeepSeek 側のキーの種類）、<code>orgTier</code>、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / null）</td><td>ログイン</td></tr>
+    <tr><td>PUT</td><td><code>/users/me</code></td><td>次の項目を変える：<code>displayName</code>（80 字まで）、<code>contributorName</code>（120 字まで）、<code>defaultModel</code>（キーで使えなければ 403）、<code>defaultReasoningEffort</code>、<code>defaultCanonId</code>（自分の Canon だけ）</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル。承認した利用者で自分のキーがなければデフォルトの API キーのモデル。Claude と DeepSeek のモデルは、それぞれのキーで使えるものを加える。非推奨のモデルは最後。4.1・4.2）、<code>restricted</code>、<code>keySource</code>・<code>claudeKeySource</code>・<code>deepseekKeySource</code>（Anthropic 側・DeepSeek 側のキーの種類）、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
     <tr><td>GET</td><td><code>/users/me/usage</code></td><td>自分のプロジェクト全体のトークンと推定費用。全体・モデルごと・プロジェクトごとに返し、削除したプロジェクトには <code>deleted</code> の印を付ける。自分の Canon と共同編集者として入っている Canon の AI レビュー、自分のミッションの <code>plan</code> のジョブも、全体とモデルごとの合計に含める（4.7）</td><td>ログイン</td></tr>
     <tr><td>GET</td><td><code>/users/me/apikey/status</code></td><td>キーが登録済みかどうかと、末尾 4 文字。<code>?provider=anthropic</code> で Anthropic のキー、<code>?provider=deepseek</code> で DeepSeek のキー（下の 2 つのルートも同じ）</td><td>ログイン</td></tr>
     <tr><td>PUT</td><td><code>/users/me/apikey</code></td><td><code>{ apiKey }</code> を登録・更新する。OpenAI の <code>/v1/models</code> で検査し（拒否されたら 400、検査できなければ 502）、KMS で暗号化し、選べるモデルを保存する → <code>{ registered, last4, models }</code>。Anthropic のキーは <code>{ apiKey, workspaceId? }</code>（<code>workspaceId</code> は <code>wrkspc_…</code>）を Anthropic の <code>/v1/models</code> で検査する。DeepSeek のキーは DeepSeek の <code>/models</code> で検査する</td><td>ログイン</td></tr>
@@ -81,7 +81,7 @@
     <tr><td>POST</td><td><code>/projects/{id}/answer</code></td><td>質問への回答 <code>{ answer, locale? }</code>。同じジョブを <code>resume</code> で再開する。回答待ちの質問がなければ 400</td><td>所有者（キー）</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/followup</code></td><td>完了後のフォローアップ <code>{ instruction, locale?, hypothesis? }</code> → <code>{ ok, jobId }</code>。完了していなければ 400。<code>hypothesis</code> を付けると、仮説の範囲をジョブと一緒に加える。形と 409 の条件は A.12</td><td>所有者（キー）</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/retry</code></td><td><code>FAILED</code>・<code>CANCELLED</code> からのリトライ <code>{ locale? }</code> → <code>{ ok, jobId }</code>。解説記事を除く最後のジョブの種類で再開する</td><td>所有者（キー）</td></tr>
-    <tr><td>POST</td><td><code>/projects/{id}/articles</code></td><td>解説記事の作成 <code>{ locale, model? }</code> → 202 <code>{ jobId, articleJob }</code>。状態が <code>COMPLETED</code> で xlsx があること、対応する言語であること、GPT-5.6 か GPT-6 のモデルであることが条件で、満たさなければ 400。記事を作るモデル（選んだもの、なければプロジェクトのもの）が Tier になければ 403</td><td>所有者（キー）</td></tr>
+    <tr><td>POST</td><td><code>/projects/{id}/articles</code></td><td>解説記事の作成 <code>{ locale, model? }</code> → 202 <code>{ jobId, articleJob }</code>。状態が <code>COMPLETED</code> で xlsx があること、対応する言語であること、GPT-5.6 か GPT-6 のモデルであることが条件で、満たさなければ 400。記事を作るモデル（選んだもの、なければプロジェクトのもの）をキーで使えなければ 403</td><td>所有者（キー）</td></tr>
     <tr><td>GET</td><td><code>/projects/{id}/articles</code></td><td><code>{ items }</code>：<code>ArticleMeta</code> と <code>key</code>・<code>size</code>・<code>lastModified</code>・<code>stale</code>（記事の後にデータが変わった）</td><td>所有者</td></tr>
   </tbody>
 </table>
@@ -199,7 +199,7 @@
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
     <tr><td>GET</td><td><code>/admin/users</code></td><td>全利用者（暗号化したキーを除く）</td><td>管理者</td></tr>
-    <tr><td>PUT</td><td><code>/admin/users/{id}</code></td><td><code>{ disabled?, role?, orgTier? }</code>。<code>orgTier</code> は 0 か null が未承認、1、2 のどれか。自分自身の無効化は 400、いない利用者は 404</td><td>管理者</td></tr>
+    <tr><td>PUT</td><td><code>/admin/users/{id}</code></td><td><code>{ disabled?, role?, orgApproved? }</code>。<code>orgApproved</code> は true（承認）か false（未承認）。自分自身の無効化は 400、いない利用者は 404</td><td>管理者</td></tr>
     <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で検査して登録・置き換え（拒否されたら 400）/ 削除。<code>?provider=anthropic</code> でデフォルトの Anthropic API キー（<code>{ apiKey, workspaceId? }</code>）、<code>?provider=deepseek</code> でデフォルトの DeepSeek API キー</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの使用量：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>。<code>month</code> は UTC での現在の月</td><td>管理者</td></tr>
     <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>。それぞれ 1〜16 の整数で、null はデプロイ時の値に戻す。ほかの値は 400。dispatcher とミッションランナーは 30 秒以内に読み直す（8.3）</td><td>管理者</td></tr>

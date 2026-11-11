@@ -131,7 +131,7 @@ export interface AdvanceResult {
 export type PlanGate = { policy: ModelPolicy; model: string; orchestratorModel: string };
 
 /**
- * Whether the owner may start a job now, and on which models (each the plan's, or the tier default for one the owner did
+ * Whether the owner may start a job now, and on which models (each the plan's, or an allowed default for one the owner did
  * not pick). A picked model the owner may no longer use stops both kinds of job.
  */
 export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {

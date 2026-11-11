@@ -52,7 +52,7 @@ export async function requireRunKey(u: UserRecord): Promise<ModelPolicy> {
   throw bad("API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
 }
 
-/** 403 when the user's keys and tier do not include `model` (the message never names the tier). */
+/** 403 when the user's keys do not include `model`. */
 export function requireModel(policy: ModelPolicy, model: string) {
   if (isClaudeModel(model) && policy.claude.source === null) throw new HTTPException(403, { message: "Claude のモデルを使うには Anthropic API キーの登録が必要です" });
   if (isDeepSeekModel(model) && policy.deepseek.source === null) throw new HTTPException(403, { message: "DeepSeek のモデルを使うには DeepSeek API キーの登録が必要です" });
@@ -68,7 +68,7 @@ export const jobKeySource = (policy: ModelPolicy, model: string | null | undefin
 
 /**
  * The model a project's next job runs. A project made with a model the user can no longer run (made with their own
- * key, or before the tier changed) moves to the tier's default model and keeps it; null when nothing changes.
+ * key, or before an approval was revoked) moves to an allowed default model and keeps it; null when nothing changes.
  */
 export async function moveToAllowedModel(u: UserRecord, p: ProjectRecord, policy: ModelPolicy): Promise<string | null> {
   const current = p.model || legacyDefaultModel();

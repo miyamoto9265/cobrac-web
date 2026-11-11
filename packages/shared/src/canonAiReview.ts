@@ -257,7 +257,7 @@ export interface CanonAiState {
 
 /** POST /canons/:id/pulls/:no/ai-review */
 export interface CanonAiReviewRequest {
-  /** null / absent: the deployment default (the tier's default model with the default API key) */
+  /** null / absent: the deployment default (an allowed default model when the user cannot run it) */
   model?: string | null;
   locale: UiLocale;
 }

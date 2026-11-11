@@ -118,7 +118,7 @@ async function openDetails(within: ParentNode) {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
+  api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "own", restricted: false, pricedModels: [] });
   for (const fn of [api.savePlanRows, api.confirmPlan, api.planAction, api.updatePlan, api.requestDraft, api.cancelDraft, api.orderPlan, api.proposalAction]) fn.mockResolvedValue({ ok: true });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
 });
@@ -415,7 +415,7 @@ describe("a draft written by the plan job", () => {
   });
 
   it("shows the policy the Orchestrator wrote without a field to edit it, and chooses the two models apart", async () => {
-    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", orchestratorDefaultModel: "orchestrator-default", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
+    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", orchestratorDefaultModel: "orchestrator-default", keySource: "own", restricted: false, pricedModels: [] });
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
@@ -439,7 +439,7 @@ describe("a draft written by the plan job", () => {
   });
 
   it("says nothing about the API key under the models of an approved user", async () => {
-    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "org", orgTier: null, restricted: false, pricedModels: [] });
+    api.models.mockResolvedValue({ models: ["test-model"], efforts: [], envDefaultModel: "test-model", keySource: "org", restricted: false, pricedModels: [] });
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     expect(qa('[data-testid="default-key-note"]')).toHaveLength(0);

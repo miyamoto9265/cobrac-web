@@ -1,7 +1,7 @@
 import { FileText, Gauge, KeyRound, Save, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import type { ConcurrencyStatus, DefaultKeyStatus, ModelProvider, OrgTier, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
+import type { ConcurrencyStatus, DefaultKeyStatus, ModelProvider, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
 import { CONCURRENCY_MAX, CONCURRENCY_MIN, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
@@ -130,18 +130,17 @@ export function AdminPage() {
     </select>
   );
   const keyText = (u: UserPublic) => (u.apiKeyRegistered ? t("admin.keyYes", { last4: u.apiKeyLast4 ?? "" }) : t("admin.keyNo"));
-  const tierSelect = (u: UserPublic) => (
+  const accessSelect = (u: UserPublic) => (
     <>
       <select
-        value={u.orgAccess?.tier ?? 0}
-        aria-label={t("admin.orgTierOf", { email: u.email })}
-        data-testid={`org-tier-${u.userId}`}
-        onChange={(e) => act(api.adminUpdateUser(u.userId, { orgTier: Number(e.target.value) as OrgTier | 0 }))}
+        value={u.orgAccess ? "1" : "0"}
+        aria-label={t("admin.orgAccessOf", { email: u.email })}
+        data-testid={`org-access-${u.userId}`}
+        onChange={(e) => act(api.adminUpdateUser(u.userId, { orgApproved: e.target.value === "1" }))}
         className="rounded border border-slate-300 bg-white px-2 py-1 text-xs coarse:min-h-11"
       >
-        <option value={0}>{t("admin.tierNone")}</option>
-        <option value={1}>Tier 1</option>
-        <option value={2}>Tier 2</option>
+        <option value="0">{t("admin.orgNone")}</option>
+        <option value="1">{t("admin.orgApproved")}</option>
       </select>
       {u.orgAccess && u.apiKeyRegistered && <span className="ml-2 text-slate-400">{t("admin.ownKeyFirst")}</span>}
     </>
@@ -216,9 +215,9 @@ export function AdminPage() {
                 <dt className="text-slate-500">{t("admin.apiKey")}</dt>
                 <dd>{keyText(u)}</dd>
                 <dt className="flex items-center gap-1 text-slate-500">
-                  {t("admin.orgTier")} <HelpTip text={t("admin.orgTierHelp")} />
+                  {t("admin.orgAccess")} <HelpTip text={t("admin.orgAccessHelp")} />
                 </dt>
-                <dd className="flex flex-wrap items-center gap-x-2 gap-y-1">{tierSelect(u)}</dd>
+                <dd className="flex flex-wrap items-center gap-x-2 gap-y-1">{accessSelect(u)}</dd>
                 <dt className="text-slate-500">{t("admin.orgUsage")}</dt>
                 <dd>{usageCell(u)}</dd>
                 <dt className="text-slate-500">{t("admin.state")}</dt>
@@ -243,7 +242,7 @@ export function AdminPage() {
                 <th className="px-3 py-2">{t("admin.apiKey")}</th>
                 <th className="px-3 py-2">
                   <span className="inline-flex items-center gap-1">
-                    {t("admin.orgTier")} <HelpTip text={t("admin.orgTierHelp")} />
+                    {t("admin.orgAccess")} <HelpTip text={t("admin.orgAccessHelp")} />
                   </span>
                 </th>
                 <th className="px-3 py-2">{t("admin.orgUsage")}</th>
@@ -261,7 +260,7 @@ export function AdminPage() {
                   </td>
                   <td className="px-3 py-2">{roleSelect(u)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-xs">{keyText(u)}</td>
-                  <td className="px-3 py-2 text-xs">{tierSelect(u)}</td>
+                  <td className="px-3 py-2 text-xs">{accessSelect(u)}</td>
                   <td className="px-3 py-2 text-xs">{usageCell(u)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-xs">{stateText(u)}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(u.createdAt, locale)}</td>

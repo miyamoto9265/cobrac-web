@@ -207,14 +207,14 @@ describe("comments, change requests and decisions", () => {
 });
 
 describe("AI review", () => {
-  const tier1 = () => {
-    fake.put("users", { ...fake.items("users").find((u) => u.userId === A.sub)!, apiKeyRegistered: false, encryptedApiKey: "", orgAccess: { tier: 1, approvedAt: now, approvedBy: "admin" } });
+  const approved = () => {
+    fake.put("users", { ...fake.items("users").find((u) => u.userId === A.sub)!, apiKeyRegistered: false, encryptedApiKey: "", orgAccess: { approvedAt: now, approvedBy: "admin" } });
     fake.put("catalog", { kind: "config", id: "default-api-key", encryptedApiKey: "org", last4: "abcd", availableModels: ["gpt-6-luna", "gpt-6-sol"], updatedAt: now, updatedBy: "admin" });
   };
 
-  it("queues one worker job per PR with the Tier's models only", async () => {
-    tier1();
-    expect((await call(A, "POST", `${C()}/pulls/2/ai-review`, { model: "gpt-6-sol", locale: "ja" })).status).toBe(403);
+  it("queues one worker job per PR with the models the user's keys allow", async () => {
+    approved();
+    expect((await call(A, "POST", `${C()}/pulls/2/ai-review`, { model: "claude-opus-5-5", locale: "ja" })).status).toBe(403);
     expect((await call(A, "POST", `${C()}/pulls/2/ai-review`, { locale: "xx" })).status).toBe(400);
     const r = await json<{ ai: { jobId: string; status: string; model: string } }>(call(A, "POST", `${C()}/pulls/2/ai-review`, { model: "gpt-6-luna", locale: "ja" }));
     expect(r.ai).toMatchObject({ status: "QUEUED", model: "gpt-6-luna" });

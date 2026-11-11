@@ -36,7 +36,7 @@ export function ArticleView({ projectId, project, braReady, version, onStarted, 
   const [genModel, setGenModel] = useState<string>("");
   const { models, priced, envDefault, restricted } = useModelList(null);
   const projectModel = project.model || envDefault;
-  // under a default-key tier the project's model may be outside it; the default is then the tier's model
+  // the project's model may be one the user's keys no longer allow; the default is then an allowed model
   const projectAllowed = !restricted || (!!project.model && models.includes(project.model));
   const defaultModel = projectAllowed ? project.model : envDefault;
   const [busy, setBusy] = useState(false);

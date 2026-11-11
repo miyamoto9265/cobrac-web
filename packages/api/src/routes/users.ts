@@ -22,6 +22,7 @@ import {
   joinAnthropicCredential,
   messagesOnly,
   filterCodexModels,
+  deprecatedLast,
   projectDisplayName,
 } from "@cobrac/shared";
 import { toPublicUser } from "../lib/auth.js";
@@ -50,7 +51,7 @@ export const usersApi = new Hono<ApiEnv>();
 // ---------------------------------------------------------------------------
 
 /** The key each provider's models run with, and the default-API-key tier (GET /users/me, /users/me/models). */
-const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeKeySource: policy.claude.source, deepseekKeySource: policy.deepseek.source, orgTier: policy.tier });
+const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeKeySource: policy.claude.source, deepseekKeySource: policy.deepseek.source });
 
 usersApi.get("/users/me", async (c) => {
   const u = c.get("user");
@@ -89,14 +90,14 @@ usersApi.get("/users/me/models", async (c) => {
   const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
   // a user with an Anthropic / DeepSeek key and no OpenAI key chooses among those models only
   const noOpenAi = messagesOnly(policy);
-  const openAiModels = noOpenAi ? [] : policy.allowed ? [...policy.allowed] : filterCodexModels(keyModels);
+  const openAiModels = noOpenAi ? [] : filterCodexModels(keyModels);
   const res: ModelsResponse = {
-    models: [...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed],
+    models: deprecatedLast([...openAiModels, ...policy.claude.allowed, ...policy.deepseek.allowed]),
     efforts: REASONING_EFFORTS,
     envDefaultModel: implicitModel(policy, deploymentDefaultModel()),
     orchestratorDefaultModel: implicitModel(policy, orchestratorDefaultModel()),
     ...keySources(policy),
-    restricted: policy.allowed !== null || noOpenAi,
+    restricted: noOpenAi,
     pricedModels: Object.keys(PRICING),
   };
   return c.json(res);

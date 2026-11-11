@@ -2,25 +2,23 @@ import { describe, expect, it } from "vitest";
 import { usableDefaultModel } from "../src/lib/models";
 
 describe("usableDefaultModel", () => {
-  it("keeps a saved default the user can run and hides one the default API key does not allow", () => {
-    expect(usableDefaultModel({ defaultModel: "gpt-6-sol", orgTier: null })).toBe("gpt-6-sol");
-    expect(usableDefaultModel({ defaultModel: "gpt-6-sol", orgTier: 2 })).toBe("gpt-6-sol");
-    expect(usableDefaultModel({ defaultModel: "gpt-5.6-luna", orgTier: 1 })).toBe("gpt-5.6-luna");
-    expect(usableDefaultModel({ defaultModel: "gpt-6-sol", orgTier: 1 })).toBeNull();
-    expect(usableDefaultModel({ defaultModel: null, orgTier: 1 })).toBeNull();
+  it("keeps a saved default the user can run, deprecated ones too", () => {
+    expect(usableDefaultModel({ defaultModel: "gpt-6-sol" })).toBe("gpt-6-sol");
+    expect(usableDefaultModel({ defaultModel: "gpt-6-astra", keySource: "org" })).toBe("gpt-6-astra");
+    expect(usableDefaultModel({ defaultModel: "gpt-5.6-luna", keySource: "org" })).toBe("gpt-5.6-luna");
+    expect(usableDefaultModel({ defaultModel: null })).toBeNull();
     expect(usableDefaultModel(null)).toBeNull();
   });
 
-  it("checks the tier only against the model's own key", () => {
-    // own OpenAI key, Claude through the default key
-    expect(usableDefaultModel({ defaultModel: "gpt-6-sol", orgTier: 1, keySource: "own", claudeKeySource: "org" })).toBe("gpt-6-sol");
-    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", orgTier: 1, keySource: "own", claudeKeySource: "org" })).toBeNull();
-    expect(usableDefaultModel({ defaultModel: "claude-haiku-5-5", orgTier: 1, keySource: "own", claudeKeySource: "org" })).toBe("claude-haiku-5-5");
+  it("checks the key of the model's own provider", () => {
+    // own OpenAI key, Claude through the default key: every Claude model
+    expect(usableDefaultModel({ defaultModel: "gpt-6-sol", keySource: "own", claudeKeySource: "org" })).toBe("gpt-6-sol");
+    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", keySource: "own", claudeKeySource: "org" })).toBe("claude-opus-5-5");
     // no key for the model's provider
-    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", orgTier: null, keySource: "own", claudeKeySource: null })).toBeNull();
-    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", orgTier: null, keySource: null, claudeKeySource: "own" })).toBe("claude-opus-5-5");
-    // DeepSeek V4.1 Flash runs on the DeepSeek key, Tier 1 included
-    expect(usableDefaultModel({ defaultModel: "deepseek-flash", orgTier: 1, keySource: "org", claudeKeySource: null, deepseekKeySource: "org" })).toBe("deepseek-flash");
-    expect(usableDefaultModel({ defaultModel: "deepseek-flash", orgTier: null, keySource: "own", claudeKeySource: "own", deepseekKeySource: null })).toBeNull();
+    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", keySource: "own", claudeKeySource: null })).toBeNull();
+    expect(usableDefaultModel({ defaultModel: "claude-opus-5-5", keySource: null, claudeKeySource: "own" })).toBe("claude-opus-5-5");
+    // DeepSeek V4.1 Flash runs on the DeepSeek key
+    expect(usableDefaultModel({ defaultModel: "deepseek-flash", keySource: "org", claudeKeySource: null, deepseekKeySource: "org" })).toBe("deepseek-flash");
+    expect(usableDefaultModel({ defaultModel: "deepseek-flash", keySource: "own", claudeKeySource: "own", deepseekKeySource: null })).toBeNull();
   });
 });

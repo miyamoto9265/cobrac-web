@@ -126,7 +126,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
-  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", orgTier: null, restricted: false, pricedModels: [] });
+  api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", restricted: false, pricedModels: [] });
   for (const fn of [api.setPlanCanon, api.resolvePlanRow, api.planRowAction, api.updatePlan, api.confirmPlan]) fn.mockResolvedValue({ ok: true });
   vi.spyOn(window, "confirm").mockReturnValue(true);
 });

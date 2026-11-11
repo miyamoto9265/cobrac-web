@@ -76,7 +76,7 @@ function Workspace({ projectId }: { projectId: string }) {
   const [showDetails, setShowDetails] = useState(false);
   const [showMaterials, setShowMaterials] = useState(false);
   const chat = useChatDock();
-  // with the default API key, a project model the user can no longer run is replaced by the tier's default on the next job
+  // with the default API key, a project model the user can no longer run is replaced by an allowed default on the next job
   const { models: usableModels, envDefault, restricted } = useModelList(null);
 
   const loadArtifacts = useCallback(() => {

@@ -13,7 +13,7 @@ import type { UiLocale } from "./locale.js";
 import type { TokenUsage } from "./pricing.js";
 import type { ResearchStepMetrics } from "./research.js";
 import type { ProjectNameSource } from "./projectId.js";
-import type { KeySource, OrgAccess, OrgTier } from "./orgKey.js";
+import type { KeySource, OrgAccess } from "./orgKey.js";
 
 export type UserRole = "user" | "admin";
 
@@ -59,7 +59,7 @@ export interface UserRecord {
 
 export type UserPublic = Omit<UserRecord, "encryptedApiKey" | "encryptedAnthropicKey" | "encryptedDeepseekKey">;
 
-/** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) and the default-API-key tier */
+/** GET /users/me: the key new jobs would run with (null: none, so jobs cannot start) */
 export interface MeResponse extends UserPublic {
   /** Key of the OpenAI models */
   keySource: KeySource | null;
@@ -67,29 +67,27 @@ export interface MeResponse extends UserPublic {
   claudeKeySource: KeySource | null;
   /** Key of the DeepSeek models */
   deepseekKeySource: KeySource | null;
-  orgTier: OrgTier | null;
 }
 
-/** PUT /admin/users/:id (orgTier 0 / null: not approved for the default API key) */
+/** PUT /admin/users/:id (orgApproved: approve, or revoke, the use of the default API key) */
 export interface AdminUpdateUserRequest {
   disabled?: boolean;
   role?: UserRole;
-  orgTier?: OrgTier | 0 | null;
+  orgApproved?: boolean;
 }
 
 /** GET /users/me/models */
 export interface ModelsResponse {
-  /** Models the user may choose (Tier 1: exactly the Tier 1 models); the Claude and DeepSeek models follow the OpenAI ones */
+  /** Models the user may choose: the OpenAI ones, then Claude and DeepSeek; deprecated models (`isDeprecatedModel`) last */
   models: string[];
   efforts: ReasoningEffort[];
   /** Model a job runs when the user picks "default" */
   envDefaultModel: string;
-  /** Model the Orchestrator's jobs run when the owner picks "default" (for this user's keys and Tier) */
+  /** Model the Orchestrator's jobs run when the owner picks "default" (for this user's keys) */
   orchestratorDefaultModel?: string;
   keySource: KeySource | null;
   claudeKeySource: KeySource | null;
   deepseekKeySource: KeySource | null;
-  orgTier: OrgTier | null;
   /** Only `models` may be chosen (no custom model ID) */
   restricted: boolean;
   pricedModels: string[];

@@ -92,7 +92,7 @@ describe("article model", () => {
 
 describe("article model under a default-key tier", () => {
   it("offers only the tier's models and sends the tier's default when the project's model is outside it", async () => {
-    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", restricted: true, orgTier: 1 });
+    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna", "gpt-5.6-luna"], envDefaultModel: "gpt-6-luna", restricted: true });
     api.articles.mockResolvedValue({ items: [] });
     const sol = { ...project, model: "gpt-6-sol" } as ProjectRecord;
     await render(<ArticleView projectId="p-1" project={sol} braReady version="v" onStarted={() => undefined} />);
@@ -105,7 +105,7 @@ describe("article model under a default-key tier", () => {
   });
 
   it("keeps the project's model as the default when the tier allows it", async () => {
-    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: [], envDefaultModel: "gpt-6-luna", restricted: true, orgTier: 1 });
+    api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: [], envDefaultModel: "gpt-6-luna", restricted: true });
     api.articles.mockResolvedValue({ items: [] });
     await render(<ArticleView projectId="p-1" project={project} braReady version="v" onStarted={() => undefined} />);
     expect([...$<HTMLSelectElement>("article-model")!.options].map((o) => o.value)).toEqual(["", "gpt-5.6-luna"]);

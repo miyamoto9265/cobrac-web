@@ -506,7 +506,7 @@
 
 <h3>BRA のジョブの手順</h3>
 <ol class="steps">
-  <li>Users・Projects・Jobs を読み、使う API キーを選び（<code>runKey.ts</code> の <code>planRunKey</code>）、KMS で復号します。利用者自身のキーがあればそれを使い、なければ、利用承認があって Tier がジョブのモデルを許す間だけデフォルトの API キーを使います（4.1）。RCS の接続先とトークンを Secrets Manager から読みます。読めなければ RCS なしで続けます。</li>
+  <li>Users・Projects・Jobs を読み、使う API キーを選び（<code>runKey.ts</code> の <code>planRunKey</code>）、KMS で復号します。利用者自身のキーがあればそれを使い、なければ、利用承認がある間だけデフォルトの API キーを使います（4.1）。RCS の接続先とトークンを Secrets Manager から読みます。読めなければ RCS なしで続けます。</li>
   <li><code>prompts/AGENTS.md</code> を <code>/work</code> にコピーし（<code>&lt;ProjectID&gt;</code> の箇所を ID に置き換える）、JSON Schema を <code>/work/schemas/</code> に書きます。<code>resume</code>・<code>followup</code>・<code>retry</code> では、作業ディレクトリと会話を S3 から戻します。参考資料を用意し（4.2）、Canon に入っていれば、固定した rev の定義を <code>/work/canon/</code> に置きます（5.5）。版のないデータへの <code>followup</code> の扱いは C.5 にあります。</li>
   <li><code>createCodex</code> → <code>openThread</code> で会話を開きます。設定は、<code>sandboxMode: danger-full-access</code>、承認なし、ネットワークあり、Web 検索 live、<code>lit</code> MCP と RCS MCP です。Fargate のタスク自体がサンドボックスで、コンテナの中では Landlock も seccomp も使えません（9.5）。ターンごとにそのターンの設定で会話を開くので、調査のターンだけを高い推論の強さで実行できます。</li>
   <li>調査モードで、作業ディレクトリの調査が終わっていなければ、調査ステップを実行します（3.7）。続いて段階を実行します（次の「ターンの制御」）。出来事を Messages に書き、ファイルが変わるたびにプロジェクトの <code>stepStates</code> と <code>activeStage</code> を更新します。<code>activeStage</code> は、調査中は <code>RESEARCH</code>、調整のターンは <code>ADJUST</code>、それ以外は実行中の段階の名前です。</li>

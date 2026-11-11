@@ -8,6 +8,14 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Changed
 - The site opens faster: each page's code loads on its first visit, and the screen texts of languages other than English and Japanese load when the language is chosen. The first download is about a quarter of what it was (gzip 590 kB → 140 kB for the main file)
 
+## [0.53.0] - 2026-11-09
+
+### Changed
+- gpt-6-luna, gpt-5.6-luna, Claude Haiku 5.5 and DeepSeek V4.1 Flash are deprecated. They can still be chosen, but every model picker lists them last with 「非推奨」, and the app no longer falls back to them: a user whose keys do not allow the app default (Claude Sonnet 5.5 for the agents, Claude Opus 5.5 for the Orchestrator) now gets gpt-6-sol with an OpenAI key, or Claude Sonnet 5.5 with a Claude key only (a user with only a DeepSeek key still runs on DeepSeek V4.1 Flash). Projects and saved defaults that already use a deprecated model keep it. Claude Code's small background calls still use Claude Haiku 5.5 / DeepSeek V4.1 Flash
+
+### Removed
+- Default-API-key tiers. An admin's approval is now a single "Approved" setting on the admin page, and an approved user can use every model of the default keys. Existing Tier 1 and Tier 2 approvals count as approved. `PUT /admin/users/{id}` takes `orgApproved` (true / false) instead of `orgTier`, and `orgTier` is gone from `/users/me` and `/users/me/models`
+
 ## [0.52.1] - 2026-11-07
 
 ### Fixed

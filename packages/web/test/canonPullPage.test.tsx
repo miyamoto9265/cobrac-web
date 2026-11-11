@@ -104,7 +104,7 @@ async function type(el: HTMLTextAreaElement, value: string) {
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
   vi.clearAllMocks();
-  api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna"], envDefaultModel: "gpt-6-luna", keySource: "org", orgTier: 1, restricted: true });
+  api.models.mockResolvedValue({ models: ["gpt-6-luna", "gpt-5.6-luna"], pricedModels: ["gpt-6-luna"], envDefaultModel: "gpt-6-luna", keySource: "org", restricted: true });
 });
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());

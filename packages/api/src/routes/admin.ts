@@ -14,7 +14,6 @@ import {
   CONCURRENCY_MIN,
   isConcurrencyLimit,
   DEFAULT_KEY_CATALOG_KEYS,
-  isOrgTier,
   nowIso,
   SPEC_PDF_NAME,
 } from "@cobrac/shared";
@@ -63,10 +62,9 @@ adminApi.put("/admin/users/:id", async (c) => {
   const values: Partial<UserRecord> = {};
   if (typeof body.disabled === "boolean") values.disabled = body.disabled;
   if (body.role === "user" || body.role === "admin") values.role = body.role;
-  if ("orgTier" in body) {
-    if (body.orgTier === null || body.orgTier === 0) values.orgAccess = null;
-    else if (isOrgTier(body.orgTier)) values.orgAccess = { tier: body.orgTier, approvedAt: nowIso(), approvedBy: me.userId };
-    else throw bad("orgTier は 0（未承認）・1・2 のいずれかです");
+  if ("orgApproved" in body) {
+    if (typeof body.orgApproved !== "boolean") throw bad("orgApproved は true か false です");
+    values.orgAccess = body.orgApproved ? { approvedAt: nowIso(), approvedBy: me.userId } : null;
   }
   await updateUser(id, values);
   return c.json({ ok: true });

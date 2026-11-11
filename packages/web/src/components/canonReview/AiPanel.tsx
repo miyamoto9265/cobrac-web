@@ -1,7 +1,7 @@
 import { AlertTriangle, Bot, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { useState } from "react";
 import type { CanonAiFlag, CanonAiState, CanonAiVerdict, UiLocale } from "@cobrac/shared";
-import { formatUsd, modelDisplayName } from "@cobrac/shared";
+import { formatUsd, isDeprecatedModel, modelDisplayName } from "@cobrac/shared";
 import { LOCALES, localeName, useI18n, useT, type MessageKey } from "../../i18n";
 import { fmtDate } from "../../lib/format";
 import { HelpTip } from "../HelpTip";
@@ -39,7 +39,7 @@ interface Props {
 
 const refUrl = (r: RefLink | undefined) => (r?.doi ? `https://doi.org/${r.doi}` : r?.pmid ? `https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/` : null);
 
-/** AI assistance: pick a model (the tier's models with the default API key) and language, run, read the result. */
+/** AI assistance: pick a model (those the user's keys allow) and language, run, read the result. */
 export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelect, onUseComment }: Props) {
   const t = useT();
   const { locale: uiLocale } = useI18n();
@@ -86,6 +86,7 @@ export function AiPanel({ ai, canRun, onRun, labelOf, checkCodeOf, refs, onSelec
                 {models.map((m) => (
                   <option key={m} value={m}>
                     {modelDisplayName(m)}
+                    {isDeprecatedModel(m) ? t("model.deprecated") : ""}
                     {isPriced(m, priced) ? "" : t("model.unpriced")}
                   </option>
                 ))}
