@@ -1,8 +1,8 @@
 /**
- * Read-time correction of the token usage recorded by workers before 0.17.1. Codex reports the conversation's running
- * total at the end of every turn, and those workers added that total each turn, so a job's usage (and the usage rows of
- * its chat) came out about 2–3 times too high. The stored records are not rewritten: the API recomputes the usage of
- * such jobs from their per-turn usage rows when it returns them.
+ * Correction of the token usage recorded by workers before 0.17.1. Codex reports the conversation's running total at
+ * the end of every turn, and those workers added that total each turn, so a job's usage (and the usage rows of its chat)
+ * came out about 2–3 times too high. The API corrected such jobs on read until `scripts/migrate-usage-0171.mjs` wrote
+ * the corrected values into DynamoDB (2026-11-11); the script is the only user of this module now.
  */
 import { EMPTY_USAGE, addUsage, estimateCostUsd, type TokenUsage } from "./pricing.js";
 import type { JobRecord } from "./types.js";

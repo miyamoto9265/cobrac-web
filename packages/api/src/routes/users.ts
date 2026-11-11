@@ -38,7 +38,6 @@ import {
 } from "../lib/runs.js";
 import { encryptApiKey } from "../lib/aws.js";
 import { listJobsForProject, listUserProjects, updateUser } from "../lib/db.js";
-import { correctJobs, correctProject } from "../lib/usageCorrection.js";
 import { modelPolicy } from "../lib/orgKey.js";
 import { listOwnCanons } from "../lib/canons.js";
 import { loadCanon } from "./canons.js";
@@ -111,10 +110,8 @@ usersApi.get("/users/me/usage", async (c) => {
   const byModel = new Map<string, { usage: TokenUsage; cost: number; unpriced: boolean; jobs: number }>();
   let cost = 0;
   let priced = false;
-  for (const stored of items) {
-    const recorded = await listJobsForProject(stored.projectId, u.userId);
-    const jobs = await correctJobs(stored.projectId, recorded);
-    const p = await correctProject(stored, recorded);
+  for (const p of items) {
+    const jobs = await listJobsForProject(p.projectId, u.userId);
     const models = new Set<string>();
     for (const j of jobs) {
       if (!j.usage) continue;
