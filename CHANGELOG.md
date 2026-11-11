@@ -8,6 +8,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Changed
 - The site opens faster: each page's code loads on its first visit, and the screen texts of languages other than English and Japanese load when the language is chosen. The first download is about a quarter of what it was (gzip 590 kB → 140 kB for the main file)
 
+### Fixed
+- On the HCD and FRG graphs, dragging a node no longer makes the Connections disappear: every line was hidden while a node moved (and React Flow could refuse the drag)
+
 ## [0.53.0] - 2026-11-09
 
 ### Changed
