@@ -197,7 +197,9 @@ describe("the /docs route", () => {
   });
 
   it("keeps sending the release notes link to the release notes", async () => {
+    // the release notes page loads on its first visit and the router moves once it is there
+    await import("../src/pages/ReleaseNotesPage");
     await render("/docs/CHANGELOG", true);
-    expect($('[data-testid="where"]')!.textContent).toBe("/releases");
+    await act(() => vi.waitFor(() => expect($('[data-testid="where"]')!.textContent).toBe("/releases"), { timeout: 10_000 }));
   });
 });

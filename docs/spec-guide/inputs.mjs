@@ -1,5 +1,5 @@
-// 仕様書の入力の一覧と、そのハッシュ。build.mjs と、PDF が入力に追いついているかを確かめるテスト
-// （scripts/spec-guide.test.mjs）の両方が使う。Playwright などには依存しない。
+// 仕様書の入力の一覧と、そのハッシュ。build.mjs（build.json に入力のハッシュを書く）と、取り込む図の有無を確かめる
+// テスト（scripts/spec-guide.test.mjs）が使う。Playwright などには依存しない。
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -9,10 +9,10 @@ export const here = dirname(fileURLToPath(import.meta.url));
 export const repoRoot = join(here, "..", "..");
 export const srcDir = join(here, "src");
 export const figuresDir = join(repoRoot, "docs", "figures");
-/** 生成する PDF（リポジトリにコミットし、API の Lambda に同梱してサイトの「仕様書」ページで見せる） */
+/** 生成する PDF（コミットしない。CI とデプロイで作り、デプロイでは API の Lambda に同梱してサイトの「仕様書」ページで見せる） */
 export const PDF_NAME = "CoBRAC_仕様書.pdf";
 export const pdfPath = join(repoRoot, "docs", PDF_NAME);
-/** build.mjs が書く記録（入力のハッシュ・ページ数・バイト数） */
+/** build.mjs が書く記録（入力のハッシュ・ページ数・バイト数。コミットしない） */
 export const buildRecordPath = join(here, "build.json");
 
 /**

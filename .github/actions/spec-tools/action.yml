@@ -1,0 +1,16 @@
+# Tools for `npm run spec:build` (docs/spec-guide/build.mjs): pdftotext, pypdf, and Playwright's Chromium.
+# build.mjs loads playwright with require, so the global install is found through NODE_PATH (and survives npm ci).
+name: Install specification PDF tools
+description: Installs what docs/spec-guide/build.mjs needs to build docs/CoBRAC_仕様書.pdf
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y -q poppler-utils
+        # into the system site-packages: build.mjs runs python3 -I, which ignores the user site where a plain pip install goes
+        sudo python3 -m pip install --break-system-packages "pypdf==6.17.0"
+        npm install -g playwright@1.56.1
+        npx -y playwright@1.56.1 install --with-deps chromium
+        echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"

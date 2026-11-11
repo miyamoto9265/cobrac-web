@@ -8,3 +8,6 @@ cdk.out/
 coverage/
 .DS_Store
 packages/web/.env.local
+# the specification PDF is built by CI and the deploy (npm run spec:build), not committed
+docs/CoBRAC_仕様書.pdf
+docs/spec-guide/build.json

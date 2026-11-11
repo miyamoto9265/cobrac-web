@@ -1,5 +1,5 @@
 import { Archive, BookMarked, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
@@ -205,7 +205,10 @@ export function Layout() {
         {/* relative: absolutely placed bits deep in a long list (screen-reader text, badges) are measured
             against main, not the page, so they can't make the window itself scrollable */}
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          <Outlet />
+          {/* a page's code loads on its first visit; the sidebar stays meanwhile */}
+          <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500"><div className="animate-pulse">{t("loading")}</div></div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

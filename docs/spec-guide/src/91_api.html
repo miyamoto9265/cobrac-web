@@ -2,7 +2,7 @@
 <div class="opener">
   <div class="no">付録 A</div>
   <h1 class="part" id="pa">API 一覧</h1>
-  <p class="lead">本付録は、CoBRAC Agents の HTTP API と WebSocket のメッセージを、領域ごとにすべて挙げています。HTTP API は、API Gateway の HTTP API から 1 つの Lambda（<code>packages/api/src/app.ts</code>、Hono）に渡ります。WebSocket は別の API Gateway と <code>handlers/ws.ts</code>・<code>broadcaster.ts</code> が扱います。どちらも LLM は呼びません。仕組みの説明は本文の各部にあり、本付録では要求と応答の形をまとめています。</p>
+  <p class="lead">本付録は、CoBRAC Agents の HTTP API と WebSocket のメッセージを、領域ごとにすべて挙げています。HTTP API は、API Gateway の HTTP API から 1 つの Lambda（<code>packages/api/src/app.ts</code> と <code>routes/*.ts</code>、Hono）に渡ります。WebSocket は別の API Gateway と <code>handlers/ws.ts</code>・<code>broadcaster.ts</code> が扱います。どちらも LLM は呼びません。仕組みの説明は本文の各部にあり、本付録では要求と応答の形をまとめています。</p>
 </div>
 
 <h2 id="sa-1">A.1 共通の規則</h2>
@@ -85,7 +85,7 @@
     <tr><td>GET</td><td><code>/projects/{id}/articles</code></td><td><code>{ items }</code>：<code>ArticleMeta</code> と <code>key</code>・<code>size</code>・<code>lastModified</code>・<code>stale</code>（記事の後にデータが変わった）</td><td>所有者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/runs.ts</code>・<code>lib/hypothesisSettings.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/projects.ts</code>・<code>lib/runs.ts</code>・<code>lib/hypothesisSettings.ts</code></p>
 
 <h2 id="sa-5">A.5 成果物・グラフ・版</h2>
 <table class="compact">
@@ -102,7 +102,7 @@
     <tr><td>GET</td><td><code>/projects/{id}/versions/{n}/diff?base=</code></td><td><code>{ head, base, diff }</code>：5 つの CSV のレコードの変化。<code>base</code> の既定は n−1。前の版がなければ <code>diff</code> は null</td><td>所有者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/aws.ts</code>・<code>lib/versions.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/projects.ts</code>・<code>lib/aws.ts</code>・<code>lib/versions.ts</code></p>
 
 <h2 id="sa-6">A.6 公開と複製</h2>
 <table class="compact">
@@ -118,7 +118,7 @@
     <tr><td>GET</td><td><code>/public/canons/{id}</code></td><td>公開 Canon 1 件と、公開された参加プロジェクト</td><td>ログイン</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>、<code>packages/shared/src/publish.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/public.ts</code>、<code>packages/shared/src/publish.ts</code></p>
 
 <h2 id="sa-7">A.7 Canon</h2>
 <p>仕組みは第 5 部に記載しています。</p>
@@ -154,7 +154,7 @@
     <tr><td>GET</td><td><code>/canons/{id}/outgoing</code></td><td>この Canon がほかの Canon に送った PR と、その状態</td><td>所有者・共同編集者・管理者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>（<code>loadCanon</code>・<code>loadPrForViewer</code>・<code>loadPrTarget</code>）・<code>lib/canonOps.ts</code>・<code>lib/canons.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/canons.ts</code>（<code>loadCanon</code>・<code>loadPrForViewer</code>・<code>loadPrTarget</code>）・<code>lib/canonOps.ts</code>・<code>lib/canons.ts</code></p>
 
 <h2 id="sa-8">A.8 BRA-DB</h2>
 <p>仕組みは第 7 部に記載しています。API の Lambda が、別のスタックにある登録用の Lambda を呼びます。</p>
@@ -192,7 +192,7 @@
     <tr><td>POST</td><td><code>/plans/{id}/proposals/{proposalId}/accept</code>、<code>…/{proposalId}/reject</code></td><td>ミッションが実行中か一時停止中のとき：再計画の提案の承認 / 却下。提案は、プロジェクトの追加、待っているプロジェクトのスキップ、方針の置き換えのどれか。提案が開いていない、<code>add</code> で 200 件を超える、<code>remove</code> のプロジェクトがすでに始まっている（提案は <code>stale</code> になる）ときは 409</td><td>所有者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/planOps.ts</code>、<code>packages/shared/src/plan.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/plans.ts</code>・<code>lib/planOps.ts</code>、<code>packages/shared/src/plan.ts</code></p>
 
 <h2 id="sa-10">A.10 管理</h2>
 <table class="compact">
@@ -208,7 +208,7 @@
     <tr><td>GET</td><td><code>/admin/spec</code></td><td>この仕様書（PDF）を開くための、短時間だけ有効なリンク</td><td>管理者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>・<code>lib/orgKey.ts</code>・<code>lib/concurrency.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/admin.ts</code>・<code>lib/orgKey.ts</code>・<code>lib/concurrency.ts</code></p>
 
 <h2 id="sa-11">A.11 WebSocket</h2>
 <p>接続先は <code>wss://…/prod?token=&lt;ID トークン&gt;</code>（<code>config.json</code> の <code>wsUrl</code>）です。接続のとき、Lambda のオーソライザーが ID トークンを Cognito の鍵で検証します（<code>tokenUse: "id"</code>、クライアント ID）。検証に通ると、ws の Lambda が接続を WsConnections に <code>projectId = "_"</code> のレコードとして記録します。レコードの <code>ttl</code> は 2 時間 10 分で、API Gateway の接続は最長 2 時間です。切断（<code>$disconnect</code>）では、その接続のすべてのレコードを消します。</p>

@@ -1,36 +1,41 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AdminOnly } from "./components/AdminOnly";
 import { CanonicalProjectId } from "./components/CanonicalProjectId";
 import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
-import { AdminPage } from "./pages/AdminPage";
-import { ChatPage } from "./pages/ChatPage";
 import { LoginPage } from "./pages/LoginPage";
-import { LegacyChatRedirect, ProjectWorkspacePage } from "./pages/ProjectWorkspacePage";
-import { ProjectsPage } from "./pages/ProjectsPage";
-import { CanonDetailPage } from "./pages/CanonDetailPage";
-import { ExplorePage } from "./pages/ExplorePage";
-import { PublicCanonPage } from "./pages/PublicCanonPage";
-import { PublicProjectPage } from "./pages/PublicProjectPage";
-import { CanonPullPage } from "./pages/CanonPullPage";
-import { ManualPage } from "./pages/ManualPage";
-import { PlanDetailPage } from "./pages/PlanDetailPage";
-import { CanonBoard, NewPlanPage } from "./pages/PlansPage";
-import { ReleaseNotesPage } from "./pages/ReleaseNotesPage";
-import { SettingsPage } from "./pages/SettingsPage";
-import { SpecPage } from "./pages/SpecPage";
+
+// Pages load on first visit, so the first screen does not wait for every page's code.
+const page = <K extends string>(load: () => Promise<Record<K, React.ComponentType>>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })));
+const AdminPage = page(() => import("./pages/AdminPage"), "AdminPage");
+const ChatPage = page(() => import("./pages/ChatPage"), "ChatPage");
+const ProjectWorkspacePage = page(() => import("./pages/ProjectWorkspacePage"), "ProjectWorkspacePage");
+const LegacyChatRedirect = page(() => import("./pages/ProjectWorkspacePage"), "LegacyChatRedirect");
+const ProjectsPage = page(() => import("./pages/ProjectsPage"), "ProjectsPage");
+const CanonDetailPage = page(() => import("./pages/CanonDetailPage"), "CanonDetailPage");
+const ExplorePage = page(() => import("./pages/ExplorePage"), "ExplorePage");
+const PublicCanonPage = page(() => import("./pages/PublicCanonPage"), "PublicCanonPage");
+const PublicProjectPage = page(() => import("./pages/PublicProjectPage"), "PublicProjectPage");
+const CanonPullPage = page(() => import("./pages/CanonPullPage"), "CanonPullPage");
+const ManualPage = page(() => import("./pages/ManualPage"), "ManualPage");
+const PlanDetailPage = page(() => import("./pages/PlanDetailPage"), "PlanDetailPage");
+const CanonBoard = page(() => import("./pages/PlansPage"), "CanonBoard");
+const NewPlanPage = page(() => import("./pages/PlansPage"), "NewPlanPage");
+const ReleaseNotesPage = page(() => import("./pages/ReleaseNotesPage"), "ReleaseNotesPage");
+const SettingsPage = page(() => import("./pages/SettingsPage"), "SettingsPage");
+const SpecPage = page(() => import("./pages/SpecPage"), "SpecPage");
 
 export default function App() {
   const { ready, signedIn } = useAuth();
   const t = useT();
-  if (!ready) {
-    return (
-      <div className="flex h-full items-center justify-center text-slate-500">
-        <div className="animate-pulse">{t("loading")}</div>
-      </div>
-    );
-  }
+  const loading = (
+    <div className="flex h-full items-center justify-center text-slate-500">
+      <div className="animate-pulse">{t("loading")}</div>
+    </div>
+  );
+  if (!ready) return loading;
   if (!signedIn) {
     return (
       <Routes>
@@ -40,6 +45,7 @@ export default function App() {
     );
   }
   return (
+    <Suspense fallback={loading}>
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/chat" replace />} />
@@ -69,5 +75,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }

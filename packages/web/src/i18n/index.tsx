@@ -14,15 +14,7 @@ import { PLAN_ASK_CATALOG, type PlanAskKey } from "./planAsk";
 import { WORKER_GUARD_CATALOG, type WorkerGuardKey } from "./workerGuard";
 import { MISSIONS_CATALOG, type MissionsKey } from "./missions";
 import { MISSION_CREATE_CATALOG, type MissionCreateKey } from "./missionCreate";
-import { de } from "./de";
-import { es } from "./es";
-import { fr } from "./fr";
 import { ja } from "./ja";
-import { ko } from "./ko";
-import { pt } from "./pt";
-import { ru } from "./ru";
-import { zh } from "./zh";
-import { zhTw } from "./zhTw";
 
 /** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts, canonIssues.ts, planFlow.ts, planAsk.ts, claude.ts, apiKeys.ts, planPolicy.ts, workerGuard.ts, missions.ts, missionCreate.ts) */
 export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey | CanonIssuesKey | PlanFlowKey | PlanAskKey | ClaudeKey | ApiKeysKey | PlanPolicyKey | WorkerGuardKey | MissionsKey | MissionCreateKey;
@@ -45,8 +37,42 @@ export const LOCALES: { id: Locale; nameKey: MessageKey; htmlLang: string; dateT
 export const DEFAULT_LOCALE: Locale = "en";
 const STORAGE = "cobrac-locale";
 
-const BASE: Record<Locale, Record<BaseMessageKey, string>> = { en, ja, zh, zhTw, ko, de, fr, es, pt, ru };
-const CATALOG = Object.fromEntries(Object.entries(BASE).map(([l, c]) => [l, { ...c, ...HYPOTHESIS_CATALOG[l as Locale], ...AUTONOMOUS_CATALOG[l as Locale], ...PLAN_DRAFT_CATALOG[l as Locale], ...CANON_VIEW_CATALOG[l as Locale], ...CANON_ISSUES_CATALOG[l as Locale], ...PLAN_FLOW_CATALOG[l as Locale], ...PLAN_ASK_CATALOG[l as Locale], ...CLAUDE_CATALOG[l as Locale], ...API_KEYS_CATALOG[l as Locale], ...PLAN_POLICY_CATALOG[l as Locale], ...WORKER_GUARD_CATALOG[l as Locale], ...MISSIONS_CATALOG[l as Locale], ...MISSION_CREATE_CATALOG[l as Locale] }])) as Record<Locale, Record<MessageKey, string>>;
+type Catalog = Record<MessageKey, string>;
+type BaseCatalog = Record<BaseMessageKey, string>;
+
+/**
+ * English and Japanese are in the main bundle; the other languages' main catalogs load when chosen (each is about
+ * 100 kB of text that most users never need). The smaller catalogs kept apart hold every language and stay bundled.
+ */
+const LAZY_BASE: Record<Exclude<Locale, "en" | "ja">, () => Promise<BaseCatalog>> = {
+  zh: () => import("./zh").then((m) => m.zh),
+  zhTw: () => import("./zhTw").then((m) => m.zhTw),
+  ko: () => import("./ko").then((m) => m.ko),
+  de: () => import("./de").then((m) => m.de),
+  fr: () => import("./fr").then((m) => m.fr),
+  es: () => import("./es").then((m) => m.es),
+  pt: () => import("./pt").then((m) => m.pt),
+  ru: () => import("./ru").then((m) => m.ru),
+};
+
+function catalogOf(l: Locale, base: BaseCatalog): Catalog {
+  return { ...base, ...HYPOTHESIS_CATALOG[l], ...AUTONOMOUS_CATALOG[l], ...PLAN_DRAFT_CATALOG[l], ...CANON_VIEW_CATALOG[l], ...CANON_ISSUES_CATALOG[l], ...PLAN_FLOW_CATALOG[l], ...PLAN_ASK_CATALOG[l], ...CLAUDE_CATALOG[l], ...API_KEYS_CATALOG[l], ...PLAN_POLICY_CATALOG[l], ...WORKER_GUARD_CATALOG[l], ...MISSIONS_CATALOG[l], ...MISSION_CREATE_CATALOG[l] };
+}
+
+/** Catalogs ready to use (English and Japanese from the start, the others once loaded). */
+const CATALOG: Partial<Record<Locale, Catalog>> = { en: catalogOf("en", en), ja: catalogOf("ja", ja) };
+const EN = CATALOG.en!;
+
+/** Loads a language's catalog (resolves at once for one already loaded); false when it could not be loaded. */
+export async function loadLocale(l: Locale): Promise<boolean> {
+  if (CATALOG[l]) return true;
+  try {
+    CATALOG[l] = catalogOf(l, await LAZY_BASE[l as keyof typeof LAZY_BASE]());
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** Name of a UI language in the current UI language (`ja` → "日本語" / "Japanese"); unknown ids come back unchanged. */
 export function localeName(id: string, t: TFn): string {
@@ -83,22 +109,30 @@ function readStored(): Locale {
 const I18nCtx = createContext<{ locale: Locale; setLocale: (l: Locale) => void; t: TFn } | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>(readStored);
+  const [stored] = useState<Locale>(readStored);
+  // the language on screen; a chosen language that is still loading takes over once it is there
+  const [locale, setLocaleState] = useState<Locale | null>(() => (CATALOG[stored] ? stored : null));
   const setLocale = useCallback((l: Locale) => {
-    setLocaleState(l);
     try {
       localStorage.setItem(STORAGE, l);
     } catch {
       /* ignore */
     }
+    void loadLocale(l).then((ok) => setLocaleState(ok ? l : "en"));
   }, []);
-  const t = useCallback<TFn>((key, vars) => interpolate(CATALOG[locale][key] ?? CATALOG.en[key] ?? key, vars), [locale]);
+  useEffect(() => {
+    if (locale === null) void loadLocale(stored).then((ok) => setLocaleState(ok ? stored : "en"));
+  }, [locale, stored]);
+  const shown = locale ?? "en";
+  const t = useCallback<TFn>((key, vars) => interpolate(CATALOG[shown]?.[key] ?? EN[key] ?? key, vars), [shown]);
 
   useEffect(() => {
-    document.documentElement.lang = LOCALES.find((l) => l.id === locale)?.htmlLang ?? "en";
-  }, [locale]);
+    document.documentElement.lang = LOCALES.find((l) => l.id === shown)?.htmlLang ?? "en";
+  }, [shown]);
 
-  const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+  const value = useMemo(() => ({ locale: shown, setLocale, t }), [shown, setLocale, t]);
+  // a stored language that is not loaded yet: wait for it (a moment) rather than flash English
+  if (locale === null) return null;
   return <I18nCtx.Provider value={value}>{children}</I18nCtx.Provider>;
 }
 

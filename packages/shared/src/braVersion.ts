@@ -106,6 +106,8 @@ export interface BraVersionGenerator {
 }
 
 /** Hypothesis mode (stage 2): evidence mode, scopes, share limit and hypothesis counts of the version (absent before). */
+// merges into the interface above (declaration merging)
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface BraVersionGenerator extends VersionHypothesisInfo {}
 
 export interface BraVersionFile {

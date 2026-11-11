@@ -5,13 +5,12 @@ import type {
   CanonRecord,
   CreatePlanResponse,
   JobRecord,
-  PlanDetailResponse,
   PlanEventRecord,
   PlanRecord,
   PlanRowRecord,
   ProjectRecord,
 } from "@cobrac/shared";
-import { PLAN_MAX_WAITING_PRS, canonPrSk, conformTitle } from "@cobrac/shared";
+import { canonPrSk } from "@cobrac/shared";
 
 vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
 const s3 = vi.hoisted(() => new Map<string, string>());
@@ -47,7 +46,6 @@ async function json<T>(r: Response | Promise<Response>): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   return (await res.json()) as T;
 }
-const status = async (r: Response | Promise<Response>) => (await r).status;
 
 function user(who: typeof A, extra: Record<string, unknown> = {}) {
   fake.put("users", { userId: who.sub, email: who.email, displayName: who.sub, contributorName: who.sub, role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", createdAt: now, updatedAt: now, ...extra });
@@ -61,7 +59,6 @@ const projects = () => fake.items("projects") as unknown as ProjectRecord[];
 const projectOf = (id: string) => projects().find((p) => p.projectId === id)!;
 const jobs = () => fake.items("jobs") as unknown as JobRecord[];
 const reviewJobs = () => jobs().filter((j) => j.type === "canon-review");
-const canonMeta = (canonId: string) => fake.items("canons").find((x) => x.canonId === canonId && x.sk === "META") as unknown as CanonRecord;
 const prOf = (canonId: string, no: number) => fake.items("canons").find((x) => x.canonId === canonId && x.sk === canonPrSk(no)) as unknown as CanonPullRequestRecord;
 const isMember = (canonId: string, projectId: string) => fake.items("canons").some((x) => x.canonId === canonId && x.sk === `MEMBER#${projectId}`);
 
@@ -120,8 +117,6 @@ const fine = workspace(
 );
 /** A circuit of its own: never conflicts */
 const own = (n: number) => workspace([uc(`R${n}(left)`, `BNA:${2 * n - 1}-${2 * n}/side:left`)]);
-/** A22c(left) with another transmitter: a warning (C7, needs a human) against `coarse` */
-const warned = workspace([uc("A22c(left)", "BNA:75-76/side:left", "Glutamate; GABA")]);
 
 /** What the worker would do: the row's project completes with `content` (its active job with it). */
 function finish(planId: string, roi: string, content: Content) {
@@ -249,7 +244,7 @@ describe("plans with a Canon: following PRs a human settled", () => {
   });
 
   it("follows a PR that replaced the one waiting for its conform follow-up", async () => {
-    const { canonId, planId, projectId } = await conformWaiting();
+    const { planId, projectId } = await conformWaiting();
     const newNo = (await json<{ pr: CanonPullRequestRecord }>(call(A, "POST", `/projects/${projectId}/canon/push`))).pr.prNo;
     expect(newNo).toBe(3);
     await advancePlan(planId);

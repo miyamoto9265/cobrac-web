@@ -38,12 +38,17 @@ jobs:
       # typecheck resolves @cobrac/shared from its build output, so build first
       - run: npm run build
       - run: npm run typecheck
+      - run: npm run lint
       # csv_to_excel.py dependencies, so the worker pipeline test also builds the xlsx
       - run: python3 -m pip install --break-system-packages -r prompts/requirements.txt
       - run: npm test
         env:
           COBRAC_TEST_XLSX: "1"
       - run: npm run release:check
+      # The specification PDF is not committed: build it here (CI fails on broken sources) and for cdk synth,
+      # which bundles it into the API Lambda
+      - uses: ./.github/actions/spec-tools
+      - run: npm run spec:build
       - name: cdk synth
         run: npm run cdk -- synth --quiet
       - name: Will merging deploy?

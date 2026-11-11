@@ -19,7 +19,6 @@ import type {
   CanonSnapshot,
   CreateCanonRequest,
   JobRecord,
-  KeySource,
   ModelPolicy,
   ProjectRecord,
   ReviewProvenance,

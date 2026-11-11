@@ -261,7 +261,7 @@
   <li>まとめて承認は <code>POST /canons/{id}/pulls/approve-many</code> です。PR 番号が 1〜50 件でなければ 400 を返します。重複は除き、順番は保ちます。1 件ごとに 1 件ずつの承認と同じ関数（<code>approvePullRequest</code>）を、読み直した Canon に対して呼び、差分を取り直したときは <code>rebased</code> として記録します。</li>
   <li>止まる理由の値は <code>not_found</code>・<code>closed</code>・<code>conflicts</code>（数は <code>blocking</code>）・<code>approvals</code>・<code>race</code> です。応答は <code>{ approved: [{ prNo, revision }], stopped: { prNo, reason, blocking? } | null }</code> です。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/canonOps.ts</code>（<code>pushProject</code>・<code>approvePullRequest</code>）、<code>packages/api/src/app.ts</code>（Canon の PR のルート）、<code>packages/shared/src/canonMerge.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/canonOps.ts</code>（<code>pushProject</code>・<code>approvePullRequest</code>）、<code>packages/api/src/routes/canons.ts</code>（Canon の PR のルート）、<code>packages/shared/src/canonMerge.ts</code></p>
 
 <h2 id="s5-7">5.7 衝突ルール</h2>
 <p>PR の差分では、Canon の値と取り込む側の値を項目ごとに比べ、次の衝突を判定します。取り込む側の分解が Canon の分解の部分集合であることは、衝突になりません。</p>
@@ -377,7 +377,7 @@
   <li>判断の記録は、PR の <code>approvals</code>（<code>{ userId, name, at }</code>）、<code>decidedBy</code> / <code>decidedByName</code> / <code>decidedAt</code>、<code>reviewedBy</code> / <code>reviewedByName</code> / <code>reviewedAt</code>、rev（<code>REV#</code>）の <code>approvedBy</code> / <code>approvedByName</code> / <code>approvedAt</code> です。必要な承認の数は将来の <code>requiredApprovals</code>（未設定 = 1）です。</li>
   <li>オーケストレーターによる判断では、表示名を <code>aiActorName</code> が作り、<code>via = { kind: "ai", jobId, model }</code> を PR の <code>decidedVia</code>、承認の <code>approvals[].via</code>、履歴の <code>via: "ai"</code>、rev の <code>approvedVia</code> に残します。承認・却下・変更の依頼は、人と同じ関数（<code>approvePullRequest</code>・<code>rejectPullRequest</code>・<code>requestPrChanges</code>）を所有者として呼びます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code>（<code>applyDecision</code>）、<code>packages/shared/src/canon.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>・<code>canonAiDecision.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/canons.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code>（<code>applyDecision</code>）、<code>packages/shared/src/canon.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>・<code>canonAiDecision.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
 
 <h2 id="s5-9">5.9 rev への追従</h2>
 <p>プロジェクトのヘッダーには、所属する Canon と、従っている rev が出ます（例「rev 1（最新 2）」）。API は、固定した rev と最新の rev を、そのプロジェクトが使う定義について比べ、次のどれかの状態を返します。</p>
@@ -436,7 +436,7 @@
 </ul>
 <h3>実装</h3>
 <p>公開の切り替えは <code>PUT /canons/{id}/visibility</code>、公開ライブラリは <code>/explore</code>、公開の一覧は Catalog テーブル（<code>kind</code> = <code>canon</code>）、PR の受け付けは <code>acceptPullRequests</code> です。Canon から Canon への PR は <code>POST /canons/{target}/pulls</code> <code>{ sourceCanonId }</code>、差分の確認は <code>…/pulls/preview</code> です。ペイロードは <code>canonFromCanon</code> が作り、<code>via = &lt;送り元&gt;@&lt;rev&gt;</code> を記録します。送り元の記録は <code>OUT#{target}#{no}</code>、一覧は <code>GET /canons/{id}/outgoing</code> です。</p>
-<p class="src">典拠：<code>packages/api/src/app.ts</code>（公開・Canon から Canon へのルート）、<code>packages/shared/src/publish.ts</code>・<code>canonMerge.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/public.ts</code>・<code>canons.ts</code>（公開・Canon から Canon へのルート）、<code>packages/shared/src/publish.ts</code>・<code>canonMerge.ts</code></p>
 
 <h2 id="s5-12">5.12 オーケストレーターとの関係</h2>
 <p>オーケストレーター（第 6 部）のミッションは、1 つのミッションにつき 1 つの Canon を使います。自律実行のミッションで Canon を指定しなければ、ミッションの名前で新しい Canon を作ります。ミッションの完成したプロジェクトは自動で Canon に push されます（6.7）。</p>

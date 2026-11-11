@@ -52,7 +52,6 @@ export const planDraftEn = {
   "pd.confirm.noRows": "There are no rows yet, so the mission cannot be confirmed",
   "pd.confirm.unsaved": "Save the row changes before confirming",
   "pd.confirm.drafting": "The mission cannot be confirmed while the draft is being written",
-  "pd.create.needInput": "Enter a goal, a file or rows",
 } as const;
 
 export type PlanDraftKey = keyof typeof planDraftEn;
@@ -107,7 +106,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "プロジェクトが 0 件のため、まだ確定できません",
     "pd.confirm.unsaved": "プロジェクトの変更を保存してから確定できます",
     "pd.confirm.drafting": "下書きの作成中は確定できません",
-    "pd.create.needInput": "目標・資料・プロジェクトのどれかを入れてください",
   },
   // English until these strings are translated
   zh: {
@@ -158,7 +156,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "还没有项目，因此无法确认计划",
     "pd.confirm.unsaved": "请先保存项目的更改再确认",
     "pd.confirm.drafting": "草稿生成期间无法确认计划",
-    "pd.create.needInput": "请提供目标、文件或项目",
   },
   zhTw: {
     "pd.banner.empty": "這裡還沒有任何內容。請寫下目標並按「產生草稿」，或新增列。確認之前不會建立任何專案。",
@@ -208,7 +205,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "還沒有列，因此無法確認計畫",
     "pd.confirm.unsaved": "請先儲存列的變更，再確認計畫",
     "pd.confirm.drafting": "草稿產生中，無法確認計畫",
-    "pd.create.needInput": "請輸入目標、檔案或列",
   },
   ko: {
     "pd.banner.empty": "아직 아무것도 없습니다. 목표를 쓰고 ‘초안 만들기’를 누르거나 행을 추가하세요. 확정하기 전에는 프로젝트가 하나도 만들어지지 않습니다.",
@@ -258,7 +254,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "아직 행이 없어 미션을 확정할 수 없습니다",
     "pd.confirm.unsaved": "확정하기 전에 행 변경을 저장하세요",
     "pd.confirm.drafting": "초안을 작성하는 동안에는 미션을 확정할 수 없습니다",
-    "pd.create.needInput": "목표, 파일 또는 행을 입력하세요",
   },
   de: {
     "pd.banner.empty": "Noch ist nichts eingetragen. Schreiben Sie ein Ziel und klicken Sie auf „Entwurf erstellen“, oder fügen Sie Zeilen hinzu. Bis Sie bestätigen, wird kein Projekt erstellt.",
@@ -308,7 +303,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "Es gibt noch keine Zeilen, daher kann die Mission nicht bestätigt werden",
     "pd.confirm.unsaved": "Speichern Sie die Änderungen an den Zeilen, bevor Sie bestätigen",
     "pd.confirm.drafting": "Solange der Entwurf entsteht, kann die Mission nicht bestätigt werden",
-    "pd.create.needInput": "Geben Sie ein Ziel, eine Datei oder Zeilen an",
   },
   fr: {
     "pd.banner.empty": "Rien ici pour l’instant. Saisissez un objectif et cliquez sur « Créer un brouillon », ou ajoutez des lignes. Aucun projet n’est créé avant la confirmation.",
@@ -358,7 +352,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "La mission n’a encore aucune ligne et ne peut donc pas être confirmée",
     "pd.confirm.unsaved": "Enregistrez les modifications des lignes avant de confirmer",
     "pd.confirm.drafting": "La mission ne peut pas être confirmée pendant la rédaction du brouillon",
-    "pd.create.needInput": "Ajoutez un objectif, un fichier ou des lignes",
   },
   es: {
     "pd.banner.empty": "Todavía no hay nada. Escriba un objetivo y pulse «Crear borrador», o añada filas. No se crea ningún proyecto hasta que confirme.",
@@ -408,7 +401,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "Todavía no hay filas, así que la misión no se puede confirmar",
     "pd.confirm.unsaved": "Guarde los cambios de las filas antes de confirmar",
     "pd.confirm.drafting": "La misión no se puede confirmar mientras se redacta el borrador",
-    "pd.create.needInput": "Introduzca un objetivo, un archivo o filas",
   },
   pt: {
     "pd.banner.empty": "Ainda não há nada aqui. Escreva um objetivo e clique em “Criar rascunho” ou adicione linhas. Nenhum projeto é criado até você confirmar.",
@@ -458,7 +450,6 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "Ainda não há linhas, então a missão não pode ser confirmada",
     "pd.confirm.unsaved": "Salve as alterações das linhas antes de confirmar",
     "pd.confirm.drafting": "A missão não pode ser confirmada enquanto o rascunho está sendo criado",
-    "pd.create.needInput": "Informe um objetivo, um arquivo ou linhas",
   },
   ru: {
     "pd.banner.empty": "Пока здесь ничего нет. Укажите цель и нажмите «Создать черновик» или добавьте строки. До подтверждения ни один проект не создаётся.",
@@ -508,6 +499,5 @@ export const PLAN_DRAFT_CATALOG: Record<UiLocale, Record<PlanDraftKey, string>> 
     "pd.confirm.noRows": "Строк пока нет, поэтому миссию нельзя подтвердить",
     "pd.confirm.unsaved": "Перед подтверждением сохраните изменения строк",
     "pd.confirm.drafting": "Пока создаётся черновик, миссию нельзя подтвердить",
-    "pd.create.needInput": "Укажите цель, файл или строки",
   },
 };

@@ -50,7 +50,9 @@ if (areas.size !== 123) throw new Error(`expected 123 BNA areas, found ${areas.s
 let commit = "unknown";
 try {
   commit = execFileSync("git", ["-C", rcs, "rev-parse", "--short", "HEAD"], { encoding: "utf8" }).trim();
-} catch {}
+} catch {
+  // not a git checkout: keep "unknown"
+}
 
 const rows = [...areas.values()].sort((a, b) => a[0] - b[0]).map((a) => `  ${JSON.stringify(a)},`);
 writeFileSync(

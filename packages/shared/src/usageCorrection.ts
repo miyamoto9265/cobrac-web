@@ -10,9 +10,12 @@ import type { JobRecord } from "./types.js";
 /** Workers started from this time on record each turn's own usage (0.17.1, task definition registered 18:32:51 UTC). */
 export const USAGE_FIX_AT = "2026-10-01T18:33:00.000Z";
 
-/** Whether the job's usage was recorded by a worker that added Codex's running total every turn. */
-export function isLegacyUsageJob(job: Pick<JobRecord, "startedAt" | "createdAt" | "usage">): boolean {
-  return !!job.usage && (job.startedAt ?? job.createdAt) < USAGE_FIX_AT;
+/**
+ * Whether the job's usage was recorded by a worker that added Codex's running total every turn, and is still stored that
+ * way (`scripts/migrate-usage-0171.mjs` writes the corrected usage and sets `usageCorrected`).
+ */
+export function isLegacyUsageJob(job: Pick<JobRecord, "startedAt" | "createdAt" | "usage" | "usageCorrected">): boolean {
+  return !!job.usage && !job.usageCorrected && (job.startedAt ?? job.createdAt) < USAGE_FIX_AT;
 }
 
 /** A usage row of a job's chat: the job's recorded usage after one turn (`meta.usage` of a `kind: "usage"` status message). */
@@ -67,7 +70,7 @@ export function correctLegacyJob(points: UsagePoint[], threadBefore: TokenUsage 
  * starts where the previous one left it. Article jobs run on a conversation of their own.
  */
 export function correctLegacyProject(
-  jobs: Pick<JobRecord, "jobId" | "type" | "createdAt" | "startedAt" | "usage">[],
+  jobs: Pick<JobRecord, "jobId" | "type" | "createdAt" | "startedAt" | "usage" | "usageCorrected">[],
   pointsByJob: Map<string, UsagePoint[]>,
 ): Map<string, LegacyJobCorrection> {
   const out = new Map<string, LegacyJobCorrection>();

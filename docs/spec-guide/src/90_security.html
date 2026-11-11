@@ -29,7 +29,7 @@
   <div class="h">API キーに触れる経路</div>
   <p>API の Lambda は、キーを登録するときに暗号化するだけで、復号はできません。ミッションランナーには KMS の権限がまったくなく、計画用のジョブの入力（<code>input.json</code>）にもキーは入りません。計画用のジョブのキーは、ほかのジョブと同じくワーカーが解決して復号します。</p>
 </div>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）、<code>packages/api/src/lib/aws.ts</code>（暗号化）、<code>packages/api/src/lib/planRunner.ts</code>（自律実行の判断の適用）、<code>packages/worker/src/index.ts</code>（復号）</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（permissions）、<code>packages/api/src/lib/aws.ts</code>（暗号化）、<code>packages/api/src/lib/planRunner.ts</code>（自律実行の判断の適用）、<code>packages/worker/src/jobContext.ts</code>（復号）</p>
 
 <h2 id="s9-2">9.2 扱う情報と保存場所</h2>
 <p>CoBRAC Agents は一般向けの公開サービスではなく、招待かセルフサインアップで参加する少人数の利用者を想定しています。それでも OpenAI の API キーと研究データを扱うので、保存・復号・記録の扱いを 9.2〜9.7 で定めます。</p>
@@ -87,7 +87,7 @@
   <li>物理的に消す API はありません。必要なら管理者が AWS で直接消します。ただし版（<code>revisions/</code>）は、バケットポリシーがすべての主体に削除を禁じているので、先にポリシーを変えない限り消せません。</li>
   <li>API キーを削除すると、<code>encryptedApiKey</code> を消して <code>apiKeyRegistered=false</code> にします。過去の暗号文は KMS 側には残りますが、どこからも参照されません。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/app.ts</code>（<code>/users/me</code>・プロジェクトの削除）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/routes/users.ts</code>・<code>projects.ts</code>（<code>/users/me</code>・プロジェクトの削除）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code></p>
 
 <h2 id="s9-3">9.3 暗号化と API キー</h2>
 <h3>通信の暗号化</h3>
@@ -133,7 +133,7 @@
 <p>どのキーで実行するかは、ワーカーが起動のたびに決め直します。新しいジョブ、回答、リトライ、中断後の再開のどれでも同じです。そのため、利用承認を取り消したり、デフォルトの API キーを消したりすると、次の起動から効きます。デフォルトの API キーを復号するのは、利用承認を受けていて自分のキーを持たない利用者のジョブだけです。</p>
 <h3>アプリでは暗号化しないもの</h3>
 <p>チャットの本文、ROI・TLF、成果物、グラフの JSON、会話の状態は、S3 と DynamoDB のサービスによる暗号化だけで保存します。アプリの層での項目ごとの暗号化は、意図してしていません。管理者と AWS アカウントの権限を持つ人は、コンソールからこれらを読めます。</p>
-<p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/app.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>index.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/aws.ts</code>（<code>EncryptCommand</code>）、<code>packages/api/src/routes/users.ts</code>・<code>admin.ts</code>（キーの確認、<code>/admin/default-api-key</code>）、<code>packages/worker/src/runKey.ts</code>、<code>jobContext.ts</code>（<code>decryptApiKey</code>）、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code></p>
 
 <h2 id="s9-4">9.4 認証と認可</h2>
 <h3>認証</h3>
@@ -182,7 +182,7 @@
   <li>CORS のプリフライト（OPTIONS）は JWT の認証を通りません。許可するヘッダーは <code>Authorization</code> と <code>Content-Type</code> です。オリジンは現在 <code>*</code> です（個人の利用と CloudFront の既定の URL のため）。独自ドメインを足すときはオリジンを絞ります。</li>
   <li>成果物バケットの CORS は、参考資料のアップロードのための <code>POST</code> だけを、CloudFront のドメイン、<code>https://cobrac.site</code>（CDK の外で付けた distribution の別名）、<code>http://localhost:5173</code> から許します。ほかのホスト名で配信するときは <code>packages/infra/lib/cobrac-stack.ts</code> に足します。足さないと、そのオリジンからのアップロードはブラウザで失敗します。</li>
 </ul>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（Cognito・API・CORS）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/api/src/app.ts</code>（認証の middleware、<code>/admin/*</code>、アップロード、公開と複製）、<code>packages/api/src/handlers/authMessage.ts</code>・<code>ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/attachments.ts</code></p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（Cognito・API・CORS）、<code>packages/api/src/lib/auth.ts</code>、<code>packages/api/src/app.ts</code>・<code>routes/admin.ts</code>・<code>routes/projects.ts</code>・<code>routes/public.ts</code>（認証の middleware、<code>/admin/*</code>、アップロード、公開と複製）、<code>packages/api/src/handlers/authMessage.ts</code>・<code>ws.ts</code>・<code>broadcaster.ts</code>、<code>packages/shared/src/attachments.ts</code></p>
 
 <h2 id="s9-5">9.5 ワーカーの隔離と秘密情報</h2>
 <p>エージェントは、ワーカーのコンテナの中で Web 検索と任意のコマンドを実行できます。そこで、エージェントが届く範囲から AWS の認証情報と API キーを外し、作業を本人のデータに限ります。</p>
@@ -319,7 +319,7 @@
     <tr><td>漏れた API キー</td><td>OpenAI 側で失効させ、設定画面で登録し直す。デフォルトの API キーは管理画面で消すか登録し直す（次のジョブの起動から効く。9.3）</td><td>利用者・管理者</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（アラーム・出力）、<code>packages/infra/bin/app.ts</code>、<code>packages/api/src/app.ts</code>（<code>/admin/*</code>）、<code>README.md</code>（Operations notes）、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code></p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>（アラーム・出力）、<code>packages/infra/bin/app.ts</code>、<code>packages/api/src/routes/admin.ts</code>（<code>/admin/*</code>）、<code>README.md</code>（Operations notes）、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code></p>
 
 <h2 id="s9-9">9.9 AWS の費用と予算</h2>
 <div class="box note">
@@ -486,5 +486,5 @@
   <li><b>調査モード</b>（既定でオン。3.7）は、HCD の前に文献の調査を足します。Fargate の時間は約 10〜60 分増えます（1 vCPU / 4 GB の Spot で約 $0.01〜0.05）。OpenAI 側では、入力が 150 万〜600 万トークン（大部分はキャッシュ）、出力が 4 万〜15 万トークン（推論の強さ high 以上）増えます（<code>RESEARCH_ESTIMATE</code>）。作成画面は、選んだモデルでの見積もりを表示します。手早い下書きなら、作成画面で調査モードを切ります。</li>
   <li><b>オーケストレーターの下書き・再計画</b>は、推論の強さ <code>medium</code> で RCS の照会をする短い Codex の 1 ターンです（返答が読めなければ 1 回やり直します）。時間の予算は 7 分で、xlsx・PDF の資料を読むか 20 件を超える下書きは 25 分です。BRA の実行に比べれば小さな費用です。ほかのジョブと同じく所有者のキーかデフォルトの API キーで課金され、ジョブに記録され、ミッションの画面にミッション自身のジョブの費用として出ます。ミッションの PR の AI レビューの費用も、ミッションの費用に含めます。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）・<code>claude.ts</code>、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/app.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/pricing.ts</code>、<code>orgKey.ts</code>、<code>research.ts</code>（<code>RESEARCH_ESTIMATE</code>）、<code>plan.ts</code>（<code>PLAN_ESTIMATE</code>）、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>sessionTotalUsage</code>・<code>InFlightTurn</code>・<code>CODEX_CONTEXT_WINDOW</code>）・<code>claude.ts</code>、<code>db.ts</code>（<code>refreshProjectUsage</code>）、<code>packages/api/src/routes/users.ts</code>（<code>/users/me/usage</code>）、テスト <code>packages/worker/test/codex.test.ts</code></p>
 </section>

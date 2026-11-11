@@ -28,7 +28,6 @@ import {
   HYPOTHESES_FILE,
   gnDependencyNote,
   gnHypothesisDependencies,
-  hasHypothesisKey,
   hypothesisKeySchema,
   hypothesisProblems,
   hypothesisRecords,

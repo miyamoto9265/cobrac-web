@@ -52,7 +52,7 @@
 </svg>
 <figcaption><b>図 7.1</b>　凍結した版から BRA-DB に登録するまで</figcaption>
 </figure>
-<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/app.ts</code>（版と BRA-DB のルート）</p>
+<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/routes/projects.ts</code>（版と BRA-DB のルート）</p>
 
 <h2 id="s7-2">7.2 データベースの中身</h2>
 <p>データベースのスキーマは、BRA-DB の DDL v4.0 と、マイグレーション 01〜06（v4.1〜v4.6）の最終形を 1 つにまとめたものです。テーブル・列・制約の名前は BRA-DB と同じなので、BRA-DB のツールがそのまま使えます。CoBRAC はこれに、グラフのラベルを先に作る処理、CoBRAC 独自の記録のスキーマ、ロールの権限を加えています。</p>

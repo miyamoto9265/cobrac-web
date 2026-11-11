@@ -37,7 +37,10 @@ function SpecViewer({ fresh, title }: { fresh: () => Promise<SpecResponse>; titl
 export function SpecPage() {
   const t = useT();
   const { locale } = useI18n();
-  const embed = !useMediaQuery(BELOW_MD) && !useMediaQuery("(pointer: coarse)");
+  // both hooks run on every render (a short-circuit would skip the second one)
+  const narrow = useMediaQuery(BELOW_MD);
+  const coarsePointer = useMediaQuery("(pointer: coarse)");
+  const embed = !narrow && !coarsePointer;
   const [spec, setSpec] = useState<SpecResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [actionErr, setActionErr] = useState<string | null>(null);

@@ -164,7 +164,7 @@
 
 <h3>古い名前</h3>
 <p>自動で付けた名前（<code>nameSource = "auto"</code>）が古い ASCII の slug のままのプロジェクトがあります。たとえば TLF が <code>VOR</code>、ROI が <code>小脳</code> のプロジェクトの名前が <code>VOR</code> になっているものです。こうしたプロジェクトは、画面でもダウンロードのファイル名でも、仮の名前（<code>&lt;TLF&gt; in &lt;ROI&gt;</code>）を使います。</p>
-<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/api/src/app.ts</code>、<code>packages/web/src/App.tsx</code>、<code>scripts/migrate-project-ids.mjs</code></p>
+<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/api/src/routes/projects.ts</code>、<code>packages/web/src/App.tsx</code>、<code>scripts/migrate-project-ids.mjs</code></p>
 
 <h2 id="sc-5">C.5 版と出力</h2>
 <h3>版の仕組みより前に完成したプロジェクト</h3>
@@ -184,7 +184,7 @@
 
 <h3>Template-v2-3 形式の xlsx がないプロジェクト</h3>
 <p>Template-v2-3 形式の xlsx をワーカーが作るようになる前に完了したプロジェクトと、CoBRAC の xlsx よりファイルが古いプロジェクトには、この出力がありません（3.13）。v0.47 までに作られた Template-v2-2 形式のファイル（<code>output/{projectId}.template-v2-2.bra.xlsx</code>）は S3 に残りますが、画面からは使いません。<code>GET /projects/{id}/artifacts/template-xlsx</code> を呼ぶと、API の Lambda が同梱のテンプレートを使って、作業ディレクトリの CSV と JSON からその場で作って保存し、署名付き URL を返します。<code>CoBRAC-v1-x</code> のどの CSV も読めます。そのため、こうしたプロジェクトではヘッダーの「BRA データ (xlsx)」の最初のクリックでファイルを作り、ボタンはその完了を待ちます。API の Lambda のメモリを 1,024 MB にしているのは、このブックをその場で作るためです（8.2）。</p>
-<p class="src">典拠：<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/lib/versions.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>packages/web/src/components/workspace/VersionsView.tsx</code>、<code>packages/api/src/app.ts</code>（template-xlsx）、<code>CHANGELOG.md</code>（0.26.0・0.28.2）</p>
+<p class="src">典拠：<code>packages/worker/src/versions.ts</code>、<code>packages/api/src/lib/versions.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>packages/web/src/components/workspace/VersionsView.tsx</code>、<code>packages/api/src/routes/projects.ts</code>（template-xlsx）、<code>CHANGELOG.md</code>（0.26.0・0.28.2）</p>
 
 <h2 id="sc-6">C.6 データモデル</h2>
 <h3>v0.8 より前の作業ディレクトリ</h3>
@@ -237,7 +237,7 @@
 <h2 id="sc-7">C.7 使用量</h2>
 <p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
 <ul>
-  <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブ。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
+  <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブのうち、<code>usageCorrected</code> の印がないもの。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
   <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の表示（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
   <li><b>補正する画面</b>：プロジェクトの一覧、プロジェクトのジョブの表と合計、エージェント欄の使用量の表示、利用状況のまとめ、管理画面のプロジェクト一覧。対応する API は、プロジェクトの詳細、メッセージ、<code>/users/me/usage</code>、<code>/admin/projects</code> です。DB には書きません。終わったジョブの補正は、Lambda のコンテナごとに保持します。</li>
 </ul>
@@ -248,5 +248,14 @@
   <li><b>WebSocket で届く更新は補正しません。</b>古いプロジェクトで新しいジョブが終わった直後は、画面を読み込み直すまで補正前の合計が見えます。</li>
   <li><b>調査ステップの指標</b>（<code>researchStep.usage</code>）は補正しません。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/usageCorrection.ts</code>（<code>USAGE_FIX_AT</code>）、<code>packages/api/src/lib/usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>、テスト <code>packages/shared/test/usageCorrection.test.ts</code></p>
+<h3>補正した値の書き込み</h3>
+<p><code>scripts/migrate-usage-0171.mjs</code> は、API が読むときに行うのと同じ補正の結果を DynamoDB に書き込む 1 回きりのスクリプトです。既定では試行だけを行い、計画（各項目の補正前と補正後の値）を JSON に保存します。<code>--apply --from</code> でその計画を書き込みます。実行の手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
+<ul>
+  <li>書き込むもの：ジョブの使用量と費用（<code>usageCorrected</code> の印を付ける）、そのジョブの使用量の表示（<code>meta.usageCorrected</code> の印を付ける）、<code>USAGE_FIX_AT</code> より前に作ったプロジェクトの合計。</li>
+  <li>先にジョブに印を付けるので、書き込みの途中でも、API が補正済みの値をもう一度補正することはありません。</li>
+  <li>どの書き込みも、項目が計画の補正前の値のままのときだけ行います。もう書き込んだ項目や、その後に変わった項目は飛ばします。途中で止まったら、保存した計画で実行し直します。<code>--revert</code> で補正前の値に戻せます。</li>
+  <li>キューにある・実行中・回答待ちの古いジョブを持つプロジェクトは飛ばします。</li>
+</ul>
+<p>すべてのジョブに印が付けば、読むときの補正は何もしなくなります。そのあとで補正のコードを消せます。</p>
+<p class="src">典拠：<code>packages/shared/src/usageCorrection.ts</code>（<code>USAGE_FIX_AT</code>・<code>isLegacyUsageJob</code>）、<code>packages/api/src/lib/usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>scripts/migrate-usage-0171.mjs</code>、テスト <code>packages/shared/test/usageCorrection.test.ts</code>・<code>scripts/migrate-usage-0171.test.mjs</code></p>
 </section>
