@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.53.1] - 2026-11-11
+
 ### Changed
 - The site opens faster: each page's code loads on its first visit, and the screen texts of languages other than English and Japanese load when the language is chosen. The first download is about a quarter of what it was (gzip 590 kB → 140 kB for the main file)
 
