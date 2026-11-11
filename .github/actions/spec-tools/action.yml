@@ -7,8 +7,13 @@ runs:
   steps:
     - shell: bash
       run: |
-        sudo apt-get update -q
-        sudo apt-get install -y -q poppler-utils
+        if ! { sudo apt-get update -q && sudo apt-get install -y -q poppler-utils; }; then
+          # The runner's Azure apt mirror is sometimes unreachable for hours: use the main Ubuntu archive instead
+          # (this also serves the Chromium dependencies that playwright --with-deps installs below).
+          sudo sed -i 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#' /etc/apt/sources.list.d/ubuntu.sources /etc/apt/sources.list 2>/dev/null || true
+          sudo apt-get update -q
+          sudo apt-get install -y -q poppler-utils
+        fi
         # into the system site-packages: build.mjs runs python3 -I, which ignores the user site where a plain pip install goes
         sudo python3 -m pip install --break-system-packages "pypdf==6.17.0"
         npm install -g playwright@1.56.1

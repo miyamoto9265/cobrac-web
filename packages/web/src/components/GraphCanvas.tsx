@@ -252,6 +252,9 @@ function Inner({
   useEffect(() => setPositions(initial), [initial]);
   const geom = useRef({ positions, sizes });
   geom.current = { positions, sizes };
+  // Sizes React Flow measured in the DOM. The nodes are rebuilt from `positions` on every move, and a node without
+  // `measured` loses its handle positions, so its Connections are not drawn (and React Flow refuses to drag it).
+  const [domSizes, setDomSizes] = useState<Record<string, Size>>({});
 
   // Keyboard selection (Enter / Space on a focused node) arrives only as a "select" change.
   const lastClick = useRef<{ id: string; at: number } | null>(null);
@@ -259,7 +262,9 @@ function Inner({
     (changes: NodeChange<CanvasNode>[]) => {
       const pos: Record<string, XY> = {};
       const dim: Record<string, Size> = {};
+      const meas: Record<string, Size> = {};
       for (const c of changes) {
+        if (c.type === "dimensions" && c.dimensions) meas[c.id] = { width: c.dimensions.width, height: c.dimensions.height };
         if ("id" in c && groupIds.has(c.id)) continue;
         if (c.type === "position" && c.position) pos[c.id] = c.position;
         else if (c.type === "dimensions" && c.dimensions && c.setAttributes) dim[c.id] = { width: c.dimensions.width, height: c.dimensions.height };
@@ -273,8 +278,9 @@ function Inner({
       }
       if (Object.keys(pos).length) setPositions((p) => ({ ...p, ...pos }));
       if (Object.keys(dim).length) setSizes((p) => ({ ...p, ...dim }));
+      if (Object.keys(meas).length) setDomSizes((p) => ({ ...p, ...meas }));
     },
-    [onSelect],
+    [onSelect, groupIds],
   );
 
   const onResizeEnd = useCallback(
@@ -318,6 +324,7 @@ function Inner({
         position: { x: b.x, y: b.y },
         width: b.width,
         height: b.height,
+        measured: domSizes[b.id],
         draggable: false,
         selectable: false,
         focusable: false,
@@ -332,7 +339,7 @@ function Inner({
         } satisfies GroupData,
       };
     });
-  }, [boxes, groups, selectedGroupId, focus, onSelectGroup]);
+  }, [boxes, groups, selectedGroupId, focus, onSelectGroup, domSizes]);
 
   const boxNodes = useMemo<BoxNodeType[]>(
     () =>
@@ -342,6 +349,7 @@ function Inner({
         position: positions[n.id] ?? { x: 0, y: 0 },
         width: sizes[n.id]?.width,
         height: sizes[n.id]?.height,
+        measured: domSizes[n.id],
         selected: n.id === selectedId,
         draggable: !coarse || editing,
         ariaLabel: n.sublabel || n.caption ? `${n.label} — ${n.sublabel ?? n.caption}` : n.label,
@@ -357,7 +365,7 @@ function Inner({
           collapseLabel: n.collapse && collapseLabel ? collapseLabel(n.collapse.collapsed) : undefined,
         } satisfies NodeData,
       })),
-    [nodes, positions, sizes, selectedId, focus, L.nodes, onResizeEnd, onToggleCollapse, collapseLabel, editing, coarse],
+    [nodes, positions, sizes, domSizes, selectedId, focus, L.nodes, onResizeEnd, onToggleCollapse, collapseLabel, editing, coarse],
   );
   const rfNodes = useMemo<CanvasNode[]>(() => [...groupNodes, ...boxNodes], [groupNodes, boxNodes]);
 
