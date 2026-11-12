@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-11-12
+
 ### Changed
 - The Canon page is laid out like a project page, around its graph: the HCD graph always opens first, and an "Activity" panel on the right (where a project has its agent panel) shows the missions building the Canon with their progress, the pull requests to review with "Approve selected", open problems and the member projects. Choosing projects (several at once) or the problems highlights their circuits on the graph, and the eye icon next to a project hides what only that project brought (circuits and connections another shown project also pushed stay), and the panel reads again every 15 s while a mission runs. Below xl it opens from the "Activity" button at the end of the tabs
 - The Canon's name in the header opens a menu to switch to another Canon, with "All Canons" (the Canon list) at the bottom. The ID, granularity policy, description and counts moved behind the (?) next to it
