@@ -98,6 +98,25 @@ export function canonHcdGraph(stored: CanonSnapshot): HcdGraph {
   };
 }
 
+/**
+ * The graph without what only hidden projects brought: a circuit or connection is hidden when every project that pushed it
+ * is hidden (one that a shown project also pushed stays). Boxes keep their remaining members; a box left empty goes.
+ */
+export function hideProjects(graph: HcdGraph, snap: CanonSnapshot, hidden: ReadonlySet<string>): HcdGraph {
+  if (!hidden.size) return graph;
+  const only = (sources: string[]) => sources.length > 0 && sources.every((s) => hidden.has(s));
+  const goneCircuits = new Set(snap.circuits.filter((c) => only(c.sources)).map((c) => c.circuitId));
+  const goneEdges = new Set(snap.connections.filter((c) => only(c.sources)).map((c) => c.key));
+  const nodes = graph.nodes.filter((n) => !goneCircuits.has(n.id));
+  const ids = new Set(nodes.map((n) => n.id));
+  return {
+    ...graph,
+    nodes,
+    edges: graph.edges.filter((e) => !goneEdges.has(e.id) && ids.has(e.source) && ids.has(e.target)),
+    collections: (graph.collections ?? []).map((c) => ({ ...c, members: c.members.filter((m) => ids.has(m)) })).filter((c) => c.members.length > 0 && !goneCircuits.has(c.id)),
+  };
+}
+
 /** Circuit IDs a member project pushed (to emphasise them on the graph). */
 export function circuitsOfProject(snap: CanonSnapshot, projectId: string): Set<string> {
   return new Set(snap.circuits.filter((c) => c.state !== "invalidated" && c.sources.includes(projectId)).map((c) => c.circuitId));

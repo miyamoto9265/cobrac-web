@@ -139,7 +139,7 @@ The "Canon" button in the sidebar opens the list of Canons and their missions. C
 - **Problems**: the problems raised on the Canon, and a form to raise one.
 - **History**: the approved revs with their PRs and who approved them.
 
-The "Activity" panel shows the missions building this Canon with their progress, the PRs to review, open problems and the member projects. PRs without conflicts can be approved together with "Approve selected". Choose a project to highlight its circuits on the graph. "Manage" opens adding and removing member projects, the list of PRs, and sending a PR to another Canon. While a mission runs, the panel updates by itself. On narrow screens, open it with the "Activity" button at the end of the tabs.
+The "Activity" panel shows the missions building this Canon with their progress, the PRs to review, open problems and the member projects. PRs without conflicts can be approved together with "Approve selected". Choose a project to highlight its circuits on the graph; several projects can be highlighted at once. The eye icon hides on the graph the circuits and connections that only that project brought (those another project also pushed stay). "Show all" brings everything back. "Manage" opens adding and removing member projects, the list of PRs, and sending a PR to another Canon. While a mission runs, the panel updates by itself. On narrow screens, open it with the "Activity" button at the end of the tabs.
 
 The settings hold the name, granularity policy and description, the co-editors, and the public page and whether PRs are accepted.
 

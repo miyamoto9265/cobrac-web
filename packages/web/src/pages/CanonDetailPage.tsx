@@ -1,9 +1,9 @@
-import { Activity, AlertTriangle, CheckCheck, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, CheckCheck, EyeOff, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName, toCsv } from "@cobrac/shared";
-import { CanonActivity, ISSUES_EMPHASIS, LIVE_PLAN } from "../components/canon/CanonActivity";
+import { CanonActivity, ISSUES_EMPHASIS, LIVE_PLAN, NO_FOCUS, type CanonFocus } from "../components/canon/CanonActivity";
 import { CanonSwitcher } from "../components/canon/CanonSwitcher";
 import { CanonIssuesView, issueTargetParam } from "../components/CanonIssues";
 import { Section } from "../components/DetailPanel";
@@ -17,7 +17,7 @@ import { SheetTable } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject } from "../lib/canonGraph";
+import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject, hideProjects } from "../lib/canonGraph";
 import { fmtDate } from "../lib/format";
 import { NEW_PLAN_PATH, bulkApprovable } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
@@ -470,15 +470,29 @@ function CanonTablesView({ snapshot }: { snapshot: CanonSnapshot }) {
   );
 }
 
-/** The Canon's graph: its shared layer drawn like a project's HCD, with one member project's circuits emphasised on request. */
-function CanonGraphView({ detail, snapshot, emphasis, onEmphasis }: { detail: CanonDetailResponse; snapshot: CanonSnapshot; emphasis: string; onEmphasis: (value: string) => void }) {
+/** Value of the highlight menu while several projects are highlighted from the activity panel. */
+const MULTIPLE = "__multiple";
+
+/**
+ * The Canon's graph: its shared layer drawn like a project's HCD. Member projects' circuits (or those with problems) can be
+ * highlighted, several at once, and what only some projects brought can be hidden.
+ */
+function CanonGraphView({ detail, snapshot, focus, onFocus }: { detail: CanonDetailResponse; snapshot: CanonSnapshot; focus: CanonFocus; onFocus: (focus: CanonFocus) => void }) {
   const t = useT();
   const canonId = detail.canon.canonId;
-  const graph = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
+  const full = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
+  const hiddenKey = focus.hidden.join("|");
+  const graph = useMemo(() => hideProjects(full, snapshot, new Set(hiddenKey ? hiddenKey.split("|") : [])), [full, snapshot, hiddenKey]);
   const layout = useGraphLayout(canonId, "hcd", { canon: true });
   // "problems": the circuits an open problem reaches; otherwise one member project's circuits
   const flaggedIds = useMemo(() => new Set(snapshot.circuits.filter((c) => c.issueIds?.length).map((c) => c.circuitId)), [snapshot]);
-  const emphasised = useMemo(() => (emphasis === ISSUES_EMPHASIS ? flaggedIds : emphasis ? circuitsOfProject(snapshot, emphasis) : null), [snapshot, emphasis, flaggedIds]);
+  const highlightKey = focus.highlight.join("|");
+  const emphasised = useMemo(() => {
+    const on = highlightKey ? highlightKey.split("|") : [];
+    if (!on.length) return null;
+    return new Set(on.flatMap((id) => [...(id === ISSUES_EMPHASIS ? flaggedIds : circuitsOfProject(snapshot, id))]));
+  }, [snapshot, highlightKey, flaggedIds]);
+  const emphasis = focus.highlight.length > 1 ? MULTIPLE : (focus.highlight[0] ?? "");
   const sourcesOf = useMemo(() => new Map(snapshot.circuits.map((c) => [c.circuitId, c] as const)), [snapshot]);
   const names = useMemo(() => new Map(detail.members.map((m) => [m.projectId, m.name] as const)), [detail.members]);
   // projects that pushed something, members first (a project that left the Canon keeps its entries)
@@ -498,24 +512,39 @@ function CanonGraphView({ detail, snapshot, emphasis, onEmphasis }: { detail: Ca
       frgBase={null}
       emphasis={emphasised}
       headerExtra={
-        (pushers.length > 1 || flaggedIds.size > 0) && (
-          <select
-            value={emphasis}
-            onChange={(e) => onEmphasis(e.target.value)}
-            aria-label={t("cv.emphasis")}
-            title={t("cv.emphasis")}
-            data-testid="canon-emphasis"
-            className="ml-auto w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11"
-          >
-            <option value="">{t("cv.emphasisAll")}</option>
-            {flaggedIds.size > 0 && <option value={ISSUES_EMPHASIS}>{`${t("iss.tab")} (${flaggedIds.size})`}</option>}
-            {(pushers.length > 1 ? pushers : []).map((id) => (
-              <option key={id} value={id}>
-                {names.get(id) ?? id}
-              </option>
-            ))}
-          </select>
-        )
+        <>
+          {focus.hidden.length > 0 && (
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600" data-testid="canon-hidden">
+              <EyeOff size={12} aria-hidden /> {t("cv.hiddenCount", { n: focus.hidden.length })}
+              <button type="button" onClick={() => onFocus({ ...focus, hidden: [] })} className="text-blue-700 hover:underline coarse:min-h-11">
+                {t("cv.reset")}
+              </button>
+            </span>
+          )}
+          {(pushers.length > 1 || flaggedIds.size > 0) && (
+            <select
+              value={emphasis}
+              onChange={(e) => onFocus({ highlight: e.target.value ? [e.target.value] : [], hidden: focus.hidden.filter((x) => x !== e.target.value) })}
+              aria-label={t("cv.emphasis")}
+              title={t("cv.emphasis")}
+              data-testid="canon-emphasis"
+              className={`${focus.hidden.length ? "" : "ml-auto"} w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11`}
+            >
+              <option value="">{t("cv.emphasisAll")}</option>
+              {emphasis === MULTIPLE && (
+                <option value={MULTIPLE} disabled>
+                  {t("cv.multiple", { n: focus.highlight.length })}
+                </option>
+              )}
+              {flaggedIds.size > 0 && <option value={ISSUES_EMPHASIS}>{`${t("iss.tab")} (${flaggedIds.size})`}</option>}
+              {(pushers.length > 1 ? pushers : []).map((id) => (
+                <option key={id} value={id}>
+                  {names.get(id) ?? id}
+                </option>
+              ))}
+            </select>
+          )}
+        </>
       }
       nodeExtra={(node) => {
         const c = sourcesOf.get(node.id);
@@ -618,7 +647,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   const [snapshot, setSnapshot] = useState<CanonSnapshot | null>(null);
   const [revisions, setRevisions] = useState<CanonRevisionSummary[]>([]);
   const [plans, setPlans] = useState<PlanSummary[]>([]);
-  const [emphasis, setEmphasis] = useState("");
+  const [focus, setFocus] = useState<CanonFocus>(NO_FOCUS);
   const dock = useChatDock("cobrac-canon-activity");
   const labels = useActivityLabels();
 
@@ -692,10 +721,9 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   const ready = (v: CanonView) => (v === "hcd" || v === "tables" || v === "issues" ? hasContent : true);
   const openIssues = (snapshot?.issues ?? []).filter((i) => !i.resolution).length;
   // choosing a project or the problems in the activity panel shows them on the graph
-  const emphasize = (v: string) => {
-    setEmphasis(v);
-    if (v && view !== "hcd") navigate(canonPath(canonId, "hcd"));
-    if (v && !dock.docked) dock.setOpen(false);
+  const changeFocus = (f: CanonFocus) => {
+    setFocus(f);
+    if (view !== "hcd") navigate(canonPath(canonId, "hcd"));
   };
   const about = [
     `ID: ${c.canonId}`,
@@ -724,7 +752,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
       case "tables":
         if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
         if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
-        return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} emphasis={emphasis} onEmphasis={setEmphasis} /> : <CanonTablesView snapshot={snapshot} />;
+        return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} focus={focus} onFocus={setFocus} /> : <CanonTablesView snapshot={snapshot} />;
       case "projects":
         return <CardPane>{owner ? <MembersCard detail={detail} projects={projects} pushed={pushed} onChanged={reload} /> : <MembersList detail={detail} pushed={pushed} />}</CardPane>;
       case "pulls":
@@ -833,7 +861,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
       </div>
 
       <ChatDock state={dock} attention={openPulls > 0} working={live} labels={labels}>
-        <CanonActivity detail={detail} snapshot={snapshot} pulls={pulls} plans={plans} emphasis={emphasis} onEmphasis={emphasize} onChanged={reload} />
+        <CanonActivity detail={detail} snapshot={snapshot} pulls={pulls} plans={plans} focus={focus} onFocus={changeFocus} onChanged={reload} />
       </ChatDock>
     </div>
   );

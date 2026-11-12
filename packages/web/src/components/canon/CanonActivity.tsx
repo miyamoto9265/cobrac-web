@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCheck, FolderOpen, GitPullRequest, Highlighter, ListChecks, Plus } from "lucide-react";
+import { AlertTriangle, CheckCheck, Eye, EyeOff, FolderOpen, GitPullRequest, Highlighter, ListChecks, Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonSnapshot, PlanSummary, ProjectStatus } from "@cobrac/shared";
@@ -12,6 +12,21 @@ import { StatusBadge } from "../StatusBadge";
 
 /** Emphasis choice of the Canon graph that highlights the circuits an open problem reaches. */
 export const ISSUES_EMPHASIS = "__issues";
+
+/**
+ * What the Canon graph shows: the projects (and ISSUES_EMPHASIS for the problems) whose circuits are highlighted, and the
+ * projects whose own circuits are hidden.
+ */
+export interface CanonFocus {
+  highlight: string[];
+  hidden: string[];
+}
+export const NO_FOCUS: CanonFocus = { highlight: [], hidden: [] };
+const toggled = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
+/** Highlight on or off; a hidden project is shown again when it is highlighted. */
+export const toggleHighlight = (f: CanonFocus, v: string): CanonFocus => ({ highlight: toggled(f.highlight, v), hidden: f.hidden.filter((x) => x !== v) });
+/** Hide or show; a hidden project is no longer highlighted. */
+export const toggleHidden = (f: CanonFocus, v: string): CanonFocus => ({ hidden: toggled(f.hidden, v), highlight: f.highlight.filter((x) => x !== v) });
 
 export const LIVE_PLAN: ReadonlySet<PlanSummary["status"]> = new Set(["RUNNING", "PAUSED", "DRAFTING"]);
 const MISSIONS_SHOWN = 4;
@@ -43,16 +58,16 @@ export function CanonActivity({
   snapshot,
   pulls,
   plans,
-  emphasis,
-  onEmphasis,
+  focus,
+  onFocus,
   onChanged,
 }: {
   detail: CanonDetailResponse;
   snapshot: CanonSnapshot | null;
   pulls: CanonPullRequestRecord[];
   plans: PlanSummary[];
-  emphasis: string;
-  onEmphasis: (value: string) => void;
+  focus: CanonFocus;
+  onFocus: (focus: CanonFocus) => void;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -70,7 +85,7 @@ export function CanonActivity({
   const issues = (snapshot?.issues ?? []).filter((i) => !i.resolution);
   const pushed = new Map<string, number>();
   for (const c of snapshot?.circuits ?? []) if (c.state !== "invalidated") for (const id of c.sources) pushed.set(id, (pushed.get(id) ?? 0) + 1);
-  const toggle = (v: string) => onEmphasis(emphasis === v ? "" : v);
+  const issuesOn = focus.highlight.includes(ISSUES_EMPHASIS);
 
   const approveAll = async () => {
     if (!approvable.length || !window.confirm(t("pr.bulkApproveQ", { n: approvable.length }))) return;
@@ -191,7 +206,7 @@ export function CanonActivity({
           count={issues.length}
           testId="activity-issues"
           action={
-            <button type="button" onClick={() => toggle(ISSUES_EMPHASIS)} aria-pressed={emphasis === ISSUES_EMPHASIS} title={t("cv.highlight")} aria-label={t("cv.highlight")} className={`flex h-6 w-6 items-center justify-center rounded coarse:h-11 coarse:w-11 ${emphasis === ISSUES_EMPHASIS ? "bg-amber-100 text-amber-800" : "text-slate-400 hover:bg-slate-100"}`} data-testid="activity-issues-highlight">
+            <button type="button" onClick={() => onFocus(toggleHighlight(focus, ISSUES_EMPHASIS))} aria-pressed={issuesOn} title={t("cv.highlight")} aria-label={t("cv.highlight")} className={`flex h-6 w-6 items-center justify-center rounded coarse:h-11 coarse:w-11 ${issuesOn ? "bg-amber-100 text-amber-800" : "text-slate-400 hover:bg-slate-100"}`} data-testid="activity-issues-highlight">
               <Highlighter size={13} aria-hidden />
             </button>
           }
@@ -221,30 +236,51 @@ export function CanonActivity({
           count={detail.members.length}
           testId="activity-projects"
           action={
-            <Link to={canonPath(canonId, "projects")} className={quietLink}>
-              {t("cv.manage")}
-            </Link>
+            <>
+              {(focus.highlight.some((x) => x !== ISSUES_EMPHASIS) || focus.hidden.length > 0) && (
+                <button type="button" onClick={() => onFocus(issuesOn ? { highlight: [ISSUES_EMPHASIS], hidden: [] } : NO_FOCUS)} className={quietLink} data-testid="activity-reset">
+                  {t("cv.reset")}
+                </button>
+              )}
+              <Link to={canonPath(canonId, "projects")} className={quietLink}>
+                {t("cv.manage")}
+              </Link>
+            </>
           }
         >
           <ul className="grid gap-0.5">
             {detail.members.map((m) => {
-              const on = emphasis === m.projectId;
+              const on = focus.highlight.includes(m.projectId);
+              const off = focus.hidden.includes(m.projectId);
               const n = pushed.get(m.projectId) ?? 0;
               return (
-                <li key={m.projectId}>
+                <li key={m.projectId} className="flex items-center gap-0.5" data-hidden={off || undefined}>
                   <button
                     type="button"
-                    onClick={() => toggle(m.projectId)}
+                    onClick={() => onFocus(toggleHighlight(focus, m.projectId))}
                     aria-pressed={on}
                     disabled={!n}
                     title={n ? t("cv.highlight") : undefined}
-                    className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm coarse:min-h-11 ${on ? "bg-blue-50 ring-1 ring-blue-300" : "hover:bg-slate-50 disabled:hover:bg-transparent"}`}
+                    className={`flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-opacity coarse:min-h-11 ${on ? "bg-blue-50 ring-1 ring-blue-300" : "hover:bg-slate-50 disabled:hover:bg-transparent"} ${off ? "opacity-45" : ""}`}
                     data-testid="activity-project"
                   >
-                    <span className="min-w-0 flex-1 truncate">{m.name}</span>
+                    <span className={`min-w-0 flex-1 truncate ${off ? "line-through decoration-slate-400" : ""}`}>{m.name}</span>
                     {n > 0 && <span className="shrink-0 text-[11px] tabular-nums text-slate-500">{t("cv.pushedCircuits", { n })}</span>}
                     <StatusBadge status={m.status as ProjectStatus} compact />
                   </button>
+                  {n > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onFocus(toggleHidden(focus, m.projectId))}
+                      aria-pressed={off}
+                      title={off ? t("cv.show") : t("cv.hide")}
+                      aria-label={`${off ? t("cv.show") : t("cv.hide")}: ${m.name}`}
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded coarse:h-11 coarse:w-11 ${off ? "bg-slate-100 text-slate-600" : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"}`}
+                      data-testid="activity-project-hide"
+                    >
+                      {off ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+                    </button>
+                  )}
                 </li>
               );
             })}

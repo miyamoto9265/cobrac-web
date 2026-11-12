@@ -25,7 +25,7 @@ vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice" } })
 
 const { I18nProvider } = await import("../src/i18n");
 const { CanonDetailPage } = await import("../src/pages/CanonDetailPage");
-const { canonHcdGraph, canonSheet, circuitsOfProject } = await import("../src/lib/canonGraph");
+const { canonHcdGraph, canonSheet, circuitsOfProject, hideProjects } = await import("../src/lib/canonGraph");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const now = "2026-10-03T00:00:00.000Z";
@@ -108,6 +108,16 @@ describe("canonHcdGraph", () => {
     expect(g.edges.map((e) => `${e.source}>${e.target}`)).toEqual(["GC>PC", "PC>MVN"]);
     expect(g.edges[0].outputSemantics).toBe("GC output");
     expect(Object.fromEntries(g.nodes.map((n) => [n.id, n.roiClass]))).toEqual({ GC: "roi", PC: "unknown", MVN: "noROI_input" });
+  });
+
+  it("hides what only hidden projects pushed, keeping what a shown project also pushed", () => {
+    const g = hideProjects(canonHcdGraph(snapshot), snapshot, new Set(["p2"]));
+    // MVN is p2's alone; PC is p1's too
+    expect(g.nodes.map((n) => n.id)).toEqual(["GC", "PC"]);
+    expect(g.edges.map((e) => `${e.source}>${e.target}`)).toEqual(["GC>PC"]);
+    const none = hideProjects(canonHcdGraph(snapshot), snapshot, new Set(["p1", "p2"]));
+    expect(none.nodes).toHaveLength(0);
+    expect(none.collections).toHaveLength(0);
   });
 
   it("finds one project's circuits and lays the shared layer out as BRA tables", () => {
@@ -230,6 +240,19 @@ describe("Canon page", () => {
     expect(path).toBe(`/canons/${CANON}/hcd`);
     expect(($('[data-testid="canon-emphasis"]') as HTMLSelectElement).value).toBe("p2");
     expect(p2.getAttribute("aria-pressed")).toBe("true");
+
+    // a second project is highlighted with it, and a project can be hidden from the graph
+    const p1 = [...document.querySelectorAll<HTMLElement>('[data-testid="activity-project"]')].find((b) => b.textContent?.includes("Flocculus VOR"))!;
+    await act(async () => p1.click());
+    expect(($('[data-testid="canon-emphasis"]') as HTMLSelectElement).selectedOptions[0].textContent).toBe("2 highlighted");
+    const hide = [...document.querySelectorAll<HTMLElement>('[data-testid="activity-project-hide"]')].find((b) => b.getAttribute("aria-label")?.includes("Vestibular"))!;
+    await act(async () => hide.click());
+    expect(hide.getAttribute("aria-pressed")).toBe("true");
+    expect(p2.getAttribute("aria-pressed")).toBe("false");
+    expect($('[data-testid="canon-hidden"]')!.textContent).toContain("1 hidden");
+    await act(async () => $('[data-testid="activity-reset"]')!.click());
+    expect($('[data-testid="canon-hidden"]')).toBeNull();
+    expect(($('[data-testid="canon-emphasis"]') as HTMLSelectElement).value).toBe("");
   });
 
   it("switches to another Canon from the name in the header, with the Canon list at the bottom", async () => {
