@@ -135,6 +135,7 @@ import { correctJobs, correctProject, correctProjects, correctUsageMessages, leg
 import { ownedMessages } from "../lib/ownership.js";
 import { liveVersionFiles, liveVersionItem, versionItem } from "../lib/versions.js";
 import { removeCanonMember } from "../lib/canons.js";
+import { inSpace, itemTeam, listSpace, requestedTeam } from "../lib/teams.js";
 import { applyProjectCanon, resolveProjectCanon } from "./canons.js";
 import type { ApiEnv } from "./env.js";
 
@@ -148,9 +149,12 @@ projectsApi.get("/projects", async (c) => {
   const u = c.get("user");
   const q = c.req.query("q")?.toLowerCase();
   const status = c.req.query("status");
+  // ?team=<teamId>: that team's workspace; absent: the personal one
+  const space = await listSpace(u, c.req.query("team"));
   const { items, nextCursor } = await listProjects(u.userId, Number(c.req.query("limit") ?? 100), c.req.query("cursor"));
   const filtered = items.filter((p) => {
     if (isProjectDeleted(p)) return false;
+    if (!inSpace(p, space)) return false;
     if (status && p.status !== status) return false;
     if (q && ![p.name, p.projectId, p.legacyId, p.roi, p.tlf].some((s) => (s ?? "").toLowerCase().includes(q))) return false;
     return true;
@@ -216,12 +220,13 @@ function attachmentUrls(list: CreateProjectRequest["urls"]): string[] {
 
 projectsApi.post("/projects", async (c) => {
   const u = c.get("user");
-  const policy = await requireRunKey(u);
   const body = (await c.req.json()) as CreateProjectRequest;
+  const team = await requestedTeam(u, body.teamId);
+  const policy = await requireRunKey(u, team);
   const roi = (body.roi ?? "").trim();
   const tlf = (body.tlf ?? "").trim();
   if (!roi && !tlf) throw bad("ROI と TLF のどちらか一方は必須です");
-  const canonPlan = await resolveProjectCanon(u, body.canon);
+  const canonPlan = await resolveProjectCanon(u, body.canon, team?.teamId ?? null);
   // provisional until the agent names the project from meta.json; the user can rename it afterwards
   const name = proposeProjectName(roi, tlf);
   const contributor = u.contributorName?.trim() || u.displayName;
@@ -252,6 +257,7 @@ projectsApi.post("/projects", async (c) => {
     ...(hypothesis ? { hypothesis } : {}),
     locale,
     keySource: jobKeySource(policy, model),
+    teamId: team?.teamId ?? null,
     staged,
     urls,
     // before the job is queued, so the worker's first run already follows the Canon
@@ -366,7 +372,7 @@ projectsApi.post("/projects/:id/answer", async (c) => {
   const u = c.get("user");
   const p = await loadOwnProject(u, c.req.param("id"));
   if (p.status !== "WAITING_USER_INPUT" || !p.activeJobId) throw bad("回答待ちの質問はありません");
-  const policy = await requireRunKey(u);
+  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
   const body = (await c.req.json()) as AnswerRequest;
   const text = (body.answer ?? "").trim();
   if (!text) throw bad("回答を入力してください");
@@ -379,8 +385,8 @@ projectsApi.post("/projects/:id/answer", async (c) => {
 
 projectsApi.post("/projects/:id/followup", async (c) => {
   const u = c.get("user");
-  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
+  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
   if (p.status !== "COMPLETED") throw bad("フォローアップは完了済みのプロジェクトにのみ送信できます");
   const body = (await c.req.json()) as FollowupRequest;
   const text = (body.instruction ?? "").trim();
@@ -395,8 +401,8 @@ projectsApi.post("/projects/:id/followup", async (c) => {
 
 projectsApi.post("/projects/:id/retry", async (c) => {
   const u = c.get("user");
-  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
+  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
   const moved = await moveToAllowedModel(u, p, policy);
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
@@ -615,8 +621,8 @@ projectsApi.post("/projects/:id/versions/:n/bradb", async (c) => {
 
 projectsApi.post("/projects/:id/articles", async (c) => {
   const u = c.get("user");
-  const policy = await requireRunKey(u);
   const p = await loadOwnProject(u, c.req.param("id"));
+  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
   if (p.status !== "COMPLETED" || p.stepStates?.XLSX !== "done") throw bad("解説記事は BRA データの完成後に作成できます");
   const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest> & { model?: unknown };
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
@@ -636,6 +642,7 @@ projectsApi.post("/projects/:id/articles", async (c) => {
     type: "article",
     status: "QUEUED",
     keySource: jobKeySource(policy, model ?? projectModel),
+    ...(p.teamId ? { teamId: p.teamId } : {}),
     instruction: null,
     pendingAnswer: null,
     articleLocale: locale,

@@ -55,8 +55,14 @@ export class FakeDdb {
   }
   private check(cond: string | undefined, item: Item | undefined, i: Input) {
     if (!cond) return;
-    const ok = cond.split(" AND ").every((c) => {
-      const t = c.trim();
+    // "(a) AND (b OR c)": AND of clauses, each an OR of simple conditions
+    const one = (c: string): boolean => {
+      const t = c.trim().replace(/^\((.*)\)$/, "$1").trim();
+      if (t.includes(" OR ")) return t.split(" OR ").some(one);
+      return simple(t);
+    };
+    const operand = (x: string) => (x.startsWith(":") ? this.val(x, i) : item?.[this.attr(x, i)]);
+    const simple = (t: string): boolean => {
       let m = /^attribute_exists\((.+)\)$/.exec(t);
       if (m) return item !== undefined && item[this.attr(m[1], i)] !== undefined;
       m = /^attribute_not_exists\((.+)\)$/.exec(t);
@@ -65,8 +71,15 @@ export class FakeDdb {
       if (m) return item !== undefined && item[this.attr(m[1], i)] === this.val(m[2], i);
       m = /^(\S+) <> (:\w+)$/.exec(t);
       if (m) return item !== undefined && item[this.attr(m[1], i)] !== this.val(m[2], i);
+      m = /^(\S+) (<|>) (\S+)$/.exec(t);
+      if (m) {
+        const [x, y] = [operand(m[1]), operand(m[3])] as (string | number | undefined)[];
+        if (item === undefined || x === undefined || y === undefined) return false;
+        return m[2] === "<" ? x < y : x > y;
+      }
       throw new Error(`unsupported condition ${t}`);
-    });
+    };
+    const ok = cond.split(/ AND (?![^(]*\))/).every(one);
     if (!ok) throw new ConditionalCheckFailedException("conditional check failed");
   }
 
@@ -102,7 +115,8 @@ export class FakeDdb {
           for (const part of body.split(", ")) {
             if (kind === "SET") {
               const [a, v] = part.split(" = ");
-              next[this.attr(a, i)] = changed[this.attr(a, i)] = this.val(v, i);
+              const sum = /^(\S+) \+ (:\w+)$/.exec(v);
+              next[this.attr(a, i)] = changed[this.attr(a, i)] = sum ? Number(next[this.attr(sum[1], i)] ?? 0) + Number(this.val(sum[2], i)) : this.val(v, i);
             } else if (kind === "REMOVE") {
               delete next[this.attr(part.trim(), i)];
             } else {
@@ -137,6 +151,13 @@ export class FakeDdb {
         if (sk) rows.sort((x, y) => (String(x[sk]) < String(y[sk]) ? -1 : 1));
         if (i.Limit) rows = rows.slice(0, i.Limit);
         return { Items: rows };
+      }
+      case "BatchGet": {
+        const req = (i as unknown as { RequestItems: Record<string, { Keys: Item[] }> }).RequestItems;
+        const Responses = Object.fromEntries(
+          Object.entries(req).map(([name, { Keys }]) => [name, Keys.map((k) => this.table(name).get(this.key(name, k))).filter(Boolean).map((x) => structuredClone(x))]),
+        );
+        return { Responses };
       }
       case "Scan":
         return { Items: [...t.values()].map((x) => structuredClone(x)) };
@@ -177,5 +198,6 @@ export const libDynamodbMock = {
   UpdateCommand: command("Update"),
   QueryCommand: command("Query"),
   ScanCommand: command("Scan"),
+  BatchGetCommand: command("BatchGet"),
   TransactWriteCommand: command("TransactWrite"),
 };

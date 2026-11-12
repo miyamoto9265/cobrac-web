@@ -288,6 +288,8 @@ export interface PlanRecord {
   planId: string;
   sk: typeof PLAN_META_SK;
   ownerUserId: string;
+  /** Team whose workspace holds this (absent / null: the owner's personal workspace); its jobs run with the team's key */
+  teamId?: string | null;
   name: string;
   goal: string;
   status: PlanStatus;
@@ -519,6 +521,8 @@ export interface PlanRowInput {
 }
 
 export interface CreatePlanRequest {
+  /** Team workspace of the new plan (absent / null: personal) */
+  teamId?: string | null;
   name: string;
   goal?: string;
   rows?: PlanRowInput[];

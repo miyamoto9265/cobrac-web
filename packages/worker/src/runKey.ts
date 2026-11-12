@@ -1,5 +1,5 @@
-import type { DefaultApiKeyRecord, KeySource, ModelProvider, UserRecord } from "@cobrac/shared";
-import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, isOrgApproved, providerOf } from "@cobrac/shared";
+import type { DefaultApiKeyRecord, KeySource, ModelProvider, TeamRecord, UserRecord } from "@cobrac/shared";
+import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, isOrgApproved, providerOf, teamKeyEncryptionContext, teamRoleOf } from "@cobrac/shared";
 
 export type RunKeyPlan =
   | { source: KeySource; encryptedApiKey: string; /** KMS encryption context of the ciphertext */ context: Record<string, string> }
@@ -17,14 +17,19 @@ const NO_KEY: Record<ModelProvider, { error: string; i18n: string }> = {
   deepseek: { error: "No DeepSeek API key is registered, and an admin has not approved you.", i18n: "sys.noDeepseekKey" },
 };
 
+/** Whether the job runs on the team's key (then the user's own and default keys are not read). */
+export const usesTeamKey = (user: UserRecord, team: TeamRecord | null, model: string): boolean => !!(team && teamRoleOf(team, user.userId) && team.keys?.[providerOf(model)]?.encryptedApiKey);
+
 /**
  * The key a worker start runs with, checked again on every start (new job, answer, retry, restart after an
  * interruption) so a revoked approval or a deleted default key stops the next run. The user's own
  * key of the model's provider always wins. `defaultKey` (that provider's default key) is looked up only when the user
  * has no key of their own.
  */
-export function planRunKey(user: UserRecord, defaultKey: DefaultApiKeyRecord | null, model: string): RunKeyPlan {
+export function planRunKey(user: UserRecord, defaultKey: DefaultApiKeyRecord | null, model: string, team?: TeamRecord | null): RunKeyPlan {
   const provider = providerOf(model);
+  const teamKey = team && teamRoleOf(team, user.userId) ? team.keys?.[provider] : undefined;
+  if (team && teamKey?.encryptedApiKey) return { source: "team", encryptedApiKey: teamKey.encryptedApiKey, context: teamKeyEncryptionContext(team.teamId, provider) };
   const own = ownKeyOf(user, model);
   if (own) return { source: "own", encryptedApiKey: own, context: { userId: user.userId, purpose: API_KEY_PURPOSE[provider] } };
   if (!isOrgApproved(user.orgAccess)) {

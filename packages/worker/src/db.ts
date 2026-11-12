@@ -9,11 +9,12 @@ import type {
   MessageRole,
   MessageType,
   ProjectRecord,
+  TeamRecord,
   TokenUsage,
   UserRecord,
   WorkflowStep,
 } from "@cobrac/shared";
-import { CANON_META_SK, DEFAULT_KEY_CATALOG_KEYS, EMPTY_USAGE, addUsage, newId, nowIso } from "@cobrac/shared";
+import { CANON_META_SK, DEFAULT_KEY_CATALOG_KEYS, EMPTY_USAGE, TEAM_CATALOG_KIND, addUsage, isTeamId, newId, nowIso } from "@cobrac/shared";
 import { env } from "./env.js";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({ region: env.region }), {
@@ -33,6 +34,13 @@ export async function getDefaultApiKey(provider: ModelProvider = "openai"): Prom
   const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key }));
   const item = (r.Item as DefaultApiKeyRecord | undefined) ?? null;
   return item?.encryptedApiKey ? item : null;
+}
+
+/** The team whose workspace holds the job (Catalog kind "team"); null when there is none or it cannot be read. */
+export async function getTeam(teamId: string | null | undefined): Promise<TeamRecord | null> {
+  if (!teamId || !isTeamId(teamId) || !env.tables.catalog) return null;
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { kind: TEAM_CATALOG_KIND, id: teamId } }));
+  return (r.Item as TeamRecord | undefined) ?? null;
 }
 
 export async function getProject(userId: string, projectId: string): Promise<ProjectRecord | null> {

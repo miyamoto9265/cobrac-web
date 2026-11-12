@@ -80,6 +80,7 @@ import {
   getCanonMeta,
   getProject,
   getDefaultApiKey,
+  getTeam,
   getUser,
   incrementProjectRevision,
   putMessage,
@@ -95,7 +96,7 @@ import { returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { prepareMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
-import { ownKeyOf, planRunKey } from "./runKey.js";
+import { ownKeyOf, planRunKey, usesTeamKey } from "./runKey.js";
 import { threadProviderOf } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
@@ -169,7 +170,8 @@ async function main() {
     return;
   }
   const runModel = resolveModelSettings(mode === "article" ? { model: job.model || project.model } : project).model!;
-  const key = planRunKey(user, ownKeyOf(user, runModel) ? null : await getDefaultApiKey(providerOf(runModel)), runModel);
+  const team = await getTeam(job.teamId ?? project.teamId);
+  const key = planRunKey(user, usesTeamKey(user, team, runModel) || ownKeyOf(user, runModel) ? null : await getDefaultApiKey(providerOf(runModel)), runModel, team);
   if ("error" in key) {
     await fail(key.error, key.meta);
     return;

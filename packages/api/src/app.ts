@@ -15,6 +15,7 @@ import { canonsApi } from "./routes/canons.js";
 import { publicApi } from "./routes/public.js";
 import { plansApi } from "./routes/plans.js";
 import { adminApi } from "./routes/admin.js";
+import { inviteInfo, teamsApi } from "./routes/teams.js";
 
 export const app = new Hono<ApiEnv>();
 
@@ -28,9 +29,13 @@ app.onError((err, c) => {
 
 app.get("/health", (c) => c.json({ ok: true, version: env.appVersion, time: nowIso() }));
 
+// the invite page shows the team's name before the visitor signs in (API Gateway routes /invites/{token} without the JWT authorizer)
+app.get("/invites/:token", async (c) => c.json(await inviteInfo(c.req.param("token"))));
+
 // --- auth middleware ---------------------------------------------------------
 app.use("*", async (c, next) => {
   if (c.req.path === "/health" || c.req.method === "OPTIONS") return next();
+  if (c.req.method === "GET" && c.req.path.startsWith("/invites/")) return next();
   const auth = extractAuth(c.env.event);
   if (!auth) throw new HTTPException(401, { message: "unauthorized" });
   const user = await ensureUser(auth);
@@ -46,6 +51,7 @@ app.route("/", canonsApi);
 app.route("/", publicApi);
 app.route("/", plansApi);
 app.route("/", adminApi);
+app.route("/", teamsApi);
 
 app.get("/config", async (c) => {
   const limits = await currentLimits();

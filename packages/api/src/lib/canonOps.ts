@@ -82,6 +82,7 @@ import { actorName, aiState, isActiveJob, reviewJobsOf } from "./canonReview.js"
 import { getProject, listJobsForCanon, putJob, updateProject } from "./db.js";
 import { bad } from "./http.js";
 import { jobKeySource, moveToAllowedModel, queueFollowup, requireRunKey } from "./runs.js";
+import { itemTeam } from "./teams.js";
 
 // --- Canons ------------------------------------------------------------------------------------------------------------
 
@@ -112,6 +113,7 @@ export async function createCanon(u: UserRecord, fields: Partial<CanonRecord>): 
     canonId: await reserveNewId("canon", u.userId),
     sk: CANON_META_SK,
     ownerUserId: u.userId,
+    ...(fields.teamId ? { teamId: fields.teamId } : {}),
     name: fields.name!,
     description: fields.description ?? "",
     policy: fields.policy ?? "",
@@ -282,6 +284,7 @@ export async function requestAiReview(
     type: "canon-review",
     status: "QUEUED",
     keySource: jobKeySource(policy, opts.model),
+    ...(canon.teamId ? { teamId: canon.teamId } : {}),
     instruction: null,
     pendingAnswer: null,
     reviewPrNo: pr.prNo,
@@ -455,7 +458,7 @@ export async function settleIssue(u: UserRecord, canon: CanonRecord, issueId: st
  * running or not finished are skipped and listed.
  */
 export async function alignAffectedProjects(u: UserRecord, canon: CanonRecord, locale: UiLocale | null): Promise<AlignResult> {
-  const policy = await requireRunKey(u);
+  const policy = await requireRunKey(u, await itemTeam(u.userId, canon.teamId));
   const head = await loadCanonHead(canon);
   const info = { canonId: canon.canonId, name: canon.name, policy: canon.policy, revision: canon.headRevision };
   const pins = new Map<number, CanonSnapshot>([[head.revision, head]]);

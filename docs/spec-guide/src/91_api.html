@@ -53,7 +53,7 @@
 <table class="compact">
   <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
   <tbody>
-    <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / null）</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/users/me</code></td><td>自分のプロフィール（暗号化したキーを除く）と、ジョブを実行するキー <code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code> / null。<code>?team=</code> でチームの作業場所での値）</td><td>ログイン</td></tr>
     <tr><td>PUT</td><td><code>/users/me</code></td><td>次の項目を変える：<code>displayName</code>（80 字まで）、<code>contributorName</code>（120 字まで）、<code>defaultModel</code>（キーで使えなければ 403）、<code>defaultReasoningEffort</code>、<code>defaultCanonId</code>（自分の Canon だけ）</td><td>ログイン</td></tr>
     <tr><td>GET</td><td><code>/users/me/models</code></td><td>選べるモデル（自分のキーのモデル。承認した利用者で自分のキーがなければデフォルトの API キーのモデル。Claude と DeepSeek のモデルは、それぞれのキーで使えるものを加える。非推奨のモデルは最後。4.1・4.2）、<code>restricted</code>、<code>keySource</code>・<code>claudeKeySource</code>・<code>deepseekKeySource</code>（Anthropic 側・DeepSeek 側のキーの種類）、推論の強さの一覧、「デフォルト」で動くモデル（<code>envDefaultModel</code>）、単価表にあるモデル</td><td>ログイン</td></tr>
     <tr><td>GET</td><td><code>/users/me/usage</code></td><td>自分のプロジェクト全体のトークンと推定費用。全体・モデルごと・プロジェクトごとに返し、削除したプロジェクトには <code>deleted</code> の印を付ける。自分の Canon と共同編集者として入っている Canon の AI レビュー、自分のミッションの <code>plan</code> のジョブも、全体とモデルごとの合計に含める（4.7）</td><td>ログイン</td></tr>
@@ -273,4 +273,25 @@
   </tbody>
 </table>
 <p class="src">典拠：<code>packages/shared/src/hypothesisInput.ts</code>・<code>hypothesis.ts</code>・<code>hypothesisVersion.ts</code>、<code>packages/api/src/lib/hypothesisSettings.ts</code>・<code>lib/runs.ts</code></p>
+<h2 id="sa-13">A.13 チーム</h2>
+<p>チーム（4.8）のルートです。チームが見つからないときと、呼んだ人がメンバーでないときは、どちらも 404 です。チーム管理者だけの操作をメンバーが呼ぶと 403 です。</p>
+<table class="compact">
+  <thead><tr><th style="width:10%">メソッド</th><th style="width:30%">パス</th><th>用途</th><th style="width:13%">呼べる人</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/teams</code></td><td>自分が入っているチームの一覧（名前・役割・人数・キーのある提供元）</td><td>ログイン</td></tr>
+    <tr><td>POST</td><td><code>/teams</code></td><td><code>{ name }</code> でチームを作る。作った人がチーム管理者になる</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/teams/{id}</code></td><td>メンバー、キーの状態、チームのキーの費用。チーム管理者にはメールアドレス・全員の費用・招待リンク・送った招待も返す</td><td>メンバー</td></tr>
+    <tr><td>PUT</td><td><code>/teams/{id}</code></td><td>チーム名を変える</td><td>チーム管理者</td></tr>
+    <tr><td>PUT</td><td><code>/teams/{id}/members/{userId}</code></td><td><code>{ role }</code>（<code>admin</code> / <code>member</code>）。管理者がいなくなる変更は 400</td><td>チーム管理者</td></tr>
+    <tr><td>DELETE</td><td><code>/teams/{id}/members/{userId}</code></td><td>メンバーを外す。自分の userId なら自分が抜ける。管理者がいなくなる変更は 400</td><td>チーム管理者、本人</td></tr>
+    <tr><td>PUT・DELETE</td><td><code>/teams/{id}/keys/{provider}</code></td><td>チームの API キー（<code>openai</code> / <code>anthropic</code> / <code>deepseek</code>）の登録と削除。登録の検査は <code>PUT /users/me/apikey</code> と同じ</td><td>チーム管理者</td></tr>
+    <tr><td>POST</td><td><code>/teams/{id}/invite</code></td><td><code>{ expiresAt?, maxUses? }</code> で新しい招待リンクを作る。それまでのリンクは無効になる</td><td>チーム管理者</td></tr>
+    <tr><td>DELETE</td><td><code>/teams/{id}/invite</code></td><td>招待リンクを無効にする</td><td>チーム管理者</td></tr>
+    <tr><td>POST</td><td><code>/teams/{id}/invite/emails</code></td><td><code>{ emails }</code>（50 件まで）に招待リンクをメールで送る → <code>{ sent, failed }</code>。有効なリンクがなければ 400</td><td>チーム管理者</td></tr>
+    <tr><td>POST</td><td><code>/teams/join</code></td><td><code>{ token }</code> の招待リンクでチームに参加する。期限切れ・上限・無効のリンクは 410</td><td>ログイン</td></tr>
+    <tr><td>GET</td><td><code>/invites/{token}</code></td><td>招待リンクのチーム名・状態・有効期限。参加ページがサインインの前に使う</td><td>だれでも（認証なし）</td></tr>
+  </tbody>
+</table>
+<p class="small">一覧の <code>GET /projects</code>・<code>/plans</code>・<code>/canons</code> と <code>GET /users/me</code>・<code>/users/me/models</code> は <code>?team=&lt;teamId&gt;</code> でチームの作業場所のものを返します。作成の <code>POST /projects</code>・<code>/plans</code>・<code>/canons</code> は本文の <code>teamId</code> でチームの作業場所に作ります。</p>
+<p class="src">典拠：<code>packages/api/src/routes/teams.ts</code>・<code>app.ts</code>、<code>packages/shared/src/team.ts</code></p>
 </section>

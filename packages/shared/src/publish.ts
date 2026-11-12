@@ -53,7 +53,7 @@ export const ID_RESERVATION_KIND = "id";
 export interface IdReservation {
   kind: typeof ID_RESERVATION_KIND;
   id: string;
-  type: "project" | "canon" | "plan";
+  type: "project" | "canon" | "plan" | "team";
   ownerUserId: string;
   createdAt: string;
 }

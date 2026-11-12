@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Teams. Anyone can create a team from the workspace switcher at the top of the sidebar; the creator is its admin. A team admin registers the team's own API keys (the team's budget), and members run projects, missions and Canon reviews in the team's workspace on those keys without a key of their own. A provider the team has no key of falls back to the member's own key (or the default key). Personal workspaces stay as they are, and one user may belong to several teams
+- Team invite links: one link per team, with an optional expiry and an optional limit on the number of people. It can be shared as a URL, a QR code, or an e-mail sent from the team page (addresses without an account too). Anyone who opens a valid link and signs in (or signs up) joins as a member. Making a new link or disabling it stops the old one
+- The team page (`/teams/{id}`): members and their roles, each member's cost on the team's keys this month and in total (admins see everyone, members see themselves), the invite link with its QR code, the e-mail invitations sent and whether they have joined, the team's API keys, and leaving the team. A team always keeps at least one admin
+
 ## [0.53.1] - 2026-11-11
 
 ### Changed

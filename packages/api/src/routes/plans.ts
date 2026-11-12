@@ -38,6 +38,7 @@ import {
 } from "../lib/planOps.js";
 import { readLocale } from "../lib/runs.js";
 import { archiveBody } from "./projects.js";
+import { inSpace, listSpace } from "../lib/teams.js";
 import type { ApiEnv } from "./env.js";
 
 export const plansApi = new Hono<ApiEnv>();
@@ -51,7 +52,9 @@ const LIST_PULSE_PLANS = 12;
 
 plansApi.get("/plans", async (c) => {
   const u = c.get("user");
-  const plans = (await listOwnPlans(u.userId)).filter((p) => !p.deletedAt).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  // ?team=<teamId>: that team's workspace; absent: the personal one
+  const space = await listSpace(u, c.req.query("team"));
+  const plans = (await listOwnPlans(u.userId)).filter((p) => !p.deletedAt && inSpace(p, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   // running and paused plans carry what they do now (the list is a live view of them); the rest only their counts
   let live = 0;
   const items = await Promise.all(

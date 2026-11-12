@@ -134,6 +134,7 @@ export async function queueRowJob(
     planId: plan.planId,
     status: "QUEUED",
     keySource: jobKeySource(gate.policy, gate.orchestratorModel),
+    ...(plan.teamId ? { teamId: plan.teamId } : {}),
     instruction: null,
     pendingAnswer: null,
     locale: input.locale,

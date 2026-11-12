@@ -304,12 +304,13 @@ export class CobracAgentsStack extends Stack {
     for (const t of [users, projects, jobs, messages]) t.grantReadWriteData(taskDef.taskRole);
     // the worker reads the pinned Canon revision (META here, snapshot under canons/ in the artifacts bucket)
     canons.grantReadData(taskDef.taskRole);
-    // and the default API key (Catalog kind "config"); nothing else of the Catalog
+    // and the default API key (Catalog kind "config") and the team of a team workspace's job (kind "team": its key);
+    // nothing else of the Catalog
     taskDef.taskRole.addToPrincipalPolicy(
       new iam.PolicyStatement({
         actions: ["dynamodb:GetItem"],
         resources: [catalog.tableArn],
-        conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } },
+        conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config", "team"] } },
       }),
     );
     artifacts.grantReadWrite(taskDef.taskRole);
@@ -375,6 +376,8 @@ export class CobracAgentsStack extends Stack {
     const specPdf = resolve(repoRoot, "docs", SPEC_PDF_NAME);
     const apiFn = fn("ApiFn", "handlers/http.ts", "handler", {
       memorySize: 1024,
+      // team invitation e-mails (SES) carry the invite link on the site
+      environment: { ...commonEnv, SITE_URL: props.siteUrl, EMAIL_FROM: props.emailFrom, EMAIL_FROM_NAME: props.emailFromName },
       bundling: {
         ...bundling,
         commandHooks: {
@@ -413,13 +416,24 @@ export class CobracAgentsStack extends Stack {
     }
     canons.grantReadWriteData(apiFn);
     catalog.grantReadWriteData(apiFn);
+    // team invitation e-mails, only from the site's sender address
+    if (props.emailFrom) {
+      apiFn.addToRolePolicy(
+        new iam.PolicyStatement({
+          actions: ["ses:SendEmail"],
+          resources: [`arn:aws:ses:${this.region}:${this.account}:identity/*`],
+          conditions: { StringEquals: { "ses:FromAddress": props.emailFrom } },
+        }),
+      );
+    }
     plans.grantReadWriteData(apiFn);
     // the plan runner starts rows' projects as the API does (Projects / Jobs / Messages, the job queue, stopping a task
     // when its plan is cancelled), reserves their IDs (Catalog kind "id") and reads the settings (Catalog kind "config":
-    // the default API key record for the owner's key policy, the concurrency limits); it never sees a key in clear
+    // the default API key record for the owner's key policy, the concurrency limits) and a team plan's team (kind
+    // "team": which keys it has); it never sees a key in clear
     for (const t of [plans, users, projects, jobs, messages]) t.grantReadWriteData(planRunnerFn);
     planRunnerFn.addToRolePolicy(
-      new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config"] } } }),
+      new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["config", "team"] } } }),
     );
     planRunnerFn.addToRolePolicy(
       new iam.PolicyStatement({ actions: ["dynamodb:PutItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["id"] } } }),
@@ -503,6 +517,8 @@ export class CobracAgentsStack extends Stack {
     });
     const apiIntegration = new HttpLambdaIntegration("ApiIntegration", apiFn);
     httpApi.addRoutes({ path: "/health", methods: [apigwv2.HttpMethod.GET], integration: apiIntegration });
+    // what an invite link is for (team name, still valid?), shown on the join page before sign-in
+    httpApi.addRoutes({ path: "/invites/{token}", methods: [apigwv2.HttpMethod.GET], integration: apiIntegration });
     // NOTE: OPTIONS is intentionally excluded so API Gateway answers CORS preflight itself (an ANY route
     // would send preflight through the JWT authorizer and return 401 → "Failed to fetch" in the browser).
     httpApi.addRoutes({

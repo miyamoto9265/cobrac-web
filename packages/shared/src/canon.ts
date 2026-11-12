@@ -23,6 +23,8 @@ export interface CanonRecord {
   canonId: string;
   sk: "META";
   ownerUserId: string;
+  /** Team whose workspace holds this (absent / null: the owner's personal workspace); its jobs run with the team's key */
+  teamId?: string | null;
   name: string;
   description: string;
   /** Granularity policy in prose (e.g. "neocortex: area × projection class"); given to the agent */
@@ -281,6 +283,8 @@ export function normalizeCanonText(input: unknown, max: number): { text: string 
 
 export interface CreateCanonRequest {
   name: string;
+  /** Team workspace of the new Canon (POST only; absent / null: personal) */
+  teamId?: string | null;
   description?: string;
   policy?: string;
 }

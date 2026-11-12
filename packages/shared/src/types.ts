@@ -53,6 +53,8 @@ export interface UserRecord {
   orgAccess?: OrgAccess | null;
   /** Canons of other users where this user is a co-editor (kept in step with their `EDITOR#` items) */
   editorCanons?: string[];
+  /** Teams the user belongs to (kept in step with the teams' member lists) */
+  teamIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -222,6 +224,8 @@ export interface ProjectRecord {
   deletedBy?: string | null;
   /** Archived by the owner: hidden from the sidebar history (still listed, runs on, restorable); absent / null = not archived */
   archivedAt?: string | null;
+  /** Team whose workspace holds the project (absent / null: the owner's personal workspace); its jobs run with the team's key */
+  teamId?: string | null;
   /** Canon this project follows (at most one); absent = not in a Canon */
   canonId?: string | null;
   /** Absent = private. Public projects are listed in the Catalog and can be read and cloned by any signed-in user */
@@ -287,8 +291,10 @@ export interface JobRecord {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
-  /** Key the job runs with: own, or the default API key (absent on jobs before v0.19: the user's own key) */
+  /** Key the job runs with: own, the default API key, or the team key (absent on jobs before v0.19: the user's own key) */
   keySource?: KeySource;
+  /** Team whose key ran the job (keySource === "team") */
+  teamId?: string | null;
   /** Model actually passed to Codex for this job */
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
@@ -509,6 +515,8 @@ export interface FrgGraph {
  * account's contributor name. Both can be changed later (rename on the project page, Settings).
  */
 export interface CreateProjectRequest {
+  /** Team workspace of the new project (absent / null: personal) */
+  teamId?: string | null;
   /** Canon of the new project (absent: the user's default Canon, or none) */
   canon?: import("./canon.js").CreateProjectCanon;
   roi: string;
