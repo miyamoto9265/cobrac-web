@@ -120,6 +120,23 @@ describe("canonHcdGraph", () => {
     expect(none.collections).toHaveLength(0);
   });
 
+  it("draws one line per sender -> receiver when projects pushed it with different references", () => {
+    const twice: CanonSnapshot = {
+      ...snapshot,
+      connections: [
+        connection("GC", "PC"),
+        connection("GC", "PC", { key: "x:gc|x:pc|[B, 2021]", referenceId: "[B, 2021]", comment: "parallel fibre", sources: ["p2"] }),
+        connection("PC", "MVN", { sources: ["p2"] }),
+      ],
+    };
+    const g = canonHcdGraph(twice);
+    expect(g.edges.map((e) => `${e.source}>${e.target}`)).toEqual(["GC>PC", "PC>MVN"]);
+    expect(g.edges[0]).toEqual(expect.objectContaining({ referenceId: "[A, 2020]; [B, 2021]", comments: "inhibitory projection / parallel fibre" }));
+    // the line stays while one of its entries comes from a shown project
+    expect(hideProjects(g, twice, new Set(["p2"])).edges.map((e) => `${e.source}>${e.target}`)).toEqual(["GC>PC"]);
+    expect(hideProjects(g, twice, new Set(["p1"])).edges.map((e) => `${e.source}>${e.target}`)).toEqual(["PC>MVN"]);
+  });
+
   it("finds one project's circuits and lays the shared layer out as BRA tables", () => {
     expect([...circuitsOfProject(snapshot, "p2")]).toEqual(["PC", "MVN"]);
     const t = canonSheet(snapshot, "circuits");
