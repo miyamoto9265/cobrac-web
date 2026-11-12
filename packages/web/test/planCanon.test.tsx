@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   resolvePlanRow: vi.fn(),
   planRowAction: vi.fn(),
   listCanons: vi.fn(),
+  listPlans: vi.fn(),
   models: vi.fn(),
   getCanon: vi.fn(),
   canonPulls: vi.fn(),
@@ -437,6 +438,7 @@ describe("bulk approval in the Canon", () => {
     api.listProjects.mockResolvedValue({ items: [] });
     api.canonOutgoing.mockResolvedValue({ items: [] });
     api.listCanons.mockResolvedValue({ items: [], shared: [] });
+    api.listPlans.mockResolvedValue({ items: [] });
   });
 
   it("offers only conflict-free open pull requests, approves them oldest first and shows where it stopped", async () => {

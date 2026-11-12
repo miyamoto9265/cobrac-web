@@ -125,22 +125,25 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### Using a Canon
 
-- On the "Canon" page from the sidebar, press "New Canon" and create one with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" on the "Projects" tab of the Canon page.
+- On the "Canon" page from the sidebar, press "New Canon" and create one with a name and a granularity policy (for example "neocortex by area × projection class, subcortex by whole nucleus"). Add existing projects with "Add a project" under "Manage" next to the member projects in the "Activity" panel of the Canon page.
 - For a new project, choose a Canon with the "Canon" button on the create screen. Settings has a default Canon for new projects.
 - A project can be in one Canon only.
 
 ### The Canon page
 
-Like a project page, the Canon page has a header with tabs below it.
+The "Canon" button in the sidebar opens the list of Canons and their missions. Choose a Canon to open its page, which is centred on the graph like a project page: a header, tabs below it, and the "Activity" panel on the right.
 
-- **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits. The arrangement of the graph is saved in this browser.
+- **Header**: press the Canon's name to switch to another Canon. "All Canons" at the bottom of the menu goes back to the list. The (?) next to the name shows the ID, granularity policy, description and counts. The gear icon opens the settings.
+- **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits, or the circuits with problems. The arrangement of the graph is saved in this browser.
 - **Tables**: circuits, connections and references as tables, with CSV download.
-- **Projects**: add and remove member projects, and see how many of each project's circuits are in the Canon.
-- **Pull requests**: the PRs received, "Approve selected", and sending a PR to another Canon.
+- **Problems**: the problems raised on the Canon, and a form to raise one.
 - **History**: the approved revs with their PRs and who approved them.
-- **Settings**: name, granularity policy and description, and the co-editors.
 
-While a Canon is still empty (rev 0), the "Projects" tab opens.
+The "Activity" panel shows the missions building this Canon with their progress, the PRs to review, open problems and the member projects. PRs without conflicts can be approved together with "Approve selected". Choose a project to highlight its circuits on the graph; several projects can be highlighted at once. The eye icon hides on the graph the circuits and connections that only that project brought (those another project also pushed stay). "Show all" brings everything back. "Manage" opens adding and removing member projects, the list of PRs, and sending a PR to another Canon. While a mission runs, the panel updates by itself. On narrow screens, open it with the "Activity" button at the end of the tabs.
+
+The settings hold the name, granularity policy and description, the co-editors, and the public page and whether PRs are accepted.
+
+While a Canon is still empty (rev 0), the graph area offers "New mission" and "Add projects".
 
 ### How a Canon guides generation
 
@@ -152,7 +155,7 @@ Projects in a Canon are built to its definitions (circuit IDs, names, breakdowns
 
 1. **Push**: on a completed project, "Push to Canon" shows the differences and creates a pull request (PR). The Canon does not change until the PR is approved.
 2. **Review**: the Canon's owner or a co-editor checks the changes, the check results and the AI review (which points out issues but does not decide) on the PR page.
-3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" on the "Pull requests" tab of the Canon page.
+3. **Decide**: "Approve" creates a new rev (version) of the Canon. "Request changes" and "Reject" are also available. PRs without conflicts can be approved together with "Approve selected" in the "Activity" panel of the Canon page.
 
 The owner can add **co-editors** by the e-mail address they signed up with. Co-editors open the Canon from "Shared with you" and can review its PRs.
 

@@ -1,8 +1,10 @@
-import { AlertTriangle, ChevronDown, ChevronUp, CheckCheck, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
+import { Activity, AlertTriangle, CheckCheck, EyeOff, FolderOpen, GitPullRequest, History, Layers, LogOut, Network, Plus, Save, Settings, Table2, Trash2, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, ProjectRecord, ProjectStatus } from "@cobrac/shared";
+import type { CanonDetailResponse, CanonPullRequestRecord, CanonRevisionSummary, CanonRole, CanonSnapshot, PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName, toCsv } from "@cobrac/shared";
+import { CanonActivity, ISSUES_EMPHASIS, LIVE_PLAN, NO_FOCUS, type CanonFocus } from "../components/canon/CanonActivity";
+import { CanonSwitcher } from "../components/canon/CanonSwitcher";
 import { CanonIssuesView, issueTargetParam } from "../components/CanonIssues";
 import { Section } from "../components/DetailPanel";
 import { HelpLink, HelpTip } from "../components/HelpTip";
@@ -10,13 +12,14 @@ import { PlanChip } from "../components/PlanChip";
 import { SendCanonPr } from "../components/SendCanonPr";
 import { StatusBadge } from "../components/StatusBadge";
 import { VisibilityToggle } from "../components/VisibilityToggle";
+import { ChatDock, ChatToggleButton, useChatDock, type DockLabels } from "../components/workspace/ChatDock";
 import { SheetTable } from "../components/workspace/TablesView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject } from "../lib/canonGraph";
+import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject, hideProjects } from "../lib/canonGraph";
 import { fmtDate } from "../lib/format";
-import { bulkApprovable } from "../lib/plan";
+import { NEW_PLAN_PATH, bulkApprovable } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { useGraphLayout } from "../lib/useGraphLayout";
 import { CANON_VIEWS, PolicyLabel, canonPath, canonPullPath, inputCls, primaryBtn, type CanonView } from "./CanonsPage";
@@ -28,9 +31,12 @@ const VIEW_TABS: { view: CanonView; label: MessageKey; Icon: LucideIcon }[] = [
   { view: "hcd", label: "chat.hcd", Icon: Network },
   { view: "tables", label: "ws.tables", Icon: Table2 },
   { view: "issues", label: "iss.tab", Icon: AlertTriangle },
+  { view: "history", label: "canon.history", Icon: History },
+];
+/** Views opened from the activity panel or the header (projects, pull requests, settings): a tab only while open. */
+const EXTRA_TABS: { view: CanonView; label: MessageKey; Icon: LucideIcon }[] = [
   { view: "projects", label: "canon.members", Icon: FolderOpen },
   { view: "pulls", label: "pr.list", Icon: GitPullRequest },
-  { view: "history", label: "canon.history", Icon: History },
   { view: "settings", label: "canon.settings", Icon: Settings },
 ];
 
@@ -79,6 +85,17 @@ function SettingsCard({ detail, onSaved }: { detail: CanonDetailResponse; onSave
           <Save size={14} /> {t("save")}
         </button>
       </div>
+      {c.visibility === "public" && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-3 text-xs text-slate-600" data-testid="canon-public">
+          <Link to={publicCanonPath(c.canonId)} className="text-emerald-700 hover:underline coarse:py-1.5">
+            {t("vis.publicPage")}
+          </Link>
+          <label className="flex items-center gap-1.5 coarse:min-h-11">
+            <input type="checkbox" checked={c.acceptPullRequests !== false} onChange={(e) => void api.setCanonVisibility(c.canonId, { acceptPullRequests: e.target.checked }).then(onSaved)} />
+            {t("canon.acceptPrLabel")}
+          </label>
+        </div>
+      )}
     </section>
   );
 }
@@ -453,19 +470,29 @@ function CanonTablesView({ snapshot }: { snapshot: CanonSnapshot }) {
   );
 }
 
-/** Emphasis choice of the Canon graph that highlights the circuits an open problem reaches. */
-const ISSUES_EMPHASIS = "__issues";
+/** Value of the highlight menu while several projects are highlighted from the activity panel. */
+const MULTIPLE = "__multiple";
 
-/** The Canon's graph: its shared layer drawn like a project's HCD, with one member project's circuits emphasised on request. */
-function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; snapshot: CanonSnapshot }) {
+/**
+ * The Canon's graph: its shared layer drawn like a project's HCD. Member projects' circuits (or those with problems) can be
+ * highlighted, several at once, and what only some projects brought can be hidden.
+ */
+function CanonGraphView({ detail, snapshot, focus, onFocus }: { detail: CanonDetailResponse; snapshot: CanonSnapshot; focus: CanonFocus; onFocus: (focus: CanonFocus) => void }) {
   const t = useT();
   const canonId = detail.canon.canonId;
-  const graph = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
+  const full = useMemo(() => canonHcdGraph(snapshot), [snapshot]);
+  const hiddenKey = focus.hidden.join("|");
+  const graph = useMemo(() => hideProjects(full, snapshot, new Set(hiddenKey ? hiddenKey.split("|") : [])), [full, snapshot, hiddenKey]);
   const layout = useGraphLayout(canonId, "hcd", { canon: true });
-  const [emphasis, setEmphasis] = useState("");
   // "problems": the circuits an open problem reaches; otherwise one member project's circuits
   const flaggedIds = useMemo(() => new Set(snapshot.circuits.filter((c) => c.issueIds?.length).map((c) => c.circuitId)), [snapshot]);
-  const emphasised = useMemo(() => (emphasis === ISSUES_EMPHASIS ? flaggedIds : emphasis ? circuitsOfProject(snapshot, emphasis) : null), [snapshot, emphasis, flaggedIds]);
+  const highlightKey = focus.highlight.join("|");
+  const emphasised = useMemo(() => {
+    const on = highlightKey ? highlightKey.split("|") : [];
+    if (!on.length) return null;
+    return new Set(on.flatMap((id) => [...(id === ISSUES_EMPHASIS ? flaggedIds : circuitsOfProject(snapshot, id))]));
+  }, [snapshot, highlightKey, flaggedIds]);
+  const emphasis = focus.highlight.length > 1 ? MULTIPLE : (focus.highlight[0] ?? "");
   const sourcesOf = useMemo(() => new Map(snapshot.circuits.map((c) => [c.circuitId, c] as const)), [snapshot]);
   const names = useMemo(() => new Map(detail.members.map((m) => [m.projectId, m.name] as const)), [detail.members]);
   // projects that pushed something, members first (a project that left the Canon keeps its entries)
@@ -485,24 +512,39 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
       frgBase={null}
       emphasis={emphasised}
       headerExtra={
-        (pushers.length > 1 || flaggedIds.size > 0) && (
-          <select
-            value={emphasis}
-            onChange={(e) => setEmphasis(e.target.value)}
-            aria-label={t("cv.emphasis")}
-            title={t("cv.emphasis")}
-            data-testid="canon-emphasis"
-            className="ml-auto w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11"
-          >
-            <option value="">{t("cv.emphasisAll")}</option>
-            {flaggedIds.size > 0 && <option value={ISSUES_EMPHASIS}>{`${t("iss.tab")} (${flaggedIds.size})`}</option>}
-            {(pushers.length > 1 ? pushers : []).map((id) => (
-              <option key={id} value={id}>
-                {names.get(id) ?? id}
-              </option>
-            ))}
-          </select>
-        )
+        <>
+          {focus.hidden.length > 0 && (
+            <span className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600" data-testid="canon-hidden">
+              <EyeOff size={12} aria-hidden /> {t("cv.hiddenCount", { n: focus.hidden.length })}
+              <button type="button" onClick={() => onFocus({ ...focus, hidden: [] })} className="text-blue-700 hover:underline coarse:min-h-11">
+                {t("cv.reset")}
+              </button>
+            </span>
+          )}
+          {(pushers.length > 1 || flaggedIds.size > 0) && (
+            <select
+              value={emphasis}
+              onChange={(e) => onFocus({ highlight: e.target.value ? [e.target.value] : [], hidden: focus.hidden.filter((x) => x !== e.target.value) })}
+              aria-label={t("cv.emphasis")}
+              title={t("cv.emphasis")}
+              data-testid="canon-emphasis"
+              className={`${focus.hidden.length ? "" : "ml-auto"} w-32 shrink-0 truncate rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs sm:w-auto sm:max-w-xs coarse:min-h-11`}
+            >
+              <option value="">{t("cv.emphasisAll")}</option>
+              {emphasis === MULTIPLE && (
+                <option value={MULTIPLE} disabled>
+                  {t("cv.multiple", { n: focus.highlight.length })}
+                </option>
+              )}
+              {flaggedIds.size > 0 && <option value={ISSUES_EMPHASIS}>{`${t("iss.tab")} (${flaggedIds.size})`}</option>}
+              {(pushers.length > 1 ? pushers : []).map((id) => (
+                <option key={id} value={id}>
+                  {names.get(id) ?? id}
+                </option>
+              ))}
+            </select>
+          )}
+        </>
       }
       nodeExtra={(node) => {
         const c = sourcesOf.get(node.id);
@@ -551,15 +593,21 @@ function CanonGraphView({ detail, snapshot }: { detail: CanonDetailResponse; sna
 
 function CanonEmpty({ owner, onAddProjects }: { owner: boolean; onAddProjects: () => void }) {
   const t = useT();
+  const navigate = useNavigate();
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center" data-testid="canon-empty">
       <Layers size={36} className="text-slate-300" />
       <h2 className="text-base font-semibold text-slate-700">{t("cv.emptyTitle")}</h2>
-      <p className="max-w-md text-sm text-slate-500">{t("canon.contentsEmptyHelp")}</p>
+      <p className="max-w-md text-sm text-slate-500">{t("cv.emptyHelp")}</p>
       {owner && (
-        <button type="button" onClick={onAddProjects} className="mt-1 flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50 coarse:min-h-11">
-          <FolderOpen size={15} /> {t("cv.toProjects")}
-        </button>
+        <div className="mt-1 flex flex-wrap justify-center gap-2">
+          <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={primaryBtn}>
+            <Plus size={14} aria-hidden /> {t("plan.new")}
+          </button>
+          <button type="button" onClick={onAddProjects} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 coarse:min-h-11">
+            <FolderOpen size={15} aria-hidden /> {t("cv.toProjects")}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -580,6 +628,12 @@ export function CanonDetailPage() {
   return <CanonWorkspace key={canonId} canonId={canonId} />;
 }
 
+/** The activity panel's words in the shared side-panel frame (the project's agent panel). */
+function useActivityLabels(): DockLabels {
+  const t = useT();
+  return { title: t("cv.activity"), open: t("cv.openActivity"), close: t("cv.closeActivity"), resize: t("cv.resizeActivity"), Icon: Activity, attention: t("cv.openPulls"), prefix: "cobrac-canon-activity" };
+}
+
 function CanonWorkspace({ canonId }: { canonId: string }) {
   const t = useT();
   const { locale } = useI18n();
@@ -592,7 +646,10 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   const [pulls, setPulls] = useState<CanonPullRequestRecord[]>([]);
   const [snapshot, setSnapshot] = useState<CanonSnapshot | null>(null);
   const [revisions, setRevisions] = useState<CanonRevisionSummary[]>([]);
-  const [showDetails, setShowDetails] = useState(false);
+  const [plans, setPlans] = useState<PlanSummary[]>([]);
+  const [focus, setFocus] = useState<CanonFocus>(NO_FOCUS);
+  const dock = useChatDock("cobrac-canon-activity");
+  const labels = useActivityLabels();
 
   const reload = useCallback(() => {
     api
@@ -610,8 +667,20 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
     api.canonPulls(canonId).then((r) => setPulls(r.items)).catch(() => undefined);
     api.canonRevisions(canonId).then((r) => setRevisions(r.items)).catch(() => undefined);
     api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
+    api
+      .listPlans()
+      .then((r) => setPlans(r.items.filter((p) => p.canonId === canonId)))
+      .catch(() => undefined);
   }, [canonId]);
   useEffect(reload, [reload]);
+
+  // while a mission builds this Canon, its progress, pull requests and new revisions are read again every 15 s
+  const live = plans.some((p) => LIVE_PLAN.has(p.status));
+  useEffect(() => {
+    if (!live) return;
+    const id = setInterval(() => document.visibilityState !== "hidden" && reload(), 15_000);
+    return () => clearInterval(id);
+  }, [live, reload]);
 
   // circuits each project has in the head revision
   const pushed = useMemo(() => {
@@ -622,16 +691,16 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   const c = detail?.canon;
   const hasContent = !!c && c.headRevision > 0;
   const view = CANON_VIEWS.find((v) => v === rawView) ?? null;
-  const defaultView: CanonView | null = c ? (hasContent ? "hcd" : "projects") : null;
   useEffect(() => {
-    if (!rawView && defaultView) navigate(`${canonPath(canonId, defaultView)}${search}`, { replace: true });
-  }, [rawView, defaultView, canonId, search, navigate]);
+    if (!rawView && c) navigate(`${canonPath(canonId, "hcd")}${search}`, { replace: true });
+  }, [rawView, c, canonId, search, navigate]);
 
   // On narrow screens the tab strip scrolls; keep the open tab in sight.
   const tabsRef = useRef<HTMLElement>(null);
+  const loaded = detail !== null;
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [view, detail !== null]);
+  }, [view, loaded]);
 
   if (rawView && !view) return <Navigate to={canonPath(canonId)} replace />;
   if (err && !detail) return <div className="p-6 text-sm text-rose-600">{err}</div>;
@@ -651,7 +720,21 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   };
   const ready = (v: CanonView) => (v === "hcd" || v === "tables" || v === "issues" ? hasContent : true);
   const openIssues = (snapshot?.issues ?? []).filter((i) => !i.resolution).length;
-  const btn = "flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs coarse:min-h-11 disabled:opacity-50";
+  // choosing a project or the problems in the activity panel shows them on the graph
+  const changeFocus = (f: CanonFocus) => {
+    setFocus(f);
+    if (view !== "hcd") navigate(canonPath(canonId, "hcd"));
+  };
+  const about = [
+    `ID: ${c.canonId}`,
+    c.policy && `${t("canon.policy")}: ${c.policy}`,
+    c.description,
+    snapshot ? t("canon.counts", { c: snapshot.circuits.length, x: snapshot.connections.length, r: snapshot.references.length, p: detail.members.length }) : t("canon.memberCount", { n: detail.members.length }),
+    `${t("canon.created")} ${fmtDate(c.createdAt, locale)} · ${t("canon.updated")} ${fmtDate(c.updatedAt, locale)}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const tabs = [...VIEW_TABS, ...EXTRA_TABS.filter((x) => x.view === view)];
 
   const center = (() => {
     switch (view) {
@@ -669,7 +752,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
       case "tables":
         if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
         if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
-        return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} /> : <CanonTablesView snapshot={snapshot} />;
+        return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} focus={focus} onFocus={setFocus} /> : <CanonTablesView snapshot={snapshot} />;
       case "projects":
         return <CardPane>{owner ? <MembersCard detail={detail} projects={projects} pushed={pushed} onChanged={reload} /> : <MembersList detail={detail} pushed={pushed} />}</CardPane>;
       case "pulls":
@@ -696,102 +779,90 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
   })();
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h1 className="flex min-w-0 items-center gap-2 text-base font-semibold sm:text-lg">
-            <Layers size={18} className="shrink-0 text-violet-600" /> <span className="min-w-0 break-words">{c.name}</span>
-          </h1>
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600" data-testid="canon-head">
-            {t("canon.revision", { n: c.headRevision })}
-          </span>
-          {!owner && (
-            <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
-              {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
+    <div className="flex h-full min-h-0">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
+            <h1 className="flex min-w-0 items-center">
+              <CanonSwitcher canon={c} />
+            </h1>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600" data-testid="canon-head">
+              {t("canon.revision", { n: c.headRevision })}
             </span>
-          )}
-          <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto sm:justify-end">
-            <button type="button" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails} className={`${btn} border-slate-300 text-slate-600 hover:bg-slate-50 lg:hidden`}>
-              {t("ws.details")} {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
-            <HelpLink section="canon" />
-            {owner && (
-              <VisibilityToggle
-                visibility={c.visibility}
-                confirmText={t("vis.confirmCanon")}
-                onChange={async (v) => {
-                  await api.setCanonVisibility(c.canonId, { visibility: v });
-                  reload();
-                }}
-              />
-            )}
-            {owner && (
-              <button
-                type="button"
-                onClick={() => void remove()}
-                title={t("canon.delete")}
-                aria-label={t("canon.delete")}
-                className="flex items-center justify-center rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 coarse:h-11 coarse:w-11"
-              >
-                <Trash2 size={15} />
-              </button>
-            )}
-          </div>
-        </div>
-        <div className={showDetails ? "block" : "hidden lg:block"}>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-            <span className="font-mono">{c.canonId}</span>
-            {c.policy && (
-              <span className="min-w-0 max-w-full break-words" title={c.policy}>
-                <b className="text-slate-700">{t("canon.policy")}:</b> <span className="line-clamp-2 inline whitespace-pre-line">{c.policy}</span>
+            <HelpTip text={about} label={t("cv.about")} />
+            {!owner && (
+              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
+                {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
               </span>
             )}
-            {snapshot && <span>{t("canon.counts", { c: snapshot.circuits.length, x: snapshot.connections.length, r: snapshot.references.length, p: detail.members.length })}</span>}
-            {!snapshot && <span>{t("canon.memberCount", { n: detail.members.length })}</span>}
-            {owner && c.visibility === "public" && (
-              <>
-                <Link to={publicCanonPath(c.canonId)} className="text-emerald-700 hover:underline coarse:py-1.5">
-                  {t("vis.publicPage")}
-                </Link>
-                <label className="flex items-center gap-1.5 text-slate-600 coarse:min-h-11">
-                  <input type="checkbox" checked={c.acceptPullRequests !== false} onChange={(e) => void api.setCanonVisibility(c.canonId, { acceptPullRequests: e.target.checked }).then(reload)} />
-                  {t("canon.acceptPrLabel")}
-                </label>
-              </>
-            )}
-            <span>
-              {t("canon.created")} {fmtDate(c.createdAt, locale)} · {t("canon.updated")} {fmtDate(c.updatedAt, locale)}
-            </span>
-          </div>
-          {c.description && <p className="mt-1 max-w-4xl whitespace-pre-line text-xs text-slate-600">{c.description}</p>}
-        </div>
-        {err && <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
-      </header>
-
-      <div className="flex shrink-0 items-end border-b border-slate-200 bg-slate-50">
-        <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("cv.views")}>
-          {VIEW_TABS.map(({ view: v, label, Icon }) => {
-            const on = v === view;
-            const count = v === "pulls" ? openPulls : v === "projects" ? detail.members.length : v === "issues" ? openIssues : 0;
-            return (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+              <HelpLink section="canon" />
+              {owner && (
+                <VisibilityToggle
+                  visibility={c.visibility}
+                  confirmText={t("vis.confirmCanon")}
+                  onChange={async (v) => {
+                    await api.setCanonVisibility(c.canonId, { visibility: v });
+                    reload();
+                  }}
+                />
+              )}
               <Link
-                key={v}
-                to={canonPath(canonId, v)}
-                data-testid={`canon-tab-${v}`}
-                aria-current={on ? "page" : undefined}
-                className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-t-md border px-3 py-1.5 text-xs font-medium coarse:min-h-11 ${
-                  on ? "border-slate-200 border-b-white bg-white text-slate-900" : `border-transparent hover:bg-white/70 ${ready(v) ? "text-slate-600" : "text-slate-400"}`
-                }`}
+                to={canonPath(canonId, "settings")}
+                title={t("canon.settings")}
+                aria-label={t("canon.settings")}
+                aria-current={view === "settings" ? "page" : undefined}
+                data-testid="canon-settings"
+                className={`flex items-center justify-center rounded p-1.5 hover:bg-slate-100 hover:text-slate-700 coarse:h-11 coarse:w-11 ${view === "settings" ? "bg-slate-100 text-slate-700" : "text-slate-400"}`}
               >
-                <Icon size={14} className={on ? "text-blue-600" : undefined} /> {t(label)}
-                {count > 0 && <span className={`rounded-full px-1.5 text-[10px] ${v === "pulls" ? "bg-violet-100 text-violet-800" : v === "issues" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600"}`}>{count}</span>}
+                <Settings size={15} />
               </Link>
-            );
-          })}
-        </nav>
+              {owner && (
+                <button
+                  type="button"
+                  onClick={() => void remove()}
+                  title={t("canon.delete")}
+                  aria-label={t("canon.delete")}
+                  className="flex items-center justify-center rounded p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 coarse:h-11 coarse:w-11"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+          {err && <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
+        </header>
+
+        <div className="flex shrink-0 items-end gap-2 border-b border-slate-200 bg-slate-50 pr-2 sm:pr-3">
+          <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("cv.views")}>
+            {tabs.map(({ view: v, label, Icon }) => {
+              const on = v === view;
+              const count = v === "pulls" ? openPulls : v === "projects" ? detail.members.length : v === "issues" ? openIssues : 0;
+              return (
+                <Link
+                  key={v}
+                  to={canonPath(canonId, v)}
+                  data-testid={`canon-tab-${v}`}
+                  aria-current={on ? "page" : undefined}
+                  className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-t-md border px-3 py-1.5 text-xs font-medium coarse:min-h-11 ${
+                    on ? "border-slate-200 border-b-white bg-white text-slate-900" : `border-transparent hover:bg-white/70 ${ready(v) ? "text-slate-600" : "text-slate-400"}`
+                  }`}
+                >
+                  <Icon size={14} className={on ? "text-blue-600" : undefined} /> {t(label)}
+                  {count > 0 && <span className={`rounded-full px-1.5 text-[10px] ${v === "pulls" ? "bg-violet-100 text-violet-800" : v === "issues" ? "bg-amber-100 text-amber-800" : "bg-slate-200 text-slate-600"}`}>{count}</span>}
+                </Link>
+              );
+            })}
+          </nav>
+          <ChatToggleButton state={dock} attention={openPulls > 0} labels={labels} count={openPulls + openIssues} />
+        </div>
+
+        <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
       </div>
 
-      <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
+      <ChatDock state={dock} attention={openPulls > 0} working={live} labels={labels}>
+        <CanonActivity detail={detail} snapshot={snapshot} pulls={pulls} plans={plans} focus={focus} onFocus={changeFocus} onChanged={reload} />
+      </ChatDock>
     </div>
   );
 }

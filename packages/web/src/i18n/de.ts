@@ -811,7 +811,6 @@ export const de: Record<MessageKey, string> = {
   "cc3.namePh": "Pflichtfeld",
   "settings.contributorHelp": "Wird in Project.csv und die xlsx geschrieben. Englisch empfohlen.",
   "canon.policyHelp": "Sagt dem Agenten, wie fein Schaltkreise definiert werden, die der Canon noch nicht hat.",
-  "canon.contentsEmptyHelp": "Ein abgeschlossenes Mitgliedsprojekt auf seiner Seite pushen („Push zum Canon“) und den Pull Request hier genehmigen.",
   "follow.help": "„Auf neueste aktualisieren“ verschiebt nur die festgelegte Revision; der nächste Lauf folgt ihr. „An Canon angleichen“ sendet zusätzlich eine Folgeanweisung, die die Änderungen übernimmt.",
   "ws.agent": "Agent",
   "ws.openAgent": "Agent-Bereich öffnen",

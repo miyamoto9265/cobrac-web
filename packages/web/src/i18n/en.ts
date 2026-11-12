@@ -809,7 +809,6 @@ export const en = {
   "cc3.namePh": "Required",
   "settings.contributorHelp": "Written to Project.csv and the xlsx. English is recommended.",
   "canon.policyHelp": "Tells the agent how finely to define circuits the Canon does not have yet.",
-  "canon.contentsEmptyHelp": "Push a completed member project (\"Push to Canon\" on its page) and approve the pull request here.",
   "follow.help": "\"Update to latest\" only moves the pinned revision; the next run follows it. \"Align with Canon\" also sends a follow-up that applies the changes to this project.",
   "ws.agent": "Agent",
   "ws.openAgent": "Open agent panel",

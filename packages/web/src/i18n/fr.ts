@@ -811,7 +811,6 @@ export const fr: Record<MessageKey, string> = {
   "cc3.namePh": "Obligatoire",
   "settings.contributorHelp": "Inscrit dans Project.csv et le xlsx. L'anglais est recommandé.",
   "canon.policyHelp": "Indique à l'agent la finesse des circuits que le Canon ne contient pas encore.",
-  "canon.contentsEmptyHelp": "Poussez un projet membre terminé (« Pousser vers le Canon » sur sa page) et approuvez la pull request ici.",
   "follow.help": "« Passer à la dernière » déplace seulement la révision suivie ; la prochaine exécution la suit. « Aligner sur le Canon » envoie aussi un suivi qui applique les changements au projet.",
   "ws.agent": "Agent",
   "ws.openAgent": "Ouvrir le panneau de l’agent",
