@@ -15,6 +15,8 @@ const api = vi.hoisted(() => ({
   removeCanonEditor: vi.fn(),
   canonOutgoing: vi.fn(),
   listCanons: vi.fn(),
+  listPlans: vi.fn(),
+  approveManyPulls: vi.fn(),
   me: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
@@ -65,6 +67,7 @@ beforeEach(() => {
   api.listProjects.mockResolvedValue({ items: [] });
   api.canonOutgoing.mockResolvedValue({ items: [] });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
+  api.listPlans.mockResolvedValue({ items: [] });
 });
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());

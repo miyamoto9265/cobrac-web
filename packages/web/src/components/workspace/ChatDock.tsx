@@ -1,4 +1,4 @@
-import { Bot, Loader2, PanelRightClose, X } from "lucide-react";
+import { Bot, Loader2, PanelRightClose, X, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "../../i18n";
 import { useMediaQuery } from "../../lib/useMediaQuery";
@@ -6,8 +6,8 @@ import { useMediaQuery } from "../../lib/useMediaQuery";
 /** At xl the agent panel is docked beside the artifacts; below it opens as an overlay (bottom sheet on phones, right drawer on tablets). */
 export const CHAT_DOCKED = "(min-width: 1280px)";
 
-const WIDTH_KEY = "cobrac-chat-width";
-const OPEN_KEY = "cobrac-chat-open";
+/** localStorage keys of the agent panel; another side panel (the Canon's activity) passes its own prefix. */
+const DEFAULT_PREFIX = "cobrac-chat";
 const MIN_WIDTH = 300;
 const DEFAULT_WIDTH = 380;
 const maxWidth = () => Math.max(MIN_WIDTH, Math.min(760, Math.round(window.innerWidth * 0.55)));
@@ -37,7 +37,8 @@ export interface ChatDockState {
 }
 
 /** Docked open/closed is remembered across projects; the overlay always starts closed. */
-export function useChatDock(): ChatDockState {
+export function useChatDock(prefix = DEFAULT_PREFIX): ChatDockState {
+  const OPEN_KEY = `${prefix}-open`;
   const docked = useMediaQuery(CHAT_DOCKED);
   const [dockOpen, setDockOpen] = useState(() => {
     try {
@@ -57,19 +58,38 @@ export function useChatDock(): ChatDockState {
 }
 
 /** Opens the overlay agent panel below xl; lives at the end of the workspace tab bar. */
-export function ChatToggleButton({ state, attention }: { state: ChatDockState; attention: boolean }) {
+/** What a side panel calls itself: the agent panel by default, the Canon's activity panel with its own words and icon. */
+export interface DockLabels {
+  title: string;
+  open: string;
+  close: string;
+  resize: string;
+  Icon: LucideIcon;
+  /** Badge beside the title while `attention` is on (the agent panel: waiting for an answer) */
+  attention?: string;
+  /** localStorage prefix of the panel's width */
+  prefix?: string;
+}
+
+function useAgentLabels(labels?: DockLabels): DockLabels {
   const t = useT();
+  return labels ?? { title: t("ws.agent"), open: t("ws.openAgent"), close: t("ws.closeAgent"), resize: t("ws.resizeAgent"), Icon: Bot };
+}
+
+export function ChatToggleButton({ state, attention, labels, count }: { state: ChatDockState; attention: boolean; labels?: DockLabels; count?: number }) {
+  const l = useAgentLabels(labels);
   if (state.docked) return null;
   return (
     <button
       type="button"
       data-testid="chat-toggle"
       onClick={() => state.setOpen(!state.open)}
-      aria-label={state.open ? t("ws.closeAgent") : t("ws.openAgent")}
+      aria-label={state.open ? l.close : l.open}
       aria-expanded={state.open}
       className="relative mb-1 flex shrink-0 items-center gap-1.5 rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 coarse:min-h-11"
     >
-      <Bot size={14} /> {t("ws.agent")}
+      <l.Icon size={14} /> {l.title}
+      {!!count && <span className="rounded-full bg-white/25 px-1.5 text-[10px] tabular-nums">{count}</span>}
       {attention && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden />}
     </button>
   );
@@ -79,8 +99,10 @@ export function ChatToggleButton({ state, attention }: { state: ChatDockState; a
  * Right-hand agent panel container. Children stay mounted while closed so a draft and the scroll position survive toggling.
  * `attention` marks the toggle when the agent is waiting for an answer; `working` shows a spinner next to the title.
  */
-export function ChatDock({ state, attention, working = false, children }: { state: ChatDockState; attention: boolean; working?: boolean; children: ReactNode }) {
+export function ChatDock({ state, attention, working = false, labels, children }: { state: ChatDockState; attention: boolean; working?: boolean; labels?: DockLabels; children: ReactNode }) {
   const t = useT();
+  const l = useAgentLabels(labels);
+  const WIDTH_KEY = `${l.prefix ?? DEFAULT_PREFIX}-width`;
   const { docked, open, setOpen } = state;
   const [width, setWidth] = useState(() => clamp(readNumber(WIDTH_KEY, DEFAULT_WIDTH)));
   const drag = useRef<{ x: number; w: number } | null>(null);
@@ -123,26 +145,26 @@ export function ChatDock({ state, attention, working = false, children }: { stat
             type="button"
             data-testid="chat-toggle"
             onClick={() => setOpen(true)}
-            aria-label={t("ws.openAgent")}
-            title={t("ws.openAgent")}
+            aria-label={l.open}
+            title={l.open}
             className="relative flex h-10 w-10 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100"
           >
-            <Bot size={18} />
+            <l.Icon size={18} />
             {dot}
           </button>
-          <span className="mt-2 text-xs text-slate-500 [writing-mode:vertical-rl]">{t("ws.agent")}</span>
+          <span className="mt-2 text-xs text-slate-500 [writing-mode:vertical-rl]">{l.title}</span>
         </div>
       )}
       {!docked && open && <div className="fixed inset-0 z-40 bg-slate-900/40" onClick={() => setOpen(false)} aria-hidden />}
-      <aside className={panelCls} style={docked && open ? { width } : undefined} aria-label={t("ws.agent")} aria-hidden={!open}>
+      <aside className={panelCls} style={docked && open ? { width } : undefined} aria-label={l.title} aria-hidden={!open}>
         {docked && (
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label={t("ws.resizeAgent")}
+            aria-label={l.resize}
             aria-valuenow={width}
             aria-valuemin={MIN_WIDTH}
-            title={t("ws.resizeAgent")}
+            title={l.resize}
             tabIndex={0}
             data-testid="chat-resize"
             onPointerDown={(e) => {
@@ -163,18 +185,18 @@ export function ChatDock({ state, attention, working = false, children }: { stat
         )}
         <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-3 py-1.5">
           {!docked && <span className="absolute left-1/2 top-1.5 h-1 w-10 -translate-x-1/2 rounded-full bg-slate-300 sm:hidden" aria-hidden />}
-          <Bot size={16} className="text-slate-500" aria-hidden />
-          <span className="text-sm font-semibold">{t("ws.agent")}</span>
+          <l.Icon size={16} className="text-slate-500" aria-hidden />
+          <span className="text-sm font-semibold">{l.title}</span>
           <span className="flex min-w-0 flex-1 items-center">
             {working && <Loader2 size={13} className="text-blue-500 motion-safe:animate-spin" aria-label={t("activity.working")} />}
-            {attention && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{t("status.WAITING_USER_INPUT")}</span>}
+            {attention && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{l.attention ?? t("status.WAITING_USER_INPUT")}</span>}
           </span>
           <button
             type="button"
             data-testid="chat-toggle"
             onClick={() => setOpen(false)}
-            aria-label={t("ws.closeAgent")}
-            title={t("ws.closeAgent")}
+            aria-label={l.close}
+            title={l.close}
             className="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 coarse:h-11 coarse:w-11"
           >
             {docked ? <PanelRightClose size={17} /> : <X size={18} />}

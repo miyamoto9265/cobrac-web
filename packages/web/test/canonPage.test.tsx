@@ -13,6 +13,8 @@ const api = vi.hoisted(() => ({
   listProjects: vi.fn(),
   canonOutgoing: vi.fn(),
   listCanons: vi.fn(),
+  listPlans: vi.fn(),
+  approveManyPulls: vi.fn(),
   upstreamCanonIssues: vi.fn(),
   raiseCanonIssue: vi.fn(),
   settleCanonIssue: vi.fn(),
@@ -165,6 +167,7 @@ beforeEach(() => {
   api.listProjects.mockResolvedValue({ items: [] });
   api.canonOutgoing.mockResolvedValue({ items: [] });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
+  api.listPlans.mockResolvedValue({ items: [] });
   api.upstreamCanonIssues.mockResolvedValue({ items: [] });
 });
 afterEach(async () => {
@@ -175,21 +178,27 @@ afterEach(async () => {
 });
 
 describe("Canon page", () => {
-  it("opens the graph when the Canon has content and the projects when it is empty", async () => {
+  it("opens the graph with the activity panel, and the graph's guide when the Canon is empty", async () => {
     api.getCanon.mockResolvedValue(detail(2));
     await render(`/canons/${CANON}`);
     expect(path).toBe(`/canons/${CANON}/hcd`);
     expect($('[data-testid="canon-tab-hcd"]')!.getAttribute("aria-current")).toBe("page");
-    expect($('[data-testid="canon-tab-projects"]')!.textContent).toContain("2");
+    // projects, pull requests and settings are not tabs: they live in the activity panel and behind the gear
+    expect($('[data-testid="canon-tab-projects"]')).toBeNull();
+    expect($('[data-testid="canon-tab-pulls"]')).toBeNull();
+    expect($('[data-testid="canon-settings"]')).toBeTruthy();
+    expect($('[data-testid="activity-projects"]')!.textContent).toContain("Flocculus VOR");
     if (root) await act(async () => root!.unmount());
     host?.remove();
 
     api.getCanon.mockResolvedValue(detail(0));
     await render(`/canons/${CANON}`);
+    expect(path).toBe(`/canons/${CANON}/hcd`);
+    expect($('[data-testid="canon-empty"]')!.textContent).toContain("Start a mission or add projects");
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[data-testid="canon-empty"] button')].find((b) => b.textContent?.includes("Add projects"))!.click());
     expect(path).toBe(`/canons/${CANON}/projects`);
+    expect($('[data-testid="canon-tab-projects"]')!.getAttribute("aria-current")).toBe("page");
     expect($('[data-testid="canon-members"]')!.textContent).toContain("Flocculus VOR");
-    await act(async () => $('[data-testid="canon-tab-hcd"]')!.click());
-    expect($('[data-testid="canon-empty"]')).toBeTruthy();
   });
 
   it("shows the head revision as tables and how many circuits each project has in it", async () => {
@@ -199,8 +208,39 @@ describe("Canon page", () => {
     await act(async () => $('[data-testid="canon-table-connections"]')!.click());
     expect(path).toBe(`/canons/${CANON}/tables?table=connections`);
     expect(document.querySelectorAll("tbody tr")).toHaveLength(3);
-    await act(async () => $('[data-testid="canon-tab-projects"]')!.click());
-    expect($('[data-testid="canon-members"]')!.textContent).toContain("3 circuits in the Canon");
+    expect($('[data-testid="activity-projects"]')!.textContent).toContain("3 circuits in the Canon");
+  });
+
+  it("lists the Canon's missions and the pull requests to review, and highlights a project's circuits on the graph", async () => {
+    api.getCanon.mockResolvedValue(detail(2));
+    const plan = (planId: string, status: string, done: number, extra = {}) => ({ planId, name: `Mission ${planId}`, status, canonId: CANON, rowCount: 4, rowCounts: { done }, updatedAt: now, ...extra });
+    api.listPlans.mockResolvedValue({ items: [plan("m1", "COMPLETED", 4), plan("m2", "RUNNING", 1), plan("m3", "RUNNING", 0, { canonId: "other" })] });
+    const pr = (prNo: number, state: string) => ({ canonId: CANON, prNo, state, sourceName: `Source ${prNo}`, summary: { added: 2, changed: 1, errors: 0, warnings: 0 }, createdAt: now });
+    api.canonPulls.mockResolvedValue({ items: [pr(3, "open"), pr(2, "approved")] });
+    await render(`/canons/${CANON}/tables`);
+    const missions = [...document.querySelectorAll('[data-testid="activity-mission"]')].map((m) => m.textContent);
+    expect(missions).toHaveLength(2);
+    expect(missions[0]).toContain("Mission m2");
+    expect(missions[0]).toContain("1 / 4");
+    expect($('[data-testid="activity-pulls"]')!.textContent).toContain("#3");
+    expect($('[data-testid="activity-pulls"]')!.textContent).not.toContain("#2");
+    // choosing a project opens the graph with its circuits emphasised
+    const p2 = [...document.querySelectorAll<HTMLElement>('[data-testid="activity-project"]')].find((b) => b.textContent?.includes("Vestibular"))!;
+    await act(async () => p2.click());
+    expect(path).toBe(`/canons/${CANON}/hcd`);
+    expect(($('[data-testid="canon-emphasis"]') as HTMLSelectElement).value).toBe("p2");
+    expect(p2.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("switches to another Canon from the name in the header, with the Canon list at the bottom", async () => {
+    api.getCanon.mockResolvedValue(detail(2));
+    api.listCanons.mockResolvedValue({ items: [detail(2).canon, { ...detail(2).canon, canonId: "c9", name: "Basal ganglia", headRevision: 5 }], shared: [] });
+    await render(`/canons/${CANON}/hcd`);
+    await act(async () => $('[data-testid="canon-switcher"]')!.click());
+    const panel = $('[data-testid="canon-switcher-panel"]')!;
+    expect(panel.textContent).toContain("Basal ganglia");
+    expect(panel.querySelector('[aria-current="page"]')!.textContent).toContain("Cerebellum");
+    expect($('[data-testid="canon-switcher-all"]')!.getAttribute("href")).toBe("/canons");
   });
 });
 

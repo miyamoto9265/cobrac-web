@@ -811,7 +811,6 @@ export const zhTw: Record<MessageKey, string> = {
   "cc3.namePh": "必填",
   "settings.contributorHelp": "會寫入 Project.csv 與 xlsx，建議使用英文。",
   "canon.policyHelp": "告訴代理，Canon 中尚未有的迴路要定義到多細。",
-  "canon.contentsEmptyHelp": "在已完成的成員專案頁面點選「推送到 Canon」，再在這裡核准 PR，內容就會加入。",
   "follow.help": "「更新到最新 rev」只會推進所跟隨的 rev，下次執行時生效。「與 Canon 對齊」還會傳送追加指示，把變更套用到本專案。",
   "ws.agent": "代理",
   "ws.openAgent": "開啟代理面板",

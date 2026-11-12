@@ -811,7 +811,6 @@ export const zh: Record<MessageKey, string> = {
   "cc3.namePh": "必填",
   "settings.contributorHelp": "会写入 Project.csv 和 xlsx，建议使用英文。",
   "canon.policyHelp": "告诉智能体，Canon 中尚未有的回路要定义到多细。",
-  "canon.contentsEmptyHelp": "在已完成的成员项目页面点击“推送到 Canon”，再在这里批准 PR，内容就会加入。",
   "follow.help": "“更新到最新 rev”只会推进所跟随的 rev，下次运行时生效。“与 Canon 对齐”还会发送追加指令，把变更应用到本项目。",
   "ws.agent": "智能体",
   "ws.openAgent": "打开智能体面板",

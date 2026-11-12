@@ -811,7 +811,6 @@ export const ko: Record<MessageKey, string> = {
   "cc3.namePh": "필수",
   "settings.contributorHelp": "Project.csv와 xlsx에 기록됩니다. 영문 표기를 권장합니다.",
   "canon.policyHelp": "Canon에 아직 없는 회로를 어느 정도로 세분해 정의할지 에이전트에게 알려 줍니다.",
-  "canon.contentsEmptyHelp": "완료된 참여 프로젝트 화면에서 “Canon에 push”하고 여기서 PR을 승인하면 내용이 들어갑니다.",
   "follow.help": "“최신 rev로”는 따르는 rev만 옮기며 다음 실행부터 반영됩니다. “Canon에 맞추기”는 변경을 이 프로젝트에 반영하는 후속 지시도 보냅니다.",
   "ws.agent": "에이전트",
   "ws.openAgent": "에이전트 열기",

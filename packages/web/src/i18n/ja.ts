@@ -811,7 +811,6 @@ export const ja: Record<MessageKey, string> = {
   "cc3.namePh": "必須",
   "settings.contributorHelp": "Project.csv と xlsx に記録されます。英語表記を推奨します。",
   "canon.policyHelp": "Canon にまだ無い回路を、どの細かさで定義するかをエージェントに伝えます。",
-  "canon.contentsEmptyHelp": "完了した参加プロジェクトの画面で「Canon に push」し、ここで PR を承認すると中身が入ります。",
   "follow.help": "「最新の rev にする」は従う rev を進めるだけで、次の実行から反映されます。「Canon に合わせる」は、変更をこのプロジェクトに反映する追加指示も送ります。",
   "ws.agent": "エージェント",
   "ws.openAgent": "エージェントを開く",
