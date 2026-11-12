@@ -1,5 +1,5 @@
 import { BookOpen, CircleHelp } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useI18n, useT } from "../i18n";
 import { helpDocPath, type HelpSection } from "../lib/help";
@@ -13,7 +13,7 @@ const MAX_WIDTH = 288;
  * (touch screens have no hover). Escape or a tap elsewhere closes it. The text stays in the DOM and is linked with
  * `aria-describedby`, so screen readers read it with the button.
  */
-export function HelpTip({ text, label, className = "" }: { text: string; label?: string; className?: string }) {
+export function HelpTip({ text, label, className = "", children, triggerClassName }: { text: string; label?: string; className?: string; /** shown as the trigger instead of the "?" icon (e.g. a badge that explains itself) */ children?: ReactNode; /** the trigger's classes when `children` is given */ triggerClassName?: string }) {
   const t = useT();
   const id = useId();
   const btn = useRef<HTMLButtonElement>(null);
@@ -98,9 +98,13 @@ export function HelpTip({ text, label, className = "" }: { text: string; label?:
             setDismissed(false);
           }
         }}
-        className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 before:absolute before:-inset-2 before:content-[''] coarse:before:-inset-3.5"
+        className={
+          children
+            ? `relative inline-flex shrink-0 cursor-help items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 before:absolute before:-inset-2 before:content-[''] coarse:before:-inset-3.5 ${triggerClassName ?? ""}`
+            : "relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 before:absolute before:-inset-2 before:content-[''] coarse:before:-inset-3.5"
+        }
       >
-        <CircleHelp size={14} aria-hidden />
+        {children ?? <CircleHelp size={14} aria-hidden />}
       </button>
       <span
         ref={tip}
