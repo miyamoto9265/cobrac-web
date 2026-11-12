@@ -15,12 +15,12 @@
 <table class="compact">
   <thead><tr><th style="width:17%">主体</th><th>付いている権限</th><th style="width:25%">付いていないもの</th></tr></thead>
   <tbody>
-    <tr><td>ワーカーのタスクロール（Codex を子プロセスで動かす）</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き。<code>Canons</code> の読み取り（固定した rev）。<code>Catalog</code> は <code>config</code> の区画だけの <code>GetItem</code>（デフォルトの API キー）。成果物バケット全体の読み書き。KMS の <code>Decrypt</code>。Secrets Manager の <code>rcs/mcp-bearer-token</code> の読み取り（RCS を使うとき）</td><td>KMS の <code>Encrypt</code>。<code>Plans</code>・<code>WsConnections</code></td></tr>
-    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが検査する）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>、<code>admin-docs/*</code>（仕様書の PDF）。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
+    <tr><td>ワーカーのタスクロール（Codex を子プロセスで動かす）</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code> の読み書き。<code>Canons</code> の読み取り（固定した rev）。<code>Catalog</code> は <code>config</code> と <code>team</code> の区画だけの <code>GetItem</code>（デフォルトの API キーとチームのキー）。成果物バケット全体の読み書き。KMS の <code>Decrypt</code>。Secrets Manager の <code>rcs/mcp-bearer-token</code> の読み取り（RCS を使うとき）</td><td>KMS の <code>Encrypt</code>。<code>Plans</code>・<code>WsConnections</code></td></tr>
+    <tr><td>API（http）</td><td>8 つのテーブルすべての読み書き。成果物バケット全体の読み取り。書き込みは <code>users/*</code>（公開プロジェクトの複製の書き込み先。自分の接頭辞かどうかは API のコードが検査する）、<code>canons/*</code>、<code>staging/*</code>、<code>plans/*</code>、<code>admin-docs/*</code>（仕様書の PDF）。削除はグラフの配置（<code>users/*/graph/*.layout.json</code>）と <code>staging/*</code> だけ。KMS の <code>Encrypt</code>。キューへの送信。クラスター内のタスクの停止（<code>ecs:StopTask</code>）。サイトの送信元アドレスからの SES の <code>SendEmail</code>（チームの招待メール）。登録 Lambda <code>cobrac-bradb-import</code> の呼び出し</td><td>KMS の <code>Decrypt</code>（キーを平文に戻せない）</td></tr>
     <tr><td>dispatcher</td><td><code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>WsConnections</code> の読み書き。<code>Catalog</code> の <code>config</code> の <code>GetItem</code>（同時実行数）。キューの受け取りと送信（積み直し）。ワーカーのタスク定義の <code>RunTask</code>、タグ付け、タスクロールと実行ロールの <code>PassRole</code></td><td>KMS</td></tr>
     <tr><td>janitor</td><td>上の 5 つのテーブルの読み書き。キューへの送信</td><td>KMS</td></tr>
     <tr><td>WebSocket の Lambda・broadcaster</td><td>上の 5 つのテーブルの読み書き。WebSocket の接続の管理（<code>WsDefaultFn</code> と broadcaster）</td><td>KMS</td></tr>
-    <tr><td>ミッションランナー（planRunner）</td><td><code>Plans</code>・<code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>Canons</code> の読み書き。<code>Catalog</code> は <code>config</code> の <code>GetItem</code> と <code>id</code> の <code>PutItem</code>（ID の予約）だけ。成果物の <code>plans/*</code>・<code>canons/*</code> の読み書きと <code>users/*/workspace/*</code> の読み取り。キューへの送信。クラスター内のタスクの停止</td><td>KMS</td></tr>
+    <tr><td>ミッションランナー（planRunner）</td><td><code>Plans</code>・<code>Users</code>・<code>Projects</code>・<code>Jobs</code>・<code>Messages</code>・<code>Canons</code> の読み書き。<code>Catalog</code> は <code>config</code> と <code>team</code> の <code>GetItem</code> と <code>id</code> の <code>PutItem</code>（ID の予約）だけ。成果物の <code>plans/*</code>・<code>canons/*</code> の読み書きと <code>users/*/workspace/*</code> の読み取り。キューへの送信。クラスター内のタスクの停止</td><td>KMS</td></tr>
     <tr><td>authMessage</td><td>なし（Cognito から利用者の属性を受け取って文面を返すだけ）</td><td>テーブル・バケット・鍵。ログも出さない</td></tr>
   </tbody>
 </table>
@@ -127,6 +127,7 @@
   <li><b>ブラウザからキーを取り出す API はありません。</b>忘れたら OpenAI 側で発行し直し、登録を上書きします。</li>
   <li>Anthropic のキー（Claude のモデル用）も同じ扱いで、コンテキストの <code>purpose</code> が <code>"anthropic-api-key"</code> です（デフォルトのキーは <code>scope: "default"</code> 付き）。登録時は <code>GET https://api.anthropic.com/v1/models</code> で確かめます。実行時の平文はワーカーのプロセスの中の中継にだけあり、Claude Code のプロセスには渡しません（9.5）。</li>
   <li>DeepSeek のキーも同じ扱いで、<code>purpose</code> が <code>"deepseek-api-key"</code> です。登録時は <code>GET https://api.deepseek.com/models</code> で確かめます。</li>
+  <li>チームのキー（4.8）は、コンテキスト <code>{ purpose, teamId }</code> で暗号化します。userId も <code>scope</code> も含まないので、個人のキーやデフォルトの API キーのコンテキストでは復号できず、別のチームのコンテキストでも復号できません。ワーカーがチームのキーを復号するのは、ジョブのチームのメンバーのジョブだけです。</li>
 </ul>
 <h3>デフォルトの API キー</h3>
 <p>管理者は、管理画面で組織の OpenAI キーをデフォルトの API キーとして登録できます。登録時には個人のキーと同じく <code>/v1/models</code> で確認します。保存するのは、暗号文・末尾 4 文字・そのキーで使えるモデルの一覧・登録した日時と管理者です。画面に見えるのは末尾 4 文字と日付だけです（書き込み専用）。Claude のモデルには、同じ扱いのデフォルトの Anthropic API キーを別に登録します。利用承認と、どのキーでジョブを実行するかの規則は 4.1 で定めます。</p>
@@ -168,6 +169,7 @@
   <li>S3 のキーは <code>users/{自分}/{projectId}/</code> に固定し、<code>..</code>、<code>thread/</code>、絶対パスを拒みます。</li>
   <li>参考資料のアップロードでは、API が呼び出した人の userId と乱数のアップロード ID からステージングのキーを作り、署名付き POST のポリシーでキー・Content-Type・大きさ（20 MB）を固定します。有効期限は 15 分です。プロジェクトの作成時に、各アップロードの存在と大きさ、合計が 50 MB 以内であることを検査し直してから、プロジェクトに移します。</li>
   <li>管理者の経路は <code>role === "admin"</code> を要求します。</li>
+  <li>チームの経路はチームのメンバーであることを、チーム管理者の操作はチーム管理者であることを、チームの項目から確かめます。<code>GET /invites/{token}</code> だけは JWT オーソライザーを通さないルートで、チーム名と招待リンクの状態だけを返します。トークンは 18 バイトの乱数で、推測できません。</li>
 </ol>
 <h3>共有</h3>
 <p>Canon の共同編集者、プロジェクトと Canon の公開、公開プロジェクトの複製で、だれに何が見えるかは 4.6 で定めます。認可の観点では、次の点が要点です。</p>

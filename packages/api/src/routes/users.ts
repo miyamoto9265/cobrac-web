@@ -42,6 +42,7 @@ import { correctJobs, correctProject } from "../lib/usageCorrection.js";
 import { modelPolicy } from "../lib/orgKey.js";
 import { listOwnCanons } from "../lib/canons.js";
 import { loadCanon } from "./canons.js";
+import { itemTeam, requireTeamMember } from "../lib/teams.js";
 import type { ApiEnv } from "./env.js";
 
 export const usersApi = new Hono<ApiEnv>();
@@ -55,7 +56,9 @@ const keySources = (policy: ModelPolicy) => ({ keySource: policy.source, claudeK
 
 usersApi.get("/users/me", async (c) => {
   const u = c.get("user");
-  const { policy } = await modelPolicy(u);
+  // ?team=<teamId>: the keys as they are in that team's workspace (ignored when the caller is not in the team)
+  const team = await itemTeam(u.userId, c.req.query("team"));
+  const { policy } = await modelPolicy(u, team);
   const res: MeResponse = { ...toPublicUser(u), ...keySources(policy) };
   return c.json(res);
 });
@@ -86,8 +89,11 @@ usersApi.put("/users/me", async (c) => {
 
 usersApi.get("/users/me/models", async (c) => {
   const u = c.get("user");
-  const { policy, defaultKey } = await modelPolicy(u);
-  const keyModels = policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
+  // ?team=<teamId>: the models of that team's workspace (its keys first)
+  const teamId = c.req.query("team");
+  const team = teamId ? await requireTeamMember(u, teamId) : null;
+  const { policy, defaultKey } = await modelPolicy(u, team);
+  const keyModels = policy.source === "team" ? (team?.keys?.openai?.models ?? []) : policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
   // a user with an Anthropic / DeepSeek key and no OpenAI key chooses among those models only
   const noOpenAi = messagesOnly(policy);
   const openAiModels = noOpenAi ? [] : filterCodexModels(keyModels);

@@ -5,7 +5,7 @@ import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { ECSClient, StopTaskCommand } from "@aws-sdk/client-ecs";
 import { InvokeCommand, LambdaClient } from "@aws-sdk/client-lambda";
 import type { ArtifactInfo, BradbRequest, ModelProvider, RunJobMessage } from "@cobrac/shared";
-import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, REVISIONS_PREFIX, contentDisposition, isPlanId, isThreadKey, planPrefix } from "@cobrac/shared";
+import { API_KEY_PURPOSE, DEFAULT_KEY_ENCRYPTION_CONTEXTS, teamKeyEncryptionContext, REVISIONS_PREFIX, contentDisposition, isPlanId, isThreadKey, planPrefix } from "@cobrac/shared";
 import { createHmac } from "node:crypto";
 import { env } from "../env.js";
 import { safeKeySegments } from "./s3Keys.js";
@@ -39,6 +39,12 @@ export async function encryptApiKey(plain: string, userId: string, provider: Mod
 export async function encryptDefaultApiKey(plain: string, provider: ModelProvider = "openai"): Promise<string> {
   const context = DEFAULT_KEY_ENCRYPTION_CONTEXTS[provider];
   const r = await kms.send(new EncryptCommand({ KeyId: env.kmsKeyId, Plaintext: Buffer.from(plain, "utf8"), EncryptionContext: { ...context } }));
+  return Buffer.from(r.CiphertextBlob!).toString("base64");
+}
+
+/** A team key, under the team's encryption context (no userId), so only that team's jobs can use it. */
+export async function encryptTeamKey(plain: string, teamId: string, provider: ModelProvider): Promise<string> {
+  const r = await kms.send(new EncryptCommand({ KeyId: env.kmsKeyId, Plaintext: Buffer.from(plain, "utf8"), EncryptionContext: teamKeyEncryptionContext(teamId, provider) }));
   return Buffer.from(r.CiphertextBlob!).toString("base64");
 }
 

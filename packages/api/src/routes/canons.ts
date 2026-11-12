@@ -124,6 +124,7 @@ import {
   updateCanon,
 } from "../lib/canons.js";
 import { loadOwnProject } from "./projects.js";
+import { inSpace, itemTeam, listSpace, requestedTeam } from "../lib/teams.js";
 import type { ApiEnv } from "./env.js";
 
 export const canonsApi = new Hono<ApiEnv>();
@@ -156,7 +157,10 @@ export async function loadCanon(u: UserRecord, canonId: string, opts: { write?: 
 
 canonsApi.get("/canons", async (c) => {
   const u = c.get("user");
-  const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  // ?team=<teamId>: that team's workspace; absent: the personal one (shared Canons are listed in the personal one)
+  const space = await listSpace(u, c.req.query("team"));
+  const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x) && inSpace(x, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  if (space) return c.json({ items, shared: [] });
   const shared: (CanonRecord & { ownerName: string })[] = [];
   for (const id of u.editorCanons ?? []) {
     const canon = isCanonId(id) ? await getCanon(id) : null;
@@ -168,8 +172,10 @@ canonsApi.get("/canons", async (c) => {
 
 canonsApi.post("/canons", async (c) => {
   const u = c.get("user");
-  const fields = canonFields((await c.req.json()) as CreateCanonRequest, false);
-  const canon = await createCanon(u, fields);
+  const body = (await c.req.json()) as CreateCanonRequest;
+  const team = await requestedTeam(u, body.teamId);
+  const fields = canonFields(body, false);
+  const canon = await createCanon(u, { ...fields, teamId: team?.teamId ?? null });
   return c.json(canon, 201);
 });
 
@@ -367,14 +373,19 @@ canonsApi.post("/canons/seed-preview", async (c) => {
 });
 
 /** Validated Canon plan of a new project (checked before the project is created, so a bad plan creates nothing). */
-export async function resolveProjectCanon(u: UserRecord, choice: CreateProjectCanon | undefined): Promise<{ existing?: CanonRecord; plan?: SeedPlan } | null> {
+/** `space`: the new project's workspace (a team ID, null = personal); its Canon must be in the same workspace. */
+export async function resolveProjectCanon(u: UserRecord, choice: CreateProjectCanon | undefined, space: string | null = null): Promise<{ existing?: CanonRecord; plan?: SeedPlan } | null> {
   if (choice === undefined) {
     if (!u.defaultCanonId) return null;
     const canon = await getCanon(u.defaultCanonId);
-    return canon && !isCanonDeleted(canon) && canon.ownerUserId === u.userId ? { existing: canon } : null;
+    return canon && !isCanonDeleted(canon) && canon.ownerUserId === u.userId && (canon.teamId ?? null) === space ? { existing: canon } : null;
   }
   if (choice.mode === "none") return null;
-  if (choice.mode === "existing") return { existing: await loadCanon(u, choice.canonId, { write: true }) };
+  if (choice.mode === "existing") {
+    const existing = await loadCanon(u, choice.canonId, { write: true });
+    if ((existing.teamId ?? null) !== space) throw bad("プロジェクトと同じ作業場所の Canon を選んでください");
+    return { existing };
+  }
   if (choice.mode === "new") {
     canonFields(choice, false);
     const { candidates } = await seedCandidates(u, (choice.seeds ?? []).map(String));
@@ -403,6 +414,7 @@ export async function applyProjectCanon(u: UserRecord, project: ProjectRecord, r
     canonId,
     sk: CANON_META_SK,
     ownerUserId: u.userId,
+    ...(project.teamId ? { teamId: project.teamId } : {}),
     name: fields.name!,
     description: fields.description ?? "",
     policy: fields.policy ?? "",
@@ -536,8 +548,8 @@ canonsApi.post("/canons/:id/pulls/:no/request-changes", async (c) => {
 /** Queues the AI review of an open PR on the worker (one at a time per PR); the owner's key and tier apply. */
 canonsApi.post("/canons/:id/pulls/:no/ai-review", async (c) => {
   const u = c.get("user");
-  const policy = await requireRunKey(u);
   const canon = await loadCanon(u, c.req.param("id"), { review: true });
+  const policy = await requireRunKey(u, await itemTeam(u.userId, canon.teamId));
   const pr = await loadPr(canon, c.req.param("no"));
   if (pr.state !== "open") throw new HTTPException(409, { message: "閉じた取り込み依頼には AI レビューを実行できません" });
   const body = (await c.req.json().catch(() => ({}))) as { model?: unknown; locale?: unknown };

@@ -31,6 +31,7 @@ export * from "./canonConstraints.js";
 export * from "./canonIssues.js";
 export * from "./usageCorrection.js";
 export * from "./orgKey.js";
+export * from "./team.js";
 export * from "./canonReview.js";
 export * from "./canonAiReview.js";
 export * from "./canonAiDecision.js";

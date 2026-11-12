@@ -17,8 +17,8 @@ export interface OrgAccess {
   tier?: number;
 }
 
-/** Whose key pays for a job: the user's own key, or the default API key ("org"). */
-export type KeySource = "own" | "org";
+/** Whose key pays for a job: the user's own key, the default API key ("org"), or the key of the team whose workspace holds the job ("team"). */
+export type KeySource = "own" | "org" | "team";
 
 /** Whether an admin has approved the user for the default API key (any stored approval counts, a legacy tier too). */
 export const isOrgApproved = (access: OrgAccess | null | undefined): boolean => !!access && typeof access === "object";
@@ -77,9 +77,16 @@ export interface DefaultKeysAvailable {
   deepseek?: boolean;
 }
 
-export function modelPolicyOf(user: KeyHolder, defaults: DefaultKeysAvailable): ModelPolicy {
-  const source = keySourceOf(user, defaults.openai);
-  const sources = { anthropic: providerKeySourceOf(user, "anthropic", !!defaults.anthropic), deepseek: providerKeySourceOf(user, "deepseek", !!defaults.deepseek) };
+/**
+ * `teamKeys`: in a team's workspace, the providers the team has a key of. A team key wins over the user's own and the
+ * default key (the team pays for its workspace); a provider without a team key falls back to the user's keys.
+ */
+export function modelPolicyOf(user: KeyHolder, defaults: DefaultKeysAvailable, teamKeys?: Partial<Record<ModelProvider, boolean>>): ModelPolicy {
+  const source = teamKeys?.openai ? "team" : keySourceOf(user, defaults.openai);
+  const sources = {
+    anthropic: teamKeys?.anthropic ? ("team" as const) : providerKeySourceOf(user, "anthropic", !!defaults.anthropic),
+    deepseek: teamKeys?.deepseek ? ("team" as const) : providerKeySourceOf(user, "deepseek", !!defaults.deepseek),
+  };
   const of = (provider: MessagesProvider): ProviderPolicy => ({ source: sources[provider], allowed: sources[provider] === null ? [] : PROVIDER_MODELS[provider] });
   return { source, claude: of("anthropic"), deepseek: of("deepseek") };
 }

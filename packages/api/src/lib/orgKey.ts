@@ -1,6 +1,6 @@
 import { DeleteCommand, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, ModelProvider, OrgUsageResponse, OrgUsageRow, UserRecord } from "@cobrac/shared";
-import { DEFAULT_KEY_CATALOG_KEYS, EMPTY_USAGE, addUsage, modelPolicyOf, ownKeyRegistered } from "@cobrac/shared";
+import type { DefaultApiKeyRecord, DefaultKeyStatus, JobRecord, ModelPolicy, ModelProvider, OrgUsageResponse, OrgUsageRow, TeamRecord, UserRecord } from "@cobrac/shared";
+import { DEFAULT_KEY_CATALOG_KEYS, EMPTY_USAGE, addUsage, modelPolicyOf, ownKeyRegistered, teamKeysAvailable } from "@cobrac/shared";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
 
@@ -22,11 +22,15 @@ export async function deleteDefaultKey(provider: ModelProvider = "openai"): Prom
 
 export const defaultKeyStatus = (k: DefaultApiKeyRecord | null): DefaultKeyStatus => ({ registered: !!k, last4: k?.last4 ?? null, updatedAt: k?.updatedAt ?? null });
 
-/** The caller's key and model policy (each default key is read only when it could apply); `defaultKey` is the OpenAI one. */
-export async function modelPolicy(u: UserRecord): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
-  const lookup = (provider: ModelProvider) => (!ownKeyRegistered(u, provider) && u.orgAccess ? getDefaultKey(provider) : null);
+/**
+ * The caller's key and model policy (each default key is read only when it could apply); `defaultKey` is the OpenAI
+ * one. `team`: the workspace is that team's, whose keys win over the caller's own (the team pays).
+ */
+export async function modelPolicy(u: UserRecord, team?: TeamRecord | null): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
+  const teamKeys = teamKeysAvailable(team);
+  const lookup = (provider: ModelProvider) => (!(team && teamKeys[provider]) && !ownKeyRegistered(u, provider) && u.orgAccess ? getDefaultKey(provider) : null);
   const [defaultKey, claudeKey, deepseekKey] = await Promise.all([lookup("openai"), lookup("anthropic"), lookup("deepseek")]);
-  return { policy: modelPolicyOf(u, { openai: !!defaultKey, anthropic: !!claudeKey, deepseek: !!deepseekKey }), defaultKey };
+  return { policy: modelPolicyOf(u, { openai: !!defaultKey, anthropic: !!claudeKey, deepseek: !!deepseekKey }, team ? teamKeys : undefined), defaultKey };
 }
 
 /** Default-API-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */

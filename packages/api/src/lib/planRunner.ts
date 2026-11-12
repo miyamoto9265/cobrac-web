@@ -110,6 +110,7 @@ import { applyProposal } from "./planProposals.js";
 import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
 import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, orchestratorDefaultModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
+import { itemTeam } from "./teams.js";
 
 export const RUNNER = "runner";
 
@@ -136,7 +137,7 @@ export type PlanGate = { policy: ModelPolicy; model: string; orchestratorModel: 
  */
 export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
-  const policy = await runPolicy(owner);
+  const policy = await runPolicy(owner, await itemTeam(owner.userId, plan.teamId));
   if (!canRunJobs(policy)) return { ok: false, reason: "no_key" };
   const resolve = (chosen: string | null, picked: boolean, fallback: string): string | null => {
     const model = chosen || fallback;
@@ -430,6 +431,7 @@ async function startRow(plan: PlanRecord, row: PlanRowRecord, owner: UserRecord,
       researchMode: plan.settings.researchMode,
       locale: plan.settings.locale,
       keySource: jobKeySource(gate.policy, gate.model),
+      teamId: plan.teamId ?? null,
       harnessRules: plan.harnessRules ?? HARNESS_RULES,
       plan: { planId: plan.planId, name: plan.name, policy: planPolicyOf(plan.policy) },
       projectId,

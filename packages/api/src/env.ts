@@ -45,4 +45,9 @@ export const env = {
   codexModel: process.env.CODEX_MODEL ?? "",
   /** Template-v2-3.bra.xlsx bundled next to the handler (prompts/templates/ in the repository) */
   braTemplatePath: process.env.BRA_TEMPLATE_PATH ?? "",
+  /** Site URL (team invite links) */
+  siteUrl: process.env.SITE_URL ?? "",
+  /** Sender of the team invitation e-mails through SES (empty: invitations are not e-mailed) */
+  emailFrom: process.env.EMAIL_FROM ?? "",
+  emailFromName: process.env.EMAIL_FROM_NAME ?? "",
 };

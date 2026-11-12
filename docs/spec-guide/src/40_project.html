@@ -75,8 +75,8 @@
   <li>役割は <code>Users</code> の <code>role</code>（<code>user</code> / <code>admin</code>）です。管理者の判定は、Cognito のグループ <code>admin</code> に属するか、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code> にあるかで行います。サインアップの可否は <code>COBRAC_SELF_SIGNUP</code> で切り替えます。初回のアクセスで作る項目には、仮名の <code>userKey</code> を発行します。</li>
   <li>デフォルトの API キーは、Catalog テーブルの <code>kind: "config"</code>・<code>id: "default-api-key"</code> の項目に、KMS の暗号文として保存します。暗号化コンテキストは <code>{ purpose: "openai-api-key", scope: "default" }</code> です。<code>userId</code> を含まないので、個人のキーのコンテキスト <code>{ userId, purpose: "openai-api-key" }</code> とは互いに復号できません。有効性の検査は OpenAI の <code>/v1/models</code> で行い、API は <code>{ registered, last4, updatedAt }</code> だけを返します。</li>
   <li>利用承認は <code>Users.orgAccess = { approvedAt, approvedBy }</code> です。値がないか null なら未承認で、値があれば承認済みです（<code>isOrgApproved</code>）。</li>
-  <li>ワーカーが取り消しで出すお知らせは <code>sys.noApiKey</code>・<code>sys.orgKeyUnavailable</code>・<code>sys.orgKeyModel</code> です。ワーカーが読めるのは Catalog の <code>config</code> パーティションだけです（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）。</li>
-  <li>ジョブは <code>keySource</code>（<code>own</code> / <code>org</code>。<code>org</code> がデフォルトの API キー）を記録します。利用者ごとの合計は <code>GET /admin/org-usage</code> が返します。</li>
+  <li>ワーカーが取り消しで出すお知らせは <code>sys.noApiKey</code>・<code>sys.orgKeyUnavailable</code>・<code>sys.orgKeyModel</code> です。ワーカーが読めるのは Catalog の <code>config</code> と <code>team</code>（チームのキー。4.8）のパーティションだけです（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）。</li>
+  <li>ジョブは <code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>。<code>org</code> がデフォルトの API キー、<code>team</code> がチームのキー）を記録します。利用者ごとの合計は <code>GET /admin/org-usage</code> が返します。</li>
   <li>Anthropic のキー：個人のキーは <code>Users.encryptedAnthropicKey</code>（暗号化コンテキスト <code>{ userId, purpose: "anthropic-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-anthropic-key"</code>（<code>{ purpose: "anthropic-api-key", scope: "default" }</code>）に保存します。保存するのは、キーの後に改行とワークスペース ID を続けた 1 つの文字列（<code>joinAnthropicCredential</code>）の暗号文です。有効性の検査は Anthropic の <code>/v1/models</code> で行います。どのキーで動くかは提供元ごとに <code>ModelPolicy</code>（<code>claude</code> が Anthropic 側、<code>deepseek</code> が DeepSeek 側）が決め、<code>/users/me/models</code> はそれぞれのキーの種類を <code>claudeKeySource</code>・<code>deepseekKeySource</code> で返します。</li>
   <li>DeepSeek のキー：個人のキーは <code>Users.encryptedDeepseekKey</code>（暗号化コンテキスト <code>{ userId, purpose: "deepseek-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-deepseek-key"</code>（<code>{ purpose: "deepseek-api-key", scope: "default" }</code>）に保存します。有効性の検査は DeepSeek の <code>/models</code> で行います。ワーカーのお知らせは <code>sys.noDeepseekKey</code> です。</li>
   <li>キーを守る仕組み：<code>shell_environment_policy</code> が <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> をコマンドの環境から除きます。エージェントは自分の Fargate タスクの中で Codex のプロセスと同じ OS ユーザーとして動きますが、<code>node</code>・Codex・git の実行ファイルは実行専用で、そのプロセスはダンプできません。そのため <code>/proc/&lt;pid&gt;/environ</code> からキーを読めません。</li>
@@ -352,7 +352,7 @@
     <tr><td>使用量</td><td>入力、そのうちキャッシュされた入力、出力、そのうち推論のトークンの 4 つの量。Claude のモデルでは、キャッシュへの書き込みも別に数える。途中で止まったターンの分も数える</td></tr>
     <tr><td>モデル</td><td>ジョブの開始時に実際に使ったモデル（4.2）</td></tr>
     <tr><td>推定費用</td><td>使用量に、モデルごとの単価をかけた値。単価表にないモデルでは費用を出さず、画面は <code>$—</code> と表示する</td></tr>
-    <tr><td>キーの種類</td><td>自分のキーとデフォルトの API キーのどちらで実行したか（4.1）</td></tr>
+    <tr><td>キーの種類</td><td>自分のキー・デフォルトの API キー・チームのキーのどれで実行したか（4.1、4.8）</td></tr>
   </tbody>
 </table>
 <p>使用量と費用は、次の場所に出ます。</p>
@@ -374,4 +374,28 @@
   <li>利用者ごとの集計は <code>GET /users/me/usage</code>（<code>byProject</code> に <code>deleted</code> の印）、管理画面の集計は <code>GET /admin/org-usage</code>（<code>keySource: "org"</code> のジョブ）です。</li>
 </ul>
 <p class="src">典拠：<code>packages/shared/src/pricing.ts</code>・<code>usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>index.ts</code>、<code>packages/api/src/routes/projects.ts</code></p>
+<h2 id="s4-8">4.8 チーム</h2>
+<p>チームは、チーム管理者が登録したチームの API キー（チームの予算）で、メンバーがジョブを実行できるようにする仕組みです。研究室の主宰者が学生に実行させる場合や、学会の期間中に参加者に使ってもらう場合を想定しています。個人の作業場所はそのまま残り、1 人の利用者が複数のチームに入れます。</p>
+<table class="compact">
+  <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
+  <tbody>
+    <tr><td>作成</td><td>だれでもサイドバー上部の作業場所の切り替えから「チームを作る」でチームを作れる。作った人がチーム管理者になる。チーム名は 80 字まで</td></tr>
+    <tr><td>役割</td><td>チーム管理者とメンバーの 2 つ。チーム管理者は、メンバーの役割の変更・メンバーを外すこと・招待リンクの作成と無効化・招待メールの送信・チームの API キーの登録と削除・チーム名の変更ができる。メンバーは、チームの作業場所でプロジェクト・ミッション・Canon を作って実行できる。チームには常に 1 人以上のチーム管理者がいる（最後の管理者は抜けられず、メンバーにも変えられない）。チーム管理者はサイト管理者（4.1）とは別の役割である</td></tr>
+    <tr><td>作業場所</td><td>サイドバー上部で「個人の作業場所」と所属するチームを切り替える。選んだ作業場所はブラウザに保存する。履歴・プロジェクト一覧・ミッション・Canon の一覧は、選んだ作業場所のものだけを出す。新しく作るプロジェクト・ミッション・Canon は、選んだ作業場所に属する。作ったものの所有者は作った人のままである</td></tr>
+    <tr><td>どのキーで動くか</td><td>チームの作業場所のジョブは、モデルの提供元のチームのキーがあればそれで実行する（利用者自身のキーより優先する）。その提供元のチームのキーがなければ、個人の作業場所と同じ規則（4.1）で利用者自身のキーかデフォルトの API キーで実行する。チームを抜けた人のプロジェクトは、以後は本人のキーで実行する。ワーカーは起動のたびに判定し直すので、キーの削除やメンバーを外したことは次の起動から効く</td></tr>
+    <tr><td>招待リンク</td><td>チームごとに有効な招待リンクは 1 つで、URL・QR コード・メールのどれで伝えても同じリンクである。有効期限と人数の上限を任意で付けられる。リンクを開いた人は、サインイン（アカウントがなければサインアップ）するとメンバーとして参加する。サインインの前でもチーム名とリンクの状態は見られる。新しいリンクを作るか無効にすると、それまでのリンクでは参加できない。状態は「有効」「期限切れ」「上限に達しました」「無効」のどれか</td></tr>
+    <tr><td>招待メール</td><td>チーム管理者は、チームのページから招待リンクをメールで送れる。アカウントのないアドレスにも送れる。1 回に 50 件まで。文面は日本語と英語を 1 通に入れ、有効期限は日本時間で書く。送った招待は、アドレス・日時と参加済みかどうかをチームのページに出す（最新の 200 件）</td></tr>
+    <tr><td>費用</td><td>チームのキーで実行したジョブは、キーの種類 <code>team</code> とチームを記録する。チームのページは、チームのキーで実行したジョブの費用を、今月（UTC）と合計で出す。チーム管理者にはチーム全体と各メンバーの費用を、メンバーには自分の分だけを見せる</td></tr>
+    <tr><td>見え方</td><td>チームのページはメンバーだけが開ける（ほかの人には 404）。メンバーのメールアドレス・招待リンク・送った招待は、チーム管理者にだけ見せる。チームのキーは、チーム管理者にも末尾 4 文字と登録日時しか見せない</td></tr>
+  </tbody>
+</table>
+<p>チーム内での共有、チームの Canon、支出の上限、使えるモデルの制限、予算の有効期限（期限が来たらジョブを止め、各自のキーで再開する）は、まだありません。</p>
+<h3>実装</h3>
+<ul>
+  <li>チームは Catalog テーブルの <code>kind: "team"</code>（<code>id</code> がチーム ID。<code>t</code> と 7 文字）、招待リンクは <code>kind: "team-invite"</code>（<code>id</code> がトークン。24 文字）に置きます。チームの項目はメンバーの一覧（500 人まで）とキーを持ち、<code>updatedAt</code> を条件にした書き込みで、同時の変更を取りこぼさないようにします。利用者の所属は <code>Users.teamIds</code> にも持ちます。</li>
+  <li>プロジェクト・ミッション・Canon・ジョブは <code>teamId</code> を持ちます。一覧の API は <code>?team=&lt;teamId&gt;</code> でその作業場所のものを返し、付けなければ個人の作業場所のものを返します。作成の API は本文の <code>teamId</code> で作業場所を受け取ります。</li>
+  <li>チームのキーの暗号化コンテキストは <code>{ purpose, teamId }</code> です（9.3）。ジョブの <code>keySource</code> は <code>team</code> です。ワーカーとミッションランナーは、Catalog の <code>team</code> の区画を <code>GetItem</code> で読めます（9.1）。</li>
+  <li>招待リンクの使用回数は、有効期限・上限・無効化を条件にした更新で数えるので、上限を超えて参加することはありません。</li>
+</ul>
+<p class="src">典拠：<code>packages/shared/src/team.ts</code>・<code>orgKey.ts</code>、<code>packages/api/src/routes/teams.ts</code>・<code>lib/teams.ts</code>・<code>lib/teamEmails.ts</code>・<code>lib/runs.ts</code>、<code>packages/worker/src/runKey.ts</code>、<code>packages/web/src/pages/TeamPage.tsx</code>・<code>JoinPage.tsx</code>・<code>components/WorkspaceSwitcher.tsx</code></p>
 </section>

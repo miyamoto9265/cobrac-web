@@ -77,12 +77,51 @@ import type {
   HypothesisFollowupRequest,
   AddPlanAttachmentsRequest,
   PlanAttachmentsResponse,
+  CreateInviteRequest,
+  InviteInfo,
+  JoinTeamResponse,
+  ListTeamsResponse,
+  TeamDetail,
+  TeamInviteView,
+  TeamRole,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
 
 /** `?provider=anthropic` / `?provider=deepseek` for that provider's key; nothing for the OpenAI key. */
 const providerQuery = (p: ModelProvider) => (p === "openai" ? "" : `?provider=${p}`);
+
+/**
+ * The workspace on screen: a team ID, or null for the personal workspace. Lists read that workspace's items and new
+ * projects, missions and Canons are made in it (set by the workspace switcher, lib/workspace.tsx).
+ */
+export const WORKSPACE_STORAGE = "cobrac-workspace";
+function storedWorkspace(): string | null {
+  try {
+    return localStorage.getItem(WORKSPACE_STORAGE) || null;
+  } catch {
+    return null;
+  }
+}
+let workspaceTeam: string | null = storedWorkspace();
+export const getWorkspaceTeam = () => workspaceTeam;
+export const setWorkspaceTeam = (teamId: string | null) => {
+  workspaceTeam = teamId;
+  try {
+    if (teamId) localStorage.setItem(WORKSPACE_STORAGE, teamId);
+    else localStorage.removeItem(WORKSPACE_STORAGE);
+  } catch {
+    /* ignore */
+  }
+};
+/** `team=<id>` of the workspace on screen, for a list's query string; "" in the personal workspace. */
+const teamParam = () => (workspaceTeam ? `team=${encodeURIComponent(workspaceTeam)}` : "");
+const withTeam = (path: string) => {
+  const q = teamParam();
+  return q ? `${path}${path.includes("?") ? "&" : "?"}${q}` : path;
+};
+/** A create request's body in the workspace on screen (an explicit `teamId` wins). */
+const inTeam = <T extends { teamId?: string | null }>(b: T): T => (workspaceTeam && b.teamId === undefined ? { ...b, teamId: workspaceTeam } : b);
 
 export class ApiError extends Error {
   constructor(
@@ -119,13 +158,13 @@ async function request<T>(method: string, path: string, body?: unknown, raw = fa
 }
 
 export const api = {
-  me: () => request<MeResponse>("GET", "/users/me"),
+  me: () => request<MeResponse>("GET", withTeam("/users/me")),
   updateMe: (b: { displayName?: string; contributorName?: string; defaultModel?: string | null; defaultReasoningEffort?: ReasoningEffort | null; defaultCanonId?: string | null }) =>
     request<MeResponse>("PUT", "/users/me", b),
   apiKeyStatus: (provider: ModelProvider = "openai") => request<{ registered: boolean; last4: string | null }>("GET", `/users/me/apikey/status${providerQuery(provider)}`),
   setApiKey: (apiKey: string, provider: ModelProvider = "openai", workspaceId?: string) =>
     request<{ registered: boolean; last4: string; models: string[] }>("PUT", `/users/me/apikey${providerQuery(provider)}`, { apiKey, ...(workspaceId ? { workspaceId } : {}) }),
-  models: () => request<ModelsResponse>("GET", "/users/me/models"),
+  models: () => request<ModelsResponse>("GET", withTeam("/users/me/models")),
   usage: () => request<UsageSummary>("GET", "/users/me/usage"),
   deleteApiKey: (provider: ModelProvider = "openai") => request<{ registered: boolean }>("DELETE", `/users/me/apikey${providerQuery(provider)}`),
 
@@ -133,10 +172,11 @@ export const api = {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
     if (status) p.set("status", status);
+    if (workspaceTeam) p.set("team", workspaceTeam);
     const qs = p.toString();
     return request<ListProjectsResponse>("GET", `/projects${qs ? `?${qs}` : ""}`);
   },
-  createProject: (b: CreateProjectRequest) => request<ProjectRecord>("POST", "/projects", b),
+  createProject: (b: CreateProjectRequest) => request<ProjectRecord>("POST", "/projects", inTeam(b)),
   createUpload: (name: string, size: number) => request<CreateUploadResponse>("POST", "/uploads", { name, size }),
   resolveProject: (id: string) => request<{ projectId: string }>("GET", `/projects/resolve/${encodeURIComponent(id)}`),
   renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
@@ -172,8 +212,8 @@ export const api = {
     request<GraphLayout>("PUT", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`, layout),
   resetLayout: (id: string, kind: "hcd" | "frg") => request<{ ok: true }>("DELETE", `/projects/${encodeURIComponent(id)}/graph/${kind}/layout`),
 
-  listCanons: () => request<ListCanonsResponse>("GET", "/canons"),
-  createCanon: (b: CreateCanonRequest) => request<CanonRecord>("POST", "/canons", b),
+  listCanons: () => request<ListCanonsResponse>("GET", withTeam("/canons")),
+  createCanon: (b: CreateCanonRequest) => request<CanonRecord>("POST", "/canons", inTeam(b)),
   getCanon: (id: string) => request<CanonDetailResponse>("GET", `/canons/${encodeURIComponent(id)}`),
   updateCanon: (id: string, b: UpdateCanonRequest) => request<CanonRecord>("PUT", `/canons/${encodeURIComponent(id)}`, b),
   deleteCanon: (id: string) => request<{ canonId: string; deletedAt: string }>("DELETE", `/canons/${encodeURIComponent(id)}`),
@@ -231,9 +271,9 @@ export const api = {
   canonRevisions: (id: string) => request<{ items: CanonRevisionSummary[] }>("GET", `/canons/${encodeURIComponent(id)}/revisions`),
   canonRevision: (id: string, rev: number) => request<CanonSnapshot>("GET", `/canons/${encodeURIComponent(id)}/revisions/${rev}`),
 
-  listPlans: () => request<ListPlansResponse>("GET", "/plans"),
+  listPlans: () => request<ListPlansResponse>("GET", withTeam("/plans")),
   // `locale`: the reply language of a draft asked for at creation (the API reads it next to `draft`)
-  createPlan: (b: CreatePlanRequest) => request<CreatePlanResponse>("POST", "/plans", b),
+  createPlan: (b: CreatePlanRequest) => request<CreatePlanResponse>("POST", "/plans", inTeam(b)),
   getPlan: (id: string) => request<PlanDetailResponse>("GET", `/plans/${encodeURIComponent(id)}`),
   updatePlan: (id: string, b: UpdatePlanRequest) => request<PlanRecord>("PUT", `/plans/${encodeURIComponent(id)}`, b),
   archivePlan: (id: string, archived: boolean) => request<{ planId: string; archivedAt: string | null }>("PUT", `/plans/${encodeURIComponent(id)}/archive`, { archived }),
@@ -261,6 +301,22 @@ export const api = {
     request<ApproveManyResponse>("POST", `/canons/${encodeURIComponent(canonId)}/pulls/approve-many`, { prNos } satisfies ApproveManyRequest),
   proposalAction: (id: string, proposalId: string, action: "accept" | "reject") =>
     request<{ ok: true; proposal: PlanProposalRecord }>("POST", `/plans/${encodeURIComponent(id)}/proposals/${encodeURIComponent(proposalId)}/${action}`),
+
+  // teams: the team admin's budget (API keys) runs the members' jobs in the team's workspace
+  listTeams: () => request<ListTeamsResponse>("GET", "/teams"),
+  createTeam: (name: string) => request<TeamDetail>("POST", "/teams", { name }),
+  getTeam: (id: string) => request<TeamDetail>("GET", `/teams/${encodeURIComponent(id)}`),
+  renameTeam: (id: string, name: string) => request<{ teamId: string; name: string }>("PUT", `/teams/${encodeURIComponent(id)}`, { name }),
+  setTeamRole: (id: string, userId: string, role: TeamRole) => request<{ ok: true }>("PUT", `/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`, { role }),
+  removeTeamMember: (id: string, userId: string) => request<{ ok: true }>("DELETE", `/teams/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`),
+  setTeamKey: (id: string, provider: ModelProvider, apiKey: string, workspaceId?: string) =>
+    request<{ registered: boolean; last4: string }>("PUT", `/teams/${encodeURIComponent(id)}/keys/${provider}`, { apiKey, ...(workspaceId ? { workspaceId } : {}) }),
+  deleteTeamKey: (id: string, provider: ModelProvider) => request<{ registered: boolean }>("DELETE", `/teams/${encodeURIComponent(id)}/keys/${provider}`),
+  createTeamInvite: (id: string, b: CreateInviteRequest) => request<TeamInviteView>("POST", `/teams/${encodeURIComponent(id)}/invite`, b),
+  revokeTeamInvite: (id: string) => request<{ ok: true }>("DELETE", `/teams/${encodeURIComponent(id)}/invite`),
+  sendTeamInvites: (id: string, emails: string[]) => request<{ sent: string[]; failed: string[] }>("POST", `/teams/${encodeURIComponent(id)}/invite/emails`, { emails }),
+  inviteInfo: (token: string) => request<InviteInfo>("GET", `/invites/${encodeURIComponent(token)}`),
+  joinTeam: (token: string) => request<JoinTeamResponse>("POST", "/teams/join", { token }),
 
   adminUsers: () => request<{ items: UserPublic[] }>("GET", "/admin/users"),
   adminConcurrency: () => request<ConcurrencyStatus>("GET", "/admin/concurrency"),

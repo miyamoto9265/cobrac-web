@@ -5,9 +5,9 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SpecResponse } from "@cobrac/shared";
 
-const api = vi.hoisted(() => ({ adminSpec: vi.fn(), listProjects: vi.fn(), listPlans: vi.fn() }));
+const api = vi.hoisted(() => ({ adminSpec: vi.fn(), listProjects: vi.fn(), listPlans: vi.fn(), listTeams: vi.fn(async () => ({ items: [] })) }));
 const auth = vi.hoisted(() => ({ ready: true, signedIn: true, me: { role: "admin", email: "admin@example.com" } as { role: string; email: string } | null, doSignOut: () => undefined }));
-vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
+vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {}, getWorkspaceTeam: () => null, setWorkspaceTeam: () => undefined }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => auth }));
 
 const { I18nProvider } = await import("../src/i18n");

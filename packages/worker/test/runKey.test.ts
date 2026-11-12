@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { DefaultApiKeyRecord, UserRecord } from "@cobrac/shared";
-import { planRunKey } from "../src/runKey.js";
+import type { DefaultApiKeyRecord, TeamRecord, UserRecord } from "@cobrac/shared";
+import { planRunKey, usesTeamKey } from "../src/runKey.js";
 
 const now = "2026-09-01T00:00:00.000Z";
 const user = (extra: Partial<UserRecord> = {}): UserRecord => ({
@@ -56,5 +56,34 @@ describe("planRunKey", () => {
       context: { purpose: "deepseek-api-key", scope: "default" },
     });
     expect(planRunKey(user({ apiKeyRegistered: true, encryptedApiKey: "openai-cipher" }), null, "deepseek-flash")).toMatchObject({ meta: { i18n: "sys.noDeepseekKey" } });
+  });
+});
+
+describe("planRunKey in a team's workspace", () => {
+  const team = (keys: TeamRecord["keys"], members: TeamRecord["members"] = [{ userId: "sub-alice", role: "member", joinedAt: now }]): TeamRecord => ({
+    kind: "team",
+    id: "t7m2q9xa",
+    teamId: "t7m2q9xa",
+    name: "Lab",
+    members,
+    keys,
+    createdAt: now,
+    createdBy: "sub-head",
+    updatedAt: now,
+  });
+  const teamKey = { encryptedApiKey: "team-cipher", last4: "wxyz", updatedAt: now, updatedBy: "sub-head" };
+
+  it("runs on the team's key, before the member's own key, under the team's context", () => {
+    const own = user({ apiKeyRegistered: true, encryptedApiKey: "own-cipher" });
+    expect(planRunKey(own, null, "gpt-6-sol", team({ openai: teamKey }))).toEqual({ source: "team", encryptedApiKey: "team-cipher", context: { purpose: "openai-api-key", teamId: "t7m2q9xa" } });
+    expect(usesTeamKey(own, team({ openai: teamKey }), "gpt-6-sol")).toBe(true);
+  });
+
+  it("falls back to the user's keys for a provider the team has no key of, or once the user left", () => {
+    const own = user({ apiKeyRegistered: true, encryptedApiKey: "own-cipher" });
+    expect(planRunKey(own, null, "gpt-6-sol", team({ anthropic: teamKey }))).toMatchObject({ source: "own" });
+    expect(planRunKey(own, null, "gpt-6-sol", team({ openai: teamKey }, []))).toMatchObject({ source: "own" });
+    expect(usesTeamKey(own, team({ openai: teamKey }, []), "gpt-6-sol")).toBe(false);
+    expect(planRunKey(user(), null, "gpt-6-sol", team({}))).toMatchObject({ error: expect.any(String) });
   });
 });

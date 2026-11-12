@@ -5,6 +5,8 @@ import { CanonicalProjectId } from "./components/CanonicalProjectId";
 import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
+import { pendingJoinToken, WorkspaceProvider } from "./lib/workspace";
+import { JoinLanding } from "./pages/JoinPage";
 import { LoginPage } from "./pages/LoginPage";
 
 // Pages load on first visit, so the first screen does not wait for every page's code.
@@ -26,6 +28,8 @@ const NewPlanPage = page(() => import("./pages/PlansPage"), "NewPlanPage");
 const ReleaseNotesPage = page(() => import("./pages/ReleaseNotesPage"), "ReleaseNotesPage");
 const SettingsPage = page(() => import("./pages/SettingsPage"), "SettingsPage");
 const SpecPage = page(() => import("./pages/SpecPage"), "SpecPage");
+const TeamPage = page(() => import("./pages/TeamPage"), "TeamPage");
+const JoinPage = page(() => import("./pages/JoinPage"), "JoinPage");
 
 export default function App() {
   const { ready, signedIn } = useAuth();
@@ -40,16 +44,21 @@ export default function App() {
     return (
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        {/* an invite link: the team's name, then sign-in (the join page opens again after it) */}
+        <Route path="/join/:token" element={<JoinLanding />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     );
   }
+  const joinToken = pendingJoinToken();
   return (
+    <WorkspaceProvider>
     <Suspense fallback={loading}>
     <Routes>
+      <Route path="/join/:token" element={<JoinPage />} />
       <Route element={<Layout />}>
         <Route path="/" element={<Navigate to="/chat" replace />} />
-        <Route path="/login" element={<Navigate to="/chat" replace />} />
+        <Route path="/login" element={<Navigate to={joinToken ? `/join/${encodeURIComponent(joinToken)}` : "/chat"} replace />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
@@ -65,6 +74,7 @@ export default function App() {
         <Route path="/canons/:canonId/pulls/:no" element={<CanonPullPage />} />
         <Route path="/projects/:projectId/:view?" element={<CanonicalProjectId><ProjectWorkspacePage /></CanonicalProjectId>} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/teams/:teamId" element={<TeamPage />} />
         <Route path="/manual" element={<ManualPage />} />
         <Route path="/releases" element={<ReleaseNotesPage />} />
         <Route path="/docs/CHANGELOG" element={<Navigate to="/releases" replace />} />
@@ -76,5 +86,6 @@ export default function App() {
       </Route>
     </Routes>
     </Suspense>
+    </WorkspaceProvider>
   );
 }

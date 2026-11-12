@@ -114,6 +114,7 @@ import {
   withPlanLease,
 } from "./plans.js";
 import { deploymentDefaultModel, implicitModel, orchestratorDefaultModel, isEffort, normModel, readLocale, requireModel, requireRunKey, stopProject, type StagedAttachment } from "./runs.js";
+import { inSpace, itemTeam, requestedTeam } from "./teams.js";
 import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
@@ -272,10 +273,11 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   const autonomous = readAutonomous(body.autonomous);
   if (autonomous && !draft) throw bad("自律実行の計画は下書きの作成から始めます");
   const canonChoice = body.canon !== undefined ? planCanonChoice(body.canon) : autonomous ? ({ mode: "new", name } as const) : null;
-  if (canonChoice?.mode === "existing" && !(await ownedCanon(canonChoice.canonId, u.userId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
+  const team = await requestedTeam(u, body.teamId);
+  if (canonChoice?.mode === "existing" && !inSpace((await ownedCanon(canonChoice.canonId, u.userId)) ?? { teamId: "-" }, team?.teamId ?? null)) throw new HTTPException(404, { message: "Canon が見つかりません" });
   // a plan starts from something to build: a goal (for a draft), capability lists or rows
   if (!goal && !staged.length && !manual.length && !csv?.rows.length) throw bad(draft ? "下書きを作成するには目標か資料が必要です" : "目標・資料・プロジェクトのどれかが必要です");
-  if (draft) await requireRunKey(u);
+  if (draft) await requireRunKey(u, team);
 
   // capability lists in CSV / TSV / text are read now (before they are moved); xlsx and PDF wait for the draft job
   const fileRows: (NormalizedPlanRow & { sourceRow: number })[] = [];
@@ -318,6 +320,7 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
     planId,
     sk: PLAN_META_SK,
     ownerUserId: u.userId,
+    ...(team ? { teamId: team.teamId } : {}),
     name,
     goal,
     status: "DRAFT",
@@ -359,7 +362,7 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
       if (fresh.status !== "DRAFT") throw conflict("確定後の計画の Canon は変更できません");
       if (canon.mode === "existing") {
         // a plan's projects join its Canon, and projects can only join their owner's Canons
-        if (!(await ownedCanon(canon.canonId, fresh.ownerUserId))) throw new HTTPException(404, { message: "Canon が見つかりません" });
+        if (!inSpace((await ownedCanon(canon.canonId, fresh.ownerUserId)) ?? { teamId: "-" }, fresh.teamId ?? null)) throw new HTTPException(404, { message: "Canon が見つかりません" });
         values.canonId = canon.canonId;
         values.canonNew = null;
       } else if (canon.mode === "new") {
@@ -589,7 +592,7 @@ export async function orderPlan(u: UserRecord, plan: PlanRecord): Promise<{ plan
 
 /** Every job of the plan may run for the owner: a key to run jobs with (400) and the chosen models (403). */
 async function requirePlanRun(u: UserRecord, plan: PlanRecord) {
-  const policy = await requireRunKey(u);
+  const policy = await requireRunKey(u, await itemTeam(u.userId, plan.teamId));
   const o = orchestratorModelOf(plan.settings);
   if (plan.settings.modelChosen && plan.settings.model) requireModel(policy, plan.settings.model);
   if (o.chosen && o.model) requireModel(policy, o.model);
@@ -686,7 +689,7 @@ export async function confirmPlan(u: UserRecord, plan: PlanRecord, locale: UiLoc
     const newCanon = !canonId && fresh.canonNew ? canonFields({ name: fresh.canonNew.name, policy: planPolicyOf(fresh.policy).granularity }, false) : null;
     if (!(await holdsPlan(fresh, "DRAFT"))) throw conflict(STATUS_CHANGED);
     if (newCanon) {
-      const created = await createCanon(u, newCanon);
+      const created = await createCanon(u, { ...newCanon, teamId: fresh.teamId ?? null });
       canonId = created.canonId;
       // stored at once, so a confirmation that fails after this point keeps the Canon instead of making another
       if (!(await updatePlan(plan.planId, { canonId, canonNew: null }, { status: "DRAFT" }))) throw conflict(STATUS_CHANGED);

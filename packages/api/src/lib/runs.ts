@@ -2,7 +2,7 @@
 // and the BRA Planner runner call the same functions with the owner's UserRecord, so a plan row starts its project
 // exactly as the create screen does.
 import { HTTPException } from "hono/http-exception";
-import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, PlanPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, UiLocale, UserRecord } from "@cobrac/shared";
+import type { HypothesisInput, JobRecord, KeySource, ModelPolicy, PlanPolicy, ProjectAttachment, ProjectRecord, ReasoningEffort, TeamRecord, UiLocale, UserRecord } from "@cobrac/shared";
 import { DEFAULT_AGENT_MODEL, DEFAULT_CODEX_MODEL, DEFAULT_ORCHESTRATOR_MODEL, HARNESS_RULES, REASONING_EFFORTS, allowedDefaultModel, attachmentFileKey, canRunJobs, hypothesisCreateFields, isClaudeModel, isDeepSeekModel, isEmptyPlanPolicy, isUiLocale, newId, nowIso, policyAllows, sourceForModel } from "@cobrac/shared";
 import { env } from "../env.js";
 import { enqueueRun, moveStagingToProject, stopEcsTask } from "./aws.js";
@@ -39,15 +39,16 @@ export const legacyDefaultModel = () => env.codexModel || DEFAULT_CODEX_MODEL;
 /** Model of the Orchestrator's own jobs when the owner picked none. */
 export const orchestratorDefaultModel = () => DEFAULT_ORCHESTRATOR_MODEL;
 
-/** The key a user's jobs would run with and the model policy; `source` null when the user has none. */
-export async function runPolicy(u: UserRecord): Promise<ModelPolicy> {
-  return (await modelPolicy(u)).policy;
+/** The key a user's jobs would run with and the model policy (in `team`'s workspace: its keys first); `source` null when the user has none. */
+export async function runPolicy(u: UserRecord, team?: TeamRecord | null): Promise<ModelPolicy> {
+  return (await modelPolicy(u, team)).policy;
 }
 
 /** The caller's key and model policy; 400 when the caller has no key (of either provider) to run a job with. */
-export async function requireRunKey(u: UserRecord): Promise<ModelPolicy> {
-  const policy = await runPolicy(u);
+export async function requireRunKey(u: UserRecord, team?: TeamRecord | null): Promise<ModelPolicy> {
+  const policy = await runPolicy(u, team);
   if (canRunJobs(policy)) return policy;
+  if (team) throw bad("チームの API キーが登録されていません。チーム管理者に登録を依頼するか、自分の API キーを登録してください");
   if (u.orgAccess) throw bad("いまはジョブを実行できません。管理者に連絡してください");
   throw bad("API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
 }
@@ -124,6 +125,8 @@ export interface NewProject {
   beforeQueue?: (project: ProjectRecord) => Promise<void>;
   /** "Allow hypotheses": hypothesis mode with scope S1 on the whole HCD (absent: literature-supported only, no new attributes) */
   hypothesis?: HypothesisInput;
+  /** Team workspace of the project (absent / null: personal) */
+  teamId?: string | null;
 }
 
 /** Stores a new project and its first job, then queues the job. */
@@ -148,6 +151,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     roi,
     tlf,
     contributor: input.contributor,
+    ...(input.teamId ? { teamId: input.teamId } : {}),
     ...(attachments.length ? { attachments } : {}),
     model,
     reasoningEffort,
@@ -187,6 +191,7 @@ export async function createProject(u: UserRecord, input: NewProject): Promise<P
     type: "initial",
     status: "QUEUED",
     keySource: input.keySource,
+    ...(input.teamId ? { teamId: input.teamId } : {}),
     instruction: null,
     pendingAnswer: null,
     locale,
@@ -245,6 +250,7 @@ export async function queueRetry(u: UserRecord, p: ProjectRecord, policy: ModelP
     type: last?.type ?? "initial",
     status: "QUEUED",
     keySource: jobKeySource(policy, p.model),
+    ...(p.teamId ? { teamId: p.teamId } : {}),
     instruction: last?.instruction ?? null,
     pendingAnswer: null,
     locale: opts.locale ?? last?.locale ?? null,
@@ -283,6 +289,7 @@ export async function queueFollowup(
     type: "followup",
     status: "QUEUED",
     keySource: jobKeySource(policy, p.model),
+    ...(p.teamId ? { teamId: p.teamId } : {}),
     instruction: text,
     pendingAnswer: null,
     locale: opts.locale,
@@ -359,7 +366,7 @@ export async function answerQuestion(
   const job = await getJob(p.projectId, p.activeJobId, true);
   if (!job) return false;
   const moved = await moveToAllowedModel(u, p, policy);
-  const values: Partial<JobRecord> = { status: "QUEUED", pendingAnswer: text, pendingAnswerSource: opts.source, keySource: jobKeySource(policy, p.model), ...(opts.locale ? { locale: opts.locale } : {}) };
+  const values: Partial<JobRecord> = { status: "QUEUED", pendingAnswer: text, pendingAnswerSource: opts.source, keySource: jobKeySource(policy, p.model), ...(p.teamId ? { teamId: p.teamId } : {}), ...(opts.locale ? { locale: opts.locale } : {}) };
   if (opts.source === "auto") {
     if (!(await updateJobIfStatus(p.projectId, job.jobId, "WAITING_USER_INPUT", values))) return false;
   } else await updateJob(p.projectId, job.jobId, values);

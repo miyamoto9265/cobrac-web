@@ -1,6 +1,6 @@
 {
   "name": "@cobrac/web",
-  "version": "0.53.1",
+  "version": "0.54.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -17,6 +17,7 @@
     "aws-amplify": "^6.8.2",
     "html-to-image": "^1.11.13",
     "lucide-react": "^0.460.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
@@ -24,6 +25,7 @@
     "remark-gfm": "^4.0.0"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",

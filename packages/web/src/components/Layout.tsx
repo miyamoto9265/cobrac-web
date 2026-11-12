@@ -4,17 +4,20 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "reac
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
-import { api } from "../lib/api";
+import { api, getWorkspaceTeam } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { NEW_PLAN_PATH } from "../lib/plan";
 import { notifyProjectsChanged, useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { AlphaBadge } from "./AlphaBadge";
 import { ThemeToggle } from "./ThemeToggle";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { useWorkspace } from "../lib/workspace";
 
 export function Layout() {
   const t = useT();
   const { me, doSignOut } = useAuth();
+  const { teamId } = useWorkspace();
   const navigate = useNavigate();
   const location = useLocation();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -25,9 +28,15 @@ export function Layout() {
   const [plans, setPlans] = useState<Record<string, PlanSummary> | null>(null);
 
   const reload = useCallback(() => {
-    void api.listProjects().then((r) => setProjects(r.items)).catch(() => undefined);
-    void api.listPlans().then((r) => setPlans(Object.fromEntries(r.items.map((x) => [x.planId, x])))).catch(() => undefined);
+    // a list that arrives after the workspace was switched belongs to the old one
+    const space = getWorkspaceTeam();
+    void api.listProjects().then((r) => getWorkspaceTeam() === space && setProjects(r.items)).catch(() => undefined);
+    void api.listPlans().then((r) => getWorkspaceTeam() === space && setPlans(Object.fromEntries(r.items.map((x) => [x.planId, x])))).catch(() => undefined);
   }, []);
+  useEffect(() => {
+    setProjects([]);
+    setPlans(null);
+  }, [teamId]);
   useProjectsChanged(reload);
 
   useEffect(() => {
@@ -87,6 +96,7 @@ export function Layout() {
             <X size={20} />
           </button>
         </div>
+        <WorkspaceSwitcher />
         {/* the two ways to start, side by side: a mission (the Orchestrator builds many BRAs) and a single project */}
         <div className="grid grid-cols-2 gap-1.5 px-3">
           <button
@@ -207,7 +217,8 @@ export function Layout() {
         <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
           {/* a page's code loads on its first visit; the sidebar stays meanwhile */}
           <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500"><div className="animate-pulse">{t("loading")}</div></div>}>
-            <Outlet />
+            {/* a page opened again in another workspace starts afresh (its lists are that workspace's) */}
+            <Outlet key={teamId ?? "personal"} />
           </Suspense>
         </main>
       </div>
