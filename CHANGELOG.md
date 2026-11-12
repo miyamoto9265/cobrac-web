@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Fixed
+- On the Canon page's HCD graph, a connection that several projects pushed with different references was drawn as several overlapping lines. It is now one line per sender and receiver, like a project's HCD, with the references and notes of every entry joined (it is hidden only when every project that pushed it is hidden)
+
 ## [0.55.0] - 2026-11-12
 
 ### Changed

@@ -11,6 +11,13 @@ function roiClassOf(values: UcRoi[]): RoiClass {
   return set.has("input") ? "noROI_input" : "noROI_output";
 }
 
+const pairKey = (source: string, target: string) => `${source}\u0000${target}`;
+
+function joinDistinct(a: string, b: string, sep: string): string {
+  if (!b || a.split(sep).includes(b)) return a;
+  return a ? `${a}${sep}${b}` : b;
+}
+
 /**
  * The shared layer of a Canon snapshot as an HCD graph, so the Canon page can use the project's graph view: Uniform
  * circuits (and Collections that still end a connection) are nodes, the other Collections and the groupings are boxes,
@@ -74,18 +81,36 @@ export function canonHcdGraph(stored: CanonSnapshot): HcdGraph {
     };
   });
 
-  const edges: HcdEdge[] = connections.map((c) => ({
-    id: c.key,
-    source: idOf.get(c.sender) ?? c.senderCircuitId,
-    target: idOf.get(c.receiver) ?? c.receiverCircuitId,
-    comments: c.comment,
-    referenceId: c.referenceId,
-    taxon: c.taxon,
-    measurementMethod: c.method,
-    pointersOnLiterature: c.pointersOnLiterature,
-    pointersOnFigure: c.pointersOnFigure,
-    outputSemantics: circuitByKey.get(c.sender)?.outputSemantics ?? "",
-  }));
+  // a connection has one entry per reference (and the projects that pushed it), but the graph draws one line per
+  // sender -> receiver like the project's HCD, with the references and notes of every entry joined
+  const byPair = new Map<string, HcdEdge>();
+  for (const c of connections) {
+    const source = idOf.get(c.sender) ?? c.senderCircuitId;
+    const target = idOf.get(c.receiver) ?? c.receiverCircuitId;
+    const prev = byPair.get(pairKey(source, target));
+    if (!prev) {
+      byPair.set(pairKey(source, target), {
+        id: c.key,
+        source,
+        target,
+        comments: c.comment,
+        referenceId: c.referenceId,
+        taxon: c.taxon,
+        measurementMethod: c.method,
+        pointersOnLiterature: c.pointersOnLiterature,
+        pointersOnFigure: c.pointersOnFigure,
+        outputSemantics: circuitByKey.get(c.sender)?.outputSemantics ?? "",
+      });
+      continue;
+    }
+    prev.comments = joinDistinct(prev.comments, c.comment, " / ");
+    prev.referenceId = joinDistinct(prev.referenceId, c.referenceId, "; ");
+    prev.taxon = joinDistinct(prev.taxon, c.taxon, "; ");
+    prev.measurementMethod = joinDistinct(prev.measurementMethod, c.method, "; ");
+    prev.pointersOnLiterature = joinDistinct(prev.pointersOnLiterature, c.pointersOnLiterature, "\n");
+    prev.pointersOnFigure = joinDistinct(prev.pointersOnFigure, c.pointersOnFigure, "; ");
+  }
+  const edges = [...byPair.values()];
 
   return {
     kind: "hcd",
@@ -106,13 +131,20 @@ export function hideProjects(graph: HcdGraph, snap: CanonSnapshot, hidden: Reado
   if (!hidden.size) return graph;
   const only = (sources: string[]) => sources.length > 0 && sources.every((s) => hidden.has(s));
   const goneCircuits = new Set(snap.circuits.filter((c) => only(c.sources)).map((c) => c.circuitId));
-  const goneEdges = new Set(snap.connections.filter((c) => only(c.sources)).map((c) => c.key));
+  // one line stands for every entry of its sender -> receiver: it goes only when each of them is hidden
+  const cur = currentCanonSnapshot(snap);
+  const idOf = new Map<string, string>([...cur.circuits.map((c) => [c.key, c.circuitId] as const), ...cur.groups.map((g) => [g.key, g.circuitId] as const)]);
+  const shownPairs = new Set(
+    cur.connections
+      .filter((c) => c.state !== "invalidated" && !only(c.sources))
+      .map((c) => pairKey(idOf.get(c.sender) ?? c.senderCircuitId, idOf.get(c.receiver) ?? c.receiverCircuitId)),
+  );
   const nodes = graph.nodes.filter((n) => !goneCircuits.has(n.id));
   const ids = new Set(nodes.map((n) => n.id));
   return {
     ...graph,
     nodes,
-    edges: graph.edges.filter((e) => !goneEdges.has(e.id) && ids.has(e.source) && ids.has(e.target)),
+    edges: graph.edges.filter((e) => shownPairs.has(pairKey(e.source, e.target)) && ids.has(e.source) && ids.has(e.target)),
     collections: (graph.collections ?? []).map((c) => ({ ...c, members: c.members.filter((m) => ids.has(m)) })).filter((c) => c.members.length > 0 && !goneCircuits.has(c.id)),
   };
 }
