@@ -85,7 +85,7 @@ export function CanonSection({ d, onSaved, onError, flushRef }: { d: PlanDetailR
     const shown = c?.missing ? (
       <p className="text-sm text-rose-700">{t("plan.canonMissing")}</p>
     ) : c ? (
-      <Link to={canonPath(c.canonId)} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 text-sm text-blue-700 hover:underline coarse:min-h-11">
+      <Link to={canonPath(c.canonId)} className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-x-2 text-sm text-violet-700 hover:underline coarse:min-h-11">
         <Layers size={14} className="shrink-0" aria-hidden />
         <span className="min-w-0 break-words font-medium">{c.name}</span>
         <span className="font-mono text-xs text-slate-500">{t("canon.revision", { n: c.headRevision })}</span>

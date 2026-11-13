@@ -144,6 +144,7 @@ describe("new plan with a draft", () => {
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     const draftBtn = button("Create draft")!;
     // a draft needs a goal or a capability list
     expect(draftBtn.disabled).toBe(true);
@@ -179,6 +180,7 @@ describe("new plan with a draft", () => {
       ],
       draft: true,
       locale: "en",
+      canon: { mode: "new", name: "Language map" },
     });
     expect(vi.mocked(uploadFile).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(api.createPlan).mock.invocationCallOrder[0]);
     expect(api.getPlan).toHaveBeenCalledWith(PLAN);
@@ -196,10 +198,11 @@ describe("new plan with a draft", () => {
     await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv]);
     await click(button("Create mission"));
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }] });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }], canon: { mode: "new", name: "Language map" } });
   });
 
   it("enables the draft with a goal alone and keeps “Create mission” without a draft", async () => {
@@ -211,11 +214,12 @@ describe("new plan with a draft", () => {
     await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
     expect(button("Create draft")!.disabled).toBe(false);
     await click(button("Create mission"));
     expect(api.createUpload).not.toHaveBeenCalled();
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい" });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい", canon: { mode: "new", name: "Language map" } });
   });
 
   it("keeps “Create mission” disabled until a goal, a file or rows are given besides the name", async () => {
@@ -228,6 +232,7 @@ describe("new plan with a draft", () => {
     const create = button("ミッションを作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     // a name alone is not enough: the API answers 400 「目標・資料・プロジェクトのどれかが必要です」
     expect(create.disabled).toBe(true);
     const hint = q('[data-testid="plan-need-input"]')!;

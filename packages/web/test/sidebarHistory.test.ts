@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ProjectRecord, ProjectStatus } from "@cobrac/shared";
-import { historyEntries, isArchived, planRowStatus } from "../src/components/Layout";
+import { historyEntries, isArchived, planCanonName, planRowStatus } from "../src/components/Layout";
 
 const p = (projectId: string, planId: string | null = null, status: ProjectStatus = "COMPLETED") => ({ projectId, planId, status }) as ProjectRecord;
 
@@ -34,5 +34,15 @@ describe("sidebar history", () => {
     expect(planRowStatus([p("a", "x", "RUNNING"), p("b", "x", "WAITING_USER_INPUT")])).toBe("WAITING_USER_INPUT");
     expect(planRowStatus([p("a", "x", "RUNNING"), p("b", "x", "FAILED")])).toBe("FAILED");
     expect(planRowStatus([p("a", "x"), p("b", "x", "CANCELLED")])).toBeNull();
+  });
+
+  it("names the Canon a mission delivers to: its Canon, or the one it will create", () => {
+    const names = { c1: "Cerebellar VOR" };
+    expect(planCanonName({ canonId: "c1" }, names)).toBe("Cerebellar VOR");
+    expect(planCanonName({ canonId: null, canonNew: { name: "Memory" } }, names)).toBe("Memory");
+    // no Canon, a Canon whose name has not arrived yet, or a plan that is not listed
+    expect(planCanonName({ canonId: null }, names)).toBeNull();
+    expect(planCanonName({ canonId: "c2" }, names)).toBeNull();
+    expect(planCanonName(undefined, names)).toBeNull();
   });
 });

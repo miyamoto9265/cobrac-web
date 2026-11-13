@@ -19,7 +19,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { CANON_TABLES, canonHcdGraph, canonSheet, circuitsOfProject, hideProjects } from "../lib/canonGraph";
 import { fmtDate } from "../lib/format";
-import { NEW_PLAN_PATH, bulkApprovable } from "../lib/plan";
+import { bulkApprovable, newPlanPath } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { useGraphLayout } from "../lib/useGraphLayout";
 import { CANON_VIEWS, PolicyLabel, canonPath, canonPullPath, inputCls, primaryBtn, type CanonView } from "./CanonsPage";
@@ -591,7 +591,7 @@ function CanonGraphView({ detail, snapshot, focus, onFocus }: { detail: CanonDet
   );
 }
 
-function CanonEmpty({ owner, onAddProjects }: { owner: boolean; onAddProjects: () => void }) {
+function CanonEmpty({ canonId, owner, onAddProjects }: { canonId: string; owner: boolean; onAddProjects: () => void }) {
   const t = useT();
   const navigate = useNavigate();
   return (
@@ -601,7 +601,7 @@ function CanonEmpty({ owner, onAddProjects }: { owner: boolean; onAddProjects: (
       <p className="max-w-md text-sm text-slate-500">{t("cv.emptyHelp")}</p>
       {owner && (
         <div className="mt-1 flex flex-wrap justify-center gap-2">
-          <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={primaryBtn}>
+          <button type="button" onClick={() => navigate(newPlanPath(canonId))} className={primaryBtn}>
             <Plus size={14} aria-hidden /> {t("plan.new")}
           </button>
           <button type="button" onClick={onAddProjects} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 coarse:min-h-11">
@@ -741,7 +741,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
       case null:
         return null;
       case "issues":
-        if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
+        if (!hasContent) return <CanonEmpty canonId={canonId} owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
         if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
         return (
           <CardPane>
@@ -750,7 +750,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
         );
       case "hcd":
       case "tables":
-        if (!hasContent) return <CanonEmpty owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
+        if (!hasContent) return <CanonEmpty canonId={canonId} owner={owner} onAddProjects={() => navigate(canonPath(canonId, "projects"))} />;
         if (!snapshot) return <div className="p-6 text-sm text-slate-500">{t("loading")}</div>;
         return view === "hcd" ? <CanonGraphView detail={detail} snapshot={snapshot} focus={focus} onFocus={setFocus} /> : <CanonTablesView snapshot={snapshot} />;
       case "projects":

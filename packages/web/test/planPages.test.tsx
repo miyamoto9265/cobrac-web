@@ -71,7 +71,7 @@ async function render(path: string, state?: unknown) {
   await act(async () => {
     r.render(
       <I18nProvider>
-        <MemoryRouter initialEntries={[{ pathname: path, state }]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter initialEntries={[{ pathname: path.split("?")[0], search: path.includes("?") ? `?${path.split("?")[1]}` : "", state }]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
             <Route path="/canons" element={<CanonBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
@@ -253,6 +253,7 @@ describe("new mission", () => {
     expect(page.querySelector("h1")!.textContent).toContain("New mission");
     expect(page.querySelector('input[maxlength="200"]')).toBe(document.activeElement);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     // the composer of the new-project screen: the list is pasted from the “+” menu into a field of the card
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
     await act(async () => button("Paste a list")!.click());
@@ -263,7 +264,7 @@ describe("new mission", () => {
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!.click());
     await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
     await act(async () => button("Create mission")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n", canon: { mode: "new", name: "Language map" } });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
   });
 
@@ -273,6 +274,7 @@ describe("new mission", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
     await act(async () => button("Paste a list")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
@@ -290,7 +292,75 @@ describe("new mission", () => {
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
     expect(chip.textContent).toContain("≤ $35");
     await act(async () => button("Start")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 } }));
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 }, canon: { mode: "new", name: "Language map" } }));
+  });
+});
+
+describe("Canon of a new mission", () => {
+  const canon = (canonId: string, name: string) => ({ canonId, ownerUserId: "alice", name, description: "", policy: "", visibility: "private", headRevision: 3, memberCount: 2, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" });
+  const fill = async () => {
+    await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Extend VOR");
+    await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "goal");
+  };
+
+  it("asks for the name of the new Canon instead of naming it after the mission", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    await render("/plans/new");
+    await fill();
+    // a new Canon is the default: its name is a field of the card, empty until typed
+    expect(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!.value).toBe("");
+    expect(q<HTMLButtonElement>('[data-testid="plan-start"]')!.disabled).toBe(true);
+    expect(q('[data-testid="plan-need-canon"]')!.textContent).toBe("Name the new Canon");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Cerebellar VOR");
+    expect(q('[data-testid="plan-need-canon"]')).toBeNull();
+    expect(q<HTMLButtonElement>('[data-testid="plan-start"]')!.disabled).toBe(false);
+  });
+
+  it("starts with the Canon of the link chosen and sends it", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    api.listCanons.mockResolvedValue({ items: [canon("c0000001", "Cerebellar VOR"), canon("c0000002", "Vision")], shared: [] });
+    api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
+    api.getPlan.mockResolvedValue(detail("DRAFT", []));
+    await render("/plans/new?canon=c0000002");
+    await fill();
+    expect(q('[data-testid="plan-canon-chip"]')!.textContent).toContain("Vision");
+    expect(q('[data-testid="plan-canon-name"]')).toBeNull();
+    await act(async () => button("Start")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Extend VOR", canon: { mode: "existing", canonId: "c0000002" } }));
+  });
+
+  it("lets the mission go without a Canon, and falls back to a new one when the linked Canon is not the owner's", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    api.listCanons.mockResolvedValue({ items: [canon("c0000001", "Cerebellar VOR")], shared: [] });
+    api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
+    api.getPlan.mockResolvedValue(detail("DRAFT", []));
+    await render("/plans/new?canon=c9999999");
+    await fill();
+    expect(q('[data-testid="plan-canon-name"]')).not.toBeNull();
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-canon-chip"]')!.click());
+    expect(document.querySelectorAll('[data-testid="plan-canon-option"]')).toHaveLength(1);
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-canon-none"]')!.click());
+    expect(q('[data-testid="plan-canon-name"]')).toBeNull();
+    await act(async () => button("Start")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ canon: { mode: "none" } }));
+  });
+});
+
+describe("where a mission sits", () => {
+  it("links the mission to its own Canon above the title", async () => {
+    api.getPlan.mockResolvedValue({ ...detail("RUNNING", []), canon: { canonId: "c0000001", name: "Cerebellar VOR", headRevision: 3 } });
+    await render("/plans/n4h8w2rk");
+    const link = q<HTMLAnchorElement>('[data-testid="trail-canon"]')!;
+    expect(link.getAttribute("href")).toBe("/canons/c0000001");
+    expect(link.textContent).toContain("Cerebellar VOR");
+    expect(q('[data-testid="trail"] [aria-current="page"]')!.textContent).toBe("Mission");
+  });
+
+  it("shows the mission alone when it has no Canon", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", []));
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="trail-canon"]')).toBeNull();
+    expect(q('[data-testid="trail"]')!.textContent).toBe("Mission");
   });
 });
 

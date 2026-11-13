@@ -18,6 +18,7 @@ export const missionsEn = {
   "cm.finished": "Finished {n}",
   "cm.empty": "No Canons or missions yet. Start a mission and the Orchestrator builds a Canon for you.",
   "cm.archived": "Archived",
+  "cm.where": "You are here",
 };
 
 export type MissionsKey = keyof typeof missionsEn;
@@ -37,6 +38,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "終わったもの {n}",
     "cm.empty": "Canon とミッションはまだありません。ミッションを始めると、オーケストレーターが Canon を作ります。",
     "cm.archived": "アーカイブ済み",
+    "cm.where": "現在位置",
   },
   zh: {
     "nav.newMission": "计划",
@@ -51,6 +53,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "已结束 {n}",
     "cm.empty": "还没有 Canon 和计划。开始一个计划后，Orchestrator 会为您创建 Canon。",
     "cm.archived": "已归档",
+    "cm.where": "当前位置",
   },
   zhTw: {
     "nav.newMission": "計畫",
@@ -65,6 +68,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "已結束 {n}",
     "cm.empty": "還沒有 Canon 和計畫。開始一個計畫後，Orchestrator 會為您建立 Canon。",
     "cm.archived": "已封存",
+    "cm.where": "目前位置",
   },
   ko: {
     "nav.newMission": "미션",
@@ -79,6 +83,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "끝난 항목 {n}",
     "cm.empty": "아직 Canon과 미션이 없습니다. 미션을 시작하면 Orchestrator가 Canon을 만듭니다.",
     "cm.archived": "보관됨",
+    "cm.where": "현재 위치",
   },
   de: {
     "nav.newMission": "Mission",
@@ -93,6 +98,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "Beendet {n}",
     "cm.empty": "Noch keine Canons oder Missionen. Starten Sie eine Mission, und der Orchestrator legt einen Canon an.",
     "cm.archived": "Archiviert",
+    "cm.where": "Sie sind hier",
   },
   fr: {
     "nav.newMission": "Mission",
@@ -107,6 +113,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "Terminées {n}",
     "cm.empty": "Aucun Canon ni mission pour l’instant. Lancez une mission et l’Orchestrator crée un Canon pour vous.",
     "cm.archived": "Archivée",
+    "cm.where": "Vous êtes ici",
   },
   es: {
     "nav.newMission": "Misión",
@@ -121,6 +128,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "Terminadas {n}",
     "cm.empty": "Aún no hay Canons ni misiones. Inicie una misión y el Orchestrator creará un Canon.",
     "cm.archived": "Archivada",
+    "cm.where": "Está aquí",
   },
   pt: {
     "nav.newMission": "Missão",
@@ -135,6 +143,7 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "Concluídas {n}",
     "cm.empty": "Ainda não há Canons nem missões. Inicie uma missão e o Orchestrator criará um Canon.",
     "cm.archived": "Arquivada",
+    "cm.where": "Você está aqui",
   },
   ru: {
     "nav.newMission": "Миссия",
@@ -149,5 +158,6 @@ export const MISSIONS_CATALOG: Record<UiLocale, Record<MissionsKey, string>> = {
     "cm.finished": "Завершённые {n}",
     "cm.empty": "Пока нет ни Canon, ни миссий. Запустите миссию, и Orchestrator создаст Canon.",
     "cm.archived": "В архиве",
+    "cm.where": "Вы здесь",
   },
 };

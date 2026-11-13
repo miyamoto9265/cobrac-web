@@ -177,9 +177,10 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 
 1. Press "+ Mission" at the top of the sidebar and enter a name and a goal (for example "Cover the BRA of language").
 2. With the “+” under the fields, add files (CSV, xlsx, PDF and others) or choose “Paste a list” and paste one. Each entry of the list is one project.
-3. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
-4. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
-5. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
+3. Choose the Canon the projects are delivered to with the "Canon" chip. "New Canon" is chosen at first: name it in the "Canon" field of the card (its own name, not the mission's). Press the chip to switch to one of your Canons or to "None". Opened from "New mission" on a Canon's page, the screen starts with that Canon chosen.
+4. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
+5. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
+6. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
 ### Ordering
 
@@ -194,6 +195,7 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - A failed row is retried automatically up to 2 times; after that it "Needs attention" (choose "Retry" or "Skip").
 - An automatically ordered mission does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the mission page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
 - In an automatically ordered mission, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
+- The top of a mission's page and of a project's page shows the Canon it delivers to and the mission it belongs to, as "Canon … › Mission … › Project". Each one is a link. A Canon is shown in violet, a mission in blue and a project in teal. In the sidebar history, a mission's entry names its Canon too.
 - The "Canon" page lists, for each Canon, the missions that build it (running, drafts and finished ones); missions without a Canon come last.
 - "Your turn" on the "Canon" page gathers what is waiting for you, such as questions and approvals.
 - The projects a mission creates open on the usual project page.
@@ -208,7 +210,7 @@ In an **autonomous run** the Orchestrator acts for you and takes the mission to 
 
 To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the "Autonomous run" chip of the new mission screen or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
-- Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the mission is created.
+- Once the draft is written, it is confirmed and started automatically. A new Canon, when chosen, is created at this point.
 - The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the mission's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
 - The AI reads each PR and approves, requests changes or rejects it.
 - When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the mission's Canon is gone does the mission pause for you.

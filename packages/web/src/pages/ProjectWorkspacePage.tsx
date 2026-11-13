@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from "react-route
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
 import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
+import { Trail, trailSteps, useAboveNames } from "../components/Trail";
 import { VisibilityToggle } from "../components/VisibilityToggle";
 import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
@@ -23,7 +24,6 @@ import { VersionsView } from "../components/workspace/VersionsView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
 import { isActive } from "../lib/format";
-import { planPath } from "../lib/plan";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
 import { useProjectSocket } from "../lib/ws";
@@ -65,6 +65,8 @@ function Workspace({ projectId }: { projectId: string }) {
   const { view: rawView } = useParams();
   const { search } = useLocation();
   const [project, setProject] = useState<ProjectRecord | null>(null);
+  // the names of the Canon and the mission above the project, for the trail
+  const above = useAboveNames(project?.canonId, project?.planId);
   const [cloneCount, setCloneCount] = useState(0);
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
@@ -249,6 +251,15 @@ function Workspace({ projectId }: { projectId: string }) {
     <div className="flex h-full min-h-0">
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+          {(project.canonId || project.planId) && (
+            <Trail
+              className="mb-1"
+              steps={trailSteps("project", {
+                canon: project.canonId ? { canonId: project.canonId, name: above.canon } : null,
+                plan: project.planId ? { planId: project.planId, name: above.plan } : null,
+              })}
+            />
+          )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <ProjectTitle project={project} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
             <StatusBadge status={project.status} />
@@ -311,11 +322,6 @@ function Workspace({ projectId }: { projectId: string }) {
                 <b className="text-slate-700">TLF:</b> {project.tlf || t("unspecified")}
               </span>
               {project.canonId && <CanonBadge projectId={project.projectId} canonId={project.canonId} busy={active} onFollowup={() => void load()} />}
-              {project.planId && (
-                <Link to={planPath(project.planId)} className="text-blue-700 hover:underline coarse:py-1.5" data-testid="project-plan">
-                  {t("plan.shortName")} · <span className="font-mono">{project.planId}</span>
-                </Link>
-              )}
               {project.visibility === "public" && (
                 <Link to={publicProjectPath(project.projectId)} className="text-emerald-700 hover:underline coarse:py-1.5">
                   {t("vis.publicPage")} · {t("explore.clones", { n: cloneCount })}

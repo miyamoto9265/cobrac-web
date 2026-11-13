@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, RotateCcw, Send, SkipForward, Square, Trash2, Upload, X } from "lucide-react";
+import { Archive, ArchiveRestore, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, RotateCcw, Send, SkipForward, Square, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
@@ -19,6 +19,7 @@ import { notifyProjectsChanged } from "../lib/projectList";
 import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
 import { canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
+import { Trail, trailSteps } from "../components/Trail";
 
 // The plan page. A draft (DRAFT / DRAFTING) is laid out by components/plan/PlanDraft.tsx; this file lays out a plan once it
 // is confirmed (RUNNING, PAUSED, COMPLETED, CANCELLED) and holds the header both share.
@@ -738,9 +739,7 @@ export function PlanDetailPage() {
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <div className="max-w-5xl">
-        <Link to="/canons" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 coarse:min-h-11">
-          <ArrowLeft size={12} /> {t("nav.canons")}
-        </Link>
+        <Trail className="mb-2" steps={trailSteps("mission", { canon: d.canon && !d.canon.missing ? d.canon : plan.canonNew ? { name: plan.canonNew.name } : null })} />
         <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
           {renaming === null ? (
             <h1 className="flex min-w-0 items-center gap-2 break-words text-xl font-semibold">

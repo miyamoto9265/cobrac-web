@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowUp, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import type { CanonRecord, PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type { CanonRecord, PlanCanonChoice, PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
 import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { MenuHeading, Popover } from "../components/create/Popover";
@@ -423,7 +423,34 @@ function CreatePlanComposer() {
   const [manual, setManual] = useState(false);
   const autonomous = !manual;
   const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
-  const [focused, setFocused] = useState<"name" | "goal" | "list" | null>(null);
+  const [focused, setFocused] = useState<"name" | "goal" | "list" | "canon" | null>(null);
+  // the Canon the mission delivers to: a new one (named here, not after the mission), one of the owner's, or none.
+  // `?canon=<id>` (the "new mission" link of a Canon's page) starts with that Canon chosen.
+  const [params] = useSearchParams();
+  const fromCanon = params.get("canon");
+  const [canonMode, setCanonMode] = useState<PlanCanonChoice["mode"]>(fromCanon ? "existing" : "new");
+  const [canonId, setCanonId] = useState(fromCanon ?? "");
+  const [canonName, setCanonName] = useState("");
+  const [canons, setCanons] = useState<CanonRecord[] | null>(null);
+  const canonRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let live = true;
+    // only the owner's own Canons that are not deleted (a co-edited Canon cannot take the owner's projects)
+    api
+      .listCanons()
+      .then((r) => live && setCanons((r.items ?? []).filter((c) => !c.deletedAt)))
+      .catch(() => live && setCanons([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+  // a Canon of the link that is not the owner's (or is gone) falls back to a new one
+  useEffect(() => {
+    if (canons && canonMode === "existing" && !canons.some((c) => c.canonId === canonId)) setCanonMode("new");
+  }, [canons, canonMode, canonId]);
+  const chosenCanon = canonMode === "existing" ? canons?.find((c) => c.canonId === canonId) : undefined;
+  const canonChoice: PlanCanonChoice = canonMode === "existing" ? { mode: "existing", canonId } : canonMode === "new" ? { mode: "new", name: canonName.trim() } : { mode: "none" };
+  const canonOk = canonMode === "none" || (canonMode === "existing" ? !!chosenCanon : !!canonName.trim());
   const fileRef = useRef<HTMLInputElement>(null);
   const needId = useId();
   const goalRef = useRef<HTMLTextAreaElement>(null);
@@ -440,7 +467,7 @@ function CreatePlanComposer() {
       const attachments = await uploadPlanFiles(files, setUploading);
       setUploading(null);
       const auto = draft && autonomous ? { autonomous: { maxCostUsd: Number(maxCost) } } : {};
-      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto });
+      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto, canon: canonChoice });
       navigate(planPath(r.plan.planId), { state: { rejected: r.rejected } });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -450,7 +477,7 @@ function CreatePlanComposer() {
     }
   };
   const hasInput = !!goal.trim() || files.length > 0 || !!pasted.trim();
-  const canDraft = !!name.trim() && hasInput;
+  const canDraft = !!name.trim() && hasInput && canonOk;
   const costOk = Number(maxCost) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(maxCost) <= AUTONOMOUS_MAX_COST_RANGE.max;
   const canStart = !busy && canDraft && (!autonomous || costOk);
   const nAttached = files.length + (pasted.trim() ? 1 : 0);
@@ -458,9 +485,10 @@ function CreatePlanComposer() {
   const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:h-11 coarse:w-11";
   const field = "w-full resize-none bg-transparent p-0 text-base leading-7 text-slate-900 caret-blue-600 outline-none placeholder:text-slate-400";
   const row = (k: typeof focused) => `flex items-start gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5 ${focused === k ? "bg-blue-50/50" : ""}`;
+  // a tag longer than two characters (“Canon”) is set tighter so that it stays inside the tag column
   const tag = (k: typeof focused, label: string, sub: string) => (
     <div className="w-10 shrink-0 select-none pt-1 text-center sm:w-11" aria-hidden>
-      <span className={`block text-[13px] font-semibold tracking-wider ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
+      <span className={`block font-semibold ${label.length > 4 ? "text-[12px] leading-[1.625]" : "text-[13px] tracking-wider"} ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
       {sub && <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>}
     </div>
   );
@@ -501,6 +529,26 @@ function CreatePlanComposer() {
               </>
             )}
           </div>
+          {canonMode === "new" && (
+            <>
+              {divider}
+              <div className={row("canon")}>
+                {tag("canon", t("mc.canonTag"), t("mc.canonSub"))}
+                <input
+                  ref={canonRef}
+                  value={canonName}
+                  onChange={(e) => setCanonName(e.target.value)}
+                  onFocus={() => setFocused("canon")}
+                  onBlur={() => setFocused(null)}
+                  placeholder={t("mc.canonPlaceholder")}
+                  aria-label={t("cm.newCanon")}
+                  maxLength={200}
+                  data-testid="plan-canon-name"
+                  className={`${field} min-w-0 flex-1`}
+                />
+              </div>
+            </>
+          )}
           {files.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pb-1 sm:px-4" data-testid="plan-file-list" aria-label={t("plan.files")}>
               {files.map((f, i) => (
@@ -546,6 +594,74 @@ function CreatePlanComposer() {
                   </button>
                 </div>
               )}
+            </Popover>
+            <Popover
+              testId="plan-canon-chip"
+              title="Canon"
+              disabled={busy}
+              width="w-72"
+              trigger={{
+                label: `Canon: ${canonMode === "existing" ? (chosenCanon?.name ?? "") : canonMode === "new" ? t("cm.newCanon") : t("cc3.none")}`,
+                className: `flex min-w-0 max-w-[9rem] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 coarse:min-h-11 sm:max-w-[16rem] ${
+                  canonMode === "none" ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                }`,
+                content: (
+                  <>
+                    <Layers size={14} className="shrink-0" aria-hidden />
+                    <span className="truncate">{canonMode === "existing" ? (chosenCanon?.name ?? "Canon") : canonMode === "new" ? t("cm.newCanon") : `Canon: ${t("cc3.none")}`}</span>
+                    {chosenCanon && <span className="hidden shrink-0 font-mono text-[11px] text-violet-500 sm:inline">{t("canon.revision", { n: chosenCanon.headRevision })}</span>}
+                    <ChevronDown size={13} className="shrink-0 opacity-60" aria-hidden />
+                  </>
+                ),
+              }}
+            >
+              {(close) => {
+                const opt = "flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 focus:outline-none focus-visible:bg-slate-100 coarse:min-h-11";
+                const tick = (on: boolean) => <Check size={14} className={`mt-0.5 shrink-0 ${on ? "text-violet-600" : "invisible"}`} aria-hidden />;
+                return (
+                  <div className="pb-1.5" data-testid="plan-canon-menu">
+                    <MenuHeading>
+                      Canon <HelpTip text={t("mc.canonHelp")} />
+                    </MenuHeading>
+                    <div role="radiogroup" aria-label="Canon" className="max-h-64 overflow-y-auto px-1.5">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={canonMode === "new"}
+                        className={opt}
+                        data-testid="plan-canon-new"
+                        onClick={() => {
+                          setCanonMode("new");
+                          close();
+                          // the name row appears with the choice; typing goes on there
+                          setTimeout(() => canonRef.current?.focus(), 0);
+                        }}
+                      >
+                        {tick(canonMode === "new")}
+                        <span>{t("mc.canonNew")}</span>
+                      </button>
+                      {(canons ?? []).map((c) => {
+                        const on = canonMode === "existing" && canonId === c.canonId;
+                        return (
+                          <button key={c.canonId} type="button" role="radio" aria-checked={on} className={opt} data-testid="plan-canon-option" onClick={() => (setCanonMode("existing"), setCanonId(c.canonId), close())}>
+                            {tick(on)}
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium text-slate-800">{c.name}</span>
+                              <span className="block text-[11px] text-slate-500">
+                                <span className="font-mono">{t("canon.revision", { n: c.headRevision })}</span> · {t("canon.memberCount", { n: c.memberCount })}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <button type="button" role="radio" aria-checked={canonMode === "none"} className={opt} data-testid="plan-canon-none" onClick={() => (setCanonMode("none"), close())}>
+                        {tick(canonMode === "none")}
+                        <span className="text-slate-600">{t("cc3.none")}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }}
             </Popover>
             <Popover
               testId="plan-auto-chip"
@@ -611,7 +727,13 @@ function CreatePlanComposer() {
         </div>
         <div className="mt-2 flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 text-xs text-slate-400" data-testid="plan-meta">
           {hasInput ? (
-            <span />
+            canonOk || !name.trim() ? (
+              <span />
+            ) : (
+              <span className="text-amber-700" data-testid="plan-need-canon">
+                {t("mc.needCanon")}
+              </span>
+            )
           ) : (
             <span id={needId} className="text-amber-700" data-testid="plan-need-input">
               {t("mc.needInput")}
@@ -665,16 +787,16 @@ function GroupHeader({ g }: { g: CanonGroup }) {
   if (!c)
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Layers size={15} className={g.pendingName ? "text-blue-500" : "text-slate-400"} aria-hidden />
+        <Layers size={15} className={g.pendingName ? "text-violet-500" : "text-slate-400"} aria-hidden />
         <span className="min-w-0 break-words font-semibold text-slate-800">{g.pendingName ?? t("cm.noCanon")}</span>
-        {g.pendingName && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">{t("cm.pendingCanon")}</span>}
+        {g.pendingName && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] text-violet-700">{t("cm.pendingCanon")}</span>}
       </div>
     );
   return (
     <Link to={canonPath(c.canonId)} className="group/canon block min-w-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Layers size={15} className="text-blue-600" aria-hidden />
-        <span className="min-w-0 break-words font-semibold text-blue-700 group-hover/canon:underline">{c.name}</span>
+        <Layers size={15} className="text-violet-600" aria-hidden />
+        <span className="min-w-0 break-words font-semibold text-violet-700 group-hover/canon:underline">{c.name}</span>
         <span className="font-mono text-[11px] text-slate-400">{c.canonId}</span>
         <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
           <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
@@ -833,7 +955,7 @@ export function CanonBoard() {
                   <li key={c.canonId}>
                     <Link to={canonPath(c.canonId)} className="block rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/30 coarse:p-4">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="min-w-0 break-words font-medium text-blue-700">{c.name}</span>
+                        <span className="min-w-0 break-words font-medium text-violet-700">{c.name}</span>
                         <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700">{t("ed.roleEditor")}</span>
                         <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
                           <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>

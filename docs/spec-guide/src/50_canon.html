@@ -440,7 +440,7 @@
 <p class="src">典拠：<code>packages/api/src/routes/public.ts</code>・<code>canons.ts</code>（公開・Canon から Canon へのルート）、<code>packages/shared/src/publish.ts</code>・<code>canonMerge.ts</code></p>
 
 <h2 id="s5-12">5.12 オーケストレーターとの関係</h2>
-<p>オーケストレーター（第 6 部）のミッションは、1 つのミッションにつき 1 つの Canon を使います。自律実行のミッションで Canon を指定しなければ、ミッションの名前で新しい Canon を作ります。ミッションの完成したプロジェクトは自動で Canon に push されます（6.7）。</p>
+<p>オーケストレーター（第 6 部）のミッションは、1 つのミッションにつき 1 つの Canon を使います。どの Canon を使うかは、ミッションの作成画面で選びます（新しい Canon、既存の Canon、なし。6.3）。ミッションの完成したプロジェクトは自動で Canon に push されます（6.7）。</p>
 <p>自律実行のミッションでは、push したすべての PR に判断のジョブを依頼し、その判定を所有者の代わりに反映します。エラーの衝突がある PR や、変更を依頼した PR は、プロジェクトを直すフォローアップに回します。フォローアップは 1 件につき 3 回までです（6.8）。人が対応するミッションでは、オーケストレーターは push と AI レビューの依頼までを行い、承認は人が行います。Canon が進んだときの更新は 1 件につき 2 回までです（6.9）。</p>
 <p>どちらのミッションでも、PR の承認は 5.6〜5.8 と同じ処理と検査を通ります。人は自律実行のミッションの PR を Canon の画面で直接判断することもでき、その場合はオーケストレーターが次の処理でその結果に従います。</p>
 <p class="src">典拠：型 <code>packages/shared/src/canon.ts</code> ／ 変換・差分・衝突・合成 <code>canonMerge.ts</code> ／ 生成時の検査 <code>canonConstraints.ts</code> ／ 審査の材料 <code>canonReview.ts</code>・<code>canonAiReview.ts</code> ／ 判断の規則 <code>canonAiDecision.ts</code> ／ API <code>packages/api/src/lib/canons.ts</code>・<code>canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code> ／ AI レビューのジョブ <code>packages/worker/src/canonReview.ts</code></p>

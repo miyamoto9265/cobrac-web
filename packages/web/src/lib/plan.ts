@@ -7,6 +7,8 @@ import { pipelineView, type StageId } from "./pipeline";
 export const planPath = (planId: string) => `/plans/${encodeURIComponent(planId)}`;
 /** The new-mission page (the main pane, like the new-project page at /chat) */
 export const NEW_PLAN_PATH = "/plans/new";
+/** The new-mission page with a Canon already chosen (the link of that Canon's page). */
+export const newPlanPath = (canonId?: string | null) => (canonId ? `${NEW_PLAN_PATH}?canon=${encodeURIComponent(canonId)}` : NEW_PLAN_PATH);
 
 /** Colours from the text / surface pairs checked in test/theme.test.tsx. */
 export const PLAN_STATUS_COLOR: Record<PlanStatus, string> = {
