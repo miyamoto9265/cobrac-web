@@ -75,7 +75,7 @@ async function render(path: string, state?: unknown) {
           <Routes>
             <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
-            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
             <Route path="/projects/:projectId" element={<div data-testid="project-page" />} />
           </Routes>
         </MemoryRouter>
@@ -132,7 +132,8 @@ describe("plan screen while running", () => {
     await act(async () => button("Retry", attention)!.click());
     expect(api.planRowAction).toHaveBeenCalledWith("n4h8w2rk", "r3", "retry");
 
-    // rows by wave, with no editing controls once confirmed
+    // rows by wave on their own tab, with no editing controls once confirmed
+    await act(async () => q<HTMLAnchorElement>('[data-testid="plan-tab-projects"]')!.click());
     expect(q('[data-testid="plan-rows"]')!.textContent).toContain("Wave 2");
     expect(q('[data-testid="plan-editor"]')).toBeNull();
     // actions of a running plan
@@ -144,7 +145,7 @@ describe("plan screen while running", () => {
 
   it("opens a row's project from anywhere on its card", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
-    await render("/plans/n4h8w2rk");
+    await render("/plans/n4h8w2rk/projects");
     expect(q('[data-testid="plan-rows"] h2')!.textContent).toBe("Projects (4)");
     const li = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("speech production"))!;
     expect(li.querySelector('[data-testid="plan-row-link"]')!.getAttribute("href")).toBe("/projects/p0000001");
@@ -529,11 +530,12 @@ describe("plan list as a live view", () => {
   it("shows the stage strip on the rows being built in the plan screen", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", [running, row("r3", "IFG", "speech", "done", 1)]));
     await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-summary"] [data-testid="plan-bar"]')).not.toBeNull();
+    await act(async () => q<HTMLAnchorElement>('[data-testid="plan-tab-projects"]')!.click());
     const rowsEl = q('[data-testid="plan-rows"]')!;
     const strips = rowsEl.querySelectorAll('[data-testid="pipeline"]');
     expect(strips.length).toBe(1);
     expect(strips[0].querySelector('[data-testid="stage-frg"]')!.getAttribute("data-status")).toBe("active");
-    expect(q('[data-testid="plan-summary"] [data-testid="plan-bar"]')).not.toBeNull();
   });
 });
 

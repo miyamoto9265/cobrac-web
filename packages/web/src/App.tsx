@@ -68,7 +68,7 @@ export default function App() {
         <Route path="/missions" element={<MissionBoard />} />
         <Route path="/plans" element={<Navigate to={MISSIONS_PATH} replace />} />
         <Route path="/plans/new" element={<NewPlanPage />} />
-        <Route path="/plans/:planId" element={<PlanDetailPage />} />
+        <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
         <Route path="/canons" element={<CanonList />} />
         <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />

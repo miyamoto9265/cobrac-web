@@ -15,6 +15,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - "Canon" in the sidebar lists the Canons alone, as cards with their rev, projects and the missions delivering to them (how many are running). A Canon a draft mission will create has a dashed card that opens the mission. The missions moved to the new "Missions" page, and `/plans` now leads there
 - A Canon, a mission and a project each have one icon and one colour wherever they are named (violet, blue and teal): in the sidebar history, in the lists and in the trail at the top of a page
 - In the sidebar history, a mission's entry shows the Canon it delivers to under its name (the number of projects when it has no Canon), and a project's entry has an icon like a mission's
+- A confirmed mission's page is laid out like a Canon's and a project's: tabs for Overview (goal, banners and progress), Projects (the list, with the lane map of a flow mission), In the Canon (the Canon's graph with what this mission's projects added highlighted), History and Settings (models, policy and, for a finished mission, "Delete mission"), and a "Needs you" panel on the right that gathers questions, decisions, projects that need attention, proposals and a raised cost limit, with the progress and the pull requests waiting for approval below. Pause, resume and cancel moved to the header. Below xl the panel opens from the "Needs you" button at the end of the tabs, with its count. A draft keeps its four steps on one page
 
 ## [0.55.2] - 2026-11-13
 

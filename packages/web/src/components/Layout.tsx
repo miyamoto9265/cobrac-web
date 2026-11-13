@@ -370,7 +370,7 @@ function HistoryRow({ e, plans, canonNames, onArchive }: { e: HistoryEntry; plan
     const draft = !e.projects.length && plan && (plan.status === "DRAFT" || plan.status === "DRAFTING") ? t(`plan.status.${plan.status}` as MessageKey) : null;
     // the Canon the mission delivers to (its name once known, or the one it will create); the project count stays in the tooltip
     const canon = planCanonName(plan, canonNames);
-    const active = location.pathname === `/plans/${e.planId}`;
+    const active = location.pathname === `/plans/${e.planId}` || location.pathname.startsWith(`/plans/${e.planId}/`);
     body = (
       <button
         type="button"

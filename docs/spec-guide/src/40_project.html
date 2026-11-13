@@ -207,7 +207,7 @@
     <tr><td><code>/chat</code></td><td>新規プロジェクト</td><td>ROI と TLF の入力欄と、任意の設定（4.2）</td></tr>
     <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
     <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。<code>/projects/:id</code> は最初にあるタブを開き、まだ何もなければ空の状態を出す</td></tr>
-    <tr><td><code>/plans/new</code>・<code>/plans/:planId</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10）。<code>/plans</code> は <code>/missions</code> へ転送する</td></tr>
+    <tr><td><code>/plans/new</code>・<code>/plans/:planId/:view?</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10。<code>:view</code> はタブ）。<code>/plans</code> は <code>/missions</code> へ転送する</td></tr>
     <tr><td><code>/missions</code></td><td>ミッション</td><td>あなたの番と、ミッションの一覧（6.10）</td></tr>
     <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon の一覧（5.1）、Canon の画面、PR の画面（第 5 部）。<code>view</code> はタブで、<code>hcd</code>・<code>tables</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code> のどれか</td></tr>
     <tr><td><code>/explore</code>・<code>/explore/projects/:id</code>・<code>/explore/canons/:id</code></td><td>公開ライブラリ</td><td>公開されたプロジェクトと Canon の閲覧と複製（4.6）</td></tr>

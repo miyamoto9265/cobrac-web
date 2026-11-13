@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import type { CanonDetailResponse, CanonPullDetailResponse, CanonPullRequestRecord, CanonRecord, PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
+import type { CanonCircuit, CanonDetailResponse, CanonPullDetailResponse, CanonSnapshot, CanonPullRequestRecord, CanonRecord, PlanDetailResponse, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
 import { PLAN_MAX_WAITING_PRS, countRows, estimatePlan } from "@cobrac/shared";
 
 const api = vi.hoisted(() => ({
@@ -24,6 +24,8 @@ const api = vi.hoisted(() => ({
   approveManyPulls: vi.fn(),
   canonPull: vi.fn(),
   confirmPlan: vi.fn(),
+  deletePlan: vi.fn(),
+  planAction: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice", role: "user" } }) }));
@@ -96,7 +98,7 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
             <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
             <Route path="/canons/:canonId/pulls/:no" element={<CanonPullPage />} />
           </Routes>
@@ -262,14 +264,15 @@ describe("a running plan with a Canon", () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
     await render("/plans/n4h8w2rk");
 
-    const section = q('[data-testid="plan-canon"]')!;
-    expect(q<HTMLAnchorElement>(`a[href="/canons/${CANON}"]`, section)!.textContent).toContain("rev 4");
-    expect(q('input', section)).toBeNull();
+    // the Canon is named above the mission, and has a tab of its own
+    expect(q<HTMLAnchorElement>('[data-testid="trail-canon"]')!.getAttribute("href")).toBe(`/canons/${CANON}`);
+    expect(q('[data-testid="plan-tab-canon"]')).not.toBeNull();
 
     const summary = q('[data-testid="plan-summary"]')!.textContent!;
     expect(summary).toContain("Awaiting approval 2");
     expect(summary).toContain("Your decision 2");
 
+    await click(q('[data-testid="plan-tab-projects"]'));
     const list = q('[data-testid="plan-rows"]')!;
     expect(qa<HTMLAnchorElement>('[data-testid="row-pr"]', list).map((a) => a.getAttribute("href"))).toEqual([1, 5, 6, 7].map((n) => `/canons/${CANON}/pulls/${n}`));
     expect(qa('[data-testid="row-ai-review"]', list).map((e) => e.textContent)).toEqual(["AI review running", "AI review waiting"]);
@@ -319,7 +322,7 @@ describe("a running plan with a Canon", () => {
       row("r6", "writing", "done", 2, { prNo: 9, aiReview: null, aiReviewJobId: "j0000009" }),
     ];
     api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
-    await render("/plans/n4h8w2rk");
+    await render("/plans/n4h8w2rk/projects");
     const chips = qa('[data-testid="row-ai-review"]', q('[data-testid="plan-rows"]')!);
     expect(chips.map((e) => e.textContent)).toEqual(["AI reviewed", "AI reviewed"]);
     expect(chips.map((e) => e.getAttribute("href"))).toEqual([`/canons/${CANON}/pulls/5`, `/canons/${CANON}/pulls/8`]);
@@ -328,7 +331,7 @@ describe("a running plan with a Canon", () => {
   it("shows the pull request of a row that waits for its update to match the Canon", async () => {
     const rows = [row("r1", "speech production", "done", 1, { seed: true, prNo: 1 }), row("r2", "repetition", "pending", 2, { prNo: 4, conform: true, projectId: "p0000002", project: project("Repetition") }), row("r3", "reading", "pending", 2)];
     api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
-    await render("/plans/n4h8w2rk");
+    await render("/plans/n4h8w2rk/projects");
     const list = q('[data-testid="plan-rows"]')!;
     expect(qa<HTMLAnchorElement>('[data-testid="row-pr"]', list).map((a) => a.getAttribute("href"))).toEqual([1, 4].map((n) => `/canons/${CANON}/pulls/${n}`));
     expect(qa('[data-testid="row-conform-waiting"]', list).map((e) => e.textContent)).toEqual(["Waiting to update to match the Canon"]);
@@ -386,21 +389,102 @@ describe("a running plan with a Canon", () => {
     expect(button("Push again", decision)!.disabled).toBe(true);
     expect(button("Mark done", decision)!.disabled).toBe(true);
     expect(button("Skip", decision)!.disabled).toBe(true);
-    expect(q("details")!.textContent).toContain("could not be pushed");
+    await click(q('[data-testid="plan-tab-history"]'));
+    expect(q('[data-testid="plan-history"]')!.textContent).toContain("could not be pushed");
   });
 
   it("says when the plan's Canon was deleted, and shows no gates on plans without a Canon", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "review", 1, { seed: true, prNo: 3 })], confirmed, { canonId: CANON, name: "", headRevision: 0, missing: true }));
-    await render("/plans/n4h8w2rk");
-    expect(q('[data-testid="plan-canon"]')!.textContent).toContain("The Canon was not found");
+    await render("/plans/n4h8w2rk/canon");
+    expect(q('[data-testid="plan-canon-note"]')!.textContent).toContain("The Canon was not found");
     if (root) await act(async () => root!.unmount());
     host?.remove();
 
     api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "running", 1, { seed: true })]));
     await render("/plans/n4h8w2rk");
-    expect(q('[data-testid="plan-canon"]')).toBeNull();
+    expect(q('[data-testid="plan-tab-canon"]')).toBeNull();
+    expect(q('[data-testid="trail-canon"]')).toBeNull();
     expect(q('[data-testid="plan-seed-gate"]')).toBeNull();
     expect(q('[data-testid="plan-decisions"]')).toBeNull();
+  });
+});
+
+describe("the mission page's tabs and the 「対応が必要」 panel", () => {
+  const confirmed = { canonId: CANON, activeWave: 2, confirmedAt: now };
+  const canon = { canonId: CANON, name: "Language", headRevision: 4 };
+  const circuit = (circuitId: string, sources: string[]): CanonCircuit => ({ descriptor: `x:${circuitId}`, key: `x:${circuitId}`, circuitId, names: circuitId, status: "uniform", subCircuits: [], transmitter: "", modulationType: "", sourceOfId: "", outputSemantics: "", origin: { projectId: sources[0], projectRevision: 1, pr: 1 }, sources, state: "valid" });
+  const snapshot: CanonSnapshot = { canonId: CANON, revision: 4, createdAt: now, circuits: [circuit("IFG", ["p0000001"]), circuit("STG", ["p0000001", "p9999999"]), circuit("MTG", ["p9999999"])], groups: [], connections: [], bif: [], references: [], roles: [] };
+  const canonDetail = (): CanonDetailResponse => ({
+    canon: { canonId: CANON, sk: "META", ownerUserId: "alice", name: "Language", description: "", policy: "", visibility: "private", headRevision: 4, memberCount: 2, createdAt: now, updatedAt: now },
+    members: [
+      { projectId: "p0000001", name: "Speech", roi: "left IFG", tlf: "speech production", status: "COMPLETED", hasArtifacts: true, joinedAt: now },
+      { projectId: "p9999999", name: "Other", roi: "MTG", tlf: "semantics", status: "COMPLETED", hasArtifacts: true, joinedAt: now },
+    ],
+    role: "owner",
+    ownerName: "Alice",
+    editors: [],
+  });
+
+  it("opens on the overview, keeps what needs the owner in the panel and counts it", async () => {
+    const rows = [row("r1", "speech production", "done", 1, { seed: true, prNo: 1, projectId: "p0000001", project: project("Speech") }), row("r2", "repetition", "review", 2, { prNo: 5 }), row("r3", "reading", "decision", 2, { prNo: 7, decisionReason: "conflicts", projectId: "p0000003", project: project("Reading") })];
+    api.getPlan.mockResolvedValue(detail("RUNNING", rows, confirmed, canon));
+    await render("/plans/n4h8w2rk");
+    expect(qa('nav[aria-label] a[data-testid^="plan-tab-"]').map((a) => a.dataset.testid)).toEqual(["plan-tab-overview", "plan-tab-projects", "plan-tab-canon", "plan-tab-history", "plan-tab-settings"]);
+    expect(q('[data-testid="plan-tab-overview"]')!.getAttribute("aria-current")).toBe("page");
+    expect(q('[data-testid="plan-tab-projects"]')!.textContent).toContain("3");
+    expect(q('[data-testid="plan-summary"]')).not.toBeNull();
+    expect(q('[data-testid="plan-rows"]')).toBeNull();
+    const panel = q('[data-testid="plan-todo"]')!;
+    expect(q('[data-testid="plan-decisions"]', panel)).not.toBeNull();
+    expect(q('[data-testid="plan-todo-empty"]')).toBeNull();
+    // the pull requests that wait for approval, and the progress
+    expect(qa<HTMLAnchorElement>('[data-testid="plan-todo-prs"] [data-testid="row-pr"]').map((a) => a.getAttribute("href"))).toEqual([`/canons/${CANON}/pulls/5`]);
+    expect(q('[data-testid="plan-todo-progress"]')!.textContent).toContain("1 / 3 done");
+    expect(q('aside[aria-label="Needs you"]')!.textContent).toContain("1");
+    // the delete button is on the settings tab of a finished mission only
+    expect(button("Delete mission")).toBeUndefined();
+  });
+
+  it("says when nothing needs the owner, deletes a finished mission from its settings and sends an unknown tab to the overview", async () => {
+    api.getPlan.mockResolvedValue(detail("COMPLETED", [row("r1", "speech production", "done", 1, { seed: true })], confirmed, canon));
+    api.deletePlan.mockResolvedValue({ ok: true });
+    await render("/plans/n4h8w2rk/somewhere");
+    expect(q('[data-testid="plan-summary"]')).not.toBeNull();
+    expect(q('[data-testid="plan-todo-empty"]')!.textContent).toBe("Nothing needs you right now.");
+    await click(q('[data-testid="plan-tab-settings"]'));
+    expect(q('[data-testid="plan-settings"]')).not.toBeNull();
+    await click(q('[data-testid="plan-danger"] button'));
+    expect(api.deletePlan).toHaveBeenCalledWith("n4h8w2rk");
+  });
+
+  it("shows the Canon's graph with what this mission's projects added highlighted", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "done", 1, { seed: true, prNo: 1, projectId: "p0000001", project: project("Speech") })], confirmed, canon));
+    api.getCanon.mockResolvedValue(canonDetail());
+    api.canonRevision.mockResolvedValue(snapshot);
+    await render("/plans/n4h8w2rk/canon");
+    expect(api.getCanon).toHaveBeenCalledWith(CANON);
+    expect(api.canonRevision).toHaveBeenCalledWith(CANON, 4);
+    expect(q('[data-testid="plan-canon-summary"]')!.textContent).toBe("Highlighted: what this mission's projects added to the Canon (circuits: 2).");
+    expect(q<HTMLAnchorElement>('[data-testid="plan-canon-open"]')!.getAttribute("href")).toBe(`/canons/${CANON}`);
+    expect(q('[data-testid="plan-canon-open"]')!.textContent).toContain("rev 4");
+    expect(q<HTMLSelectElement>('[data-testid="canon-emphasis"]')!.value).toBe("p0000001");
+  });
+
+  it("says so when the mission's projects added nothing yet, and when the Canon is still to be created", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "running", 1, { seed: true, projectId: "p0000002" })], confirmed, canon));
+    api.getCanon.mockResolvedValue(canonDetail());
+    api.canonRevision.mockResolvedValue(snapshot);
+    await render("/plans/n4h8w2rk/canon");
+    expect(q('[data-testid="plan-canon-summary"]')!.textContent).toBe("This mission's projects have not added anything to the Canon yet.");
+    expect(q<HTMLSelectElement>('[data-testid="canon-emphasis"]')!.value).toBe("");
+    if (root) await act(async () => root!.unmount());
+    host?.remove();
+
+    api.getCanon.mockClear();
+    api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "running", 1, { seed: true })], { activeWave: 1, confirmedAt: now, canonNew: { name: "Speech map" } }));
+    await render("/plans/n4h8w2rk/canon");
+    expect(q('[data-testid="plan-canon-note"]')!.textContent).toContain("Speech map");
+    expect(api.getCanon).not.toHaveBeenCalled();
   });
 });
 

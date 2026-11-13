@@ -477,7 +477,7 @@ const MULTIPLE = "__multiple";
  * The Canon's graph: its shared layer drawn like a project's HCD. Member projects' circuits (or those with problems) can be
  * highlighted, several at once, and what only some projects brought can be hidden.
  */
-function CanonGraphView({ detail, snapshot, focus, onFocus }: { detail: CanonDetailResponse; snapshot: CanonSnapshot; focus: CanonFocus; onFocus: (focus: CanonFocus) => void }) {
+export function CanonGraphView({ detail, snapshot, focus, onFocus }: { detail: CanonDetailResponse; snapshot: CanonSnapshot; focus: CanonFocus; onFocus: (focus: CanonFocus) => void }) {
   const t = useT();
   const canonId = detail.canon.canonId;
   const full = useMemo(() => canonHcdGraph(snapshot), [snapshot]);

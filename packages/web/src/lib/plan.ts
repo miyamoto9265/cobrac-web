@@ -4,7 +4,10 @@ import { PLAN_ATTACHMENT_EXTS, PLAN_MAX_WAITING_PRS, formatUsd, waitingPrs } fro
 import type { MessageKey, TFn } from "../i18n";
 import { pipelineView, type StageId } from "./pipeline";
 
-export const planPath = (planId: string) => `/plans/${encodeURIComponent(planId)}`;
+/** The tabs of a confirmed mission's page; the first one opens at `/plans/:planId` */
+export const PLAN_VIEWS = ["overview", "projects", "canon", "history", "settings"] as const;
+export type PlanView = (typeof PLAN_VIEWS)[number];
+export const planPath = (planId: string, view?: PlanView) => `/plans/${encodeURIComponent(planId)}${view && view !== "overview" ? `/${view}` : ""}`;
 /** The new-mission page (the main pane, like the new-project page at /chat) */
 /** The mission list (what waits on the owner, then the missions) */
 export const MISSIONS_PATH = "/missions";

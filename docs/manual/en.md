@@ -198,6 +198,8 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - The top of a mission's page and of a project's page shows the Canon it delivers to and the mission it belongs to, as "Canon … › Mission … › Project". Each one is a link. A Canon is shown in violet, a mission in blue and a project in teal. In the sidebar history, a mission's entry names its Canon too.
 - "Missions" in the sidebar opens the list of missions: running ones, drafts, then finished ones, each with the name of the Canon it delivers to. "Group by Canon" groups them by Canon instead (the choice is kept in your browser).
 - "Your turn" at the top of the mission list gathers what is waiting for you, such as questions and approvals. Its count shows beside "Missions" in the sidebar on every screen.
+- The mission page has the tabs "Overview", "Projects", "In the Canon", "History" and "Settings". "In the Canon" shows the Canon's graph with what this mission's projects added highlighted.
+- What waits for you on a mission (questions, decisions, projects that need attention, proposals) is gathered in "Needs you" on the right of the mission page. On a narrow screen, open it with the "Needs you" button at the right end of the tabs.
 - The projects a mission creates open on the usual project page.
 
 ### Missions with a Canon
@@ -220,10 +222,10 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 ### Questions, pause and cancel
 
-- When an agent asks a question, only its row stops, and the question appears under "Questions" on the mission page. Answering resumes that row.
+- When an agent asks a question, only its row stops, and the question appears under "Questions" in "Needs you" on the mission page. Answering resumes that row.
 - Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane in the mission list. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled mission can be resumed.
-- Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
+- A finished mission can be deleted on the "Settings" tab of its page. Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
 
 ## Publishing and cloning
 
