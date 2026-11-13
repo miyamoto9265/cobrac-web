@@ -281,7 +281,7 @@ BRA-DB の構成は仕様書 7.6 にあります。インスタンスには SSH 
 
 | スクリプト | 内容 | 手順 |
 |---|---|---|
-| `migrate-usage-0171.mjs` | v0.17.1 より前のジョブの使用量と費用を、補正した値で書き換える（仕様書 C.7） | `npm run build -w @cobrac/shared` の後、`node scripts/migrate-usage-0171.mjs --json plan.json` で計画を作って件数と費用を確かめ、`--apply --from plan.json` で書き込む。`plan.json` は補正前の値の控えなので残しておく。戻すときは `--apply --revert --from plan.json` |
+| `migrate-usage-0171.mjs` | v0.17.1 より前のジョブの使用量と費用を、補正した値で書き換える（仕様書 C.7）。2026-11-11 に本番で実行済み（62 件）。計画の控えはプロジェクトのファイル `cobrac-migrations/usage-0171-plan-2026-11-11.json` | `npm run build -w @cobrac/shared` の後、`node scripts/migrate-usage-0171.mjs --json plan.json` で計画を作って件数と費用を確かめ、`--apply --from plan.json` で書き込む。`plan.json` は補正前の値の控えなので残しておく。戻すときは `--apply --revert --from plan.json` |
 | `migrate-project-ids.mjs` | v0.7 より前の Project ID を新しい形に移す（仕様書 C.4） | スクリプトの先頭のコメントを参照 |
 
 ## 13. 撤去と残る費用

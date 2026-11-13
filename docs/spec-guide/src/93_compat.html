@@ -16,7 +16,7 @@
   <li><b>印を持ち続ける</b>：プロジェクトは作成時に、検査規則の水準（<code>harnessRules</code>）、SABRA の境界（<code>sabraBoundary</code>）、調査モードなどの設定を保存します。後のフォローアップとリトライも、その設定に従います。</li>
   <li><b>複製は元の印を引き継ぐ</b>：公開プロジェクトの複製は、元の調査モード、SABRA の境界、<code>harnessRules</code>、仮説モードの設定をそのままコピーします（4.6）。</li>
   <li><b>ミッションは確定時の規則で作る</b>：オーケストレーターのミッションは、確定したときの <code>harnessRules</code> を固定します。後のデプロイで規則の水準が上がっても、そのミッションのプロジェクトはすべて確定時の規則で作られます（6.9）。</li>
-  <li><b>保存したデータは書き換えない</b>：古い形の名前、古い境界のアンカー、多く数えすぎた使用量は、保存先の上ではそのままです。読むときに現在の形へ直すか、補正して表示します。</li>
+  <li><b>保存したデータは書き換えない</b>：古い形の名前と古い境界のアンカーは、保存先の上ではそのままです。読むときに現在の形へ直します。例外は多く数えすぎた使用量で、2026-11-11 に DB の値を補正しました（C.7）。</li>
 </ul>
 <p>主な変化と、それより前に作られたものの扱いは次の表のとおりです。詳しい扱いは右の列の節にあります。</p>
 <table class="compact">
@@ -26,7 +26,7 @@
     <tr><td>BRA の値の規則</td><td>v0.10.0</td><td>CSV 形式 <code>CoBRAC-v1-0</code> → <code>CoBRAC-v1-1</code></td><td>次のフォローアップのときに新しい規則で検査し、エージェントに直させる</td><td>C.3</td></tr>
     <tr><td>エラーコードを WBAI の Master に合わせる</td><td>v0.17.0</td><td>Master のコードと <code>cobrac:</code> のコード</td><td>チェッカーが古い番号を <code>appendixD</code> として残す</td><td>C.3</td></tr>
     <tr><td>Circuit ID と Descriptor の形（左右を <code>side</code> に、区切りを <code>.</code> に）</td><td>v0.17.0</td><td>—</td><td>古い形も読み、次のフォローアップで書き直しを求める</td><td>C.2</td></tr>
-    <tr><td>使用量の数え方の修正</td><td>v0.17.1</td><td>ジョブの開始時刻</td><td>読むときに補正して表示する</td><td>C.7</td></tr>
+    <tr><td>使用量の数え方の修正</td><td>v0.17.1</td><td>ジョブの開始時刻</td><td>2026-11-11 に DB の値を補正した</td><td>C.7</td></tr>
     <tr><td>デフォルトの API キー</td><td>v0.19.0</td><td>ジョブの <code>keySource</code></td><td>値がなければ自分のキーで動いたものとみなす</td><td>C.6</td></tr>
     <tr><td>SABRA の境界（BNA は新皮質だけ）</td><td>v0.24.0</td><td><code>sabraBoundary: "neocortex"</code></td><td>皮質下の BNA のアンカーのまま検査を通る</td><td>C.2</td></tr>
     <tr><td>ROI 規則（ROI の要素と左右、引用文の使い回し）</td><td>v0.25.0</td><td><code>harnessRules: 1</code></td><td>印のない（0 の）プロジェクトは前の規則で検査する</td><td>C.3</td></tr>
@@ -235,27 +235,18 @@
 <p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>QUESTION_REGEX</code>）・<code>systemMessage.ts</code>・<code>plan.ts</code>（<code>orchestratorModelOf</code>、列名の別名）、<code>packages/worker/src/index.ts</code>・<code>codex.ts</code>、<code>packages/web/src/components/MessageItem.tsx</code>、<code>packages/api/src/lib/ownership.ts</code>、<code>packages/api/src/lib/canonReview.ts</code>、<code>packages/shared/src/hypothesis.ts</code>、<code>packages/web/src/</code>（グラフの編集）</p>
 
 <h2 id="sc-7">C.7 使用量</h2>
-<p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっています。保存した記録は書き換えず、<b>API が返すときに補正します</b>。</p>
+<p>v0.17.0 までのワーカーは、Codex がターンの終わりに返す使用量（会話の始まりからの累計）を、そのターンの分と取り違えて毎ターン足していました（経緯は D.10）。このため、修正より前に起動したワーカーが記録したジョブの使用量と費用は、全工程で実際の約 2〜3 倍になっていました。v0.18.1 から v0.53.0 までは API が返すときに補正していましたが、2026-11-11 に補正した値を DynamoDB に書き込み、読むときの補正はなくしました。</p>
 <ul>
-  <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブのうち、<code>usageCorrected</code> の印がないもの。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。これ以降に作ったプロジェクトには何もしません。</li>
+  <li><b>対象</b>：<code>USAGE_FIX_AT</code>（2026-10-01 18:33 UTC）より前に始まったジョブ。この時刻は v0.17.1 のワーカーのタスク定義を登録した時刻です。本番では 10 プロジェクト・13 ジョブ・使用量の表示 39 件で、ジョブの費用の合計は $4.46 から $1.54 になりました。</li>
   <li><b>方法</b>：ジョブが各ターンの後に書いた使用量の表示（<code>kind: "usage"</code> のお知らせ）から各ターンの累計を取り出し、累計が増えた分だけを数えます。累計が減ったら、新しい会話の始まりとして 0 から数えます。プロジェクトの会話を続けるジョブ（リトライ・回答・フォローアップ）は、前のジョブの最後の累計から数えます。解説記事のジョブは独立した会話として扱います。補正した使用量に単価をかけて、費用を計算し直します。</li>
-  <li><b>補正する画面</b>：プロジェクトの一覧、プロジェクトのジョブの表と合計、エージェント欄の使用量の表示、利用状況のまとめ、管理画面のプロジェクト一覧。対応する API は、プロジェクトの詳細、メッセージ、<code>/users/me/usage</code>、<code>/admin/projects</code> です。DB には書きません。終わったジョブの補正は、Lambda のコンテナごとに保持します。</li>
+  <li><b>書き込んだもの</b>：ジョブの使用量と費用（<code>usageCorrected</code> の印を付けた）、そのジョブの使用量の表示（<code>meta.usageCorrected</code> の印を付けた）、<code>USAGE_FIX_AT</code> より前に作ったプロジェクトの合計。</li>
 </ul>
+<p>書き込みには <code>scripts/migrate-usage-0171.mjs</code> を使いました。既定では試行だけを行い、計画（各項目の補正前と補正後の値）を JSON に保存します。<code>--apply --from</code> でその計画を書き込み、<code>--apply --revert --from</code> で補正前の値に戻します。どの書き込みも、項目が計画の値のままのときだけ行います。手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
 <p>この補正には、次の限界があります。</p>
 <ul>
   <li><b>記録されなかった分は戻せません。</b>v0.17.1 より前は、失敗で終わったターンを 0 として記録していました。その分は復元できないので、補正後の値は実費より低くなることがあります。</li>
   <li><b>打ち切られたターンの分も戻せません。</b>v0.24.1 より前は、時間切れ・停止・SIGTERM・理由を返さない異常終了で打ち切られたターンの使用量を記録していませんでした。</li>
-  <li><b>WebSocket で届く更新は補正しません。</b>古いプロジェクトで新しいジョブが終わった直後は、画面を読み込み直すまで補正前の合計が見えます。</li>
-  <li><b>調査ステップの指標</b>（<code>researchStep.usage</code>）は補正しません。</li>
+  <li><b>調査ステップの指標</b>（<code>researchStep.usage</code>）は補正していません。</li>
 </ul>
-<h3>補正した値の書き込み</h3>
-<p><code>scripts/migrate-usage-0171.mjs</code> は、API が読むときに行うのと同じ補正の結果を DynamoDB に書き込む 1 回きりのスクリプトです。既定では試行だけを行い、計画（各項目の補正前と補正後の値）を JSON に保存します。<code>--apply --from</code> でその計画を書き込みます。実行の手順は運用手順書（<code>docs/ops/README.md</code>）にあります。</p>
-<ul>
-  <li>書き込むもの：ジョブの使用量と費用（<code>usageCorrected</code> の印を付ける）、そのジョブの使用量の表示（<code>meta.usageCorrected</code> の印を付ける）、<code>USAGE_FIX_AT</code> より前に作ったプロジェクトの合計。</li>
-  <li>先にジョブに印を付けるので、書き込みの途中でも、API が補正済みの値をもう一度補正することはありません。</li>
-  <li>どの書き込みも、項目が計画の補正前の値のままのときだけ行います。もう書き込んだ項目や、その後に変わった項目は飛ばします。途中で止まったら、保存した計画で実行し直します。<code>--revert</code> で補正前の値に戻せます。</li>
-  <li>キューにある・実行中・回答待ちの古いジョブを持つプロジェクトは飛ばします。</li>
-</ul>
-<p>すべてのジョブに印が付けば、読むときの補正は何もしなくなります。そのあとで補正のコードを消せます。</p>
-<p class="src">典拠：<code>packages/shared/src/usageCorrection.ts</code>（<code>USAGE_FIX_AT</code>・<code>isLegacyUsageJob</code>）、<code>packages/api/src/lib/usageCorrection.ts</code>、<code>packages/worker/src/codex.ts</code>、<code>scripts/migrate-usage-0171.mjs</code>、テスト <code>packages/shared/test/usageCorrection.test.ts</code>・<code>scripts/migrate-usage-0171.test.mjs</code></p>
+<p class="src">典拠：<code>packages/shared/src/usageCorrection.ts</code>（<code>USAGE_FIX_AT</code>・<code>correctLegacyProject</code>）、<code>packages/worker/src/codex.ts</code>、<code>scripts/migrate-usage-0171.mjs</code>、テスト <code>packages/shared/test/usageCorrection.test.ts</code>・<code>scripts/migrate-usage-0171.test.mjs</code></p>
 </section>

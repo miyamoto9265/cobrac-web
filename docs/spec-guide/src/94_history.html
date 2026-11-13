@@ -418,7 +418,7 @@
     <tr><td>優先処理の階層（<code>service_tier</code>）</td><td>使えるか、どれだけ速くなるかが未確認</td><td>同じく有料の実測が必要</td></tr>
     <tr><td>並列化</td><td>採用していない。2026-10 にデフォルトの API キーの組織の TPM が毎分 200 万になった</td><td>TPM に余裕ができたので、調査の並列化を検討できる</td></tr>
     <tr><td>打ち切られたターンの使用量</td><td>v0.24.1 で修正済み。時間切れ・停止・SIGTERM・理由なしの異常終了のターンも、セッション記録から数えて打ち切られたジョブ自身に足す</td><td>修正前のジョブの分は戻せない（付録 C）</td></tr>
-    <tr><td>過去のジョブの補正</td><td>WebSocket の更新と調査ステップの指標は補正しない。失敗したターンの分は戻せない（付録 C）</td><td>必要が出たら対応する</td></tr>
+    <tr><td>過去のジョブの補正</td><td>調査ステップの指標は補正していない。失敗したターンの分は戻せない（付録 C）</td><td>必要が出たら対応する</td></tr>
     <tr><td>Spot の中断への対応</td><td>単体テストと synth だけで確認した（8.3）</td><td>実際の中断が起きたらログで確認する</td></tr>
   </tbody>
 </table>
@@ -440,7 +440,7 @@
   </tbody>
 </table>
 <p>v0.17.1（PR #63）で、ターンの前と後の累計の差を足す、現在の数え方に直しました（9.10）。それまでは失敗で終わったターンを 0 として扱っていたので、失敗したジョブは逆に少なく記録されていました。直した後の比較実行（D.9）では、記録上の費用がセッション記録の実費と一致しました。</p>
-<p>v0.17.1 より前のジョブには、DynamoDB に 2〜3 倍の値が残っています。本番のデータは書き換えず、<b>読み込むときに補正して表示する</b>ことにしました（v0.18.1、PR #69）。補正の対象・方法・限界は付録 C（C.7）にあります。本番の DynamoDB を読み取りだけで補正した結果は次のとおりです。</p>
+<p>v0.17.1 より前のジョブには、DynamoDB に 2〜3 倍の値が残っています。いったんは本番のデータを書き換えず、<b>読み込むときに補正して表示する</b>ことにしました（v0.18.1、PR #69）。2026-11-11 に補正した値を DB に書き込み、読むときの補正はなくしました。補正の対象・方法・限界は付録 C（C.7）にあります。本番の DynamoDB を読み取りだけで補正した結果は次のとおりです。</p>
 <table class="compact">
   <thead><tr><th>プロジェクト</th><th class="c">記録上の費用</th><th class="c">補正後</th><th class="c">セッション記録から出した実費</th></tr></thead>
   <tbody>
@@ -450,7 +450,7 @@
   </tbody>
 </table>
 <p><code>ufwwj0jg-1</code> の補正後（$0.202）と実費（$0.309）の差は、フォローアップの 2 つのジョブで失敗したターンの分です。v0.17.1 より前は失敗したターンを 0 として記録していたので、この分は復元できません。</p>
-<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>turnUsage</code>）、<code>packages/shared/src/usageCorrection.ts</code>、<code>packages/api/src/lib/usageCorrection.ts</code>、テスト <code>packages/worker/test/codex.test.ts</code>・<code>packages/shared/test/usageCorrection.test.ts</code>、<code>CHANGELOG.md</code>（0.17.1・0.18.1）</p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>turnUsage</code>）、<code>packages/shared/src/usageCorrection.ts</code>、<code>scripts/migrate-usage-0171.mjs</code>、テスト <code>packages/worker/test/codex.test.ts</code>・<code>packages/shared/test/usageCorrection.test.ts</code>、<code>CHANGELOG.md</code>（0.17.1・0.18.1）</p>
 
 <h2 id="sd-11">D.11 長いジョブの回復の経緯</h2>
 <h3>会話の大きさと TPM</h3>

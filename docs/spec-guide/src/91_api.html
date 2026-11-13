@@ -72,11 +72,11 @@
     <tr><td>POST</td><td><code>/uploads</code></td><td>参考資料 1 つ分の署名付き POST：<code>{ name, size }</code> → 201 <code>{ uploadId, url, fields, contentType, maxBytes, expiresIn }</code>（有効期間 15 分）。形式と大きさの違反は 400（4.2）</td><td>ログイン</td></tr>
     <tr><td>POST</td><td><code>/projects</code></td><td>作成と最初のジョブ：<code>{ roi, tlf, attachments?: [{ uploadId, name }], urls?, canon?, model?, reasoningEffort?, researchMode?, locale?, hypothesis? }</code> → 201 プロジェクト。<code>canon</code> は、なし・既存の Canon・種から作る新しい Canon のどれかで（5.10）、省くと設定の既定の Canon。<code>researchMode</code> の既定は true。<code>hypothesis</code> の形は A.12。名前は仮の名前、Contributor はアカウントの値。ROI と TLF が両方空、アップロードがない、上限の超過は 400。種にできないプロジェクトは 409</td><td>ログイン（キー）</td></tr>
     <tr><td>GET</td><td><code>/projects/resolve/{id}</code></td><td>ID か移行した古い ID から <code>{ projectId }</code> を返す（URL の転送）</td><td>所有者</td></tr>
-    <tr><td>GET</td><td><code>/projects/{id}</code></td><td>詳細とジョブの一覧（作成順。使用量は補正済み）。公開していれば複製の数</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}</code></td><td>詳細とジョブの一覧（作成順）。公開していれば複製の数</td><td>所有者</td></tr>
     <tr><td>PUT</td><td><code>/projects/{id}</code></td><td>名前の変更 <code>{ name }</code> → <code>{ project, duplicates }</code>。<code>duplicates</code> は同じ名前の自分のプロジェクトで、注意として返すだけ（4.3）</td><td>所有者</td></tr>
     <tr><td>DELETE</td><td><code>/projects/{id}</code></td><td>論理削除 → <code>{ projectId, deletedAt }</code>。Canon から外し、公開をやめる。ジョブの実行中は 409。以後 <code>/projects/{id}/…</code> はすべて 404</td><td>所有者</td></tr>
     <tr><td>PUT</td><td><code>/projects/{id}/archive</code></td><td><code>{ archived }</code>：アーカイブと戻す操作 → <code>{ projectId, archivedAt }</code>。サイドバーの履歴から隠すだけで、実行・Canon・公開は変えない。実行中でもできる</td><td>所有者</td></tr>
-    <tr><td>GET</td><td><code>/projects/{id}/messages</code></td><td>エージェント欄の履歴（<code>limit</code> 既定 500、<code>cursor</code>。使用量の表示は補正済み）</td><td>所有者</td></tr>
+    <tr><td>GET</td><td><code>/projects/{id}/messages</code></td><td>エージェント欄の履歴（<code>limit</code> 既定 500、<code>cursor</code>）</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/cancel</code></td><td>停止。ジョブを <code>CANCELLED</code> にし、タスクを止める。実行中でなければ 400</td><td>所有者</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/answer</code></td><td>質問への回答 <code>{ answer, locale? }</code>。同じジョブを <code>resume</code> で再開する。回答待ちの質問がなければ 400</td><td>所有者（キー）</td></tr>
     <tr><td>POST</td><td><code>/projects/{id}/followup</code></td><td>完了後のフォローアップ <code>{ instruction, locale?, hypothesis? }</code> → <code>{ ok, jobId }</code>。完了していなければ 400。<code>hypothesis</code> を付けると、仮説の範囲をジョブと一緒に加える。形と 409 の条件は A.12</td><td>所有者（キー）</td></tr>
@@ -203,7 +203,7 @@
     <tr><td>GET・PUT・DELETE</td><td><code>/admin/default-api-key</code></td><td>デフォルトの API キーの状態 <code>{ registered, last4, updatedAt }</code>（キーは返さない）/ <code>{ apiKey }</code> を OpenAI で検査して登録・置き換え（拒否されたら 400）/ 削除。<code>?provider=anthropic</code> でデフォルトの Anthropic API キー（<code>{ apiKey, workspaceId? }</code>）、<code>?provider=deepseek</code> でデフォルトの DeepSeek API キー</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/org-usage</code></td><td>デフォルトの API キーの利用者ごとの使用量：<code>{ items: [{ userId, jobs, usage, costUsd, monthCostUsd, unpricedJobs, lastJobAt }], month }</code>。<code>month</code> は UTC での現在の月</td><td>管理者</td></tr>
     <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>。それぞれ 1〜16 の整数で、null はデプロイ時の値に戻す。ほかの値は 400。dispatcher とミッションランナーは 30 秒以内に読み直す（8.3）</td><td>管理者</td></tr>
-    <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト。削除したものも <code>deletedAt</code>・<code>deletedBy</code> 付きで返す。使用量は補正済み</td><td>管理者</td></tr>
+    <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト。削除したものも <code>deletedAt</code>・<code>deletedBy</code> 付きで返す</td><td>管理者</td></tr>
     <tr><td>POST</td><td><code>/admin/projects/{userId}/{id}/cancel</code></td><td>強制停止</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/spec</code></td><td>この仕様書（PDF）を開くための、短時間だけ有効なリンク</td><td>管理者</td></tr>
   </tbody>
