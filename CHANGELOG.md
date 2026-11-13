@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.56.0] - 2026-11-13
+
 ### Added
 - The new-mission screen has a "Canon" chip to choose where the mission's projects are delivered: a new Canon, one of your own Canons, or none. A new Canon is named in its own field of the card instead of taking the mission's name, so a mission and its Canon no longer end up with the same name. "New mission" on a Canon's page opens the screen with that Canon already chosen
 - A mission's page and a project's page show where they sit at the top, as "Canon … › Mission … › Project", with links to the Canon and the mission. On a mission's page this replaces the "← Canon" link, which led to the list rather than to the mission's own Canon
