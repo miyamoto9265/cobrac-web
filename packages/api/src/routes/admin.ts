@@ -31,7 +31,6 @@ import {
   listUsers,
   updateUser,
 } from "../lib/db.js";
-import { correctProjects } from "../lib/usageCorrection.js";
 import { defaultKeyStatus, deleteDefaultKey, getDefaultKey, orgUsage, putDefaultKey } from "../lib/orgKey.js";
 import { providerParam, verifiedKey } from "./users.js";
 import type { ApiEnv } from "./env.js";
@@ -137,7 +136,7 @@ adminApi.put("/admin/concurrency", async (c) => {
 adminApi.get("/admin/projects", async (c) => {
   requireAdmin(c.get("user"));
   const items = (await listAllProjects()).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  return c.json({ items: await correctProjects(items) });
+  return c.json({ items });
 });
 
 // The specification PDF (bundled with this function) is uploaded to S3 once per version and handed out as presigned
