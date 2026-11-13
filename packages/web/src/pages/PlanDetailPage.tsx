@@ -16,7 +16,7 @@ import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
+import { MISSIONS_PATH, ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
 import { canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
 import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
 import { Trail, trailSteps } from "../components/Trail";
@@ -827,7 +827,7 @@ export function PlanDetailPage() {
                 </button>
               )}
               {(plan.status === "COMPLETED" || plan.status === "CANCELLED") && (
-                <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate("/canons"))} className={dangerBtn}>
+                <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate(MISSIONS_PATH))} className={dangerBtn}>
                   <Trash2 size={14} aria-hidden /> {t("plan.delete")}
                 </button>
               )}

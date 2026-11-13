@@ -1,12 +1,13 @@
 import { Archive, BookMarked, BrainCircuit, Globe, Layers, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X, type LucideIcon } from "lucide-react";
-import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { api, getWorkspaceTeam } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { NEW_PLAN_PATH } from "../lib/plan";
+import { MISSIONS_PATH, NEW_PLAN_PATH } from "../lib/plan";
+import { turnItems } from "../lib/planTurn";
 import { notifyProjectsChanged, useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { AlphaBadge } from "./AlphaBadge";
@@ -61,6 +62,8 @@ export function Layout() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
 
+  // what waits on the owner across the missions, counted beside the 「ミッション」 link on every screen
+  const turn = useMemo(() => (plans ? turnItems(Object.values(plans)).length : 0), [plans]);
   const entries = historyEntries(projects, plans);
   // archived rows are not shown here; they are restored from the project list or the mission's page
   const current = entries.filter((e) => !isArchived(e, plans));
@@ -143,7 +146,14 @@ export function Layout() {
           <div className="pointer-events-none sticky bottom-0 h-5 bg-gradient-to-t from-slate-900" aria-hidden />
         </nav>
         <div className="space-y-px px-2 pb-2 pt-1">
-          {/* missions are listed on the Canon page, by the Canon they build */}
+          {/* the work (missions, with what waits on the owner) and what it builds (Canons) have an entry each */}
+          <SideLink
+            to={MISSIONS_PATH}
+            Icon={KIND.mission.Icon}
+            label={t("cm.missions")}
+            alsoActive={/^\/plans\/(?!new$)/.test(location.pathname)}
+            badge={turn > 0 ? { n: turn, label: t("cm.yourTurn", { n: turn }) } : undefined}
+          />
           <SideLink to="/canons" Icon={Layers} label={t("nav.canons")} />
           <SideLink to="/explore" Icon={Globe} label={t("nav.explore")} />
           <SideLink to="/manual" Icon={BookMarked} label={t("nav.manual")} />
@@ -243,8 +253,8 @@ function AppName({ className = "" }: { className?: string }) {
 /** The bar at the left edge of the item on screen (a history row or a link); it grows in when the item becomes current. */
 const ActiveBar = () => <span className="absolute inset-y-2 left-0 w-[3px] origin-center rounded-full bg-blue-400 motion-safe:animate-bar-in" aria-hidden />;
 
-/** One link of the sidebar's lower list. `alsoActive` keeps it marked on a route outside its own path. */
-function SideLink({ to, Icon, label, alsoActive = false }: { to: string; Icon: LucideIcon; label: string; alsoActive?: boolean }) {
+/** One link of the sidebar's lower list. `alsoActive` keeps it marked on a route outside its own path; `badge` is a count at its right end. */
+function SideLink({ to, Icon, label, alsoActive = false, badge }: { to: string; Icon: LucideIcon; label: string; alsoActive?: boolean; badge?: { n: number; label: string } }) {
   return (
     <NavLink to={to} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
       {({ isActive }) => {
@@ -253,6 +263,11 @@ function SideLink({ to, Icon, label, alsoActive = false }: { to: string; Icon: L
           <span data-current={on || undefined} className={`relative flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors coarse:py-3 ${on ? "bg-white/10 font-medium text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
             {on && <ActiveBar />}
             <Icon size={16} className={`shrink-0 ${on ? "text-blue-300" : "text-slate-400"}`} aria-hidden /> {label}
+            {badge && (
+              <span key={badge.n} className="ml-auto rounded-full bg-amber-400 px-1.5 text-[11px] font-semibold leading-[1.125rem] text-slate-900 motion-safe:animate-count-in" title={badge.label} aria-label={badge.label} data-testid="nav-turn">
+                {badge.n}
+              </span>
+            )}
           </span>
         );
       }}

@@ -295,16 +295,15 @@
 
 <h2 id="s6-10">6.10 ミッションの一覧と操作</h2>
 <h3>ミッションの一覧</h3>
-<p>ミッションの一覧は、サイドバーの「Canon」の画面にあり、ミッションを Canon ごとに分けて、現在何をしているかを示します。Canon は長く育てる成果物で、ミッションはそれを育てる 1 回分の仕事という関係を、そのまま画面にしています。<code>/plans</code> は「Canon」の画面へ転送します。実行中・一時停止・下書き作成中のミッションがあるあいだは、見出しの横に「ライブ」が出て、15 秒ごと（下書き作成中は 5 秒ごと）に自動で読み直します。タブが裏にあるあいだは読み直しません。</p>
+<p>ミッションの一覧（<code>/missions</code>）は、サイドバーの「ミッション」で開きます。Canon は長く育てる成果物で、ミッションはそれを育てる 1 回分の仕事です。成果物は Canon の一覧（5.1）、仕事はこの一覧と、入口を分けています。<code>/plans</code> はこの一覧へ転送します。実行中・一時停止・下書き作成中のミッションがあるあいだは、見出しの横に「ライブ」が出て、15 秒ごと（下書き作成中は 5 秒ごと）に自動で読み直します。タブが裏にあるあいだは読み直しません。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">欄</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><b>あなたの番</b></td><td>すべてのミッションから、所有者の操作を待っているものを先頭にまとめる。質問・承認待ち・要判断・要対応のプロジェクト、再計画の提案、所有者以外の理由で止まったミッション、確定を待つ（または失敗した）下書き、下書きの前のオーケストレーターの質問（6.4）。押すとそのミッションを開く。実行中の自律実行のミッションのプロジェクトは出さない（オーケストレーターが決めるため）。何もなければ「いま、あなたの操作を待っているものはありません」</td></tr>
-    <tr><td><b>Canon ごとの区画</b></td><td>所有者の Canon ごとに 1 つの区画を出し、見出しに Canon の名前（Canon の画面へのリンク）、ID、最新の rev、プロジェクト数、公開範囲、更新日、粒度方針を出す。区画の中に、その Canon を計画の Canon とするミッションを並べる。確定のときに新しい Canon を作るミッションは、その名前と「ミッションの開始時に作ります」の区画になる。Canon のないミッションと、Canon が見つからないミッションは、最後の点線の区画「Canon のないミッション」にまとめる。区画の順は、動いているミッションのあるものが先で、そのあとは最近動いた順。ミッションのない Canon も区画を出す</td></tr>
-    <tr><td><b>動いているミッション</b></td><td>区画の中で、実行中・一時停止・下書き作成中のミッションを、横長のレーンで出す。レーンには次のものが並ぶ：完了数、現在のバッチ、経過時間と見込み、費用（実績と見積もり）、バッチごとの進捗バー、現在作っているプロジェクトとその段階と経過時間、最近の動き（直近 4 件）。実行中のレーンの右上には一時停止のボタン、止まったレーンには再開のボタンがあり、ミッションの画面を開かずにミッションごとに止め、再開できる。費用の上限で止まったミッションは、上限を上げるためミッションの画面で再開する</td></tr>
-    <tr><td><b>下書き・終わったミッション</b></td><td>区画の中で、下書きはカード、完了・中止したミッションは折りたたんだ「終わったもの n」</td></tr>
-    <tr><td><b>見出しの操作</b></td><td>「新しい Canon」（その場で開く作成のフォーム。5.10）と「新しいミッション」（作成画面へ移る。6.3）。Canon もミッションもないときは、ミッションを始めるボタンのある空の表示</td></tr>
-    <tr><td><b>共有された Canon</b></td><td>共同編集者として参加している Canon（5.8）。区画の下に並べる。ミッションは出さない</td></tr>
+    <tr><td><b>あなたの番</b></td><td>すべてのミッションから、所有者の操作を待っているものを先頭にまとめる。質問・承認待ち・要判断・要対応のプロジェクト、再計画の提案、所有者以外の理由で止まったミッション、確定を待つ（または失敗した）下書き、下書きの前のオーケストレーターの質問（6.4）。押すとそのミッションを開く。実行中の自律実行のミッションのプロジェクトは出さない（オーケストレーターが決めるため）。何もなければ「いま、あなたの操作を待っているものはありません」。同じ件数を、サイドバーの「ミッション」の横に出す（30 秒ごとに読み直す履歴と同じ一覧から数える）</td></tr>
+    <tr><td><b>進行中</b></td><td>実行中・一時停止・下書き作成中のミッションを、横長のレーンで出す。レーンには次のものが並ぶ：届け先の Canon の名前（紫の印）、完了数、現在のバッチ、経過時間と見込み、費用（実績と見積もり）、バッチごとの進捗バー、現在作っているプロジェクトとその段階と経過時間、最近の動き（直近 4 件）。実行中のレーンの右上には一時停止のボタン、止まったレーンには再開のボタンがあり、ミッションの画面を開かずにミッションごとに止め、再開できる。費用の上限で止まったミッションは、上限を上げるためミッションの画面で再開する</td></tr>
+    <tr><td><b>下書き・終わったもの</b></td><td>下書きはカード、完了・中止したミッションは折りたたんだ「終わったもの n」（ほかに何もなければ開いておく）。どちらにも届け先の Canon の名前を出す。確定のときに作る Canon は、その予定の名前を出す</td></tr>
+    <tr><td><b>Canon で分ける</b></td><td>見出しのボタンで、ミッションを Canon ごとの区画に分けて並べる。区画の見出しは Canon の名前（Canon の画面へのリンク）、ID、最新の rev、プロジェクト数、公開範囲、更新日、粒度方針。確定のときに新しい Canon を作るミッションは、その名前と「ミッションの開始時に作ります」の区画になる。Canon のないミッションと、Canon が見つからないミッションは、最後の点線の区画「Canon のないミッション」にまとめる。ミッションのない Canon の区画は出さない（Canon の一覧にある）。区画の順は、動いているミッションのあるものが先で、そのあとは最近動いた順。分けるかどうかはブラウザーに残す</td></tr>
+    <tr><td><b>見出しの操作</b></td><td>「新しいミッション」（作成画面へ移る。6.3）。ミッションがないときは、ミッションを始めるボタンのある空の表示</td></tr>
   </tbody>
 </table>
 <p>進捗バーの色は、完了が緑、作っているプロジェクトが流れる青、質問・判断が黄、承認待ちが紫、要対応が赤です。現在のバッチは枠で囲みます。フロー実行のミッションでは、進捗バーをレーンごとに区切ります。自律実行のミッションには、一覧でも「自律実行」の印が付きます。</p>
@@ -352,7 +351,7 @@
   <li>見積もりと実績</li>
 </ul>
 <p>レーンの図と同時実行の欄は、<code>GET /plans/{id}</code> のプロジェクトの <code>lane</code>・<code>wait</code> と使用中の枠 <code>slots</code> から描きます。動きを止める判定は <code>prefers-reduced-motion</code> です。</p>
-<p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/components/PlanBar.tsx</code>・<code>plan/FlowMap.tsx</code>、<code>packages/web/src/i18n/planFlow.ts</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/routes/plans.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）、<code>packages/web/src/App.tsx</code>、<code>docs/manual/ja.md</code></p>
+<p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>（<code>MissionBoard</code>）・<code>PlanDetailPage.tsx</code>、<code>packages/web/src/lib/planTurn.ts</code>（<code>turnItems</code>）、<code>packages/web/src/components/PlanBar.tsx</code>・<code>plan/FlowMap.tsx</code>、<code>packages/web/src/i18n/planFlow.ts</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>planPulse</code>）、<code>packages/api/src/routes/plans.ts</code>（<code>LIST_PULSE_PLANS</code>）、<code>packages/shared/src/plan.ts</code>（<code>PlanPulse</code>）、<code>packages/web/src/App.tsx</code>、<code>docs/manual/ja.md</code></p>
 
 <h2 id="s6-11">6.11 同時実行数・モデル・費用</h2>
 <ul>

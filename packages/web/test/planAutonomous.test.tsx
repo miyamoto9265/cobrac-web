@@ -19,7 +19,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile: vi.fn(), ApiError: class ext
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { CanonBoard, NewPlanPage, turnItems } = await import("../src/pages/PlansPage");
+const { MissionBoard, NewPlanPage, turnItems } = await import("../src/pages/PlansPage");
 const { AUTONOMOUS_CATALOG } = await import("../src/i18n/autonomous");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,7 +48,7 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
           </Routes>
@@ -261,7 +261,7 @@ describe("「あなたの番」 with autonomous plans", () => {
 
   it("shows only what waits on the owner in the list", async () => {
     api.listPlans.mockResolvedValue({ items: [summary("n0000001", "RUNNING"), summary("n0000005", "DRAFT", { pulse: null, draft: draftDone(true), autonomousError: "no rows" })] });
-    await render("/canons");
+    await render("/missions");
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).not.toContain("Answer a question");
     expect(turn.textContent).not.toContain("Left or both?");
@@ -278,7 +278,7 @@ describe("「あなたの番」 with autonomous plans", () => {
         }),
       ],
     });
-    await render("/canons");
+    await render("/missions");
     const events = q('[data-testid="plan-lane-events"]')!.textContent!;
     expect(events).toContain("The Orchestrator's AI decided on the row (Skip)");
     expect(events).toContain("Cost limit reached ($20.40 / $20.00)");

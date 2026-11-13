@@ -9,7 +9,10 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - The new-mission screen has a "Canon" chip to choose where the mission's projects are delivered: a new Canon, one of your own Canons, or none. A new Canon is named in its own field of the card instead of taking the mission's name, so a mission and its Canon no longer end up with the same name. "New mission" on a Canon's page opens the screen with that Canon already chosen
 - A mission's page and a project's page show where they sit at the top, as "Canon … › Mission … › Project", with links to the Canon and the mission. On a mission's page this replaces the "← Canon" link, which led to the list rather than to the mission's own Canon
 
+- "Missions" in the sidebar opens a page of its own (`/missions`): "Your turn" first, then the missions in progress, the drafts and the finished ones, each with the Canon it delivers to. "Group by Canon" groups them by Canon as before (the choice is kept in the browser). Beside "Missions", the sidebar counts what waits on you on every screen
+
 ### Changed
+- "Canon" in the sidebar lists the Canons alone, as cards with their rev, projects and the missions delivering to them (how many are running). A Canon a draft mission will create has a dashed card that opens the mission. The missions moved to the new "Missions" page, and `/plans` now leads there
 - A Canon, a mission and a project each have one icon and one colour wherever they are named (violet, blue and teal): in the sidebar history, in the lists and in the trail at the top of a page
 - In the sidebar history, a mission's entry shows the Canon it delivers to under its name (the number of projects when it has no Canon), and a project's entry has an icon like a mission's
 

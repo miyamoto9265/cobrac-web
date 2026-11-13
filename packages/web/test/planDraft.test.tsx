@@ -33,7 +33,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Erro
 
 const { I18nProvider, loadLocale } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { CanonBoard, NewPlanPage } = await import("../src/pages/PlansPage");
+const { MissionBoard, NewPlanPage } = await import("../src/pages/PlansPage");
 const { waveRuns, isSeedWave, seedIndexes, wavesText, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,7 +84,7 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
           </Routes>

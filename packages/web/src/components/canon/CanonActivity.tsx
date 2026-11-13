@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonSnapshot, PlanSummary, ProjectStatus } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
-import { bulkApprovable, newPlanPath, planPath } from "../../lib/plan";
+import { MISSIONS_PATH, bulkApprovable, newPlanPath, planPath } from "../../lib/plan";
 import { canonPath, canonPullPath } from "../../pages/CanonsPage";
 import { PlanStatusBadge } from "../../pages/PlansPage";
 import { LiveDot } from "../PlanBar";
@@ -150,7 +150,7 @@ export function CanonActivity({
             })}
           </ul>
           {missions.length > MISSIONS_SHOWN && (
-            <Link to="/canons" className={`mt-1.5 inline-block ${quietLink}`}>
+            <Link to={MISSIONS_PATH} className={`mt-1.5 inline-block ${quietLink}`}>
               {t("cv.missionsAll")} · {t("cv.more", { n: missions.length - MISSIONS_SHOWN })}
             </Link>
           )}

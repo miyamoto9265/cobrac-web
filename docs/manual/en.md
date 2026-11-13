@@ -56,7 +56,7 @@ The project gets a name automatically; you can change it on the project page.
 
 After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per mission in the history.
 
-Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and on the Canon page, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
+Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and in the mission list, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
 
 ![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 
@@ -131,7 +131,7 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### The Canon page
 
-The "Canon" button in the sidebar opens the list of Canons and their missions. Choose a Canon to open its page, which is centred on the graph like a project page: a header, tabs below it, and the "Activity" panel on the right.
+The "Canon" button in the sidebar opens the list of Canons. Each Canon's card shows its latest rev, its number of projects and the missions delivering to it (how many are running, if any). A Canon a mission creates when it starts has a dashed card that opens that mission. Choose a Canon to open its page, which is centred on the graph like a project page: a header, tabs below it, and the "Activity" panel on the right.
 
 - **Header**: press the Canon's name to switch to another Canon. "All Canons" at the bottom of the menu goes back to the list. The (?) next to the name shows the ID, granularity policy, description and counts. The gear icon opens the settings.
 - **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits, or the circuits with problems. The arrangement of the graph is saved in this browser.
@@ -196,8 +196,8 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - An automatically ordered mission does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the mission page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
 - In an automatically ordered mission, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
 - The top of a mission's page and of a project's page shows the Canon it delivers to and the mission it belongs to, as "Canon … › Mission … › Project". Each one is a link. A Canon is shown in violet, a mission in blue and a project in teal. In the sidebar history, a mission's entry names its Canon too.
-- The "Canon" page lists, for each Canon, the missions that build it (running, drafts and finished ones); missions without a Canon come last.
-- "Your turn" on the "Canon" page gathers what is waiting for you, such as questions and approvals.
+- "Missions" in the sidebar opens the list of missions: running ones, drafts, then finished ones, each with the name of the Canon it delivers to. "Group by Canon" groups them by Canon instead (the choice is kept in your browser).
+- "Your turn" at the top of the mission list gathers what is waiting for you, such as questions and approvals. Its count shows beside "Missions" in the sidebar on every screen.
 - The projects a mission creates open on the usual project page.
 
 ### Missions with a Canon
@@ -221,7 +221,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 ### Questions, pause and cancel
 
 - When an agent asks a question, only its row stops, and the question appears under "Questions" on the mission page. Answering resumes that row.
-- Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane on the "Canon" page. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
+- Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane in the mission list. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled mission can be resumed.
 - Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
 

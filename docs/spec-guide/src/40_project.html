@@ -197,8 +197,8 @@
 <p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>、<code>packages/api/src/routes/projects.ts</code></p>
 
 <h2 id="s4-4">4.4 画面</h2>
-<p>本書の画面の名前は、サイドバーと利用マニュアルの表記と一致しています。サイドバーの上には「＋ ミッション」（新規ミッション、6.3）と「＋ プロジェクト」（新規プロジェクト）が同じ幅で並び、その下に「履歴」、下部に「Canon」「公開ライブラリ」「利用マニュアル」が並び、管理者にはさらに「管理」が出ます。ミッションの一覧は「Canon」の画面にあります（6.10）。「履歴」は自分のプロジェクトとミッションの履歴で、見出しの横の「すべて表示」でプロジェクト一覧が開きます。ミッションが作ったプロジェクトはミッションごとに 1 件にまとまり、プロジェクトがまだないミッション（下書き）も作った時刻の位置に出ます。</p>
-<p>履歴の各項目には、ポインターを合わせると（タッチの端末では常に）アーカイブのボタンが出ます。アーカイブは項目を履歴から隠すだけで、実行・Canon・公開には影響しません。ミッションをアーカイブすると、そのプロジェクトもまとめて隠れます。アーカイブしたものはサイドバーに出ません。プロジェクト一覧と Canon ページには残り、薄く表示され「アーカイブ済み」の印が付いて、それぞれの並びの末尾に置かれます。プロジェクト一覧では各項目のボタンでアーカイブ・復元できます。ミッションはそのページの見出しのボタンでアーカイブ・復元します。</p>
+<p>本書の画面の名前は、サイドバーと利用マニュアルの表記と一致しています。サイドバーの上には「＋ ミッション」（新規ミッション、6.3）と「＋ プロジェクト」（新規プロジェクト）が同じ幅で並び、その下に「履歴」、下部に「ミッション」「Canon」「公開ライブラリ」「利用マニュアル」が並び、管理者にはさらに「管理」が出ます。「ミッション」はミッションの一覧（6.10）、「Canon」は Canon の一覧（5.1）を開きます。「ミッション」の横には、所有者の操作を待っているもの（6.10 の「あなたの番」）の件数が黄色の丸で出ます。ミッションの画面を開いているあいだは「ミッション」が選ばれた状態になります。「履歴」は自分のプロジェクトとミッションの履歴で、見出しの横の「すべて表示」でプロジェクト一覧が開きます。ミッションが作ったプロジェクトはミッションごとに 1 件にまとまり、プロジェクトがまだないミッション（下書き）も作った時刻の位置に出ます。</p>
+<p>履歴の各項目には、ポインターを合わせると（タッチの端末では常に）アーカイブのボタンが出ます。アーカイブは項目を履歴から隠すだけで、実行・Canon・公開には影響しません。ミッションをアーカイブすると、そのプロジェクトもまとめて隠れます。アーカイブしたものはサイドバーに出ません。プロジェクト一覧とミッションの一覧には残り、薄く表示され「アーカイブ済み」の印が付いて、それぞれの並びの末尾に置かれます。プロジェクト一覧では各項目のボタンでアーカイブ・復元できます。ミッションはそのページの見出しのボタンでアーカイブ・復元します。</p>
 <p>「仕様書」は、管理画面の上部にあるボタンから開きます。「設定」と「ログアウト」は、その下にあるメールアドレスの横のアイコンから開きます。サイドバーの下端にはアプリのバージョンが出ており、押すとリリースノートが開きます。いま開いている画面に当たる項目（履歴の項目と下部のリンク）は、背景を明るくし、左端に青い線を付けて示します。アプリ名の横の「アルファ版」の印は、押すかポインターを合わせると説明が出ます。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">パス</th><th style="width:17%">画面</th><th>内容</th></tr></thead>
@@ -207,8 +207,9 @@
     <tr><td><code>/chat</code></td><td>新規プロジェクト</td><td>ROI と TLF の入力欄と、任意の設定（4.2）</td></tr>
     <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
     <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。<code>/projects/:id</code> は最初にあるタブを開き、まだ何もなければ空の状態を出す</td></tr>
-    <tr><td><code>/plans/new</code>・<code>/plans/:planId</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10）。ミッションの一覧は「Canon」の画面にあり、<code>/plans</code> はそこへ転送する</td></tr>
-    <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon ごとのミッション（6.10）と共有された Canon、Canon の画面、PR の画面（第 5 部）。<code>view</code> はタブで、<code>hcd</code>・<code>tables</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code> のどれか</td></tr>
+    <tr><td><code>/plans/new</code>・<code>/plans/:planId</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10）。<code>/plans</code> は <code>/missions</code> へ転送する</td></tr>
+    <tr><td><code>/missions</code></td><td>ミッション</td><td>あなたの番と、ミッションの一覧（6.10）</td></tr>
+    <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon の一覧（5.1）、Canon の画面、PR の画面（第 5 部）。<code>view</code> はタブで、<code>hcd</code>・<code>tables</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code> のどれか</td></tr>
     <tr><td><code>/explore</code>・<code>/explore/projects/:id</code>・<code>/explore/canons/:id</code></td><td>公開ライブラリ</td><td>公開されたプロジェクトと Canon の閲覧と複製（4.6）</td></tr>
     <tr><td><code>/settings</code></td><td>設定</td><td>OpenAI API キー（承認された利用者にはデフォルトの API キーの利用状況も）、表示名と Contributor 名、既定のモデルと推論の強さ、新しいプロジェクトの既定の Canon、パスワードの変更</td></tr>
     <tr><td><code>/manual</code></td><td>利用マニュアル</td><td>ログインした全員が読める。現在は日本語と英語があり、UI の言語で開く。その言語の版がなければ英語に注記を付けて出す。目次と見出しのアンカー付き。画面の「?」の横にある「ガイド」のリンクは、該当する節を開く</td></tr>
