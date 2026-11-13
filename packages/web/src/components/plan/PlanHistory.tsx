@@ -9,15 +9,15 @@ import { DECISION_REASONS, autoSkipText, rowLabel } from "./common";
 /** The start of a long text in the history (an answer, a reason); the whole text is its title. */
 const clip = (s: string, n = 140) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
-/** What the plan did, newest first (collapsed). */
-export function PlanHistory({ events, rows, plan, className = "mb-5" }: { events: PlanEventRecord[]; rows: PlanRowView[]; plan: PlanRecord; className?: string }) {
+/** What the plan did, newest first (collapsed unless `open`: the mission page's 「履歴」 tab). */
+export function PlanHistory({ events, rows, plan, className = "mb-5", open }: { events: PlanEventRecord[]; rows: PlanRowView[]; plan: PlanRecord; className?: string; open?: boolean }) {
   const t = useT();
   const { locale } = useI18n();
   const byId = useMemo(() => new Map(rows.map((r) => [r.rowId, r])), [rows]);
   if (!events.length) return null;
   const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   return (
-    <details className={`rounded-xl border border-slate-200 bg-white p-3 ${className}`} data-testid="plan-history">
+    <details open={open} className={`rounded-xl border border-slate-200 bg-white p-3 ${className}`} data-testid="plan-history">
       <summary className="cursor-pointer text-sm font-semibold coarse:py-2">{t("plan.history")}</summary>
       <ul className="mt-2 grid gap-1 text-xs">
         {events.map((e) => {

@@ -33,7 +33,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Erro
 
 const { I18nProvider, loadLocale } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { CanonBoard, NewPlanPage } = await import("../src/pages/PlansPage");
+const { MissionBoard, NewPlanPage } = await import("../src/pages/PlansPage");
 const { waveRuns, isSeedWave, seedIndexes, wavesText, shownAnchors, fmtElapsed } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,9 +84,9 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
-            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -144,6 +144,7 @@ describe("new plan with a draft", () => {
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     const draftBtn = button("Create draft")!;
     // a draft needs a goal or a capability list
     expect(draftBtn.disabled).toBe(true);
@@ -179,6 +180,7 @@ describe("new plan with a draft", () => {
       ],
       draft: true,
       locale: "en",
+      canon: { mode: "new", name: "Language map" },
     });
     expect(vi.mocked(uploadFile).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(api.createPlan).mock.invocationCallOrder[0]);
     expect(api.getPlan).toHaveBeenCalledWith(PLAN);
@@ -196,10 +198,11 @@ describe("new plan with a draft", () => {
     await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv]);
     await click(button("Create mission"));
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }] });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }], canon: { mode: "new", name: "Language map" } });
   });
 
   it("enables the draft with a goal alone and keeps “Create mission” without a draft", async () => {
@@ -211,11 +214,12 @@ describe("new plan with a draft", () => {
     await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
     await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
     expect(button("Create draft")!.disabled).toBe(false);
     await click(button("Create mission"));
     expect(api.createUpload).not.toHaveBeenCalled();
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい" });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい", canon: { mode: "new", name: "Language map" } });
   });
 
   it("keeps “Create mission” disabled until a goal, a file or rows are given besides the name", async () => {
@@ -228,6 +232,7 @@ describe("new plan with a draft", () => {
     const create = button("ミッションを作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     // a name alone is not enough: the API answers 400 「目標・資料・プロジェクトのどれかが必要です」
     expect(create.disabled).toBe(true);
     const hint = q('[data-testid="plan-need-input"]')!;
@@ -488,7 +493,7 @@ describe("a draft written by the plan job", () => {
   it("notes a rebuilt row in the running view", async () => {
     const rebuilt = rows.map((r) => (r.rowId === "r4" ? { ...r, existing: null, rebuild: true, state: "running" as const, projectId: "p0000011" } : r));
     api.getPlan.mockResolvedValue(detail("RUNNING", rebuilt, { ordering: "auto", activeWave: 3 }));
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     const view = q('[data-testid="plan-rows"]')!;
     expect(qa('[data-testid="row-rebuild"]', view).map((el) => el.textContent)).toEqual(["Rebuild"]);
     expect(qa('input[type="checkbox"]', view)).toHaveLength(0);
@@ -621,7 +626,7 @@ describe("a draft written by the plan job", () => {
         <I18nProvider>
           <MemoryRouter initialEntries={[{ pathname: `/plans/${PLAN}`, state: { rejected: [{ file: "language.csv", row: 4, reason: "duplicate", text: "STG | hearing" }] } }]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
-              <Route path="/plans/:planId" element={<PlanDetailPage />} />
+              <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>,
@@ -962,6 +967,7 @@ describe("re-planning while running", () => {
     expect(api.proposalAction).toHaveBeenCalledWith(PLAN, "q0000002", "reject");
 
     // decided proposals are collapsed under the history; the actions of a running plan are unchanged
+    await click(q('[data-testid="plan-tab-history"]'));
     const decided = q('[data-testid="plan-decided"]')!;
     expect(decided.tagName).toBe("DETAILS");
     expect(decided.textContent).toContain("Decided proposals (2)");
@@ -969,9 +975,11 @@ describe("re-planning while running", () => {
     // a policy is the Orchestrator's decision: applied without the owner
     expect(decided.textContent).toContain("Applied by the Orchestrator");
     expect(qa("button", q('[data-testid="plan-actions"]')!).map((b) => b.textContent?.trim())).toEqual(["Pause", "Cancel mission"]);
-    // the policy is read-only after confirmation; the cost of the plan's own jobs is shown apart
+    // the policy is read-only after confirmation (on the settings tab); the cost of the plan's own jobs is shown apart (on the overview)
+    await click(q('[data-testid="plan-tab-settings"]'));
     expect(q('[data-testid="plan-policy"] textarea')).toBeNull();
     expect(q('[data-testid="plan-policy"]')!.textContent).toContain("neocortex = area");
+    await click(q('[data-testid="plan-tab-overview"]'));
     expect(q('[data-testid="plan-jobs-cost"]')!.textContent).toBe("incl. planning jobs $0.05");
   });
 
@@ -984,10 +992,11 @@ describe("re-planning while running", () => {
 
   it("heads the waves with their stored numbers and labels the seed waves", async () => {
     api.getPlan.mockResolvedValue(running());
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     const view = q('[data-testid="plan-rows"]')!;
     expect(headings(view)).toEqual(["Wave 1Baseline project", "Wave 2Baseline project", "Wave 4current", "Wave 5"]);
     // four waves numbered 1, 2, 4, 5: the active one keeps its number, without claiming a fifth wave
+    await click(q('[data-testid="plan-tab-overview"]'));
     expect(q('[data-testid="plan-summary"]')!.textContent).toContain("Wave 4 (3 of 4)");
   });
 
@@ -1079,7 +1088,7 @@ describe("seed waves next to rows of an existing project", () => {
 
   it("leaves the existing project's cost out of the row in the running view", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows("running"), { ordering: "auto" }));
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     const view = q('[data-testid="plan-rows"]')!;
     expect(headings(view)).toEqual(["Wave 1Baseline projectcurrent", "Wave 2"]);
     expect(view.textContent).not.toContain("$0.27");
@@ -1145,7 +1154,7 @@ describe("a flow plan", () => {
 
   it("maps the rows on their lanes, shows the slots in use and why each row waits", async () => {
     api.getPlan.mockResolvedValue(flow());
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     const map = q('[data-testid="plan-flow-map"]')!;
     const lanes = qa('[data-testid="flow-lane"]', map);
     expect(lanes.map((l) => l.dataset.lane)).toEqual(["1", "2", "3"]);
@@ -1155,22 +1164,23 @@ describe("a flow plan", () => {
     expect(qa("button", lanes[2]).map((b) => b.dataset.tone)).toEqual(["needs"]);
     expect(lanes[0].textContent).toContain("1/3");
     expect(q('[data-testid="flow-legend"]', map)!.textContent).toBe("Done1Running1Needs you1Next1Waiting2");
-    // slots: 2 rows (blue), 1 AI job (violet), 3 free
-    const slots = q('[data-testid="plan-slots"]')!;
-    expect(slots.textContent).toContain("3 / 6");
-    expect(slots.textContent).toContain("AI 1");
-    expect(qa("[data-slot]", slots).map((s) => s.dataset.slot)).toEqual(["row", "row", "ai", "free", "free", "free"]);
     // the list goes by lane; a waiting row says what it waits on instead of 「Waiting」
     expect(qa('[data-testid="plan-lane-heading"]').map((h) => h.textContent)).toEqual(["Lane 11/3", "Lane 20/2", "Lane 30/1"]);
     expect(qa('[data-testid="plan-wave"]')).toHaveLength(0);
     expect(qa('[data-testid="row-wait"]').map((w) => w.textContent)).toEqual(["After syntactic processing", "Next", "After reading, syntactic processing, +1"]);
     // the progress bar goes by lane too
     expect(qa("[data-lane]", q('[data-testid="plan-bar"]')!).map((s) => s.dataset.lane)).toEqual(["1", "2", "3"]);
+    // slots on the overview: 2 rows (blue), 1 AI job (violet), 3 free
+    await click(q('[data-testid="plan-tab-overview"]'));
+    const slots = q('[data-testid="plan-slots"]')!;
+    expect(slots.textContent).toContain("3 / 6");
+    expect(slots.textContent).toContain("AI 1");
+    expect(qa("[data-slot]", slots).map((s) => s.dataset.slot)).toEqual(["row", "row", "ai", "free", "free", "free"]);
   });
 
   it("scrolls to a row picked on the map", async () => {
     api.getPlan.mockResolvedValue(flow());
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     const target = document.getElementById("plan-row-r5")!;
     const scroll = vi.fn();
     target.scrollIntoView = scroll;

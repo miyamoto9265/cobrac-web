@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import type { CanonDetailResponse, CanonPullRequestRecord, CanonSnapshot, PlanSummary, ProjectStatus } from "@cobrac/shared";
 import { useT, type MessageKey } from "../../i18n";
 import { api } from "../../lib/api";
-import { NEW_PLAN_PATH, bulkApprovable, planPath } from "../../lib/plan";
+import { MISSIONS_PATH, bulkApprovable, newPlanPath, planPath } from "../../lib/plan";
 import { canonPath, canonPullPath } from "../../pages/CanonsPage";
 import { PlanStatusBadge } from "../../pages/PlansPage";
 import { LiveDot } from "../PlanBar";
@@ -118,7 +118,7 @@ export function CanonActivity({
           testId="activity-missions"
           action={
             owner && (
-              <Link to={NEW_PLAN_PATH} className="flex items-center gap-0.5 text-[11px] text-blue-700 hover:underline coarse:py-2">
+              <Link to={newPlanPath(canonId)} data-testid="activity-new-mission" className="flex items-center gap-0.5 text-[11px] text-blue-700 hover:underline coarse:py-2">
                 <Plus size={12} aria-hidden /> {t("plan.new")}
               </Link>
             )
@@ -150,7 +150,7 @@ export function CanonActivity({
             })}
           </ul>
           {missions.length > MISSIONS_SHOWN && (
-            <Link to="/canons" className={`mt-1.5 inline-block ${quietLink}`}>
+            <Link to={MISSIONS_PATH} className={`mt-1.5 inline-block ${quietLink}`}>
               {t("cv.missionsAll")} · {t("cv.more", { n: missions.length - MISSIONS_SHOWN })}
             </Link>
           )}

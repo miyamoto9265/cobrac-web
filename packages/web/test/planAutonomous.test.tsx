@@ -19,7 +19,7 @@ vi.mock("../src/lib/api", () => ({ api, uploadFile: vi.fn(), ApiError: class ext
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { CanonBoard, NewPlanPage, turnItems } = await import("../src/pages/PlansPage");
+const { MissionBoard, NewPlanPage, turnItems } = await import("../src/pages/PlansPage");
 const { AUTONOMOUS_CATALOG } = await import("../src/i18n/autonomous");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -48,9 +48,9 @@ async function render(path: string) {
       <I18nProvider>
         <MemoryRouter initialEntries={[path]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
-            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
           </Routes>
         </MemoryRouter>
       </I18nProvider>,
@@ -91,7 +91,7 @@ describe("rows of an autonomous plan", () => {
 
   it("shows what the Orchestrator's AI does for each row and what it decided", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     expect(q('[data-testid="row-ai-job"]', rowEl("writing an answer"))!.textContent).toBe("The Orchestrator's AI is writing an answer");
     expect(q('[data-testid="row-ai-job"]', rowEl("answer ready"))!.textContent).toBe("Waiting for its turn to give the answer");
     expect(q('[data-testid="row-ai-job"]', rowEl("being decided"))!.textContent).toBe("The Orchestrator's AI is deciding");
@@ -110,7 +110,7 @@ describe("rows of an autonomous plan", () => {
   it("says it in Japanese as written", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
     localStorage.setItem("cobrac-locale", "ja");
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     expect(q('[data-testid="row-ai-job"]', rowEl("writing an answer"))!.textContent).toBe("オーケストレーター（AI）が回答を作っています");
     expect(q('[data-testid="row-ai-job"]', rowEl("answer ready"))!.textContent).toBe("回答を渡す順番を待っています");
     expect(q('[data-testid="row-ai-job"]', rowEl("being decided"))!.textContent).toBe("オーケストレーター（AI）が判断しています");
@@ -126,7 +126,7 @@ describe("rows of an autonomous plan", () => {
     const decided = (["retry", "skip", "done", "push"] as const).map((action, i) => row(`r${i + 1}`, `row ${action}`, "running", { aiResolution: { action, reason: "", at: now, jobId: `j${i}` } }));
     api.getPlan.mockResolvedValue(detail("RUNNING", decided));
     localStorage.setItem("cobrac-locale", "ja");
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/projects`);
     expect(qa('[data-testid="row-ai-resolution"]').map((e) => e.textContent)).toEqual(["リトライ", "スキップ", "完了にする", "もう一度 push"].map((a) => `オーケストレーター（AI）の判断: ${a}`));
   });
 
@@ -168,7 +168,7 @@ describe("the history of an autonomous plan", () => {
       proposals: [proposal("q0000001", "add", { row: { roi: "SMA", tlf: "speech initiation", rationale: "", anchors: [], dependsOn: [] } }), proposal("q0000002", "remove", { rowId: "r1", decidedBy: "alice" })],
     });
     api.getPlan.mockResolvedValue(d);
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/history`);
     const items = qa('[data-testid="plan-history"] li');
     const of = (type: string) => items.filter((li) => li.dataset.type === type);
     const answered = of("row_auto_answered")[0];
@@ -196,7 +196,7 @@ describe("the history of an autonomous plan", () => {
   it("names the AI's decision in Japanese as written", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "speech production", "running")], {}, { events: [ev(1, "row_auto_answered", { n: 1, jobId: "j1", answer: "両側", reason: "" }), ev(2, "row_ai_resolved", { action: "retry", from: "attention", cause: "failed", reason: "", jobId: "j2" })] }));
     localStorage.setItem("cobrac-locale", "ja");
-    await render(`/plans/${PLAN}`);
+    await render(`/plans/${PLAN}/history`);
     const text = q('[data-testid="plan-history"]')!.textContent!;
     expect(text).toContain("オーケストレーター（AI）が質問に回答");
     expect(text).toContain("オーケストレーター（AI）がプロジェクトを判断（リトライ）");
@@ -261,7 +261,7 @@ describe("「あなたの番」 with autonomous plans", () => {
 
   it("shows only what waits on the owner in the list", async () => {
     api.listPlans.mockResolvedValue({ items: [summary("n0000001", "RUNNING"), summary("n0000005", "DRAFT", { pulse: null, draft: draftDone(true), autonomousError: "no rows" })] });
-    await render("/canons");
+    await render("/missions");
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).not.toContain("Answer a question");
     expect(turn.textContent).not.toContain("Left or both?");
@@ -278,7 +278,7 @@ describe("「あなたの番」 with autonomous plans", () => {
         }),
       ],
     });
-    await render("/canons");
+    await render("/missions");
     const events = q('[data-testid="plan-lane-events"]')!.textContent!;
     expect(events).toContain("The Orchestrator's AI decided on the row (Skip)");
     expect(events).toContain("Cost limit reached ($20.40 / $20.00)");

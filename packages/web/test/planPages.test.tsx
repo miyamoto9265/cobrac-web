@@ -27,7 +27,7 @@ vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");
-const { CanonBoard, NewPlanPage } = await import("../src/pages/PlansPage");
+const { MissionBoard, NewPlanPage } = await import("../src/pages/PlansPage");
 const { splitIntoWaves, fmtDuration } = await import("../src/lib/plan");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,11 +71,11 @@ async function render(path: string, state?: unknown) {
   await act(async () => {
     r.render(
       <I18nProvider>
-        <MemoryRouter initialEntries={[{ pathname: path, state }]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <MemoryRouter initialEntries={[{ pathname: path.split("?")[0], search: path.includes("?") ? `?${path.split("?")[1]}` : "", state }]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Routes>
-            <Route path="/canons" element={<CanonBoard />} />
+            <Route path="/missions" element={<MissionBoard />} />
             <Route path="/plans/new" element={<NewPlanPage />} />
-            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
             <Route path="/projects/:projectId" element={<div data-testid="project-page" />} />
           </Routes>
         </MemoryRouter>
@@ -94,6 +94,7 @@ async function type(el: HTMLInputElement | HTMLTextAreaElement, value: string) {
 
 beforeEach(() => {
   localStorage.setItem("cobrac-locale", "en");
+  localStorage.removeItem("cobrac-missions-by-canon");
   api.models.mockResolvedValue({ models: ["gpt-6-luna"], efforts: [], envDefaultModel: "gpt-6-luna", keySource: "own", restricted: false, pricedModels: [] });
   for (const fn of [api.answer, api.planRowAction, api.planAction, api.savePlanRows, api.confirmPlan, api.answerDraft]) fn.mockResolvedValue({ ok: true });
   api.listCanons.mockResolvedValue({ items: [], shared: [] });
@@ -131,7 +132,8 @@ describe("plan screen while running", () => {
     await act(async () => button("Retry", attention)!.click());
     expect(api.planRowAction).toHaveBeenCalledWith("n4h8w2rk", "r3", "retry");
 
-    // rows by wave, with no editing controls once confirmed
+    // rows by wave on their own tab, with no editing controls once confirmed
+    await act(async () => q<HTMLAnchorElement>('[data-testid="plan-tab-projects"]')!.click());
     expect(q('[data-testid="plan-rows"]')!.textContent).toContain("Wave 2");
     expect(q('[data-testid="plan-editor"]')).toBeNull();
     // actions of a running plan
@@ -143,7 +145,7 @@ describe("plan screen while running", () => {
 
   it("opens a row's project from anywhere on its card", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", rows));
-    await render("/plans/n4h8w2rk");
+    await render("/plans/n4h8w2rk/projects");
     expect(q('[data-testid="plan-rows"] h2')!.textContent).toBe("Projects (4)");
     const li = [...document.querySelectorAll<HTMLElement>("li[data-state]")].find((el) => el.textContent?.includes("speech production"))!;
     expect(li.querySelector('[data-testid="plan-row-link"]')!.getAttribute("href")).toBe("/projects/p0000001");
@@ -253,6 +255,7 @@ describe("new mission", () => {
     expect(page.querySelector("h1")!.textContent).toContain("New mission");
     expect(page.querySelector('input[maxlength="200"]')).toBe(document.activeElement);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     // the composer of the new-project screen: the list is pasted from the “+” menu into a field of the card
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
     await act(async () => button("Paste a list")!.click());
@@ -263,7 +266,7 @@ describe("new mission", () => {
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!.click());
     await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
     await act(async () => button("Create mission")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n" });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n", canon: { mode: "new", name: "Language map" } });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
   });
 
@@ -273,6 +276,7 @@ describe("new mission", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
     await act(async () => button("Paste a list")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
@@ -290,7 +294,75 @@ describe("new mission", () => {
     await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
     expect(chip.textContent).toContain("≤ $35");
     await act(async () => button("Start")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 } }));
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 }, canon: { mode: "new", name: "Language map" } }));
+  });
+});
+
+describe("Canon of a new mission", () => {
+  const canon = (canonId: string, name: string) => ({ canonId, ownerUserId: "alice", name, description: "", policy: "", visibility: "private", headRevision: 3, memberCount: 2, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-01T00:00:00.000Z" });
+  const fill = async () => {
+    await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Extend VOR");
+    await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "goal");
+  };
+
+  it("asks for the name of the new Canon instead of naming it after the mission", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    await render("/plans/new");
+    await fill();
+    // a new Canon is the default: its name is a field of the card, empty until typed
+    expect(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!.value).toBe("");
+    expect(q<HTMLButtonElement>('[data-testid="plan-start"]')!.disabled).toBe(true);
+    expect(q('[data-testid="plan-need-canon"]')!.textContent).toBe("Name the new Canon");
+    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Cerebellar VOR");
+    expect(q('[data-testid="plan-need-canon"]')).toBeNull();
+    expect(q<HTMLButtonElement>('[data-testid="plan-start"]')!.disabled).toBe(false);
+  });
+
+  it("starts with the Canon of the link chosen and sends it", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    api.listCanons.mockResolvedValue({ items: [canon("c0000001", "Cerebellar VOR"), canon("c0000002", "Vision")], shared: [] });
+    api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
+    api.getPlan.mockResolvedValue(detail("DRAFT", []));
+    await render("/plans/new?canon=c0000002");
+    await fill();
+    expect(q('[data-testid="plan-canon-chip"]')!.textContent).toContain("Vision");
+    expect(q('[data-testid="plan-canon-name"]')).toBeNull();
+    await act(async () => button("Start")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Extend VOR", canon: { mode: "existing", canonId: "c0000002" } }));
+  });
+
+  it("lets the mission go without a Canon, and falls back to a new one when the linked Canon is not the owner's", async () => {
+    api.listPlans.mockResolvedValue({ items: [] });
+    api.listCanons.mockResolvedValue({ items: [canon("c0000001", "Cerebellar VOR")], shared: [] });
+    api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
+    api.getPlan.mockResolvedValue(detail("DRAFT", []));
+    await render("/plans/new?canon=c9999999");
+    await fill();
+    expect(q('[data-testid="plan-canon-name"]')).not.toBeNull();
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-canon-chip"]')!.click());
+    expect(document.querySelectorAll('[data-testid="plan-canon-option"]')).toHaveLength(1);
+    await act(async () => q<HTMLButtonElement>('[data-testid="plan-canon-none"]')!.click());
+    expect(q('[data-testid="plan-canon-name"]')).toBeNull();
+    await act(async () => button("Start")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ canon: { mode: "none" } }));
+  });
+});
+
+describe("where a mission sits", () => {
+  it("links the mission to its own Canon above the title", async () => {
+    api.getPlan.mockResolvedValue({ ...detail("RUNNING", []), canon: { canonId: "c0000001", name: "Cerebellar VOR", headRevision: 3 } });
+    await render("/plans/n4h8w2rk");
+    const link = q<HTMLAnchorElement>('[data-testid="trail-canon"]')!;
+    expect(link.getAttribute("href")).toBe("/canons/c0000001");
+    expect(link.textContent).toContain("Cerebellar VOR");
+    expect(q('[data-testid="trail"] [aria-current="page"]')!.textContent).toBe("Mission");
+  });
+
+  it("shows the mission alone when it has no Canon", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", []));
+    await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="trail-canon"]')).toBeNull();
+    expect(q('[data-testid="trail"]')!.textContent).toBe("Mission");
   });
 });
 
@@ -335,7 +407,7 @@ describe("plan list as a live view", () => {
 
   it("shows what waits on the owner first, then the running plans as lanes, the drafts and the finished plans", async () => {
     api.listPlans.mockResolvedValue({ items });
-    await render("/canons");
+    await render("/missions");
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).toContain("Your turn");
     expect(turn.textContent).toContain("Answer a question");
@@ -357,16 +429,18 @@ describe("plan list as a live view", () => {
     expect(q<HTMLDetailsElement>('[data-testid="plan-finished"]')!.open).toBe(false);
   });
 
-  it("shows an empty state that starts a mission when there are no Canons and no missions", async () => {
+  it("shows an empty state that starts a mission when there are no missions", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
-    await render("/canons");
-    const empty = q('[data-testid="canon-empty"]')!;
-    expect(empty.textContent).toContain("Start a mission");
+    await render("/missions");
+    const empty = q('[data-testid="missions-empty"]')!;
+    expect(empty.textContent).toContain("No missions yet");
+    // nothing to group yet
+    expect(q('[data-testid="missions-by-canon"]')).toBeNull();
     await act(async () => button("New mission", empty)!.click());
     expect(q('[data-testid="plan-new-page"]')).not.toBeNull();
   });
 
-  it("groups the missions by the Canon they build: Canons first, then a Canon to be created, then missions without one", async () => {
+  it("names the Canon of each mission, and groups the missions by it on request: Canons first, then a Canon to be created, then missions without one", async () => {
     const canon = { canonId: "c0000001", ownerUserId: "alice", name: "Language Canon", description: "", policy: "BNA areas", visibility: "private", headRevision: 3, memberCount: 2, createdAt: now, updatedAt: now };
     const empty = { ...canon, canonId: "c0000002", name: "Empty Canon", headRevision: 0, memberCount: 0, updatedAt: "2026-10-01T00:00:00.000Z" };
     api.listCanons.mockResolvedValue({ items: [canon, empty], shared: [] });
@@ -378,24 +452,35 @@ describe("plan list as a live view", () => {
         summary("n0000009", "DRAFT"),
       ],
     });
-    await render("/canons");
+    await render("/missions");
+    // one list by default: live, drafts, finished, each mission tagged with the Canon it delivers to (or will create)
+    expect(q('[data-testid="canon-group"]')).toBeNull();
+    expect(q('[data-testid="plan-lane"] [data-testid="plan-canon-tag"]')!.textContent).toBe("Language Canon");
+    expect([...q('[data-testid="plan-drafts"]')!.querySelectorAll("li")].map((li) => li.querySelector('[data-testid="plan-canon-tag"]')?.textContent ?? null)).toEqual(["Memory", null]);
+    expect(q('[data-testid="plan-finished"] [data-testid="plan-canon-tag"]')!.textContent).toBe("Language Canon");
+    // 「Canon で分ける」: a group per Canon that has a mission (a Canon without one is on the Canon page); the choice is kept
+    const toggle = q<HTMLButtonElement>('[data-testid="missions-by-canon"]')!;
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    expect(localStorage.getItem("cobrac-missions-by-canon")).toBe("1");
+    expect(q('[data-testid="plan-canon-tag"]')).toBeNull();
     const groups = [...document.querySelectorAll<HTMLElement>('[data-testid="canon-group"]')];
-    expect(groups.map((g) => g.dataset.canon)).toEqual(["c0000001", "new:n0000008", "c0000002", "none"]);
+    expect(groups.map((g) => g.dataset.canon)).toEqual(["c0000001", "new:n0000008", "none"]);
     expect(groups[0].querySelector('a[href="/canons/c0000001"]')!.textContent).toContain("Language Canon");
     expect(groups[0].querySelector('[data-testid="plan-lane"]')).not.toBeNull();
     expect(groups[0].querySelector('[data-testid="plan-finished"]')!.textContent).toContain("Finished 1");
     expect(groups[1].textContent).toContain("Memory");
     expect(groups[1].textContent).toContain("Created when the mission starts");
-    expect(groups[2].querySelector('[data-testid="plan-lane"], [data-testid="plan-drafts"]')).toBeNull();
-    expect(groups[3].textContent).toContain("Missions without a Canon");
-    expect(groups[3].textContent).toContain("Plan n0000009");
+    expect(groups[2].textContent).toContain("Missions without a Canon");
+    expect(groups[2].textContent).toContain("Plan n0000009");
   });
 
   it("keeps archived missions on the page, dimmed and marked, after the others in their section", async () => {
     api.listPlans.mockResolvedValue({
       items: [summary("n0000011", "DRAFT", { archivedAt: now }), summary("n0000012", "DRAFT")],
     });
-    await render("/canons");
+    await render("/missions");
     const cards = [...q('[data-testid="plan-drafts"]')!.querySelectorAll("li")];
     expect(cards.map((c) => c.textContent?.includes("Plan n0000012"))).toEqual([true, false]);
     expect(cards[1].className).toContain("opacity-60");
@@ -407,7 +492,7 @@ describe("plan list as a live view", () => {
     const paused = summary("n0000004", "PAUSED", { pausedReason: "user", confirmedAt: now });
     const capped = summary("n0000005", "PAUSED", { pausedReason: "cost_limit", confirmedAt: now });
     api.listPlans.mockResolvedValue({ items: [live, paused, capped] });
-    await render("/canons");
+    await render("/missions");
     const lanes = [...document.querySelectorAll<HTMLElement>('[data-testid="plan-lane"]')];
     const toggle = (lane: HTMLElement) => lane.querySelector<HTMLButtonElement>('[data-testid="plan-lane-toggle"]');
     expect(toggle(lanes[0])!.getAttribute("aria-label")).toBe("Pause: Plan n0000001");
@@ -428,7 +513,7 @@ describe("plan list as a live view", () => {
       draft: { kind: "draft", jobId: "job_1", status: "asking", requestedAt: now, requestedBy: "alice", qa },
     });
     api.listPlans.mockResolvedValue({ items: [drafting] });
-    await render("/canons");
+    await render("/missions");
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).toContain("Answer the Orchestrator's questions");
     expect(turn.textContent).toContain("Include reading and writing?");
@@ -437,7 +522,7 @@ describe("plan list as a live view", () => {
 
   it("says when nothing waits on the owner while plans run", async () => {
     api.listPlans.mockResolvedValue({ items: [{ ...live, pulse: { ...live.pulse!, waiting: [], openProposals: 0 } }] });
-    await render("/canons");
+    await render("/missions");
     expect(q('[data-testid="plan-turn"]')).toBeNull();
     expect(q('[data-testid="plan-turn-none"]')!.textContent).toContain("Nothing waits on you right now.");
   });
@@ -445,11 +530,12 @@ describe("plan list as a live view", () => {
   it("shows the stage strip on the rows being built in the plan screen", async () => {
     api.getPlan.mockResolvedValue(detail("RUNNING", [running, row("r3", "IFG", "speech", "done", 1)]));
     await render("/plans/n4h8w2rk");
+    expect(q('[data-testid="plan-summary"] [data-testid="plan-bar"]')).not.toBeNull();
+    await act(async () => q<HTMLAnchorElement>('[data-testid="plan-tab-projects"]')!.click());
     const rowsEl = q('[data-testid="plan-rows"]')!;
     const strips = rowsEl.querySelectorAll('[data-testid="pipeline"]');
     expect(strips.length).toBe(1);
     expect(strips[0].querySelector('[data-testid="stage-frg"]')!.getAttribute("data-status")).toBe("active");
-    expect(q('[data-testid="plan-summary"] [data-testid="plan-bar"]')).not.toBeNull();
   });
 });
 

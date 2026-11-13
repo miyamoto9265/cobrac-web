@@ -56,7 +56,7 @@ The project gets a name automatically; you can change it on the project page.
 
 After "Run" you are on the project page. You can also open it from "History" in the sidebar, or from "See all" (the project list) next to that heading. Projects made by the Orchestrator are grouped into one row per mission in the history.
 
-Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and on the Canon page, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
+Hover a history row and press its icon to **archive** a project or a mission (on a phone the icon is always shown). Archiving only hides the row from the history: nothing stops, and Canons and publishing are not affected. Archived items no longer appear in the history. They stay in the project list ("See all") and in the mission list, dimmed, marked "Archived" and listed after the others. To restore one, use the project list ("See all") for a project, or the mission's own page for a mission.
 
 ![The project page](./figures/manual-workspace.en.svg "Header and progress, the outputs in tabs, and the Agent panel (on the right on a computer, behind a button on a phone)")
 
@@ -131,7 +131,7 @@ A **Canon** is a set of projects that keep circuit definitions consistent. Withi
 
 ### The Canon page
 
-The "Canon" button in the sidebar opens the list of Canons and their missions. Choose a Canon to open its page, which is centred on the graph like a project page: a header, tabs below it, and the "Activity" panel on the right.
+The "Canon" button in the sidebar opens the list of Canons. Each Canon's card shows its latest rev, its number of projects and the missions delivering to it (how many are running, if any). A Canon a mission creates when it starts has a dashed card that opens that mission. Choose a Canon to open its page, which is centred on the graph like a project page: a header, tabs below it, and the "Activity" panel on the right.
 
 - **Header**: press the Canon's name to switch to another Canon. "All Canons" at the bottom of the menu goes back to the list. The (?) next to the name shows the ID, granularity policy, description and counts. The gear icon opens the settings.
 - **HCD graph**: the circuits and connections of the latest approved rev, drawn like a project's HCD. Select a circuit to see which projects pushed it. The menu at the top right highlights one project's circuits, or the circuits with problems. The arrangement of the graph is saved in this browser.
@@ -177,9 +177,10 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 
 1. Press "+ Mission" at the top of the sidebar and enter a name and a goal (for example "Cover the BRA of language").
 2. With the “+” under the fields, add files (CSV, xlsx, PDF and others) or choose “Paste a list” and paste one. Each entry of the list is one project.
-3. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
-4. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
-5. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
+3. Choose the Canon the projects are delivered to with the "Canon" chip. "New Canon" is chosen at first: name it in the "Canon" field of the card (its own name, not the mission's). Press the chip to switch to one of your Canons or to "None". Opened from "New mission" on a Canon's page, the screen starts with that Canon chosen.
+4. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
+5. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
+6. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
 
 ### Ordering
 
@@ -194,8 +195,11 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - A failed row is retried automatically up to 2 times; after that it "Needs attention" (choose "Retry" or "Skip").
 - An automatically ordered mission does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the mission page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
 - In an automatically ordered mission, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
-- The "Canon" page lists, for each Canon, the missions that build it (running, drafts and finished ones); missions without a Canon come last.
-- "Your turn" on the "Canon" page gathers what is waiting for you, such as questions and approvals.
+- The top of a mission's page and of a project's page shows the Canon it delivers to and the mission it belongs to, as "Canon … › Mission … › Project". Each one is a link. A Canon is shown in violet, a mission in blue and a project in teal. In the sidebar history, a mission's entry names its Canon too.
+- "Missions" in the sidebar opens the list of missions: running ones, drafts, then finished ones, each with the name of the Canon it delivers to. "Group by Canon" groups them by Canon instead (the choice is kept in your browser).
+- "Your turn" at the top of the mission list gathers what is waiting for you, such as questions and approvals. Its count shows beside "Missions" in the sidebar on every screen.
+- The mission page has the tabs "Overview", "Projects", "In the Canon", "History" and "Settings". "In the Canon" shows the Canon's graph with what this mission's projects added highlighted.
+- What waits for you on a mission (questions, decisions, projects that need attention, proposals) is gathered in "Needs you" on the right of the mission page. On a narrow screen, open it with the "Needs you" button at the right end of the tabs.
 - The projects a mission creates open on the usual project page.
 
 ### Missions with a Canon
@@ -208,7 +212,7 @@ In an **autonomous run** the Orchestrator acts for you and takes the mission to 
 
 To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the "Autonomous run" chip of the new mission screen or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
-- Once the draft is written, it is confirmed and started automatically. Without a chosen Canon, a new Canon named after the mission is created.
+- Once the draft is written, it is confirmed and started automatically. A new Canon, when chosen, is created at this point.
 - The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the mission's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
 - The AI reads each PR and approves, requests changes or rejects it.
 - When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the mission's Canon is gone does the mission pause for you.
@@ -218,10 +222,10 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 ### Questions, pause and cancel
 
-- When an agent asks a question, only its row stops, and the question appears under "Questions" on the mission page. Answering resumes that row.
-- Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane on the "Canon" page. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
+- When an agent asks a question, only its row stops, and the question appears under "Questions" in "Needs you" on the mission page. Answering resumes that row.
+- Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane in the mission list. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled mission can be resumed.
-- Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
+- A finished mission can be deleted on the "Settings" tab of its page. Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.
 
 ## Publishing and cloning
 

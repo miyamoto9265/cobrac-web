@@ -1,27 +1,99 @@
-import { Archive, ArchiveRestore, ArrowLeft, Check, CheckCheck, GitPullRequest, Pause, Pencil, Play, RotateCcw, Send, SkipForward, Square, Trash2, Upload, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
+import { Archive, ArchiveRestore, BellRing, Check, CheckCheck, GitPullRequest, History, Layers, LayoutDashboard, Pause, Pencil, Play, RotateCcw, Send, Settings as SettingsIcon, SkipForward, Square, Trash2, Upload, X, type LucideIcon } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import type { CanonDetailResponse, CanonSnapshot, PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
 import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, isFlowPlan, orchestratorModelOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { LiveDot, PlanBar } from "../components/PlanBar";
-import { CanonSection, type CanonFlush } from "../components/plan/CanonSection";
 import { FlowMap, SlotPips, WaitChip, flowRowAnchor, rowsByLane } from "../components/plan/FlowMap";
 import { RowAiNotes, RowFacts, autoSkipLine, dangerBtn, iconBtn, jobError, projectPath, rowLabel, rowName, secondaryBtn, seedChip } from "../components/plan/common";
 import { PlanDraft } from "../components/plan/PlanDraft";
 import { PlanHistory } from "../components/plan/PlanHistory";
 import { PlanPolicyView } from "../components/plan/PlanPolicyView";
 import { useI18n, useT, type MessageKey } from "../i18n";
+import { NO_FOCUS, type CanonFocus } from "../components/canon/CanonActivity";
+import { ChatDock, ChatToggleButton, useChatDock, type DockLabels } from "../components/workspace/ChatDock";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
-import { ROW_STATE_COLOR, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
-import { canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
+import { MISSIONS_PATH, PLAN_VIEWS, ROW_STATE_COLOR, planPath, type PlanView, ROW_STATE_ORDER, backPressure, fmtDuration, isSeedWave, laneCounts, planWaves, seedIndexes, seedsHolding, waveCounts, wavesText } from "../lib/plan";
+import { canonPath, canonPullPath, inputCls, primaryBtn } from "./CanonsPage";
+import { CanonGraphView } from "./CanonDetailPage";
 import { AutonomousBadge, PlanStatusBadge } from "./PlansPage";
+import { KIND, Trail, trailSteps } from "../components/Trail";
 
 // The plan page. A draft (DRAFT / DRAFTING) is laid out by components/plan/PlanDraft.tsx; this file lays out a plan once it
 // is confirmed (RUNNING, PAUSED, COMPLETED, CANCELLED) and holds the header both share.
+
+/** Opens the 「対応が必要」 panel (where 「人の判断」 is), for a link to one of its entries. */
+const OpenTodo = createContext<() => void>(() => undefined);
+
+const PLAN_TABS: { view: PlanView; label: MessageKey; Icon: LucideIcon }[] = [
+  { view: "overview", label: "mp.overview", Icon: LayoutDashboard },
+  { view: "projects", label: "mp.projects", Icon: KIND.project.Icon },
+  { view: "canon", label: "mp.canon", Icon: Layers },
+  { view: "history", label: "mp.history", Icon: History },
+  { view: "settings", label: "mp.settings", Icon: SettingsIcon },
+];
+
+/** A tab whose content scrolls (everything but the Canon graph). */
+function PlanPane({ children }: { children: ReactNode }) {
+  return (
+    <div className="h-full overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+      <div className="mx-auto max-w-5xl">{children}</div>
+    </div>
+  );
+}
+
+/** 「Canon への反映」: the Canon's graph with what this mission's projects brought highlighted. */
+function PlanCanonView({ d }: { d: PlanDetailResponse }) {
+  const t = useT();
+  const c = d.canon && !d.canon.missing ? d.canon : null;
+  const canonId = c?.canonId ?? null;
+  const head = c?.headRevision ?? 0;
+  const [detail, setDetail] = useState<CanonDetailResponse | null>(null);
+  const [snapshot, setSnapshot] = useState<CanonSnapshot | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [focus, setFocus] = useState<CanonFocus | null>(null);
+  useEffect(() => {
+    if (!canonId) return;
+    let live = true;
+    api
+      .getCanon(canonId)
+      .then((r) => {
+        if (!live) return;
+        setDetail(r);
+        if (r.canon.headRevision > 0) return api.canonRevision(canonId, r.canon.headRevision).then((x) => live && setSnapshot((prev) => (prev?.revision === x.revision ? prev : x)));
+      })
+      .catch((e) => live && setErr(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [canonId, head]);
+  const ids = useMemo(() => new Set(d.rows.flatMap((r) => (r.projectId ? [r.projectId] : []))), [d.rows]);
+  const mine = useMemo(() => (snapshot ? [...new Set(snapshot.circuits.flatMap((x) => x.sources))].filter((id) => ids.has(id)).sort() : []), [snapshot, ids]);
+  const circuits = snapshot ? snapshot.circuits.filter((x) => x.state !== "invalidated" && x.sources.some((id) => ids.has(id))).length : 0;
+  const note = (text: string) => <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-500" data-testid="plan-canon-note">{text}</div>;
+  if (!c) return note(d.canon?.missing ? t("plan.canonMissing") : d.plan.canonNew ? t("plan.canonToCreate", { name: d.plan.canonNew.name }) : t("mp.canonNone"));
+  if (err && !detail) return <div className="p-6 text-sm text-rose-700">{err}</div>;
+  if (!detail) return note(t("loading"));
+  const empty = detail.canon.headRevision === 0;
+  return (
+    <div className="flex h-full min-h-0 flex-col" data-testid="plan-canon-view">
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-white px-3 py-1.5 text-xs sm:px-4">
+        <span className="min-w-0 flex-1 text-slate-600" data-testid="plan-canon-summary">
+          {empty ? t("mp.canonEmpty") : mine.length ? t("mp.canonNote", { n: circuits }) : t("mp.canonNothing")}
+        </span>
+        <Link to={canonPath(c.canonId)} title={t("mp.canonOpen")} className={`inline-flex min-w-0 items-center gap-1 ${KIND.canon.text} hover:underline coarse:min-h-11`} data-testid="plan-canon-open">
+          <Layers size={12} className="shrink-0" aria-hidden /> <span className="min-w-0 truncate font-medium">{detail.canon.name}</span>
+          <span className="shrink-0 font-mono text-slate-500">{t("canon.revision", { n: detail.canon.headRevision })}</span>
+        </Link>
+      </div>
+      <div className="relative min-h-0 flex-1">{empty ? null : snapshot ? <CanonGraphView detail={detail} snapshot={snapshot} focus={focus ?? { ...NO_FOCUS, highlight: mine }} onFocus={setFocus} /> : note(t("loading"))}</div>
+    </div>
+  );
+}
 
 /** Element ID of a row's entry in 「人の判断」. */
 const decisionAnchor = (rowId: string) => `plan-decision-${rowId}`;
@@ -141,7 +213,7 @@ function RaiseLimit({ plan, busy, onResume }: { plan: PlanRecord; busy: boolean;
   const n = Number(cost);
   return (
     <form
-      className="mb-3 flex flex-wrap items-end gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
+      className="flex flex-wrap items-end gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
       data-testid="plan-raise-limit"
       onSubmit={(e) => {
         e.preventDefault();
@@ -178,7 +250,7 @@ function Inbox({ rows, onDone, onError }: { rows: PlanRowView[]; onDone: () => v
       .finally(() => setBusy(null));
   };
   return (
-    <section className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4" data-testid="plan-inbox">
+    <section className="rounded-xl border border-amber-200 bg-amber-50 p-3" data-testid="plan-inbox">
       <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold text-amber-800">
         {t("plan.inbox", { n: rows.length })} <HelpTip text={t("plan.inboxHelp")} />
       </h2>
@@ -197,7 +269,7 @@ function Inbox({ rows, onDone, onError }: { rows: PlanRowView[]; onDone: () => v
             <div className="mb-2 empty:hidden">
               <RowAiNotes row={r} />
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="flex flex-col gap-2">
               <textarea
                 value={text[r.rowId] ?? ""}
                 onChange={(e) => setText((m) => ({ ...m, [r.rowId]: e.target.value }))}
@@ -206,7 +278,7 @@ function Inbox({ rows, onDone, onError }: { rows: PlanRowView[]; onDone: () => v
                 aria-label={t("plan.answer")}
                 className={inputCls}
               />
-              <button type="button" disabled={busy === r.rowId || !(text[r.rowId] ?? "").trim()} onClick={() => send(r)} className={`${primaryBtn} shrink-0 whitespace-nowrap`}>
+              <button type="button" disabled={busy === r.rowId || !(text[r.rowId] ?? "").trim()} onClick={() => send(r)} className={`${primaryBtn} shrink-0 self-end whitespace-nowrap`}>
                 <Send size={14} aria-hidden /> {t("plan.answer")}
               </button>
             </div>
@@ -221,11 +293,11 @@ function Attention({ rows, act }: { rows: PlanRowView[]; act: (rowId: string, ac
   const t = useT();
   if (!rows.length) return null;
   return (
-    <section className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4" data-testid="plan-attention">
+    <section className="rounded-xl border border-rose-200 bg-rose-50 p-3" data-testid="plan-attention">
       <h2 className="mb-2 text-sm font-semibold text-rose-700">{t("plan.attention", { n: rows.length })}</h2>
       <ul className="grid gap-2">
         {rows.map((r) => (
-          <li key={r.rowId} className="flex flex-col gap-2 rounded-lg border border-rose-200 bg-white p-3 sm:flex-row sm:items-center">
+          <li key={r.rowId} className="flex flex-col gap-2 rounded-lg border border-rose-200 bg-white p-3">
             <div className="min-w-0 flex-1 text-sm">
               <div className="font-medium">{rowLabel(r)}</div>
               <div className="text-xs text-rose-700">{t(`plan.reason.${r.attentionReason ?? "failed"}` as MessageKey, { n: MAX_ROW_AUTO_RETRIES })}</div>
@@ -307,7 +379,7 @@ function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: 
   const t = useT();
   if (!rows.length) return null;
   return (
-    <section className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4" data-testid="plan-decisions">
+    <section className="rounded-xl border border-amber-200 bg-amber-50 p-3" data-testid="plan-decisions">
       <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold text-amber-800">
         {t("plan.decisions", { n: rows.length })} <HelpTip text={t("plan.decisionsHelp")} />
       </h2>
@@ -316,7 +388,7 @@ function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: 
           // only an existing, completed project can be pushed (the API answers 409 otherwise)
           const canPush = !!r.project && !r.project.deleted && r.project.status === "COMPLETED";
           return (
-            <li key={r.rowId} id={decisionAnchor(r.rowId)} className="flex min-w-0 scroll-mt-4 flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3 lg:flex-row lg:items-center" data-testid="plan-decision">
+            <li key={r.rowId} id={decisionAnchor(r.rowId)} className="flex min-w-0 scroll-mt-4 flex-col gap-2 rounded-lg border border-amber-200 bg-white p-3" data-testid="plan-decision">
               <div className="min-w-0 flex-1 text-sm">
                 <div className="break-words font-medium">{rowLabel(r)}</div>
                 <div className="text-xs text-amber-800">{t(`plan.decision.${r.decisionReason ?? "conflicts"}` as MessageKey, { n: MAX_CONFORM_FOLLOWUPS })}</div>
@@ -359,12 +431,15 @@ function Decisions({ rows, canonId, busy, canResolve, canSkip, resolve, skip }: 
 /** Link that scrolls to a row's entry in 「人の判断」 on this page. */
 function DecisionLink({ row }: { row: PlanRowView }) {
   const id = decisionAnchor(row.rowId);
+  const openTodo = useContext(OpenTodo);
   return (
     <a
       href={`#${id}`}
       onClick={(e) => {
         e.preventDefault();
-        document.getElementById(id)?.scrollIntoView({ block: "center", behavior: "smooth" });
+        openTodo();
+        // the panel may have been closed: scroll once it is shown
+        requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView?.({ block: "center", behavior: "smooth" }));
       }}
       className="inline-flex min-w-0 max-w-full items-center gap-1 break-words text-amber-900 underline coarse:min-h-11"
       data-testid="seed-decision-link"
@@ -598,16 +673,16 @@ function Proposals({ d, busy, decide }: { d: PlanDetailResponse; busy: boolean; 
       {replan.status === "failed" && jobError(replan, t) ? ` (${jobError(replan, t)})` : ""}
     </p>
   ) : null;
-  if (!open.length) return line ? <div className="mb-5">{line}</div> : null;
+  if (!open.length) return line;
   return (
-    <section className="mb-5 rounded-xl border border-violet-200 bg-white p-4" data-testid="plan-proposals">
+    <section className="rounded-xl border border-violet-200 bg-white p-3" data-testid="plan-proposals">
       <h2 className="mb-1 flex items-center gap-1 text-sm font-semibold">
         {t("plan.proposals", { n: open.length })} <HelpTip text={t("plan.proposalsHelp")} />
       </h2>
       {line && <div className="mb-2">{line}</div>}
       <ul className="grid gap-2">
         {open.map((p) => (
-          <li key={p.proposalId} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3 sm:flex-row sm:items-start" data-testid="plan-proposal">
+          <li key={p.proposalId} className="flex flex-col gap-2 rounded-lg border border-slate-200 p-3" data-testid="plan-proposal">
             <div className="grid min-w-0 flex-1 gap-1">
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className={`rounded-full px-2 py-0.5 font-medium ${PROPOSAL_STATUS_COLOR.open}`}>{t(`plan.proposal.${p.kind}` as MessageKey)}</span>
@@ -616,7 +691,7 @@ function Proposals({ d, busy, decide }: { d: PlanDetailResponse; busy: boolean; 
               <ProposalBody p={p} rows={d.rows} names={names} />
               {p.reason && <div className="break-words text-xs text-slate-600">{t("plan.proposal.reason", { reason: p.reason })}</div>}
             </div>
-            <div className="flex shrink-0 gap-2">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button type="button" disabled={busy} onClick={() => decide(p, "accept")} className={primaryBtn}>
                 <Check size={14} aria-hidden /> {t("plan.accept")}
               </button>
@@ -666,7 +741,15 @@ export function PlanDetailPage() {
   const [busy, setBusy] = useState(false);
   const [rejected, setRejected] = useState<PlanRowRejected[]>(() => ((location.state as { rejected?: PlanRowRejected[] } | null)?.rejected ?? []));
   const [renaming, setRenaming] = useState<string | null>(null);
-  const canonFlushRef = useRef<CanonFlush | null>(null);
+  const { view: rawView } = useParams();
+  const view = PLAN_VIEWS.find((v) => v === rawView) ?? null;
+  const dock = useChatDock("cobrac-plan-todo");
+  // On narrow screens the tab strip scrolls; keep the open tab in sight.
+  const tabsRef = useRef<HTMLElement>(null);
+  const loaded = d !== null;
+  useEffect(() => {
+    tabsRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [view, loaded]);
 
   const onError = useCallback((e: unknown) => setErr(e instanceof Error ? e.message : String(e)), []);
   const load = useCallback(
@@ -735,120 +818,229 @@ export function PlanDetailPage() {
     </div>
   );
 
-  return (
-    <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-      <div className="max-w-5xl">
-        <Link to="/canons" className="mb-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 coarse:min-h-11">
-          <ArrowLeft size={12} /> {t("nav.canons")}
-        </Link>
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          {renaming === null ? (
-            <h1 className="flex min-w-0 items-center gap-2 break-words text-xl font-semibold">
-              {plan.name}
-              <button type="button" onClick={() => setRenaming(plan.name)} className={iconBtn} aria-label={t("plan.rename")} title={t("plan.rename")}>
-                <Pencil size={14} />
-              </button>
-            </h1>
-          ) : (
-            <form
-              className="flex min-w-0 flex-1 items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                act(() => api.updatePlan(planId, { name: renaming }), () => {
-                  setRenaming(null);
-                  void load();
-                });
-              }}
-            >
-              <input value={renaming} onChange={(e) => setRenaming(e.target.value)} className={inputCls} maxLength={200} aria-label={t("plan.name")} autoFocus />
-              <button type="submit" disabled={busy || !renaming.trim()} className={iconBtn} aria-label={t("save")}>
-                <Check size={16} />
-              </button>
-              <button type="button" onClick={() => setRenaming(null)} className={iconBtn} aria-label={t("close")}>
-                <X size={16} />
-              </button>
-            </form>
-          )}
-          <span className="flex items-center gap-1.5">
-            {(plan.status === "RUNNING" || plan.status === "DRAFTING" || plan.status === "PAUSED") && <LiveDot tone={plan.status === "PAUSED" ? "waiting" : "running"} />}
-            <PlanStatusBadge status={plan.status} />
-            <AutonomousBadge plan={plan} />
-          </span>
-          {plan.archivedAt && (
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="plan-archived">
-              {t("cm.archived")}
-            </span>
-          )}
-          <span className="font-mono text-[11px] text-slate-500" title={t("plan.planId")}>
-            {plan.planId}
-          </span>
-          {/* archiving only hides the mission from the sidebar; it keeps running */}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => act(() => api.archivePlan(planId, !plan.archivedAt), () => {
-              notifyProjectsChanged();
-              void load();
-            })}
-            className={iconBtn}
-            aria-label={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
-            title={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
-            data-testid={plan.archivedAt ? "plan-unarchive" : "plan-archive"}
-          >
-            {plan.archivedAt ? <ArchiveRestore size={14} /> : <Archive size={14} />}
-          </button>
-          <HelpLink section="planner" />
-        </div>
-
-        {draftLike ? (
-          <PlanDraft d={d} busy={busy} act={act} load={load} onError={onError} rejected={rejected} onRejected={setRejected} alert={alert} />
+  const header = (
+    <>
+      <Trail className="mb-2" steps={trailSteps("mission", { canon: d.canon && !d.canon.missing ? d.canon : plan.canonNew ? { name: plan.canonNew.name } : null })} />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {renaming === null ? (
+          <h1 className="flex min-w-0 items-center gap-2 break-words text-xl font-semibold">
+            {plan.name}
+            <button type="button" onClick={() => setRenaming(plan.name)} className={iconBtn} aria-label={t("plan.rename")} title={t("plan.rename")}>
+              <Pencil size={14} />
+            </button>
+          </h1>
         ) : (
-          <>
+          <form
+            className="flex min-w-0 flex-1 items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              act(() => api.updatePlan(planId, { name: renaming }), () => {
+                setRenaming(null);
+                void load();
+              });
+            }}
+          >
+            <input value={renaming} onChange={(e) => setRenaming(e.target.value)} className={inputCls} maxLength={200} aria-label={t("plan.name")} autoFocus />
+            <button type="submit" disabled={busy || !renaming.trim()} className={iconBtn} aria-label={t("save")}>
+              <Check size={16} />
+            </button>
+            <button type="button" onClick={() => setRenaming(null)} className={iconBtn} aria-label={t("close")}>
+              <X size={16} />
+            </button>
+          </form>
+        )}
+        <span className="flex items-center gap-1.5">
+          {(plan.status === "RUNNING" || plan.status === "DRAFTING" || plan.status === "PAUSED") && <LiveDot tone={plan.status === "PAUSED" ? "waiting" : "running"} />}
+          <PlanStatusBadge status={plan.status} />
+          <AutonomousBadge plan={plan} />
+        </span>
+        {plan.archivedAt && (
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="plan-archived">
+            {t("cm.archived")}
+          </span>
+        )}
+        <span className="font-mono text-[11px] text-slate-500" title={t("plan.planId")}>
+          {plan.planId}
+        </span>
+        {/* archiving only hides the mission from the sidebar; it keeps running */}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => act(() => api.archivePlan(planId, !plan.archivedAt), () => {
+            notifyProjectsChanged();
+            void load();
+          })}
+          className={iconBtn}
+          aria-label={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
+          title={t(plan.archivedAt ? "nav.unarchive" : "nav.archive")}
+          data-testid={plan.archivedAt ? "plan-unarchive" : "plan-archive"}
+        >
+          {plan.archivedAt ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+        </button>
+        <HelpLink section="planner" />
+        {!draftLike && (
+          <div className="flex flex-wrap gap-2 sm:ml-auto" data-testid="plan-actions">
+            {plan.status === "RUNNING" && (
+              <button type="button" disabled={busy} onClick={() => act(() => api.planAction(planId, "pause"))} className={secondaryBtn}>
+                <Pause size={14} aria-hidden /> {t("plan.pause")}
+              </button>
+            )}
+            {(plan.status === "CANCELLED" || (plan.status === "PAUSED" && plan.pausedReason !== "cost_limit")) && (
+              <button type="button" disabled={busy} onClick={() => act(() => api.planAction(planId, "resume"))} className={primaryBtn}>
+                <Play size={14} aria-hidden /> {t("plan.resume")}
+              </button>
+            )}
+            {(plan.status === "RUNNING" || plan.status === "PAUSED") && (
+              <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.cancelQ")) && act(() => api.planAction(planId, "cancel"))} className={dangerBtn}>
+                <Square size={14} aria-hidden /> {t("plan.cancel")}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  if (draftLike)
+    return (
+      <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+        <div className="max-w-5xl">
+          <div className="mb-3">{header}</div>
+          <PlanDraft d={d} busy={busy} act={act} load={load} onError={onError} rejected={rejected} onRejected={setRejected} alert={alert} />
+        </div>
+      </div>
+    );
+
+  if (rawView && !view) return <Navigate to={planPath(planId)} replace />;
+  const current: PlanView = view ?? "overview";
+  const canonId = plan.canonId ?? d.canon?.canonId ?? null;
+  const live = plan.status === "RUNNING" || plan.status === "PAUSED";
+  const questions = rows.filter((r) => r.state === "question");
+  const decisions = rows.filter((r) => r.state === "decision");
+  const attention = rows.filter((r) => r.state === "attention");
+  const openProposals = live ? (d.proposals ?? []).filter((p) => p.status === "open").length : 0;
+  const raise = plan.status === "PAUSED" && plan.pausedReason === "cost_limit";
+  const todo = questions.length + decisions.length + attention.length + openProposals + (raise ? 1 : 0);
+  const hasCanon = !!d.canon || !!plan.canonNew;
+  const tabs = PLAN_TABS.filter((x) => x.view !== "canon" || hasCanon || current === "canon");
+  const prs = canonId ? rows.filter((r) => r.state === "review" && r.prNo) : [];
+  const labels: DockLabels = { title: t("mp.todo"), open: t("mp.openTodo"), close: t("mp.closeTodo"), resize: t("mp.resizeTodo"), Icon: BellRing, attention: String(todo), prefix: "cobrac-plan-todo" };
+
+  const center = (() => {
+    switch (current) {
+      case "overview":
+        return (
+          <PlanPane>
             {plan.goal && <p className="mb-3 whitespace-pre-line break-words text-sm text-slate-600">{plan.goal}</p>}
             {!!plan.attachments?.length && <p className="mb-3 break-words text-xs text-slate-500">{t("plan.attachments", { names: plan.attachments.map((a) => a.name).join(t("plan.sep")) })}</p>}
             {banner && <div className={`mb-3 rounded-md px-3 py-2 text-sm ${banner.cls}`}>{banner.text}</div>}
-            {alert && <div className="mb-3">{alert}</div>}
-            {plan.status === "PAUSED" && plan.pausedReason === "cost_limit" && <RaiseLimit plan={plan} busy={busy} onResume={(maxCostUsd) => act(() => api.resumePlan(planId, { maxCostUsd }))} />}
             <CanonGates d={d} />
-
-            <div className="mb-4 flex flex-wrap gap-2" data-testid="plan-actions">
-              {plan.status === "RUNNING" && (
-                <button type="button" disabled={busy} onClick={() => act(() => api.planAction(planId, "pause"))} className={secondaryBtn}>
-                  <Pause size={14} aria-hidden /> {t("plan.pause")}
-                </button>
-              )}
-              {(plan.status === "CANCELLED" || (plan.status === "PAUSED" && plan.pausedReason !== "cost_limit")) && (
-                <button type="button" disabled={busy} onClick={() => act(() => api.planAction(planId, "resume"))} className={primaryBtn}>
-                  <Play size={14} aria-hidden /> {t("plan.resume")}
-                </button>
-              )}
-              {(plan.status === "RUNNING" || plan.status === "PAUSED") && (
-                <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.cancelQ")) && act(() => api.planAction(planId, "cancel"))} className={dangerBtn}>
-                  <Square size={14} aria-hidden /> {t("plan.cancel")}
-                </button>
-              )}
-              {(plan.status === "COMPLETED" || plan.status === "CANCELLED") && (
-                <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate("/canons"))} className={dangerBtn}>
-                  <Trash2 size={14} aria-hidden /> {t("plan.delete")}
-                </button>
-              )}
-            </div>
-
             <Summary d={d} />
+          </PlanPane>
+        );
+      case "projects":
+        return (
+          <PlanPane>
             {isFlowPlan(plan) && <FlowMap rows={rows} live={plan.status === "RUNNING"} />}
-            <Inbox rows={rows.filter((r) => r.state === "question")} onDone={() => void load()} onError={onError} />
-            <Decisions rows={rows.filter((r) => r.state === "decision")} canonId={plan.canonId ?? d.canon?.canonId ?? null} busy={busy} canResolve={plan.status === "RUNNING" || plan.status === "PAUSED"} canSkip={plan.status === "RUNNING" || plan.status === "PAUSED" || plan.status === "CANCELLED"} resolve={resolveRow} skip={(rowId) => rowAct(rowId, "skip")} />
-            <Attention rows={rows.filter((r) => r.state === "attention")} act={rowAct} />
-            {(plan.status === "RUNNING" || plan.status === "PAUSED") && <Proposals d={d} busy={busy} decide={decide} />}
+            <RowsByWave d={d} act={rowAct} />
+          </PlanPane>
+        );
+      case "canon":
+        return <PlanCanonView d={d} />;
+      case "history":
+        return (
+          <PlanPane>
+            <PlanHistory events={d.events} rows={rows} plan={plan} open />
+            <DecidedProposals d={d} />
+          </PlanPane>
+        );
+      case "settings":
+        return (
+          <PlanPane>
             <Settings d={d} />
             <PlanPolicyView policy={plan.policy} />
-            <CanonSection d={d} onSaved={load} onError={onError} flushRef={canonFlushRef} />
-            <RowsByWave d={d} act={rowAct} />
-            <PlanHistory events={d.events} rows={rows} plan={plan} />
-            <DecidedProposals d={d} />
-          </>
-        )}
+            {(plan.status === "COMPLETED" || plan.status === "CANCELLED") && (
+              <section className="mb-5 flex flex-wrap items-center gap-3 rounded-xl border border-rose-200 bg-white p-4" data-testid="plan-danger">
+                <h2 className="text-sm font-semibold text-rose-700">{t("mp.danger")}</h2>
+                <button type="button" disabled={busy} onClick={() => window.confirm(t("plan.deleteQ")) && act(() => api.deletePlan(planId), () => navigate(MISSIONS_PATH))} className={`${dangerBtn} ml-auto`}>
+                  <Trash2 size={14} aria-hidden /> {t("plan.delete")}
+                </button>
+              </section>
+            )}
+          </PlanPane>
+        );
+    }
+  })();
+
+  return (
+    <OpenTodo.Provider value={() => dock.setOpen(true)}>
+      <div className="flex h-full min-h-0">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="shrink-0 border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+            {header}
+            {alert && <div className="mt-2">{alert}</div>}
+          </header>
+          <div className="flex shrink-0 items-end gap-2 border-b border-slate-200 bg-slate-50 pr-2 sm:pr-3">
+            <nav ref={tabsRef} className="flex min-w-0 flex-1 gap-1 overflow-x-auto px-2 pt-1.5 sm:px-3" aria-label={t("cv.views")}>
+              {tabs.map(({ view: v, label, Icon }) => {
+                const on = v === current;
+                const count = v === "projects" ? rows.length : 0;
+                return (
+                  <Link
+                    key={v}
+                    to={planPath(planId, v)}
+                    data-testid={`plan-tab-${v}`}
+                    aria-current={on ? "page" : undefined}
+                    className={`-mb-px flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-t-md border px-3 py-1.5 text-xs font-medium coarse:min-h-11 ${on ? "border-slate-200 border-b-white bg-white text-slate-900" : "border-transparent text-slate-600 hover:bg-white/70"}`}
+                  >
+                    <Icon size={14} className={on ? (v === "canon" ? KIND.canon.text : "text-blue-600") : undefined} /> {t(label)}
+                    {count > 0 && <span className="rounded-full bg-slate-200 px-1.5 text-[10px] tabular-nums text-slate-600">{count}</span>}
+                  </Link>
+                );
+              })}
+            </nav>
+            <ChatToggleButton state={dock} attention={todo > 0} labels={labels} count={todo} />
+          </div>
+          <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
+        </div>
+        <ChatDock state={dock} attention={todo > 0} working={plan.status === "RUNNING"} labels={labels}>
+          <div className="grid h-full content-start gap-3 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))]" data-testid="plan-todo">
+            {raise && <RaiseLimit plan={plan} busy={busy} onResume={(maxCostUsd) => act(() => api.resumePlan(planId, { maxCostUsd }))} />}
+            <Inbox rows={questions} onDone={() => void load()} onError={onError} />
+            <Decisions rows={decisions} canonId={canonId} busy={busy} canResolve={live} canSkip={live || plan.status === "CANCELLED"} resolve={resolveRow} skip={(rowId) => rowAct(rowId, "skip")} />
+            <Attention rows={attention} act={rowAct} />
+            {live && <Proposals d={d} busy={busy} decide={decide} />}
+            {todo === 0 && (
+              <p className="text-sm text-slate-500" data-testid="plan-todo-empty">
+                {t("mp.todoEmpty")}
+              </p>
+            )}
+            <section className="grid gap-1.5 border-t border-slate-200 pt-3" data-testid="plan-todo-progress">
+              <h3 className="text-xs font-semibold text-slate-500">{t("plan.progress")}</h3>
+              <PlanBar waves={waveCounts(rows)} lanes={isFlowPlan(plan) ? laneCounts(rows) : undefined} activeWave={plan.activeWave} live={plan.status === "RUNNING"} />
+              <div className="text-xs text-slate-600">
+                {t("plan.doneOf", { done: plan.rowCounts?.done ?? 0, n: rows.length })} · <span className="text-emerald-700">{formatUsd(d.actual.costUsd)}</span>
+                {plan.settings.autonomous && <span className="text-slate-500"> / {formatUsd(plan.settings.autonomous.maxCostUsd)}</span>}
+              </div>
+            </section>
+            {prs.length > 0 && (
+              <section className="grid gap-1 border-t border-slate-200 pt-3" data-testid="plan-todo-prs">
+                <h3 className="text-xs font-semibold text-slate-500">{t("mp.prs")}</h3>
+                <ul className="grid gap-1 text-xs">
+                  {prs.map((r) => (
+                    <li key={r.rowId} className="flex min-w-0 items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate" title={rowLabel(r)}>
+                        {rowLabel(r)}
+                      </span>
+                      <PrLink canonId={canonId!} prNo={r.prNo!} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+        </ChatDock>
       </div>
-    </div>
+    </OpenTodo.Provider>
   );
 }

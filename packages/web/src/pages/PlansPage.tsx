@@ -1,7 +1,7 @@
-import { AlertTriangle, ArrowUp, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import type { CanonRecord, PlanPulseRow, PlanRowState, PlanSummary } from "@cobrac/shared";
+import { AlertTriangle, ArrowUp, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type { CanonRecord, PlanCanonChoice, PlanRowState, PlanSummary } from "@cobrac/shared";
 import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { MenuHeading, Popover } from "../components/create/Popover";
@@ -11,7 +11,10 @@ import { api } from "../lib/api";
 import { fmtBytes, fmtDate } from "../lib/format";
 import { PLAN_FILE_ACCEPT, PLAN_STATUS_COLOR, ROW_STATE_COLOR, ROW_STATE_ORDER, NEW_PLAN_PATH, activeStageName, fmtAgo, fmtDuration, fmtElapsed, planEventText, planPath, useNow, wavesText } from "../lib/plan";
 import { checkPlanFiles, uploadPlanFiles } from "../lib/planFiles";
-import { CreateCanonForm, canonPath, inputCls, primaryBtn } from "./CanonsPage";
+import { turnItems, type TurnItem, type TurnKind } from "../lib/planTurn";
+
+export { turnItems };
+import { canonPath, inputCls, primaryBtn } from "./CanonsPage";
 
 const MB = 1024 * 1024;
 
@@ -36,15 +39,6 @@ export function AutonomousBadge({ plan }: { plan: Pick<PlanSummary, "settings"> 
 const LIVE: ReadonlySet<PlanSummary["status"]> = new Set(["RUNNING", "PAUSED", "DRAFTING"]);
 const rowText = (r: { roi: string; tlf: string }) => [r.tlf.trim(), r.roi.trim()].filter(Boolean).join(" · ") || "—";
 
-type TurnKind = "attention" | "decision" | "question" | "draftAsk" | "review" | "paused" | "proposals" | "draftFailed" | "draftReady";
-interface TurnItem {
-  key: string;
-  kind: TurnKind;
-  plan: PlanSummary;
-  row?: PlanPulseRow;
-  n?: number;
-}
-const TURN_ORDER: TurnKind[] = ["attention", "decision", "question", "draftAsk", "review", "paused", "proposals", "draftFailed", "draftReady"];
 const TURN: Record<TurnKind, { icon: ReactNode; tone: string }> = {
   attention: { icon: <AlertTriangle size={15} aria-hidden />, tone: "bg-rose-50 text-rose-700" },
   decision: { icon: <Scale size={15} aria-hidden />, tone: "bg-amber-100 text-amber-800" },
@@ -57,30 +51,6 @@ const TURN: Record<TurnKind, { icon: ReactNode; tone: string }> = {
   draftReady: { icon: <Sparkles size={15} aria-hidden />, tone: "bg-blue-50 text-blue-700" },
 };
 const TURN_SHOWN = 8;
-
-/**
- * What waits on the owner, across every plan: rows to answer, approve, decide or look at, proposals, stopped plans, finished
- * drafts. While an autonomous plan runs, its rows and proposals are the Orchestrator's, and so is a draft it confirms on its
- * own; the plan is the owner's again when it pauses or cannot confirm its draft.
- */
-export function turnItems(items: PlanSummary[]): TurnItem[] {
-  const out: TurnItem[] = [];
-  for (const p of items) {
-    const auto = isAutonomous(p);
-    const orchestratorActs = auto && p.status === "RUNNING";
-    if (!orchestratorActs) {
-      for (const r of p.pulse?.waiting ?? []) out.push({ key: `${p.planId}/${r.rowId}`, kind: r.state as TurnKind, plan: p, row: r });
-      if (p.pulse?.openProposals) out.push({ key: `${p.planId}/proposals`, kind: "proposals", plan: p, n: p.pulse.openProposals });
-    }
-    if (p.status === "PAUSED" && p.pausedReason && p.pausedReason !== "user") out.push({ key: `${p.planId}/paused`, kind: "paused", plan: p });
-    const confirmsItself = auto && !!p.draft?.autoConfirm && !p.autonomousError;
-    if (p.status === "DRAFT" && p.draft?.status === "done" && !confirmsItself) out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
-    if (p.status === "DRAFT" && p.draft?.status === "failed") out.push({ key: `${p.planId}/draft`, kind: "draftFailed", plan: p });
-    // the Orchestrator asks before drafting, autonomous or not: only the owner can answer
-    if (p.status === "DRAFTING" && p.draft?.status === "asking") out.push({ key: `${p.planId}/ask`, kind: "draftAsk", plan: p, n: p.draft.qa?.at(-1)?.questions.length ?? 0 });
-  }
-  return out.sort((a, b) => TURN_ORDER.indexOf(a.kind) - TURN_ORDER.indexOf(b.kind));
-}
 
 function YourTurn({ items, anyLive }: { items: TurnItem[]; anyLive: boolean }) {
   const t = useT();
@@ -187,6 +157,23 @@ function StateCounts({ counts }: { counts: PlanSummary["rowCounts"] }) {
   );
 }
 
+/** The names of the owner's Canons, given where each mission names the Canon it delivers to (null where the missions are already grouped by Canon). */
+const CanonNamesCtx = createContext<Record<string, string> | null>(null);
+
+/** 「Canon 小脳 VOR 回路」 beside a mission. Not a link: it sits inside the mission's own link. */
+function PlanCanonTag({ p }: { p: PlanSummary }) {
+  const names = useContext(CanonNamesCtx);
+  if (!names) return null;
+  const name = p.canonId ? names[p.canonId] : p.canonNew?.name;
+  if (!name) return null;
+  return (
+    <span className="inline-flex min-w-0 max-w-[14rem] items-center gap-1 rounded bg-violet-50 px-1.5 py-0.5 text-[11px] text-violet-700" data-testid="plan-canon-tag" title={`Canon · ${name}`}>
+      <Layers size={11} className="shrink-0" aria-hidden />
+      <span className="truncate">{name}</span>
+    </span>
+  );
+}
+
 /**
  * Pause / resume of one plan from the list: a running plan starts no new row or Orchestrator job until resumed (rows
  * already running go on). A plan paused at its cost limit is resumed on its page, with a higher limit.
@@ -236,6 +223,7 @@ function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number;
           <LiveDot tone={running ? "running" : "waiting"} />
           <span className="min-w-0 break-words text-base font-semibold text-slate-900">{p.name}</span>
           <span className="font-mono text-[11px] text-slate-500">{p.planId}</span>
+          <PlanCanonTag p={p} />
           <ArchivedChip p={p} />
           <span className="ml-auto">
             <PlanStatusBadge status={p.status} />
@@ -330,7 +318,7 @@ function PlanLane({ p, now, onChanged, onError }: { p: PlanSummary; now: number;
 }
 
 /** A draft: its rows and where its draft job got to. */
-/** Archived missions stay on the Canon page, dimmed and after the others in their section. */
+/** Archived missions stay on the mission page, dimmed and after the others in their section. */
 const archivedLast = (list: PlanSummary[]) => [...list].sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt));
 const dimArchived = (p: PlanSummary) => (p.archivedAt ? "opacity-60" : "");
 
@@ -357,6 +345,7 @@ function DraftCard({ p, now }: { p: PlanSummary; now: number }) {
         {p.goal && <div className="mt-1 line-clamp-2 whitespace-pre-line text-xs text-slate-600">{p.goal}</div>}
         <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-2 text-[11px] text-slate-500">
           <span>{t("plan.card.rows", { n: p.rowCount })}</span>
+          <PlanCanonTag p={p} />
           <ArchivedChip p={p} />
           {j === "done" && <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-700">{t("plan.card.drafted")}</span>}
           {j === "failed" && <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-rose-700">{t("plan.job.failed")}</span>}
@@ -386,6 +375,7 @@ function FinishedList({ items, now, open, label }: { items: PlanSummary[]; now: 
               <Link to={planPath(p.planId)} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 text-sm hover:bg-slate-50 coarse:py-3">
                 {p.status === "COMPLETED" ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" aria-hidden /> : <XCircle size={15} className="shrink-0 text-slate-400" aria-hidden />}
                 <span className="min-w-0 flex-1 break-words text-slate-700">{p.name}</span>
+                <PlanCanonTag p={p} />
                 <span className="text-xs text-slate-500">{t("plan.doneOf", { done: p.rowCounts.done, n: p.rowCount })}</span>
                 <ArchivedChip p={p} />
                 <PlanStatusBadge status={p.status} />
@@ -423,7 +413,34 @@ function CreatePlanComposer() {
   const [manual, setManual] = useState(false);
   const autonomous = !manual;
   const [maxCost, setMaxCost] = useState(String(AUTONOMOUS_DEFAULT_MAX_COST_USD));
-  const [focused, setFocused] = useState<"name" | "goal" | "list" | null>(null);
+  const [focused, setFocused] = useState<"name" | "goal" | "list" | "canon" | null>(null);
+  // the Canon the mission delivers to: a new one (named here, not after the mission), one of the owner's, or none.
+  // `?canon=<id>` (the "new mission" link of a Canon's page) starts with that Canon chosen.
+  const [params] = useSearchParams();
+  const fromCanon = params.get("canon");
+  const [canonMode, setCanonMode] = useState<PlanCanonChoice["mode"]>(fromCanon ? "existing" : "new");
+  const [canonId, setCanonId] = useState(fromCanon ?? "");
+  const [canonName, setCanonName] = useState("");
+  const [canons, setCanons] = useState<CanonRecord[] | null>(null);
+  const canonRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    let live = true;
+    // only the owner's own Canons that are not deleted (a co-edited Canon cannot take the owner's projects)
+    api
+      .listCanons()
+      .then((r) => live && setCanons((r.items ?? []).filter((c) => !c.deletedAt)))
+      .catch(() => live && setCanons([]));
+    return () => {
+      live = false;
+    };
+  }, []);
+  // a Canon of the link that is not the owner's (or is gone) falls back to a new one
+  useEffect(() => {
+    if (canons && canonMode === "existing" && !canons.some((c) => c.canonId === canonId)) setCanonMode("new");
+  }, [canons, canonMode, canonId]);
+  const chosenCanon = canonMode === "existing" ? canons?.find((c) => c.canonId === canonId) : undefined;
+  const canonChoice: PlanCanonChoice = canonMode === "existing" ? { mode: "existing", canonId } : canonMode === "new" ? { mode: "new", name: canonName.trim() } : { mode: "none" };
+  const canonOk = canonMode === "none" || (canonMode === "existing" ? !!chosenCanon : !!canonName.trim());
   const fileRef = useRef<HTMLInputElement>(null);
   const needId = useId();
   const goalRef = useRef<HTMLTextAreaElement>(null);
@@ -440,7 +457,7 @@ function CreatePlanComposer() {
       const attachments = await uploadPlanFiles(files, setUploading);
       setUploading(null);
       const auto = draft && autonomous ? { autonomous: { maxCostUsd: Number(maxCost) } } : {};
-      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto });
+      const r = await api.createPlan({ name, goal, ...(pasted.trim() ? { csv: pasted } : {}), ...(attachments.length ? { attachments } : {}), ...(draft ? { draft: true, locale } : {}), ...auto, canon: canonChoice });
       navigate(planPath(r.plan.planId), { state: { rejected: r.rejected } });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -450,7 +467,7 @@ function CreatePlanComposer() {
     }
   };
   const hasInput = !!goal.trim() || files.length > 0 || !!pasted.trim();
-  const canDraft = !!name.trim() && hasInput;
+  const canDraft = !!name.trim() && hasInput && canonOk;
   const costOk = Number(maxCost) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(maxCost) <= AUTONOMOUS_MAX_COST_RANGE.max;
   const canStart = !busy && canDraft && (!autonomous || costOk);
   const nAttached = files.length + (pasted.trim() ? 1 : 0);
@@ -458,9 +475,10 @@ function CreatePlanComposer() {
   const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:h-11 coarse:w-11";
   const field = "w-full resize-none bg-transparent p-0 text-base leading-7 text-slate-900 caret-blue-600 outline-none placeholder:text-slate-400";
   const row = (k: typeof focused) => `flex items-start gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5 ${focused === k ? "bg-blue-50/50" : ""}`;
+  // a tag longer than two characters (“Canon”) is set tighter so that it stays inside the tag column
   const tag = (k: typeof focused, label: string, sub: string) => (
     <div className="w-10 shrink-0 select-none pt-1 text-center sm:w-11" aria-hidden>
-      <span className={`block text-[13px] font-semibold tracking-wider ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
+      <span className={`block font-semibold ${label.length > 4 ? "text-[12px] leading-[1.625]" : "text-[13px] tracking-wider"} ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
       {sub && <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>}
     </div>
   );
@@ -501,6 +519,26 @@ function CreatePlanComposer() {
               </>
             )}
           </div>
+          {canonMode === "new" && (
+            <>
+              {divider}
+              <div className={row("canon")}>
+                {tag("canon", t("mc.canonTag"), t("mc.canonSub"))}
+                <input
+                  ref={canonRef}
+                  value={canonName}
+                  onChange={(e) => setCanonName(e.target.value)}
+                  onFocus={() => setFocused("canon")}
+                  onBlur={() => setFocused(null)}
+                  placeholder={t("mc.canonPlaceholder")}
+                  aria-label={t("cm.newCanon")}
+                  maxLength={200}
+                  data-testid="plan-canon-name"
+                  className={`${field} min-w-0 flex-1`}
+                />
+              </div>
+            </>
+          )}
           {files.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pb-1 sm:px-4" data-testid="plan-file-list" aria-label={t("plan.files")}>
               {files.map((f, i) => (
@@ -546,6 +584,74 @@ function CreatePlanComposer() {
                   </button>
                 </div>
               )}
+            </Popover>
+            <Popover
+              testId="plan-canon-chip"
+              title="Canon"
+              disabled={busy}
+              width="w-72"
+              trigger={{
+                label: `Canon: ${canonMode === "existing" ? (chosenCanon?.name ?? "") : canonMode === "new" ? t("cm.newCanon") : t("cc3.none")}`,
+                className: `flex min-w-0 max-w-[9rem] items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 coarse:min-h-11 sm:max-w-[16rem] ${
+                  canonMode === "none" ? "border-slate-200 text-slate-500 hover:bg-slate-100" : "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
+                }`,
+                content: (
+                  <>
+                    <Layers size={14} className="shrink-0" aria-hidden />
+                    <span className="truncate">{canonMode === "existing" ? (chosenCanon?.name ?? "Canon") : canonMode === "new" ? t("cm.newCanon") : `Canon: ${t("cc3.none")}`}</span>
+                    {chosenCanon && <span className="hidden shrink-0 font-mono text-[11px] text-violet-500 sm:inline">{t("canon.revision", { n: chosenCanon.headRevision })}</span>}
+                    <ChevronDown size={13} className="shrink-0 opacity-60" aria-hidden />
+                  </>
+                ),
+              }}
+            >
+              {(close) => {
+                const opt = "flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-100 focus:outline-none focus-visible:bg-slate-100 coarse:min-h-11";
+                const tick = (on: boolean) => <Check size={14} className={`mt-0.5 shrink-0 ${on ? "text-violet-600" : "invisible"}`} aria-hidden />;
+                return (
+                  <div className="pb-1.5" data-testid="plan-canon-menu">
+                    <MenuHeading>
+                      Canon <HelpTip text={t("mc.canonHelp")} />
+                    </MenuHeading>
+                    <div role="radiogroup" aria-label="Canon" className="max-h-64 overflow-y-auto px-1.5">
+                      <button
+                        type="button"
+                        role="radio"
+                        aria-checked={canonMode === "new"}
+                        className={opt}
+                        data-testid="plan-canon-new"
+                        onClick={() => {
+                          setCanonMode("new");
+                          close();
+                          // the name row appears with the choice; typing goes on there
+                          setTimeout(() => canonRef.current?.focus(), 0);
+                        }}
+                      >
+                        {tick(canonMode === "new")}
+                        <span>{t("mc.canonNew")}</span>
+                      </button>
+                      {(canons ?? []).map((c) => {
+                        const on = canonMode === "existing" && canonId === c.canonId;
+                        return (
+                          <button key={c.canonId} type="button" role="radio" aria-checked={on} className={opt} data-testid="plan-canon-option" onClick={() => (setCanonMode("existing"), setCanonId(c.canonId), close())}>
+                            {tick(on)}
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate font-medium text-slate-800">{c.name}</span>
+                              <span className="block text-[11px] text-slate-500">
+                                <span className="font-mono">{t("canon.revision", { n: c.headRevision })}</span> · {t("canon.memberCount", { n: c.memberCount })}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                      <button type="button" role="radio" aria-checked={canonMode === "none"} className={opt} data-testid="plan-canon-none" onClick={() => (setCanonMode("none"), close())}>
+                        {tick(canonMode === "none")}
+                        <span className="text-slate-600">{t("cc3.none")}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              }}
             </Popover>
             <Popover
               testId="plan-auto-chip"
@@ -611,7 +717,13 @@ function CreatePlanComposer() {
         </div>
         <div className="mt-2 flex w-full max-w-2xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 text-xs text-slate-400" data-testid="plan-meta">
           {hasInput ? (
-            <span />
+            canonOk || !name.trim() ? (
+              <span />
+            ) : (
+              <span className="text-amber-700" data-testid="plan-need-canon">
+                {t("mc.needCanon")}
+              </span>
+            )
           ) : (
             <span id={needId} className="text-amber-700" data-testid="plan-need-input">
               {t("mc.needInput")}
@@ -665,16 +777,16 @@ function GroupHeader({ g }: { g: CanonGroup }) {
   if (!c)
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Layers size={15} className={g.pendingName ? "text-blue-500" : "text-slate-400"} aria-hidden />
+        <Layers size={15} className={g.pendingName ? "text-violet-500" : "text-slate-400"} aria-hidden />
         <span className="min-w-0 break-words font-semibold text-slate-800">{g.pendingName ?? t("cm.noCanon")}</span>
-        {g.pendingName && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700">{t("cm.pendingCanon")}</span>}
+        {g.pendingName && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] text-violet-700">{t("cm.pendingCanon")}</span>}
       </div>
     );
   return (
     <Link to={canonPath(c.canonId)} className="group/canon block min-w-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Layers size={15} className="text-blue-600" aria-hidden />
-        <span className="min-w-0 break-words font-semibold text-blue-700 group-hover/canon:underline">{c.name}</span>
+        <Layers size={15} className="text-violet-600" aria-hidden />
+        <span className="min-w-0 break-words font-semibold text-violet-700 group-hover/canon:underline">{c.name}</span>
         <span className="font-mono text-[11px] text-slate-400">{c.canonId}</span>
         <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
           <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
@@ -722,28 +834,40 @@ function CanonGroupCard({ g, now, onChanged, onError }: { g: CanonGroup; now: nu
   );
 }
 
+const BY_CANON_STORAGE = "cobrac-missions-by-canon";
+const readByCanon = () => {
+  try {
+    return localStorage.getItem(BY_CANON_STORAGE) === "1";
+  } catch {
+    return false;
+  }
+};
+
 /**
- * The Canon page: the owner's Canons with the missions (Orchestrator plans) that build them, what waits on the owner across
- * every mission first, then the Canons shared with the owner. A live view while a mission runs or drafts.
+ * The mission page (`/missions`): what waits on the owner across every mission first, then the missions themselves: the
+ * live ones as lanes, the drafts as cards, the finished ones folded. Each names the Canon it delivers to; 「Canon で分ける」
+ * groups them by that Canon instead. A live view while a mission runs or drafts. The Canons themselves are on `/canons`.
  */
-export function CanonBoard() {
+export function MissionBoard() {
   const t = useT();
   const navigate = useNavigate();
   const [items, setItems] = useState<PlanSummary[] | null>(null);
   const [canons, setCanons] = useState<CanonRecord[] | null>(null);
-  const [shared, setShared] = useState<(CanonRecord & { ownerName: string })[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+  const [byCanon, setByCanon] = useState(readByCanon);
+  const toggleByCanon = () => {
+    const v = !byCanon;
+    setByCanon(v);
+    try {
+      localStorage.setItem(BY_CANON_STORAGE, v ? "1" : "0");
+    } catch {
+      /* the choice is kept for this visit only */
+    }
+  };
 
   const load = useCallback(
     () =>
-      Promise.all([
-        api.listPlans().then((r) => setItems(r.items)),
-        api.listCanons().then((r) => {
-          setCanons(r.items);
-          setShared(r.shared ?? []);
-        }),
-      ])
+      Promise.all([api.listPlans().then((r) => setItems(r.items)), api.listCanons().then((r) => setCanons(r.items))])
         .then(() => setErr(null))
         .catch((e) => setErr(String(e))),
     [],
@@ -752,9 +876,13 @@ export function CanonBoard() {
     void load();
   }, [load]);
 
-  const live = useMemo(() => (items ?? []).filter((p) => LIVE.has(p.status)), [items]);
+  const live = useMemo(() => archivedLast((items ?? []).filter((p) => LIVE.has(p.status))), [items]);
+  const drafts = useMemo(() => archivedLast((items ?? []).filter((p) => p.status === "DRAFT")), [items]);
+  const finished = useMemo(() => archivedLast((items ?? []).filter((p) => p.status === "COMPLETED" || p.status === "CANCELLED")), [items]);
   const turn = useMemo(() => turnItems(items ?? []), [items]);
-  const groups = useMemo(() => canonGroups(items ?? [], canons ?? []), [items, canons]);
+  // grouped: only the Canons that have a mission (the others are on the Canon page)
+  const groups = useMemo(() => canonGroups(items ?? [], canons ?? []).filter((g) => g.plans.length > 0), [items, canons]);
+  const canonNames = useMemo(() => Object.fromEntries((canons ?? []).map((c) => [c.canonId, c.name])), [canons]);
 
   // a draft being written is checked often, running plans every 15 s; nothing is read while the tab is hidden
   const pollMs = live.some((p) => p.status === "DRAFTING") ? 5_000 : live.length ? 15_000 : 0;
@@ -771,15 +899,17 @@ export function CanonBoard() {
   // seconds tick while something is live (elapsed clocks); otherwise only the 「… 前」 of drafts and finished plans move
   const now = useNow(live.length ? 1000 : 30_000, !!items?.length);
   const loading = items === null || canons === null;
+  const onError = (e: unknown) => setErr(String(e));
+  const heading = "mb-2 mt-5 text-xs font-semibold text-slate-500 first:mt-0";
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
       <div className="max-w-5xl">
         <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-2">
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Layers size={20} /> {t("canon.title")} <HelpTip text={`${t("canon.intro")} ${t("plan.intro")}`} />
+            <ListChecks size={20} className="text-blue-600" aria-hidden /> {t("cm.missions")} <HelpTip text={t("plan.intro")} />
           </h1>
-          <HelpLink section="canon" />
+          <HelpLink section="planner" />
           {pollMs > 0 && (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] text-blue-700" data-testid="plan-live" title={t("plan.liveHelp", { s: pollMs / 1000 })}>
               <LiveDot tone="running" className="scale-75" />
@@ -787,64 +917,74 @@ export function CanonBoard() {
             </span>
           )}
           <span className="ml-auto flex flex-wrap gap-2">
-            <button type="button" onClick={() => setCreating((v) => !v)} aria-expanded={creating} className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50 coarse:min-h-11" data-testid="canon-new-toggle">
-              <Plus size={14} aria-hidden /> {t("cm.newCanon")}
-            </button>
+            {!!items?.length && (
+              <button
+                type="button"
+                onClick={toggleByCanon}
+                aria-pressed={byCanon}
+                data-testid="missions-by-canon"
+                className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm coarse:min-h-11 ${byCanon ? "border-violet-200 bg-violet-50 text-violet-800" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}
+              >
+                <Layers size={14} aria-hidden /> {t("cm.byCanon")}
+              </button>
+            )}
             <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={primaryBtn}>
               <Plus size={14} aria-hidden /> {t("plan.new")}
             </button>
           </span>
         </div>
-        {creating && (
-          <div className="mb-5 max-w-xl motion-safe:animate-fade-in">
-            <CreateCanonForm onCreated={(c) => navigate(canonPath(c.canonId))} />
-          </div>
-        )}
         {err && <div className="mb-3 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
 
         <div data-testid="plan-list">
           {loading && <p className="text-sm text-slate-400">{t("loading")}</p>}
-          {!loading && !groups.length && (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-center" data-testid="canon-empty">
-              <Layers size={28} className="mx-auto mb-2 text-slate-300" aria-hidden />
-              <p className="mx-auto max-w-sm text-sm text-slate-600">{t("cm.empty")}</p>
+          {!loading && !items.length && (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-5 py-8 text-center" data-testid="missions-empty">
+              <ListChecks size={28} className="mx-auto mb-2 text-slate-300" aria-hidden />
+              <p className="mx-auto max-w-sm text-sm text-slate-600">{t("cm.noMissions")}</p>
               <button type="button" onClick={() => navigate(NEW_PLAN_PATH)} className={`${primaryBtn} mx-auto mt-4`}>
                 <Plus size={14} aria-hidden /> {t("plan.new")}
               </button>
             </div>
           )}
-          {!loading && groups.length > 0 && (
+          {!loading && items.length > 0 && (
             <>
               <YourTurn items={turn} anyLive={live.length > 0} />
-              <div className="grid gap-3" data-testid="canon-list">
-                {groups.map((g) => (
-                  <CanonGroupCard key={g.key} g={g} now={now} onChanged={load} onError={(e) => setErr(String(e))} />
-                ))}
-              </div>
+              {byCanon ? (
+                <div className="grid gap-3" data-testid="canon-list">
+                  {groups.map((g) => (
+                    <CanonGroupCard key={g.key} g={g} now={now} onChanged={load} onError={onError} />
+                  ))}
+                </div>
+              ) : (
+                <CanonNamesCtx.Provider value={canonNames}>
+                  {live.length > 0 && (
+                    <>
+                      <h2 className={heading}>{t("cm.sectionLive")}</h2>
+                      <ul className="grid gap-3" data-testid="plan-live-list">
+                        {live.map((p) => (
+                          <PlanLane key={p.planId} p={p} now={now} onChanged={load} onError={onError} />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {drafts.length > 0 && (
+                    <>
+                      <h2 className={heading}>{t("plan.status.DRAFT")}</h2>
+                      <ul className="grid gap-2 sm:grid-cols-2" data-testid="plan-drafts">
+                        {drafts.map((p) => (
+                          <DraftCard key={p.planId} p={p} now={now} />
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {finished.length > 0 && (
+                    <div className="mt-5">
+                      <FinishedList items={finished} now={now} open={!live.length && !drafts.length} label={t("cm.finished", { n: finished.length })} />
+                    </div>
+                  )}
+                </CanonNamesCtx.Provider>
+              )}
             </>
-          )}
-          {shared.length > 0 && (
-            <section className="mt-6" data-testid="canon-shared">
-              <h2 className="mb-2 flex items-center gap-1 text-sm font-semibold">
-                {t("ed.sharedTitle")} <HelpTip text={t("ed.sharedHelp")} />
-              </h2>
-              <ul className="grid gap-2">
-                {shared.map((c) => (
-                  <li key={c.canonId}>
-                    <Link to={canonPath(c.canonId)} className="block rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:bg-blue-50/30 coarse:p-4">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="min-w-0 break-words font-medium text-blue-700">{c.name}</span>
-                        <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] text-indigo-700">{t("ed.roleEditor")}</span>
-                        <span className="ml-auto flex items-center gap-2 text-xs text-slate-500">
-                          <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono">{t("canon.revision", { n: c.headRevision })}</span>
-                          <span>{t("ed.ownerIs", { name: c.ownerName })}</span>
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
           )}
         </div>
       </div>

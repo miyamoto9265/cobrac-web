@@ -1,16 +1,18 @@
-import { Archive, BookMarked, BrainCircuit, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X, type LucideIcon } from "lucide-react";
-import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
+import { Archive, BookMarked, BrainCircuit, Globe, Layers, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X, type LucideIcon } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
 import { LanguageSelect, useT, type MessageKey } from "../i18n";
 import { api, getWorkspaceTeam } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { NEW_PLAN_PATH } from "../lib/plan";
+import { MISSIONS_PATH, NEW_PLAN_PATH } from "../lib/plan";
+import { turnItems } from "../lib/planTurn";
 import { notifyProjectsChanged, useProjectsChanged } from "../lib/projectList";
 import { APP_BUILD_TIME, APP_VERSION_LABEL } from "../lib/version";
 import { AlphaBadge } from "./AlphaBadge";
 import { ThemeToggle } from "./ThemeToggle";
+import { KIND } from "./Trail";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useWorkspace } from "../lib/workspace";
 
@@ -26,16 +28,20 @@ export function Layout() {
 
   // null until the first list arrives: rows of deleted plans are hidden only once the live plans are known
   const [plans, setPlans] = useState<Record<string, PlanSummary> | null>(null);
+  // a mission's row names the Canon it delivers to
+  const [canonNames, setCanonNames] = useState<Record<string, string>>({});
 
   const reload = useCallback(() => {
     // a list that arrives after the workspace was switched belongs to the old one
     const space = getWorkspaceTeam();
     void api.listProjects().then((r) => getWorkspaceTeam() === space && setProjects(r.items)).catch(() => undefined);
     void api.listPlans().then((r) => getWorkspaceTeam() === space && setPlans(Object.fromEntries(r.items.map((x) => [x.planId, x])))).catch(() => undefined);
+    void api.listCanons().then((r) => getWorkspaceTeam() === space && setCanonNames(Object.fromEntries([...r.items, ...(r.shared ?? [])].map((c) => [c.canonId, c.name])))).catch(() => undefined);
   }, []);
   useEffect(() => {
     setProjects([]);
     setPlans(null);
+    setCanonNames({});
   }, [teamId]);
   useProjectsChanged(reload);
 
@@ -56,6 +62,8 @@ export function Layout() {
     return () => window.removeEventListener("keydown", onKey);
   }, [navOpen]);
 
+  // what waits on the owner across the missions, counted beside the 「ミッション」 link on every screen
+  const turn = useMemo(() => (plans ? turnItems(Object.values(plans)).length : 0), [plans]);
   const entries = historyEntries(projects, plans);
   // archived rows are not shown here; they are restored from the project list or the mission's page
   const current = entries.filter((e) => !isArchived(e, plans));
@@ -132,13 +140,20 @@ export function Layout() {
         <nav className="relative flex-1 overflow-y-auto px-2 pt-1">
           {current.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
           {current.map((e) => (
-            <HistoryRow key={entryKey(e)} e={e} plans={plans} onArchive={archive} />
+            <HistoryRow key={entryKey(e)} e={e} plans={plans} canonNames={canonNames} onArchive={archive} />
           ))}
           {/* the list fades out where it meets the links below */}
           <div className="pointer-events-none sticky bottom-0 h-5 bg-gradient-to-t from-slate-900" aria-hidden />
         </nav>
         <div className="space-y-px px-2 pb-2 pt-1">
-          {/* missions are listed on the Canon page, by the Canon they build */}
+          {/* the work (missions, with what waits on the owner) and what it builds (Canons) have an entry each */}
+          <SideLink
+            to={MISSIONS_PATH}
+            Icon={KIND.mission.Icon}
+            label={t("cm.missions")}
+            alsoActive={/^\/plans\/(?!new$)/.test(location.pathname)}
+            badge={turn > 0 ? { n: turn, label: t("cm.yourTurn", { n: turn }) } : undefined}
+          />
           <SideLink to="/canons" Icon={Layers} label={t("nav.canons")} />
           <SideLink to="/explore" Icon={Globe} label={t("nav.explore")} />
           <SideLink to="/manual" Icon={BookMarked} label={t("nav.manual")} />
@@ -238,8 +253,8 @@ function AppName({ className = "" }: { className?: string }) {
 /** The bar at the left edge of the item on screen (a history row or a link); it grows in when the item becomes current. */
 const ActiveBar = () => <span className="absolute inset-y-2 left-0 w-[3px] origin-center rounded-full bg-blue-400 motion-safe:animate-bar-in" aria-hidden />;
 
-/** One link of the sidebar's lower list. `alsoActive` keeps it marked on a route outside its own path. */
-function SideLink({ to, Icon, label, alsoActive = false }: { to: string; Icon: LucideIcon; label: string; alsoActive?: boolean }) {
+/** One link of the sidebar's lower list. `alsoActive` keeps it marked on a route outside its own path; `badge` is a count at its right end. */
+function SideLink({ to, Icon, label, alsoActive = false, badge }: { to: string; Icon: LucideIcon; label: string; alsoActive?: boolean; badge?: { n: number; label: string } }) {
   return (
     <NavLink to={to} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
       {({ isActive }) => {
@@ -248,6 +263,11 @@ function SideLink({ to, Icon, label, alsoActive = false }: { to: string; Icon: L
           <span data-current={on || undefined} className={`relative flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors coarse:py-3 ${on ? "bg-white/10 font-medium text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
             {on && <ActiveBar />}
             <Icon size={16} className={`shrink-0 ${on ? "text-blue-300" : "text-slate-400"}`} aria-hidden /> {label}
+            {badge && (
+              <span key={badge.n} className="ml-auto rounded-full bg-amber-400 px-1.5 text-[11px] font-semibold leading-[1.125rem] text-slate-900 motion-safe:animate-count-in" title={badge.label} aria-label={badge.label} data-testid="nav-turn">
+                {badge.n}
+              </span>
+            )}
           </span>
         );
       }}
@@ -319,6 +339,12 @@ export function historyEntries(projects: ProjectRecord[], plans?: Record<string,
   return out;
 }
 
+/** The Canon a mission delivers to: the name of its Canon, or of the one it creates when it starts. Null without one (or before the names arrive). */
+export function planCanonName(plan: Pick<PlanSummary, "canonId" | "canonNew"> | undefined, canonNames: Record<string, string>): string | null {
+  if (!plan) return null;
+  return (plan.canonId ? canonNames[plan.canonId] : plan.canonNew?.name) || null;
+}
+
 /** The status worth showing for a plan's row: what needs the owner first, then what is still moving. Nothing when all are done. */
 export function planRowStatus(projects: ProjectRecord[]): ProjectStatus | null {
   const order: ProjectStatus[] = ["WAITING_USER_INPUT", "FAILED", "RUNNING", "FINALIZING", "QUEUED"];
@@ -329,7 +355,7 @@ const rowCls = (active: boolean) =>
   `relative mb-px block w-full rounded-lg py-1.5 pl-3 pr-8 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 coarse:pr-12 ${active ? "bg-white/10 text-white" : "text-slate-200 hover:bg-white/5"}`;
 
 /** One row of the history: a plan (its projects as one) or a project, with an archive button beside it. */
-function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<string, PlanSummary> | null; onArchive: (e: HistoryEntry) => void }) {
+function HistoryRow({ e, plans, canonNames, onArchive }: { e: HistoryEntry; plans: Record<string, PlanSummary> | null; canonNames: Record<string, string>; onArchive: (e: HistoryEntry) => void }) {
   const t = useT();
   const navigate = useNavigate();
   const location = useLocation();
@@ -342,24 +368,34 @@ function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<st
     const name = plan?.name || t("cm.missions");
     const count = t("canon.memberCount", { n: e.projects.length });
     const draft = !e.projects.length && plan && (plan.status === "DRAFT" || plan.status === "DRAFTING") ? t(`plan.status.${plan.status}` as MessageKey) : null;
-    const active = location.pathname === `/plans/${e.planId}`;
+    // the Canon the mission delivers to (its name once known, or the one it will create); the project count stays in the tooltip
+    const canon = planCanonName(plan, canonNames);
+    const active = location.pathname === `/plans/${e.planId}` || location.pathname.startsWith(`/plans/${e.planId}/`);
     body = (
       <button
         type="button"
         onClick={() => navigate(`/plans/${encodeURIComponent(e.planId)}`)}
         aria-current={active ? "page" : undefined}
         className={rowCls(active)}
-        title={[name, `${t("cm.missions")} · ${count}`, label ?? draft].filter(Boolean).join("\n")}
+        title={[name, `${t("cm.missions")} · ${count}`, canon && `Canon · ${canon}`, label ?? draft].filter(Boolean).join("\n")}
         data-testid="nav-plan"
       >
         {active && <ActiveBar />}
         <span className="flex items-start gap-1.5">
-          <ListChecks size={14} className="mt-0.5 shrink-0 text-blue-300" aria-hidden />
+          <KIND.mission.Icon size={14} className={`mt-0.5 shrink-0 ${KIND.mission.side}`} aria-hidden />
           <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
         </span>
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 pl-5 text-[11px] leading-tight text-slate-500">
           {status && <SidebarStatus status={status} label={label!} />}
-          {draft ? <span className="min-w-0 truncate">{draft}</span> : <span className="min-w-0 truncate">{count}</span>}
+          {draft && <span className="shrink-0">{draft}</span>}
+          {canon ? (
+            <span className="flex min-w-0 items-center gap-1" data-testid="nav-plan-canon">
+              <KIND.canon.Icon size={11} className={`shrink-0 ${KIND.canon.side}`} aria-hidden />
+              <span className="min-w-0 truncate">{canon}</span>
+            </span>
+          ) : (
+            !draft && <span className="min-w-0 truncate">{count}</span>
+          )}
         </span>
       </button>
     );
@@ -379,9 +415,12 @@ function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<st
         data-testid="nav-project"
       >
         {active && <ActiveBar />}
-        <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
+        <span className="flex items-start gap-1.5">
+          <KIND.project.Icon size={14} className={`mt-0.5 shrink-0 ${KIND.project.side}`} aria-hidden />
+          <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
+        </span>
         {(sub || p.status !== "COMPLETED") && (
-          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-slate-500">
+          <span className="mt-0.5 flex min-w-0 items-center gap-1.5 pl-5 text-[11px] leading-tight text-slate-500">
             {p.status !== "COMPLETED" && <SidebarStatus status={p.status} label={status} />}
             {sub && <span className="min-w-0 truncate">{sub}</span>}
           </span>

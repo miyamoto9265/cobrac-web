@@ -5,6 +5,7 @@ import { CanonicalProjectId } from "./components/CanonicalProjectId";
 import { Layout } from "./components/Layout";
 import { useT } from "./i18n";
 import { useAuth } from "./lib/auth";
+import { MISSIONS_PATH } from "./lib/plan";
 import { pendingJoinToken, WorkspaceProvider } from "./lib/workspace";
 import { JoinLanding } from "./pages/JoinPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -23,7 +24,8 @@ const PublicProjectPage = page(() => import("./pages/PublicProjectPage"), "Publi
 const CanonPullPage = page(() => import("./pages/CanonPullPage"), "CanonPullPage");
 const ManualPage = page(() => import("./pages/ManualPage"), "ManualPage");
 const PlanDetailPage = page(() => import("./pages/PlanDetailPage"), "PlanDetailPage");
-const CanonBoard = page(() => import("./pages/PlansPage"), "CanonBoard");
+const MissionBoard = page(() => import("./pages/PlansPage"), "MissionBoard");
+const CanonList = page(() => import("./pages/CanonsPage"), "CanonList");
 const NewPlanPage = page(() => import("./pages/PlansPage"), "NewPlanPage");
 const ReleaseNotesPage = page(() => import("./pages/ReleaseNotesPage"), "ReleaseNotesPage");
 const SettingsPage = page(() => import("./pages/SettingsPage"), "SettingsPage");
@@ -62,11 +64,12 @@ export default function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/chat/:projectId" element={<LegacyChatRedirect />} />
         <Route path="/projects" element={<ProjectsPage />} />
-        {/* missions are listed on the Canon page, by the Canon they build */}
-        <Route path="/plans" element={<Navigate to="/canons" replace />} />
+        {/* the missions (what waits on the owner first) and the Canons they build each have a list */}
+        <Route path="/missions" element={<MissionBoard />} />
+        <Route path="/plans" element={<Navigate to={MISSIONS_PATH} replace />} />
         <Route path="/plans/new" element={<NewPlanPage />} />
-        <Route path="/plans/:planId" element={<PlanDetailPage />} />
-        <Route path="/canons" element={<CanonBoard />} />
+        <Route path="/plans/:planId/:view?" element={<PlanDetailPage />} />
+        <Route path="/canons" element={<CanonList />} />
         <Route path="/canons/:canonId/:view?" element={<CanonDetailPage />} />
         <Route path="/explore" element={<ExplorePage />} />
         <Route path="/explore/projects/:projectId" element={<PublicProjectPage />} />
