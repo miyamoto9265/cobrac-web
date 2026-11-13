@@ -185,7 +185,8 @@ describe("the /docs route", () => {
   it("opens from the admin page, not the sidebar, and keeps 管理 highlighted", async () => {
     await render("/docs", true);
     expect($('aside a[href="/docs"]')).toBeNull();
-    expect($('aside a[href="/admin"]')!.className).toContain("bg-slate-800 text-white");
+    expect($('aside a[href="/admin"] [data-current]')).not.toBeNull();
+    expect($('aside a[href="/manual"] [data-current]')).toBeNull();
     expect($('[data-testid="where"]')!.textContent).toBe("/docs");
     expect($('[data-testid="spec-viewer"]')).not.toBeNull();
   });

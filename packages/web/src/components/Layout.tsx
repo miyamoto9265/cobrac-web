@@ -1,4 +1,4 @@
-import { Archive, BookMarked, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X } from "lucide-react";
+import { Archive, BookMarked, BrainCircuit, Globe, Layers, ListChecks, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X, type LucideIcon } from "lucide-react";
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
@@ -70,29 +70,26 @@ export function Layout() {
       void api.archiveProject(e.project.projectId, true).catch(() => undefined).finally(notifyProjectsChanged);
     }
   }, []);
-  const navCls = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-md px-3 py-1.5 text-sm coarse:py-3 ${isActive ? "bg-slate-800 text-white" : "text-slate-300 hover:bg-slate-800/60"}`;
   // Settings and sign-out sit as icons beside the email.
-  const accountBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:h-11 coarse:w-11";
-  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-200 hover:bg-slate-800";
+  const accountBtn = "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:h-11 coarse:w-11";
+  const iconBtn = "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-slate-200 hover:bg-white/10";
+  const startBtn = "flex min-w-0 items-center justify-center gap-1 rounded-lg px-1.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 coarse:py-3";
 
   return (
     <div className="flex h-full">
-      {navOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden" onClick={() => setNavOpen(false)} aria-hidden />}
+      {navOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 motion-safe:animate-fade-in lg:hidden" onClick={() => setNavOpen(false)} aria-hidden />}
       <aside
         className={`theme-static fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none dark:border-r dark:border-slate-800 ${
           navOpen ? "translate-x-0" : "-translate-x-full max-lg:invisible"
         }`}
       >
-        <div className="flex items-start justify-between gap-2 py-4 pl-4 pr-2 lg:pr-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold tracking-tight">CoBRAC Agents</span>
-              <AlphaBadge />
-            </div>
-            <div className="text-xs text-slate-400">BRA data generation</div>
-          </div>
-          <button type="button" onClick={() => setNavOpen(false)} className={`${iconBtn} -mt-2 lg:hidden`} aria-label={t("nav.closeMenu")} title={t("nav.closeMenu")}>
+        <div className="flex h-14 shrink-0 items-center gap-1.5 pl-3 pr-1 lg:gap-2 lg:pl-4 lg:pr-3">
+          <Link to="/chat" className="flex min-w-0 items-center gap-1.5 rounded-lg lg:gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+            <AppMark />
+            <AppName className="text-[15px]" />
+          </Link>
+          <AlphaBadge />
+          <button type="button" onClick={() => setNavOpen(false)} className={`${iconBtn} ml-auto lg:hidden`} aria-label={t("nav.closeMenu")} title={t("nav.closeMenu")}>
             <X size={20} />
           </button>
         </div>
@@ -105,9 +102,7 @@ export function Layout() {
             data-testid="nav-new-mission"
             aria-label={t("nav.newMissionFull")}
             title={t("nav.newMissionFull")}
-            className={`flex min-w-0 items-center justify-center gap-1 rounded-md px-1.5 py-2 text-[13px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 coarse:py-3 ${
-              location.pathname === NEW_PLAN_PATH ? "bg-blue-500 text-white" : "bg-blue-600 text-white hover:bg-blue-500"
-            }`}
+            className={`${startBtn} text-white shadow-sm focus-visible:ring-blue-300 ${location.pathname === NEW_PLAN_PATH ? "bg-blue-500" : "bg-blue-600 hover:bg-blue-500"}`}
           >
             <Plus size={14} className="shrink-0" aria-hidden /> <span className="truncate">{t("nav.newMission")}</span>
           </button>
@@ -117,64 +112,62 @@ export function Layout() {
             data-testid="nav-new-project"
             aria-label={t("nav.newProject")}
             title={t("nav.newProject")}
-            className={`flex min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-[13px] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-3 ${
-              location.pathname === "/chat" ? "border-slate-500 bg-slate-800 text-white" : "border-slate-700 hover:bg-slate-800"
-            }`}
+            className={`${startBtn} focus-visible:ring-blue-400 ${location.pathname === "/chat" ? "bg-white/20 text-white" : "bg-white/10 text-slate-100 hover:bg-white/[0.16]"}`}
           >
             <Plus size={14} className="shrink-0" aria-hidden /> <span className="truncate">{t("nav.newProjectShort")}</span>
           </button>
         </div>
-        <div className="mt-3 flex items-center justify-between gap-2 pl-3 pr-2">
-          <span className="text-xs uppercase tracking-wide text-slate-500">{t("nav.history")}</span>
+        <div className="mt-4 flex items-center justify-between gap-2 pl-5 pr-2">
+          <span className="text-[11px] font-medium text-slate-500">{t("nav.history")}</span>
           <Link
             to="/projects"
             data-testid="nav-projects"
-            className={`rounded px-1.5 py-0.5 text-xs hover:bg-slate-800/60 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:px-2 coarse:py-2 ${
+            className={`rounded-md px-1.5 py-0.5 text-[11px] transition-colors hover:bg-white/10 hover:text-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:px-2 coarse:py-2 ${
               location.pathname === "/projects" ? "text-white" : "text-slate-400"
             }`}
           >
             {t("nav.seeAll")}
           </Link>
         </div>
-        <nav className="relative flex-1 overflow-y-auto px-2 py-1">
+        <nav className="relative flex-1 overflow-y-auto px-2 pt-1">
           {current.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
           {current.map((e) => (
             <HistoryRow key={entryKey(e)} e={e} plans={plans} onArchive={archive} />
           ))}
+          {/* the list fades out where it meets the links below */}
+          <div className="pointer-events-none sticky bottom-0 h-5 bg-gradient-to-t from-slate-900" aria-hidden />
         </nav>
-        <div className="border-t border-slate-800 p-2">
+        <div className="space-y-px px-2 pb-2 pt-1">
           {/* missions are listed on the Canon page, by the Canon they build */}
-          <NavLink to="/canons" className={({ isActive }) => navCls({ isActive })}>
-            <Layers size={16} /> {t("nav.canons")}
-          </NavLink>
-          <NavLink to="/explore" className={navCls}>
-            <Globe size={16} /> {t("nav.explore")}
-          </NavLink>
-          <NavLink to="/manual" className={navCls}>
-            <BookMarked size={16} /> {t("nav.manual")}
-          </NavLink>
-          {me?.role === "admin" && (
-            <>
-              {/* the specification opens from the admin page; its route keeps 管理 highlighted */}
-              <NavLink to="/admin" className={({ isActive }) => navCls({ isActive: isActive || location.pathname.startsWith("/docs") })}>
-                <Shield size={16} /> {t("nav.admin")}
-              </NavLink>
-            </>
-          )}
-          <div className="flex items-center gap-2 px-3 pt-1">
-            <LanguageSelect />
+          <SideLink to="/canons" Icon={Layers} label={t("nav.canons")} />
+          <SideLink to="/explore" Icon={Globe} label={t("nav.explore")} />
+          <SideLink to="/manual" Icon={BookMarked} label={t("nav.manual")} />
+          {/* the specification opens from the admin page; its route keeps 管理 highlighted */}
+          {me?.role === "admin" && <SideLink to="/admin" Icon={Shield} label={t("nav.admin")} alsoActive={location.pathname.startsWith("/docs")} />}
+        </div>
+        <div className="border-t border-white/10 px-2 pb-2 pt-2">
+          <div className="flex items-center gap-1.5 px-1">
+            <LanguageSelect className="min-w-0 flex-1" />
             <ThemeToggle onDark />
           </div>
-          <div className="flex items-center gap-1 pl-3 pt-1">
-            <span className="min-w-0 flex-1 truncate text-xs text-slate-500" title={me?.email}>
-              {me?.email}
+          <div className="mt-1.5 flex items-center gap-1 pl-1">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[11px] font-semibold uppercase text-slate-200" aria-hidden>
+              {(me?.email ?? "").trim().charAt(0)}
+            </span>
+            <span className="ml-1 min-w-0 flex-1">
+              <span className="block truncate text-xs leading-tight text-slate-300" title={me?.email}>
+                {me?.email}
+              </span>
+              <Link to="/releases" className="block truncate font-mono text-[10px] leading-tight text-slate-500 hover:text-slate-300 coarse:py-1" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
+                {APP_VERSION_LABEL}
+              </Link>
             </span>
             <NavLink
               to="/settings"
               data-testid="nav-settings"
               aria-label={t("nav.settings")}
               title={t("nav.settings")}
-              className={({ isActive }) => `${accountBtn} ${isActive ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-800/60 hover:text-slate-100"}`}
+              className={({ isActive }) => `${accountBtn} ${isActive ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/10 hover:text-slate-100"}`}
             >
               <Settings size={16} aria-hidden />
             </NavLink>
@@ -184,14 +177,11 @@ export function Layout() {
               onClick={() => void doSignOut()}
               aria-label={t("nav.signOut")}
               title={t("nav.signOut")}
-              className={`${accountBtn} text-slate-400 hover:bg-slate-800/60 hover:text-slate-100`}
+              className={`${accountBtn} text-slate-400 hover:bg-white/10 hover:text-slate-100`}
             >
               <LogOut size={16} aria-hidden />
             </button>
           </div>
-          <Link to="/releases" className="block px-3 pt-0.5 font-mono text-[11px] text-slate-500 hover:text-slate-300 coarse:py-3" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
-            {APP_VERSION_LABEL}
-          </Link>
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -200,8 +190,9 @@ export function Layout() {
             <Menu size={20} />
           </button>
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Link to="/chat" className="min-w-0 truncate px-1 py-2.5 text-base font-semibold tracking-tight">
-              CoBRAC Agents
+            <Link to="/chat" className="flex min-w-0 items-center gap-2 px-1 py-2">
+              <AppMark />
+              <AppName className="text-[15px]" />
             </Link>
             <AlphaBadge />
           </div>
@@ -223,6 +214,44 @@ export function Layout() {
         </main>
       </div>
     </div>
+  );
+}
+
+/** The app's mark: a small tile in the accent colour. */
+function AppMark() {
+  return (
+    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-sm" aria-hidden>
+      <BrainCircuit size={16} />
+    </span>
+  );
+}
+
+/** The app's name: "CoBRAC" carries the weight, "Agents" steps back. */
+function AppName({ className = "" }: { className?: string }) {
+  return (
+    <span className={`min-w-0 truncate font-semibold tracking-tight ${className}`}>
+      CoBRAC <span className="font-normal text-slate-400">Agents</span>
+    </span>
+  );
+}
+
+/** The bar at the left edge of the item on screen (a history row or a link); it grows in when the item becomes current. */
+const ActiveBar = () => <span className="absolute inset-y-2 left-0 w-[3px] origin-center rounded-full bg-blue-400 motion-safe:animate-bar-in" aria-hidden />;
+
+/** One link of the sidebar's lower list. `alsoActive` keeps it marked on a route outside its own path. */
+function SideLink({ to, Icon, label, alsoActive = false }: { to: string; Icon: LucideIcon; label: string; alsoActive?: boolean }) {
+  return (
+    <NavLink to={to} className="block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+      {({ isActive }) => {
+        const on = isActive || alsoActive;
+        return (
+          <span data-current={on || undefined} className={`relative flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] transition-colors coarse:py-3 ${on ? "bg-white/10 font-medium text-white" : "text-slate-300 hover:bg-white/5 hover:text-white"}`}>
+            {on && <ActiveBar />}
+            <Icon size={16} className={`shrink-0 ${on ? "text-blue-300" : "text-slate-400"}`} aria-hidden /> {label}
+          </span>
+        );
+      }}
+    </NavLink>
   );
 }
 
@@ -297,7 +326,7 @@ export function planRowStatus(projects: ProjectRecord[]): ProjectStatus | null {
 }
 
 const rowCls = (active: boolean) =>
-  `mb-px block w-full rounded-md py-1.5 pl-3 pr-8 text-left hover:bg-slate-800/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 coarse:pr-12 ${active ? "bg-slate-800 text-white" : "text-slate-200"}`;
+  `relative mb-px block w-full rounded-lg py-1.5 pl-3 pr-8 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 coarse:py-2.5 coarse:pr-12 ${active ? "bg-white/10 text-white" : "text-slate-200 hover:bg-white/5"}`;
 
 /** One row of the history: a plan (its projects as one) or a project, with an archive button beside it. */
 function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<string, PlanSummary> | null; onArchive: (e: HistoryEntry) => void }) {
@@ -313,14 +342,17 @@ function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<st
     const name = plan?.name || t("cm.missions");
     const count = t("canon.memberCount", { n: e.projects.length });
     const draft = !e.projects.length && plan && (plan.status === "DRAFT" || plan.status === "DRAFTING") ? t(`plan.status.${plan.status}` as MessageKey) : null;
+    const active = location.pathname === `/plans/${e.planId}`;
     body = (
       <button
         type="button"
         onClick={() => navigate(`/plans/${encodeURIComponent(e.planId)}`)}
-        className={rowCls(location.pathname === `/plans/${e.planId}`)}
+        aria-current={active ? "page" : undefined}
+        className={rowCls(active)}
         title={[name, `${t("cm.missions")} · ${count}`, label ?? draft].filter(Boolean).join("\n")}
         data-testid="nav-plan"
       >
+        {active && <ActiveBar />}
         <span className="flex items-start gap-1.5">
           <ListChecks size={14} className="mt-0.5 shrink-0 text-blue-300" aria-hidden />
           <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
@@ -336,14 +368,17 @@ function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<st
     const name = projectDisplayName(p);
     const sub = [p.roi, p.tlf].filter((s) => s?.trim()).join(" · ");
     const status = t(`status.${p.status}` as MessageKey);
+    const active = projectId === p.projectId;
     body = (
       <button
         type="button"
         onClick={() => navigate(`/projects/${encodeURIComponent(p.projectId)}`)}
-        className={rowCls(projectId === p.projectId)}
+        className={rowCls(active)}
+        aria-current={active ? "page" : undefined}
         title={[name, sub, status].filter(Boolean).join("\n")}
         data-testid="nav-project"
       >
+        {active && <ActiveBar />}
         <span className="line-clamp-2 break-words text-[13px] leading-snug">{name}</span>
         {(sub || p.status !== "COMPLETED") && (
           <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] leading-tight text-slate-500">
@@ -364,7 +399,7 @@ function HistoryRow({ e, plans, onArchive }: { e: HistoryEntry; plans: Record<st
         aria-label={action}
         title={action}
         data-testid="nav-archive"
-        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded text-slate-400 opacity-0 hover:bg-slate-700 hover:text-white focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 group-hover:opacity-100 coarse:h-11 coarse:w-11 coarse:top-0 coarse:opacity-100"
+        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 opacity-0 transition-opacity hover:bg-white/10 hover:text-white focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 group-hover:opacity-100 coarse:h-11 coarse:w-11 coarse:top-0 coarse:opacity-100"
       >
         <Archive size={14} aria-hidden />
       </button>

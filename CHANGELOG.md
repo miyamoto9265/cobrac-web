@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.55.2] - 2026-11-13
+
+### Changed
+- The sidebar has a tidier look. The app name sits on one line with a small mark, and the "Alpha" pill itself opens its explanation (the separate (?) is gone, on the sign-in and join pages too); the "BRA data generation" line was removed. The workspace switcher shows a tile with the team's initial, with "On the team's budget" / "On your own key" under the team's name and the team page behind the icon beside it. The item on screen (a history entry or a link below) is marked with a bar at its left edge that grows in. The language, theme, e-mail and version at the bottom take two lines instead of four, and the history fades out where it meets the links below
+
 ## [0.55.1] - 2026-11-12
 
 ### Fixed
