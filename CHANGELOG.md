@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.57.0] - 2026-11-14
+
 ### Added
 - Teams, sharing: everyone in a team sees its workspace's projects, missions and Canons and can open them read-only ("View only" at the top). The creator and the team's admins edit, run and approve them; when an admin runs another member's project or mission it runs on the team's budget only. Members can add their own projects to the team's Canons
 - "Copy" on a project makes a copy in your personal workspace or in a team you belong to (the original stays where it is)
