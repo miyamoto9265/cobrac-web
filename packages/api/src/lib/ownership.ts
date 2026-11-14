@@ -17,6 +17,7 @@ export function ownedMessages<T extends Pick<MessageRecord, "userId" | "jobId">>
   return messages.filter((m) => isOwnedMessage(m, userId, ownerJobIds));
 }
 
-export function subscribersOf<T extends { userId: string }>(subs: T[], ownerUserId: string): T[] {
-  return subs.filter((s) => s.userId === ownerUserId);
+/** Connections that follow the owner's project: the owner's own, and team members' (subscribed with `ownerUserId`). */
+export function subscribersOf<T extends { userId: string; ownerUserId?: string }>(subs: T[], ownerUserId: string): T[] {
+  return subs.filter((s) => (s.ownerUserId ?? s.userId) === ownerUserId);
 }

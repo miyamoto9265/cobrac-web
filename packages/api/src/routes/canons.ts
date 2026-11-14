@@ -102,6 +102,7 @@ import {
   advanceCanonHead,
   closePullRequest,
   getCanon,
+  getCanonMember,
   getPullRequest,
   listOutgoing,
   listPullRequests,
@@ -124,7 +125,8 @@ import {
   updateCanon,
 } from "../lib/canons.js";
 import { loadOwnProject } from "./projects.js";
-import { inSpace, itemTeam, listSpace, requestedTeam } from "../lib/teams.js";
+import { inSpace, itemTeam, listSpace, queryTeamIndex, requestedTeam, teamItemAccess } from "../lib/teams.js";
+import { env } from "../env.js";
 import type { ApiEnv } from "./env.js";
 
 export const canonsApi = new Hono<ApiEnv>();
@@ -135,32 +137,59 @@ export const canonsApi = new Hono<ApiEnv>();
 
 async function canonRoleOf(u: UserRecord, canon: CanonRecord): Promise<CanonRole | null> {
   if (canon.ownerUserId === u.userId) return "owner";
+  // a team's Canon: its admins review and manage it like the owner; its members read it and send their projects
+  const team = canon.teamId ? await teamItemAccess(u, canon.ownerUserId, canon.teamId) : null;
+  if (team === "admin") return "editor";
   if (await getCanonEditor(canon.canonId, u.userId)) return "editor";
+  if (team === "member") return "member";
   return u.role === "admin" ? "admin" : null;
 }
 
 /**
- * A not-deleted Canon the caller may use; anything else is 404. `write`: the owner only (settings, members,
- * co-editors, visibility, deletion). `review`: the owner or a co-editor (decide, comment, AI review). Otherwise
- * the owner, a co-editor or an admin may read it.
+ * A not-deleted Canon the caller may use; anything else is 404. `write`: the owner (and, for a team's Canon, the
+ * team's admins): settings, members, visibility, deletion. `review`: the owner or a co-editor (a team's admins count
+ * as co-editors): decide, comment, AI review. `join`: the workspace of the caller's own project that joins or pushes
+ * to the Canon; a team's Canon takes the projects of every member of that team. Otherwise the owner, a co-editor, a
+ * team member or an admin may read it.
  */
-export async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean; review?: boolean } = {}): Promise<CanonRecord> {
+export async function loadCanon(u: UserRecord, canonId: string, opts: { write?: boolean; review?: boolean; join?: string | null } = {}): Promise<CanonRecord> {
   if (!isCanonId(canonId)) throw notFound();
   const canon = await getCanon(canonId);
   if (!canon || isCanonDeleted(canon)) throw notFound();
   if (canon.ownerUserId === u.userId) return canon;
-  if (opts.write) throw notFound();
+  const team = canon.teamId ? await teamItemAccess(u, canon.ownerUserId, canon.teamId) : null;
+  if (opts.join !== undefined) {
+    if (!team || !canon.teamId || canon.teamId !== opts.join) throw notFound();
+    return canon;
+  }
+  if (opts.write) {
+    if (team === "admin") return canon;
+    if (team === "member") throw new HTTPException(403, { message: "この操作は作成者とチーム管理者だけができます" });
+    throw notFound();
+  }
   const role = await canonRoleOf(u, canon);
-  if (!role || (opts.review && role !== "editor")) throw notFound();
+  if (!role || (opts.review && role !== "editor")) {
+    if (role === "member") throw new HTTPException(403, { message: "この操作は作成者とチーム管理者だけができます" });
+    throw notFound();
+  }
   return canon;
 }
+
+/** Whose project a Canon member is (members of a team's Canon can be any member's projects). */
+const memberOwner = (canon: CanonRecord, m: { projectOwnerId?: string }) => m.projectOwnerId ?? canon.ownerUserId;
 
 canonsApi.get("/canons", async (c) => {
   const u = c.get("user");
   // ?team=<teamId>: that team's workspace; absent: the personal one (shared Canons are listed in the personal one)
   const space = await listSpace(u, c.req.query("team"));
-  const items = (await listOwnCanons(u.userId)).filter((x) => !isCanonDeleted(x) && inSpace(x, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
-  if (space) return c.json({ items, shared: [] });
+  // a team's workspace lists every member's Canons in it
+  const all = space ? (await queryTeamIndex<CanonRecord>(env.tables.canons, space)).filter((x) => x.sk === CANON_META_SK) : await listOwnCanons(u.userId);
+  const items = all.filter((x) => !isCanonDeleted(x) && inSpace(x, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  if (space) {
+    const names = new Map<string, string>();
+    for (const x of items) if (x.ownerUserId !== u.userId && !names.has(x.ownerUserId)) names.set(x.ownerUserId, actorName(await getUser(x.ownerUserId)));
+    return c.json({ items: items.map((x) => (x.ownerUserId === u.userId ? x : { ...x, ownerName: names.get(x.ownerUserId) ?? "" })), shared: [] });
+  }
   const shared: (CanonRecord & { ownerName: string })[] = [];
   for (const id of u.editorCanons ?? []) {
     const canon = isCanonId(id) ? await getCanon(id) : null;
@@ -184,7 +213,7 @@ canonsApi.get("/canons/:id", async (c) => {
   const canon = await loadCanon(u, c.req.param("id"));
   const members: CanonMemberSummary[] = [];
   for (const m of await listCanonMembers(canon.canonId)) {
-    const p = await getProject(canon.ownerUserId, m.projectId);
+    const p = await getProject(memberOwner(canon, m), m.projectId);
     if (!p) continue;
     members.push({
       projectId: p.projectId,
@@ -266,7 +295,7 @@ canonsApi.delete("/canons/:id", async (c) => {
   const u = c.get("user");
   const canon = await loadCanon(u, c.req.param("id"), { write: true });
   try {
-    const deletedAt = await markCanonDeleted(canon.canonId, u.userId);
+    const deletedAt = await markCanonDeleted(canon.canonId, canon.ownerUserId);
     if (canon.visibility === "public") await deleteCatalogItem("canon", canon.canonId);
     await deleteFinishedPlansOfCanon(canon.ownerUserId, canon.canonId);
     return c.json({ canonId: canon.canonId, deletedAt });
@@ -276,12 +305,13 @@ canonsApi.delete("/canons/:id", async (c) => {
   }
 });
 
+/** Adds the caller's own project (the owner's, or in a team's Canon any member's project in that team's workspace). */
 canonsApi.post("/canons/:id/members", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
   const { projectId } = (await c.req.json()) as { projectId?: string };
   if (!projectId || !isProjectIdLike(projectId)) throw bad("projectId が不正です");
   const p = await loadOwnProject(u, projectId);
+  const canon = await loadCanon(u, c.req.param("id"), { join: p.teamId ?? null });
   if (p.canonId === canon.canonId) return c.json({ projectId, canonId: canon.canonId });
   if (p.canonId) {
     const other = await getCanon(p.canonId);
@@ -292,10 +322,14 @@ canonsApi.post("/canons/:id/members", async (c) => {
   return c.json({ projectId, canonId: canon.canonId, joinedAt: r.member.joinedAt }, 201);
 });
 
+/** The owner (or a team's admin) removes a member project; a member takes their own project out. */
 canonsApi.delete("/canons/:id/members/:projectId", async (c) => {
   const u = c.get("user");
-  const canon = await loadCanon(u, c.req.param("id"), { write: true });
-  if (!(await removeCanonMember(canon.canonId, u.userId, c.req.param("projectId")))) throw notFound();
+  const pid = c.req.param("projectId");
+  const own = isProjectIdLike(pid) ? await getProject(u.userId, pid) : null;
+  const canon = own?.canonId === c.req.param("id") ? await loadCanon(u, c.req.param("id"), { join: own.teamId ?? null }) : await loadCanon(u, c.req.param("id"), { write: true });
+  const m = await getCanonMember(canon.canonId, pid);
+  if (!m || !(await removeCanonMember(canon.canonId, memberOwner(canon, m), pid))) throw notFound();
   return c.json({ ok: true });
 });
 
@@ -310,7 +344,7 @@ canonsApi.get("/canons/:id/revisions", async (c) => {
 async function projectCanon(u: UserRecord, projectId: string): Promise<{ p: ProjectRecord; canon: CanonRecord }> {
   const p = await loadOwnProject(u, projectId);
   if (!p.canonId) throw new HTTPException(409, { message: "このプロジェクトは Canon に入っていません" });
-  const canon = await loadCanon(u, p.canonId, { write: true });
+  const canon = await loadCanon(u, p.canonId, { join: p.teamId ?? null });
   return { p, canon };
 }
 
@@ -382,7 +416,8 @@ export async function resolveProjectCanon(u: UserRecord, choice: CreateProjectCa
   }
   if (choice.mode === "none") return null;
   if (choice.mode === "existing") {
-    const existing = await loadCanon(u, choice.canonId, { write: true });
+    // in a team's workspace: any of the team's Canons
+    const existing = await loadCanon(u, choice.canonId, { join: space });
     if ((existing.teamId ?? null) !== space) throw bad("プロジェクトと同じ作業場所の Canon を選んでください");
     return { existing };
   }
@@ -493,7 +528,7 @@ canonsApi.get("/canons/:id/pulls/:no", async (c) => {
     targetName: canon.name,
     canReview: isOwner,
     canWithdraw: pr.createdBy === u.userId,
-    canComment: isOwner || pr.createdBy === u.userId,
+    canComment: isOwner || pr.createdBy === u.userId || role === "member",
     viewerRole: role,
     checks: m.checks,
     entries: m.entries,
@@ -516,8 +551,9 @@ function reviewNote(v: unknown, required: boolean, message: string): string | nu
 
 canonsApi.post("/canons/:id/pulls/:no/comments", async (c) => {
   const u = c.get("user");
-  const { canon, pr, isOwner } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
-  if (!isOwner && pr.createdBy !== u.userId) throw new HTTPException(403, { message: "この PR にはコメントできません" });
+  const { canon, pr, isOwner, role } = await loadPrForViewer(u, c.req.param("id"), c.req.param("no"));
+  // a team's members comment on every pull request of the team's Canon
+  if (!isOwner && pr.createdBy !== u.userId && role !== "member") throw new HTTPException(403, { message: "この PR にはコメントできません" });
   const body = (await c.req.json().catch(() => ({}))) as { text?: unknown; item?: unknown };
   const note = reviewNote(body.text, true, "コメントを書いてください");
   let item: string | null = null;
@@ -741,6 +777,7 @@ async function loadPrTarget(u: UserRecord, canonId: string): Promise<CanonRecord
   const canon = await getCanon(canonId);
   if (!canon || isCanonDeleted(canon)) throw notFound();
   if (canon.ownerUserId === u.userId || (await getCanonEditor(canon.canonId, u.userId))) return canon;
+  if (canon.teamId && (await teamItemAccess(u, canon.ownerUserId, canon.teamId))) return canon;
   if (canon.visibility !== "public") throw notFound();
   if (canon.acceptPullRequests === false) throw new HTTPException(403, { message: "この Canon はほかのユーザーからの取り込み依頼を受け付けていません" });
   return canon;

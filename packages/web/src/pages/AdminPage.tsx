@@ -1,7 +1,7 @@
 import { FileText, Gauge, KeyRound, Save, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
-import type { ConcurrencyStatus, DefaultKeyStatus, ModelProvider, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
+import { useCallback, useEffect, useState } from "react";
+import type { AdminTeamSummary, ConcurrencyStatus, DefaultKeyStatus, ModelProvider, OrgUsageRow, ProjectRecord, UserPublic } from "@cobrac/shared";
 import { CONCURRENCY_MAX, CONCURRENCY_MIN, formatUsd, isConcurrencyLimit, projectDisplayName } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
 import { StatusBadge } from "../components/StatusBadge";
@@ -197,6 +197,7 @@ export function AdminPage() {
       <DefaultKeySection provider="openai" onError={setErr} />
       <DefaultKeySection provider="anthropic" onError={setErr} />
       <DefaultKeySection provider="deepseek" onError={setErr} />
+      <TeamsSection onError={setErr} />
 
       <ConcurrencySection />
 
@@ -422,6 +423,87 @@ function DefaultKeySection({ provider, onError }: { provider: ModelProvider; onE
           </button>
         )}
       </div>
+    </section>
+  );
+}
+
+/** Every team: its admins, budget state and this month's cost; assign the default key as its budget, stop or start it. */
+function TeamsSection({ onError }: { onError: (e: string | null) => void }) {
+  const t = useT();
+  const { locale } = useI18n();
+  const [items, setItems] = useState<AdminTeamSummary[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api.adminTeams().then((r) => setItems(r.items)).catch((e) => onError(e instanceof Error ? e.message : String(e))), [onError]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const act = (p: () => Promise<unknown>) => {
+    setBusy(true);
+    void p()
+      .then(load)
+      .catch((e) => onError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setBusy(false));
+  };
+  const small = "rounded-md border border-slate-300 px-2 py-1 text-xs hover:bg-slate-50 disabled:opacity-50 coarse:min-h-11";
+  return (
+    <section className="mb-6 max-w-3xl rounded-xl border border-slate-200 bg-white p-4" data-testid="admin-teams">
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+        {t("admin.teams.title")} <HelpTip text={t("admin.teams.help")} />
+      </h2>
+      {items === null ? (
+        <p className="text-sm text-slate-500">{t("loading")}</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-slate-500">{t("admin.teams.none")}</p>
+      ) : (
+        <ul className="divide-y divide-slate-100">
+          {items.map((x) => (
+            <li key={x.teamId} className="py-2.5" data-testid="admin-team">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-medium">{x.name}</span>
+                <span className="text-xs text-slate-500">{t("admin.teams.members", { n: x.memberCount })}</span>
+                <span className="text-xs text-slate-500">
+                  {t("admin.teams.admins")}: {x.admins.map((a) => a.email).join(", ")}
+                </span>
+                <span className="ml-auto text-xs tabular-nums text-slate-600">
+                  {t("team.col.month")} {formatUsd(x.monthCostUsd)} · {t("team.col.total")} {formatUsd(x.costUsd)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded bg-slate-100 px-1.5 py-0.5">
+                  {t(`team.budget.state.${x.budget.state}` as MessageKey)}
+                  {x.budget.endsAt ? ` · ${t("team.budget.until", { date: fmtDate(x.budget.endsAt, locale) })}` : ""}
+                </span>
+                {(["openai", "anthropic", "deepseek"] as const).map((p) => {
+                  const k = x.keys[p];
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={busy || (k.registered && !k.useDefault)}
+                      className={small}
+                      title={k.registered && !k.useDefault ? t("team.keys.registered", { last4: k.last4 ?? "" }) : undefined}
+                      onClick={() => act(() => api.adminAssignTeamDefaultKey(x.teamId, p, !k.useDefault))}
+                    >
+                      {p}: {k.useDefault ? `${t("admin.teams.assigned")} · ${t("admin.teams.unassign")}` : k.registered ? t("team.keys.registered", { last4: k.last4 ?? "" }) : t("admin.teams.assign")}
+                    </button>
+                  );
+                })}
+                {x.budget.state === "stopped" ? (
+                  <button type="button" disabled={busy} className={small} onClick={() => act(() => api.adminTeamBudget(x.teamId, "start"))}>
+                    {t("team.budget.resume")}
+                  </button>
+                ) : (
+                  x.budget.state !== "none" && (
+                    <button type="button" disabled={busy} className={`${small} text-rose-700`} onClick={() => window.confirm(t("team.budget.stopConfirm")) && act(() => api.adminTeamBudget(x.teamId, "stop"))}>
+                      {t("team.budget.stop")}
+                    </button>
+                  )
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

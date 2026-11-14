@@ -11,6 +11,7 @@ import { getJob, getProject, listJobsForProject, putJob, putJobIfAbsent, putMess
 import { bad } from "./http.js";
 import { scopeNotice, storeHypothesisFollowup } from "./hypothesisSettings.js";
 import { modelPolicy } from "./orgKey.js";
+import { requireUnderLimits } from "./teams.js";
 
 export const isEffort = (v: unknown): v is ReasoningEffort => typeof v === "string" && (REASONING_EFFORTS as string[]).includes(v);
 
@@ -44,11 +45,20 @@ export async function runPolicy(u: UserRecord, team?: TeamRecord | null): Promis
   return (await modelPolicy(u, team)).policy;
 }
 
-/** The caller's key and model policy; 400 when the caller has no key (of either provider) to run a job with. */
+/** Whether any of the policy's providers runs on the team's keys. */
+export const usesTeamKeys = (p: ModelPolicy) => p.source === "team" || p.claude.source === "team" || p.deepseek.source === "team";
+
+/**
+ * The caller's key and model policy; 400 when the caller has no key (of either provider) to run a job with, 403 when
+ * the team's keys would run it and the team's (or the caller's) monthly limit is reached.
+ */
 export async function requireRunKey(u: UserRecord, team?: TeamRecord | null): Promise<ModelPolicy> {
   const policy = await runPolicy(u, team);
-  if (canRunJobs(policy)) return policy;
-  if (team) throw bad("チームの API キーが登録されていません。チーム管理者に登録を依頼するか、自分の API キーを登録してください");
+  if (canRunJobs(policy)) {
+    if (team && usesTeamKeys(policy)) await requireUnderLimits(team, u.userId);
+    return policy;
+  }
+  if (team) throw bad("チームの予算が使えません（未登録・期間外・停止中）。自分の API キーを登録すると、自分のキーで実行できます");
   if (u.orgAccess) throw bad("いまはジョブを実行できません。管理者に連絡してください");
   throw bad("API キーが未登録です。設定画面で登録するか、管理者に利用の承認を依頼してください");
 }
@@ -335,6 +345,7 @@ const STOP_NOTICE = {
   user: { reason: "cancelled by user", text: "Job cancelled by the user.", i18n: "sys.cancelled" },
   admin: { reason: "cancelled by admin", text: "Job stopped by an admin.", i18n: "sys.adminStopped" },
   plan: { reason: "plan cancelled", text: "Job cancelled because its CoBRAC Orchestrator plan was cancelled.", i18n: "sys.planCancelled" },
+  team: { reason: "team budget ended", text: "Job stopped because the team's budget ended or was stopped. Its creator can resume it with “Retry from here” on their own key.", i18n: "sys.teamBudgetStopped" },
 } as const;
 
 /** Stops the project's active job (and its Fargate task) and marks the project stopped. */

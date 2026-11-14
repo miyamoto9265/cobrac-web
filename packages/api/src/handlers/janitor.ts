@@ -4,6 +4,7 @@
  *    the task's stop reason (from ECS) is logged, and a worker that ran out of memory is told apart from the generic case
  *  - WAITING_USER_INPUT jobs older than 7 days → FAILED (timeout)
  *  - QUEUED jobs older than 24h → FAILED
+ *  - teams whose budget ended (or was stopped) → their team-key jobs stop and their running missions pause (once)
  * Jobs without a project (Canon AI reviews, BRA Planner plan jobs) are only marked FAILED, never retried; the PR page
  * shows the review's error, and the plan runner ends the plan's draft / re-plan with it.
  */
@@ -12,11 +13,13 @@ import { HEARTBEAT_STALE_MS, WAITING_INPUT_TIMEOUT_MS, isProjectlessMode, newId,
 import { enqueueRun } from "../lib/aws.js";
 import { listJobsByStatus, putJob, putMessage, updateJob, updateProject } from "../lib/db.js";
 import { describeStoppedTask, isOutOfMemory } from "../lib/ecsTask.js";
+import { haltEndedBudgets } from "../lib/teamBudget.js";
 
 const MAX_AUTO_RETRY = Number(process.env.MAX_AUTO_RETRY ?? "2");
 
 export async function handler() {
   const now = Date.now();
+  if (process.env.TABLE_CATALOG) await haltEndedBudgets().catch((e) => console.error("[janitor] team budgets", e));
 
   for (const status of ["RUNNING", "FINALIZING"] as const) {
     for (const j of await listJobsByStatus(status)) {

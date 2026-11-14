@@ -128,6 +128,14 @@ export class CobracAgentsStack extends Stack {
       partitionKey: { name: "userId", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "projectId", type: dynamodb.AttributeType.STRING },
       dynamoStream: dynamodb.StreamViewType.NEW_IMAGE,
+      globalSecondaryIndexes: [
+        // a team's workspace (sparse: only items in a team's workspace carry teamId): team lists, costs and budget ends
+        {
+          indexName: "team-index",
+          partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+      ],
     });
     const jobs = new dynamodb.TableV2(this, "Jobs", {
       ...tableDefaults,
@@ -137,6 +145,12 @@ export class CobracAgentsStack extends Stack {
         {
           indexName: "status-index",
           partitionKey: { name: "status", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+        // a team's workspace (sparse: only items in a team's workspace carry teamId): team lists, costs and budget ends
+        {
+          indexName: "team-index",
+          partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
           sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
         },
       ],
@@ -157,6 +171,12 @@ export class CobracAgentsStack extends Stack {
           // sparse: only META items carry ownerUserId
           indexName: "owner-index",
           partitionKey: { name: "ownerUserId", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+        // a team's workspace (sparse: only items in a team's workspace carry teamId): team lists, costs and budget ends
+        {
+          indexName: "team-index",
+          partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
           sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
         },
       ],
@@ -183,6 +203,12 @@ export class CobracAgentsStack extends Stack {
         {
           indexName: "status-index",
           partitionKey: { name: "status", type: dynamodb.AttributeType.STRING },
+          sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
+        },
+        // a team's workspace (sparse: only items in a team's workspace carry teamId): team lists, costs and budget ends
+        {
+          indexName: "team-index",
+          partitionKey: { name: "teamId", type: dynamodb.AttributeType.STRING },
           sortKey: { name: "createdAt", type: dynamodb.AttributeType.STRING },
         },
       ],
@@ -416,6 +442,11 @@ export class CobracAgentsStack extends Stack {
     }
     canons.grantReadWriteData(apiFn);
     catalog.grantReadWriteData(apiFn);
+    // a team member follows another member's project live: the WebSocket handler reads who owns its ID (Catalog kind
+    // "id") and the team (kind "team")
+    wsDefaultFn.addToRolePolicy(
+      new iam.PolicyStatement({ actions: ["dynamodb:GetItem"], resources: [catalog.tableArn], conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["id", "team"] } } }),
+    );
     // team invitation e-mails, only from the site's sender address
     if (props.emailFrom) {
       apiFn.addToRolePolicy(
@@ -482,6 +513,17 @@ export class CobracAgentsStack extends Stack {
     jobQueue.grantSendMessages(planRunnerFn);
     apiFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     planRunnerFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
+    // a team's budget end (the janitor): it lists the teams (Catalog kind "team") and marks each end handled, stops the
+    // team-key jobs (their Fargate tasks too) and pauses the team's running missions
+    plans.grantReadWriteData(janitorFn);
+    janitorFn.addToRolePolicy(
+      new iam.PolicyStatement({
+        actions: ["dynamodb:GetItem", "dynamodb:Query", "dynamodb:PutItem"],
+        resources: [catalog.tableArn],
+        conditions: { "ForAllValues:StringEquals": { "dynamodb:LeadingKeys": ["team"] } },
+      }),
+    );
+    janitorFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:StopTask"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     // the janitor reads why a stalled worker's task stopped (Spot interruption, out of memory)
     janitorFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:DescribeTasks"], resources: ["*"], conditions: { ArnEquals: { "ecs:cluster": cluster.clusterArn } } }));
     dispatcherFn.addToRolePolicy(new iam.PolicyStatement({ actions: ["ecs:RunTask"], resources: [taskDef.taskDefinitionArn] }));

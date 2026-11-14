@@ -14,6 +14,7 @@ import { AlphaBadge } from "./AlphaBadge";
 import { ThemeToggle } from "./ThemeToggle";
 import { KIND } from "./Trail";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { TeamBudgetBanner } from "./TeamBudgetBanner";
 import { useWorkspace } from "../lib/workspace";
 
 export function Layout() {
@@ -220,12 +221,15 @@ export function Layout() {
         </header>
         {/* relative: absolutely placed bits deep in a long list (screen-reader text, badges) are measured
             against main, not the page, so they can't make the window itself scrollable */}
-        <main className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          {/* a page's code loads on its first visit; the sidebar stays meanwhile */}
-          <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500"><div className="animate-pulse">{t("loading")}</div></div>}>
-            {/* a page opened again in another workspace starts afresh (its lists are that workspace's) */}
-            <Outlet key={teamId ?? "personal"} />
-          </Suspense>
+        <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <TeamBudgetBanner />
+          <div className="relative min-h-0 flex-1">
+            {/* a page's code loads on its first visit; the sidebar stays meanwhile */}
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-slate-500"><div className="animate-pulse">{t("loading")}</div></div>}>
+              {/* a page opened again in another workspace starts afresh (its lists are that workspace's) */}
+              <Outlet key={teamId ?? "personal"} />
+            </Suspense>
+          </div>
         </main>
       </div>
     </div>

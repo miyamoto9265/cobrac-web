@@ -1,7 +1,7 @@
-import { Copy, KeyRound, Link2, LogOut, Mail, Save, Trash2, UserMinus, Users, X } from "lucide-react";
+import { Copy, KeyRound, Link2, LogOut, Mail, Play, Save, Square, Trash2, UserMinus, Users, X } from "lucide-react";
 import QRCode from "qrcode";
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ModelProvider, TeamDetail, TeamInviteView, TeamRole } from "@cobrac/shared";
 import { TEAM_NAME_MAX, formatUsd } from "@cobrac/shared";
 import { HelpTip } from "../components/HelpTip";
@@ -11,7 +11,7 @@ import { useAuth } from "../lib/auth";
 import { fmtDate } from "../lib/format";
 import { useWorkspace } from "../lib/workspace";
 
-type Tab = "members" | "invite" | "settings";
+type Tab = "members" | "budget" | "invite" | "settings";
 type Run = (fn: () => Promise<void>, okText?: string) => Promise<void>;
 
 const card = "min-w-0 rounded-xl border border-slate-200 bg-white p-4 sm:p-5";
@@ -60,7 +60,9 @@ export function TeamPage() {
   if (missing) return <div className="p-6 text-sm text-slate-500">{t("team.notFound")}</div>;
   if (!team) return <div className="flex h-full items-center justify-center text-slate-500"><div className="animate-pulse">{t("loading")}</div></div>;
   const admin = team.role === "admin";
-  const tabs: Tab[] = admin ? ["members", "invite", "settings"] : ["members", "settings"];
+  const tabs: Tab[] = admin ? ["members", "budget", "invite", "settings"] : ["members", "budget", "settings"];
+  const limit = admin ? team.limits.monthUsd : team.limits.memberMonthUsd;
+  const used = admin ? team.teamMonthCostUsd : team.ownMonthCostUsd;
 
   return (
     <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6" data-testid="team-page">
@@ -76,6 +78,11 @@ export function TeamPage() {
           </div>
           <div className="text-lg font-semibold tabular-nums">{formatUsd(team.usage.monthCostUsd)}</div>
           <div className="text-xs text-slate-500">{t("team.usage.total", { cost: formatUsd(team.usage.costUsd), jobs: team.usage.jobs })}</div>
+          {limit !== null && (
+            <div className="text-xs text-slate-500" data-testid="team-limit-left">
+              {t("team.usage.limit", { cost: formatUsd(limit), left: formatUsd(Math.max(0, limit - used)) })}
+            </div>
+          )}
         </div>
       </div>
       <div role="tablist" className="mb-4 flex max-w-4xl gap-1 border-b border-slate-200">
@@ -95,6 +102,7 @@ export function TeamPage() {
       {msg && <div className={`mb-4 max-w-4xl rounded-md px-3 py-2 text-sm ${msg.ok ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>{msg.text}</div>}
       <div className="max-w-4xl">
         {tab === "members" && <MembersTab team={team} run={run} busy={busy} />}
+        {tab === "budget" && <BudgetTab team={team} run={run} busy={busy} />}
         {tab === "invite" && admin && <InviteTab team={team} run={run} busy={busy} />}
         {tab === "settings" && <SettingsTab team={team} run={run} busy={busy} />}
       </div>
@@ -181,14 +189,14 @@ const localToIso = (v: string): string | null => (v ? new Date(v).toISOString() 
 function InviteTab({ team, run, busy }: { team: TeamDetail; run: Run; busy: boolean }) {
   const { t, locale } = useI18n();
   const inv = team.invite ?? null;
-  const [expiry, setExpiry] = useState("");
+  // a new link ends with the budget unless another time is chosen
+  const [expiry, setExpiry] = useState(isoToLocal(team.budget.endsAt && team.budget.endsAt > new Date().toISOString() ? team.budget.endsAt : null));
   const [maxUses, setMaxUses] = useState("");
   const [emails, setEmails] = useState("");
   const [copied, setCopied] = useState(false);
   const make = () =>
     run(async () => {
       await api.createTeamInvite(team.teamId, { expiresAt: localToIso(expiry), maxUses: maxUses ? Number(maxUses) : null });
-      setExpiry("");
       setMaxUses("");
     });
   const send = () =>
@@ -364,6 +372,25 @@ function SettingsTab({ team, run, busy }: { team: TeamDetail; run: Run; busy: bo
         >
           <LogOut size={14} /> {t("team.leave")}
         </button>
+        {admin && (
+          <button
+            type="button"
+            disabled={busy}
+            className={`${subtle} mt-3 text-rose-700`}
+            data-testid="team-delete"
+            onClick={() =>
+              window.confirm(t("team.deleteConfirm", { name: team.name })) &&
+              void run(async () => {
+                await api.deleteTeam(team.teamId);
+                if (teamId === team.teamId) switchTo(null);
+                await reloadTeams();
+                navigate("/chat");
+              })
+            }
+          >
+            <Trash2 size={14} /> {t("team.delete")}
+          </button>
+        )}
       </section>
     </div>
   );
@@ -387,7 +414,7 @@ function TeamKeyRow({ team, provider, run, busy }: { team: TeamDetail; provider:
       <div className="flex items-center gap-2">
         <span className="w-24 shrink-0 text-sm font-medium">{provider.name}</span>
         <span className={`min-w-0 flex-1 truncate text-xs font-medium ${status?.registered ? "text-emerald-700" : "text-slate-500"}`}>
-          {status?.registered ? t("team.keys.registered", { last4: status.last4 ?? "" }) : t("team.keys.none")}
+          {status?.registered ? (status.useDefault ? t("admin.teams.assigned") : t("team.keys.registered", { last4: status.last4 ?? "" })) : t("team.keys.none")}
         </span>
         {!editing && (
           <button type="button" disabled={busy} className={`${small} border border-slate-300 text-slate-700 hover:bg-slate-50`} onClick={() => setEditing(true)}>
@@ -433,6 +460,196 @@ function TeamKeyRow({ team, provider, run, busy }: { team: TeamDetail; provider:
             <X size={14} />
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** ISO → `datetime-local` value (local time). */
+const isoToLocal = (iso: string | null): string => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+const STATE_TONE: Record<TeamDetail["budget"]["state"], string> = {
+  none: "bg-slate-100 text-slate-600",
+  scheduled: "bg-sky-50 text-sky-700",
+  active: "bg-emerald-50 text-emerald-700",
+  ended: "bg-amber-50 text-amber-800",
+  stopped: "bg-rose-50 text-rose-700",
+};
+
+/** The budget: its period and 「予算を止める」, the monthly limits, the models on the team's keys, the cost per project. */
+function BudgetTab({ team, run, busy }: { team: TeamDetail; run: Run; busy: boolean }) {
+  const { t, locale } = useI18n();
+  const { reloadTeams } = useWorkspace();
+  const { me } = useAuth();
+  const admin = team.role === "admin";
+  const b = team.budget;
+  const [start, setStart] = useState(isoToLocal(b.startsAt));
+  const [end, setEnd] = useState(isoToLocal(b.endsAt));
+  const [monthUsd, setMonthUsd] = useState(team.limits.monthUsd === null ? "" : String(team.limits.monthUsd));
+  const [memberUsd, setMemberUsd] = useState(team.limits.memberMonthUsd === null ? "" : String(team.limits.memberMonthUsd));
+  const [models, setModels] = useState<string[]>(team.allowedModels ?? []);
+  const save = (body: Parameters<typeof api.updateTeamSettings>[1]) =>
+    run(async () => {
+      await api.updateTeamSettings(team.teamId, body);
+      await reloadTeams();
+    }, t("team.saved"));
+  const usd = (v: string) => (v.trim() === "" ? null : Number(v));
+  const stoppedBySite = b.state === "stopped" && b.stoppedBySiteAdmin && me?.role !== "admin";
+  const th = "px-3 py-2 text-left text-xs font-medium text-slate-500";
+  const td = "px-3 py-2 align-middle";
+  return (
+    <div className="grid gap-5 md:grid-cols-2" data-testid="team-budget">
+      <section className={card}>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          {t("team.budget.period")} <HelpTip text={t("team.budget.periodHelp")} />
+          <span className={`ml-auto rounded px-1.5 py-0.5 text-xs font-medium ${STATE_TONE[b.state]}`} data-testid="team-budget-state">
+            {t(`team.budget.state.${b.state}` as MessageKey)}
+            {b.state === "active" && b.endsAt ? ` · ${t("team.budget.until", { date: fmtDate(b.endsAt, locale) })}` : ""}
+          </span>
+        </h2>
+        {admin ? (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-500">{t("team.budget.start")}</span>
+                <input type="datetime-local" value={start} onChange={(e) => setStart(e.target.value)} className={input} data-testid="team-budget-start" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs text-slate-500">{t("team.budget.end")}</span>
+                <input type="datetime-local" value={end} onChange={(e) => setEnd(e.target.value)} className={input} data-testid="team-budget-end" />
+              </label>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button type="button" disabled={busy} className={btn} onClick={() => void save({ budget: { startsAt: localToIso(start), endsAt: localToIso(end) } })} data-testid="team-budget-save">
+                <Save size={14} /> {t("save")}
+              </button>
+              {b.state === "stopped" ? (
+                <button
+                  type="button"
+                  disabled={busy || stoppedBySite}
+                  className={subtle}
+                  onClick={() => void run(async () => {
+                    await api.startTeamBudget(team.teamId);
+                    await reloadTeams();
+                  })}
+                  data-testid="team-budget-resume"
+                >
+                  <Play size={14} /> {t("team.budget.resume")}
+                </button>
+              ) : (
+                b.state !== "none" && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className={`${subtle} text-rose-700`}
+                    onClick={() =>
+                      window.confirm(t("team.budget.stopConfirm")) &&
+                      void run(async () => {
+                        await api.stopTeamBudget(team.teamId);
+                        await reloadTeams();
+                      })
+                    }
+                    data-testid="team-budget-stop"
+                  >
+                    <Square size={13} /> {t("team.budget.stop")}
+                  </button>
+                )
+              )}
+            </div>
+            {stoppedBySite && <p className="mt-2 text-xs text-rose-700">{t("team.budget.bySite")}</p>}
+            <p className="mt-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">{t("team.budget.providerTip")}</p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-600">
+            {b.startsAt ? `${fmtDate(b.startsAt, locale)} – ` : ""}
+            {b.endsAt ? fmtDate(b.endsAt, locale) : ""}
+          </p>
+        )}
+      </section>
+
+      <section className={card}>
+        <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+          {t("team.limits.title")} <HelpTip text={t("team.limits.help")} />
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          {(
+            [
+              ["team.limits.team", monthUsd, setMonthUsd, "team-limit-month"],
+              ["team.limits.member", memberUsd, setMemberUsd, "team-limit-member"],
+            ] as const
+          ).map(([label, value, set, id]) => (
+            <label key={id} className="block">
+              <span className="mb-1 block text-xs text-slate-500">{t(label)} (USD)</span>
+              <input type="number" min={0} step="0.01" value={value} onChange={(e) => set(e.target.value)} placeholder={t("team.limits.none")} disabled={!admin} className={input} data-testid={id} />
+            </label>
+          ))}
+        </div>
+        {admin && (
+          <button type="button" disabled={busy} className={`${btn} mt-3`} onClick={() => void save({ limits: { monthUsd: usd(monthUsd), memberMonthUsd: usd(memberUsd) } })} data-testid="team-limits-save">
+            <Save size={14} /> {t("save")}
+          </button>
+        )}
+      </section>
+
+      {admin && (
+        <section className={card}>
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            {t("team.models.title")} <HelpTip text={t("team.models.help")} />
+          </h2>
+          {(team.keyModels ?? []).length === 0 ? (
+            <p className="text-xs text-slate-500">{t("team.keys.none")}</p>
+          ) : (
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {(team.keyModels ?? []).map((m) => (
+                <label key={m} className="flex items-center gap-1.5 font-mono text-xs">
+                  <input type="checkbox" checked={models.includes(m)} onChange={(e) => setModels((prev) => (e.target.checked ? [...prev, m] : prev.filter((x) => x !== m)))} />
+                  {m}
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <button type="button" disabled={busy} className={btn} onClick={() => void save({ allowedModels: models.length ? models : null })} data-testid="team-models-save">
+              <Save size={14} /> {t("save")}
+            </button>
+            {models.length === 0 && <span className="text-xs text-slate-500">{t("team.models.all")}</span>}
+          </div>
+        </section>
+      )}
+
+      {admin && !!team.projects?.length && (
+        <section className={`${card} overflow-x-auto p-0 sm:p-0 md:col-span-2`}>
+          <h2 className="px-4 pt-4 text-sm font-semibold">{t("team.projects.title")}</h2>
+          <table className="w-full min-w-[32rem] text-sm" data-testid="team-project-costs">
+            <thead className="border-b border-slate-100">
+              <tr>
+                <th className={th}>{t("team.col.name")}</th>
+                <th className={th}>{t("team.projects.owner")}</th>
+                <th className={`${th} text-right`}>{t("team.col.month")}</th>
+                <th className={`${th} text-right`}>{t("team.col.total")}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {team.projects.map((p) => (
+                <tr key={p.projectId}>
+                  <td className={td}>
+                    <Link to={`/projects/${encodeURIComponent(p.projectId)}`} className="text-blue-700 hover:underline">
+                      {p.name}
+                    </Link>
+                  </td>
+                  <td className={`${td} text-slate-600`}>{p.ownerName}</td>
+                  <td className={`${td} text-right tabular-nums`}>{formatUsd(p.monthCostUsd)}</td>
+                  <td className={`${td} text-right tabular-nums`}>{formatUsd(p.costUsd)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
     </div>
   );

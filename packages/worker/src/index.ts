@@ -96,7 +96,7 @@ import { returnsToStrict, versionHypotheses } from "./hypothesisRules.js";
 import { PERIODIC_PERSIST_MS, handleStop, serialized } from "./interrupt.js";
 import { prepareMaterials } from "./materials.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
-import { ownKeyOf, planRunKey, usesTeamKey } from "./runKey.js";
+import { needsDefaultKey, planRunKey } from "./runKey.js";
 import { threadProviderOf } from "./claude.js";
 import { LiteratureHttp } from "./http.js";
 import { QuoteVerifier } from "./quotes.js";
@@ -171,7 +171,7 @@ async function main() {
   }
   const runModel = resolveModelSettings(mode === "article" ? { model: job.model || project.model } : project).model!;
   const team = await getTeam(job.teamId ?? project.teamId);
-  const key = planRunKey(user, usesTeamKey(user, team, runModel) || ownKeyOf(user, runModel) ? null : await getDefaultApiKey(providerOf(runModel)), runModel, team);
+  const key = planRunKey(user, needsDefaultKey(user, team, runModel) ? await getDefaultApiKey(providerOf(runModel)) : null, runModel, team, job.keySource === "team");
   if ("error" in key) {
     await fail(key.error, key.meta);
     return;

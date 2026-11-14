@@ -1,4 +1,7 @@
 import type {
+  AdminTeamSummary,
+  TeamAccess,
+  UpdateTeamSettingsRequest,
   AlignResult,
   ModelProvider,
   BraVersionDetailResponse,
@@ -182,7 +185,10 @@ export const api = {
   renameProject: (id: string, name: string) => request<UpdateProjectResponse>("PUT", `/projects/${encodeURIComponent(id)}`, { name }),
   archiveProject: (id: string, archived: boolean) => request<{ projectId: string; archivedAt: string | null }>("PUT", `/projects/${encodeURIComponent(id)}/archive`, { archived }),
   deleteProject: (id: string) => request<DeleteProjectResponse>("DELETE", `/projects/${encodeURIComponent(id)}`),
-  getProject: (id: string) => request<ProjectRecord & { jobs: JobRecord[]; cloneCount?: number }>("GET", `/projects/${encodeURIComponent(id)}`),
+  getProject: (id: string) =>
+    request<ProjectRecord & { jobs: JobRecord[]; cloneCount?: number; access?: TeamAccess; ownerName?: string | null }>("GET", `/projects/${encodeURIComponent(id)}`),
+  /** Copies a project into the personal workspace (teamId null) or a team's */
+  copyProject: (id: string, teamId: string | null) => request<{ projectId: string; copied: number }>("POST", `/projects/${encodeURIComponent(id)}/copy`, { teamId }),
   listMessages: (id: string, cursor?: string) =>
     request<ListMessagesResponse>("GET", `/projects/${encodeURIComponent(id)}/messages${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
   cancel: (id: string) => request<{ ok: true }>("POST", `/projects/${encodeURIComponent(id)}/cancel`),
@@ -315,6 +321,14 @@ export const api = {
   createTeamInvite: (id: string, b: CreateInviteRequest) => request<TeamInviteView>("POST", `/teams/${encodeURIComponent(id)}/invite`, b),
   revokeTeamInvite: (id: string) => request<{ ok: true }>("DELETE", `/teams/${encodeURIComponent(id)}/invite`),
   sendTeamInvites: (id: string, emails: string[]) => request<{ sent: string[]; failed: string[] }>("POST", `/teams/${encodeURIComponent(id)}/invite/emails`, { emails }),
+  updateTeamSettings: (id: string, b: UpdateTeamSettingsRequest) => request<TeamDetail>("PUT", `/teams/${encodeURIComponent(id)}/settings`, b),
+  stopTeamBudget: (id: string) => request<{ ok: true }>("POST", `/teams/${encodeURIComponent(id)}/budget/stop`),
+  startTeamBudget: (id: string) => request<{ ok: true }>("POST", `/teams/${encodeURIComponent(id)}/budget/start`),
+  deleteTeam: (id: string) => request<{ ok: true }>("DELETE", `/teams/${encodeURIComponent(id)}`),
+  adminTeams: () => request<{ items: AdminTeamSummary[] }>("GET", "/admin/teams"),
+  adminAssignTeamDefaultKey: (id: string, provider: ModelProvider, on: boolean) =>
+    request<{ ok: true }>(on ? "PUT" : "DELETE", `/admin/teams/${encodeURIComponent(id)}/keys/${provider}/default`),
+  adminTeamBudget: (id: string, action: "stop" | "start") => request<{ ok: true }>("POST", `/admin/teams/${encodeURIComponent(id)}/budget/${action}`),
   inviteInfo: (token: string) => request<InviteInfo>("GET", `/invites/${encodeURIComponent(token)}`),
   joinTeam: (token: string) => request<JoinTeamResponse>("POST", "/teams/join", { token }),
 

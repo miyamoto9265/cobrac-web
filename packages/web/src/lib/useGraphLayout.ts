@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { EdgeStyle, GraphLayout, NodeStyle } from "@cobrac/shared";
-import { api } from "./api";
+import { api, ApiError } from "./api";
 
 export type Positions = GraphLayout["positions"];
 export type XY = { x: number; y: number };
@@ -30,8 +30,18 @@ interface LayoutStore {
   reset(): Promise<unknown>;
 }
 
+/** A teammate's project seen by a team member is read only (403): an arrangement then lasts until reload. */
+const readOnlyOk = (e: unknown) => {
+  if (e instanceof ApiError && e.status === 403) return undefined;
+  throw e;
+};
+
 function projectStore(projectId: string, kind: "hcd" | "frg"): LayoutStore {
-  return { load: () => api.getLayout(projectId, kind), save: (s) => api.saveLayout(projectId, kind, s), reset: () => api.resetLayout(projectId, kind) };
+  return {
+    load: () => api.getLayout(projectId, kind),
+    save: (s) => api.saveLayout(projectId, kind, s).catch(readOnlyOk),
+    reset: () => api.resetLayout(projectId, kind).catch(readOnlyOk),
+  };
 }
 
 /** Browser storage can be unavailable (private windows, blocked site data); the arrangement then lasts until reload. */

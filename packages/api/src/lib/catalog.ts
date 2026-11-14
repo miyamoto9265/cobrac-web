@@ -58,6 +58,12 @@ export async function reserveNewId(type: IdReservation["type"], ownerUserId: str
   throw new Error(`could not reserve a unique ${type} ID`);
 }
 
+/** The user an ID was reserved for (its creator); null when there is no reservation. */
+export async function reservedOwner(id: string): Promise<string | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { kind: ID_RESERVATION_KIND, id } }));
+  return (r.Item as IdReservation | undefined)?.ownerUserId ?? null;
+}
+
 export async function getCloneCount(projectId: string): Promise<number> {
   const r = await ddb.send(new GetCommand({ TableName: env.tables.catalog, Key: { kind: "clones", id: projectId } }));
   return Number((r.Item as CloneCounter | undefined)?.count ?? 0);

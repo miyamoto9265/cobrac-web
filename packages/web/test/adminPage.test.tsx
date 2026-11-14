@@ -14,6 +14,9 @@ const api = vi.hoisted(() => ({
   adminCancel: vi.fn(),
   adminConcurrency: vi.fn(),
   adminSetConcurrency: vi.fn(),
+  adminTeams: vi.fn(),
+  adminAssignTeamDefaultKey: vi.fn(),
+  adminTeamBudget: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
 vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "u-1", role: "admin" } }) }));
@@ -54,6 +57,7 @@ beforeEach(() => {
   api.adminDefaultKey.mockResolvedValue({ registered: false, last4: null, updatedAt: null });
   api.adminOrgUsage.mockResolvedValue({ month: "2026-10", items: [] });
   api.adminConcurrency.mockResolvedValue(concurrency(null, null));
+  api.adminTeams.mockResolvedValue({ items: [] });
 });
 
 const concurrency = (global: number | null, perUser: number | null) => ({
@@ -121,5 +125,24 @@ describe("AdminPage concurrency", () => {
     api.adminSetConcurrency.mockResolvedValue(concurrency(8, null));
     await act(async () => save.click());
     expect(api.adminSetConcurrency).toHaveBeenLastCalledWith({ maxConcurrentJobs: 8, maxConcurrentJobsPerUser: null });
+  });
+});
+
+describe("AdminPage teams", () => {
+  it("lists the teams and assigns the default key as a team's budget", async () => {
+    const keys = { openai: { registered: false, last4: null, updatedAt: null }, anthropic: { registered: true, last4: "wxyz", updatedAt: now }, deepseek: { registered: false, last4: null, updatedAt: null } };
+    api.adminTeams.mockResolvedValue({
+      items: [{ teamId: "t7m2q9xa", name: "Lab", memberCount: 3, admins: [{ userId: "u-1", email: "head@example.org" }], keys, budget: { startsAt: null, endsAt: null, state: "active" }, monthCostUsd: 1.5, costUsd: 4, createdAt: now }],
+    });
+    api.adminAssignTeamDefaultKey.mockResolvedValue({ ok: true });
+    await render(false);
+    const section = document.querySelector('[data-testid="admin-teams"]')!;
+    expect(section.textContent).toContain("Lab");
+    expect(section.textContent).toContain("head@example.org");
+    const assign = [...section.querySelectorAll("button")].find((b) => b.textContent?.startsWith("openai"))!;
+    await act(async () => assign.click());
+    expect(api.adminAssignTeamDefaultKey).toHaveBeenCalledWith("t7m2q9xa", "openai", true);
+    // a team's own key is not replaced from here
+    expect([...section.querySelectorAll("button")].find((b) => b.textContent?.startsWith("anthropic"))!.disabled).toBe(true);
   });
 });

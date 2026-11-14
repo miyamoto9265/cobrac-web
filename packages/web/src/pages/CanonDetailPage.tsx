@@ -792,7 +792,7 @@ function CanonWorkspace({ canonId }: { canonId: string }) {
             <HelpTip text={about} label={t("cv.about")} />
             {!owner && (
               <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700" data-testid="canon-role">
-                {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : t("ed.roleAdmin")}
+                {detail.role === "editor" ? t("ed.youAreEditor", { name: detail.ownerName }) : detail.role === "member" ? t("team.canonMember") : t("ed.roleAdmin")}
               </span>
             )}
             <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">

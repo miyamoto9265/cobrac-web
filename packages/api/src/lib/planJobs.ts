@@ -52,8 +52,10 @@ import { jobKeySource } from "./runs.js";
 export const isOpenPlanJob = (s: PlanJobState | null | undefined): s is PlanJobState => !!s && (s.status === "waiting" || s.status === "queued" || s.status === "running");
 
 /** What the runner stores when the owner cannot start a job now (English, like job errors; the page shows `errorCode`). */
-export const GATE_ERRORS: Record<"no_key" | "owner_disabled" | "model_not_allowed", string> = {
+export const GATE_ERRORS: Record<"no_key" | "owner_disabled" | "model_not_allowed" | "team_limit" | "team_budget", string> = {
   no_key: "No API key to run the job with: register one in Settings, or ask an admin to approve you.",
+  team_limit: "The team's monthly limit (or yours in the team) is reached.",
+  team_budget: "The team's budget ended or was stopped.",
   owner_disabled: "The owner's account is disabled.",
   model_not_allowed: "The model chosen for this plan is no longer available.",
 };

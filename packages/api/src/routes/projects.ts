@@ -101,9 +101,10 @@ import {
   jobKeySource,
   requireRunKey,
   stopProject,
+  usesTeamKeys,
   type StagedAttachment,
 } from "../lib/runs.js";
-import { getCloneCount, deleteCatalogItem } from "../lib/catalog.js";
+import { getCloneCount, deleteCatalogItem, reservedOwner } from "../lib/catalog.js";
 import {
   deleteObject,
   enqueueRun,
@@ -119,9 +120,11 @@ import {
 } from "../lib/aws.js";
 import { loadBraTemplate } from "../lib/braTemplate.js";
 import {
+  compareProjectsByCreation,
   findProjectByLegacyId,
   getJob,
   getProject,
+  getUser,
   listJobsForProject,
   listMessages,
   listProjects,
@@ -134,8 +137,10 @@ import {
 import { ownedMessages } from "../lib/ownership.js";
 import { liveVersionFiles, liveVersionItem, versionItem } from "../lib/versions.js";
 import { removeCanonMember } from "../lib/canons.js";
-import { inSpace, itemTeam, listSpace, requestedTeam } from "../lib/teams.js";
+import { inSpace, itemTeam, listSpace, queryTeamIndex, requestedTeam, teamItemAccess } from "../lib/teams.js";
+import { actorName } from "../lib/canonReview.js";
 import { applyProjectCanon, resolveProjectCanon } from "./canons.js";
+import { copyProject } from "./public.js";
 import type { ApiEnv } from "./env.js";
 
 export const projectsApi = new Hono<ApiEnv>();
@@ -150,7 +155,10 @@ projectsApi.get("/projects", async (c) => {
   const status = c.req.query("status");
   // ?team=<teamId>: that team's workspace; absent: the personal one
   const space = await listSpace(u, c.req.query("team"));
-  const { items, nextCursor } = await listProjects(u.userId, Number(c.req.query("limit") ?? 100), c.req.query("cursor"));
+  // a team's workspace lists every member's projects in it (one page)
+  const { items, nextCursor } = space
+    ? { items: (await queryTeamIndex<ProjectRecord>(env.tables.projects, space)).sort(compareProjectsByCreation), nextCursor: null }
+    : await listProjects(u.userId, Number(c.req.query("limit") ?? 100), c.req.query("cursor"));
   const filtered = items.filter((p) => {
     if (isProjectDeleted(p)) return false;
     if (!inSpace(p, space)) return false;
@@ -289,24 +297,64 @@ export async function loadOwnProject(u: UserRecord, projectId: string): Promise<
   return p;
 }
 
+/**
+ * A not-deleted project the caller may see: their own, or one in the workspace of a team they belong to (made by
+ * another member). "manage" (rename, archive, delete, stop, run) also lets the team's admins in; members only read.
+ * The record's `userId` stays its owner's: storage and jobs are under the owner.
+ */
+export async function loadProject(u: UserRecord, projectId: string, mode: "read" | "manage"): Promise<ProjectRecord> {
+  const own = await getProject(u.userId, projectId);
+  if (own && !isProjectDeleted(own)) return own;
+  if (!isProjectIdLike(projectId)) throw notFound();
+  const ownerUserId = await reservedOwner(projectId);
+  if (!ownerUserId || ownerUserId === u.userId) throw notFound();
+  const p = await getProject(ownerUserId, projectId);
+  if (!p || isProjectDeleted(p) || !p.teamId) throw notFound();
+  const access = await teamItemAccess(u, p.userId, p.teamId);
+  if (!access) throw notFound();
+  if (mode === "manage" && access !== "admin") throw new HTTPException(403, { message: "この操作は作成者とチーム管理者だけができます" });
+  return p;
+}
+
+/** A project to run (answer, follow up, retry, article) and the user its job runs as: always the owner. */
+async function loadForRun(u: UserRecord, projectId: string): Promise<{ p: ProjectRecord; owner: UserRecord }> {
+  const p = await loadProject(u, projectId, "manage");
+  if (p.userId === u.userId) return { p, owner: u };
+  const owner = await getUser(p.userId);
+  if (!owner) throw notFound();
+  return { p, owner };
+}
+
+/**
+ * The key policy of the owner's next job. A team admin runs another member's project on the team's budget only,
+ * never on the owner's own key.
+ */
+async function runKeyOf(u: UserRecord, owner: UserRecord, p: ProjectRecord) {
+  const policy = await requireRunKey(owner, await itemTeam(owner.userId, p.teamId));
+  if (owner.userId !== u.userId && !usesTeamKeys(policy)) throw new HTTPException(403, { message: "チームの予算が使えないため、作成者だけが実行できます" });
+  return policy;
+}
+
 projectsApi.get("/projects/:id", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const jobs = await listJobsForProject(p.projectId, u.userId);
+  const p = await loadProject(u, c.req.param("id"), "read");
+  const jobs = await listJobsForProject(p.projectId, p.userId);
   const cloneCount = p.visibility === "public" || p.publishedAt ? await getCloneCount(p.projectId) : 0;
-  return c.json({ ...p, cloneCount, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
+  const access = (await teamItemAccess(u, p.userId, p.teamId)) ?? "owner";
+  const ownerName = access === "owner" ? null : actorName(await getUser(p.userId));
+  return c.json({ ...p, cloneCount, access, ownerName, jobs: jobs.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)) });
 });
 
 projectsApi.put("/projects/:id", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   const body = (await c.req.json()) as UpdateProjectRequest;
   if (body.name === undefined) throw bad("name is required");
   const n = normalizeProjectName(body.name);
   if ("error" in n) throw bad(`名前が不正です（${n.error}）`);
-  await updateProject(u.userId, p.projectId, { name: n.name, nameSource: "user" });
+  await updateProject(p.userId, p.projectId, { name: n.name, nameSource: "user" });
   const key = projectNameKey(n.name);
-  const duplicates = (await listUserProjects(u.userId))
+  const duplicates = (await listUserProjects(p.userId))
     .filter((o) => o.projectId !== p.projectId && !isProjectDeleted(o) && projectNameKey(projectDisplayName(o)) === key)
     .map((o) => ({ projectId: o.projectId, name: projectDisplayName(o) }));
   const res: UpdateProjectResponse = { project: { ...p, name: n.name, nameSource: "user", updatedAt: nowIso() }, duplicates };
@@ -323,44 +371,59 @@ export async function archiveBody(c: { req: { json: () => Promise<unknown> } }):
 /** Archive / restore (owner only): only hides the project from the sidebar history; nothing stops or changes. */
 projectsApi.put("/projects/:id/archive", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   const archivedAt = (await archiveBody(c)) ? (p.archivedAt ?? nowIso()) : null;
-  await updateProject(u.userId, p.projectId, { archivedAt });
+  await updateProject(p.userId, p.projectId, { archivedAt });
   return c.json({ projectId: p.projectId, archivedAt });
 });
 
 /** Soft delete (owner only). Nothing is removed from DynamoDB or S3; running projects must be stopped first. */
 projectsApi.delete("/projects/:id", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   if (!canDeleteProject(p)) throw new HTTPException(409, { message: "実行中のプロジェクトは削除できません。先に停止してください" });
   let deletedAt: string;
   try {
-    deletedAt = await markProjectDeleted(u.userId, p.projectId, u.userId);
+    deletedAt = await markProjectDeleted(p.userId, p.projectId, u.userId);
   } catch (e) {
     if ((e as { name?: string }).name === "ConditionalCheckFailedException") throw new HTTPException(409, { message: "プロジェクトの状態が変わったため削除できませんでした。再読み込みしてください" });
     throw e;
   }
-  if (p.canonId) await removeCanonMember(p.canonId, u.userId, p.projectId).catch((e) => console.warn("[canon] release on delete failed", e));
+  if (p.canonId) await removeCanonMember(p.canonId, p.userId, p.projectId).catch((e) => console.warn("[canon] release on delete failed", e));
   if (p.visibility === "public") await deleteCatalogItem("project", p.projectId);
   const res: DeleteProjectResponse = { projectId: p.projectId, deletedAt };
   return c.json(res);
 });
 
+/**
+ * Copies a project the caller can see into their personal workspace (`teamId` null) or into a team's workspace they
+ * belong to: a team member keeps a teammate's work (also before leaving the team), or puts a personal project into a
+ * team. Projects are copied, never moved.
+ */
+projectsApi.post("/projects/:id/copy", async (c) => {
+  const u = c.get("user");
+  const p = await loadProject(u, c.req.param("id"), "read");
+  const body = (await c.req.json().catch(() => ({}))) as { teamId?: unknown };
+  const team = await requestedTeam(u, body.teamId);
+  if (!p.hasArtifacts) throw bad("成果物ができてからコピーできます");
+  const r = await copyProject(u, p, team?.teamId ?? null);
+  return c.json(r, 201);
+});
+
 projectsApi.get("/projects/:id/messages", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const [r, jobs] = await Promise.all([
     listMessages(p.projectId, Number(c.req.query("limit") ?? 500), c.req.query("cursor")),
-    listJobsForProject(p.projectId, u.userId),
+    listJobsForProject(p.projectId, p.userId),
   ]);
-  const items = ownedMessages(r.items, u.userId, new Set(jobs.map((j) => j.jobId)));
+  const items = ownedMessages(r.items, p.userId, new Set(jobs.map((j) => j.jobId)));
   return c.json({ ...r, items });
 });
 
 projectsApi.post("/projects/:id/cancel", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   if (!["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"].includes(p.status)) throw bad("このプロジェクトは実行中ではありません");
   await stopProject(p, "user");
   return c.json({ ok: true });
@@ -368,44 +431,44 @@ projectsApi.post("/projects/:id/cancel", async (c) => {
 
 projectsApi.post("/projects/:id/answer", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const { p, owner } = await loadForRun(u, c.req.param("id"));
   if (p.status !== "WAITING_USER_INPUT" || !p.activeJobId) throw bad("回答待ちの質問はありません");
-  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
+  const policy = await runKeyOf(u, owner, p);
   const body = (await c.req.json()) as AnswerRequest;
   const text = (body.answer ?? "").trim();
   if (!text) throw bad("回答を入力してください");
   const locale = readLocale(body.locale);
   const job = await getJob(p.projectId, p.activeJobId);
   if (!job) throw notFound();
-  if (!(await answerQuestion(u, p, policy, text, { source: "user", locale }))) throw bad("回答待ちの質問はありません");
+  if (!(await answerQuestion(owner, p, policy, text, { source: "user", locale }))) throw bad("回答待ちの質問はありません");
   return c.json({ ok: true });
 });
 
 projectsApi.post("/projects/:id/followup", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
+  const { p, owner } = await loadForRun(u, c.req.param("id"));
+  const policy = await runKeyOf(u, owner, p);
   if (p.status !== "COMPLETED") throw bad("フォローアップは完了済みのプロジェクトにのみ送信できます");
   const body = (await c.req.json()) as FollowupRequest;
   const text = (body.instruction ?? "").trim();
   if (!text) throw bad("指示を入力してください");
   // a scope only from the explicit request part, never from the instruction text
   const hypothesis = readHypothesisRequest(body.hypothesis, { withTarget: true });
-  const moved = await moveToAllowedModel(u, p, policy);
+  const moved = await moveToAllowedModel(owner, p, policy);
   const locale = readLocale(body.locale);
-  const jobId = await queueFollowup(u, p, policy, { instruction: text, locale, moved, hypothesis });
+  const jobId = await queueFollowup(owner, p, policy, { instruction: text, locale, moved, hypothesis });
   return c.json({ ok: true, jobId });
 });
 
 projectsApi.post("/projects/:id/retry", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
+  const { p, owner } = await loadForRun(u, c.req.param("id"));
+  const policy = await runKeyOf(u, owner, p);
   if (!["FAILED", "CANCELLED"].includes(p.status)) throw bad("リトライは失敗またはキャンセルされたプロジェクトにのみ実行できます");
-  const moved = await moveToAllowedModel(u, p, policy);
+  const moved = await moveToAllowedModel(owner, p, policy);
   const body = (await c.req.json().catch(() => ({}))) as RetryRequest;
   const locale = readLocale(body?.locale);
-  const jobId = await queueRetry(u, p, policy, { locale, moved });
+  const jobId = await queueRetry(owner, p, policy, { locale, moved });
   return c.json({ ok: true, jobId });
 });
 
@@ -413,13 +476,13 @@ projectsApi.post("/projects/:id/retry", async (c) => {
 
 projectsApi.get("/projects/:id/artifacts", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  return c.json({ items: await listArtifacts(u.userId, p.projectId) });
+  const p = await loadProject(u, c.req.param("id"), "read");
+  return c.json({ items: await listArtifacts(p.userId, p.projectId) });
 });
 
 projectsApi.get("/projects/:id/artifacts/download", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const key = c.req.query("key");
   if (!key) throw bad("key is required");
   // frozen versions are shown and compared, not downloaded
@@ -436,7 +499,7 @@ projectsApi.get("/projects/:id/artifacts/download", async (c) => {
         : attachment?.kind === "file"
           ? { ascii: safeAttachmentName(attachment.name), utf8: attachment.name }
           : undefined;
-  const url = await presignDownload(u.userId, p.projectId, key, fileName);
+  const url = await presignDownload(p.userId, p.projectId, key, fileName);
   return c.json({ url, expiresIn: 900 });
 });
 
@@ -446,16 +509,16 @@ projectsApi.get("/projects/:id/artifacts/download", async (c) => {
  */
 projectsApi.get("/projects/:id/artifacts/template-xlsx", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const P = p.projectId;
-  const items = await listArtifacts(u.userId, P);
+  const items = await listArtifacts(p.userId, P);
   const bra = items.find((a) => a.key === `output/${P}.bra.xlsx`);
   if (!bra) throw notFound();
   const key = templateXlsxKey(P);
   const current = items.find((a) => a.key === key);
   if (!current || current.lastModified < bra.lastModified) {
     const ws = "workspace/";
-    const text = (rel: string) => getObjectText(u.userId, P, ws + rel);
+    const text = (rel: string) => getObjectText(p.userId, P, ws + rel);
     const csv: Record<string, string | null> = {};
     for (const f of CSV_FILE_NAMES) csv[f] = await text(`${P}_CSV/${f}`);
     const input = templateInputFromFiles(
@@ -469,19 +532,19 @@ projectsApi.get("/projects/:id/artifacts/template-xlsx", async (c) => {
     );
     if (!input) throw notFound();
     const r = buildTemplateXlsx(await loadBraTemplate(), input);
-    await putObjectBytes(u.userId, P, key, r.bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    await putObjectBytes(p.userId, P, key, r.bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
-  const url = await presignDownload(u.userId, P, key, templateDownloadFileName(projectDisplayName(p), P));
+  const url = await presignDownload(p.userId, P, key, templateDownloadFileName(projectDisplayName(p), P));
   return c.json({ url, expiresIn: 900 });
 });
 
 projectsApi.get("/projects/:id/artifacts/text", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const key = c.req.query("key");
   if (!key || key.includes("..") || isThreadKey(key)) throw bad("invalid key");
   if (!/\.(md|csv|txt|json)$/i.test(key) && !ARTICLE_FIGURE_KEY_RE.test(key)) throw bad("text files only");
-  const text = await getObjectText(u.userId, p.projectId, key);
+  const text = await getObjectText(p.userId, p.projectId, key);
   if (text === null) throw notFound();
   return c.text(text);
 });
@@ -536,7 +599,7 @@ async function versionCsvs(p: ProjectRecord, item: BraVersionListItem): Promise<
 
 projectsApi.get("/projects/:id/versions", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const items = await listVersions(p);
   const src = p.clonedFrom;
   const res: ListBraVersionsResponse = { items, current: p.revision ?? 0, clonedFrom: src && src.revision >= 1 ? `${src.projectId}@v${src.revision}` : null };
@@ -545,9 +608,9 @@ projectsApi.get("/projects/:id/versions", async (c) => {
 
 projectsApi.get("/projects/:id/versions/:n", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const { item, manifest } = await loadVersion(p, c.req.param("n"));
-  const files = manifest ? manifest.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })) : liveVersionFiles(p.projectId, await listArtifacts(u.userId, p.projectId));
+  const files = manifest ? manifest.files.map((f) => ({ path: f.path, size: f.size, sha256: f.sha256 })) : liveVersionFiles(p.projectId, await listArtifacts(p.userId, p.projectId));
   const blocked = manifest ? bradbBlockReason(manifest.generator) : null;
   const res: BraVersionDetailResponse = { item, manifest, files, ...(blocked ? { bradbBlockedReason: blocked } : {}) };
   return c.json(res);
@@ -556,7 +619,7 @@ projectsApi.get("/projects/:id/versions/:n", async (c) => {
 /** Row-level changes of the five CSVs against `?base=` (default: the version before). */
 projectsApi.get("/projects/:id/versions/:n/diff", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const { item, items } = await loadVersion(p, c.req.param("n"));
   const rawBase = c.req.query("base");
   const base = rawBase ? items.find((i) => i.version === Number(rawBase)) : items.find((i) => i.version === item.version - 1);
@@ -572,7 +635,7 @@ const bradbOff = () => new HTTPException(404, { message: "この環境には BRA
 
 projectsApi.get("/projects/:id/bradb", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   if (!env.bradbImportFunction) return c.json({ enabled: false } satisfies ProjectBradbResponse);
   const status = await invokeBradb<BradbStatusResponse>({ action: "status", projectId: p.projectId });
   return c.json({ enabled: true, ...status } satisfies ProjectBradbResponse);
@@ -619,8 +682,8 @@ projectsApi.post("/projects/:id/versions/:n/bradb", async (c) => {
 
 projectsApi.post("/projects/:id/articles", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const policy = await requireRunKey(u, await itemTeam(u.userId, p.teamId));
+  const { p, owner } = await loadForRun(u, c.req.param("id"));
+  const policy = await runKeyOf(u, owner, p);
   if (p.status !== "COMPLETED" || p.stepStates?.XLSX !== "done") throw bad("解説記事は BRA データの完成後に作成できます");
   const body = (await c.req.json().catch(() => ({}))) as Partial<CreateArticleRequest> & { model?: unknown };
   if (!isUiLocale(body.locale)) throw bad("locale が不正です");
@@ -636,7 +699,7 @@ projectsApi.post("/projects/:id/articles", async (c) => {
   const job: JobRecord = {
     projectId: p.projectId,
     jobId,
-    userId: u.userId,
+    userId: p.userId,
     type: "article",
     status: "QUEUED",
     keySource: jobKeySource(policy, model ?? projectModel),
@@ -657,24 +720,24 @@ projectsApi.post("/projects/:id/articles", async (c) => {
   };
   await putJob(job);
   const articleJob: ArticleJobState = { jobId, locale, status: "QUEUED", errorMessage: null, requestedAt: now };
-  await updateProject(u.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, articleJob });
+  await updateProject(p.userId, p.projectId, { status: "QUEUED", activeJobId: jobId, errorMessage: null, articleJob });
   await putMessage(p.projectId, jobId, "system", "status", `Explanatory article (${locale}) queued.`, {
     userId: p.userId,
     meta: { i18n: "sys.articleQueued", lang: locale },
   });
-  await enqueueRun({ version: 1, userId: u.userId, projectId: p.projectId, jobId, mode: "article" });
+  await enqueueRun({ version: 1, userId: p.userId, projectId: p.projectId, jobId, mode: "article" });
   return c.json({ ok: true, jobId, articleJob }, 202);
 });
 
 projectsApi.get("/projects/:id/articles", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
-  const files = (await listArtifacts(u.userId, p.projectId)).filter((a) => a.category === "article");
+  const p = await loadProject(u, c.req.param("id"), "read");
+  const files = (await listArtifacts(p.userId, p.projectId)).filter((a) => a.category === "article");
   const items: ListArticlesResponse["items"] = [];
   for (const a of files) {
     const locale = articleLocaleOfKey(a.key);
     if (!locale) continue;
-    const text = await getObjectText(u.userId, p.projectId, articleMetaKey(locale));
+    const text = await getObjectText(p.userId, p.projectId, articleMetaKey(locale));
     let meta: ArticleMeta | null = null;
     try {
       meta = text ? (JSON.parse(text) as ArticleMeta) : null;
@@ -689,10 +752,10 @@ projectsApi.get("/projects/:id/articles", async (c) => {
 
 projectsApi.get("/projects/:id/graph/:kind", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const kind = c.req.param("kind");
   if (kind !== "hcd" && kind !== "frg") throw bad("kind must be hcd or frg");
-  const text = await getObjectText(u.userId, p.projectId, `graph/${kind}.json`);
+  const text = await getObjectText(p.userId, p.projectId, `graph/${kind}.json`);
   if (text === null) throw notFound();
   return c.body(text, 200, { "Content-Type": "application/json" });
 });
@@ -709,16 +772,16 @@ function graphKind(kind: string): "hcd" | "frg" {
 
 projectsApi.get("/projects/:id/graph/:kind/layout", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "read");
   const kind = graphKind(c.req.param("kind"));
-  const text = await getObjectText(u.userId, p.projectId, `graph/${kind}.layout.json`);
+  const text = await getObjectText(p.userId, p.projectId, `graph/${kind}.layout.json`);
   if (text === null) return c.json({ positions: {}, updatedAt: null } satisfies GraphLayout);
   return c.body(text, 200, { "Content-Type": "application/json" });
 });
 
 projectsApi.put("/projects/:id/graph/:kind/layout", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   const kind = graphKind(c.req.param("kind"));
   const raw = await c.req.text();
   if (raw.length > 2_000_000) throw bad("layout too large");
@@ -775,14 +838,14 @@ projectsApi.put("/projects/:id/graph/:kind/layout", async (c) => {
   }
 
   const layout: GraphLayout = { positions, nodes, edges, updatedAt: nowIso() };
-  await putObjectText(u.userId, p.projectId, `graph/${kind}.layout.json`, JSON.stringify(layout));
+  await putObjectText(p.userId, p.projectId, `graph/${kind}.layout.json`, JSON.stringify(layout));
   return c.json(layout);
 });
 
 projectsApi.delete("/projects/:id/graph/:kind/layout", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
   const kind = graphKind(c.req.param("kind"));
-  await deleteObject(u.userId, p.projectId, `graph/${kind}.layout.json`);
+  await deleteObject(p.userId, p.projectId, `graph/${kind}.layout.json`);
   return c.json({ ok: true });
 });
