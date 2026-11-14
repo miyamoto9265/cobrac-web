@@ -109,8 +109,8 @@ import { planSpendUsd } from "./planCost.js";
 import { applyProposal } from "./planProposals.js";
 import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJobWanted } from "./planRowJobs.js";
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
-import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, orchestratorDefaultModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject } from "./runs.js";
-import { itemTeam } from "./teams.js";
+import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, orchestratorDefaultModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject, usesTeamKeys } from "./runs.js";
+import { itemTeam, requireUnderLimits } from "./teams.js";
 
 export const RUNNER = "runner";
 
@@ -137,8 +137,16 @@ export type PlanGate = { policy: ModelPolicy; model: string; orchestratorModel: 
  */
 export async function runGate(plan: PlanRecord, owner: UserRecord | null): Promise<({ ok: true } & PlanGate) | { ok: false; reason: PlanPauseReason }> {
   if (!owner || owner.disabled) return { ok: false, reason: "owner_disabled" };
-  const policy = await runPolicy(owner, await itemTeam(owner.userId, plan.teamId));
+  const team = await itemTeam(owner.userId, plan.teamId);
+  const policy = await runPolicy(owner, team);
   if (!canRunJobs(policy)) return { ok: false, reason: "no_key" };
+  if (team && usesTeamKeys(policy)) {
+    try {
+      await requireUnderLimits(team, owner.userId);
+    } catch {
+      return { ok: false, reason: "team_limit" };
+    }
+  }
   const resolve = (chosen: string | null, picked: boolean, fallback: string): string | null => {
     const model = chosen || fallback;
     if (policyAllows(policy, model)) return model;

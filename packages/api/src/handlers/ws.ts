@@ -12,6 +12,8 @@ import { CognitoJwtVerifier } from "aws-jwt-verify";
 import type { WsClientEvent, WsServerEvent } from "@cobrac/shared";
 import { isProjectDeleted } from "@cobrac/shared";
 import { env } from "../env.js";
+import { reservedOwner } from "../lib/catalog.js";
+import { teamItemAccess } from "../lib/teams.js";
 import {
   deleteWsConnection,
   getProject,
@@ -87,12 +89,18 @@ export async function defaultRoute(event: APIGatewayProxyWebsocketEventV2): Prom
     case "ping":
       return { statusCode: 200 };
     case "subscribe": {
-      const p = await getProject(base.userId, msg.projectId);
+      let p = await getProject(base.userId, msg.projectId);
+      // another member's project in a team's workspace the caller belongs to (read only)
       if (!p || isProjectDeleted(p)) {
+        const owner = await reservedOwner(msg.projectId).catch(() => null);
+        const other = owner && owner !== base.userId ? await getProject(owner, msg.projectId) : null;
+        p = other && !isProjectDeleted(other) && other.teamId && (await teamItemAccess({ userId: base.userId }, other.userId, other.teamId)) ? other : null;
+      }
+      if (!p) {
         await send({ type: "error", message: "project not found" });
         return { statusCode: 200 };
       }
-      await putWsConnection({ connectionId, projectId: msg.projectId, userId: base.userId, ttl: base.ttl });
+      await putWsConnection({ connectionId, projectId: msg.projectId, userId: base.userId, ...(p.userId !== base.userId ? { ownerUserId: p.userId } : {}), ttl: base.ttl });
       await send({ type: "subscribed", projectId: msg.projectId });
       await send({ type: "project", projectId: msg.projectId, project: p });
       return { statusCode: 200 };

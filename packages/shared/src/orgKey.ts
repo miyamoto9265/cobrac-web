@@ -68,6 +68,8 @@ export interface ModelPolicy {
   source: KeySource | null;
   claude: ProviderPolicy;
   deepseek: ProviderPolicy;
+  /** Models a team's keys may run (its admin's restriction); applies to the providers whose source is "team" */
+  teamModels?: string[] | null;
 }
 
 /** Which default keys (one per provider) are registered. */
@@ -81,14 +83,18 @@ export interface DefaultKeysAvailable {
  * `teamKeys`: in a team's workspace, the providers the team has a key of. A team key wins over the user's own and the
  * default key (the team pays for its workspace); a provider without a team key falls back to the user's keys.
  */
-export function modelPolicyOf(user: KeyHolder, defaults: DefaultKeysAvailable, teamKeys?: Partial<Record<ModelProvider, boolean>>): ModelPolicy {
+export function modelPolicyOf(user: KeyHolder, defaults: DefaultKeysAvailable, teamKeys?: Partial<Record<ModelProvider, boolean>>, teamModels?: string[] | null): ModelPolicy {
   const source = teamKeys?.openai ? "team" : keySourceOf(user, defaults.openai);
   const sources = {
     anthropic: teamKeys?.anthropic ? ("team" as const) : providerKeySourceOf(user, "anthropic", !!defaults.anthropic),
     deepseek: teamKeys?.deepseek ? ("team" as const) : providerKeySourceOf(user, "deepseek", !!defaults.deepseek),
   };
-  const of = (provider: MessagesProvider): ProviderPolicy => ({ source: sources[provider], allowed: sources[provider] === null ? [] : PROVIDER_MODELS[provider] });
-  return { source, claude: of("anthropic"), deepseek: of("deepseek") };
+  const restrict = teamModels?.length ? teamModels : null;
+  const of = (provider: MessagesProvider): ProviderPolicy => ({
+    source: sources[provider],
+    allowed: sources[provider] === null ? [] : sources[provider] === "team" && restrict ? PROVIDER_MODELS[provider].filter((m) => restrict.includes(m)) : PROVIDER_MODELS[provider],
+  });
+  return { source, claude: of("anthropic"), deepseek: of("deepseek"), ...(restrict ? { teamModels: restrict } : {}) };
 }
 
 /** The policy of a fixed-list provider's models. */
@@ -113,6 +119,7 @@ export const messagesOnly = (p: ModelPolicy): boolean => p.source === null && (p
 export function policyAllows(p: ModelPolicy, model: string): boolean {
   const provider = providerOf(model);
   if (provider !== "openai") return providerPolicy(p, provider).allowed.includes(model);
+  if (p.source === "team" && p.teamModels?.length && !p.teamModels.includes(model)) return false;
   return !messagesOnly(p);
 }
 
@@ -123,6 +130,11 @@ export function policyAllows(p: ModelPolicy, model: string): boolean {
  */
 export function allowedDefaultModel(p: ModelPolicy, preferred: string): string {
   if (policyAllows(p, preferred)) return preferred;
+  // a team that restricts its models: the first allowed one that its keys can run
+  if (p.teamModels?.length) {
+    const ok = p.teamModels.find((m) => policyAllows(p, m) && !isDeprecatedModel(m)) ?? p.teamModels.find((m) => policyAllows(p, m));
+    if (ok) return ok;
+  }
   if (messagesOnly(p)) {
     for (const provider of ["anthropic", "deepseek"] as const) {
       const { allowed } = providerPolicy(p, provider);

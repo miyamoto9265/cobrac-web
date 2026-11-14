@@ -349,6 +349,8 @@ export interface WsConnectionItem {
   connectionId: string;
   projectId: string; // "_" for the base connection record
   userId: string;
+  /** The project's owner when the viewer is another member of its team (absent: the viewer owns it) */
+  ownerUserId?: string;
   ttl: number;
 }
 

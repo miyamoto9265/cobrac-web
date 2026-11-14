@@ -71,6 +71,16 @@ async function queryPrefix<T>(canonId: string, prefix: string): Promise<T[]> {
   return out;
 }
 
+export async function getCanonMember(canonId: string, projectId: string): Promise<CanonMemberRecord | null> {
+  const r = await ddb.send(new GetCommand({ TableName: env.tables.canons, Key: { canonId, sk: canonMemberSk(projectId) } }));
+  return (r.Item as CanonMemberRecord) ?? null;
+}
+
+/** Whose project a member of the Canon is (null: not a member). */
+export async function memberProjectOwner(canon: Pick<CanonRecord, "canonId" | "ownerUserId">, projectId: string): Promise<string> {
+  return (await getCanonMember(canon.canonId, projectId))?.projectOwnerId ?? canon.ownerUserId;
+}
+
 export const listCanonMembers = (canonId: string) => queryPrefix<CanonMemberRecord>(canonId, CANON_MEMBER_PREFIX);
 
 export async function listCanonRevisions(canonId: string): Promise<CanonRevisionSummary[]> {
@@ -200,7 +210,7 @@ export async function addCanonMember(canonId: string, ownerUserId: string, proje
     if (isConditionFailure(e)) return { ok: false, reason: "project-unavailable" };
     throw e;
   }
-  const member: CanonMemberRecord = { canonId, sk: canonMemberSk(projectId), projectId, joinedAt };
+  const member: CanonMemberRecord = { canonId, sk: canonMemberSk(projectId), projectId, projectOwnerId: ownerUserId, joinedAt };
   try {
     await ddb.send(new PutCommand({ TableName: env.tables.canons, Item: member }));
   } catch (e) {
@@ -258,7 +268,7 @@ export async function markCanonDeleted(canonId: string, ownerUserId: string): Pr
       ExpressionAttributeValues: { ":t": now },
     }),
   );
-  for (const m of await listCanonMembers(canonId)) await releaseProject(ownerUserId, m.projectId, canonId);
+  for (const m of await listCanonMembers(canonId)) await releaseProject(m.projectOwnerId ?? ownerUserId, m.projectId, canonId);
   return now;
 }
 

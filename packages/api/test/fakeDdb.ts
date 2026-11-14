@@ -138,6 +138,12 @@ export class FakeDdb {
             const v = this.val(m[2], i);
             return (x: Item) => x[a] === v;
           }
+          m = /^(\S+) >= (:\w+)$/.exec(c);
+          if (m) {
+            const a = this.attr(m[1], i);
+            const v = String(this.val(m[2], i));
+            return (x: Item) => typeof x[a] === "string" && (x[a] as string) >= v;
+          }
           m = /^begins_with\((\S+), (:\w+)\)$/.exec(c);
           if (m) {
             const a = this.attr(m[1], i);

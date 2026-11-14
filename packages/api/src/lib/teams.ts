@@ -3,25 +3,34 @@
  * missions, projects and Canons in its workspace; membership is checked on every request that names a team.
  */
 import { randomBytes } from "node:crypto";
-import { BatchGetCommand, GetCommand, PutCommand, ScanCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { BatchGetCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { HTTPException } from "hono/http-exception";
-import type { JobRecord, TeamDetail, TeamInviteRecord, TeamInviteView, TeamMemberView, TeamRecord, TeamRole, UserRecord } from "@cobrac/shared";
+import type { JobRecord, TeamProjectCost, TeamDetail, TeamInviteRecord, TeamInviteView, TeamMemberView, TeamRecord, TeamRole, TeamSummary, UserRecord } from "@cobrac/shared";
 import {
+  CLAUDE_MODELS,
+  DEEPSEEK_MODELS,
   EMPTY_USAGE,
   MODEL_PROVIDERS,
+  filterCodexModels,
   TEAM_CATALOG_KIND,
   TEAM_INVITE_CATALOG_KIND,
   addUsage,
+  budgetState,
+  hasTeamKey,
   inviteState,
   invitePath,
+  isProjectlessMode,
+  projectDisplayName,
   isTeamAdmin,
   isTeamId,
   nowIso,
+  teamKeysAvailable,
   teamRoleOf,
 } from "@cobrac/shared";
 import { env } from "../env.js";
-import { ddb, getUser, updateUser } from "./db.js";
+import { ddb, getProject, getUser, updateUser } from "./db.js";
 import { bad } from "./http.js";
+import { getDefaultKey } from "./orgKey.js";
 
 const notFound = () => new HTTPException(404, { message: "チームが見つかりません" });
 
@@ -69,6 +78,20 @@ export async function updateTeam(teamId: string, change: (t: TeamRecord) => void
       throw e;
     }
   }
+}
+
+/** Every team (site admins; Catalog partition "team"). */
+export async function listAllTeams(): Promise<TeamRecord[]> {
+  const out: TeamRecord[] = [];
+  let start: Record<string, unknown> | undefined;
+  do {
+    const r = await ddb.send(
+      new QueryCommand({ TableName: env.tables.catalog, KeyConditionExpression: "#k = :k", ExpressionAttributeNames: { "#k": "kind" }, ExpressionAttributeValues: { ":k": TEAM_CATALOG_KIND }, ExclusiveStartKey: start }),
+    );
+    out.push(...((r.Items as TeamRecord[]) ?? []));
+    start = r.LastEvaluatedKey;
+  } while (start);
+  return out;
 }
 
 /** The teams of `teamIds` that exist (one BatchGet per 100). */
@@ -121,6 +144,17 @@ export async function itemTeam(ownerUserId: string, teamId: string | null | unde
 export async function listSpace(u: UserRecord, team: string | undefined): Promise<string | null> {
   if (!team) return null;
   return (await requireTeamMember(u, team)).teamId;
+}
+
+/** How `u` may act on an item of `ownerUserId` (null: not at all): owner, the team's admin, or a member who reads. */
+export type TeamAccess = "owner" | "admin" | "member";
+
+export async function teamItemAccess(u: Pick<UserRecord, "userId">, ownerUserId: string, teamId: string | null | undefined): Promise<TeamAccess | null> {
+  if (ownerUserId === u.userId) return "owner";
+  if (!teamId) return null;
+  const team = await getTeam(teamId);
+  const role = team ? teamRoleOf(team, u.userId) : null;
+  return role === "admin" ? "admin" : role ? "member" : null;
 }
 
 export const inSpace = (item: { teamId?: string | null }, space: string | null): boolean => (item.teamId ?? null) === space;
@@ -233,24 +267,81 @@ export function readMaxUses(v: unknown): number | null {
 
 // --- usage ----------------------------------------------------------------------
 
-/** Every job that ran with the team's key (a filtered Scan, like the admin's default-key usage). */
-export async function listTeamJobs(teamId: string): Promise<JobRecord[]> {
-  const out: JobRecord[] = [];
+/**
+ * Items of a team's workspace through the `team-index` GSI (PK teamId, SK createdAt) of the Projects, Jobs, Plans and
+ * Canons tables; `since` limits it to items created at or after that time. Only items in a team's workspace carry
+ * `teamId`, so the index holds nothing else.
+ */
+export async function queryTeamIndex<T>(table: string, teamId: string, since?: string): Promise<T[]> {
+  const out: T[] = [];
   let start: Record<string, unknown> | undefined;
   do {
     const r = await ddb.send(
-      new ScanCommand({
-        TableName: env.tables.jobs,
-        FilterExpression: "teamId = :t AND keySource = :k",
-        ExpressionAttributeValues: { ":t": teamId, ":k": "team" },
+      new QueryCommand({
+        TableName: table,
+        IndexName: "team-index",
+        KeyConditionExpression: since ? "teamId = :t AND createdAt >= :s" : "teamId = :t",
+        ExpressionAttributeValues: { ":t": teamId, ...(since ? { ":s": since } : {}) },
         ExclusiveStartKey: start,
       }),
     );
-    out.push(...((r.Items as JobRecord[]) ?? []));
+    out.push(...((r.Items as T[]) ?? []));
     start = r.LastEvaluatedKey;
   } while (start);
-  return out.filter((j) => j.teamId === teamId && j.keySource === "team");
+  return out.filter((x) => (x as { teamId?: string }).teamId === teamId);
 }
+
+/** Every job that ran with the team's key (`since`: created at or after it). */
+export async function listTeamJobs(teamId: string, since?: string): Promise<JobRecord[]> {
+  return (await queryTeamIndex<JobRecord>(env.tables.jobs, teamId, since)).filter((j) => j.keySource === "team");
+}
+
+/** First instant of the current UTC month (the limits count from it). */
+export const monthStart = (now = nowIso()) => `${now.slice(0, 7)}-01T00:00:00.000Z`;
+
+/** Team-key cost this month: the whole team's and `userId`'s. */
+export async function monthCosts(teamId: string, userId: string): Promise<{ team: number; own: number }> {
+  let team = 0;
+  let own = 0;
+  for (const j of await listTeamJobs(teamId, monthStart())) {
+    team += j.costUsd ?? 0;
+    if (j.userId === userId) own += j.costUsd ?? 0;
+  }
+  return { team: round(team), own: round(own) };
+}
+
+/**
+ * 403 when a new team-key job of `userId` would go over the team's monthly limit or the per-member one (running jobs
+ * finish; only new ones are refused).
+ */
+export async function requireUnderLimits(team: TeamRecord, userId: string): Promise<void> {
+  const { monthUsd, memberMonthUsd } = team.limits ?? { monthUsd: null, memberMonthUsd: null };
+  if (monthUsd == null && memberMonthUsd == null) return;
+  const cost = await monthCosts(team.teamId, userId);
+  if (monthUsd != null && cost.team >= monthUsd) throw new HTTPException(403, { message: "チームの今月の利用上限に達しました。チーム管理者にご相談ください" });
+  if (memberMonthUsd != null && cost.own >= memberMonthUsd) throw new HTTPException(403, { message: "このチームでのあなたの今月の利用上限に達しました。チーム管理者にご相談ください" });
+}
+
+/** GET /teams row of one team. */
+export const teamSummary = (t: TeamRecord, userId: string): TeamSummary => ({
+  teamId: t.teamId,
+  name: t.name,
+  role: teamRoleOf(t, userId) ?? "member",
+  memberCount: t.members.length,
+  keys: teamKeysAvailable(t),
+  budgetState: budgetState(t),
+  budgetEndsAt: t.budget?.endsAt ?? null,
+});
+
+export const keyStatus = (team: TeamRecord): TeamDetail["keys"] =>
+  Object.fromEntries(
+    MODEL_PROVIDERS.map((p) => {
+      const k = team.keys?.[p];
+      return [p, { registered: hasTeamKey(team, p), last4: k?.last4 ?? null, updatedAt: k?.updatedAt ?? null, ...(k?.useDefault ? { useDefault: true } : {}) }];
+    }),
+  ) as TeamDetail["keys"];
+
+export const budgetView = (team: TeamRecord) => ({ startsAt: null, endsAt: null, ...(team.budget ?? {}), state: budgetState(team) });
 
 interface CostRow {
   costUsd: number;
@@ -283,6 +374,37 @@ export function teamCosts(jobs: JobRecord[], month: string): Map<string, CostRow
   return rows;
 }
 
+/** The models the team's keys can run (OpenAI: the key's snapshot, or the default key's when assigned). */
+async function teamKeyModels(team: TeamRecord): Promise<string[]> {
+  const out: string[] = [];
+  if (hasTeamKey(team, "openai")) {
+    const k = team.keys!.openai!;
+    out.push(...filterCodexModels(k.useDefault ? ((await getDefaultKey("openai"))?.availableModels ?? []) : (k.models ?? [])));
+  }
+  if (hasTeamKey(team, "anthropic")) out.push(...CLAUDE_MODELS);
+  if (hasTeamKey(team, "deepseek")) out.push(...DEEPSEEK_MODELS);
+  return [...new Set(out)];
+}
+
+/** Team-key cost per project (projectless jobs, such as Canon reviews and mission drafts, are left out). */
+async function projectCosts(jobs: JobRecord[], month: string, users: Map<string, UserRecord>): Promise<TeamProjectCost[]> {
+  const rows = new Map<string, TeamProjectCost & { userId: string }>();
+  for (const j of jobs) {
+    if (isProjectlessMode(j.type)) continue;
+    const r = rows.get(j.projectId) ?? { projectId: j.projectId, userId: j.userId, name: j.projectId, ownerName: "", costUsd: 0, monthCostUsd: 0 };
+    r.costUsd += j.costUsd ?? 0;
+    if (j.createdAt.startsWith(month)) r.monthCostUsd += j.costUsd ?? 0;
+    rows.set(j.projectId, r);
+  }
+  const out: TeamProjectCost[] = [];
+  for (const r of rows.values()) {
+    const p = await getProject(r.userId, r.projectId);
+    const u = users.get(r.userId) ?? (await getUser(r.userId));
+    out.push({ projectId: r.projectId, name: p ? projectDisplayName(p) : r.projectId, ownerName: u?.contributorName?.trim() || u?.displayName || "—", costUsd: round(r.costUsd), monthCostUsd: round(r.monthCostUsd) });
+  }
+  return out.sort((a, b) => b.costUsd - a.costUsd);
+}
+
 /** GET /teams/:id as `viewer` sees it: admins get e-mail addresses, everyone's cost and the invite link. */
 export async function teamDetail(team: TeamRecord, viewer: UserRecord, invite: TeamInviteRecord | null, jobs: JobRecord[]): Promise<TeamDetail> {
   const admin = isTeamAdmin(team, viewer.userId);
@@ -308,19 +430,22 @@ export async function teamDetail(team: TeamRecord, viewer: UserRecord, invite: T
     { costUsd: 0, monthCostUsd: 0, jobs: 0, usage: EMPTY_USAGE },
   );
   const memberEmails = new Set([...users.values()].map((x) => (x.email ?? "").toLowerCase()));
-  const keys = Object.fromEntries(
-    MODEL_PROVIDERS.map((p) => {
-      const k = team.keys?.[p];
-      return [p, { registered: !!k?.encryptedApiKey, last4: k?.last4 ?? null, updatedAt: k?.updatedAt ?? null }];
-    }),
-  ) as TeamDetail["keys"];
+  const keys = keyStatus(team);
+  let teamMonth = 0;
+  for (const r of costs.values()) teamMonth += r.monthCostUsd;
   return {
     teamId: team.teamId,
     name: team.name,
+    ...(admin ? { projects: await projectCosts(jobs, month, users), keyModels: await teamKeyModels(team) } : {}),
     role: admin ? "admin" : "member",
     members,
     keys,
     usage: { costUsd: round(usage.costUsd), monthCostUsd: round(usage.monthCostUsd), month, jobs: usage.jobs, usage: usage.usage },
+    ownMonthCostUsd: costs.get(viewer.userId)?.monthCostUsd ?? 0,
+    teamMonthCostUsd: round(teamMonth),
+    budget: budgetView(team),
+    limits: team.limits ?? { monthUsd: null, memberMonthUsd: null },
+    allowedModels: team.allowedModels ?? null,
     ...(admin
       ? {
           invite: inviteView(invite),
@@ -328,5 +453,40 @@ export async function teamDetail(team: TeamRecord, viewer: UserRecord, invite: T
         }
       : {}),
     createdAt: team.createdAt,
+  };
+}
+
+// --- budget and limits ------------------------------------------------------------
+
+const optIso = (v: unknown, what: string): string | null => {
+  if (v === undefined || v === null || v === "") return null;
+  if (typeof v !== "string" || Number.isNaN(Date.parse(v))) throw bad(`${what}が不正です`);
+  return new Date(v).toISOString();
+};
+
+/** The budget's period from a settings request (start and end optional; the end after the start). */
+export function readBudget(v: unknown): { startsAt: string | null; endsAt: string | null } {
+  if (!v || typeof v !== "object") throw bad("予算の期間が不正です");
+  const b = v as { startsAt?: unknown; endsAt?: unknown };
+  const startsAt = optIso(b.startsAt, "開始日時");
+  const endsAt = optIso(b.endsAt, "終了日時");
+  if (startsAt && endsAt && endsAt <= startsAt) throw bad("終了日時は開始日時より後にしてください");
+  return { startsAt, endsAt };
+}
+
+const optUsd = (v: unknown, what: string): number | null => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 1_000_000) throw bad(`${what}は 0〜1000000 の数にしてください`);
+  return Math.round(n * 100) / 100;
+};
+
+/** Limits from a settings request; a field left out keeps its current value. */
+export function readLimits(v: unknown, prev: TeamRecord["limits"]): NonNullable<TeamRecord["limits"]> {
+  if (!v || typeof v !== "object") throw bad("上限の指定が不正です");
+  const l = v as Record<string, unknown>;
+  return {
+    monthUsd: "monthUsd" in l ? optUsd(l.monthUsd, "チームの月の上限") : (prev?.monthUsd ?? null),
+    memberMonthUsd: "memberMonthUsd" in l ? optUsd(l.memberMonthUsd, "メンバーごとの月の上限") : (prev?.memberMonthUsd ?? null),
   };
 }

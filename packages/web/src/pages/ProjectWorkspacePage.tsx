@@ -1,13 +1,15 @@
 import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, History, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, WsServerEvent } from "@cobrac/shared";
+import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, TeamAccess, WsServerEvent } from "@cobrac/shared";
 import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
 import { Trail, trailSteps, useAboveNames } from "../components/Trail";
 import { VisibilityToggle } from "../components/VisibilityToggle";
 import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
+import { CopyProjectButton } from "../components/CopyProjectButton";
+import { HelpTip } from "../components/HelpTip";
 import { DocViewer } from "../components/DocViewer";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { ProjectTitle } from "../components/ProjectTitle";
@@ -23,6 +25,7 @@ import { TablesView } from "../components/workspace/TablesView";
 import { VersionsView } from "../components/workspace/VersionsView";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api, ApiError } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { isActive } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { tabularSources } from "../lib/table";
@@ -61,6 +64,7 @@ export function ProjectWorkspacePage() {
 
 function Workspace({ projectId }: { projectId: string }) {
   const { t, locale } = useI18n();
+  const { me } = useAuth();
   const navigate = useNavigate();
   const { view: rawView } = useParams();
   const { search } = useLocation();
@@ -68,6 +72,8 @@ function Workspace({ projectId }: { projectId: string }) {
   // the names of the Canon and the mission above the project, for the trail
   const above = useAboveNames(project?.canonId, project?.planId);
   const [cloneCount, setCloneCount] = useState(0);
+  // a teammate's project in a team's workspace: "member" reads it, "admin" (a team admin) manages it
+  const [access, setAccess] = useState<{ access: TeamAccess; ownerName: string | null }>({ access: "owner", ownerName: null });
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [artifacts, setArtifacts] = useState<ArtifactInfo[] | null>(null);
@@ -92,6 +98,7 @@ function Workspace({ projectId }: { projectId: string }) {
     try {
       const [p, m] = await Promise.all([api.getProject(projectId), api.listMessages(projectId)]);
       setProject(p);
+      setAccess({ access: p.access ?? "owner", ownerName: p.ownerName ?? null });
       setCloneCount(p.cloneCount ?? 0);
       setJobs(p.jobs ?? []);
       setMessages(m.items);
@@ -194,6 +201,10 @@ function Workspace({ projectId }: { projectId: string }) {
   const shownModel = restricted && project.model && !usableModels.includes(project.model) ? envDefault : project.model;
 
   const active = isActive(project.status);
+  const isOwner = access.access === "owner";
+  const canManage = access.access !== "member";
+  // in a team's workspace without a usable budget, a creator without a key of their own cannot resume
+  const noKey = !me?.keySource && !me?.claudeKeySource && !me?.deepseekKeySource;
   const download = async (key: string) => {
     const { url } = await api.downloadUrl(projectId, key);
     window.location.href = url;
@@ -261,22 +272,27 @@ function Workspace({ projectId }: { projectId: string }) {
             />
           )}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            <ProjectTitle project={project} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
+            <ProjectTitle project={project} readOnly={!canManage} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
             <StatusBadge status={project.status} />
             <HypothesisBadge project={project} />
             <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto sm:justify-end">
               <button type="button" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails} className={`${btn} border-slate-300 text-slate-600 hover:bg-slate-50 lg:hidden`}>
                 {t("ws.details")} {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
               </button>
-              {active && (
+              {active && canManage && (
                 <button onClick={() => void act(() => api.cancel(projectId))} disabled={busy} className={`${btn} border-rose-300 text-rose-700 hover:bg-rose-50`}>
                   <Square size={12} /> {t("chat.stop")}
                 </button>
               )}
-              {(project.status === "FAILED" || project.status === "CANCELLED") && (
+              {(project.status === "FAILED" || project.status === "CANCELLED") && canManage && (
                 <button onClick={() => void act(() => api.retry(projectId, locale))} disabled={busy} className={`${btn} border-slate-300 hover:bg-slate-50`}>
                   <RotateCcw size={12} /> {t("chat.retry")}
                 </button>
+              )}
+              {(project.status === "FAILED" || project.status === "CANCELLED") && isOwner && project.teamId && noKey && (
+                <Link to="/settings" className="text-xs text-blue-700 underline-offset-2 hover:underline coarse:py-2" data-testid="resume-no-key">
+                  {t("team.resumeNoKey")}
+                </Link>
               )}
               {available.xlsx && (
                 <button
@@ -299,7 +315,8 @@ function Workspace({ projectId }: { projectId: string }) {
                   <FileSpreadsheet size={14} /> {t("ws.csvXlsx")}
                 </button>
               )}
-              <VisibilityToggle
+              <CopyProjectButton project={project} own={isOwner} />
+              {canManage && <VisibilityToggle
                 visibility={project.visibility ?? "private"}
                 disabled={!project.hasArtifacts}
                 confirmText={t("vis.confirmProject")}
@@ -308,9 +325,9 @@ function Workspace({ projectId }: { projectId: string }) {
                   setProject((prev) => (prev ? { ...prev, visibility: r.visibility, publishedAt: r.publishedAt } : prev));
                   setCloneCount(r.cloneCount);
                 }}
-              />
-              {project.canonId && <CanonPushButton projectId={project.projectId} disabled={project.status !== "COMPLETED" || !project.hasArtifacts} />}
-              <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />
+              />}
+              {project.canonId && isOwner && <CanonPushButton projectId={project.projectId} disabled={project.status !== "COMPLETED" || !project.hasArtifacts} />}
+              {canManage && <DeleteProjectButton project={project} variant="icon" onConfirm={deleteProject} />}
             </div>
           </div>
           <div className={showDetails ? "block" : "hidden lg:block"}>
@@ -371,6 +388,12 @@ function Workspace({ projectId }: { projectId: string }) {
           <div className={`mt-1.5 ${showDetails || active ? "" : "max-lg:hidden"}`}>
             <PipelineProgress project={project} jobs={jobs} />
           </div>
+          {!isOwner && (
+            <div className={`mt-2 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${canManage ? "bg-sky-50 text-sky-800" : "bg-slate-100 text-slate-700"}`} data-testid="project-access">
+              <span>{t(canManage ? "team.adminView" : "team.readOnly", { name: access.ownerName || "—" })}</span>
+              <HelpTip text={t(canManage ? "team.adminViewHelp" : "team.readOnlyHelp")} />
+            </div>
+          )}
           {project.errorMessage && (
             <div className="mt-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">
               {(() => {
@@ -421,7 +444,7 @@ function Workspace({ projectId }: { projectId: string }) {
       </div>
 
       <ChatDock state={chat} attention={waiting} working={active && !waiting}>
-        <AgentPanel projectId={projectId} project={project} messages={messages} busy={busy} err={err} act={act} />
+        <AgentPanel projectId={projectId} project={project} messages={messages} busy={busy} err={err} act={act} readOnly={!canManage} />
       </ChatDock>
     </div>
   );

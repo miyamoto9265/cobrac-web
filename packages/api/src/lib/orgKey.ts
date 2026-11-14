@@ -24,13 +24,21 @@ export const defaultKeyStatus = (k: DefaultApiKeyRecord | null): DefaultKeyStatu
 
 /**
  * The caller's key and model policy (each default key is read only when it could apply); `defaultKey` is the OpenAI
- * one. `team`: the workspace is that team's, whose keys win over the caller's own (the team pays).
+ * one. `team`: the workspace is that team's; while its budget is active, its keys win over the caller's own (the team
+ * pays) and its model restriction applies to them. A team key that is the deployment's default key counts only while
+ * that default key is registered.
  */
 export async function modelPolicy(u: UserRecord, team?: TeamRecord | null): Promise<{ policy: ModelPolicy; defaultKey: DefaultApiKeyRecord | null }> {
   const teamKeys = teamKeysAvailable(team);
-  const lookup = (provider: ModelProvider) => (!(team && teamKeys[provider]) && !ownKeyRegistered(u, provider) && u.orgAccess ? getDefaultKey(provider) : null);
+  const assigned = (provider: ModelProvider) => !!(team && teamKeys[provider] && team.keys?.[provider]?.useDefault);
+  const lookup = (provider: ModelProvider) =>
+    assigned(provider) || (!(team && teamKeys[provider]) && !ownKeyRegistered(u, provider) && u.orgAccess) ? getDefaultKey(provider) : null;
   const [defaultKey, claudeKey, deepseekKey] = await Promise.all([lookup("openai"), lookup("anthropic"), lookup("deepseek")]);
-  return { policy: modelPolicyOf(u, { openai: !!defaultKey, anthropic: !!claudeKey, deepseek: !!deepseekKey }, team ? teamKeys : undefined), defaultKey };
+  const found: Record<ModelProvider, boolean> = { openai: !!defaultKey, anthropic: !!claudeKey, deepseek: !!deepseekKey };
+  for (const provider of ["openai", "anthropic", "deepseek"] as const) if (assigned(provider) && !found[provider]) teamKeys[provider] = false;
+  // the default key looked up for the team does not make the caller's own (unapproved) default access
+  const defaults = u.orgAccess ? found : { openai: false, anthropic: false, deepseek: false };
+  return { policy: modelPolicyOf(u, defaults, team ? teamKeys : undefined, team?.allowedModels ?? null), defaultKey };
 }
 
 /** Default-API-key usage per user; `month` is the UTC month (YYYY-MM) counted in monthCostUsd. */

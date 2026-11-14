@@ -5,6 +5,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Teams, sharing: everyone in a team sees its workspace's projects, missions and Canons and can open them read-only ("View only" at the top). The creator and the team's admins edit, run and approve them; when an admin runs another member's project or mission it runs on the team's budget only. Members can add their own projects to the team's Canons
+- "Copy" on a project makes a copy in your personal workspace or in a team you belong to (the original stays where it is)
+- Team budget: on the team page's "Budget" tab an admin sets when the budget starts and ends, a monthly limit for the team and for each member (UTC month), and which models the team's keys run. The team's keys are used only while the budget is active; otherwise jobs run on each person's own key. An invite link with no headcount limit sets a $5 per-member limit when no limit was set, and a new invite link expires at the budget's end by default. The team page shows what is left of your month and, to admins, the cost per member and per project
+- When a team's budget ends or an admin presses "Stop budget", the jobs on the team's keys stop and the team's running missions pause. Each project keeps its workspace and conversation, and its creator continues it with "Retry from where it left off" on their own key (with a link to the key settings when they have none). Three days before the end, and after it, a banner at the top of the team's workspace says so. "Resume budget" starts it again
+- A team admin can delete the team: its jobs stop, its missions pause and every project, mission and Canon goes back to its creator's personal workspace
+- Admin page, "Teams": every team with its members, budget state, keys and this month's cost. A site admin can let a team use the default API key and stop or resume a team's budget (a budget a site admin stopped can be resumed by a site admin only)
+
+### Changed
+- Infrastructure: the Projects, Jobs, Plans and Canons tables have a `team-index` GSI (added in place; the tables are kept). The janitor can read the teams and stop tasks, and the WebSocket handler can read project ID owners and teams
+
 ## [0.56.0] - 2026-11-13
 
 ### Added

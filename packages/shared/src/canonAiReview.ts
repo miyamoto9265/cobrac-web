@@ -273,7 +273,7 @@ export interface CanonPullDetailResponse {
   canWithdraw: boolean;
   canComment: boolean;
   /** null: the sender of a Canon → Canon pull request who has no role in the target */
-  viewerRole: "owner" | "editor" | "admin" | null;
+  viewerRole: "owner" | "editor" | "admin" | "member" | null;
   checks: ReviewReport | null;
   entries: Record<string, ReviewEntry>;
   graph: ReviewGraph | null;

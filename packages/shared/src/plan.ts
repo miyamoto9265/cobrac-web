@@ -62,7 +62,7 @@ export const RUNNER_PLAN_STATUSES: readonly PlanStatus[] = ["DRAFTING", "RUNNING
 /** Why a plan is paused: by its owner, or by the runner because the owner can no longer start jobs. */
 /** canon_missing (stage 3): the plan's Canon was deleted; no row starts until it is resolved (rows could not join it). */
 /** cost_limit (自律実行): the plan spent its cost limit; the owner raises the limit to resume it. */
-export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed" | "canon_missing" | "cost_limit";
+export type PlanPauseReason = "user" | "no_key" | "owner_disabled" | "model_not_allowed" | "canon_missing" | "cost_limit" | "team_limit" | "team_budget";
 
 /**
  * pending: waits for its turn (with `projectId`: a retry of that project). starting: the runner claimed it and is
@@ -646,6 +646,9 @@ export interface PlanDetailResponse {
   planJobsCostUsd: number | null;
   /** Stage 3: the plan's Canon (null: none; `missing` when it was deleted) */
   canon?: { canonId: string; name: string; headRevision: number; missing?: boolean } | null;
+  /** GET /plans/:id: how the viewer may act on it (another member's mission in a team's workspace), and whose it is */
+  access?: "owner" | "admin" | "member";
+  ownerName?: string | null;
 }
 
 /** A row of a live plan in the list: one that runs now or waits on the owner. */

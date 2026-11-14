@@ -51,6 +51,11 @@ export interface CanonMemberRecord {
   canonId: string;
   sk: string;
   projectId: string;
+  /**
+   * The project's owner (members of a team's Canon can be any member's projects); absent: the Canon's owner. Not named
+   * ownerUserId: the owner-index GSI of the table must keep holding META items only
+   */
+  projectOwnerId?: string;
   joinedAt: string;
 }
 
@@ -142,7 +147,8 @@ export const CANON_DEFAULT_REQUIRED_APPROVALS = 1;
 export const requiredApprovals = (_c: Pick<CanonRecord, "requiredApprovals">) => CANON_DEFAULT_REQUIRED_APPROVALS;
 
 /** How the caller relates to a Canon: its owner, a co-editor (reviews pull requests), or an admin reading it. */
-export type CanonRole = "owner" | "editor" | "admin";
+/** member: a member of the team whose Canon it is (reads it, sends their own projects, comments on their PRs) */
+export type CanonRole = "owner" | "editor" | "admin" | "member";
 
 /** `EDITOR#<userId>` item: a co-editor the owner added. */
 export interface CanonEditorRecord {

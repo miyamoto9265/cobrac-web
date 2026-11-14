@@ -1,7 +1,7 @@
 /** Teams: create, members, roles, the team's API keys (its budget), the invite link and invitation e-mails (`/teams…`). */
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
-import type { CreateInviteRequest, CreateTeamRequest, InviteInfo, JoinTeamResponse, ListTeamsResponse, ModelProvider, TeamInviteRecord, TeamRecord, TeamRole } from "@cobrac/shared";
+import type { UpdateTeamSettingsRequest, CreateInviteRequest, CreateTeamRequest, InviteInfo, JoinTeamResponse, ListTeamsResponse, ModelProvider, TeamInviteRecord, TeamRecord, TeamRole } from "@cobrac/shared";
 import {
   INVITE_TOKEN_REGEX,
   MODEL_PROVIDERS,
@@ -14,7 +14,8 @@ import {
   TEAM_SENT_INVITES_MAX,
   inviteState,
   nowIso,
-  teamKeysAvailable,
+  TEAM_DEFAULT_MEMBER_LIMIT_USD,
+  isOfferedModel,
   teamRoleOf,
 } from "@cobrac/shared";
 import { encryptTeamKey } from "../lib/aws.js";
@@ -38,16 +39,25 @@ import {
   requireTeamMember,
   revokeInvite,
   saveTeam,
+  readBudget,
+  readLimits,
   teamDetail,
+  teamSummary,
   updateTeam,
   useInvite,
 } from "../lib/teams.js";
 import { sendTeamInviteEmail } from "../lib/teamEmails.js";
+import { deleteTeam, stopBudget } from "../lib/teamBudget.js";
 import { env } from "../env.js";
 import { verifiedKey } from "./users.js";
 import type { ApiEnv } from "./env.js";
 
 export const teamsApi = new Hono<ApiEnv>();
+
+const defaultInviteExpiry = (team: TeamRecord): string | null => {
+  const end = team.budget?.endsAt ?? null;
+  return end && end > nowIso() ? end : null;
+};
 
 function teamName(v: unknown): string {
   const name = (typeof v === "string" ? v : "").trim();
@@ -67,9 +77,7 @@ teamsApi.get("/teams", async (c) => {
   const u = c.get("user");
   const teams = (await getTeams(u.teamIds ?? [])).filter((t) => teamRoleOf(t, u.userId));
   const res: ListTeamsResponse = {
-    items: teams
-      .map((t) => ({ teamId: t.teamId, name: t.name, role: teamRoleOf(t, u.userId)!, memberCount: t.members.length, keys: teamKeysAvailable(t) }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+    items: teams.map((t) => teamSummary(t, u.userId)).sort((a, b) => a.name.localeCompare(b.name)),
   };
   return c.json(res);
 });
@@ -111,6 +119,53 @@ teamsApi.put("/teams/:id", async (c) => {
     t.name = name;
   });
   return c.json({ teamId: next.teamId, name: next.name });
+});
+
+/** A team admin deletes the team: its items go back to their creators' personal workspaces; nothing is deleted. */
+teamsApi.delete("/teams/:id", async (c) => {
+  const u = c.get("user");
+  const team = await requireTeamAdmin(u, c.req.param("id"));
+  await deleteTeam(team);
+  return c.json({ ok: true });
+});
+
+/** Budget period, limits and allowed models (team admins). */
+teamsApi.put("/teams/:id/settings", async (c) => {
+  const u = c.get("user");
+  const team = await requireTeamAdmin(u, c.req.param("id"));
+  const body = (await c.req.json().catch(() => ({}))) as UpdateTeamSettingsRequest;
+  const budget = body.budget === undefined ? undefined : readBudget(body.budget);
+  const limits = body.limits === undefined ? undefined : readLimits(body.limits, team.limits);
+  let allowedModels: string[] | null | undefined;
+  if (body.allowedModels !== undefined) {
+    if (body.allowedModels !== null && (!Array.isArray(body.allowedModels) || body.allowedModels.some((m) => typeof m !== "string" || !isOfferedModel(m))))
+      throw bad("モデルの指定が不正です");
+    allowedModels = body.allowedModels?.length ? [...new Set(body.allowedModels)] : null;
+  }
+  const next = await updateTeam(team.teamId, (t) => {
+    if (budget) t.budget = { ...(t.budget ?? {}), ...budget, haltedAt: null };
+    if (limits) t.limits = limits;
+    if (allowedModels !== undefined) t.allowedModels = allowedModels;
+  });
+  return c.json(await teamDetail(next, u, next.inviteToken ? await getInvite(next.inviteToken) : null, await listTeamJobs(next.teamId)));
+});
+
+/** 「予算を止める」: the same state as an ended budget (team-key jobs stop, missions pause) until started again. */
+teamsApi.post("/teams/:id/budget/stop", async (c) => {
+  const u = c.get("user");
+  const team = await requireTeamAdmin(u, c.req.param("id"));
+  await stopBudget(team.teamId, u.userId, false);
+  return c.json({ ok: true });
+});
+
+teamsApi.post("/teams/:id/budget/start", async (c) => {
+  const u = c.get("user");
+  const team = await requireTeamAdmin(u, c.req.param("id"));
+  if (team.budget?.stoppedBySiteAdmin && u.role !== "admin") throw new HTTPException(403, { message: "サイト管理者が止めた予算です。サイト管理者にご相談ください" });
+  await updateTeam(team.teamId, (t) => {
+    t.budget = { startsAt: null, endsAt: null, ...(t.budget ?? {}), stoppedAt: null, stoppedBy: null, stoppedBySiteAdmin: false, haltedAt: null };
+  });
+  return c.json({ ok: true });
 });
 
 // --- members ------------------------------------------------------------------
@@ -185,7 +240,8 @@ teamsApi.post("/teams/:id/invite", async (c) => {
     teamId: team.teamId,
     createdAt: nowIso(),
     createdBy: u.userId,
-    expiresAt: readExpiry(body.expiresAt),
+    // the link ends with the budget unless the admin chose otherwise
+    expiresAt: body.expiresAt === undefined ? defaultInviteExpiry(team) : readExpiry(body.expiresAt),
     maxUses: readMaxUses(body.maxUses),
     uses: 0,
   };
@@ -193,6 +249,8 @@ teamsApi.post("/teams/:id/invite", async (c) => {
   const prev = team.inviteToken;
   await updateTeam(team.teamId, (t) => {
     t.inviteToken = inv.id;
+    // a link anyone may use (no headcount limit) gets a per-member limit unless the admin has set the limits (decision 6)
+    if (inv.maxUses === null && !t.limits) t.limits = { monthUsd: null, memberMonthUsd: TEAM_DEFAULT_MEMBER_LIMIT_USD };
   });
   if (prev) await revokeInvite(prev);
   return c.json({ token: inv.id, url: inviteUrl(inv.id), expiresAt: inv.expiresAt, maxUses: inv.maxUses, uses: 0, state: "valid" }, 201);

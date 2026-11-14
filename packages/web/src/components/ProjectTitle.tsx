@@ -6,7 +6,7 @@ import { useT } from "../i18n";
 import { api } from "../lib/api";
 
 /** Project name (primary, editable) with the immutable Project ID as secondary text. */
-export function ProjectTitle({ project, onRenamed }: { project: ProjectRecord; onRenamed: (p: ProjectRecord) => void }) {
+export function ProjectTitle({ project, onRenamed, readOnly = false }: { project: ProjectRecord; onRenamed: (p: ProjectRecord) => void; readOnly?: boolean }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -72,9 +72,9 @@ export function ProjectTitle({ project, onRenamed }: { project: ProjectRecord; o
     <div className="min-w-0">
       <div className="flex min-w-0 items-center gap-1">
         <h1 className="min-w-0 break-words text-base font-semibold">{projectDisplayName(project)}</h1>
-        <button type="button" onClick={start} title={t("chat.rename")} aria-label={t("chat.rename")} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 coarse:min-h-11 coarse:min-w-11">
+        {!readOnly && <button type="button" onClick={start} title={t("chat.rename")} aria-label={t("chat.rename")} className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 coarse:min-h-11 coarse:min-w-11">
           <Pencil size={14} />
-        </button>
+        </button>}
       </div>
       <div className="font-mono text-[11px] text-slate-400">{project.projectId}</div>
       {dup && <div className="mt-1 text-xs text-amber-700">{t("chat.nameDup", { name: dup })}</div>}

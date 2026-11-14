@@ -292,5 +292,6 @@ export interface AlignResult {
   /** Follow-ups queued (each project re-pinned to the head first) */
   queued: { projectId: string; jobId: string }[];
   /** Affected projects that got no follow-up, and why */
-  skipped: { projectId: string; reason: "running" | "not-completed" }[];
+  /** other-owner: another team member's project (its owner aligns it from its own page) */
+  skipped: { projectId: string; reason: "running" | "not-completed" | "other-owner" }[];
 }

@@ -89,7 +89,7 @@ import { canonFields, createCanon, ownedCanon } from "./canonOps.js";
 import { getCanon, listPullRequests } from "./canons.js";
 import { reserveNewId } from "./catalog.js";
 import { currentLimits } from "./concurrency.js";
-import { getProject, listJobsForCanon, listUserProjects } from "./db.js";
+import { getProject, getUser, listJobsForCanon, listUserProjects } from "./db.js";
 import { bad, notFound } from "./http.js";
 import { autoOrder, stopPlanJob } from "./planJobs.js";
 import { applyProposal } from "./planProposals.js";
@@ -113,8 +113,8 @@ import {
   holdsPlan,
   withPlanLease,
 } from "./plans.js";
-import { deploymentDefaultModel, implicitModel, orchestratorDefaultModel, isEffort, normModel, readLocale, requireModel, requireRunKey, stopProject, type StagedAttachment } from "./runs.js";
-import { inSpace, itemTeam, requestedTeam } from "./teams.js";
+import { deploymentDefaultModel, implicitModel, orchestratorDefaultModel, isEffort, normModel, readLocale, requireModel, requireRunKey, runPolicy, stopProject, usesTeamKeys, type StagedAttachment } from "./runs.js";
+import { inSpace, itemTeam, requestedTeam, teamItemAccess } from "./teams.js";
 import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
@@ -126,6 +126,27 @@ export async function loadOwnPlan(u: UserRecord, planId: string): Promise<PlanRe
   const plan = await getPlan(planId);
   if (!plan || plan.deletedAt || plan.ownerUserId !== u.userId) throw notFound();
   return plan;
+}
+
+/**
+ * The user a plan request acts as: the caller on their own plan; on another member's plan in a team's workspace, its
+ * owner (jobs, projects and Canons of a plan stay under its owner). "read": any member of the team. "manage" (pause,
+ * stop, edit, archive): the team's admins too. "run" (anything that starts jobs): the team's admins too, but only while
+ * the team's budget pays (never on the owner's own key). "owner": the owner only.
+ */
+export async function planActor(u: UserRecord, planId: string, mode: "read" | "manage" | "run" | "owner"): Promise<UserRecord> {
+  if (!isPlanId(planId)) throw notFound();
+  const plan = await getPlan(planId);
+  if (!plan || plan.deletedAt) throw notFound();
+  if (plan.ownerUserId === u.userId) return u;
+  const access = mode === "owner" ? null : await teamItemAccess(u, plan.ownerUserId, plan.teamId);
+  if (!access) throw notFound();
+  if (mode !== "read" && access !== "admin") throw new HTTPException(403, { message: "この操作は作成者とチーム管理者だけができます" });
+  const owner = await getUser(plan.ownerUserId);
+  if (!owner) throw notFound();
+  if (mode === "run" && !usesTeamKeys(await runPolicy(owner, await itemTeam(owner.userId, plan.teamId))))
+    throw new HTTPException(403, { message: "チームの予算が使えないため、作成者だけが実行できます" });
+  return owner;
 }
 
 function planName(v: unknown): string {

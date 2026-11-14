@@ -49,7 +49,7 @@ import { env } from "./env.js";
 import { prepareMaterials, type MaterialEntry } from "./materials.js";
 import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
-import { ownKeyOf, planRunKey, usesTeamKey } from "./runKey.js";
+import { needsDefaultKey, planRunKey } from "./runKey.js";
 import { downloadDir, getJsonObject, putObject, uploadDir } from "./s3sync.js";
 import { jobId, projectId, runState, startedAt, userId, decryptApiKey, taskArn, type FailJob } from "./jobContext.js";
 
@@ -72,7 +72,7 @@ export async function planJobMain(fail: FailJob) {
   }
   const model = job.model || env.codexModel || DEFAULT_CODEX_MODEL;
   const team = await getTeam(job.teamId);
-  const key = planRunKey(user, usesTeamKey(user, team, model) || ownKeyOf(user, model) ? null : await getDefaultApiKey(providerOf(model)), model, team);
+  const key = planRunKey(user, needsDefaultKey(user, team, model) ? await getDefaultApiKey(providerOf(model)) : null, model, team, job.keySource === "team");
   if ("error" in key) {
     await fail(key.error);
     return;

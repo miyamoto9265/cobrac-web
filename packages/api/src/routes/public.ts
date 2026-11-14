@@ -1,6 +1,8 @@
 /** Publishing: visibility of projects and Canons, the public listings and cloning (`/public…`). */
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import type {
+  UserRecord,
   CanonRecord,
   CatalogItem,
   CloneProjectResponse,
@@ -12,6 +14,7 @@ import type {
   Visibility,
 } from "@cobrac/shared";
 import {
+  isTeamAdmin,
   isProjectDeleted,
   VISIBILITIES,
   cloneName,
@@ -46,7 +49,8 @@ import {
 import { modelPolicy } from "../lib/orgKey.js";
 import { getCanon, listCanonMembers, updateCanon } from "../lib/canons.js";
 import { loadCanon } from "./canons.js";
-import { loadOwnProject } from "./projects.js";
+import { loadProject } from "./projects.js";
+import { getTeam } from "../lib/teams.js";
 import type { ApiEnv } from "./env.js";
 
 export const publicApi = new Hono<ApiEnv>();
@@ -113,21 +117,29 @@ function readVisibility(v: unknown): Visibility {
   return v as Visibility;
 }
 
+/** Publishing a team's item is up to the team's admins (its creator alone cannot). */
+async function requirePublisher(u: UserRecord, teamId: string | null | undefined) {
+  if (!teamId) return;
+  const team = await getTeam(teamId);
+  if (!team || !isTeamAdmin(team, u.userId)) throw new HTTPException(403, { message: "チームのものの公開はチーム管理者が行います" });
+}
+
 publicApi.put("/projects/:id/visibility", async (c) => {
   const u = c.get("user");
-  const p = await loadOwnProject(u, c.req.param("id"));
+  const p = await loadProject(u, c.req.param("id"), "manage");
+  await requirePublisher(u, p.teamId);
   const visibility = readVisibility(((await c.req.json()) as { visibility?: unknown }).visibility);
   const now = nowIso();
   if (visibility === "public") {
     if (!isPublishableProjectId(p.projectId)) throw bad("旧形式の ID のプロジェクトは公開できません");
     if (!p.hasArtifacts) throw bad("成果物ができてから公開できます");
     const publishedAt = p.visibility === "public" && p.publishedAt ? p.publishedAt : now;
-    await updateProject(u.userId, p.projectId, { visibility, publishedAt });
-    const row: CatalogItem = { kind: "project", id: p.projectId, ownerUserId: u.userId, name: projectDisplayName(p), publishedAt, updatedAt: now };
+    await updateProject(p.userId, p.projectId, { visibility, publishedAt });
+    const row: CatalogItem = { kind: "project", id: p.projectId, ownerUserId: p.userId, name: projectDisplayName(p), publishedAt, updatedAt: now };
     await putCatalogItem(row);
     return c.json({ visibility, publishedAt, cloneCount: await getCloneCount(p.projectId) });
   }
-  await updateProject(u.userId, p.projectId, { visibility, publishedAt: null });
+  await updateProject(p.userId, p.projectId, { visibility, publishedAt: null });
   await deleteCatalogItem("project", p.projectId);
   return c.json({ visibility, publishedAt: null, cloneCount: await getCloneCount(p.projectId) });
 });
@@ -135,6 +147,7 @@ publicApi.put("/projects/:id/visibility", async (c) => {
 publicApi.put("/canons/:id/visibility", async (c) => {
   const u = c.get("user");
   const canon = await loadCanon(u, c.req.param("id"), { write: true });
+  await requirePublisher(u, canon.teamId);
   const body = (await c.req.json()) as { visibility?: unknown; acceptPullRequests?: unknown };
   const visibility = body.visibility === undefined ? canon.visibility : readVisibility(body.visibility);
   if (body.acceptPullRequests !== undefined && typeof body.acceptPullRequests !== "boolean") throw bad("acceptPullRequests は true か false です");
@@ -142,7 +155,7 @@ publicApi.put("/canons/:id/visibility", async (c) => {
   const now = nowIso();
   const publishedAt = visibility === "public" ? (canon.visibility === "public" && canon.publishedAt ? canon.publishedAt : now) : null;
   await updateCanon(canon.canonId, { visibility, acceptPullRequests, publishedAt });
-  if (visibility === "public") await putCatalogItem({ kind: "canon", id: canon.canonId, ownerUserId: u.userId, name: canon.name, publishedAt: publishedAt!, updatedAt: now });
+  if (visibility === "public") await putCatalogItem({ kind: "canon", id: canon.canonId, ownerUserId: canon.ownerUserId, name: canon.name, publishedAt: publishedAt!, updatedAt: now });
   else await deleteCatalogItem("canon", canon.canonId);
   return c.json({ ...canon, visibility, acceptPullRequests, publishedAt, updatedAt: now });
 });
@@ -195,7 +208,19 @@ const CONTENT_TYPES: Record<string, string> = { json: "application/json", jsonl:
 publicApi.post("/public/projects/:id/clone", async (c) => {
   const u = c.get("user");
   const src = await loadPublicProject(c.req.param("id"));
-  const { policy } = await modelPolicy(u);
+  const r = await copyProject(u, src, null);
+  await incrementCloneCount(src.projectId);
+  const res: CloneProjectResponse = r;
+  return c.json(res, 201);
+});
+
+/**
+ * Copies a project's data into a new project of `u` (a public project's clone, or a copy between the personal
+ * workspace and a team's): the files are copied under `u`'s prefix with the Project ID rewritten; the copy is
+ * completed and remembers where it came from. `teamId`: the copy's workspace (null: personal).
+ */
+export async function copyProject(u: UserRecord, src: ProjectRecord, teamId: string | null): Promise<{ projectId: string; copied: number }> {
+  const { policy } = await modelPolicy(u, teamId ? await getTeam(teamId) : null);
   const projectId = await reserveNewId("project", u.userId);
   let copied = 0;
   for (const a of await listArtifacts(src.userId, src.projectId)) {
@@ -217,6 +242,7 @@ publicApi.post("/public/projects/:id/clone", async (c) => {
   const project: ProjectRecord = {
     userId: u.userId,
     projectId,
+    ...(teamId ? { teamId } : {}),
     name: cloneName(projectDisplayName(src)),
     nameSource: "user",
     revision: 0,
@@ -250,10 +276,8 @@ publicApi.post("/public/projects/:id/clone", async (c) => {
     clonedFrom: { projectId: src.projectId, revision: src.revision ?? 0, ownerUserKey: await ownerKeyOf(src.projectId, src.userId), name: projectDisplayName(src), clonedAt: now },
   };
   await putProject(project, true);
-  await incrementCloneCount(src.projectId);
-  const res: CloneProjectResponse = { projectId, copied };
-  return c.json(res, 201);
-});
+  return { projectId, copied };
+}
 
 publicApi.get("/public/canons", async (c) => {
   const out: PublicCanonSummary[] = [];
@@ -270,7 +294,7 @@ publicApi.get("/public/canons/:id", async (c) => {
   const canon = await loadPublicCanon(c.req.param("id"));
   const publicMembers: PublicCanonDetail["publicMembers"] = [];
   for (const m of await listCanonMembers(canon.canonId)) {
-    const p = await getProject(canon.ownerUserId, m.projectId);
+    const p = await getProject(m.projectOwnerId ?? canon.ownerUserId, m.projectId);
     if (isPublicProject(p) && p.canonId === canon.canonId) publicMembers.push({ projectId: p.projectId, name: projectDisplayName(p), roi: p.roi, tlf: p.tlf });
   }
   const res: PublicCanonDetail = { ...(await publicCanonSummary(canon)), description: canon.description, publicMembers };

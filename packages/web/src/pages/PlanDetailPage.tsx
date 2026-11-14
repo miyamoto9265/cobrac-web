@@ -818,9 +818,15 @@ export function PlanDetailPage() {
     </div>
   );
 
+  const access = d.access ?? "owner";
   const header = (
     <>
       <Trail className="mb-2" steps={trailSteps("mission", { canon: d.canon && !d.canon.missing ? d.canon : plan.canonNew ? { name: plan.canonNew.name } : null })} />
+      {access !== "owner" && (
+        <div className={`mb-2 rounded-md px-3 py-1.5 text-xs ${access === "admin" ? "bg-sky-50 text-sky-800" : "bg-slate-100 text-slate-700"}`} data-testid="plan-access">
+          {t(access === "admin" ? "team.missionAdmin" : "team.missionReadOnly", { name: d.ownerName || "—" })}
+        </div>
+      )}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {renaming === null ? (
           <h1 className="flex min-w-0 items-center gap-2 break-words text-xl font-semibold">

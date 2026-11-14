@@ -7,7 +7,9 @@ import type {
   CreatePlanRequest,
   DraftPlanRequest,
   ListPlansResponse,
+  PlanRecord,
   UpdatePlanRequest,
+  UserRecord,
 } from "@cobrac/shared";
 import { countRows, nowIso } from "@cobrac/shared";
 import { listOwnPlans, updatePlan } from "../lib/plans.js";
@@ -21,6 +23,7 @@ import {
   deletePlan,
   importRows,
   loadOwnPlan,
+  planActor,
   orderPlan,
   pausePlan,
   planDetail,
@@ -38,7 +41,10 @@ import {
 } from "../lib/planOps.js";
 import { readLocale } from "../lib/runs.js";
 import { archiveBody } from "./projects.js";
-import { inSpace, listSpace } from "../lib/teams.js";
+import { inSpace, listSpace, queryTeamIndex, teamItemAccess } from "../lib/teams.js";
+import { actorName } from "../lib/canonReview.js";
+import { getUser } from "../lib/db.js";
+import { env } from "../env.js";
 import type { ApiEnv } from "./env.js";
 
 export const plansApi = new Hono<ApiEnv>();
@@ -54,13 +60,22 @@ plansApi.get("/plans", async (c) => {
   const u = c.get("user");
   // ?team=<teamId>: that team's workspace; absent: the personal one
   const space = await listSpace(u, c.req.query("team"));
-  const plans = (await listOwnPlans(u.userId)).filter((p) => !p.deletedAt && inSpace(p, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  // a team's workspace lists every member's missions in it
+  const all = space ? await queryTeamIndex<PlanRecord>(env.tables.plans, space) : await listOwnPlans(u.userId);
+  const plans = all.filter((p) => !p.deletedAt && inSpace(p, space)).sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  const owners = new Map<string, UserRecord | null>([[u.userId, u]]);
+  const ownerOf = async (id: string) => {
+    if (!owners.has(id)) owners.set(id, await getUser(id));
+    return owners.get(id) ?? null;
+  };
   // running and paused plans carry what they do now (the list is a live view of them); the rest only their counts
   let live = 0;
   const items = await Promise.all(
     plans.map(async (p) => {
       if ((p.status !== "RUNNING" && p.status !== "PAUSED") || ++live > LIST_PULSE_PLANS) return { ...p, rowCounts: p.rowCounts ?? countRows([]) };
-      const d = await planDetail(u, p);
+      const owner = await ownerOf(p.ownerUserId);
+      if (!owner) return { ...p, rowCounts: p.rowCounts ?? countRows([]) };
+      const d = await planDetail(owner, p);
       return { ...p, rowCounts: d.plan.rowCounts ?? countRows([]), rowCount: d.plan.rowCount, pulse: planPulse(d) };
     }),
   );
@@ -75,19 +90,22 @@ plansApi.post("/plans", async (c) => {
 });
 
 plansApi.get("/plans/:id", async (c) => {
-  const u = c.get("user");
-  return c.json(await planDetail(u, await loadOwnPlan(u, c.req.param("id"))));
+  const viewer = c.get("user");
+  const u = await planActor(viewer, c.req.param("id"), "read");
+  const plan = await loadOwnPlan(u, c.req.param("id"));
+  const access = (await teamItemAccess(viewer, plan.ownerUserId, plan.teamId)) ?? "owner";
+  return c.json({ ...(await planDetail(u, plan)), access, ownerName: access === "owner" ? null : actorName(u) });
 });
 
 plansApi.put("/plans/:id", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   return c.json(await updatePlanFields(u, plan, (await c.req.json().catch(() => ({}))) as UpdatePlanRequest));
 });
 
 /** Archive / restore (owner only): hides the plan and its projects from the sidebar history; the plan runs on. */
 plansApi.put("/plans/:id/archive", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const archivedAt = (await archiveBody(c)) ? (plan.archivedAt ?? nowIso()) : null;
   if (!(await updatePlan(plan.planId, { archivedAt }))) throw new HTTPException(409, { message: "ミッションの状態が変わりました。再読み込みしてください" });
@@ -95,13 +113,13 @@ plansApi.put("/plans/:id/archive", async (c) => {
 });
 
 plansApi.delete("/plans/:id", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "owner");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   return c.json({ planId: plan.planId, deletedAt: await deletePlan(u, plan) });
 });
 
 plansApi.put("/plans/:id/rows", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as { rows?: unknown };
   return c.json({ rows: await replaceRows(u, plan, body.rows) });
@@ -109,27 +127,27 @@ plansApi.put("/plans/:id/rows", async (c) => {
 
 /** Draft only: capability lists uploaded with POST /uploads are added to the plan (CSV / TSV / text become rows at once). */
 plansApi.post("/plans/:id/attachments", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   return c.json(await addPlanAttachments(u, plan, await c.req.json().catch(() => ({}))));
 });
 
 /** Draft only: a capability list is removed from the plan (rows read from it stay). */
 plansApi.delete("/plans/:id/attachments/:fileId", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   return c.json(await removePlanAttachment(u, plan, c.req.param("fileId")));
 });
 
 plansApi.post("/plans/:id/rows/import", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as { csv?: unknown };
   return c.json(await importRows(u, plan, body.csv));
 });
 
 plansApi.post("/plans/:id/confirm", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as { locale?: unknown };
   return c.json(await confirmPlan(u, plan, readLocale(body.locale)));
@@ -137,7 +155,7 @@ plansApi.post("/plans/:id/confirm", async (c) => {
 
 /** Asks the `plan` job for a draft (queued by the runner when a slot is free). */
 plansApi.post("/plans/:id/draft", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as DraftPlanRequest;
   return c.json(await requestDraft(u, plan, readLocale(body.locale)), 202);
@@ -145,19 +163,19 @@ plansApi.post("/plans/:id/draft", async (c) => {
 
 /** The owner's answers to the Orchestrator's questions before the draft (or `skip`); the draft job is asked for again. */
 plansApi.post("/plans/:id/draft/answers", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   const body = (await c.req.json().catch(() => ({}))) as AnswerDraftRequest;
   return c.json(await answerDraft(u, await loadOwnPlan(u, c.req.param("id")), body && typeof body === "object" ? body : {}), 202);
 });
 
 plansApi.post("/plans/:id/draft/cancel", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   return c.json(await cancelDraft(u, await loadOwnPlan(u, c.req.param("id"))));
 });
 
 /** 「自動で並べる」: waves and seed rows from the rows' anchors and dependencies (no job). */
 plansApi.post("/plans/:id/order", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   return c.json(await orderPlan(u, await loadOwnPlan(u, c.req.param("id"))));
 });
 
@@ -166,7 +184,7 @@ for (const [action, run] of [
   ["reject", rejectProposal],
 ] as const) {
   plansApi.post(`/plans/:id/proposals/:proposalId/${action}`, async (c) => {
-    const u = c.get("user");
+    const u = await planActor(c.get("user"), c.req.param("id"), "run");
     return c.json(await run(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("proposalId")));
   });
 }
@@ -176,7 +194,7 @@ for (const [action, run] of [
   ["cancel", cancelPlan],
 ] as const) {
   plansApi.post(`/plans/:id/${action}`, async (c) => {
-    const u = c.get("user");
+    const u = await planActor(c.get("user"), c.req.param("id"), "manage");
     await run(u, await loadOwnPlan(u, c.req.param("id")));
     return c.json({ ok: true });
   });
@@ -184,27 +202,27 @@ for (const [action, run] of [
 
 /** Resumes a paused or cancelled plan; an autonomous plan paused at its cost limit sends a higher `maxCostUsd`. */
 plansApi.post("/plans/:id/resume", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   const body = (await c.req.json().catch(() => ({}))) as ResumePlanRequest;
   await resumePlan(u, await loadOwnPlan(u, c.req.param("id")), body && typeof body === "object" ? body : {});
   return c.json({ ok: true });
 });
 
 plansApi.post("/plans/:id/rows/:rowId/retry", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   await retryRow(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("rowId"));
   return c.json({ ok: true });
 });
 
 plansApi.post("/plans/:id/rows/:rowId/skip", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
   await skipRow(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("rowId"));
   return c.json({ ok: true });
 });
 
 /** 「人の判断」: the owner counts the row as done, or has its project pushed again. */
 plansApi.post("/plans/:id/rows/:rowId/resolve", async (c) => {
-  const u = c.get("user");
+  const u = await planActor(c.get("user"), c.req.param("id"), "run");
   const plan = await loadOwnPlan(u, c.req.param("id"));
   const body = (await c.req.json().catch(() => ({}))) as { action?: unknown };
   await resolveRow(u, plan, c.req.param("rowId"), body.action);

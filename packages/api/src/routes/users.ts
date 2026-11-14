@@ -92,7 +92,13 @@ usersApi.get("/users/me/models", async (c) => {
   const teamId = c.req.query("team");
   const team = teamId ? await requireTeamMember(u, teamId) : null;
   const { policy, defaultKey } = await modelPolicy(u, team);
-  const keyModels = policy.source === "team" ? (team?.keys?.openai?.models ?? []) : policy.source === "org" ? (defaultKey?.availableModels ?? []) : (u.availableModels ?? []);
+  const teamOpenAi = team?.keys?.openai;
+  const keyModels =
+    policy.source === "team"
+      ? (teamOpenAi?.useDefault ? (defaultKey?.availableModels ?? []) : (teamOpenAi?.models ?? [])).filter((m) => !policy.teamModels?.length || policy.teamModels.includes(m))
+      : policy.source === "org"
+        ? (defaultKey?.availableModels ?? [])
+        : (u.availableModels ?? []);
   // a user with an Anthropic / DeepSeek key and no OpenAI key chooses among those models only
   const noOpenAi = messagesOnly(policy);
   const openAiModels = noOpenAi ? [] : filterCodexModels(keyModels);

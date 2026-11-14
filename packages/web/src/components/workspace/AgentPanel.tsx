@@ -32,6 +32,7 @@ export function AgentPanel({
   busy,
   err,
   act,
+  readOnly = false,
 }: {
   projectId: string;
   project: ProjectRecord;
@@ -39,6 +40,8 @@ export function AgentPanel({
   busy: boolean;
   err: string | null;
   act: (fn: () => Promise<unknown>) => Promise<void>;
+  /** A teammate's project seen by a team member: the log only, no composer */
+  readOnly?: boolean;
 }) {
   const { t, locale } = useI18n();
   const mode = composerMode(project);
@@ -141,7 +144,7 @@ export function AgentPanel({
 
       <footer className="shrink-0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1">
         {err && <div className="mb-2 rounded-md bg-rose-50 px-3 py-1.5 text-xs text-rose-700">{err}</div>}
-        <form
+        {!readOnly && <form
           data-testid="agent-composer"
           data-mode={mode}
           onSubmit={(e) => {
@@ -202,7 +205,7 @@ export function AgentPanel({
               )}
             </div>
           </div>
-        </form>
+        </form>}
       </footer>
     </div>
   );

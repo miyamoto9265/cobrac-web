@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { DefaultApiKeyRecord, TeamRecord, UserRecord } from "@cobrac/shared";
-import { planRunKey, usesTeamKey } from "../src/runKey.js";
+import { needsDefaultKey, planRunKey, usesTeamKey } from "../src/runKey.js";
 
 const now = "2026-09-01T00:00:00.000Z";
 const user = (extra: Partial<UserRecord> = {}): UserRecord => ({
@@ -85,5 +85,35 @@ describe("planRunKey in a team's workspace", () => {
     expect(planRunKey(own, null, "gpt-6-sol", team({ openai: teamKey }, []))).toMatchObject({ source: "own" });
     expect(usesTeamKey(own, team({ openai: teamKey }, []), "gpt-6-sol")).toBe(false);
     expect(planRunKey(user(), null, "gpt-6-sol", team({}))).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("runs on the team's key only while its budget is active, and fails a team-key job once it is not", () => {
+    const own = user({ apiKeyRegistered: true, encryptedApiKey: "own-cipher" });
+    const ended = { ...team({ openai: teamKey }), budget: { startsAt: null, endsAt: "2020-01-01T00:00:00.000Z" } };
+    const stopped = { ...team({ openai: teamKey }), budget: { startsAt: null, endsAt: null, stoppedAt: now } };
+    const later = { ...team({ openai: teamKey }), budget: { startsAt: "2999-01-01T00:00:00.000Z", endsAt: null } };
+    for (const t of [ended, stopped, later]) {
+      expect(usesTeamKey(own, t, "gpt-6-sol")).toBe(false);
+      // a new job (queued on the user's own key) runs on it
+      expect(planRunKey(own, null, "gpt-6-sol", t)).toMatchObject({ source: "own" });
+      // a job queued on the team's key is not moved silently onto the user's own key
+      expect(planRunKey(own, null, "gpt-6-sol", t, true)).toMatchObject({ meta: { i18n: "sys.teamBudgetEnded" } });
+    }
+  });
+
+  it("runs only the models the team allows on its key", () => {
+    const own = user({ apiKeyRegistered: true, encryptedApiKey: "own-cipher" });
+    const t = { ...team({ openai: teamKey }), allowedModels: ["gpt-6-sol"] };
+    expect(planRunKey(own, null, "gpt-6-sol", t)).toMatchObject({ source: "team" });
+    expect(planRunKey(own, null, "gpt-6-astra", t)).toMatchObject({ source: "own" });
+  });
+
+  it("decrypts the default key under its own context when a site admin assigned it as the team's budget", () => {
+    const t = team({ openai: { useDefault: true, last4: "abcd", updatedAt: now, updatedBy: "sub-admin" } });
+    const member = user({ apiKeyRegistered: true, encryptedApiKey: "own-cipher" });
+    expect(needsDefaultKey(member, t, "gpt-6-sol")).toBe(true);
+    expect(planRunKey(member, defaultKey, "gpt-6-sol", t)).toEqual({ source: "team", encryptedApiKey: "default-cipher", context: { purpose: "openai-api-key", scope: "default" } });
+    expect(planRunKey(member, null, "gpt-6-sol", t)).toMatchObject({ error: expect.any(String) });
+    expect(needsDefaultKey(member, null, "gpt-6-sol")).toBe(false);
   });
 });

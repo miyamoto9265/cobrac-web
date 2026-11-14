@@ -70,6 +70,7 @@ import {
   closePullRequest,
   getCanon,
   listCanonMembers,
+  memberProjectOwner,
   listPullRequests,
   nextPrNumber,
   putCanon,
@@ -223,7 +224,7 @@ export async function prProvenance(canon: CanonRecord, pr: CanonPullRequestRecor
   let current: number | null = null;
   let available = false;
   if (kind === "project") {
-    const p = await getProject(canon.ownerUserId, id);
+    const p = await getProject(await memberProjectOwner(canon, id), id);
     available = !!p && !isProjectDeleted(p) && p.canonId === canon.canonId;
     current = p ? (p.revision ?? null) : null;
   } else {
@@ -379,8 +380,9 @@ export async function approvePullRequest(
   // the pushing project follows the revision that contains its own content (Q9)
   if (pr.source.startsWith("project:")) {
     const pid = pr.source.slice("project:".length);
-    const p = await getProject(canon.ownerUserId, pid);
-    if (p && p.canonId === canon.canonId && !isProjectDeleted(p)) await updateProject(canon.ownerUserId, pid, { canonRevision: next.revision });
+    const owner = await memberProjectOwner(canon, pid);
+    const p = await getProject(owner, pid);
+    if (p && p.canonId === canon.canonId && !isProjectDeleted(p)) await updateProject(owner, pid, { canonRevision: next.revision });
   }
   return { ok: true, revision: next.revision };
 }
@@ -464,9 +466,13 @@ export async function alignAffectedProjects(u: UserRecord, canon: CanonRecord, l
   const pins = new Map<number, CanonSnapshot>([[head.revision, head]]);
   const res: AlignResult = { queued: [], skipped: [] };
   for (const m of await listCanonMembers(canon.canonId)) {
-    const p = await getProject(canon.ownerUserId, m.projectId);
+    const p = await getProject(m.projectOwnerId ?? canon.ownerUserId, m.projectId);
     if (!p || isProjectDeleted(p) || p.canonId !== canon.canonId) continue;
     const pinned = Math.min(p.canonRevision ?? 0, head.revision);
+    if (p.userId !== u.userId) {
+      res.skipped.push({ projectId: p.projectId, reason: "other-owner" });
+      continue;
+    }
     if (!pins.has(pinned)) pins.set(pinned, await loadCanonRevision(canon, pinned));
     const status = canonFollowStatus(pins.get(pinned)!, head, p.projectId);
     if (status.state !== "affected") continue;
