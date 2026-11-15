@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 1278" width="430" height="1278" role="img" aria-labelledby="t d" lang="ja" font-family="'Noto Sans JP','Hiragino Sans','Hiragino Kaku Gothic ProN','Yu Gothic UI','Yu Gothic',Meiryo,'Noto Sans CJK JP',system-ui,-apple-system,'Segoe UI',sans-serif">
 <title id="t">CoBRAC ハーネス v2：登場する主体と受け渡し</title>
-<desc id="d">紫は LLM、青はプログラム、緑はファイル、白は人・外部サービス・保存先を表す。利用者の入力を API（Lambda）がジョブとして記録し、dispatcher（Lambda）がジョブごとに Fargate コンテナでワーカーを起動する。ワーカーは LLM を含まないプログラムで、CoBRAC エージェント（Codex が動かす OpenAI のモデル）に依頼文を送り、ターン終了の JSON を受け取る。作業の中身は作業場所のファイルで受け渡す。エージェントはデータ JSON と説明の md を書き、ワーカーはそれを検査して検査結果、CSV、xlsx、グラフを書く。推論はコンテナの外の OpenAI API で行われる。エージェントは lit で文献データベースを、RCS で SABRA の候補を調べる。成果物と会話は S3 に保存し、進捗は DynamoDB と WebSocket で画面に送る。質問するかどうかはエージェントが決め、保存・停止・再開はワーカーが行う。</desc>
+<desc id="d">紫は LLM、青はプログラム、緑はファイル、白は人・外部サービス・保存先を表す。利用者の入力を API（Lambda）がジョブとして記録し、dispatcher（Lambda）がジョブごとに Fargate コンテナでワーカーを起動する。ワーカーは LLM を含まないプログラムで、CoBRAC エージェント（Codex か Claude Agent SDK が動かす OpenAI・Anthropic・DeepSeek のモデル。既定は Claude）に依頼文を送り、ターン終了の JSON を受け取る。作業の中身は作業場所のファイルで受け渡す。エージェントはデータ JSON と説明の md を書き、ワーカーはそれを検査して検査結果、CSV、xlsx、グラフを書く。推論はコンテナの外のモデルの提供元の API で行われる。エージェントは lit で文献データベースを、RCS で SABRA の候補を調べる。成果物と会話は S3 に保存し、進捗は DynamoDB と WebSocket で画面に送る。質問するかどうかはエージェントが決め、保存・停止・再開はワーカーが行う。</desc>
 <defs><marker id="arrow-64748b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#64748b"/></marker><marker id="arrow-3b82f6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#3b82f6"/></marker><marker id="arrow-8b5cf6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#8b5cf6"/></marker><marker id="arrow-10b981" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#10b981"/></marker><marker id="arrow-f59e0b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f59e0b"/></marker><marker id="arrow-ef4444" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ef4444"/></marker></defs>
 <rect width="430" height="1278" fill="#ffffff"/>
 <rect x="10" y="10" width="410" height="30" rx="8" fill="#1e3a8a"/><text x="215" y="30" font-size="13.5" font-weight="700" fill="#ffffff" text-anchor="middle"><tspan>CoBRAC ハーネス v2：登場する主体と受け渡し</tspan></text>
@@ -40,7 +40,7 @@
 <text x="260" y="534" font-size="10.5" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>終了 JSON</tspan></text>
 <rect x="26" y="548" width="378" height="118" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
 <text x="38" y="576.75" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>CoBRAC エージェント（LLM）</tspan></text>
-<text x="38" y="595.1500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Codex が OpenAI のモデルを動かす</tspan></text>
+<text x="38" y="595.1500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>Claude などのモデルが動く</tspan></text>
 <text x="38" y="612.5500000000001" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>文献を読み、回路と機能を判断</tspan></text>
 <text x="38" y="629.95" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>作業場所のファイルを書き換える</tspan></text>
 <text x="38" y="647.35" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>1 プロジェクトで 1 つの会話</tspan></text>
@@ -56,7 +56,7 @@
 <path d="M26 451 L18 451 L18 806 L26 806" fill="none" stroke="#3b82f6" stroke-width="1.6" marker-end="url(#arrow-3b82f6)"/>
 <path d="M404 607 L412 607 L412 806 L404 806" fill="none" stroke="#8b5cf6" stroke-width="1.6" marker-end="url(#arrow-8b5cf6)"/>
 <rect x="10" y="892" width="410" height="56" rx="8" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
-<text x="22" y="915.8499999999999" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>OpenAI API（コンテナの外）</tspan></text>
+<text x="22" y="915.8499999999999" font-size="13" font-weight="700" fill="#4c1d95" text-anchor="start"><tspan>提供元の API（コンテナの外）</tspan></text>
 <text x="22" y="934.25" font-size="12" font-weight="400" fill="#0f172a" text-anchor="start"><tspan>エージェントのモデルが推論する場所</tspan></text>
 <rect x="10" y="962" width="200" height="56" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
 <text x="22" y="985.8499999999999" font-size="13" font-weight="700" fill="#0f172a" text-anchor="start"><tspan>RCS（外部）</tspan></text>

@@ -120,7 +120,7 @@
     <tr><td>UC とその中のより細かい UC が両方 UC（両側と片側を含む）</td><td>127</td><td><code>cobrac:nested-uc</code>（Master の 127 は「Uniform の未記載」）</td></tr>
     <tr><td>送り手が Uniform でない</td><td>205（Master にない）</td><td><b>203</b></td></tr>
     <tr><td>Collection の Sub-Circuits が未記載</td><td>128（Master では別の意味）</td><td><b>120</b></td></tr>
-    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>128 に含めていた</td><td><b>121</b></td></tr>
+    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>—</td><td><b>121</b></td></tr>
     <tr><td>UC に Sub-Circuits がある</td><td>129（Master にない）</td><td><code>cobrac:uc-no-sub-circuits</code></td></tr>
     <tr><td>Collection の Source of ID が <code>collection</code> でない</td><td>108</td><td><code>cobrac:collection-source</code></td></tr>
     <tr><td>Collection が接続の受け手</td><td>—</td><td><code>cobrac:collection-end</code></td></tr>
@@ -200,7 +200,7 @@
     <tr><td>Projects</td><td><code>sabraBoundary</code></td><td>v0.24.0</td><td>以前の境界で検査する（C.2）</td></tr>
     <tr><td>Projects</td><td><code>harnessRules</code></td><td>v0.25.0</td><td>0 として扱い、ROI 規則も GN 規則も付けない（C.3）</td></tr>
     <tr><td>Projects</td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code></td><td>v0.32.0</td><td><code>evidenceMode</code> がなければ <code>strict</code> と同じで、文献の裏付けだけを使う。上限がなければ 20%（<code>DEFAULT_HYPOTHESIS_MAX_SHARE</code>）</td></tr>
-    <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
+    <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
     <tr><td>Messages</td><td><code>userId</code></td><td>v0.7</td><td>そのジョブの所有者で絞り込む。WebSocket の配信も同じく判断する</td></tr>
     <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>プロジェクトのモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
   </tbody>

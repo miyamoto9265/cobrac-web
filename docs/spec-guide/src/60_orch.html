@@ -18,7 +18,7 @@
   <li>どのプロジェクトを Canon に取り込んだか</li>
 </ul>
 <p>オーケストレーターは、これらをミッションにまとめて自動で進めます。BRA そのものの作り方（調査・HCD・FRG）は通常のプロジェクトと同じで（第 3 部）、オーケストレーターは<b>その外側の進行管理</b>だけを行います。</p>
-<p>新しいミッションは<b>自律実行</b>で始まります。自律実行では、確定、エージェントの質問への回答、PR の承認、要対応・要判断のプロジェクトの扱い、再計画の提案の承認を、オーケストレーターが所有者の代わりに行います。止まるのは、費用の上限に達したときだけです（6.8）。新しいミッションのフォームで「PR の承認や衝突にご自身で対応する」をオンにすると<b>人が対応するミッション</b>になり、これらの判断を所有者が行います（6.9）。どちらの進め方でも、Canon に取り込むときの検査は人が承認するときと同じで、エラーの衝突のある PR は取り込まれません（5.2）。</p>
+<p>新しいミッションは<b>自律実行</b>で始まります。自律実行では、確定、エージェントの質問への回答、PR の承認、要対応・要判断のプロジェクトの扱い、再計画の提案の承認を、オーケストレーターが所有者の代わりに行います。所有者を待つのは、下書きの前の質問（6.4）、自動の確定に失敗したとき、ミッションが一時停止したときです。一時停止するのは、費用の上限に達したとき、Canon が見つからないとき、アカウント・キー・モデル・チームの制限でジョブを始められないとき、チームの予算が終わったときです（6.8・6.12）。新しいミッションのフォームで「PR の承認や衝突にご自身で対応する」をオンにすると<b>人が対応するミッション</b>になり、これらの判断を所有者が行います（6.9）。どちらの進め方でも、Canon に取り込むときの検査は人が承認するときと同じで、エラーの衝突のある PR は取り込まれません（5.2）。</p>
 
 <h3>だれが何をするか</h3>
 <table class="compact">
@@ -27,7 +27,7 @@
     <tr><td>所有者</td><td>人</td><td>ミッションを作り、名前・目標・資料・費用の上限を渡す。一時停止・再開・中止と、費用の上限の引き上げを決める。人が対応するミッションでは、下書きを整えて<b>確定し</b>、提案の承認・却下、質問への回答、要対応・要判断のプロジェクトの扱いも決める</td></tr>
     <tr><td>Canon の所有者・共同編集者</td><td>人</td><td>人が対応するミッションでは、ミッションのプロジェクトが push した PR を審査して承認する（第 5 部）。プロジェクトが完了するのはこの承認のとき。自律実行のミッションの PR も、判断のジョブより先に人が決めればそれに従う</td></tr>
     <tr><td>計画用のジョブ（下書き・再計画）</td><td>LLM のジョブ</td><td>目標・資料・プロジェクトを読み、RCS でアンカーを検索して、方針・プロジェクト・アンカー・依存・優先度・提案を <b>JSON のデータとして返すだけ</b>。順序は決めず、何も実行しない</td></tr>
-    <tr><td>プロジェクトのジョブ（回答・解決）</td><td>LLM のジョブ</td><td>自律実行のミッションだけ。プロジェクトのエージェントの質問に答え、要対応・要判断のプロジェクトの扱いを選ぶ。ツールを使わず、JSON で答えを返すだけ（6.8）</td></tr>
+    <tr><td>プロジェクトのジョブ（回答・解決）</td><td>LLM のジョブ</td><td>自律実行のミッションだけ。プロジェクトのエージェントの質問に答え、要対応・要判断のプロジェクトの扱いを選ぶ。RCS・Web 検索・文献ツールは付けず、指示書で入力だけを使うよう求めて、JSON で答えを返させる（6.8）</td></tr>
     <tr><td>判断のジョブ</td><td>LLM のジョブ</td><td>自律実行のミッションだけ。ミッションのすべての PR（基準プロジェクトを含む）について、所見とともに承認・変更の依頼・却下を返す（6.8）</td></tr>
     <tr><td>プロジェクトの PR の AI レビュー</td><td>LLM のジョブ</td><td>人が対応するミッションで、本体のプロジェクトの PR に所見を付ける。承認・却下はしない（5.8）</td></tr>
     <tr><td>各プロジェクトの CoBRAC エージェント</td><td>LLM</td><td>プロジェクトの BRA を作る。中身は通常のプロジェクトと同じ（第 3 部）</td></tr>
@@ -44,7 +44,7 @@
 <p class="src">典拠：<code>packages/shared/src/plan.ts</code>・<code>planOrder.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>・<code>planOps.ts</code>、<code>packages/web/src/pages/PlansPage.tsx</code></p>
 
 <h2 id="s6-2">6.2 全体の流れ</h2>
-<p>ミッションは図 6.1 の順に進みます。自律実行のミッションで所有者が操作するのは ① だけで、③ を飛ばし、④ の確定はランナーが行います。</p>
+<p>ミッションは図 6.1 の順に進みます。自律実行のミッションで所有者が操作するのはふつう ① だけで、③ を飛ばし、④ の確定はランナーが行います（例外は 6.1）。</p>
 <figure>
 <svg viewBox="0 0 680 196" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
   <defs><marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#be123c"/></marker>
@@ -75,7 +75,7 @@
   <path d="M335 114V136H195V116" stroke="#64748b" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a7g)"/>
   <text x="265" y="150" font-size="8.4" text-anchor="middle" fill="#64748b">何度でも下書きを依頼できる（そのたびにジョブ）</text>
   <path d="M640 114V174H580V116" stroke="#64748b" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a7g)"/>
-  <text x="570" y="170" font-size="8.4" fill="#64748b" text-anchor="end">バッチが終わるたび：アンカーを実物で更新 → 並べ直し → 再計画のジョブ → 提案</text>
+  <text x="570" y="170" font-size="8.4" fill="#64748b" text-anchor="end">プロジェクトが完了するたび：アンカーを実物で更新 → 1 割ごとに再計画のジョブ → 提案</text>
   <text x="570" y="184" font-size="8.4" fill="#64748b" text-anchor="end">Canon あり：完成したプロジェクトを push → 人が PR を承認して完了</text>
 </svg>
 <figcaption><b>図 6.1</b>　ミッションの流れ。確定するまでプロジェクトは作られず、確定前に動くジョブは下書きのジョブだけ。自律実行のミッションでは ③ を飛ばし、④ をランナーが行い、PR の承認も判断のジョブが行う。図の英字はミッションの状態（6.12）</figcaption>
@@ -93,7 +93,7 @@
 </table>
 
 <h2 id="s6-3">6.3 ミッションを作る</h2>
-<p>サイドバーの上の「＋ ミッション」（またはミッションの一覧や Canon の画面の「新しいミッション」）を押すと、メイン画面が新しいミッションの作成画面（<code>/plans/new</code>）になります。新規プロジェクトの画面と同じく、ほかの一覧の上に重ねて開くことはしません。見た目も新規プロジェクトの画面（4.2）とそろえています。中央に見出し「新しいミッション」があり、その下に角の丸い入力のカードが 1 枚あります。カードの中は、左に小さなラベルを付けた「名前」と「目標」の欄が点線で区切られて並び、下の端にツールバーがあります。ツールバーは、左から「＋」（資料）、「自律実行」のチップ、右端の青い丸いボタンの順です。カードの下には、入力が足りないときの案内と「使い方」・(?) が出ます。</p>
+<p>サイドバーの上の「＋ ミッション」（またはミッションの一覧や Canon の画面の「新しいミッション」）を押すと、メイン画面が新しいミッションの作成画面（<code>/plans/new</code>）になります。新規プロジェクトの画面と同じく、ほかの一覧の上に重ねて開くことはしません。見た目も新規プロジェクトの画面（4.2）とそろえています。中央に見出し「新しいミッション」があり、その下に角の丸い入力のカードが 1 枚あります。カードの中は、左に小さなラベルを付けた「名前」と「目標」の欄が点線で区切られて並び、下の端にツールバーがあります。ツールバーは、左から「＋」（資料）、「Canon」のチップ、「自律実行」のチップ、右端の青い丸いボタンの順です。カードの下には、入力が足りないときの案内と「使い方」・(?) が出ます。</p>
 
 <h3>自律実行で始める</h3>
 <ol class="steps">
@@ -151,7 +151,7 @@
 <p class="src">典拠：<code>packages/web/src/pages/PlansPage.tsx</code>（<code>NewPlanForm</code>）、<code>packages/web/src/i18n/autonomous.ts</code>・<code>ja.ts</code>、<code>packages/api/src/lib/planOps.ts</code>（<code>createPlan</code>）、<code>packages/shared/src/plan.ts</code>（<code>parsePlanRowsCsv</code>・<code>PLAN_LIMITS</code>）・<code>planJob.ts</code>（<code>PLAN_ATTACHMENT_EXTS</code>）</p>
 
 <h2 id="s6-4">6.4 下書き</h2>
-<p>下書きを依頼すると、計画用のジョブ（1 回の Codex のタスク）が目標・資料・現在のプロジェクトを読み、方針・プロジェクト・アンカー・依存関係・優先度を書きます。<b>モデルはデータを出すだけで、実行順序はプログラムが計算します</b>（6.5）。これにより順序が再現でき、バッチごとに安く計算し直せます。方針はオーケストレーターが書くもので、所有者は編集できません（本節「方針」）。</p>
+<p>下書きを依頼すると、計画用のジョブ（1 回の LLM のジョブ）が目標・資料・現在のプロジェクトを読み、方針・プロジェクト・アンカー・依存関係・優先度を書きます。<b>モデルはデータを出すだけで、実行順序はプログラムが計算します</b>（6.5）。これにより順序が再現でき、バッチごとに安く計算し直せます。方針はオーケストレーターが書くもので、所有者は編集できません（本節「方針」）。</p>
 <p>自律実行のミッションでは、下書きを適用すると、まもなくランナーが確定して実行が始まります。画面の帯には「下書きができました。1 分ほどで自動的に確定して実行を始めます。」と出ます。下書きのジョブが失敗したときは 1 回だけ自動で依頼し直し、確定に失敗したときは理由を画面に出します（6.8）。人が対応するミッションでは、下書きのあとで所有者がプロジェクトとバッチを整えて確定します（6.9）。</p>
 
 <h3>依頼からジョブの開始まで</h3>
@@ -180,7 +180,7 @@
 <ul>
   <li>ワーカーは、ジョブがまだ待機中のときだけ引き受けます。キーを解決・復号し（なければジョブを失敗にする）、待機中であることを条件にジョブを実行中にします。その間に取り消された下書きは、取り消されたままです。</li>
   <li>添付ファイルを材料のフォルダにコピーし、xlsx と PDF の本文を、参考資料（4.2）と同じ方法で取り出します。</li>
-  <li>RCS の MCP のツールだけを使い、Web 検索も文献ツールも使わずに、LLM を 1 ターン動かします。RCS が設定されていない環境では、アンカーを空にしてその旨をメモに書くよう指示します。</li>
+  <li>RCS の MCP のツールを加え、Web 検索と文献ツールを外して、LLM を 1 ターン動かします。シェルなどエンジンの標準のツールは、ほかのジョブと同じく使えます。RCS が設定されていない環境では、アンカーを空にしてその旨をメモに書くよう指示します。</li>
   <li>依頼文は、指示書 <code>prompts/plan.md</code>（付録 B）、仕事の種類（下書きか再計画か）、返答の言語、添付ファイルの索引、入力の JSON からなります。</li>
   <li>返答は、決まった形の JSON のオブジェクト（プロジェクト・読めなかった項目・方針・提案・メモ・質問。すべて必須）だけです。読めなければ 1 回だけ頼み直します。</li>
 </ul>
@@ -282,7 +282,7 @@
 <h3>実装</h3>
 <ul>
   <li><b>API</b>：依頼は <code>POST /plans/{id}/draft</code> <code>{ locale? }</code>、または作成時の <code>draft: true</code>。取り消しは <code>POST /plans/{id}/draft/cancel</code>（<code>DRAFTING</code> のときだけ）。質問への回答は <code>POST /plans/{id}/draft/answers</code> <code>{ answers?: string[], skip?: boolean }</code>（下書きが <code>asking</code> のときだけ。でなければ 409、すべて空欄なら 400）。</li>
-  <li><b>下書きの状態</b>：依頼で <code>waiting</code>、積むと <code>queued</code>、ワーカーが動くと <code>running</code>、質問を返すと <code>asking</code>（回答で <code>waiting</code> に戻る）、適用で <code>done</code>（<code>unread</code> の一覧と <code>dropped</code> の数を持つ）、または <code>failed</code> / <code>cancelled</code>。失敗の理由のコードは <code>no_key</code> / <code>owner_disabled</code> / <code>model_not_allowed</code>。</li>
+  <li><b>下書きの状態</b>：依頼で <code>waiting</code>、積むと <code>queued</code>、ワーカーが動くと <code>running</code>、質問を返すと <code>asking</code>（回答で <code>waiting</code> に戻る）、適用で <code>done</code>（<code>unread</code> の一覧と <code>dropped</code> の数を持つ）、または <code>failed</code> / <code>cancelled</code>。失敗の理由のコードは <code>no_key</code> / <code>owner_disabled</code> / <code>model_not_allowed</code> / <code>team_limit</code>。</li>
   <li><b>イベント</b>：<code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>・<code>draft_asked</code>・<code>draft_answered</code>。</li>
   <li><b>質問</b>：上限は <code>PLAN_ASK_LIMITS</code>（1 回 3 個、2 回まで、提案の答え 4 個まで）。質問の回は下書きの状態の <code>qa</code>（<code>PlanDraftRound</code>：<code>questions</code>・<code>answers</code>・<code>askedAt</code>・<code>answeredAt</code>・<code>skipped</code>）。ジョブの入力は <code>ask</code>（<code>planMayAsk</code>）と <code>qa</code>（<code>planQaInput</code>。答えた回だけ、空欄は <code>""</code>）。</li>
   <li><b>ジョブ</b>：<code>type: "plan"</code>、<code>planJobKind: "draft"</code>、<code>projectId</code> にはミッション ID を入れる。入力は <code>plans/{planId}/jobs/{jobId}/input.json</code>、結果はその隣の <code>result.json</code>。ワーカーのキーの解決は <code>planRunKey</code>。</li>

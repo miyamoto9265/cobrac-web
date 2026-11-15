@@ -73,6 +73,9 @@ import {
   parsePlanRowsCsv,
   planAttachmentTypeOf,
   PLAN_MAX_WAITING_PRS,
+  IN_FLIGHT_ROW_STATES,
+  perRowCostUsd,
+  rowsWithinCost,
   flowPlan,
   isFlowPlan,
   planEstimateFor,
@@ -953,7 +956,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
   const live = rows.filter((r) => r.state !== "skipped");
   const hub = hubScores(live);
   const overlaps = overlapsOf(live);
-  const flow = flowFacts(plan, rows, limits.effective);
+  const flow = await flowFacts(plan, rows, limits.effective, byId);
   let cost = 0;
   let priced = false;
   const views: PlanRowView[] = rows.sort(byWaveAndOrder).map((r) => {
@@ -1012,7 +1015,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
  * Flow plans (and drafts ordered automatically, which will run as one): the lane of every row, why each waiting row has
  * not started, and the slots in use (from the plan's own records: rows being built and the Orchestrator's jobs).
  */
-function flowFacts(plan: PlanRecord, rows: PlanRowRecord[], effective: number) {
+async function flowFacts(plan: PlanRecord, rows: PlanRowRecord[], effective: number, projects: Map<string, ProjectRecord>) {
   const draft = plan.ordering === "auto" && (plan.status === "DRAFT" || plan.status === "DRAFTING");
   if (!isFlowPlan(plan) && !draft) return null;
   const live = rows.filter((r) => r.state !== "skipped");
@@ -1024,8 +1027,25 @@ function flowFacts(plan: PlanRecord, rows: PlanRowRecord[], effective: number) {
   const used = building + orchestrator;
   const held = !!plan.canonId && waitingPrs(rows) >= PLAN_MAX_WAITING_PRS;
   const waits = new Map<string, PlanRowWait>(f.waits);
-  // ready rows that have not started wait for a slot, or for the plan's pull requests to be approved
-  if (plan.status === "RUNNING") for (const id of f.ready) if (!rows.find((r) => r.rowId === id)?.projectId) waits.set(id, { kind: held ? "prs" : "slot", rowIds: [] });
+  // ready rows that have not started wait for a slot, for the plan's pull requests to be approved, or (自律実行) past
+  // what the cost limit leaves room for, as the runner picks them (`flowCandidates`: the rows that resume count first)
+  if (plan.status === "RUNNING") {
+    const byRow = new Map(rows.map((r) => [r.rowId, r]));
+    const candidates = f.ready.filter((id) => !held || !!byRow.get(id)?.projectId);
+    const max = plan.settings.autonomous?.maxCostUsd;
+    let allowed = Infinity;
+    if (typeof max === "number" && candidates.some((id) => !byRow.get(id)?.projectId)) {
+      const finished = rows.filter((r) => r.state === "done" && r.projectId && !r.existing).map((r) => projects.get(r.projectId!)?.costUsd ?? 0);
+      const inFlight = rows.filter((r) => IN_FLIGHT_ROW_STATES.includes(r.state) || r.state === "question").length;
+      allowed = rowsWithinCost({ maxCostUsd: max, spentUsd: await planSpendUsd(plan, rows, projects), inFlight, perRowUsd: perRowCostUsd(finished) });
+    }
+    const rank = new Map(candidates.map((id, i) => [id, i]));
+    for (const id of f.ready) {
+      if (byRow.get(id)?.projectId) continue;
+      const i = rank.get(id);
+      waits.set(id, { kind: i === undefined ? "prs" : i >= allowed ? "cost" : "slot", rowIds: [] });
+    }
+  }
   return { lanes, waits, slots: { used, orchestrator, limit: effective } };
 }
 
