@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.58.0] - 2026-11-15
+
 ### Added
 - Talk with the Orchestrator: a mission's page has an "Orchestrator" panel on the right where you write to it as you would to a colleague. It answers questions about the mission and, when asked, changes it: while planning it adds, removes or edits projects, changes priorities or the policy, or writes the draft again (each reply's changes can be undone); while running it adds or removes projects that have not started, retries or skips projects, decides projects that need a decision, and pauses or resumes. What it did is listed under each reply. A reply comes from a job a minute or two later and its cost counts toward the mission. Starting and stopping the mission stay your buttons. The questions the Orchestrator asks before the draft also show in the panel and can be answered there. On a running mission the panel keeps "Needs you" at the top
 
