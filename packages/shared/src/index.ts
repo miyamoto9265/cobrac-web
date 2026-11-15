@@ -45,6 +45,7 @@ export * from "./planOrder.js";
 export * from "./planFlow.js";
 export * from "./planJob.js";
 export * from "./planRowJob.js";
+export * from "./planChat.js";
 export * from "./hypothesis.js";
 export * from "./hypothesisInput.js";
 export * from "./hypothesisVersion.js";

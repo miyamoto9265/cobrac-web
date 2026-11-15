@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
+import type { PlanChatMessage, PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowState, PlanRowView } from "@cobrac/shared";
 import { countRows, planEstimate, planEstimateFor } from "@cobrac/shared";
 
 const api = vi.hoisted(() => ({
@@ -27,6 +27,8 @@ const api = vi.hoisted(() => ({
   addPlanAttachments: vi.fn(),
   removePlanAttachment: vi.fn(),
   listCanons: vi.fn(),
+  postPlanChat: vi.fn(),
+  undoPlanChat: vi.fn(),
 }));
 const uploadFile = vi.hoisted(() => vi.fn());
 vi.mock("../src/lib/api", () => ({ api, uploadFile, ApiError: class extends Error {} }));
@@ -139,13 +141,13 @@ describe("new plan with a draft", () => {
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFTING", [], { draft: { kind: "draft", jobId: null, status: "waiting", requestedAt: new Date().toISOString(), requestedBy: "alice" } }));
     await render("/plans/new");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
-    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
-    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
 
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
-    const draftBtn = button("Create draft")!;
+    // one button: 「計画を作る」 writes the draft; the mission starts only with 「開始」 on its page
+    expect(q('[data-testid="plan-auto-chip"]')).toBeNull();
+    expect(button("Create draft")).toBeUndefined();
+    const draftBtn = button("Create plan")!;
     // a draft needs a goal or a capability list
     expect(draftBtn.disabled).toBe(true);
 
@@ -180,6 +182,7 @@ describe("new plan with a draft", () => {
       ],
       draft: true,
       locale: "en",
+      autonomous: { maxCostUsd: 20 },
       canon: { mode: "new", name: "Language map" },
     });
     expect(vi.mocked(uploadFile).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(api.createPlan).mock.invocationCallOrder[0]);
@@ -187,49 +190,25 @@ describe("new plan with a draft", () => {
     expect(q('[data-testid="plan-drafting"]')).not.toBeNull();
   });
 
-  it("sends the capability lists with “Create mission” too, without asking for a draft", async () => {
-    api.listPlans.mockResolvedValue({ items: [] });
-    api.createUpload.mockResolvedValue({ uploadId: "up_file0001", url: "https://s3.example/upload", fields: {} });
-    uploadFile.mockResolvedValue(undefined);
-    api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
-    api.getPlan.mockResolvedValue(detail("DRAFT", []));
-    await render("/plans/new");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
-    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
-    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
-    await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
-    await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
-    const csv = new File(["ROI,TLF\nSTG,hearing\n"], "language.csv", { type: "text/csv" });
-    await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [csv]);
-    await click(button("Create mission"));
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", attachments: [{ uploadId: "up_file0001", name: "language.csv" }], canon: { mode: "new", name: "Language map" } });
-  });
-
-  it("enables the draft with a goal alone and keeps “Create mission” without a draft", async () => {
+  it("enables “Create plan” with a goal alone", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     api.createPlan.mockResolvedValue({ plan: { planId: PLAN }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
-    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
-    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
     await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "言語の BRA を一通りそろえたい");
-    expect(button("Create draft")!.disabled).toBe(false);
-    await click(button("Create mission"));
+    expect(button("Create plan")!.disabled).toBe(false);
+    await click(button("Create plan"));
     expect(api.createUpload).not.toHaveBeenCalled();
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい", canon: { mode: "new", name: "Language map" } });
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "言語の BRA を一通りそろえたい", draft: true, locale: "en", autonomous: { maxCostUsd: 20 }, canon: { mode: "new", name: "Language map" } });
   });
 
-  it("keeps “Create mission” disabled until a goal, a file or rows are given besides the name", async () => {
+  it("keeps “Create plan” disabled until a goal, a file or rows are given besides the name", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     localStorage.setItem("cobrac-locale", "ja");
     await render("/plans/new");
-    // 自律実行 is the default: handling the plan yourself is the opt-in that brings “Create mission” and “Create draft”
-    await click(q<HTMLButtonElement>('[data-testid="plan-auto-chip"]'));
-    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
-    const create = button("ミッションを作る")!;
+    const create = button("計画を作る")!;
     expect(create.disabled).toBe(true);
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
@@ -255,11 +234,8 @@ describe("new plan with a draft", () => {
     expect(create.disabled).toBe(true);
     await pickFiles(q<HTMLInputElement>('[data-testid="plan-files"]')!, [new File(["ROI,TLF\n"], "language.csv", { type: "text/csv" })]);
     expect(create.disabled).toBe(false);
-    // the autonomous run needs the same
-    await click(q<HTMLInputElement>('[data-testid="plan-manual"]'));
-    expect(button("開始")!.disabled).toBe(false);
     await click(q<HTMLButtonElement>('button[aria-label="削除: language.csv"]'));
-    expect(button("開始")!.disabled).toBe(true);
+    expect(create.disabled).toBe(true);
     expect(q('[data-testid="plan-need-input"]')).not.toBeNull();
   });
 });
@@ -290,8 +266,8 @@ describe("a draft being written", () => {
     const view = q('[data-testid="plan-rows"]')!;
     expect(qa("input", view)).toHaveLength(0);
     expect(button("Add row", view)).toBeUndefined();
-    expect(button("Confirm and start")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("The mission cannot be confirmed while the draft is being written");
+    expect(button("Start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("The mission cannot be started while the draft is being written");
     expect(button("Delete mission")).toBeUndefined();
     // a draft has no progress, waves, time or cost cards
     expect(q('[data-testid="plan-summary"]')).toBeNull();
@@ -503,12 +479,12 @@ describe("a draft written by the plan job", () => {
     api.getPlan.mockResolvedValue(drafted());
     await render(`/plans/${PLAN}`);
     vi.spyOn(window, "confirm").mockReturnValue(false);
-    await click(button("Confirm and start"));
+    await click(button("Start"));
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Rows with a finished project (1) are marked done without being built."));
     // each seed row is a wave of its own: the dialog and the rows' summary count the same waves
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 4 · waves: 4"));
     expect(q('[data-testid="plan-rows-summary"]')!.textContent).toContain("5 rows · 4 waves");
-    // 「4. 確定して開始」 shows the same estimate
+    // 「4. 開始」 shows the same estimate
     const e = planEstimate(rows, 2);
     expect(q('[data-testid="plan-estimate"]')!.textContent).toContain(`Estimate: ~${Math.round((e.minutes / 60) * 10) / 10} h · $${e.costUsd.min.toFixed(2)}–$${e.costUsd.max.toFixed(2)} (4 rows, up to 2 at a time)`);
   });
@@ -527,8 +503,8 @@ describe("a draft written by the plan job", () => {
     expect(facts[0].textContent).toContain("Baseline project");
     expect(facts[1].textContent).not.toContain("Baseline project");
     // unsaved rows are saved before the plan can be confirmed; the estimate already counts them as edited
-    expect(button("Confirm and start")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before confirming");
+    expect(button("Start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before starting");
     // 1 seed + waves 3 and 4 (not 2 seeds + 2 waves)
     const e = planEstimate(
       [
@@ -646,8 +622,8 @@ describe("the draft page", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", [], { goal: "" }, { events: [{ planId: PLAN, sk: "EVT#1", at: now, type: "created", by: "alice" }] }));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
-    expect(sections()).toEqual(["1. 作るもの", "2. プロジェクトとバッチ", "3. 進め方", "4. 確定して開始"]);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("まだ何も入っていません。目標を書いて「下書きを作成」を押すか、プロジェクトを追加してください。プロジェクトの作成は、確定してから始まります。");
+    expect(sections()).toEqual(["1. 作るもの", "2. プロジェクトとバッチ", "3. 進め方", "4. 開始"]);
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("まだ何も入っていません。目標を書いて「下書きを作成」を押すか、プロジェクトを追加してください。プロジェクトの作成は、開始してから始まります。");
     // no progress, waves, time or cost cards, no actions at the top
     expect(q('[data-testid="plan-summary"]')).toBeNull();
     expect(q('[data-testid="plan-actions"]')).toBeNull();
@@ -671,10 +647,10 @@ describe("the draft page", () => {
     expect(q('[data-testid="plan-rows-toolbar"]')).toBeNull();
     expect(q('[data-testid="plan-save-bar"]')).toBeNull();
 
-    // 4. 確定して開始: no estimate and the reason next to the disabled button
+    // 4. 開始: no estimate and the reason next to the disabled button
     expect(q('[data-testid="plan-estimate"]')!.textContent).toBe("見積もり：プロジェクトがないため出せません");
-    expect(button("確定して開始")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトが 0 件のため、まだ確定できません");
+    expect(button("開始")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトが 0 件のため、まだ開始できません");
 
     // the history and 「計画を削除」 come last
     const bottom = q('[data-testid="plan-bottom"]')!;
@@ -689,14 +665,14 @@ describe("the draft page", () => {
     expect(headings(editor)).toEqual(["バッチ 1"]);
     expect(q('[data-change="added"]', editor)!.textContent).toContain("追加したプロジェクト");
     expect(q('[data-testid="plan-save-bar"]')!.textContent).toContain("保存していない変更が 1 件あります");
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトの変更を保存してから確定できます");
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("プロジェクトの変更を保存してから開始できます");
   });
 
   it("says when the draft is ready, and redrafts a plan with rows as a secondary action", async () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", two(), { draft: { kind: "draft", jobId: "j1", status: "done", requestedAt: now, requestedBy: "alice", endedAt: now } }));
     localStorage.setItem("cobrac-locale", "ja");
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書きができました。プロジェクトとバッチを確かめて「確定して開始」を押してください。プロジェクトの作成は、確定してから始まります。");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書きができました。プロジェクトとバッチを確かめて（変更はオーケストレーターにも頼めます）、「開始」を押してください。開始するまで、プロジェクトは作られません。");
     const what = q('[data-testid="plan-what"]')!;
     expect(button("下書きを作り直す", what)!.className).not.toContain("bg-blue-600");
     expect(what.textContent).toContain("今のプロジェクトは残します。数分かかり、費用は記録されます。");
@@ -707,7 +683,7 @@ describe("the draft page", () => {
     // rows, but no finished draft: the usual note
     api.getPlan.mockResolvedValue(detail("DRAFT", two()));
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書き: プロジェクトとバッチを整えてから確定してください。確定すると、プロジェクトの作成が始まります。");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("下書き: プロジェクトとバッチを整えてから開始してください。開始すると、プロジェクトの作成が始まります。");
   });
 
   it("stores the goal when the field is left, and before a draft is asked for", async () => {
@@ -793,7 +769,7 @@ describe("the draft page", () => {
     const editor = q('[data-testid="plan-editor"]')!;
     const bar = () => q('[data-testid="plan-save-bar"]', editor);
     expect(bar()).toBeNull();
-    expect(button("Confirm and start")!.disabled).toBe(false);
+    expect(button("Start")!.disabled).toBe(false);
 
     const tlf = qa<HTMLInputElement>('input[aria-label="TLF"]', editor)[1];
     await type(tlf, "phonology");
@@ -801,12 +777,12 @@ describe("the draft page", () => {
     const changed = q('[data-change="changed"]', editor)!;
     expect(changed.className).toContain("bg-amber-50");
     expect(changed.textContent).toContain("Changed");
-    expect(button("Confirm and start")!.disabled).toBe(true);
+    expect(button("Start")!.disabled).toBe(true);
     // typed back as it was: nothing to save
     await type(tlf, "phonological processing");
     expect(bar()).toBeNull();
     expect(q("[data-change]", editor)).toBeNull();
-    expect(button("Confirm and start")!.disabled).toBe(false);
+    expect(button("Start")!.disabled).toBe(false);
 
     // a row moved down is one change; a removed row is one more
     await click(qa<HTMLButtonElement>('button[aria-label="Move down"]', editor)[0]);
@@ -859,7 +835,7 @@ describe("the draft page", () => {
     act(() => root?.unmount());
     host?.remove();
 
-    // on, after the draft: it is not confirmed on its own, and 「確定して開始」 hands over to the Orchestrator
+    // a finished draft waits for 「開始」, which hands over to the Orchestrator
     api.getPlan.mockResolvedValue(
       detail("DRAFT", two(), { settings: { model: null, modelChosen: false, reasoningEffort: null, researchMode: true, locale: "ja", autonomous: { maxCostUsd: 20 } }, draft: { kind: "draft", jobId: "j1", status: "done", requestedAt: now, requestedBy: "alice", endedAt: now } }),
     );
@@ -867,13 +843,13 @@ describe("the draft page", () => {
     const on = q('[data-testid="plan-autonomous-setting"]')!;
     expect(on.className).toContain("bg-violet-50");
     expect(q<HTMLInputElement>('[data-testid="plan-manual-switch"]', on)!.checked).toBe(false);
-    expect(on.textContent).toContain("オーケストレーターが人の代わりになって、最後まで進めます。");
+    expect(on.textContent).toContain("オーケストレーターが人の代わりになって、「開始」のあと、最後まで進めます。");
     expect(qa("p", on).some((p) => p.textContent?.includes("オーケストレーターが人の代わりになって"))).toBe(false);
     // the cost limit comes before the secondary checkbox
     expect(q('input[type="number"]', on)!.compareDocumentPosition(q('[data-testid="plan-manual-switch"]', on)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(on.textContent).toContain("1〜1000。達すると新しいプロジェクトを始めず、動いているプロジェクトが終わったら一時停止します。");
-    expect(q('[data-testid="plan-auto-after-draft"]')!.textContent).toBe("下書きができたあとで自律実行に切り替えたため、下書きは自動では確定しません。「確定して開始」を押すと、そこから自律実行で進みます。");
-    expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("確定すると、ここから先はオーケストレーターが人の代わりに進めます。");
+    expect(q('[data-testid="plan-auto-after-draft"]')).toBeNull();
+    expect(q('[data-testid="plan-confirm"]')!.textContent).toContain("開始すると、ここから先はオーケストレーターが人の代わりに進めます。");
     expect(q('[data-testid="plan-autonomous-badge"]')!.textContent).toContain("自律実行");
     const cost = q<HTMLInputElement>('input[type="number"]', on)!;
     await type(cost, "35");
@@ -881,19 +857,16 @@ describe("the draft page", () => {
     expect(api.updatePlan).toHaveBeenLastCalledWith(PLAN, { settings: { autonomous: { maxCostUsd: 35 } } });
   });
 
-  it("keeps the autonomous banners first and drops the note when the draft confirms itself", async () => {
+  it("never starts a finished draft on its own: the owner starts it, and the start step says how it runs", async () => {
     const settings = { model: null, modelChosen: false, reasoningEffort: null, researchMode: true, locale: "en" as const, autonomous: { maxCostUsd: 20 } };
+    // a draft of an older release marked to confirm itself waits for 「開始」 too
     const done = { kind: "draft" as const, jobId: "j1", status: "done" as const, requestedAt: now, requestedBy: "alice", endedAt: now, autoConfirm: true };
     api.getPlan.mockResolvedValue(detail("DRAFT", two(), { settings, draft: done }));
     await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The draft is ready. The mission is confirmed and started on its own within a minute.");
-    expect(q('[data-testid="plan-auto-after-draft"]')).toBeNull();
-    act(() => root?.unmount());
-    host?.remove();
-
-    api.getPlan.mockResolvedValue(detail("DRAFT", two(), { settings, draft: done, autonomousError: "no rows" }));
-    await render(`/plans/${PLAN}`);
-    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The autonomous run could not confirm the draft: no rows. Check it and press “Confirm and start”.");
+    expect(q('[data-testid="plan-banner"]')!.textContent).toBe("The draft is ready. Check the rows and waves (you can also ask the Orchestrator for changes), then press “Start”. No project is created until you start.");
+    expect(q('[data-testid="plan-start-mode"]')!.textContent).toBe("Autonomous run · Limit $20.00 — Once started, the Orchestrator acts for you from here on.");
+    expect(button("Start")!.disabled).toBe(false);
+    expect(api.confirmPlan).not.toHaveBeenCalled();
   });
 
   it("chooses the research mode with a switch and its description", async () => {
@@ -1194,5 +1167,60 @@ describe("a flow plan", () => {
     await render(`/plans/${PLAN}`);
     expect(q('[data-testid="plan-back-pressure"]')).not.toBeNull();
     expect(q('[data-testid="plan-seed-gate"]')).toBeNull();
+  });
+});
+
+describe("the chat with the Orchestrator", () => {
+  const two = () => [row("r1", "left IFG", "speech production", "pending", 1, { source: "manual" }), row("r2", "STG", "phonological processing", "pending", 2, { source: "manual" })];
+  const msg = (id: string, role: PlanChatMessage["role"], text: string, at: string, extra: Partial<PlanChatMessage> = {}): PlanChatMessage => ({ planId: PLAN, sk: `MSG#${at}#${id}`, messageId: id, role, text, by: role === "user" ? "alice" : "runner", createdAt: at, ...extra });
+
+  it("sends a message from the draft's panel with Enter, shows the reply's actions and undoes the newest change", async () => {
+    const chat = [
+      msg("m1", "user", "海馬も足して", "2026-10-06T00:01:00.000Z"),
+      msg("m_j1", "orchestrator", "海馬の記憶を足しました。", "2026-10-06T00:02:00.000Z", { jobId: "j1", undoable: true, outcomes: [{ kind: "add_row", ok: true, label: "episodic memory · hippocampus" }, { kind: "priority", ok: false, label: "hearing · STG", error: "not found" }] }),
+    ];
+    api.getPlan.mockResolvedValue(detail("DRAFT", two(), {}, { chat }));
+    api.postPlanChat.mockResolvedValue({});
+    api.undoPlanChat.mockResolvedValue({});
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await render(`/plans/${PLAN}`);
+    const panel = q('[data-testid="plan-chat"]')!;
+    expect(q('aside[aria-label="Orchestrator"]')!.contains(panel)).toBe(true);
+    expect(qa('[data-testid="chat-user"]', panel).map((b) => b.textContent)).toEqual(["海馬も足して"]);
+    expect(qa('[data-testid="chat-outcome"]', panel).map((o) => o.textContent)).toEqual(["Added: episodic memory · hippocampus", "Priority changed: hearing · STGnot found"]);
+    await click(q<HTMLButtonElement>('[data-testid="chat-undo"]', panel));
+    expect(api.undoPlanChat).toHaveBeenCalledWith(PLAN, "m_j1");
+
+    const input = q<HTMLTextAreaElement>('[data-testid="chat-input"]', panel)!;
+    expect(input.placeholder).toBe("Talk about the draft");
+    await type(input, "STG を先に");
+    // an Enter that ends an IME composition is not a send
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, isComposing: true })));
+    expect(api.postPlanChat).not.toHaveBeenCalled();
+    await act(async () => input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+    expect(api.postPlanChat).toHaveBeenCalledWith(PLAN, "STG を先に", "en");
+  });
+
+  it("shows that a reply is being written, the questions asked before the draft, and no undo once undone", async () => {
+    const chat = [msg("m_j1", "orchestrator", "変えました。", "2026-10-06T00:02:00.000Z", { jobId: "j1", undoable: true, undoneAt: "2026-10-06T00:03:00.000Z", outcomes: [{ kind: "remove_row", ok: true, label: "hearing · STG" }] })];
+    const qa1 = [{ questions: [{ text: "Which hemisphere?", choices: [] }], answers: null, askedAt: "2026-10-06T00:00:30.000Z" }];
+    api.getPlan.mockResolvedValue(
+      detail("DRAFTING", two(), { draft: { kind: "draft", jobId: "j0", status: "asking", requestedAt: now, requestedBy: "alice", qa: qa1 }, chat: { jobId: null, status: "waiting", requestedAt: now, requestedBy: "alice" } }, { chat }),
+    );
+    await render(`/plans/${PLAN}`);
+    const panel = q('[data-testid="plan-chat"]')!;
+    expect(q('[data-testid="chat-ask"]', panel)!.textContent).toContain("Which hemisphere?");
+    expect(q('[data-testid="chat-thinking"]', panel)!.textContent).toBe("The Orchestrator is writing a reply…");
+    expect(q('[data-testid="chat-undo"]', panel)).toBeNull();
+    expect(panel.textContent).toContain("Undone");
+  });
+
+  it("is read-only for a team member, and holds what needs the owner above the conversation of a running mission", async () => {
+    api.getPlan.mockResolvedValue(detail("RUNNING", [row("r1", "STG", "hearing", "attention", 1, { attentionReason: "failed" })], {}, { access: "member", ownerName: "Bob" } as Partial<PlanDetailResponse>));
+    await render(`/plans/${PLAN}`);
+    const panel = q('[data-testid="plan-chat"]')!;
+    expect(q('[data-testid="plan-todo"]', panel)).not.toBeNull();
+    expect(q('[data-testid="chat-input"]', panel)).toBeNull();
+    expect(panel.textContent).toContain("You can read this mission but not write to its Orchestrator.");
   });
 });

@@ -31,6 +31,7 @@ export const PROMPT_SOURCES = [
   ["prompts/article.md", "解説記事ジョブ（article.md）"],
   ["prompts/plan.md", "オーケストレーターの計画ジョブ（plan.md）"],
   ["prompts/orchestrator.md", "自律実行のオーケストレーターの判断（orchestrator.md）"],
+  ["prompts/plan-chat.md", "オーケストレーターとの対話（plan-chat.md）"],
 ];
 
 /** 付録 B の差し込み値の説明で、実行時の値を読むコード（値が変われば PDF も作り直す） */

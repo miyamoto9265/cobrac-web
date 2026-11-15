@@ -926,7 +926,7 @@ export const ru: Record<MessageKey, string> = {
   "plan.row.attention": "Требует внимания",
   "plan.row.skipped": "Пропущено",
   "plan.row.cancelled": "Остановлено",
-  "plan.confirm": "Подтвердить и запустить",
+  "plan.confirm": "Запустить",
   "plan.confirmQ": "Запустить эту миссию? Проектов: {n} · волн: {waves} · одновременно не больше {c} · оценка {time}, {cost}. Задания оплачиваются как любые другие.",
   "plan.pause": "Приостановить",
   "plan.resume": "Продолжить",

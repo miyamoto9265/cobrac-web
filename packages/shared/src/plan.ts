@@ -10,6 +10,7 @@
 
 import type { FileAttachment } from "./attachments.js";
 import type { PlanPolicy } from "./planPolicy.js";
+import type { PlanChatMessage, PlanChatState } from "./planChat.js";
 import { parseCsv } from "./csv.js";
 import type { UiLocale } from "./locale.js";
 import { randomCrockfordId } from "./projectId.js";
@@ -313,6 +314,10 @@ export interface PlanRecord {
   draft?: PlanJobState | null;
   /** The latest re-plan job */
   replan?: PlanJobState | null;
+  /** The chat job answering the owner's latest messages (planChat.ts) */
+  chat?: PlanChatState | null;
+  /** A finished chat job whose reply waits to be stored and its actions carried out (cleared by the one that does it) */
+  chatReady?: string | null;
   /** The last wave after which the rows were re-ordered (each wave is re-planned once) */
   lastReplanWave?: number | null;
   /** Stage 3: the plan's Canon (one of the owner's; set when chosen, or when a new one is created at confirmation) */
@@ -493,7 +498,8 @@ export type PlanEventType =
   | "row_ai_resolved"
   | "row_ai_decided"
   | "cost_limit_reached"
-  | "cost_limit_raised";
+  | "cost_limit_raised"
+  | "chat_applied";
 
 export interface PlanEventRecord {
   planId: string;
@@ -545,6 +551,8 @@ export interface CreatePlanRequest {
 export interface AnswerDraftRequest {
   answers?: string[];
   skip?: boolean;
+  /** The owner wrote in the chat instead (the draft job reads it): the open round counts as answered, blank answers allowed */
+  chat?: boolean;
 }
 
 export interface ResumePlanRequest {
@@ -649,6 +657,8 @@ export interface PlanDetailResponse {
   /** GET /plans/:id: how the viewer may act on it (another member's mission in a team's workspace), and whose it is */
   access?: "owner" | "admin" | "member";
   ownerName?: string | null;
+  /** The chat with the Orchestrator, oldest first */
+  chat?: PlanChatMessage[];
 }
 
 /** A row of a live plan in the list: one that runs now or waits on the owner. */

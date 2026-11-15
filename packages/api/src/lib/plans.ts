@@ -1,9 +1,9 @@
 // Plans table: `META` (the plan), `ROW#<rowId>` (one row = one project to build), `EVT#<at>#<nonce>` (history),
-// `PROP#<proposalId>` (changes proposed by a re-plan job).
+// `PROP#<proposalId>` (changes proposed by a re-plan job), `MSG#<at>#<messageId>` (the chat with the Orchestrator).
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { HTTPException } from "hono/http-exception";
-import type { PlanEventRecord, PlanEventType, PlanProposalRecord, PlanRecord, PlanRowRecord, PlanStatus } from "@cobrac/shared";
-import { PLAN_EVENT_PREFIX, PLAN_LEASE_MS, PLAN_META_SK, PLAN_PROPOSAL_PREFIX, PLAN_ROW_PREFIX, nowIso, planEventSk, planProposalSk, planRowSk } from "@cobrac/shared";
+import type { PlanChatMessage, PlanEventRecord, PlanEventType, PlanProposalRecord, PlanRecord, PlanRowRecord, PlanStatus } from "@cobrac/shared";
+import { PLAN_CHAT_PREFIX, PLAN_EVENT_PREFIX, PLAN_LEASE_MS, PLAN_META_SK, PLAN_PROPOSAL_PREFIX, PLAN_ROW_PREFIX, nowIso, planEventSk, planProposalSk, planRowSk } from "@cobrac/shared";
 import { randomUUID } from "node:crypto";
 import { env } from "../env.js";
 import { ddb } from "./db.js";
@@ -112,6 +112,22 @@ export async function getProposal(planId: string, proposalId: string, consistent
   const r = await ddb.send(new GetCommand({ TableName: table(), Key: { planId, sk: planProposalSk(proposalId) }, ConsistentRead: consistent }));
   return (r.Item as PlanProposalRecord | undefined) ?? null;
 }
+
+/** The chat with the Orchestrator, oldest first. */
+export const listChatMessages = (planId: string, consistent = false) => queryPrefix<PlanChatMessage>(planId, PLAN_CHAT_PREFIX, consistent);
+
+/** Stores a chat message unless one with its key exists (a reply stored twice keeps the first). */
+export async function putChatMessage(m: PlanChatMessage): Promise<boolean> {
+  try {
+    await ddb.send(new PutCommand({ TableName: table(), Item: m, ConditionExpression: "attribute_not_exists(sk)" }));
+    return true;
+  } catch (e) {
+    if ((e as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw e;
+  }
+}
+
+export const updateChatMessage = (planId: string, sk: string, values: Partial<PlanChatMessage>, expect?: Expect) => updateWhere({ planId, sk }, values, expect, false);
 
 /** Stores a proposal unless one with its ID exists (a re-plan result stored twice keeps the first, and its decision). */
 export async function putProposal(p: PlanProposalRecord): Promise<boolean> {
