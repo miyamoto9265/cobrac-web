@@ -98,7 +98,7 @@
 
 <h3>画面</h3>
 <ul>
-  <li><b>作成画面</b>：入力欄のツールバーにある「仮説モード」をオンにすると、許す主張のチェックボックス（存在・向き・符号・集団・伝達物質と修飾・役割。最初はすべてオンで、役割は外せません）、上限（最初は 20%）、任意のメモが出ます。</li>
+  <li><b>作成画面</b>：入力欄のツールバーにある「仮説モード」をオンにすると、許す主張のチェックボックス（存在・向き・符号・集団・伝達物質と修飾・役割。最初はすべてオンで、オンで残った最後の 1 つは外せません）、上限（最初は 20%）、任意のメモが出ます。</li>
   <li><b>フォローアップ</b>：完了したプロジェクトのエージェント欄に「この指示で仮説を許す」があり、送るたびにオフに戻ります。オンにすると、主張、対象（「全体」か「グラフで選んだ回路・GN」）、上限（最初は「変えない」）が出ます。</li>
   <li><b>表示</b>：ヘッダーとプロジェクトの一覧に「仮説モード」のバッジと、分かれば仮説の件数が出ます。版のタブの生成条件には、根拠のモード・許可範囲・件数と全件数（割合）・上限が出ます。詳細パネルには、仮説ごとの ID、推論の種類、主張、理由、前提、許可範囲が出ます。予測や検証の方法は出しません。</li>
 </ul>
@@ -165,7 +165,7 @@
 <h2 id="s3-14">3.14 解説記事</h2>
 <p>解説記事は、完成した BRA を、それを作っていない読者に説明する記事です。利用者の求めに応じて作ります。BRA を作る段階の 1 つではなく、BRA の会話とは別の新しい会話で動く LLM のジョブです。</p>
 <ul>
-  <li><b>作れるとき</b>：プロジェクトが完了して xlsx まで生成済みで、動いているジョブがないときだけです。利用者は言語とモデルを選び、「記事を作成」を押します。言語は 10 言語から選べ、既定は画面の言語です。モデルの既定はプロジェクトのモデルで、デフォルトの API キーでは利用者の利用承認（4.1）で使えるモデルだけを選べます。</li>
+  <li><b>作れるとき</b>：プロジェクトが完了して xlsx まで生成済みで、動いているジョブがないときだけです。利用者は言語とモデルを選び、「解説記事を作成」を押します。その言語の記事があるときは「解説記事を作り直す」になります。言語は 10 言語から選べ、既定は画面の言語です。モデルの既定はプロジェクトのモデルで、デフォルトの API キーでは利用者の利用承認（4.1）で使えるモデルだけを選べます。プロジェクトのモデルが使えないときは、使えるモデルに置き換えて作ります。</li>
   <li><b>言語ごとの記事</b>：記事は言語ごとに並べて持てます。作り直したときは、新しい記事が検査に通ったときだけ置き換えます。</li>
   <li><b>プロジェクトの状態</b>：記事を作っている間、プロジェクトはフォローアップのときと同じく待機中 → 実行中 → 完了と進みます。ただし、段階の状態、プロジェクトの改訂番号、完了時刻、BRA の会話、プロジェクトフォルダは変えません。失敗や取り消しは記事のジョブの状態にだけ残し、プロジェクトは完了に戻します。</li>
   <li><b>ワーカー</b>：プロジェクトフォルダを、会話は復元せずに戻し、CSV から図を 3 枚描きます。全回路と接続の図、TLF → GN → UC の木の図、GN ごとの接続の図です。それぞれ幅 980 px 以内の図と 430 px のスマートフォン用の図があり、ラベルは日本語か英語です。そのうえで、Web 検索・RCS・文献のツールを持たない新しい会話を始め、記事の指示書と図の一覧、要約表の事実を送ります。</li>
@@ -186,21 +186,21 @@
 
 <h3>実装</h3>
 <p>記事のジョブの実行モードは <code>article</code> で、作れる条件は <code>stepStates.XLSX = done</code> です。プロジェクトの状態は <code>QUEUED → RUNNING → COMPLETED</code> と進み、<code>revision</code> は変えません。図は <code>buildArticleFigures</code> が描き、名前は <code>circuit</code>・<code>frg</code>・<code>function-map</code> です。指示書は <code>prompts/article.md</code>、検査は <code>checkArticle</code>、無害化は <code>sanitizeSvg</code> です。記事は <code>&lt;ProjectID&gt;/article/&lt;locale&gt;.md</code> と <code>.json</code>、図は <code>article/&lt;locale&gt;/figures/</code> に保存し、ブラウザはオブジェクト URL の <code>&lt;img&gt;</code> で図を表示します。英語の規則の例外は <code>AGENTS.md</code> に明記されています。</p>
-<p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code></p>
+<p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code>、<code>packages/api/src/routes/projects.ts</code>（記事のモデル）、<code>packages/web/src/components/workspace/ArticleView.tsx</code></p>
 
 <h2 id="s3-15">3.15 長いジョブと保存</h2>
 <p>長いジョブでは、途中で止まっても作業を失わないことと、会話が大きくなりすぎないことが必要です。この 2 つはワーカーが受け持ちます。</p>
 <ul>
-  <li><b>保存</b>：実行中、ワーカーは 5 分ごとにプロジェクトフォルダと Codex の会話を S3 に保存します。Spot の中断を知らせる SIGTERM を受けたときも保存します。ワーカーが定期的に書くハートビートが途絶えたジョブは、janitor が回復を試みます（8.3）。</li>
-  <li><b>会話の圧縮</b>：Codex は会話を自動で圧縮します。既定では 75,000 トークンで圧縮し、組織の毎分のトークン上限を 1 回の要求で超えないようにします。コンテキストの窓は 272,000 トークンとして扱います。</li>
+  <li><b>保存</b>：実行中、ワーカーは 5 分ごとにプロジェクトフォルダとエージェントの会話を S3 に保存します。Spot の中断を知らせる SIGTERM を受けたときも保存します。ワーカーが定期的に書くハートビートが途絶えたジョブは、janitor が回復を試みます（8.3）。</li>
+  <li><b>会話の圧縮</b>：会話は自動で圧縮します。OpenAI のモデルでは、Codex が既定で 75,000 トークンで圧縮し、組織の毎分のトークン上限を 1 回の要求で超えないようにします。コンテキストの窓は 272,000 トークンとして扱います。Claude と DeepSeek のモデルでは、Claude Code がコンテキストの窓を既定で 100,000 トークンとして扱い、それに近づくと会話を圧縮します（8.4）。</li>
   <li><b>大きすぎる会話</b>：会話が大きすぎて再開できない場合は、新しい会話で既存のファイルと判断ログを読んで続けます（3.5）。</li>
   <li><b>コンテキストと費用の節約</b>：ツールの結果を小さくし、ファイルを部分的に編集し、修正ターンだけ推論の強さを下げます。</li>
 </ul>
 <p>使用量と費用の計算は 9.10 に、API キーなどの秘密情報の守り方は 9.5 に記載しています。</p>
 
 <h3>実装</h3>
-<p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は定数 <code>CODEX_CONTEXT_WINDOW</code>（272000）です。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>
-<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>CODEX_CONTEXT_WINDOW</code>・<code>turnUsage</code>・<code>sessionTotalUsage</code>）、<code>index.ts</code>（保存とハートビート）、<code>s3sync.ts</code>、<code>env.ts</code></p>
+<p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は定数 <code>CODEX_CONTEXT_WINDOW</code>（272000）です。Claude Code の窓は環境変数 <code>CLAUDE_AUTO_COMPACT_WINDOW</code>（既定 100000）で、<code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> として渡します。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>CODEX_CONTEXT_WINDOW</code>・<code>turnUsage</code>・<code>sessionTotalUsage</code>）、<code>claude.ts</code>、<code>index.ts</code>（保存とハートビート）、<code>s3sync.ts</code>、<code>env.ts</code></p>
 
 <h2 id="s3-16">3.16 完成した BRA の読み方と限界</h2>
 <div class="box note">

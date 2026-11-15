@@ -3,7 +3,7 @@
 // job, no limit), decides on every pull request (seeds included) and on rows that need attention or a decision (a
 // `resolve` row job), re-plan proposals are applied at once, and the cost limit stops new work.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CanonAiReviewResult, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CreatePlanResponse, JobRecord, MessageRecord, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord } from "@cobrac/shared";
+import type { CanonAiReviewResult, CanonPullRequestRecord, CanonRecord, CanonRevisionRecord, CreatePlanResponse, JobRecord, MessageRecord, PlanDetailResponse, PlanEventRecord, PlanJobInput, PlanJobResult, PlanRecord, PlanRowRecord, ProjectRecord } from "@cobrac/shared";
 import type { PlanRowJobInput } from "@cobrac/shared";
 import { MAX_ROW_AUTO_RETRIES, PLAN_JOB_RESULT_SCHEMA, PLAN_ROW_JOB_RESULT_SCHEMA, canonAiReviewKey, canonPrSk, canonRevisionSk, planJobKey } from "@cobrac/shared";
 
@@ -382,6 +382,9 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect(rowOf(planId, second.roi).state).toBe("pending");
     expect(planOf(planId).costLimitAt).toBeTruthy();
     expect(eventsOf(planId).some((e) => e.type === "cost_limit_reached")).toBe(true);
+    // the row that cannot start shows why: the cost limit, not 「次に開始」
+    const held = await json<PlanDetailResponse>(call(A, "GET", `/plans/${planId}`));
+    expect(held.rows.find((r) => r.rowId === second.rowId)!.wait).toEqual({ kind: "cost", rowIds: [] });
     // its decision still runs, so what was built lands in the Canon
     decideJob(planOf(planId).canonId!, "approve");
     await advancePlan(planId);

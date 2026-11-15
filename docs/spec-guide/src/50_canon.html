@@ -28,7 +28,7 @@
 <div class="box">
   <div class="h">中身が変わるときの原則</div>
   <p>Canon の中身が変わるのは、PR が承認されたときだけです。承認するのは、人（所有者か共同編集者）か、所有者が自律実行を任せたオーケストレーター（6.8）です。どちらの承認も同じ検査を通り、解決していないエラーの衝突がある PR は取り込まれません（5.7）。オーケストレーターは、エラーの衝突がある PR をそもそも承認せず、プロジェクトを Canon に合わせるフォローアップに回します。</p>
-  <p>例外は、既存のプロジェクトを種にして Canon を作るときの rev 1 です。このときは作成の操作が種の承認を兼ねます（5.10）。</p>
+  <p>例外は 2 つです。1 つは、既存のプロジェクトを種にして Canon を作るときの rev 1 です。このときは作成の操作が種の承認を兼ねます（5.10）。もう 1 つは、エントリに問題を付けるときと、問題を手で決着させるときです。このときは PR なしで新しい rev ができます（5.13）。</p>
 </div>
 <h3>だれが何をするか</h3>
 <table class="compact">
@@ -52,7 +52,7 @@
     <tr><td><b>整合させる内容</b></td><td>スナップショットの<b>共有層</b>。正規化した UC Descriptor をキーにした回路（Circuit ID、正式名、Uniform / Collection、Sub-Circuits、伝達物質、修飾、Source of ID、Output Semantics）、Descriptor のないグループ、接続、BIF、文献（5.4）。</td></tr>
     <tr><td><b>整合させない内容</b></td><td><b>役割層</b>。プロジェクトごとの ROI 内外、Interface、機能項目、FRG。TLF に依存する機能や役割はプロジェクト側に残す。仮説（仮説モード）も共有層に入れない。</td></tr>
     <tr><td><b>単位ごとの粒度</b></td><td>Canon ごとの<b>粒度方針</b>（一文。例「新皮質は野 × 投射クラス（IT/PT/CT）、皮質下は核全体」）。Canon にまだない回路は、エージェントがこの方針に沿って作る。</td></tr>
-    <tr><td><b>整合の基準</b></td><td><b>rev</b>。Canon の中身は PR の承認でだけ変わり、承認のたびに不変のスナップショット（rev n+1）ができる。rev 0 は空。</td></tr>
+    <tr><td><b>整合の基準</b></td><td><b>rev</b>。Canon の中身は PR の承認でだけ変わり、承認のたびに不変のスナップショット（rev n+1）ができる。例外は種から作る rev 1 と、問題を付ける・決着させるときの rev（5.13）。rev 0 は空。</td></tr>
     <tr><td><b>整合の保ち方（作るとき）</b></td><td>参加プロジェクトは特定の rev に<b>固定</b>される。ワーカーがその定義を読み取り専用で渡し、HCD の検査で食い違いを差し戻す（5.5）。</td></tr>
     <tr><td><b>整合の保ち方（取り込むとき）</b></td><td><b>push、PR、衝突ルールとシステムの検査、AI レビュー、承認</b>の順（5.6〜5.8）。承認するのは人か、自律実行のオーケストレーター。AI レビューは所見を出すだけで、承認の代わりにはならない。</td></tr>
     <tr><td><b>単位どうしの関係</b></td><td>Canon から Canon への PR（5.11）。取り込んだエントリには、経由した Canon と rev が残る。</td></tr>
@@ -68,7 +68,7 @@
     <tr><td>参加プロジェクト</td><td>所有者自身のプロジェクトだけを入れられる。1 つのプロジェクトは 1 つの Canon まで。別の Canon に入っているプロジェクトを入れようとすると拒否（409）。</td></tr>
     <tr><td>公開</td><td>非公開（既定）か公開。公開すると公開ライブラリで閲覧でき、ほかの利用者の Canon からの PR を受け付ける（5.11）。</td></tr>
     <tr><td>粒度方針・説明</td><td>Canon の画面で、名前・粒度方針・説明を直せる。</td></tr>
-    <tr><td>rev</td><td>最新の rev の番号を持ち、承認で n から n+1 に進む。同時に 2 つの承認があると、条件付きの書き込みにより片方が失敗（409）。</td></tr>
+    <tr><td>rev</td><td>最新の rev の番号を持ち、承認で n から n+1 に進む。問題を付けるときと手で決着させるときも同じく進む（5.13）。同時に 2 つの承認があると、条件付きの書き込みにより片方が失敗（409）。</td></tr>
     <tr><td>削除</td><td>論理削除。参加プロジェクトは解放され（所属の Canon が消える）、Canon の記録は残る。この Canon の終わったミッション（完了・中止）も論理削除し、サイドバーの履歴から消える。下書き・実行中のミッションは残り、Canon が見つからないときの動き（6.7）に従う。プロジェクトを削除すると、そのプロジェクトは Canon から外れる。</td></tr>
   </tbody>
 </table>
@@ -95,7 +95,7 @@
 <svg viewBox="0 0 680 286" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
   <rect x="4" y="4" width="672" height="278" rx="9" fill="#fff" stroke="#0f766e" stroke-width="1.6"/>
   <text x="18" y="26" font-size="12" font-weight="800" fill="#0f766e">Canon rev n</text>
-  <text x="104" y="26" font-size="9.5" fill="#374151"><tspan font-family="JetBrains Mono, monospace">canons/{canonId}/rev/{n}/canon.json</tspan>（不変。承認で次の rev ができる）</text>
+  <text x="104" y="26" font-size="9.5" fill="#374151"><tspan font-family="JetBrains Mono, monospace">canons/{canonId}/rev/{n}/canon.json</tspan>（不変。承認と問題の操作で次の rev ができる）</text>
   <rect x="16" y="38" width="648" height="132" rx="7" fill="#e9f6f4" stroke="#5eb8ad"/>
   <text x="28" y="57" font-size="11" font-weight="800" fill="#0f766e">共有層 ― Canon の中で 1 つに決まる定義</text>
   <g font-size="8.7" fill="#1f2937">
@@ -233,7 +233,7 @@
     <text x="16" y="220">Canon が進んで、使っている定義が変わったら：「Canon に合わせる」で固定を進め、直すフォローアップを送る（5.9）</text>
   </g>
 </svg>
-<figcaption><b>図 5.2</b>　push から rev ができるまで。Canon の中身は PR の承認でだけ変わる。承認するのは人か、自律実行を任されたオーケストレーター（6.8）で、どちらも同じ検査を通る</figcaption>
+<figcaption><b>図 5.2</b>　push から rev ができるまで。プロジェクトからの変更は、PR の承認でだけ Canon に入る。承認するのは人か、自律実行を任されたオーケストレーター（6.8）で、どちらも同じ検査を通る</figcaption>
 </figure>
 <ol class="steps">
   <li><b>push</b>：完了した参加プロジェクトの画面で「Canon に push」を押します。押すのは所有者で、オーケストレーターのミッションではオーケストレーターが自動で行います。API は、ワークスペースの HCD・FRG・文献とその照合の記録を Canon の形に変換し、最新の rev と比べ、PR として保存します。同じプロジェクトの未処理の PR は、新しい PR に置き換えられます。PR を作らずに同じ差分だけを見ることもできます。</li>
@@ -340,7 +340,7 @@
 <ol class="steps">
   <li><b>依頼</b>：審査する人（所有者か共同編集者）が、開いている PR について、モデルと言語を選んで依頼します。1 つの PR で同時に動くのは 1 件だけです。モデルは、依頼した人の API キーと利用承認で使えるかを検査します（4.1）。ワーカーでも同じ検査をします。</li>
   <li><b>材料</b>：API が、差分、衝突、検査、変わった項目の両側の値、文献を、最大 15 万文字にまとめます。それを S3 に書き、ジョブを積みます。</li>
-  <li><b>実行</b>：ワーカーが LLM を 1 ターン動かします。Web 検索は使わず、コマンドもファイルも使わずに材料だけを読ませます。出力は固定のスキーマで返させます。スキーマは、要約、指摘（重さ・理由・項目・検査・Reference ID 付き）、確認すべき点、項目ごとのコメント案です。その形でなければ、1 回だけ頼み直します。</li>
+  <li><b>実行</b>：ワーカーが LLM を 1 ターン動かします。Web 検索は使いません。コマンドやファイルを扱う道具はほかのジョブと同じく使えますが、指示書でそれらを使わずに材料だけを読むよう求めます。出力は固定のスキーマで返させます。スキーマは、要約、指摘（重さ・理由・項目・検査・Reference ID 付き）、確認すべき点、項目ごとのコメント案です。その形でなければ、1 回だけ頼み直します。</li>
   <li><b>検査</b>：ワーカーは、材料にない項目・検査・論文を指す部分を除き、件数を数えます。結果は S3 に保存し、使用量と費用はジョブに記録します。使用量は依頼した人の使用量に入り、デフォルトの API キーを使ったときはそのキーの使用量にも入ります。</li>
 </ol>
 <p>出力に判定の欄はなく、指示書は承認や却下を勧めることを禁じています。ジョブの割り当てと回復の処理（8.3）は、このジョブについてプロジェクトの状態を変えません。止まったレビューのジョブはリトライせず、もう一度実行するよう促すメッセージを付けて失敗にします。</p>
@@ -450,7 +450,7 @@
 <h3>問題を付ける</h3>
 <ul>
   <li>Canon の所有者と共同編集者は、Canon の画面の「問題」タブか、グラフのノードの「問題を付ける」から、回路・接続・文献の 1 件に問題を付けます。種類（アンカー・性質・接続・文献・引用文・その他）と理由を書きます。</li>
-  <li>問題を付けると、PR なしで新しい rev ができます。この rev は問題の記録だけを変え、定義は変えません。履歴には「問題を付けた」と出ます。</li>
+  <li>問題を付けると、PR なしで新しい rev ができます。この rev は問題の記録だけを変え、定義は変えません。履歴には「問題 I1 を付けました」のように出ます。</li>
   <li>問題が<b>届く範囲</b>は自動で計算します。回路の問題は、その回路と、それが Collection ならその Sub-Circuits（下へたどる）、それらで終わる接続に届きます。文献の問題は、その文献を引く接続に届きます。届いたエントリは要注意（<code>flagged</code>）になり、グラフの「問題」で強調できます。</li>
   <li>影響するプロジェクトは、届いた回路を役割層で使うプロジェクトと、届いたエントリを push したプロジェクトです。一覧に出ます。</li>
 </ul>
@@ -470,8 +470,8 @@
     <tr><td><b>無効にする</b></td><td>エントリそのものが誤り</td><td>エントリと、それで終わる接続を無効にする</td></tr>
   </tbody>
 </table>
-<p>決着は rev を増やしません。決着は、そのときの最新の rev の記録を書き換えます。直した問題と無効にした問題は、決着した rev より前の rev に固定したプロジェクトの「影響する変更あり」に出て、まとめて合わせる対象になります。</p>
+<p>手で決着させると、PR なしで新しい rev ができます。この rev は問題の記録とエントリの状態だけを変え、定義は変えません。履歴には「問題 I1 を直しました」のように出ます。PR の承認と同時に決着させたときは、承認でできる rev の中で決着します。直した問題と無効にした問題は、決着した rev より前の rev に固定したプロジェクトの「影響する変更あり」に出て、まとめて合わせる対象になります。</p>
 <h3>実装</h3>
-<p>問題は <code>CanonSnapshot.issues</code>（ID は <code>I1</code>、<code>I2</code>…）に記録し、届く範囲は <code>canonIssueScope</code>、状態の計算は <code>applyCanonIssues</code> です。API は <code>POST /canons/{id}/issues</code>、<code>POST /canons/{id}/issues/{issueId}/resolve</code> <code>{ resolution, note? }</code>、<code>POST /canons/{id}/align</code>、<code>GET /canons/{id}/upstream-issues</code> で、承認の <code>resolveIssues</code> で直した問題を選びます。問題の rev は <code>source: "issue:&lt;id&gt;"</code> を持ちます。</p>
+<p>問題は <code>CanonSnapshot.issues</code>（ID は <code>I1</code>、<code>I2</code>…）に記録し、届く範囲は <code>canonIssueScope</code>、状態の計算は <code>applyCanonIssues</code> です。API は <code>POST /canons/{id}/issues</code>、<code>POST /canons/{id}/issues/{issueId}/resolve</code> <code>{ resolution, note? }</code>、<code>POST /canons/{id}/align</code>、<code>GET /canons/{id}/upstream-issues</code> で、承認の <code>resolveIssues</code> で直した問題を選びます。問題を付ける rev と手で決着させる rev は、どちらも <code>source: "issue:&lt;id&gt;"</code> と <code>issueAction</code>（<code>raised</code> / <code>fixed</code> / <code>dismissed</code> / <code>invalidated</code>）を持ちます。</p>
 <p class="src">典拠：<code>packages/shared/src/canonIssues.ts</code>・<code>canonConstraints.ts</code>（<code>canonFollowStatus</code>）、<code>packages/api/src/lib/canonOps.ts</code>（<code>raiseIssue</code>・<code>settleIssue</code>・<code>alignAffectedProjects</code>）</p>
 </section>

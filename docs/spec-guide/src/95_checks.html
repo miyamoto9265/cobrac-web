@@ -31,7 +31,7 @@
 <h3>出どころ</h3>
 <p>各表の「出どころ」の列は、検査の根拠を示します。</p>
 <ul>
-  <li><b>Master の番号</b>：WBAI の BRA data: Error code List (Master) に番号がある検査です。Master は Review Tool 4.4 が参照する表で、リポジトリの <code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code> に保存されています。番号はシートごとに分かれ、References が 1〜28、Circuits が 101〜171、Connections が 201〜294、FRG が 401〜571、FRG_FunctionalityReview が 1001〜2206 です。</li>
+  <li><b>Master の番号</b>：WBAI の BRA data: Error code List (Master) に番号がある検査です。Master は Review Tool 4.4 が参照する表で、リポジトリの <code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code> に保存されています。番号はシートごとに分かれ、References が 1〜28、Circuits が 101〜171、Connections が 201〜311、FRG が 401〜571、FRG_FunctionalityReview が 1001〜2206 です。</li>
   <li><b>BRA（番号なし）</b>：Template-v2-3 や Data Preparation Manual の決まりで、Master に番号がないものです。</li>
   <li><b>CoBRAC</b>：CoBRAC が独自に加えた検査です。Master の決まりに CoBRAC が照合を加えたものは、Master の番号を先に書き、CoBRAC が加えた部分を添えています。</li>
 </ul>
@@ -109,10 +109,10 @@
   <thead><tr><th style="width:12%">ID</th><th>内容</th><th style="width:16%">出どころ</th><th style="width:14%">扱い</th></tr></thead>
   <tbody>
     <tr><td>QC-03-01</td><td>ファイルがあり、JSON として読める</td><td>CoBRAC</td><td>差し戻し</td></tr>
-    <tr><td>QC-03-02</td><td>JSON Schema に合う。Master 101・107・201・219・252 の空欄の禁止もここで確認する</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-02</td><td>JSON Schema に合う。Master 101・107・201・219・252 の空欄の禁止と、Master 12（Alternative URL が URL の形）もここで確認する</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-03</td><td>値がすべて英語</td><td>CoBRAC</td><td>自動修正</td></tr>
     <tr><td>QC-03-04</td><td><code>report.md</code> に <code>## HCD</code> の節がある</td><td>CoBRAC</td><td>差し戻し</td></tr>
-    <tr><td>QC-03-05</td><td>プロジェクト名（TLF in ROI）が正しい形</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-05</td><td>プロジェクト名に改行や制御文字がなく、200 文字以内。TLF in ROI の形かどうかは確かめない</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-06</td><td>Circuit ID と UC Descriptor が重複しない</td><td>Master 103</td><td>差し戻し</td></tr>
     <tr><td>QC-03-07</td><td>Circuit ID の文字が英数字と <code>. _ ~ - / + ( )</code> だけ</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-08</td><td><code>ROI_</code> で始まる ID を使わない</td><td>Master 105</td><td>差し戻し</td></tr>
@@ -248,12 +248,12 @@
   <thead><tr><th style="width:34%">Master の番号</th><th>理由</th></tr></thead>
   <tbody>
     <tr><td>127・420・421・424・430</td><td>ワーカーが自分で書く列なので、検査は要らない。ROI のレコード、Review End Line、ROI の外の UC の Capability の定型文も同じ</td></tr>
-    <tr><td>170・171・404・412・413・422・423・432</td><td>人が BIF や FRG の図と見比べる項目。CoBRAC はこれらの図を作らない</td></tr>
+    <tr><td>170・171・310・311・404・412・413・422・423・432</td><td>人が BIF や FRG の図と見比べる項目。CoBRAC はこれらの図を作らない</td></tr>
     <tr><td>6・124・137・143・241・283</td><td>空欄でも問題にならない列（BibTex、Super Class、Size、Physiological Data、In-depth literature）</td></tr>
     <tr><td>FRG_FunctionalityReview の 1001〜2206、FRG の 453〜459・462・471・472・542・564</td><td>記述の中身を人や LLM が判断する項目。QC-09 の番号を確保しているが、CoBRAC にはまだ検査がない。462 の一部は QC-03-41 で確認する</td></tr>
     <tr><td>274 / 279</td><td>引用文や図が接続の存在を示しているかを人が確認する項目。CoBRAC は引用文が論文にあることだけを確かめる（QC-02-09）</td></tr>
   </tbody>
 </table>
-<p>このほか、Master 12（Alternative URL が URL の形）と、109 / 254（<code>makeshift</code> の通知）には、まだ検査がありません。</p>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>cross.ts</code>・<code>canonConstraints.ts</code>・<code>autofix.ts</code>（<code>AUTO_FIX_CODES</code>）・<code>braTemplate.ts</code>、<code>packages/worker/src/pipeline.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>、<code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code></p>
+<p>このほか、109 / 254（<code>makeshift</code> の通知）には、まだ検査がありません。</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>・<code>projectId.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>cross.ts</code>・<code>canonConstraints.ts</code>・<code>autofix.ts</code>（<code>AUTO_FIX_CODES</code>）・<code>braTemplate.ts</code>、<code>packages/worker/src/pipeline.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>、<code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code></p>
 </section>
