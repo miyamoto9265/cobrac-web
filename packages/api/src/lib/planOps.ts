@@ -95,11 +95,13 @@ import { autoOrder, stopPlanJob } from "./planJobs.js";
 import { applyProposal } from "./planProposals.js";
 import { planSpendUsd } from "./planCost.js";
 import { advancePlan, dropReplan } from "./planRunner.js";
+import { applyChat } from "./planChat.js";
 import {
   deleteRow,
   getPlan,
   getProposal,
   listOwnPlans,
+  listChatMessages,
   listPlanEvents,
   listProposals,
   listRows,
@@ -196,7 +198,7 @@ function csvText(v: unknown): string {
 }
 
 /** 409 unless the rows of the plan may be changed (a draft that is not being drafted). */
-function requireEditable(plan: PlanRecord) {
+export function requireEditable(plan: PlanRecord) {
   if (plan.status === "DRAFTING") throw conflict("下書きの作成中はプロジェクトを変更できません");
   if (plan.status !== "DRAFT") throw conflict("確定後のミッションのプロジェクトは変更できません");
 }
@@ -239,7 +241,7 @@ function newRow(planId: string, order: number, r: NormalizedPlanRow, source: Pla
  * A row's match among the owner's projects: done by a finished one, or a warning for an unfinished one. A row the
  * owner chose to rebuild (「作り直す」, `rebuild`) is never matched: it is built.
  */
-function setMatch(row: PlanRowRecord, projects: ProjectRecord[]): PlanRowRecord {
+export function setMatch(row: PlanRowRecord, projects: ProjectRecord[]): PlanRowRecord {
   if (row.rebuild) {
     row.existing = null;
     row.duplicateOf = null;
@@ -612,7 +614,7 @@ export async function orderPlan(u: UserRecord, plan: PlanRecord): Promise<{ plan
 }
 
 /** Every job of the plan may run for the owner: a key to run jobs with (400) and the chosen models (403). */
-async function requirePlanRun(u: UserRecord, plan: PlanRecord) {
+export async function requirePlanRun(u: UserRecord, plan: PlanRecord) {
   const policy = await requireRunKey(u, await itemTeam(u.userId, plan.teamId));
   const o = orchestratorModelOf(plan.settings);
   if (plan.settings.modelChosen && plan.settings.model) requireModel(policy, plan.settings.model);
@@ -642,6 +644,8 @@ export async function answerDraft(u: UserRecord, plan: PlanRecord, body: AnswerD
   const asking = (p: PlanRecord) => p.status === "DRAFTING" && p.draft?.status === "asking" && !!p.draft.qa?.length;
   if (!asking(plan)) throw conflict("質問に回答できる状態ではありません");
   const skip = body?.skip === true;
+  // a message in the chat answers the open round as it is (the draft job reads the chat)
+  const chat = body?.chat === true;
   const raw = Array.isArray(body?.answers) ? body.answers : [];
   if (!skip && raw.some((a) => typeof a !== "string")) throw bad("回答が不正です");
   await requirePlanRun(u, plan);
@@ -651,12 +655,12 @@ export async function answerDraft(u: UserRecord, plan: PlanRecord, body: AnswerD
     const qa = [...d.qa!];
     const last = qa[qa.length - 1];
     const answers = last.questions.map((_, i) => (skip ? "" : cleanPlanNote(raw[i] ?? "").slice(0, PLAN_ASK_LIMITS.answer)));
-    if (!skip && answers.every((a) => !a)) throw bad("回答を入力してください");
+    if (!skip && !chat && answers.every((a) => !a)) throw bad("回答を入力してください");
     const at = nowIso();
     qa[qa.length - 1] = { ...last, answers, answeredAt: at, ...(skip ? { skipped: true } : {}) };
     const draft: PlanJobState = { ...d, jobId: null, status: "waiting", requestedAt: at, endedAt: null, error: null, errorCode: null, qa };
     if (!(await updatePlan(plan.planId, { draft }, { status: "DRAFTING" }))) throw conflict(STATUS_CHANGED);
-    await putPlanEvent(plan.planId, "draft_answered", u.userId, { detail: skip ? { round: qa.length, skipped: 1 } : { round: qa.length } });
+    await putPlanEvent(plan.planId, "draft_answered", u.userId, { detail: skip ? { round: qa.length, skipped: 1 } : chat ? { round: qa.length, chat: 1 } : { round: qa.length } });
     return { ...fresh, draft, updatedAt: at };
   });
   await kick(plan.planId);
@@ -769,10 +773,14 @@ async function recheckExisting(u: UserRecord, rows: PlanRowRecord[], at: string)
   return changed;
 }
 
-/** Lets the runner act now instead of at its next minute; a failure only waits for the scheduled step. */
-async function kick(planId: string) {
+/**
+ * Lets the runner act now instead of at its next minute; a failure only waits for the scheduled step. A reply of the
+ * Orchestrator that the step found ready is stored (and its actions carried out) once the step gave the lease back.
+ */
+export async function kick(planId: string) {
   try {
-    await advancePlan(planId);
+    const r = await advancePlan(planId);
+    if (r.chatReady) await applyChat(planId);
   } catch (e) {
     console.error(`[plan ${planId}] immediate step failed; the runner retries`, e);
   }
@@ -940,7 +948,7 @@ const round6 = (v: number) => Math.round(v * 1_000_000) / 1_000_000;
  * estimate, and what was spent so far (the rows' projects and the plan's own draft / re-plan jobs).
  */
 export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanDetailResponse> {
-  const [rows, events, limits, projects, proposals, jobs] = await Promise.all([
+  const [rows, events, limits, projects, proposals, jobs, chat] = await Promise.all([
     listRows(plan.planId),
     listPlanEvents(plan.planId),
     currentLimits(),
@@ -948,6 +956,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     listProposals(plan.planId),
     // plan jobs are stored under the plan ID (like a Canon's AI reviews under the Canon ID)
     listJobsForCanon(plan.planId),
+    listChatMessages(plan.planId),
   ]);
   const byId = new Map(projects.map((p) => [p.projectId, p]));
   const live = rows.filter((r) => r.state !== "skipped");
@@ -1005,6 +1014,7 @@ export async function planDetail(u: UserRecord, plan: PlanRecord): Promise<PlanD
     proposals: proposals.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.sk < b.sk ? 1 : -1)),
     planJobsCostUsd: jobsPriced ? round6(jobsCost) : null,
     canon: canonView,
+    chat: chat.sort((a, b) => (a.sk < b.sk ? -1 : 1)),
   };
 }
 

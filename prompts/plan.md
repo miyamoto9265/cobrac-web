@@ -14,6 +14,7 @@ The prompt ends with the task of this job (DRAFT or REPLAN), the reply language 
 - `wave`: REPLAN only, the wave that has just finished.
 - `ask`: DRAFT only, true when you may ask the owner questions before you draft (see Questions before the draft).
 - `qa`: DRAFT only, the questions asked before this draft and the owner's answers, oldest round first (`answer` `""` = left open: decide it yourself).
+- `chat`: DRAFT only, when present: the owner's conversation with the Orchestrator about this mission, oldest first. What the owner asked there (rows to add, leave out or put first, the scope, the granularity) holds for this draft like an answer in `qa`; when they asked for a new draft, write it as they asked.
 
 ## Policy (both tasks)
 

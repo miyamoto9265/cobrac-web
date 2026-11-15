@@ -926,7 +926,7 @@ export const zh: Record<MessageKey, string> = {
   "plan.row.attention": "需处理",
   "plan.row.skipped": "已跳过",
   "plan.row.cancelled": "已停止",
-  "plan.confirm": "确认并开始",
+  "plan.confirm": "开始",
   "plan.confirmQ": "开始此计划吗？将分 {waves} 批制作 {n} 个项目，每次最多 {c} 个（预计 {time}，{cost}）。任务的费用与其他任务一样计费。",
   "plan.pause": "暂停",
   "plan.resume": "继续",

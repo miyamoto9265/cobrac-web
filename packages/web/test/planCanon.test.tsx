@@ -200,7 +200,7 @@ describe("confirming a draft with a new Canon name being typed", () => {
     await type(q<HTMLInputElement>('[data-testid="canon-new-name"]')!, "Speech canon");
     const put = deferred<{ ok: true }>();
     api.setPlanCanon.mockReturnValue(put.promise);
-    await click(button("Confirm and start"));
+    await click(button("Start"));
     expect(api.setPlanCanon).toHaveBeenCalledWith("n4h8w2rk", { mode: "new", name: "Speech canon" });
     // nothing is asked or confirmed before the name is stored
     expect(window.confirm).not.toHaveBeenCalled();
@@ -220,7 +220,7 @@ describe("confirming a draft with a new Canon name being typed", () => {
     api.setPlanCanon.mockReturnValue(put.promise);
     await act(async () => input.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
     expect(api.setPlanCanon).toHaveBeenCalledTimes(1);
-    await click(button("Confirm and start"));
+    await click(button("Start"));
     expect(window.confirm).not.toHaveBeenCalled();
     await act(async () => put.resolve({ ok: true }));
     expect(api.setPlanCanon).toHaveBeenCalledTimes(1);
@@ -233,7 +233,7 @@ describe("confirming a draft with a new Canon name being typed", () => {
     await render("/plans/n4h8w2rk");
     await type(q<HTMLInputElement>('[data-testid="canon-new-name"]')!, "Speech canon");
     api.setPlanCanon.mockRejectedValue(new Error("この名前の Canon はすでにあります"));
-    await click(button("Confirm and start"));
+    await click(button("Start"));
     expect(window.confirm).not.toHaveBeenCalled();
     expect(api.confirmPlan).not.toHaveBeenCalled();
     expect(document.body.textContent).toContain("この名前の Canon はすでにあります");
@@ -242,7 +242,7 @@ describe("confirming a draft with a new Canon name being typed", () => {
   it("names the stored Canon when nothing is being edited", async () => {
     api.getPlan.mockResolvedValue(draft());
     await render("/plans/n4h8w2rk");
-    await click(button("Confirm and start"));
+    await click(button("Start"));
     expect(api.setPlanCanon).not.toHaveBeenCalled();
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("The Canon “Language canon” is created"));
     expect(api.confirmPlan).toHaveBeenCalledTimes(1);
@@ -436,11 +436,12 @@ describe("the mission page's tabs and the 「対応が必要」 panel", () => {
     expect(q('[data-testid="plan-rows"]')).toBeNull();
     const panel = q('[data-testid="plan-todo"]')!;
     expect(q('[data-testid="plan-decisions"]', panel)).not.toBeNull();
-    expect(q('[data-testid="plan-todo-empty"]')).toBeNull();
     // the pull requests that wait for approval, and the progress
     expect(qa<HTMLAnchorElement>('[data-testid="plan-todo-prs"] [data-testid="row-pr"]').map((a) => a.getAttribute("href"))).toEqual([`/canons/${CANON}/pulls/5`]);
     expect(q('[data-testid="plan-todo-progress"]')!.textContent).toContain("1 / 3 done");
-    expect(q('aside[aria-label="Needs you"]')!.textContent).toContain("1");
+    // the Orchestrator's panel: what needs the owner first, then the conversation
+    expect(q('aside[aria-label="Orchestrator"]')!.textContent).toContain("Needs you");
+    expect(q('[data-testid="plan-chat"] [data-testid="plan-todo"]')).not.toBeNull();
     // the delete button is on the settings tab of a finished mission only
     expect(button("Delete mission")).toBeUndefined();
   });
@@ -450,7 +451,8 @@ describe("the mission page's tabs and the 「対応が必要」 panel", () => {
     api.deletePlan.mockResolvedValue({ ok: true });
     await render("/plans/n4h8w2rk/somewhere");
     expect(q('[data-testid="plan-summary"]')).not.toBeNull();
-    expect(q('[data-testid="plan-todo-empty"]')!.textContent).toBe("Nothing needs you right now.");
+    expect(q('[data-testid="plan-decisions"]')).toBeNull();
+    expect(q('[data-testid="chat-empty"]')!.textContent).toBe("Ask about the results of this mission.");
     await click(q('[data-testid="plan-tab-settings"]'));
     expect(q('[data-testid="plan-settings"]')).not.toBeNull();
     await click(q('[data-testid="plan-danger"] button'));

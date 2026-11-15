@@ -16,7 +16,7 @@
 // for an ordinary plan. Plans without a Canon read no Canon.
 //
 // 自律実行 (autonomous run, `settings.autonomous`): the Orchestrator acts for the owner, so the plan runs to the end
-// without waiting for a person. The runner confirms its draft (through the Lambda handler, after the step); the
+// without waiting for a person once the owner started it (「開始」: a draft never starts on its own). The
 // Orchestrator's AI answers every question of the rows' agents (an `answer` row job), decides on every pull request of
 // the plan (seeds included; the runner applies approve, request changes as a follow-up, or reject), and resolves rows
 // that need attention (retry / skip) or a decision (done / push / skip) with a `resolve` row job; re-plan proposals are
@@ -72,6 +72,7 @@ import {
   flowReplanDue,
   freeSlots,
   isAutonomous,
+  isOpenPlanChat,
   isFlowPlan,
   perRowCostUsd,
   rowsWithinCost,
@@ -111,6 +112,7 @@ import { newRowJobId, queueRowJob, readRowJobResult, retryDue, rowJobInput, rowJ
 import { acquirePlanLease, getPlan, listProposals, listRows, putPlanEvent, putRow, releasePlanLease, setPlanStatus, updatePlan, updateProposal, updateRow } from "./plans.js";
 import { answerQuestion, createProject, deploymentDefaultModel, implicitModel, orchestratorDefaultModel, jobKeySource, moveToAllowedModel, queueFollowup, queueRetry, runPolicy, stopProject, usesTeamKeys } from "./runs.js";
 import { itemTeam, requireUnderLimits } from "./teams.js";
+import { stepChat } from "./planChat.js";
 
 export const RUNNER = "runner";
 
@@ -124,8 +126,8 @@ export interface AdvanceResult {
   pausedReason?: PlanPauseReason;
   /** A `plan` job (draft or re-plan) queued by this step */
   planJob?: string;
-  /** 自律実行: the draft was applied in this step; the caller confirms the plan once the step released its lease */
-  autoConfirm?: boolean;
+  /** A reply of the Orchestrator in the chat is ready: the caller stores it (`applyChat`) once the step released its lease */
+  chatReady?: boolean;
 }
 
 /** The models a plan's jobs run on: the rows' (`model`) and the Orchestrator's own jobs' (`orchestratorModel`). */
@@ -660,14 +662,13 @@ async function stepDraft(plan: PlanRecord, owner: UserRecord | null, now: number
   const applied = draftRows(plan.planId, await listRows(plan.planId, true), parsed, projects, limits.effective, nowIso());
   for (const r of applied.rows) await putRow(r);
   const dropped = parsed.dropped + applied.dropped;
-  const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso(), ...(isAutonomous(plan) ? { autoConfirm: true } : {}) };
+  // the draft never starts on its own: the owner presses 「開始」 (自律実行 only decides who acts once it runs)
+  const draft: PlanJobState = { ...d, status: "done", error: null, unread: parsed.unread, dropped, endedAt: nowIso() };
   const values: Partial<PlanRecord> = { draft, ordering: "auto", rowCount: applied.rows.length, rowCounts: countRows(applied.rows), ...(isEmptyPlanPolicy(parsed.policy) ? {} : { policy: parsed.policy }) };
   if (!(await setPlanStatus(plan.planId, "DRAFTING", "DRAFT", values))) return;
   Object.assign(plan, values, { status: "DRAFT" });
   result.changed++;
   await putPlanEvent(plan.planId, "draft_applied", RUNNER, { detail: { rows: applied.rows.length, added: applied.added, seeds: applied.seeds, unread: parsed.unread.length, dropped } });
-  // 自律実行: confirmed right after this step (the confirmation takes the plan's lease, which this step holds)
-  if (isAutonomous(plan)) result.autoConfirm = true;
 }
 
 // --- re-plan (plans ordered automatically) ---------------------------------------------------------------------------
@@ -962,13 +963,17 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
   const result: AdvanceResult = { planId, started: [], changed: 0 };
   // consistent, so a kick right after a request (e.g. a draft asked for) is never skipped as inactive on a lagging read
   const seen = await getPlan(planId, true);
-  if (!seen || seen.deletedAt || !RUNNER_PLAN_STATUSES.includes(seen.status)) return { ...result, skipped: "inactive", status: seen?.status };
+  // a plan in another status is stepped only for its chat with the Orchestrator
+  const stepped = (p: PlanRecord | null): p is PlanRecord => !!p && !p.deletedAt && (RUNNER_PLAN_STATUSES.includes(p.status) || isOpenPlanChat(p.chat));
+  if (!stepped(seen)) return { ...result, skipped: "inactive", status: (seen as PlanRecord | null)?.status };
   const lease = await acquirePlanLease(seen, PLAN_LEASE_MS);
   if (!lease) return { ...result, skipped: "busy", status: seen.status };
   try {
     const plan = await getPlan(planId, true);
-    if (!plan || plan.deletedAt || !RUNNER_PLAN_STATUSES.includes(plan.status)) return { ...result, skipped: "inactive", status: plan?.status };
+    if (!stepped(plan)) return { ...result, skipped: "inactive", status: (plan as PlanRecord | null)?.status };
     const owner = await getUser(plan.ownerUserId);
+    if (isOpenPlanChat(plan.chat)) await stepChat(plan, owner, now, result);
+    if (!RUNNER_PLAN_STATUSES.includes(plan.status)) return { ...result, status: plan.status };
     if (plan.status === "DRAFTING") {
       await stepDraft(plan, owner, now, result);
       return { ...result, status: plan.status };

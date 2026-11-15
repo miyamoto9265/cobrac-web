@@ -1,5 +1,5 @@
 // 自律実行 (autonomous run): the Orchestrator acts for the owner, so a plan goes from its draft to the end without waiting
-// for a person — the draft is confirmed on its own, the Orchestrator's AI answers the rows' questions (an `answer` row
+// for a person — once the owner starts it with 「開始」 (a draft never starts on its own), the Orchestrator's AI answers the rows' questions (an `answer` row
 // job, no limit), decides on every pull request (seeds included) and on rows that need attention or a decision (a
 // `resolve` row job), re-plan proposals are applied at once, and the cost limit stops new work.
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,7 +24,7 @@ const { fake } = await import("./fakeDdb.js");
 const { app } = await import("../src/app.js");
 const aws = await import("../src/lib/aws.js");
 const { advancePlan } = await import("../src/lib/planRunner.js");
-const { autoConfirm } = await import("../src/handlers/planRunner.js");
+const { handler: runnerTick } = await import("../src/handlers/planRunner.js");
 const { resetLimitsCache } = await import("../src/lib/concurrency.js");
 const { planJobInput } = await import("../src/lib/planJobs.js");
 
@@ -127,7 +127,7 @@ function rowJobDone(planId: string, roi: string, decision: Record<string, unknow
 }
 const rowJobInputOf = (planId: string, jobId: string) => JSON.parse(s3.get(planJobKey(planId, jobId, "input.json"))!) as PlanRowJobInput;
 
-/** An autonomous plan with the given rows, drafted (the draft job keeps the rows) and confirmed on its own. */
+/** An autonomous plan with the given rows, drafted (the draft job keeps the rows) and started by its owner with 「開始」. */
 async function autonomousPlan(rows: string[], maxCostUsd = 50): Promise<string> {
   const created = await json<CreatePlanResponse>(
     call(A, "POST", "/plans", { name: "Language", goal: "言語の BRA を一通りそろえたい", draft: true, autonomous: { maxCostUsd }, rows: rows.map((roi) => ({ roi, tlf: `${roi} function` })), locale: "ja" }),
@@ -139,10 +139,12 @@ async function autonomousPlan(rows: string[], maxCostUsd = 50): Promise<string> 
   const result: PlanJobResult = { schema: PLAN_JOB_RESULT_SCHEMA, kind: "draft", planId, jobId: job.jobId, model: job.model ?? "", locale: input.locale, createdAt: now, rows: [], unread: [], policy: "neocortex = area", proposals: [], notes: "", dropped: 0 };
   s3.set(planJobKey(planId, job.jobId, "result.json"), JSON.stringify(result));
   fake.put("jobs", { ...job, status: "COMPLETED", costUsd: 0.02 } as never);
-  const step = await advancePlan(planId);
-  expect(step.autoConfirm).toBe(true);
-  await autoConfirm(planId);
-  expect(planOf(planId)).toMatchObject({ status: "RUNNING", confirmedBy: "runner" });
+  await advancePlan(planId);
+  // a draft never starts on its own, autonomous or not
+  await runnerTick();
+  expect(planOf(planId).status).toBe("DRAFT");
+  await json(call(A, "POST", `/plans/${planId}/confirm`, { locale: "ja" }));
+  expect(planOf(planId)).toMatchObject({ status: "RUNNING", confirmedBy: A.sub });
   return planId;
 }
 
@@ -156,7 +158,7 @@ beforeEach(() => {
 });
 
 describe("自律実行: from the draft to the Canon without a person", () => {
-  it("confirms the draft, decides on every pull request, answers questions and leaves out what it rejects", async () => {
+  it("once started, decides on every pull request, answers questions and leaves out what it rejects", async () => {
     await setLimits(8, 8);
     const planId = await autonomousPlan(["left IFG", "STG"]);
     const canonId = planOf(planId).canonId!;
@@ -411,7 +413,7 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     expect(plain.plan.canonNew).toBeUndefined();
   });
 
-  it("confirms only a draft written while the run was on: switched on afterwards, the owner confirms", async () => {
+  it("never starts a draft on its own: the owner starts it, whether the run was on while drafting or switched on afterwards", async () => {
     const created = await json<CreatePlanResponse>(call(A, "POST", "/plans", { name: "Language", goal: "g", draft: true, rows: [{ roi: "STG", tlf: "hearing" }], locale: "ja" }));
     const planId = created.plan.planId;
     const job = jobs().find((j) => j.projectId === planId && j.type === "plan")!;
@@ -419,10 +421,10 @@ describe("自律実行: from the draft to the Canon without a person", () => {
     const result: PlanJobResult = { schema: PLAN_JOB_RESULT_SCHEMA, kind: "draft", planId, jobId: job.jobId, model: job.model ?? "", locale: input.locale, createdAt: now, rows: [], unread: [], policy: "", proposals: [], notes: "", dropped: 0 };
     s3.set(planJobKey(planId, job.jobId, "result.json"), JSON.stringify(result));
     fake.put("jobs", { ...job, status: "COMPLETED" } as never);
-    expect((await advancePlan(planId)).autoConfirm).toBeUndefined();
+    await advancePlan(planId);
     await json(call(A, "PUT", `/plans/${planId}`, { settings: { autonomous: { maxCostUsd: 30 } } }));
     expect(planOf(planId)).toMatchObject({ status: "DRAFT", settings: { autonomous: { maxCostUsd: 30 } } });
-    await autoConfirm(planId);
+    await runnerTick();
     expect(planOf(planId).status).toBe("DRAFT");
   });
 });

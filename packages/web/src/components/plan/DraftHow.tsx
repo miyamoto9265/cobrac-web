@@ -18,8 +18,7 @@ const switchCls =
 /**
  * 自律実行 of a draft, the default: its title, what it does and the cost limit (saved when the field is left) come first.
  * Below them, a secondary checkbox is the opt-in to handle the pull requests, conflicts and questions yourself (it turns
- * 自律実行 off). Switched back to 自律実行 after the draft was applied, the draft is not confirmed on its own: the note says
- * that 「確定して開始」 starts the autonomous run.
+ * 自律実行 off). The draft never starts on its own: the owner starts it with 「開始」, as an autonomous run or not.
  */
 function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }) {
   const t = useT();
@@ -28,7 +27,6 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
   const [cost, setCost] = useState(String(a?.maxCostUsd ?? AUTONOMOUS_DEFAULT_MAX_COST_USD));
   useEffect(() => setCost(String(a?.maxCostUsd ?? AUTONOMOUS_DEFAULT_MAX_COST_USD)), [a?.maxCostUsd]);
   const ok = (v: string) => Number(v) >= AUTONOMOUS_MAX_COST_RANGE.min && Number(v) <= AUTONOMOUS_MAX_COST_RANGE.max;
-  const afterDraft = !!a && plan.draft?.status === "done" && !plan.draft.autoConfirm;
   return (
     <div className={`grid gap-3 rounded-xl border p-4 ${a ? "border-violet-200 bg-violet-50" : "border-slate-200"}`} data-testid="plan-autonomous-setting">
       <div className="grid gap-0.5">
@@ -56,11 +54,6 @@ function AutonomousCard({ plan, save }: { plan: PlanRecord; save: SaveSettings }
             aria-invalid={!ok(cost)}
           />
         </div>
-      )}
-      {afterDraft && (
-        <p className="text-xs text-violet-700" data-testid="plan-auto-after-draft">
-          {t("auto.afterDraft")}
-        </p>
       )}
       <label className={`flex items-center gap-2 border-t pt-3 text-sm text-slate-700 coarse:min-h-11 ${a ? "border-violet-200" : "border-slate-200"}`}>
         <input

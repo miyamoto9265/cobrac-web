@@ -926,7 +926,7 @@ export const ko: Record<MessageKey, string> = {
   "plan.row.attention": "조치 필요",
   "plan.row.skipped": "건너뜀",
   "plan.row.cancelled": "중지됨",
-  "plan.confirm": "확정하고 시작",
+  "plan.confirm": "시작",
   "plan.confirmQ": "이 미션을 시작할까요? 프로젝트 {n}개를 {waves}개의 웨이브로 나누어 한 번에 최대 {c}개씩 만듭니다(예상 {time}, {cost}). 비용은 다른 작업과 똑같이 기록됩니다.",
   "plan.pause": "일시 정지",
   "plan.resume": "재개",

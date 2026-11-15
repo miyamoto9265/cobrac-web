@@ -171,16 +171,17 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 
 ## CoBRAC Orchestrator
 
-**CoBRAC Orchestrator** takes a goal, plans the BRA projects (ROI × TLF) to build and builds them. One piece of work you hand it, with a goal and a cost limit, is a **mission**; what it writes inside the mission (rows, waves and policy) is the **plan**. Once the plan is confirmed, the rows run automatically in **waves**, within the concurrency limits. No project is created before you confirm.
+**CoBRAC Orchestrator** takes a goal, plans the BRA projects (ROI × TLF) to build and builds them. One piece of work you hand it, with a goal and a cost limit, is a **mission**; what it writes inside the mission (rows, waves and policy) is the **plan**. Once you have checked the plan and pressed "Start", the rows run automatically in **waves**, within the concurrency limits. Making the plan starts nothing: no project is created before you press "Start".
 
 ### Create a mission
 
 1. Press "+ Mission" at the top of the sidebar and enter a name and a goal (for example "Cover the BRA of language").
 2. With the “+” under the fields, add files (CSV, xlsx, PDF and others) or choose “Paste a list” and paste one. Each entry of the list is one project.
 3. Choose the Canon the projects are delivered to with the "Canon" chip. "New Canon" is chosen at first: name it in the "Canon" field of the card (its own name, not the mission's). Press the chip to switch to one of your Canons or to "None". Opened from "New mission" on a Canon's page, the screen starts with that Canon chosen.
-4. "Start" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded) and then runs the mission to the end on its own (the default). Open the "Autonomous run" chip and turn on "Handle pull requests and conflicts yourself" to get "Create mission" (a mission from the rows read) and "Create draft" instead. None of them can be pressed without a goal or materials.
+4. "Create plan" has the AI write a draft of the rows from the goal and the sources (it takes a few minutes and its cost is recorded). The mission does not start yet. The button cannot be pressed without a goal or materials.
 5. Before drafting, when the goal leaves the scope or priorities open, the Orchestrator may ask 0–3 questions (and, after your answers, one more round of follow-up questions). Pick an answer or write your own and press "Answer". It decides questions you leave blank, or all of them with "Leave it to the Orchestrator". Even in an autonomous run, you answer these questions yourself.
-6. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Confirm and start" shows the estimate and starts.
+6. The draft screen has four parts. "1. What to build" edits the goal, adds and removes files and writes the draft. "2. Rows and waves" adds, removes and reorders rows. "3. How it runs" chooses the autonomous run, the Canon, the models and the research mode. "4. Start" shows the estimate and how the mission will run, and starts it.
+7. The "Orchestrator" panel on the right of the page lets you talk with the Orchestrator (see "Talk with the Orchestrator" below).
 
 ### Ordering
 
@@ -189,9 +190,9 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - "Order automatically" works out the waves again from the anchors and dependencies. If you change rows or waves by hand and save, your order is used as it is.
 - A row whose ROI × TLF already has a completed project is marked "Existing" and is done without building. Tick "Rebuild" to build it anyway.
 
-### Confirm and run
+### Start and run
 
-- "Confirm and start" shows the estimate (time and cost) before starting.
+- "Start" shows the estimate (time and cost) before starting. A draft never starts on its own, even in an autonomous run.
 - A failed row is retried automatically up to 2 times; after that it "Needs attention" (choose "Retry" or "Skip").
 - An automatically ordered mission does not wait for a wave to end. A row starts in the next free slot as soon as the rows it depends on are done and no row building the same circuits is in progress. The **lanes** map on the mission page shows at a glance which rows are done, running, next or waiting (click a tile to go to its row), and a waiting row says what it waits for.
 - In an automatically ordered mission, rows may be proposed for adding or removing as rows finish. A proposal changes nothing until you approve it.
@@ -199,8 +200,18 @@ Fix the values in a PR: tick the problem under "Problems this pull request fixes
 - "Missions" in the sidebar opens the list of missions: running ones, drafts, then finished ones, each with the name of the Canon it delivers to. "Group by Canon" groups them by Canon instead (the choice is kept in your browser).
 - "Your turn" at the top of the mission list gathers what is waiting for you, such as questions and approvals. Its count shows beside "Missions" in the sidebar on every screen.
 - The mission page has the tabs "Overview", "Projects", "In the Canon", "History" and "Settings". "In the Canon" shows the Canon's graph with what this mission's projects added highlighted.
-- What waits for you on a mission (questions, decisions, projects that need attention, proposals) is gathered in "Needs you" on the right of the mission page. On a narrow screen, open it with the "Needs you" button at the right end of the tabs.
+- What waits for you on a mission (questions, decisions, projects that need attention, proposals) is gathered under "Needs you" at the top of the "Orchestrator" panel on the right of the mission page. On a narrow screen, open it with the "Orchestrator" button at the right end of the tabs.
 - The projects a mission creates open on the usual project page.
+
+### Talk with the Orchestrator
+
+Write to the Orchestrator in the "Orchestrator" panel on the right of the mission page, as you would to a colleague (Enter sends, Shift+Enter breaks the line). A reply comes in a minute or two, and its cost counts toward the mission.
+
+- **While planning**: besides answering questions, it adds, removes or edits rows, changes priorities or the policy, or writes the draft again when you ask (e.g. "Put the hippocampal rows first"). What it did is listed under its reply, and "Undo" puts the draft back.
+- **While running**: ask how it is going, or ask it to add or remove rows that have not started, retry or skip rows, or pause and resume.
+- **After it ends**: ask about the results.
+- The questions asked before the draft can be answered in the panel too.
+- Starting and stopping the mission stay your buttons: the Orchestrator never starts or stops it.
 
 ### Missions with a Canon
 
@@ -208,11 +219,11 @@ With a Canon set on the mission, each completed row is pushed to the Canon autom
 
 ### Autonomous run
 
-In an **autonomous run** the Orchestrator acts for you and takes the mission to the end. It is the default for a new mission: check the **cost limit** (USD) on the "Autonomous run" chip of the new mission screen and press "Start".
+In an **autonomous run** the Orchestrator acts for you and takes the mission to the end. It is the default for a new mission: check the **cost limit** (USD) under "3. How it runs" of the draft and press "Start"; from there the Orchestrator takes over.
 
-To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" in the "Autonomous run" chip of the new mission screen or under "3. How it runs" of the draft. In such a mission you confirm the draft, answer the questions, review the PRs and decide on the rows that need attention or a decision.
+To handle pull requests, conflicts and questions yourself, turn on "Handle pull requests and conflicts yourself" under "3. How it runs" of the draft before you start. In such a mission you answer the questions, review the PRs and decide on the rows that need attention or a decision.
 
-- Once the draft is written, it is confirmed and started automatically. A new Canon, when chosen, is created at this point.
+- The mission runs once you press "Start". A new Canon, when chosen, is created at this point.
 - The rows' agents may ask questions. The Orchestrator's AI answers each one after reading the row, the mission's goal and policy, the Canon's policy and the decision log, with no limit on the number of answers (the row shows "AI answers: n").
 - The AI reads each PR and approves, requests changes or rejects it.
 - When a row needs attention or a decision, the Orchestrator's AI picks one of the choices you would have and records why. Only when the mission's Canon is gone does the mission pause for you.
@@ -222,7 +233,7 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 
 ### Questions, pause and cancel
 
-- When an agent asks a question, only its row stops, and the question appears under "Questions" in "Needs you" on the mission page. Answering resumes that row.
+- When an agent asks a question, only its row stops, and the question appears under "Questions" in "Needs you" in the Orchestrator panel of the mission page. Answering resumes that row.
 - Each mission can be paused on its own, from the mission screen or with the button at the top right of its lane in the mission list. A paused mission starts no new rows and no work of the Orchestrator's AI; running rows go on. "Resume" continues from where it stopped.
 - "Cancel" also stops the running jobs. A cancelled mission can be resumed.
 - A finished mission can be deleted on the "Settings" tab of its page. Deleting a mission keeps the projects it created. The mission's row leaves the sidebar history, and its projects stay in the "See all" list. Deleting a Canon also deletes its finished (completed or cancelled) missions.

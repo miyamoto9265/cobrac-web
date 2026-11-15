@@ -63,6 +63,7 @@ import type {
   CreatePlanRequest,
   ResumePlanRequest,
   AnswerDraftRequest,
+  PlanChatMessage,
   CreatePlanResponse,
   DraftPlanRequest,
   ListPlansResponse,
@@ -293,6 +294,8 @@ export const api = {
   planRowAction: (id: string, rowId: string, action: "retry" | "skip") => request<{ ok: true }>("POST", `/plans/${encodeURIComponent(id)}/rows/${encodeURIComponent(rowId)}/${action}`),
   requestDraft: (id: string, locale: UiLocale) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft`, { locale } satisfies DraftPlanRequest),
   answerDraft: (id: string, b: AnswerDraftRequest) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/answers`, b),
+  postPlanChat: (id: string, text: string, locale: UiLocale) => request<{ message: PlanChatMessage; plan: PlanRecord }>("POST", `/plans/${encodeURIComponent(id)}/chat`, { text, locale }),
+  undoPlanChat: (id: string, messageId: string) => request<{ plan: PlanRecord }>("POST", `/plans/${encodeURIComponent(id)}/chat/${encodeURIComponent(messageId)}/undo`),
   cancelDraft: (id: string) => request<PlanRecord>("POST", `/plans/${encodeURIComponent(id)}/draft/cancel`),
   /** Draft only: capability lists uploaded with `createUpload` are added (CSV / TSV / text are read into rows at once) */
   addPlanAttachments: (id: string, attachments: AddPlanAttachmentsRequest["attachments"]) =>
