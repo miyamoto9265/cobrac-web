@@ -4,13 +4,15 @@
       "sender": "vestibular nuclei",
       "receiver": "flocculus",
       "comment": "mossy fibres",
-      "referenceIds": ["[Ito, 1982]"]
+      "referenceIds": ["[Ito, 1982]"],
+      "modelled": true
     },
     {
       "sender": "inferior olive",
       "receiver": "flocculus",
       "comment": "climbing fibres",
-      "referenceIds": ["[Lisberger, 1994]"]
+      "referenceIds": ["[Lisberger, 1994]"],
+      "modelled": true
     }
   ],
   "connections": [

@@ -12,16 +12,19 @@ import { writeSchemas } from "../src/pipeline.js";
 import { projectPaths } from "../src/steps.js";
 import { schemasSha256 } from "../src/versions.js";
 
-/** schemasSha256 of v0.31.0, before the hypothesis key existed: what projects without hypothesis mode are shown again */
-const SCHEMAS_V0_31 = "0f458b6df96bd3383aaa15d9dfeafd58d61b7083eec8f3897cb4f3ddc3f1b74e";
-/** schemasSha256 of the schemas with the hypothesis key (v0.32.0; shown to hypothesis-mode projects) */
-const SCHEMAS_WITH_HYPOTHESIS = "b7e2361556422e55deacdd97ce3cc6e1689158dc2dc1b8d7c35918cf02048923";
+/**
+ * schemasSha256 without the hypothesis key: what projects without hypothesis mode are shown (the schemas of v0.31.0,
+ * then with the BIF keys `modelled`, `reason` and `candidateIds` of harness rules 3)
+ */
+const SCHEMAS_STRICT = "c1d6b77bb77c3b5a23a347bbe791645e2c5d1bab37c3157f0387bf669640ceee";
+/** schemasSha256 of the schemas with the hypothesis key (v0.32.0, then with the BIF keys of harness rules 3; shown to hypothesis-mode projects) */
+const SCHEMAS_WITH_HYPOTHESIS = "e0acb0789b5cb63d19972ed94ccbdd7169256490684fd92118f30be8aad493bf";
 
 const scope = (id: string): HypothesisScope => ({ id, claims: ["existence", "sign"], target: { kind: "items", circuitIds: ["IO"], gnIds: [] }, jobId: "job_2", createdAt: "2026-10-06T00:00:00.000Z" });
 
 describe("schemas shown to the agent", () => {
   it("leave the hypothesis key out for projects without hypothesis mode (the schemas of v0.31.0) and keep it in hypothesis mode", async () => {
-    expect(schemasSha256(agentHarnessSchemas("strict"))).toBe(SCHEMAS_V0_31);
+    expect(schemasSha256(agentHarnessSchemas("strict"))).toBe(SCHEMAS_STRICT);
     expect(schemasSha256(agentHarnessSchemas("hypothesis"))).toBe(SCHEMAS_WITH_HYPOTHESIS);
     // the checks keep using every key (a strict project's hypothesis key is still sent back)
     expect(schemasSha256()).toBe(SCHEMAS_WITH_HYPOTHESIS);
