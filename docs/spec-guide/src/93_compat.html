@@ -31,13 +31,14 @@
     <tr><td>SABRA の境界（BNA は新皮質だけ）</td><td>v0.24.0</td><td><code>sabraBoundary: "neocortex"</code></td><td>皮質下の BNA のアンカーのまま検査を通る</td><td>C.2</td></tr>
     <tr><td>ROI 規則（ROI の要素と左右、引用文の使い回し）</td><td>v0.25.0</td><td><code>harnessRules: 1</code></td><td>印のない（0 の）プロジェクトは前の規則で検査する</td><td>C.3</td></tr>
     <tr><td>版の凍結</td><td>v0.26.0</td><td>版のスナップショット</td><td>現在のデータを「未保存」の版として見せ、次のフォローアップで凍結する</td><td>C.5</td></tr>
-    <tr><td>GN 規則（GN の UC の連結、3〜4 UC の GN）</td><td>v0.28.0</td><td><code>harnessRules: 2</code>（現行）</td><td>1 以下は GN の UC が 2 つまで。X4 を記録する</td><td>C.3</td></tr>
+    <tr><td>GN 規則（GN の UC の連結、3〜4 UC の GN）</td><td>v0.28.0</td><td><code>harnessRules: 2</code></td><td>1 以下は GN の UC が 2 つまで。X4 を記録する</td><td>C.3</td></tr>
+    <tr><td>BIF の行き先と種の照合（BIF の <code>modelled</code>・<code>reason</code>・<code>candidateIds</code>、MeSH の種）</td><td>v0.59.0</td><td><code>harnessRules: 3</code>（現行）</td><td>2 以下は BIF の行き先と種を検査しない</td><td>C.3</td></tr>
     <tr><td>版に検査の前提を記録</td><td>v0.28.2</td><td>版の <code>harnessRules</code>・<code>sabraBoundary</code></td><td>それより前の版は「不明」と表示する</td><td>C.5</td></tr>
     <tr><td>ランダムな ID</td><td>v0.29.0</td><td>ID の形</td><td>以前の形の ID もそのまま有効</td><td>C.4</td></tr>
     <tr><td>ミッションのモデルを 2 つに分ける</td><td>v0.37.0</td><td>ミッションの <code>orchestratorModel</code></td><td>プロジェクトのモデルをオーケストレーターにも使う</td><td>C.6</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 2</code>）、<code>packages/shared/src/types.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>CHANGELOG.md</code>（0.8.0〜0.37.0）</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>HARNESS_RULES = 3</code>）、<code>packages/shared/src/types.ts</code>、<code>packages/shared/src/braVersion.ts</code>、<code>CHANGELOG.md</code>（0.8.0〜0.37.0）</p>
 
 <h2 id="sc-2">C.2 命名</h2>
 <h3>古い形の Descriptor と Circuit ID</h3>

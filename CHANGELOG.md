@@ -8,6 +8,10 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Added
 - "Accepted in BRAES" mark: site admins can mark a project whose BRA data BRAES has accepted (for now an admin checks this and marks each project by hand). The green mark shows beside the project's name on its page, in the project list, on the admin page and in the public library; its tooltip says when it was set and for which version. Admins set or remove it from the admin page's project list or beside the project's name. Clones and copies do not carry it
 
+### Changed
+- Harness checks for new projects (harness rules 3): each connection's species (Taxon) is compared with the species PubMed indexes its paper with (MeSH). A connection marked "(No description)" whose paper names a listed species, or a species the paper does not study, goes back to the agent; a species the list lacks (ferret, gerbil, bat) stays "(No description)" and must be named in the comment
+- Every BIF entry now says whether the HCD models it, and why not when it does not; in research mode every supported or weak survey candidate must appear on a BIF entry. Projections the survey found but the HCD leaves out are kept with their reason instead of disappearing. Existing projects keep their rules
+
 ## [0.58.0] - 2026-11-15
 
 ### Added
