@@ -189,6 +189,8 @@ export interface ProjectRecord {
   braesAccepted?: BraesAcceptance | null;
   /** Project ID before the migration to `<userKey>-<seq>` */
   legacyId?: string;
+  /** Project ID for BRAES (`initial + year + RunningTitle`, braes.ts), set at the first download of the BRAES submission set */
+  braesProjectId?: string;
   roi: string;
   tlf: string;
   /** From the creator's account (Settings → contributor name) */
@@ -689,6 +691,18 @@ export interface NodeStyle {
 }
 
 /** User arrangement of a graph view: positions, sizes/colours and edge styles, keyed by node / edge id. */
+/** POST /projects/:id/artifacts/braes */
+export interface BraesBundleRequest {
+  braesProjectId: string;
+  locale?: string;
+}
+
+export interface BraesBundleResponse {
+  url: string;
+  expiresIn: number;
+  braesProjectId: string;
+}
+
 export interface GraphLayout {
   positions: Record<string, { x: number; y: number }>;
   nodes?: Record<string, NodeStyle>;

@@ -89,6 +89,7 @@ import type {
   TeamDetail,
   TeamInviteView,
   TeamRole,
+  BraesBundleResponse,
 } from "@cobrac/shared";
 import { getIdToken } from "./auth";
 import { getConfig } from "./config";
@@ -201,6 +202,8 @@ export const api = {
   artifacts: (id: string) => request<{ items: ArtifactInfo[] }>("GET", `/projects/${encodeURIComponent(id)}/artifacts`),
   downloadUrl: (id: string, key: string) =>
     request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/artifacts/download?key=${encodeURIComponent(key)}`),
+  braesBundle: (id: string, braesProjectId: string, locale: UiLocale) =>
+    request<BraesBundleResponse>("POST", `/projects/${encodeURIComponent(id)}/artifacts/braes`, { braesProjectId, locale }),
   templateXlsxUrl: (id: string) => request<{ url: string }>("GET", `/projects/${encodeURIComponent(id)}/artifacts/template-xlsx`),
   artifactText: (id: string, key: string) =>
     request<string>("GET", `/projects/${encodeURIComponent(id)}/artifacts/text?key=${encodeURIComponent(key)}`, undefined, true),

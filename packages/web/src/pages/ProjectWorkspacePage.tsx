@@ -6,6 +6,7 @@ import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, reso
 import { CanonBadge } from "../components/CanonBadge";
 import { Trail, trailSteps, useAboveNames } from "../components/Trail";
 import { VisibilityToggle } from "../components/VisibilityToggle";
+import { BraesDownloadButton } from "../components/BraesDownloadButton";
 import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { CopyProjectButton } from "../components/CopyProjectButton";
@@ -320,6 +321,9 @@ function Workspace({ projectId }: { projectId: string }) {
                 >
                   <FileSpreadsheet size={14} /> {t("ws.csvXlsx")}
                 </button>
+              )}
+              {available.xlsx && available.hcd && available.frg && (
+                <BraesDownloadButton project={project} onSaved={(braesProjectId) => setProject((prev) => (prev && canManage ? { ...prev, braesProjectId } : prev))} />
               )}
               <CopyProjectButton project={project} own={isOwner} />
               {canManage && <VisibilityToggle
