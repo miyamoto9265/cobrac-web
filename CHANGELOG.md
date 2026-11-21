@@ -5,6 +5,8 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.59.0] - 2026-11-21
+
 ### Added
 - "BRAES set" on a project's header downloads, as one zip, the files the BRAES submission form asks for: the BRA data with a BRAES Project ID as the five CSVs the BRA Data Converter reads (it writes them into a Google copy of Template-v2-3, so the sheet's formulas and WholeBIF import stay), the BIF, HCD and FRG images as draw.io XML (drawn as the BRAES design guide asks: circuits as rectangles, the ROI in a bracket, excitatory / inhibitory / modulatory connections in black / blue / green, HCD components as ellipses with white arrows, FRG nodes as rounded rectangles), a draw.io file with the BIF, Semi-Transparent and HCD layers for editing, and a note of the values to enter in the form, question by question. The images follow the arrangement on the graph screens. The BRAES Project ID (initial + year + RunningTitle, e.g. YT20Oculomotor) is asked for at download, with a proposal from the contributor's initials, the year and the project name, and is saved with the project. The format is provisional while BRAES itself may change
 - "Accepted in BRAES" mark: site admins can mark a project whose BRA data BRAES has accepted (for now an admin checks this and marks each project by hand). The green mark shows beside the project's name on its page, in the project list, on the admin page and in the public library; its tooltip says when it was set and for which version. Admins set or remove it from the admin page's project list or beside the project's name. Clones and copies do not carry it
@@ -12,18 +14,17 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ### Fixed
 - The sidebar's history list no longer shows the light grey browser scrollbar with arrows between the sidebar and the page; it scrolls with a thin dark thumb that matches the sidebar
+- Autonomous missions: projects that cannot start because the mission's cost limit is reached now show "Cost limit" instead of "Starts next"
+- When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
+- Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
 
 ### Changed
+- The model and reasoning effort you pick on the create screen, and the agent model you pick in a mission, become your defaults, so the next project or mission starts with them. Choosing "Default" goes back to the app's default. The settings page's "Default model" shows this value and can still change it
 - Harness checks for new projects (harness rules 3): each connection's species (Taxon) is compared with the species PubMed indexes its paper with (MeSH). A connection marked "(No description)" whose paper names a listed species, or a species the paper does not study, goes back to the agent; a species the list lacks (ferret, gerbil, bat) stays "(No description)" and must be named in the comment
 - Every BIF entry now says whether the HCD models it, and why not when it does not; in research mode every supported or weak survey candidate must appear on a BIF entry. Projections the survey found but the HCD leaves out are kept with their reason instead of disappearing. Existing projects keep their rules
 
 ### Removed
 - The "CSV set (xlsx)" download button on a project's header (CoBRAC's CSV files in one workbook). Use "BRA data (xlsx)", or the BRAES set for the converter CSVs
-
-### Fixed
-- Autonomous missions: projects that cannot start because the mission's cost limit is reached now show "Cost limit" instead of "Starts next"
-- When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
-- Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
 
 ## [0.58.0] - 2026-11-15
 
