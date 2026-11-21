@@ -208,24 +208,30 @@ export function PairFields({
   );
 }
 
-/** One field row. Only the TLF row carries the "?" (for both fields), so Tab goes straight from ROI to TLF. */
-function Row({ tag, sub, help, active, field, children }: { tag: string; sub: string; help?: string; active: boolean; field: ReactNode; children?: ReactNode }) {
+/**
+ * One field row of a create card (also used by the new-mission card, so both screens look alike): the tag in the left
+ * column (a short code over a small word), the field, then a "?" or another small control at the right. Only the TLF row
+ * carries the "?" (for both fields), so Tab goes straight from ROI to TLF.
+ */
+export function Row({ tag, sub, help, trail, active, field, children }: { tag: string; sub: string; help?: string; trail?: ReactNode; active: boolean; field: ReactNode; children?: ReactNode }) {
   return (
     <div className={`flex items-start gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5 ${active ? "bg-blue-50/50" : ""}`}>
       <div className="w-10 shrink-0 select-none pt-1 text-center sm:w-11" aria-hidden>
-        <span className={`block font-mono text-[13px] font-semibold tracking-wider ${active ? "text-blue-600" : "text-slate-500"}`}>{tag}</span>
-        <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>
+        {/* a tag longer than four characters (“Canon”) is set tighter so that it stays inside the tag column */}
+        <span className={`block font-mono font-semibold ${tag.length > 4 ? "text-[12px] leading-[1.625]" : "text-[13px] tracking-wider"} ${active ? "text-blue-600" : "text-slate-500"}`}>{tag}</span>
+        {sub && <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>}
       </div>
       <div className="relative min-w-0 flex-1">
         {field}
         {children}
       </div>
-      <span className="w-4 shrink-0 pt-1.5">{help && <HelpTip text={help} />}</span>
+      <span className="w-4 shrink-0 pt-1.5">{trail ?? (help && <HelpTip text={help} />)}</span>
     </div>
   );
 }
 
-const AutoTextarea = forwardRef<
+/** A textarea that grows with its text (or its example) up to 12rem, without measuring. */
+export const AutoTextarea = forwardRef<
   HTMLTextAreaElement,
   {
     value: string;
@@ -237,10 +243,12 @@ const AutoTextarea = forwardRef<
     placeholder: ReactNode;
     enterKeyHint: "next" | "go" | "enter";
     disabled?: boolean;
-    testId: string;
+    testId?: string;
+    maxLength?: number;
+    autoFocus?: boolean;
     combobox?: { listId: string; open: boolean; activeId?: string };
   }
->(function AutoTextarea({ value, onChange, onKeyDown, onFocus, onBlur, label, placeholder, enterKeyHint, disabled, testId, combobox }, ref) {
+>(function AutoTextarea({ value, onChange, onKeyDown, onFocus, onBlur, label, placeholder, enterKeyHint, disabled, testId, maxLength, autoFocus, combobox }, ref) {
   // The replica sizes the grid cell to the text (or the example), so the textarea grows without measuring.
   const cell = "col-start-1 row-start-1 max-h-48 whitespace-pre-wrap break-words";
   return (
@@ -249,7 +257,7 @@ const AutoTextarea = forwardRef<
         {value ? `${value} ` : placeholder}
       </div>
       {!value && (
-        <div className={`${cell} pointer-events-none overflow-hidden text-slate-400`} aria-hidden data-testid={`${testId}-example`}>
+        <div className={`${cell} pointer-events-none overflow-hidden text-slate-400`} aria-hidden data-testid={testId && `${testId}-example`}>
           {placeholder}
         </div>
       )}
@@ -265,6 +273,8 @@ const AutoTextarea = forwardRef<
         enterKeyHint={enterKeyHint}
         disabled={disabled}
         data-testid={testId}
+        maxLength={maxLength}
+        autoFocus={autoFocus}
         spellCheck={false}
         {...(combobox
           ? { role: "combobox", "aria-autocomplete": "list" as const, "aria-expanded": combobox.open, "aria-controls": combobox.listId, "aria-activedescendant": combobox.activeId }

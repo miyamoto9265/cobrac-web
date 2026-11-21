@@ -1,10 +1,11 @@
-import { AlertTriangle, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowUp, Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardPaste, CircleDollarSign, Clock, FileText, FileUp, GitPullRequest, Globe, Layers, ListChecks, Loader2, Lock, MessageCircleQuestion, Pause, PauseCircle, Play, Plus, Scale, Sparkles, Wand2, X, XCircle } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { CanonRecord, PlanCanonChoice, PlanRowState, PlanSummary } from "@cobrac/shared";
 import { ATTACHMENT_LIMITS, AUTONOMOUS_DEFAULT_MAX_COST_USD, MAX_CONFORM_FOLLOWUPS, PLAN_JOB_SHORT_ROWS, formatUsd, isAutonomous } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { MenuHeading, Popover } from "../components/create/Popover";
+import { AutoTextarea, Row } from "../components/create/PairFields";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
@@ -469,15 +470,9 @@ function CreatePlanComposer() {
   const nAttached = files.length + (pasted.trim() ? 1 : 0);
 
   const tool = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50 aria-expanded:bg-slate-100 coarse:h-11 coarse:w-11";
-  const field = "w-full resize-none bg-transparent p-0 text-base leading-7 text-slate-900 caret-blue-600 outline-none placeholder:text-slate-400";
-  const row = (k: typeof focused) => `flex items-start gap-3 px-3 py-3 transition-colors sm:gap-4 sm:px-4 sm:py-3.5 ${focused === k ? "bg-blue-50/50" : ""}`;
-  // a tag longer than two characters (“Canon”) is set tighter so that it stays inside the tag column
-  const tag = (k: typeof focused, label: string, sub: string) => (
-    <div className="w-10 shrink-0 select-none pt-1 text-center sm:w-11" aria-hidden>
-      <span className={`block font-semibold ${label.length > 4 ? "text-[12px] leading-[1.625]" : "text-[13px] tracking-wider"} ${focused === k ? "text-blue-600" : "text-slate-500"}`}>{label}</span>
-      {sub && <span className="block text-[11px] leading-tight text-slate-400">{sub}</span>}
-    </div>
-  );
+  const field = "w-full bg-transparent p-0 text-base leading-7 text-slate-900 caret-blue-600 outline-none placeholder:text-slate-400";
+  // the tag shows the short English word over the word of the locale, as ROI / 領域 on the new-project card (English: the word alone)
+  const tagOf = (tag: string, sub: string) => ({ tag: sub || tag, sub: sub ? tag : "" });
   const divider = <div className="ml-[4rem] mr-4 border-t border-dashed border-slate-200 sm:ml-[4.75rem]" aria-hidden />;
 
   return (
@@ -486,55 +481,62 @@ function CreatePlanComposer() {
         <h1 className="mb-5 text-center text-2xl font-semibold tracking-tight sm:mb-7">{t("plan.new")}</h1>
         <div role="group" aria-label={t("plan.new")} data-testid="plan-composer" className="relative w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-sm transition-[border-color,box-shadow] focus-within:border-slate-300 focus-within:shadow-md">
           <div className="pt-1.5">
-            <div className={`${row("name")} -mt-1.5 rounded-t-3xl pt-[1.125rem] sm:pt-5`}>
-              {tag("name", t("mc.nameTag"), t("mc.nameSub"))}
-              <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.nativeEvent.isComposing) (e.preventDefault(), goalRef.current?.focus());
-                }}
-                onFocus={() => setFocused("name")} onBlur={() => setFocused(null)} placeholder={t("mc.namePlaceholder")} aria-label={t("plan.name")} maxLength={200} autoFocus className={`${field} min-w-0 flex-1 font-medium`} />
-              <span className="w-4 shrink-0" />
-            </div>
+            <Row
+              {...tagOf(t("mc.nameTag"), t("mc.nameSub"))}
+              active={focused === "name"}
+              field={
+                <input value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.nativeEvent.isComposing) (e.preventDefault(), goalRef.current?.focus());
+                  }}
+                  onFocus={() => setFocused("name")} onBlur={() => setFocused(null)} placeholder={t("mc.namePlaceholder")} aria-label={t("plan.name")} maxLength={200} autoFocus enterKeyHint="next" className={`${field} block min-h-7`} />
+              }
+            />
             {divider}
-            <div className={row("goal")}>
-              {tag("goal", t("mc.goalTag"), t("mc.goalSub"))}
-              <textarea ref={goalRef} value={goal} onChange={(e) => setGoal(e.target.value)} onFocus={() => setFocused("goal")} onBlur={() => setFocused(null)} rows={2} placeholder={t("plan.goalHint")} aria-label={t("plan.goal")} maxLength={4000} className={`${field} min-w-0 flex-1`} />
-              <span className="w-4 shrink-0 pt-1.5">
-                <HelpTip text={t("plan.intro")} />
-              </span>
-            </div>
+            <Row
+              {...tagOf(t("mc.goalTag"), t("mc.goalSub"))}
+              help={t("plan.intro")}
+              active={focused === "goal"}
+              field={<AutoTextarea ref={goalRef} value={goal} onChange={setGoal} onKeyDown={() => undefined} onFocus={() => setFocused("goal")} onBlur={() => setFocused(null)} label={t("plan.goal")} placeholder={t("plan.goalHint")} enterKeyHint="enter" maxLength={4000} />}
+            />
             {pasteOpen && (
               <>
                 {divider}
-                <div className={row("list")}>
-                  {tag("list", t("mc.listTag"), t("mc.listSub"))}
-                  <textarea value={pasted} onChange={(e) => setPasted(e.target.value)} onFocus={() => setFocused("list")} onBlur={() => setFocused(null)} rows={3} placeholder={t("plan.pasteHint")} aria-label={t("mc.paste")} className={`${field} min-w-0 flex-1 font-mono text-xs leading-5`} autoFocus />
-                  <button type="button" onClick={() => (setPasteOpen(false), setPasted(""))} aria-label={t("mc.pasteRemove")} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                    <X size={12} />
-                  </button>
-                </div>
+                <Row
+                  {...tagOf(t("mc.listTag"), t("mc.listSub"))}
+                  active={focused === "list"}
+                  trail={
+                    <button type="button" onClick={() => (setPasteOpen(false), setPasted(""))} aria-label={t("mc.pasteRemove")} className="-mt-0.5 flex h-5 w-5 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                      <X size={12} />
+                    </button>
+                  }
+                  field={<textarea value={pasted} onChange={(e) => setPasted(e.target.value)} onFocus={() => setFocused("list")} onBlur={() => setFocused(null)} rows={3} placeholder={t("plan.pasteHint")} aria-label={t("mc.paste")} className={`${field} block resize-none pt-1 font-mono text-xs leading-5`} autoFocus />}
+                />
+              </>
+            )}
+            {canonMode === "new" && (
+              <>
+                {divider}
+                <Row
+                  {...tagOf(t("mc.canonTag"), t("mc.canonSub"))}
+                  active={focused === "canon"}
+                  field={
+                    <input
+                      ref={canonRef}
+                      value={canonName}
+                      onChange={(e) => setCanonName(e.target.value)}
+                      onFocus={() => setFocused("canon")}
+                      onBlur={() => setFocused(null)}
+                      placeholder={t("mc.canonPlaceholder")}
+                      aria-label={t("cm.newCanon")}
+                      maxLength={200}
+                      data-testid="plan-canon-name"
+                      className={`${field} block min-h-7 text-ellipsis`}
+                    />
+                  }
+                />
               </>
             )}
           </div>
-          {canonMode === "new" && (
-            <>
-              {divider}
-              <div className={row("canon")}>
-                {tag("canon", t("mc.canonTag"), t("mc.canonSub"))}
-                <input
-                  ref={canonRef}
-                  value={canonName}
-                  onChange={(e) => setCanonName(e.target.value)}
-                  onFocus={() => setFocused("canon")}
-                  onBlur={() => setFocused(null)}
-                  placeholder={t("mc.canonPlaceholder")}
-                  aria-label={t("cm.newCanon")}
-                  maxLength={200}
-                  data-testid="plan-canon-name"
-                  className={`${field} min-w-0 flex-1`}
-                />
-              </div>
-            </>
-          )}
           {files.length > 0 && (
             <ul className="flex flex-wrap gap-1.5 px-3 pb-1 sm:px-4" data-testid="plan-file-list" aria-label={t("plan.files")}>
               {files.map((f, i) => (
@@ -658,7 +660,7 @@ function CreatePlanComposer() {
                 aria-describedby={hasInput ? undefined : needId}
                 className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-blue-600 text-sm font-medium max-sm:w-11 sm:pl-3 sm:pr-3.5 text-white shadow-sm hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-2 disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none coarse:h-11"
               >
-                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <Sparkles size={16} aria-hidden />}{" "}
+                {busy ? <Loader2 size={16} className="animate-spin" aria-hidden /> : <ArrowUp size={16} aria-hidden />}{" "}
                 <span className="max-sm:sr-only">{t("mc.start")}</span>
               </button>
             </div>
@@ -674,7 +676,7 @@ function CreatePlanComposer() {
               </span>
             )
           ) : (
-            <span id={needId} className="text-amber-700" data-testid="plan-need-input">
+            <span id={needId} data-testid="plan-need-input">
               {t("mc.needInput")}
             </span>
           )}

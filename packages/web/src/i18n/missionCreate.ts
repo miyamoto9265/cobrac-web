@@ -3,7 +3,8 @@ import type { UiLocale } from "@cobrac/shared";
 /**
  * UI strings of the new-mission composer (the same card as the new-project screen: tagged fields, a toolbar of chips),
  * kept apart from the main catalogs and merged into them in index.tsx. Every locale defines every key. A `*Sub` is the
- * small English word under the tag, empty in English.
+ * short English word, shown as the tag over the word of the locale (as ROI over 領域 on the new-project card); empty in
+ * English, where the tag is shown alone.
  */
 export const missionCreateEn = {
   "mc.nameTag": "Name",
