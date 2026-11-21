@@ -51,7 +51,8 @@ jobs:
   deploy:
     needs: plan
     if: needs.plan.outputs.deploy == 'true'
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 (spec-tools) cannot install Chromium on ubuntu-latest = 26.04; pinned until it can
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: read

@@ -14,7 +14,8 @@ concurrency:
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    # Playwright 1.56.1 (spec-tools) cannot install Chromium on ubuntu-latest = 26.04; pinned until it can
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       CDK_DISABLE_CLI_TELEMETRY: "true"
