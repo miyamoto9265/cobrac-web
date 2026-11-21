@@ -926,7 +926,7 @@ export const de: Record<MessageKey, string> = {
   "plan.row.attention": "Handlungsbedarf",
   "plan.row.skipped": "Übersprungen",
   "plan.row.cancelled": "Gestoppt",
-  "plan.confirm": "Bestätigen und starten",
+  "plan.confirm": "Starten",
   "plan.confirmQ": "Diese Mission starten? Projekte: {n} · Wellen: {waves} · höchstens {c} gleichzeitig · Schätzung {time}, {cost}. Die Aufträge werden wie jeder andere Auftrag abgerechnet.",
   "plan.pause": "Pausieren",
   "plan.resume": "Fortsetzen",

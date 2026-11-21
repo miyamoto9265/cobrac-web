@@ -28,8 +28,8 @@ export function turnItems(items: PlanSummary[]): TurnItem[] {
       if (p.pulse?.openProposals) out.push({ key: `${p.planId}/proposals`, kind: "proposals", plan: p, n: p.pulse.openProposals });
     }
     if (p.status === "PAUSED" && p.pausedReason && p.pausedReason !== "user") out.push({ key: `${p.planId}/paused`, kind: "paused", plan: p });
-    const confirmsItself = auto && !!p.draft?.autoConfirm && !p.autonomousError;
-    if (p.status === "DRAFT" && p.draft?.status === "done" && !confirmsItself) out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
+    // a finished draft waits for the owner's 「開始」, autonomous or not (a draft never starts on its own)
+    if (p.status === "DRAFT" && p.draft?.status === "done") out.push({ key: `${p.planId}/draft`, kind: "draftReady", plan: p });
     if (p.status === "DRAFT" && p.draft?.status === "failed") out.push({ key: `${p.planId}/draft`, kind: "draftFailed", plan: p });
     // the Orchestrator asks before drafting, autonomous or not: only the owner can answer
     if (p.status === "DRAFTING" && p.draft?.status === "asking") out.push({ key: `${p.planId}/ask`, kind: "draftAsk", plan: p, n: p.draft.qa?.at(-1)?.questions.length ?? 0 });

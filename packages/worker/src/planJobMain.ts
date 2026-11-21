@@ -8,6 +8,12 @@ import {
   DEFAULT_CODEX_MODEL,
   type FileAttachment,
   PLAN_JOB_INPUT_SCHEMA,
+  PLAN_CHAT_INPUT_SCHEMA,
+  PLAN_CHAT_OUTPUT_SCHEMA,
+  PLAN_CHAT_RESULT_SCHEMA,
+  PLAN_CHAT_TIME_BUDGET_MS,
+  type PlanChatInput,
+  type PlanChatResult,
   PLAN_ROW_JOB_INPUT_SCHEMA,
   PLAN_ROW_JOB_RESULT_SCHEMA,
   PLAN_ROW_JOB_TIME_BUDGET_MS,
@@ -47,7 +53,7 @@ import {
 } from "./db.js";
 import { env } from "./env.js";
 import { prepareMaterials, type MaterialEntry } from "./materials.js";
-import { planMaterialsIndex, runPlanJob, runPlanRowJob } from "./planJob.js";
+import { planMaterialsIndex, runPlanChatJob, runPlanJob, runPlanRowJob } from "./planJob.js";
 import { RcsClient, resolveRcsConnection } from "./rcs.js";
 import { needsDefaultKey, planRunKey } from "./runKey.js";
 import { downloadDir, getJsonObject, putObject, uploadDir } from "./s3sync.js";
@@ -90,6 +96,10 @@ export async function planJobMain(fail: FailJob) {
   try {
     if (job.planJobKind === "answer" || job.planJobKind === "resolve") {
       await planRowJob(job, apiKey, model, reasoningEffort, fail);
+      return;
+    }
+    if (job.planJobKind === "chat") {
+      await planChatJob(apiKey, model, reasoningEffort, fail);
       return;
     }
     const input = await getJsonObject<PlanJobInput>(planJobKey(projectId, jobId, "input.json"));
@@ -230,6 +240,66 @@ async function planRowJob(job: JobRecord, apiKey: string, model: string, reasoni
     return;
   }
   console.log(`[worker] plan ${input.kind} written for row ${input.rowId} (${outcome.attempts} turn(s))`);
+}
+
+/**
+ * A chat job: the Orchestrator answers the owner in the mission's chat (prompts/plan-chat.md), in one turn (two when the
+ * reply is not the schema's object), with RCS to look up the anchors of new rows. The API checks the result against
+ * the input again and carries out its actions.
+ */
+async function planChatJob(apiKey: string, model: string, reasoningEffort: NonNullable<JobRecord["reasoningEffort"]>, fail: FailJob): Promise<void> {
+  const input = await getJsonObject<PlanChatInput>(planJobKey(projectId, jobId, "input.json"));
+  if (!input || input.schema !== PLAN_CHAT_INPUT_SCHEMA || input.planId !== projectId || input.jobId !== jobId) {
+    await fail("The input of the plan job could not be read.");
+    return;
+  }
+  const rcsConn = input.actions.includes("add_row")
+    ? await resolveRcsConnection({ url: env.rcsMcpUrl, secretId: env.rcsMcpSecretId, token: env.rcsMcpToken, region: env.region }, (m) => console.warn(`[worker] ${m}`))
+    : null;
+  let spec = await readFile(join(env.promptsDir, "plan-chat.md"), "utf8");
+  if (!rcsConn) spec += "\n\nNote for this job: the RCS MCP tools are not available. Leave `anchors` of new rows empty instead of guessing IDs.\n";
+  const settings: ModelSettings = { model, reasoningEffort: reasoningEffort as ModelSettings["reasoningEffort"] };
+  const thread = openThread(createEngine(settings.model, apiKey, rcsConn), null, settings, { webSearch: false });
+  const rcsClient = rcsConn ? new RcsClient(rcsConn) : null;
+  let total: TurnUsage | null = null;
+  const toTokens = tokenUsageOf;
+  planJobOnStop = async () => {
+    const u = thread.id ? sessionTotalUsage(thread.id) : null;
+    if (!u) return;
+    const stopped = toTokens(u);
+    await updateJob(projectId, jobId, { usage: stopped, costUsd: estimateCostUsd(model, stopped), model, reasoningEffort });
+  };
+  const outcome = await runPlanChatJob({
+    input,
+    spec,
+    turn: async (prompt, signal) => {
+      const t = await thread.run(prompt, { outputSchema: PLAN_CHAT_OUTPUT_SCHEMA, signal });
+      const after = t.usage ? fromCodexUsage(t.usage) : null;
+      const usage = turnUsage(after, total);
+      if (after) total = after;
+      return { text: t.finalResponse, usage: toTokens(usage) };
+    },
+    lookupHomba: rcsClient ? (ids) => rcsClient.lookupHomba(ids) : undefined,
+    deadlineMs: startedAt + PLAN_CHAT_TIME_BUDGET_MS,
+  });
+  let usage = outcome.usage;
+  if (outcome.result === "failed" && thread.id) usage = addUsage(usage, toTokens(turnUsage(sessionTotalUsage(thread.id), total)));
+  const cost = { usage, costUsd: estimateCostUsd(model, usage), model, reasoningEffort };
+  if (outcome.result === "failed") {
+    console.log(`[worker] plan chat job failed: ${outcome.error}`);
+    await endPlanJob({ ...cost, status: "FAILED", errorMessage: outcome.error, endedAt: nowIso() });
+    return;
+  }
+  const result: PlanChatResult = { schema: PLAN_CHAT_RESULT_SCHEMA, planId: projectId, jobId, model, createdAt: nowIso(), ...outcome.parsed };
+  try {
+    await putObject(planJobKey(projectId, jobId, "result.json"), JSON.stringify(result, null, 2) + "\n");
+    await endPlanJob({ ...cost, status: "COMPLETED", endedAt: nowIso() });
+  } catch (e) {
+    console.error("[worker] plan chat result could not be stored", e);
+    await endPlanJob({ ...cost, status: "FAILED", errorMessage: "The result of the plan job could not be stored.", endedAt: nowIso() });
+    return;
+  }
+  console.log(`[worker] plan chat reply written (${outcome.parsed.actions.length} actions, ${outcome.parsed.dropped} dropped, ${outcome.attempts} turn(s))`);
 }
 
 /**

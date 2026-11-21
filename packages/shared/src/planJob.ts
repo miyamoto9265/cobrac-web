@@ -107,6 +107,8 @@ export interface PlanJobInput {
   qa?: { question: string; answer: string }[][];
   /** Draft: the job may reply with questions instead of rows (absent or false: it drafts) */
   ask?: boolean;
+  /** Draft: the owner's chat with the Orchestrator so far (oldest first); what the owner asked there holds for the draft */
+  chat?: { role: "user" | "orchestrator"; text: string }[];
 }
 
 /** The answered rounds of a draft's questions, for its next job (a round the owner skipped counts, unanswered). */
@@ -141,7 +143,7 @@ const ROW_PROPS = {
   dependsOn: { type: "array", items: { type: "string" } },
 } as const;
 
-const POLICY_SCHEMA = {
+export const PLAN_POLICY_SCHEMA = {
   type: "object",
   properties: {
     ...Object.fromEntries(PLAN_POLICY_ITEMS.map((k) => [k, { type: "string" }])),
@@ -179,7 +181,7 @@ export const PLAN_RESULT_SCHEMA = {
         additionalProperties: false,
       },
     },
-    policy: POLICY_SCHEMA,
+    policy: PLAN_POLICY_SCHEMA,
     proposals: {
       type: "array",
       items: {
@@ -188,7 +190,7 @@ export const PLAN_RESULT_SCHEMA = {
           kind: { type: "string", enum: ["add", "remove", "policy"] },
           rowId: { type: "string" },
           ...ROW_PROPS,
-          policy: POLICY_SCHEMA,
+          policy: PLAN_POLICY_SCHEMA,
           reason: { type: "string" },
         },
         required: ["kind", "rowId", "roi", "tlf", "rationale", "anchors", "dependsOn", "policy", "reason"],

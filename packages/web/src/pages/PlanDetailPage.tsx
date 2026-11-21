@@ -1,14 +1,15 @@
-import { Archive, ArchiveRestore, BellRing, Check, CheckCheck, GitPullRequest, History, Layers, LayoutDashboard, Pause, Pencil, Play, RotateCcw, Send, Settings as SettingsIcon, SkipForward, Square, Trash2, Upload, X, type LucideIcon } from "lucide-react";
+import { Archive, ArchiveRestore, Bot, Check, CheckCheck, GitPullRequest, History, Layers, LayoutDashboard, Pause, Pencil, Play, RotateCcw, Send, Settings as SettingsIcon, SkipForward, Square, Trash2, Upload, X, type LucideIcon } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { CanonDetailResponse, CanonSnapshot, PlanDetailResponse, PlanProposalRecord, PlanRecord, PlanRowRejected, PlanRowState, PlanRowView } from "@cobrac/shared";
-import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, isFlowPlan, orchestratorModelOf } from "@cobrac/shared";
+import { ACTIVE_PROJECT_STATUSES, AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, MAX_CONFORM_FOLLOWUPS, maxFollowups, MAX_ROW_AUTO_RETRIES, formatUsd, isFlowPlan, isOpenPlanChat, orchestratorModelOf } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { LiveDot, PlanBar } from "../components/PlanBar";
 import { FlowMap, SlotPips, WaitChip, flowRowAnchor, rowsByLane } from "../components/plan/FlowMap";
 import { RowAiNotes, RowFacts, autoSkipLine, dangerBtn, iconBtn, jobError, projectPath, rowLabel, rowName, secondaryBtn, seedChip } from "../components/plan/common";
 import { PlanDraft } from "../components/plan/PlanDraft";
+import { PlanChat } from "../components/plan/PlanChat";
 import { PlanHistory } from "../components/plan/PlanHistory";
 import { PlanPolicyView } from "../components/plan/PlanPolicyView";
 import { useI18n, useT, type MessageKey } from "../i18n";
@@ -743,7 +744,7 @@ export function PlanDetailPage() {
   const [renaming, setRenaming] = useState<string | null>(null);
   const { view: rawView } = useParams();
   const view = PLAN_VIEWS.find((v) => v === rawView) ?? null;
-  const dock = useChatDock("cobrac-plan-todo");
+  const dock = useChatDock("cobrac-plan-chat");
   // On narrow screens the tab strip scrolls; keep the open tab in sight.
   const tabsRef = useRef<HTMLElement>(null);
   const loaded = d !== null;
@@ -767,9 +768,10 @@ export function PlanDetailPage() {
   useEffect(() => {
     void load();
   }, [load]);
-  // a draft being written is checked often (it takes minutes), a running plan every 15 s
+  // a reply of the Orchestrator is waited for often, a draft being written every 5 s (it takes minutes), a running plan every 15 s
   const status = d?.plan.status;
-  const pollMs = status === "DRAFTING" ? 5_000 : status === "RUNNING" || status === "PAUSED" ? 15_000 : 0;
+  const chatOpen = !!d?.plan.chat && isOpenPlanChat(d.plan.chat);
+  const pollMs = chatOpen ? 3_000 : status === "DRAFTING" ? 5_000 : status === "RUNNING" || status === "PAUSED" ? 15_000 : 0;
   useEffect(() => {
     if (!pollMs) return;
     const id = setInterval(() => void load(), pollMs);
@@ -907,13 +909,25 @@ export function PlanDetailPage() {
     </>
   );
 
+  const readOnly = access === "member";
+  const chatLabels: DockLabels = { title: t("chat.title"), open: t("chat.open"), close: t("chat.close"), resize: t("chat.resize"), Icon: Bot, prefix: "cobrac-plan-chat" };
+  const chat = (top?: ReactNode) => <PlanChat d={d} readOnly={readOnly} onChanged={load} onError={onError} top={top} />;
+
   if (draftLike)
     return (
-      <div className="h-full overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
-        <div className="max-w-5xl">
-          <div className="mb-3">{header}</div>
-          <PlanDraft d={d} busy={busy} act={act} load={load} onError={onError} rejected={rejected} onRejected={setRejected} alert={alert} />
+      <div className="flex h-full min-h-0">
+        <div className="min-w-0 flex-1 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6">
+          <div className="max-w-5xl">
+            <div className="mb-3 flex items-start gap-2">
+              <div className="min-w-0 flex-1">{header}</div>
+              <ChatToggleButton state={dock} attention={false} labels={chatLabels} />
+            </div>
+            <PlanDraft d={d} busy={busy} act={act} load={load} onError={onError} rejected={rejected} onRejected={setRejected} alert={alert} />
+          </div>
         </div>
+        <ChatDock state={dock} attention={false} working={chatOpen} labels={chatLabels}>
+          {chat()}
+        </ChatDock>
       </div>
     );
 
@@ -930,7 +944,7 @@ export function PlanDetailPage() {
   const hasCanon = !!d.canon || !!plan.canonNew;
   const tabs = PLAN_TABS.filter((x) => x.view !== "canon" || hasCanon || current === "canon");
   const prs = canonId ? rows.filter((r) => r.state === "review" && r.prNo) : [];
-  const labels: DockLabels = { title: t("mp.todo"), open: t("mp.openTodo"), close: t("mp.closeTodo"), resize: t("mp.resizeTodo"), Icon: BellRing, attention: String(todo), prefix: "cobrac-plan-todo" };
+  const labels: DockLabels = { ...chatLabels, attention: t("chat.todo") };
 
   const center = (() => {
     switch (current) {
@@ -1009,19 +1023,15 @@ export function PlanDetailPage() {
           </div>
           <section className="relative min-h-0 flex-1 overflow-hidden bg-slate-50">{center}</section>
         </div>
-        <ChatDock state={dock} attention={todo > 0} working={plan.status === "RUNNING"} labels={labels}>
-          <div className="grid h-full content-start gap-3 overflow-y-auto p-3 pb-[max(1rem,env(safe-area-inset-bottom))]" data-testid="plan-todo">
+        <ChatDock state={dock} attention={todo > 0} working={chatOpen} labels={labels}>
+          {chat(
+          <div className="grid content-start gap-3 border-b border-slate-200 pb-3" data-testid="plan-todo">
             {raise && <RaiseLimit plan={plan} busy={busy} onResume={(maxCostUsd) => act(() => api.resumePlan(planId, { maxCostUsd }))} />}
             <Inbox rows={questions} onDone={() => void load()} onError={onError} />
             <Decisions rows={decisions} canonId={canonId} busy={busy} canResolve={live} canSkip={live || plan.status === "CANCELLED"} resolve={resolveRow} skip={(rowId) => rowAct(rowId, "skip")} />
             <Attention rows={attention} act={rowAct} />
             {live && <Proposals d={d} busy={busy} decide={decide} />}
-            {todo === 0 && (
-              <p className="text-sm text-slate-500" data-testid="plan-todo-empty">
-                {t("mp.todoEmpty")}
-              </p>
-            )}
-            <section className="grid gap-1.5 border-t border-slate-200 pt-3" data-testid="plan-todo-progress">
+            <section className={`grid gap-1.5 ${todo > 0 ? "border-t border-slate-200 pt-3" : ""}`} data-testid="plan-todo-progress">
               <h3 className="text-xs font-semibold text-slate-500">{t("plan.progress")}</h3>
               <PlanBar waves={waveCounts(rows)} lanes={isFlowPlan(plan) ? laneCounts(rows) : undefined} activeWave={plan.activeWave} live={plan.status === "RUNNING"} />
               <div className="text-xs text-slate-600">
@@ -1044,7 +1054,8 @@ export function PlanDetailPage() {
                 </ul>
               </section>
             )}
-          </div>
+          </div>,
+          )}
         </ChatDock>
       </div>
     </OpenTodo.Provider>

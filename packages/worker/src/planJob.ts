@@ -5,8 +5,8 @@
  * job's time budget. Only what refers to the input is kept (`parsePlanResult`); HOMBA anchors RCS does not know, or
  * that SABRA covers with BNA, are removed as well.
  */
-import type { ParsedPlanResult, PlanJobInput, PlanRowJobDecision, PlanRowJobInput, SabraLookup, TokenUsage } from "@cobrac/shared";
-import { EMPTY_USAGE, PLAN_RETRY_PROMPT, PLAN_ROW_RETRY_PROMPT, addUsage, parsePlanResult, parsePlanRowResult, planJobPrompt, planRowJobPrompt, planRowJobSchema } from "@cobrac/shared";
+import type { ParsedPlanChatResult, ParsedPlanResult, PlanChatInput, PlanJobInput, PlanRowJobDecision, PlanRowJobInput, SabraLookup, TokenUsage } from "@cobrac/shared";
+import { EMPTY_USAGE, PLAN_CHAT_RETRY_PROMPT, PLAN_RETRY_PROMPT, PLAN_ROW_RETRY_PROMPT, addUsage, parsePlanChatResult, parsePlanResult, parsePlanRowResult, planChatPrompt, planJobPrompt, planRowJobPrompt, planRowJobSchema } from "@cobrac/shared";
 import type { MaterialEntry } from "./materials.js";
 
 export interface PlanTurn {
@@ -87,6 +87,44 @@ export async function runPlanRowJob(d: PlanRowJobDriver): Promise<PlanRowJobOutc
     maxAttempts: d.maxAttempts,
   });
   return o.result === "completed" ? { result: "completed", decision: o.value, usage: o.usage, attempts: o.attempts } : o;
+}
+
+/** A chat job: the Orchestrator answers the owner in the mission's chat (prompts/plan-chat.md), with RCS for new rows' anchors. */
+export interface PlanChatJobDriver {
+  input: PlanChatInput;
+  /** The instructions (prompts/plan-chat.md) */
+  spec: string;
+  /** One model turn with PLAN_CHAT_OUTPUT_SCHEMA; throws when the turn fails or `signal` aborts it */
+  turn: (prompt: string, signal: AbortSignal) => Promise<PlanTurn>;
+  lookupHomba?: (ids: string[]) => Promise<SabraLookup>;
+  deadlineMs: number;
+  now?: () => number;
+  maxAttempts?: number;
+}
+
+export type PlanChatJobOutcome = { result: "completed"; parsed: ParsedPlanChatResult; usage: TokenUsage; attempts: number } | { result: "failed"; error: string; usage: TokenUsage };
+
+export async function runPlanChatJob(d: PlanChatJobDriver): Promise<PlanChatJobOutcome> {
+  const o = await runTurns({
+    first: planChatPrompt(d.spec, d.input),
+    retry: PLAN_CHAT_RETRY_PROMPT,
+    turn: d.turn,
+    parse: (text) => parsePlanChatResult(text, d.input),
+    // HOMBA anchors of new rows that RCS does not know (or that SABRA covers with BNA) are removed, as in a draft
+    after: d.lookupHomba
+      ? async (parsed, timedOut) => {
+          const rows = parsed.actions.flatMap((a) => (a.kind === "add_row" ? [a] : []));
+          if (!rows.length) return;
+          const box = { rows, proposals: [], dropped: 0 } as unknown as ParsedPlanResult;
+          await dropUnknownHomba(box, d.lookupHomba!, timedOut);
+          parsed.dropped += box.dropped;
+        }
+      : undefined,
+    deadlineMs: d.deadlineMs,
+    now: d.now,
+    maxAttempts: d.maxAttempts,
+  });
+  return o.result === "completed" ? { result: "completed", parsed: o.value, usage: o.usage, attempts: o.attempts } : o;
 }
 
 /**

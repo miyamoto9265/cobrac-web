@@ -184,8 +184,8 @@ describe("draft plan", () => {
 
     // unsaved rows are saved first: the plan cannot be confirmed until then
     vi.spyOn(window, "confirm").mockReturnValue(true);
-    expect(button("Confirm and start")!.disabled).toBe(true);
-    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before confirming");
+    expect(button("Start")!.disabled).toBe(true);
+    expect(q('[data-testid="plan-confirm-blocked"]')!.textContent).toBe("Save the row changes before starting");
     const saved = [...stored, row("r3", "arcuate fasciculus", "repetition", "pending", 2)];
     api.getPlan.mockResolvedValue({ ...detail("DRAFT", saved), estimate: planEstimate(saved, 2) });
     await act(async () => button("Save rows", editor)!.click());
@@ -197,7 +197,7 @@ describe("draft plan", () => {
     expect(q('[data-testid="plan-save-bar"]')).toBeNull();
     expect(q('[data-testid="plan-confirm-blocked"]')).toBeNull();
 
-    await act(async () => button("Confirm and start")!.click());
+    await act(async () => button("Start")!.click());
     expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining("Projects: 3 · waves: 2 · up to 2 at a time"));
     expect(api.confirmPlan).toHaveBeenCalledWith("n4h8w2rk", "en");
     expect(api.savePlanRows).toHaveBeenCalledTimes(1);
@@ -239,7 +239,7 @@ describe("draft plan", () => {
     api.getPlan.mockResolvedValue(detail("DRAFT", [row("r1", "STG", "hearing", "pending", 1)]));
     await render("/plans/n4h8w2rk");
     vi.spyOn(window, "confirm").mockReturnValue(false);
-    await act(async () => button("Confirm and start")!.click());
+    await act(async () => button("Start")!.click());
     expect(api.confirmPlan).not.toHaveBeenCalled();
   });
 });
@@ -260,41 +260,26 @@ describe("new mission", () => {
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
     await act(async () => button("Paste a list")!.click());
     await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
-    // 自律実行 is the default: handling the plan yourself (in the chip's menu) is the opt-in that brings “Create mission”
+    // one button writes the plan (the draft); the mission starts only with 「開始」 on its page
     expect(button("Create mission")).toBeUndefined();
-    expect(q('[data-testid="plan-manual"]')).toBeNull();
-    await act(async () => q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!.click());
-    await act(async () => q<HTMLInputElement>('[data-testid="plan-manual"]')!.click());
-    await act(async () => button("Create mission")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n", canon: { mode: "new", name: "Language map" } });
+    await act(async () => button("Create plan")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith({ name: "Language", goal: "", csv: "ROI,TLF\nSTG,hearing\n", draft: true, locale: "en", autonomous: { maxCostUsd: 20 }, canon: { mode: "new", name: "Language map" } });
     expect(api.getPlan).toHaveBeenCalledWith("n4h8w2rk");
   });
 
-  it("starts an autonomous run with its cost limit by default", async () => {
+  it("creates the plan only: the autonomous run (on by default) and its limit are chosen when it starts", async () => {
     api.listPlans.mockResolvedValue({ items: [] });
     api.createPlan.mockResolvedValue({ plan: { planId: "n4h8w2rk" }, rows: [], rejected: [] });
     api.getPlan.mockResolvedValue(detail("DRAFT", []));
     await render("/plans/new");
     await type(q<HTMLInputElement>('input[maxlength="200"]')!, "Language");
     await type(q<HTMLInputElement>('[data-testid="plan-canon-name"]')!, "Language map");
-    await act(async () => q<HTMLButtonElement>('[data-testid="plan-plus"]')!.click());
-    await act(async () => button("Paste a list")!.click());
-    await type(q<HTMLTextAreaElement>('textarea[aria-label="Paste a list"]')!, "ROI,TLF\nSTG,hearing\n");
-    // the chip shows the mode and the limit; its menu holds the limit and the opt-out
-    const chip = q<HTMLButtonElement>('[data-testid="plan-auto-chip"]')!;
-    expect(chip.textContent).toContain("≤ $20");
-    await act(async () => chip.click());
-    expect(q<HTMLInputElement>('[data-testid="plan-manual"]')!.checked).toBe(false);
-    // the explanations are behind the (?) tips: no paragraph in the box
-    expect(document.querySelectorAll('[data-testid="plan-autonomous"] p')).toHaveLength(0);
-    expect(document.querySelectorAll('[data-testid="plan-autonomous"] [data-helptip]')).toHaveLength(3);
-    // 自律実行 and its cost limit come first; handling the plan yourself is the checkbox below them
-    expect(q('[data-testid="plan-autonomous"] input[type="number"]')!.compareDocumentPosition(q('[data-testid="plan-manual"]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(button("Create mission")).toBeUndefined();
-    await type(q<HTMLInputElement>('[data-testid="plan-autonomous"] input[type="number"]')!, "35");
-    expect(chip.textContent).toContain("≤ $35");
-    await act(async () => button("Start")!.click());
-    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 35 }, canon: { mode: "new", name: "Language map" } }));
+    await type(q<HTMLTextAreaElement>('textarea[maxlength="4000"]')!, "goal");
+    expect(q('[data-testid="plan-auto-chip"]')).toBeNull();
+    expect(button("Start")).toBeUndefined();
+    await act(async () => button("Create plan")!.click());
+    expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Language", draft: true, autonomous: { maxCostUsd: 20 }, canon: { mode: "new", name: "Language map" } }));
+    expect(api.confirmPlan).not.toHaveBeenCalled();
   });
 });
 
@@ -327,7 +312,7 @@ describe("Canon of a new mission", () => {
     await fill();
     expect(q('[data-testid="plan-canon-chip"]')!.textContent).toContain("Vision");
     expect(q('[data-testid="plan-canon-name"]')).toBeNull();
-    await act(async () => button("Start")!.click());
+    await act(async () => button("Create plan")!.click());
     expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ name: "Extend VOR", canon: { mode: "existing", canonId: "c0000002" } }));
   });
 
@@ -343,7 +328,7 @@ describe("Canon of a new mission", () => {
     expect(document.querySelectorAll('[data-testid="plan-canon-option"]')).toHaveLength(1);
     await act(async () => q<HTMLButtonElement>('[data-testid="plan-canon-none"]')!.click());
     expect(q('[data-testid="plan-canon-name"]')).toBeNull();
-    await act(async () => button("Start")!.click());
+    await act(async () => button("Create plan")!.click());
     expect(api.createPlan).toHaveBeenCalledWith(expect.objectContaining({ canon: { mode: "none" } }));
   });
 });
@@ -413,7 +398,7 @@ describe("plan list as a live view", () => {
     expect(turn.textContent).toContain("Answer a question");
     expect(turn.textContent).toContain("Left or both?");
     expect(turn.textContent).toContain("Decide on 1 re-plan proposals");
-    expect(turn.textContent).toContain("Check the draft and confirm");
+    expect(turn.textContent).toContain("Check the draft and start");
 
     const lane = q('[data-testid="plan-lane"]')!;
     expect(lane.dataset.status).toBe("RUNNING");

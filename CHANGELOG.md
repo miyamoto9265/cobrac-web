@@ -10,6 +10,14 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
 - Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
 
+## [0.58.0] - 2026-11-15
+
+### Added
+- Talk with the Orchestrator: a mission's page has an "Orchestrator" panel on the right where you write to it as you would to a colleague. It answers questions about the mission and, when asked, changes it: while planning it adds, removes or edits projects, changes priorities or the policy, or writes the draft again (each reply's changes can be undone); while running it adds or removes projects that have not started, retries or skips projects, decides projects that need a decision, and pauses or resumes. What it did is listed under each reply. A reply comes from a job a minute or two later and its cost counts toward the mission. Starting and stopping the mission stay your buttons. The questions the Orchestrator asks before the draft also show in the panel and can be answered there. On a running mission the panel keeps "Needs you" at the top
+
+### Changed
+- Making a plan and starting it are separate steps. The new-mission screen has one button, "Create plan", which writes the draft; the mission starts only when you press "Start" on its page ("Confirm and start" is now "Start"). A draft is never started on its own, autonomous run or not. The autonomous run (on by default, $20 limit) and its cost limit are set in the draft's "How to run" step, and "Start" says how the mission will run. The autonomous-run chip, "Create mission" without a draft and the separate "Create draft" button on the new-mission screen are gone
+
 ## [0.57.0] - 2026-11-14
 
 ### Added

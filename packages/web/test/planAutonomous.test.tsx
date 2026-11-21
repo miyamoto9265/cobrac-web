@@ -206,10 +206,10 @@ describe("the history of an autonomous plan", () => {
 describe("the texts of the autonomous run", () => {
   it("says that the Orchestrator acts for the owner", () => {
     expect(AUTONOMOUS_CATALOG.ja["auto.help"]).toBe(
-      "オーケストレーターが人の代わりになって、最後まで進めます。下書きを確定し、エージェントの質問に答え、ミッションの PR を承認・変更依頼・却下し、要対応・人の判断のプロジェクトを決め、再計画の提案を反映します。費用の上限に達すると新しいプロジェクトを始めません。",
+      "オーケストレーターが人の代わりになって、「開始」のあと、最後まで進めます。エージェントの質問に答え、ミッションの PR を承認・変更依頼・却下し、要対応・人の判断のプロジェクトを決め、再計画の提案を反映します。費用の上限に達すると新しいプロジェクトを始めません。",
     );
     expect(AUTONOMOUS_CATALOG.en["auto.help"]).toBe(
-      "The Orchestrator acts for you and runs the mission to the end: it confirms the draft, answers the agents' questions, approves, requests changes on or rejects the mission's pull requests, decides on rows that need attention or a decision, and applies re-plan proposals. No new row starts once the cost limit is spent.",
+      "The Orchestrator acts for you and runs the mission to the end once you start it: it answers the agents' questions, approves, requests changes on or rejects the mission's pull requests, decides on rows that need attention or a decision, and applies re-plan proposals. No new row starts once the cost limit is spent.",
     );
     expect(AUTONOMOUS_CATALOG.ja["sys.autoAnswered"]).toBe("オーケストレーター（AI）がエージェントの質問に回答しました。");
     expect(AUTONOMOUS_CATALOG.en["sys.autoAnswered"]).toBe("The Orchestrator's AI answered the agent's question.");
@@ -253,9 +253,8 @@ describe("「あなたの番」 with autonomous plans", () => {
     expect(kinds([summary("n0000002", "RUNNING", { settings: manual })])).toEqual(["n0000002:attention", "n0000002:question", "n0000002:proposals"]);
     // paused: the plan is the owner's again
     expect(kinds([summary("n0000003", "PAUSED", { pausedReason: "cost_limit" })])).toContain("n0000003:paused");
-    // a draft the autonomous run confirms on its own is not, unless it could not confirm it or was switched on after the draft
-    expect(kinds([summary("n0000004", "DRAFT", { pulse: null, draft: draftDone(true) })])).toEqual([]);
-    expect(kinds([summary("n0000005", "DRAFT", { pulse: null, draft: draftDone(true), autonomousError: "no rows" })])).toEqual(["n0000005:draftReady"]);
+    // a finished draft waits for the owner's 「開始」, autonomous or not (an old draft marked to confirm itself too)
+    expect(kinds([summary("n0000004", "DRAFT", { pulse: null, draft: draftDone(true) })])).toEqual(["n0000004:draftReady"]);
     expect(kinds([summary("n0000006", "DRAFT", { pulse: null, draft: draftDone(false) })])).toEqual(["n0000006:draftReady"]);
   });
 
@@ -265,8 +264,7 @@ describe("「あなたの番」 with autonomous plans", () => {
     const turn = q('[data-testid="plan-turn"]')!;
     expect(turn.textContent).not.toContain("Answer a question");
     expect(turn.textContent).not.toContain("Left or both?");
-    expect(turn.textContent).toContain("Check the draft and confirm");
-    expect(turn.textContent).toContain("The autonomous run could not confirm the draft: no rows.");
+    expect(turn.textContent).toContain("Check the draft and start");
     expect(qa("li", turn)).toHaveLength(1);
   });
 

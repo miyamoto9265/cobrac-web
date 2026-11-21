@@ -926,7 +926,7 @@ export const zhTw: Record<MessageKey, string> = {
   "plan.row.attention": "需處理",
   "plan.row.skipped": "已略過",
   "plan.row.cancelled": "已停止",
-  "plan.confirm": "確認並開始",
+  "plan.confirm": "開始",
   "plan.confirmQ": "要開始此計畫嗎？將分 {waves} 批製作 {n} 個專案，每次最多 {c} 個（預估 {time}，{cost}）。工作的費用與其他工作一樣計費。",
   "plan.pause": "暫停",
   "plan.resume": "繼續",

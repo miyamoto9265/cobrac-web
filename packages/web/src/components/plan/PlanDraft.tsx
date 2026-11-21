@@ -19,7 +19,7 @@ const costRange = (e: PlanEstimate, t: TFn) => t("pd.costRange", { min: formatUs
 
 /**
  * A plan before confirmation (DRAFT, or DRAFTING while its draft job runs), from the top: the banner, 「1. 作るもの」,
- * 「2. プロジェクトとバッチ」, 「3. 進め方」, 「4. 確定して開始」, then the history and 「計画を削除」. No project exists yet, so the
+ * 「2. プロジェクトとバッチ」, 「3. 進め方」, 「4. 開始」, then the history and 「計画を削除」. No project exists yet, so the
  * progress, waves, time and cost of a running plan are not shown.
  */
 export function PlanDraft({
@@ -60,11 +60,7 @@ export function PlanDraft({
     ? { cls: "border-violet-200 bg-violet-50 text-violet-700", text: t("ask.banner") }
     : drafting
     ? { cls: "border-blue-200 bg-blue-50 text-blue-700", text: long ? t("plan.draftingNoteLong", { n: PLAN_JOB_SHORT_ROWS }) : t("plan.draftingNote") }
-    : auto && plan.autonomousError
-      ? { cls: "border-rose-200 bg-rose-50 text-rose-700", text: t("auto.confirmError", { error: plan.autonomousError }) }
-      : auto && plan.draft?.status === "done" && plan.draft.autoConfirm
-        ? { cls: "border-violet-200 bg-violet-50 text-violet-700", text: t("auto.confirmSoon") }
-        : !rows.length
+    : !rows.length
           ? { cls: "border-blue-200 bg-blue-50 text-blue-700", text: t("pd.banner.empty") }
           : plan.draft?.status === "done"
             ? { cls: "border-blue-200 bg-blue-50 text-blue-700", text: t("pd.banner.drafted") }
@@ -139,7 +135,9 @@ export function PlanDraft({
             )}
             {editor.rows.length > 0 && <HelpTip text={t(e.lanes ? "flow.estimateHelp" : "plan.estimateHelp")} />}
           </div>
-          {auto && <p className="text-xs text-violet-700">{t("auto.confirmNote")}</p>}
+          <p className={`text-xs ${auto ? "text-violet-700" : "text-slate-500"}`} data-testid="plan-start-mode">
+            {auto ? `${t("auto.label")} · ${t("auto.limit", { cost: formatUsd(plan.settings.autonomous?.maxCostUsd ?? 0) })} — ${t("auto.confirmNote")}` : t("auto.off")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {blocked && (

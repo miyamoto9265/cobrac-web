@@ -8,6 +8,7 @@ import type {
   DraftPlanRequest,
   ListPlansResponse,
   PlanRecord,
+  PostPlanChatRequest,
   UpdatePlanRequest,
   UserRecord,
 } from "@cobrac/shared";
@@ -40,6 +41,7 @@ import {
   removePlanAttachment,
 } from "../lib/planOps.js";
 import { readLocale } from "../lib/runs.js";
+import { postChatMessage, undoChat } from "../lib/planChat.js";
 import { archiveBody } from "./projects.js";
 import { inSpace, listSpace, queryTeamIndex, teamItemAccess } from "../lib/teams.js";
 import { actorName } from "../lib/canonReview.js";
@@ -227,4 +229,22 @@ plansApi.post("/plans/:id/rows/:rowId/resolve", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { action?: unknown };
   await resolveRow(u, plan, c.req.param("rowId"), body.action);
   return c.json({ ok: true });
+});
+
+/**
+ * The owner writes to the Orchestrator in the mission's chat (any status). The reply comes from a chat job (the page
+ * reads it with the plan); while the Orchestrator waits for answers to its questions before the draft, the message
+ * answers them.
+ */
+plansApi.post("/plans/:id/chat", async (c) => {
+  const viewer = c.get("user");
+  const u = await planActor(viewer, c.req.param("id"), "run");
+  const body = (await c.req.json().catch(() => ({}))) as PostPlanChatRequest;
+  return c.json(await postChatMessage(u, viewer.userId, await loadOwnPlan(u, c.req.param("id")), body && typeof body === "object" ? body : { text: "" }, readLocale(body?.locale)), 202);
+});
+
+/** 「元に戻す」: a draft goes back to how it was before the Orchestrator's reply changed it. */
+plansApi.post("/plans/:id/chat/:messageId/undo", async (c) => {
+  const u = await planActor(c.get("user"), c.req.param("id"), "manage");
+  return c.json({ plan: await undoChat(u, await loadOwnPlan(u, c.req.param("id")), c.req.param("messageId")) });
 });

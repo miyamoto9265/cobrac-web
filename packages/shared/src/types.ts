@@ -320,7 +320,7 @@ export interface JobRecord {
    * draft / replan (type === plan); answer / resolve: the Orchestrator's AI job for one row of an autonomous plan
    * (`planRowId`)
    */
-  planJobKind?: "draft" | "replan" | "answer" | "resolve";
+  planJobKind?: "draft" | "replan" | "answer" | "resolve" | "chat";
   /** answer / resolve: the plan row the job is for */
   planRowId?: string;
   /**
