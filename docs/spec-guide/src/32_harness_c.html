@@ -98,7 +98,7 @@
 
 <h3>画面</h3>
 <ul>
-  <li><b>作成画面</b>：入力欄のツールバーにある「仮説モード」をオンにすると、許す主張のチェックボックス（存在・向き・符号・集団・伝達物質と修飾・役割。最初はすべてオンで、役割は外せません）、上限（最初は 20%）、任意のメモが出ます。</li>
+  <li><b>作成画面</b>：入力欄のツールバーにある「仮説モード」をオンにすると、許す主張のチェックボックス（存在・向き・符号・集団・伝達物質と修飾・役割。最初はすべてオンで、オンで残った最後の 1 つは外せません）、上限（最初は 20%）、任意のメモが出ます。</li>
   <li><b>フォローアップ</b>：完了したプロジェクトのエージェント欄に「この指示で仮説を許す」があり、送るたびにオフに戻ります。オンにすると、主張、対象（「全体」か「グラフで選んだ回路・GN」）、上限（最初は「変えない」）が出ます。</li>
   <li><b>表示</b>：ヘッダーとプロジェクトの一覧に「仮説モード」のバッジと、分かれば仮説の件数が出ます。版のタブの生成条件には、根拠のモード・許可範囲・件数と全件数（割合）・上限が出ます。詳細パネルには、仮説ごとの ID、推論の種類、主張、理由、前提、許可範囲が出ます。予測や検証の方法は出しません。</li>
 </ul>
@@ -168,7 +168,7 @@
   <thead><tr><th style="width:28%">ファイル</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><code>{ID}_csv/</code></td><td>BRA データを、BRA Data Converter（小野寺さんの GAS「BRA Data Converter to v2-3」）が CSV モードで読む 5 つの CSV にしたもの（<code>{ID}_project.csv</code>・<code>_references.csv</code>・<code>_circuits.csv</code>・<code>_connections.csv</code>・<code>_frg.csv</code>）。値は上の Template-v2-3 の書き出しと同じで、Project ID の欄に BRAES 用の ID を書く。下の表を参照</td></tr>
-    <tr><td><code>{ID}BIF.xml</code></td><td>BIF 画像。回路を四角、Collection をその UC を囲む四角、ROI を破線の括弧で描く。接続は興奮性を黒、抑制性を青（終点は四角）、修飾性を緑の矢印にし、記録から読み取れないものは灰色にする。仮説だけの接続は点線。同じ種類の相互の接続は両矢印にする</td></tr>
+    <tr><td><code>{ID}BIF.xml</code></td><td>BIF 画像。回路を四角で描き、Collection はその UC を囲む灰色の四角（左上に Collection の ID）、ROI は ROI の UC をまとめて囲む太い破線の四角（左上に「ROI」）で描く。接続は興奮性を黒、抑制性を青（終点は四角）、修飾性を緑の矢印にし、記録から読み取れないものは灰色にする。仮説だけの接続は点線。同じ種類の相互の接続は両矢印にする</td></tr>
     <tr><td><code>{ID}HCD.xml</code></td><td>HCD 画像。ROI の UC ごとに、その回路の上に楕円を置き、ROI の UC どうしの接続を白い矢印で描く</td></tr>
     <tr><td><code>{ID}FRG.xml</code></td><td>FRG 画像。ノードを Node ID の入った角丸の四角にし、ノードから下位ノードへ 2 pt の矢印を描く</td></tr>
     <tr><td><code>{ID}.drawio</code></td><td>BIF・Semi-Transparent（不透明度 60 % の白い四角）・HCD の 3 つのレイヤーを重ねた 1 枚の図。配置を直して書き出し直すときに使う</td></tr>
@@ -184,16 +184,16 @@
     <tr><td>ほかの 4 つ</td><td>1 行目が見出しで、2 行目からレコード。見出しはコンバーターの TargetItems シート（Template-v2-3.bra の列）にある項目名。Circuits には DHBA: name と Lv.2〜14 も入れる（TargetItems にまだないので、今はコンバーターが読み飛ばす）。数式の列（Reference ID など）は入れない</td></tr>
   </tbody>
 </table>
-<p>コンバーターは、WholeBIF の取り込みより上の入力欄（References 28、Circuits 30、Connections 79 レコード）までしか書き込みません。これを超えるときは、記入メモに注意書きを入れます。</p>
+<p>コンバーターは、WholeBIF の取り込みより上の入力欄（References 28、Circuits 30、Connections 79 レコード）までしか書き込みません。これを超えるときは、記入メモの「出す前の確認」に、変換後のシートに行を足して残りを手で貼るよう求める注意書きを入れます（この注意書きは記入メモの言語によらず英語です）。</p>
 <p>FRG のないデータでは、HCD 画像と FRG 画像を入れません。図は draw.io の XML（圧縮しない <code>mxfile</code>）で、回路の配置はグラフの画面で利用者が並べた位置（<code>graph/{hcd|frg}.layout.json</code>）に従います。並べていない回路は画面と同じ dagre で配置し、ROI の UC をひとまとまりにします。</p>
 <p>BRAES の Project ID は「イニシャル（大文字 5 字まで）＋西暦の下 2 桁＋英語の題名（UpperCamelCase、30 字まで）」です（例：<code>YT20Oculomotor</code>）。CoBRAC の Project ID（<code>p7m2q9xa</code>）はこの形ではないので、ダウンロードのときに入力してもらいます。入力欄には、保存済みの ID か、作成者名の頭文字・作成した年・プロジェクト名（ラテン文字がなければ ROI と TLF）から作った案を入れておきます。ダウンロードした ID はプロジェクトの <code>braesProjectId</code> に保存し、次回の案にします（保存するのは所有者とチーム管理者のときだけ）。WholeBIF で使われていないかは確かめません。</p>
 <p>BRAES の仕様は CoBRAC に合わせて変わる可能性があるため、この形式は暫定です。</p>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>braes.ts</code>（<code>buildBraesBundle</code>）・<code>braTemplate.ts</code>（<code>buildConverterCsvs</code>）、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>braes.ts</code>（<code>buildBraesBundle</code>）・<code>braTemplate.ts</code>（<code>buildConverterCsvs</code>）、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code>、<code>packages/api/src/routes/projects.ts</code>（BRAES 提出セット）</p>
 
 <h2 id="s3-14">3.14 解説記事</h2>
 <p>解説記事は、完成した BRA を、それを作っていない読者に説明する記事です。利用者の求めに応じて作ります。BRA を作る段階の 1 つではなく、BRA の会話とは別の新しい会話で動く LLM のジョブです。</p>
 <ul>
-  <li><b>作れるとき</b>：プロジェクトが完了して xlsx まで生成済みで、動いているジョブがないときだけです。利用者は言語とモデルを選び、「記事を作成」を押します。言語は 10 言語から選べ、既定は画面の言語です。モデルの既定はプロジェクトのモデルで、デフォルトの API キーでは利用者の利用承認（4.1）で使えるモデルだけを選べます。</li>
+  <li><b>作れるとき</b>：プロジェクトが完了して xlsx まで生成済みで、動いているジョブがないときだけです。利用者は言語とモデルを選び、「解説記事を作成」を押します。その言語の記事があるときは「解説記事を作り直す」になります。言語は 10 言語から選べ、既定は画面の言語です。モデルの既定はプロジェクトのモデルで、デフォルトの API キーでは利用者の利用承認（4.1）で使えるモデルだけを選べます。プロジェクトのモデルが使えないときは、使えるモデルに置き換えて作ります。</li>
   <li><b>言語ごとの記事</b>：記事は言語ごとに並べて持てます。作り直したときは、新しい記事が検査に通ったときだけ置き換えます。</li>
   <li><b>プロジェクトの状態</b>：記事を作っている間、プロジェクトはフォローアップのときと同じく待機中 → 実行中 → 完了と進みます。ただし、段階の状態、プロジェクトの改訂番号、完了時刻、BRA の会話、プロジェクトフォルダは変えません。失敗や取り消しは記事のジョブの状態にだけ残し、プロジェクトは完了に戻します。</li>
   <li><b>ワーカー</b>：プロジェクトフォルダを、会話は復元せずに戻し、CSV から図を 3 枚描きます。全回路と接続の図、TLF → GN → UC の木の図、GN ごとの接続の図です。それぞれ幅 980 px 以内の図と 430 px のスマートフォン用の図があり、ラベルは日本語か英語です。そのうえで、Web 検索・RCS・文献のツールを持たない新しい会話を始め、記事の指示書と図の一覧、要約表の事実を送ります。</li>
@@ -214,21 +214,21 @@
 
 <h3>実装</h3>
 <p>記事のジョブの実行モードは <code>article</code> で、作れる条件は <code>stepStates.XLSX = done</code> です。プロジェクトの状態は <code>QUEUED → RUNNING → COMPLETED</code> と進み、<code>revision</code> は変えません。図は <code>buildArticleFigures</code> が描き、名前は <code>circuit</code>・<code>frg</code>・<code>function-map</code> です。指示書は <code>prompts/article.md</code>、検査は <code>checkArticle</code>、無害化は <code>sanitizeSvg</code> です。記事は <code>&lt;ProjectID&gt;/article/&lt;locale&gt;.md</code> と <code>.json</code>、図は <code>article/&lt;locale&gt;/figures/</code> に保存し、ブラウザはオブジェクト URL の <code>&lt;img&gt;</code> で図を表示します。英語の規則の例外は <code>AGENTS.md</code> に明記されています。</p>
-<p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code></p>
+<p class="src">典拠：<code>prompts/article.md</code>、<code>packages/worker/src/article.ts</code>、<code>packages/shared/src/article.ts</code>（<code>checkArticle</code>）・<code>articleFigures.ts</code>・<code>svgSanitize.ts</code>、<code>packages/api/src/routes/projects.ts</code>（記事のモデル）、<code>packages/web/src/components/workspace/ArticleView.tsx</code></p>
 
 <h2 id="s3-15">3.15 長いジョブと保存</h2>
 <p>長いジョブでは、途中で止まっても作業を失わないことと、会話が大きくなりすぎないことが必要です。この 2 つはワーカーが受け持ちます。</p>
 <ul>
-  <li><b>保存</b>：実行中、ワーカーは 5 分ごとにプロジェクトフォルダと Codex の会話を S3 に保存します。Spot の中断を知らせる SIGTERM を受けたときも保存します。ワーカーが定期的に書くハートビートが途絶えたジョブは、janitor が回復を試みます（8.3）。</li>
-  <li><b>会話の圧縮</b>：Codex は会話を自動で圧縮します。既定では 75,000 トークンで圧縮し、組織の毎分のトークン上限を 1 回の要求で超えないようにします。コンテキストの窓は 272,000 トークンとして扱います。</li>
+  <li><b>保存</b>：実行中、ワーカーは 5 分ごとにプロジェクトフォルダとエージェントの会話を S3 に保存します。Spot の中断を知らせる SIGTERM を受けたときも保存します。ワーカーが定期的に書くハートビートが途絶えたジョブは、janitor が回復を試みます（8.3）。</li>
+  <li><b>会話の圧縮</b>：会話は自動で圧縮します。OpenAI のモデルでは、Codex が既定で 75,000 トークンで圧縮し、組織の毎分のトークン上限を 1 回の要求で超えないようにします。コンテキストの窓は 272,000 トークンとして扱います。Claude と DeepSeek のモデルでは、Claude Code がコンテキストの窓を既定で 100,000 トークンとして扱い、それに近づくと会話を圧縮します（8.4）。</li>
   <li><b>大きすぎる会話</b>：会話が大きすぎて再開できない場合は、新しい会話で既存のファイルと判断ログを読んで続けます（3.5）。</li>
   <li><b>コンテキストと費用の節約</b>：ツールの結果を小さくし、ファイルを部分的に編集し、修正ターンだけ推論の強さを下げます。</li>
 </ul>
 <p>使用量と費用の計算は 9.10 に、API キーなどの秘密情報の守り方は 9.5 に記載しています。</p>
 
 <h3>実装</h3>
-<p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は定数 <code>CODEX_CONTEXT_WINDOW</code>（272000）です。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>
-<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>CODEX_CONTEXT_WINDOW</code>・<code>turnUsage</code>・<code>sessionTotalUsage</code>）、<code>index.ts</code>（保存とハートビート）、<code>s3sync.ts</code>、<code>env.ts</code></p>
+<p>圧縮のしきい値はワーカーの環境変数 <code>CODEX_AUTO_COMPACT_TOKENS</code>（既定 75000）、コンテキストの窓は定数 <code>CODEX_CONTEXT_WINDOW</code>（272000）です。Claude Code の窓は環境変数 <code>CLAUDE_AUTO_COMPACT_WINDOW</code>（既定 100000）で、<code>CLAUDE_CODE_AUTO_COMPACT_WINDOW</code> として渡します。保存とハートビートは <code>index.ts</code>、S3 との同期は <code>s3sync.ts</code> が行います。</p>
+<p class="src">典拠：<code>packages/worker/src/codex.ts</code>（<code>CODEX_CONTEXT_WINDOW</code>・<code>turnUsage</code>・<code>sessionTotalUsage</code>）、<code>claude.ts</code>、<code>index.ts</code>（保存とハートビート）、<code>s3sync.ts</code>、<code>env.ts</code></p>
 
 <h2 id="s3-16">3.16 完成した BRA の読み方と限界</h2>
 <div class="box note">

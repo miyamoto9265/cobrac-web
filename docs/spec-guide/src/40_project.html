@@ -5,7 +5,7 @@
   <p class="lead">CoBRAC では、1 つの BRA を 1 つのプロジェクトとして作ります。第 4 部では、だれがどの操作をできるか、プロジェクトをどう作り何を設定できるか、画面に何が出るかを説明しています。あわせて、ジョブの結果を凍結する「版」、プロジェクトの公開と複製、使用量と費用の表示も扱います。BRA の中身の作り方は第 3 部、Canon は第 5 部、BRA-DB への登録は第 7 部で扱います。</p>
   <div class="map">
     <div><b>利用者とプロジェクト</b>利用者はプロジェクトを作り、質問に答え、成果物を受け取ります。管理者は利用者の承認とデフォルトの API キーを管理します。</div>
-    <div><b>版</b>BRA のジョブが完了するたびに、ワーカーが結果を変更できない版として保存します。版は BRA-DB への登録と差分の比較の基になります。</div>
+    <div><b>版</b>BRA のジョブが 5 つの CSV をそろえて完了するたびに、ワーカーが結果を変更できない版として保存します。版は BRA-DB への登録と差分の比較の基になります。</div>
     <div><b>共有と費用</b>所有者はプロジェクトを公開でき、ほかの利用者はそれを複製できます。トークンの使用量と推定費用はジョブごとに記録され、画面に表示されます。</div>
   </div>
 </div>
@@ -34,13 +34,13 @@
   <tbody>
     <tr><td>保存</td><td>管理画面で、どの管理者も登録・置き換え・削除できる。どの利用者にも属さない。個人のキーとは別の暗号化の条件で保存するので、個人のキーの条件では復号できず、逆もできない。登録時に個人のキーと同じく OpenAI で有効性を検査し、承認した利用者に出すモデルの一覧を保存する。書き込み専用で、API は登録の有無・末尾 4 文字・更新日時だけを返す。個人のキーをデフォルトの API キーにコピーすることはない</td></tr>
     <tr><td>利用承認</td><td>管理画面で利用者ごとに「未承認」か「承認済み」を選ぶ。既存の利用者も新しい利用者も、未承認から始まる。承認した利用者は、登録済みのデフォルトのキーのモデルをすべて使える</td></tr>
-    <tr><td>優先順位</td><td>利用者自身のキーが常に優先される。承認済みの利用者が後で自分のキーを登録すると以後は自分のキーで実行し、削除するとデフォルトの API キーに戻る。管理者の個人のキーは、その管理者自身のジョブにだけ使う</td></tr>
+    <tr><td>優先順位</td><td>利用者自身のキーは、デフォルトの API キーより常に優先される（チームの作業場所では、チームのキーがさらに優先される。4.8）。承認済みの利用者が後で自分のキーを登録すると以後は自分のキーで実行し、削除するとデフォルトの API キーに戻る。管理者の個人のキーは、その管理者自身のジョブにだけ使う</td></tr>
     <tr><td>ジョブの開始時の判定</td><td>ジョブを始めるすべての依頼（作成・フォローアップ・リトライ・回答・解説記事）で、API が使うキーとモデルを決める。解説記事では記事に選んだモデルも判定する。使えるキーがない場合は 400。自分のキーがなく、承認とデフォルトの API キーの登録もそろっていない場合がこれに当たる。利用者がこのジョブのために選んだモデルの提供元のキーがない場合は 403（4.2）</td></tr>
     <tr><td>選んでいないモデルの置き換え</td><td>利用者がこのジョブで選んでいないモデルを利用者のキーで使えないときは、失敗させずに使えるモデルに置き換える（4.2 の「モデルの決め方」）。対象は、保存した既定のモデル、デプロイの既定、複製に与える既定、以前に別のキーで作ったプロジェクトのモデル。そうしたプロジェクトにフォローアップ・リトライ・回答を送ると、プロジェクトのモデルを以後も置き換えたモデルに移し、通常の「Model: …」のお知らせを出す。モデルを選ばない解説記事は置き換えたモデルで実行し、プロジェクトのモデルは変えない</td></tr>
-    <tr><td>モデルの選択欄</td><td>キーで使えないモデルは既定のモデルとして保存できない。承認した利用者には、デフォルトのキーのモデルをすべて返す。使えなくなった保存済みの既定は「デフォルト」と表示し、プロジェクトのヘッダーには次のジョブで使うモデルを出す</td></tr>
+    <tr><td>モデルの選択欄</td><td>設定画面では、キーで使えないモデルを既定のモデルとして保存できない（<code>PUT /users/me</code> は 403）。作成画面とミッションの下書きで選んだモデルも既定に残る（4.2 の「選んだモデルを覚える」）。作成画面はその作業場所のキーで検査し、下書きは保存の時点では検査しない。そのため、チームの作業場所で選んだモデルや下書きで選んだモデルが、ほかの作業場所では使えない既定になることがある。承認した利用者には、デフォルトのキーのモデルをすべて返す。使えない保存済みの既定は「デフォルト」と表示し、プロジェクトのヘッダーには次のジョブで使うモデルを出す</td></tr>
     <tr><td>画面の言葉づかい</td><td>「デフォルトの API キー」は管理画面にだけ出し、管理者以外には見せない。承認済みの利用者にとっては組織のキーで動くのが通常の状態で、自分のキーは任意の追加である。設定画面の「API キー」の欄は、提供元（OpenAI・Anthropic・DeepSeek）ごとに 1 つの欄で、名前・状態・ボタンだけを並べる。説明は名前の横の (?) に出す。承認済みの利用者への状態は次のどれか：「登録は不要です」（組織のキーで実行）、「自分のキー（…xxxx）」、「管理者にお問い合わせください」（OpenAI で組織のキーが登録されていない）、「キーを登録してください」（Anthropic・DeepSeek で組織のキーが登録されていない）。入力欄は「登録」か「変更」を押したときだけ、その欄の下に開く。承認されていない利用者には「未登録」か「登録済み（…xxxx）」を出す。モデルの欄には、キーについての注記を出さない。API のエラーとワーカーのお知らせは「管理者に利用の承認を依頼してください」「いまはジョブを実行できません」「このモデル（…）は利用できません」とだけ伝える</td></tr>
     <tr><td>取り消し</td><td>ワーカーは起動のたびに、もう一度判定する。対象は新しいジョブ・回答・リトライ・中断後の再開。承認がない、デフォルトの API キーがない、のどちらかに当たればジョブを失敗にし、お知らせを出す。実行中のターンは止めない</td></tr>
-    <tr><td>利用額</td><td>ジョブには、自分のキーとデフォルトの API キーのどちらで実行したかを記録する。管理画面は、デフォルトの API キーで実行したジョブを利用者ごとに合計し、各利用者の横に出す（4.7）。アプリには支出の上限がないので、デフォルトの API キーを発行した OpenAI のプロジェクトに予算を設定する</td></tr>
+    <tr><td>利用額</td><td>ジョブには、自分のキー・デフォルトの API キー・チームのキー（4.8）のどれで実行したかを記録する。管理画面は、デフォルトの API キーで実行したジョブを利用者ごとに合計し、各利用者の横に出す（4.7）。デフォルトの API キーには、アプリの支出の上限がない（上限は自律実行のミッションの費用の上限とチームの月の上限だけ）ので、デフォルトの API キーを発行した OpenAI のプロジェクトに予算を設定する</td></tr>
     <tr><td>漏えいへの備え</td><td>キーは API から返さず、ログに出さず、エージェントが実行するコマンドにも渡さない。エージェントは自分のタスクの中では広い操作ができるが、キーを持つプロセスの環境は読めない構成になっている（9.5）。それでもエージェントは自分のジョブでキーを使うので、信頼できる共同作業者だけを承認し、予算を設定した OpenAI プロジェクトのキーを使う</td></tr>
   </tbody>
 </table>
@@ -51,10 +51,10 @@
   <thead><tr><th style="width:16%">項目</th><th>仕様</th></tr></thead>
   <tbody>
     <tr><td>登録</td><td>利用者は設定画面の「API キー」の欄の Anthropic・DeepSeek の欄で自分のキーを登録できる。管理者は管理画面で「デフォルトの Anthropic API キー」「デフォルトの DeepSeek API キー」を登録する。どちらも登録時に提供元で有効性を検査する。Anthropic のキーのうちワークスペースに紐づかないもの（ユーザーキー）には、任意の欄でワークスペース ID（<code>wrkspc_…</code>）を添える</td></tr>
-    <tr><td>どのキーで動くか</td><td>チームの作業場所のジョブは、チームの予算が有効な期間で、モデルの提供元のチームのキーがあり、そのモデルがチームで使えるなら、チームのキーで実行する（利用者自身のキーより優先する）。そうでなければ、個人の作業場所と同じ規則（4.1）で実行する人自身のキーかデフォルトの API キーで実行する。チームを抜けた人のプロジェクトは、以後は本人のキーで実行する。ワーカーは起動のたびに判定し直すので、キーの削除・メンバーを外したこと・予算の終わりは次の起動から効く</td></tr>
+    <tr><td>どのキーで動くか</td><td>チームの作業場所のジョブは、チームの予算が「利用中」で、モデルの提供元のチームのキーがあり、そのモデルがチームで使えるなら、チームのキーで実行する（利用者自身のキーより優先する）。そうでなければ、個人の作業場所と同じ規則（4.1）で実行する人自身のキーかデフォルトの API キーで実行する。チームを抜けた人のプロジェクトは、以後は本人のキーで実行する。ワーカーは起動のたびに判定し直すので、キーの削除・メンバーを外したこと・予算の終わりは次の起動から効く（チームのキーで実行待ちになったジョブの扱いは 4.8）</td></tr>
     <tr><td>キーがないとき</td><td>その提供元のデフォルトの API キーが登録されていない間は、承認済みの利用者も、自分のキーを登録しない限りその提供元のモデルを使えない。設定画面の欄は「キーを登録してください」と示し、「登録」を強調する。キーがない利用者が Claude のモデルを選ぶと 403「Claude のモデルを使うには Anthropic API キーの登録が必要です」、DeepSeek のモデルでは 403「DeepSeek のモデルを使うには DeepSeek API キーの登録が必要です」</td></tr>
     <tr><td>選択欄と既定</td><td>モデルの選択欄には、使えるキーがある提供元のモデルだけを出す。OpenAI のキーがない利用者の既定のモデルは、Claude のキーがあれば <code>claude-sonnet-5-5</code>、DeepSeek のキーだけなら <code>deepseek-flash</code>（非推奨だが、ほかに使えるモデルがない）。非推奨のモデルは選択欄の最後に「（非推奨）」を付けて出す（4.2）</td></tr>
-    <tr><td>利用額</td><td>ジョブに記録するキーの種類（自分のキーかデフォルトの API キーか）は、そのジョブのモデルの提供元のキーを指す</td></tr>
+    <tr><td>利用額</td><td>ジョブに記録するキーの種類（自分のキー・デフォルトの API キー・チームのキー）は、そのジョブのモデルの提供元のキーを指す</td></tr>
   </tbody>
 </table>
 
@@ -75,13 +75,13 @@
   <li>役割は <code>Users</code> の <code>role</code>（<code>user</code> / <code>admin</code>）です。管理者の判定は、Cognito のグループ <code>admin</code> に属するか、メールアドレスが <code>COBRAC_ADMIN_EMAILS</code> にあるかで行います。サインアップの可否は <code>COBRAC_SELF_SIGNUP</code> で切り替えます。初回のアクセスで作る項目には、仮名の <code>userKey</code> を発行します。</li>
   <li>デフォルトの API キーは、Catalog テーブルの <code>kind: "config"</code>・<code>id: "default-api-key"</code> の項目に、KMS の暗号文として保存します。暗号化コンテキストは <code>{ purpose: "openai-api-key", scope: "default" }</code> です。<code>userId</code> を含まないので、個人のキーのコンテキスト <code>{ userId, purpose: "openai-api-key" }</code> とは互いに復号できません。有効性の検査は OpenAI の <code>/v1/models</code> で行い、API は <code>{ registered, last4, updatedAt }</code> だけを返します。</li>
   <li>利用承認は <code>Users.orgAccess = { approvedAt, approvedBy }</code> です。値がないか null なら未承認で、値があれば承認済みです（<code>isOrgApproved</code>）。</li>
-  <li>ワーカーが取り消しで出すお知らせは <code>sys.noApiKey</code>・<code>sys.orgKeyUnavailable</code>・<code>sys.orgKeyModel</code> です。ワーカーが読めるのは Catalog の <code>config</code> と <code>team</code>（チームのキー。4.8）のパーティションだけです（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）。</li>
+  <li>ワーカーが取り消しで出すお知らせは <code>sys.noApiKey</code>・<code>sys.noAnthropicKey</code>・<code>sys.noDeepseekKey</code>・<code>sys.orgKeyUnavailable</code> です。チームのキーで実行するはずのジョブで、チームのキーを使えなくなっていたときは <code>sys.teamBudgetEnded</code> です（4.8）。ワーカーが読めるのは Catalog の <code>config</code> と <code>team</code>（チームのキー。4.8）のパーティションだけです（<code>dynamodb:LeadingKeys</code> の条件付きの <code>GetItem</code>）。</li>
   <li>ジョブは <code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>。<code>org</code> がデフォルトの API キー、<code>team</code> がチームのキー）を記録します。利用者ごとの合計は <code>GET /admin/org-usage</code> が返します。</li>
   <li>Anthropic のキー：個人のキーは <code>Users.encryptedAnthropicKey</code>（暗号化コンテキスト <code>{ userId, purpose: "anthropic-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-anthropic-key"</code>（<code>{ purpose: "anthropic-api-key", scope: "default" }</code>）に保存します。保存するのは、キーの後に改行とワークスペース ID を続けた 1 つの文字列（<code>joinAnthropicCredential</code>）の暗号文です。有効性の検査は Anthropic の <code>/v1/models</code> で行います。どのキーで動くかは提供元ごとに <code>ModelPolicy</code>（<code>claude</code> が Anthropic 側、<code>deepseek</code> が DeepSeek 側）が決め、<code>/users/me/models</code> はそれぞれのキーの種類を <code>claudeKeySource</code>・<code>deepseekKeySource</code> で返します。</li>
   <li>DeepSeek のキー：個人のキーは <code>Users.encryptedDeepseekKey</code>（暗号化コンテキスト <code>{ userId, purpose: "deepseek-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-deepseek-key"</code>（<code>{ purpose: "deepseek-api-key", scope: "default" }</code>）に保存します。有効性の検査は DeepSeek の <code>/models</code> で行います。ワーカーのお知らせは <code>sys.noDeepseekKey</code> です。</li>
   <li>キーを守る仕組み：<code>shell_environment_policy</code> が <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> をコマンドの環境から除きます。エージェントは自分の Fargate タスクの中で Codex のプロセスと同じ OS ユーザーとして動きますが、<code>node</code>・Codex・git の実行ファイルは実行専用で、そのプロセスはダンプできません。そのため <code>/proc/&lt;pid&gt;/environ</code> からキーを読めません。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>、<code>packages/web/src/i18n/claude.ts</code>・<code>apiKeys.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>・<code>routes/users.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>、<code>packages/web/src/i18n/claude.ts</code>・<code>apiKeys.ts</code></p>
 
 <h2 id="s4-2">4.2 プロジェクトの作成と設定</h2>
 <p>プロジェクトは「新規プロジェクト」の画面で作ります。入力欄は ROI（対象の脳領域）と TLF（その領域が担う機能）の 2 つの欄を上下に組にしたもので、どちらか一方だけでも作れます。足りない側はエージェントが調べて補います。ROI の欄に Brainnetome（BNA）の略称か領域名を打つと、BNA の領域が候補に出ます。空の欄には ROI と TLF の例が順に表示され、「例を使う」で両方の欄に入ります。操作の詳細は利用マニュアルにあります。</p>
@@ -102,7 +102,7 @@
 <p>エージェントを動かすモデルと、<b>推論の強さ</b>（reasoning effort）は、次の規則で決まります。モデルは OpenAI のモデルのほかに、Anthropic の Claude のモデルと DeepSeek のモデルも選べます。</p>
 <ul>
   <li><b>モデルの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、アプリの既定（<code>claude-sonnet-5-5</code>）の順に、最初に値があるものを使います。利用者のキーでアプリの既定を使えないときは、OpenAI のキーがあれば <code>gpt-6-sol</code>、Claude のキーだけなら <code>claude-sonnet-5-5</code>、DeepSeek のキーだけなら <code>deepseek-flash</code> を使います（<code>allowedDefaultModel</code>）。非推奨のモデルには、ほかに使えるモデルがないときにしか置き換えません。モデルを持たない古いプロジェクトとジョブは、以前のアプリの既定（<code>gpt-6-luna</code>）のまま動きます。プロジェクトを作るとき、API は必ず具体的なモデル名を決めて保存します。費用を計算できるようにするためで、「Codex の既定」のような不明な値は残しません。</li>
-  <li><b>選んだモデルを覚える</b>：作成画面は、利用者の既定のモデルと推論の強さを選んだ状態で開きます。プロジェクトを作ると、作成画面で選んだモデルと推論の強さが利用者の既定として保存され、次のプロジェクトはそこから始まります（<code>rememberChoice</code>）。作成画面で「デフォルト」を選ぶと、そのプロジェクトはアプリの既定のモデルで作り、利用者の既定も「デフォルト」に戻ります。非推奨のモデルも、利用者が選んだものなので覚えます。ミッションで選んだエージェントのモデルも同じ既定に保存します（6.9）。設定画面の「既定のモデル」は、この値を表示し、直接変えることもできます。</li>
+  <li><b>選んだモデルを覚える</b>：作成画面は、利用者の既定のモデルと推論の強さを選んだ状態で開きます。プロジェクトを作ると、作成画面で選んだモデルと推論の強さが利用者の既定として保存され、次のプロジェクトはそこから始まります（<code>rememberChoice</code>）。作成画面で「デフォルト」を選ぶと、利用者の既定は使わず、デプロイの既定（なければアプリの既定）のモデルでプロジェクトを作ります。キーで使えないモデルは、上の規則で置き換えます。利用者の既定も「デフォルト」に戻ります。非推奨のモデルも、利用者が選んだものなので覚えます。ミッションで選んだエージェントのモデルも同じ既定に保存します（6.9）。設定画面の「既定のモデル」は、この値を表示し、直接変えることもできます。保存するのは依頼で送った項目だけで、値が変わらなければ書き込みません。既定の保存に失敗しても、プロジェクトの作成やミッションの設定の変更は失敗せず、既定は前の値のまま残ります。</li>
   <li><b>非推奨のモデル</b>：<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code>・<code>claude-haiku-5-5</code>・<code>deepseek-flash</code>（DeepSeek のすべてのモデル）は非推奨です（<code>isDeprecatedModel</code>）。選ぶことはでき、すでに使っているプロジェクトや保存済みの既定もそのまま動きます。<code>/users/me/models</code> はこれらを一覧の最後に並べ、選択欄は「（非推奨）」を付けて出します。アプリが既定や置き換えでこれらを選ぶことはありません。Claude Code の小さな裏方の呼び出しには、引き続き <code>claude-haiku-5-5</code>・<code>deepseek-flash</code> を使います（9.5）。</li>
   <li><b>推論の強さの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、Codex の既定の順です。値は <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code>・<code>max</code>・<code>ultra</code>・<code>persistent</code> のどれかで、画面は <code>high</code> を推奨として示します。</li>
   <li><b>選べるモデル</b>：API キーを登録するとき、そのキーで使える GPT-5.6 と GPT-6 の文章のモデルを保存します。日付付きのスナップショットと、音声・画像・検索などの派生モデルは除きます。デフォルトの API キーの利用者には、デフォルトの API キーのモデルを出します。モデルは作成と設定の画面で選べます。</li>
@@ -131,7 +131,7 @@
 
 <h3>実装</h3>
 <ul>
-  <li>モデルのデプロイの既定は環境変数 <code>CODEX_MODEL</code>、アプリの既定は <code>DEFAULT_CODEX_MODEL</code> です。推論の強さのデプロイの既定は <code>CODEX_REASONING_EFFORT</code> です。選べるモデルは OpenAI の <code>/v1/models</code> の結果を <code>filterCodexModels</code> で絞り、<code>availableModels</code> に保存します。修正ターンの上限は <code>fixTurnEffort</code>（<code>FIX_TURN_EFFORT</code> = <code>medium</code>）です。</li>
+  <li>モデルのデプロイの既定は環境変数 <code>CODEX_MODEL</code>、アプリの既定は <code>DEFAULT_AGENT_MODEL</code> です。モデルを持たない古いプロジェクトとジョブは、<code>CODEX_MODEL</code> がなければ <code>DEFAULT_CODEX_MODEL</code> で動きます（<code>legacyDefaultModel</code>）。推論の強さのデプロイの既定は <code>CODEX_REASONING_EFFORT</code> です。選べるモデルは OpenAI の <code>/v1/models</code> の結果を <code>filterCodexModels</code> で絞り、<code>availableModels</code> に保存します。修正ターンの上限は <code>fixTurnEffort</code>（<code>FIX_TURN_EFFORT</code> = <code>medium</code>）です。</li>
   <li><code>gpt-5.6</code> という別名は Codex のモデルの目録にないので、ワーカーは OpenAI がそれを振り向ける <code>gpt-5.6-sol</code> を Codex に渡します（<code>CODEX_MODEL_ALIASES</code>）。ジョブには利用者が選んだモデルを記録します。</li>
   <li>Claude のモデルの一覧は <code>CLAUDE_MODELS</code>、提供元の判定は <code>providerOf</code>（<code>packages/shared/src/provider.ts</code>）です。</li>
   <li>参考資料の上限は <code>ATTACHMENT_LIMITS</code>（<code>packages/shared/src/attachments.ts</code>）です。</li>
@@ -140,7 +140,7 @@
   <li>ワーカーは実行のたびに <code>attachments/</code> を <code>/work/materials/</code> にコピーします。最初の実行で、PDF の本文（<code>pdftotext</code>）、Office の本文（DOCX・PPTX・XLSX の共有文字列）、URL の中身を抜き出します。URL の中身は、HTML なら本文、PDF なら本文付きのファイル、画像ならその画像です。取得は 10 MB・20 秒・リダイレクト 5 回までで、経由するすべての遷移先が公開アドレスでなければなりません。結果は <code>manifest.json</code> とともに <code>attachments/derived/</code> に保存します。</li>
   <li><code>materials/INDEX.md</code> が各項目の元・本文・状態を並べ、依頼文の先頭に <code>Reference materials:</code> の 1 文が付きます。資料の扱いは <code>prompts/AGENTS.md</code> がエージェントに伝えます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>・<code>provider.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>rememberedModels.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>・<code>provider.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
 
 <h2 id="s4-3">4.3 プロジェクトの ID・名前・削除</h2>
 <h3>ID の形式</h3>
@@ -164,7 +164,7 @@
 <ul>
   <li>プロジェクトの名前は、入力した ROI と TLF から作った仮の名前 <code>&lt;TLF&gt; in &lt;ROI&gt;</code> で始まります。仮の名前はどの言語でもかまいません（例：<code>VOR in 小脳</code>）。</li>
   <li>HCD の段階が受理されると、ワーカーはエージェントが付けた英語の名前（<code>&lt;TLF&gt; in &lt;ROI&gt;</code>）に置き換えます。置き換えるのは、名前がまだ仮の名前か、エージェントが付けた名前のときだけです。</li>
-  <li>作成時に打った名前と、後でプロジェクト画面で変えた名前は、利用者の名前として扱い、エージェントは上書きしません。名前は正規化します。具体的には、Unicode の NFC にそろえ、前後の空白を除き、連続する空白を 1 つにします。制御文字と改行は受け付けず、長さは 1〜200 字です。</li>
+  <li>プロジェクト画面で変えた名前と、複製やコピーで付いた名前（4.6・4.8）は、利用者の名前として扱い、エージェントは上書きしません。名前は正規化します。具体的には、Unicode の NFC にそろえ、前後の空白を除き、連続する空白を 1 つにします。制御文字と改行は受け付けず、長さは 1〜200 字です。</li>
   <li>名前を変えたとき、同じ名前の自分のプロジェクトがあれば注意として示します。大文字と小文字、空白の違いは区別しません。変更を止めることはありません。</li>
   <li>xlsx の <code>Project ID</code> の列には ID が入ります。<code>Description</code> の列には、名前が英語のとき、その名前を先頭に付けます。</li>
 </ul>
@@ -195,24 +195,24 @@
   <li>ダウンロード名は <code>filename*=UTF-8''…</code> で送り、ASCII の代わりとして <code>filename="&lt;ProjectID&gt;.bra.xlsx"</code> を付けます。</li>
   <li>削除：<code>DELETE /projects/{id}</code> は Projects の項目に <code>deletedAt</code> / <code>deletedBy</code> を書きます。条件は、まだ削除されておらず、状態が <code>QUEUED</code>・<code>RUNNING</code>・<code>WAITING_USER_INPUT</code>・<code>FINALIZING</code> でないことです。索引は増やさず、API が印で絞ります。<code>/users/me/usage</code> は <code>byProject</code> に <code>deleted</code> の印を付け、<code>/admin/projects</code> は <code>deletedAt</code> 付きで返します。復元するには項目から <code>deletedAt</code> を消します（将来の管理用 API）。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>、<code>packages/api/src/routes/projects.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/projectId.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>、<code>packages/api/src/lib/catalog.ts</code>・<code>runs.ts</code>、<code>packages/api/src/routes/projects.ts</code>・<code>public.ts</code></p>
 
 <h2 id="s4-4">4.4 画面</h2>
 <p>本書の画面の名前は、サイドバーと利用マニュアルの表記と一致しています。サイドバーの上には「＋ ミッション」（新規ミッション、6.3）と「＋ プロジェクト」（新規プロジェクト）が同じ幅で並び、その下に「履歴」、下部に「ミッション」「Canon」「公開ライブラリ」「利用マニュアル」が並び、管理者にはさらに「管理」が出ます。「ミッション」はミッションの一覧（6.10）、「Canon」は Canon の一覧（5.1）を開きます。「ミッション」の横には、所有者の操作を待っているもの（6.10 の「あなたの番」）の件数が黄色の丸で出ます。ミッションの画面を開いているあいだは「ミッション」が選ばれた状態になります。「履歴」は自分のプロジェクトとミッションの履歴で、見出しの横の「すべて表示」でプロジェクト一覧が開きます。ミッションが作ったプロジェクトはミッションごとに 1 件にまとまり、プロジェクトがまだないミッション（下書き）も作った時刻の位置に出ます。</p>
 <p>履歴の各項目には、ポインターを合わせると（タッチの端末では常に）アーカイブのボタンが出ます。アーカイブは項目を履歴から隠すだけで、実行・Canon・公開には影響しません。ミッションをアーカイブすると、そのプロジェクトもまとめて隠れます。アーカイブしたものはサイドバーに出ません。プロジェクト一覧とミッションの一覧には残り、薄く表示され「アーカイブ済み」の印が付いて、それぞれの並びの末尾に置かれます。プロジェクト一覧では各項目のボタンでアーカイブ・復元できます。ミッションはそのページの見出しのボタンでアーカイブ・復元します。</p>
-<p>「仕様書」は、管理画面の上部にあるボタンから開きます。「設定」と「ログアウト」は、その下にあるメールアドレスの横のアイコンから開きます。サイドバーの下端にはアプリのバージョンが出ており、押すとリリースノートが開きます。いま開いている画面に当たる項目（履歴の項目と下部のリンク）は、背景を明るくし、左端に青い線を付けて示します。アプリ名の横の「アルファ版」の印は、押すかポインターを合わせると説明が出ます。PC の幅（1024px 以上）では、サイドバーの右端をドラッグして幅を 208〜480px のあいだで変えられます。右端にキーボードで移ると左右の矢印キーで 16px ずつ（Shift で 64px ずつ）変わり、Enter かダブルクリックで標準の 256px に戻ります。幅はブラウザごとに保存します（<code>localStorage</code> の <code>cobrac-sidebar-width</code>）。履歴の一覧は、ブラウザ標準のスクロールバーを出さず、暗い色の細いつまみだけを出します。スマホのドロワーの幅は変わりません。</p>
+<p>「仕様書」は、管理画面の上部にあるボタンから開きます。「設定」と「ログアウト」は、その下にあるメールアドレスの横のアイコンから開きます。サイドバーの下端にはアプリのバージョンが出ており、押すとリリースノートが開きます。いま開いている画面に当たる項目（履歴の項目と下部のリンク）は、背景を明るくし、左端に青い線を付けて示します。アプリ名の横の「アルファ版」の印は、押すかポインターを合わせると説明が出ます。PC の幅（1024px 以上）では、サイドバーの右端をドラッグして幅を 208〜480px のあいだで変えられます。右端にキーボードで移ると左右の矢印キーで 16px ずつ（Shift で 64px ずつ）変わります。Home で最小の 208px、End で最大の 480px になり、Enter かダブルクリックで標準の 256px に戻ります。幅はブラウザごとに <code>localStorage</code> の <code>cobrac-sidebar-width</code> に保存し、標準の幅のときはこのキーを消します。履歴の一覧は、ブラウザ標準のスクロールバーを出さず、暗い色の細いつまみだけを出します。スマホのドロワーの幅は変わりません。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">パス</th><th style="width:17%">画面</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><code>/login</code></td><td>ログイン</td><td>ログイン、サインアップ、確認コード、パスワードの再設定</td></tr>
     <tr><td><code>/chat</code></td><td>新規プロジェクト</td><td>ROI と TLF の入力欄と、任意の設定（4.2）</td></tr>
-    <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
+    <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG を開くリンク、CoBRAC 形式の xlsx（3.13。<code>output/{id}.bra.xlsx</code>）のダウンロード（ファイルの名前は 4.3）、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
     <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。<code>/projects/:id</code> は最初にあるタブを開き、まだ何もなければ空の状態を出す</td></tr>
     <tr><td><code>/plans/new</code>・<code>/plans/:planId/:view?</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10。<code>:view</code> はタブ）。<code>/plans</code> は <code>/missions</code> へ転送する</td></tr>
     <tr><td><code>/missions</code></td><td>ミッション</td><td>あなたの番と、ミッションの一覧（6.10）</td></tr>
-    <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon の一覧（5.1）、Canon の画面、PR の画面（第 5 部）。<code>view</code> はタブで、<code>hcd</code>・<code>tables</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code> のどれか</td></tr>
+    <tr><td><code>/canons</code>・<code>/canons/:canonId/:view?</code>・<code>/canons/:canonId/pulls/:no</code></td><td>Canon</td><td>自分の Canon と共有された Canon の一覧（5.1）、Canon の画面、PR の画面（第 5 部）。<code>view</code> はタブで、<code>hcd</code>・<code>tables</code>・<code>issues</code>・<code>projects</code>・<code>pulls</code>・<code>history</code>・<code>settings</code> のどれか</td></tr>
     <tr><td><code>/explore</code>・<code>/explore/projects/:id</code>・<code>/explore/canons/:id</code></td><td>公開ライブラリ</td><td>公開されたプロジェクトと Canon の閲覧と複製（4.6）</td></tr>
-    <tr><td><code>/settings</code></td><td>設定</td><td>OpenAI API キー（承認された利用者にはデフォルトの API キーの利用状況も）、表示名と Contributor 名、既定のモデルと推論の強さ、新しいプロジェクトの既定の Canon、パスワードの変更</td></tr>
+    <tr><td><code>/settings</code></td><td>設定</td><td>API キー（OpenAI・Anthropic・DeepSeek の 3 つの欄。4.1）、表示名と Contributor 名、既定のモデルと推論の強さ、新しいプロジェクトの既定の Canon、パスワードの変更、言語</td></tr>
     <tr><td><code>/manual</code></td><td>利用マニュアル</td><td>ログインした全員が読める。現在は日本語と英語があり、UI の言語で開く。その言語の版がなければ英語に注記を付けて出す。目次と見出しのアンカー付き。画面の「?」の横にある「ガイド」のリンクは、該当する節を開く</td></tr>
     <tr><td><code>/releases</code></td><td>リリースノート</td><td>アプリのバージョンごとの変更を、目次付きで全員に見せる</td></tr>
     <tr><td><code>/docs</code></td><td>仕様書（管理者だけ）</td><td>本書の PDF を、短時間だけ有効なリンクで開く。管理者以外は利用マニュアルに送られる</td></tr>
@@ -231,7 +231,7 @@
   <li>名前（押すと変えられる）とその下の ID、状態、ROI・TLF・モデル・使用量。</li>
   <li>参考資料の折りたたみの一覧（4.2）と、段階の進捗。</li>
   <li>停止とリトライ、削除（確認付き。削除後は一覧に戻る）。</li>
-  <li>ダウンロード：主ボタンの「BRA データ (xlsx)」（公式テンプレート Template-v2-3 の形式。3.13）と、グラフもそろっていれば「BRAES 提出セット」（BRAES の投稿フォームに添付するファイル一式の zip。3.13）。</li>
+  <li>ダウンロード：主ボタンの「BRA データ (xlsx)」（公式テンプレート Template-v2-3 の形式。3.13）と、グラフもそろっていれば「BRAES 提出セット」（BRAES の投稿フォームに添付するファイル一式の zip。3.13）。「BRAES 提出セット」を押すとダイアログが開き、BRAES の Project ID の欄に保存済みの ID か案（3.13）が入ります。ID が BRAES の形式でないうちは欄が赤くなり、「ダウンロード」は押せません。入力があれば、例（YT20Oculomotor）を添えた注意も示します。「ダウンロード」を押すと zip のダウンロードが始まり、ダイアログが閉じます。失敗したときは、ダイアログの中にエラーを示します。</li>
   <li>Canon・ミッション・版・公開の印（第 5 部・第 6 部、4.5、4.6）。</li>
 </ul>
 <p><b>段階の進捗</b>は、調査（調査モードのとき）、HCD ⇄ FRG（整合の確認付き）、CSV、xlsx の順に段階を示します。ジョブの実行中は動いている段階が動き、終わった段階にはチェックが付き、まだの段階は灰色のままです。HCD と FRG の調整のターン（3.11）の間は、HCD ⇄ FRG の輪と両方のチップが動きます。質問で止まっている間は動きません。同じ表示は空の状態にも出ます。</p>
@@ -264,22 +264,23 @@
   <li>利用マニュアルは <code>docs/manual/&lt;言語&gt;.md</code>（現在は ja と en）と <code>docs/manual/figures/</code> の SVG を、ビルド時に取り込みます。言語は <code>?lang=</code> か画面の切り替えで選べます。「ガイド」のリンクは <code>lib/help.ts</code> が持ち、リンク先のアンカーがどの言語にもあることをテストで検査します。リリースノートは <code>CHANGELOG.md</code> をビルド時に取り込みます。仕様書のリンクは <code>GET /admin/spec</code> が返します。</li>
   <li>位置表示と種類の色は <code>components/Trail.tsx</code>（<code>Trail</code>・<code>trailSteps</code>・<code>KIND</code>）です。プロジェクトの画面は、Canon とミッションの名前を一覧（<code>GET /canons</code>・<code>GET /plans</code>）から引きます。サイドバーの履歴の Canon の名前は <code>planCanonName</code> が決めます。</li>
   <li>段階の進捗は <code>stepStates</code> と <code>activeStage</code> から描きます。エージェント欄の依頼の区画は <code>meta.kind</code> で分けます。「?」のヘルプは <code>HelpTip</code> です。</li>
+  <li>サイドバーの幅の規則（最小・標準・最大、キー操作、保存）は <code>lib/sidebarWidth.ts</code> が持ち、<code>test/sidebarWidth.test.ts</code> で検査します。</li>
   <li>グラフの URL のクエリ：<code>?node=</code> は回路か Collection を選び、<code>?gn=</code> は FRG のグループの下の UC を強調し、<code>?motif=M1</code> はモチーフを強調します（<code>?gn=</code> に代わる）。表データの <code>?file=</code> は選んだファイルを保ちます。</li>
 </ul>
-<p class="src">典拠：<code>packages/web/src/App.tsx</code>・<code>components/Layout.tsx</code>・<code>pages/*.tsx</code>・<code>lib/help.ts</code>、<code>docs/manual/ja.md</code></p>
+<p class="src">典拠：<code>packages/web/src/App.tsx</code>・<code>components/Layout.tsx</code>・<code>BraesDownloadButton.tsx</code>・<code>pages/*.tsx</code>・<code>lib/help.ts</code>・<code>lib/sidebarWidth.ts</code>、<code>docs/manual/ja.md</code></p>
 
 <h2 id="s4-5">4.5 版</h2>
-<p>BRA のジョブ（初回・フォローアップ・リトライ）が完了すると、ワーカーは結果を変更できない<b>版</b>として凍結します。凍結はジョブを完了にする前に行います。作業用のファイルは実行のたびに上書きされるので、プロジェクトの履歴は版が担います。BRA-DB への登録は、必ず版から行います（第 7 部）。</p>
+<p>BRA のジョブ（初回・フォローアップ・リトライ）が完了したとき、5 つの CSV（下の表の「内容のハッシュ」）がすべてそろっていれば、ワーカーは結果を変更できない<b>版</b>として凍結します。そろっていなければ版を作らず、プロジェクトの改訂番号だけを 1 つ進めます。凍結はジョブを完了にする前に行います。作業用のファイルは実行のたびに上書きされるので、プロジェクトの履歴は版が担います。BRA-DB への登録は、必ず版から行います（第 7 部）。</p>
 <table>
   <thead><tr><th style="width:18%">項目</th><th>仕様</th></tr></thead>
   <tbody>
     <tr><td>番号と ID</td><td>版の番号 <code>n</code> は、ジョブを終えた後のプロジェクトの改訂番号である。そのため、ほかの場所に保存した番号（複製元の番号、Canon が記録したプロジェクトの番号、解説記事の元になった番号）は、そのまま版を指す。全体で一意な ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（Project ID は再利用されない）</td></tr>
     <tr><td>親</td><td>版 <code>n-1</code>。複製したプロジェクトの最初の版では、コピー元の公開プロジェクトの版が親になる</td></tr>
     <tr><td>凍結する内容</td><td>ワーカーの作業ディレクトリのデータ（HCD・FRG・CSV のデータ、レポート、判断ログ、検査結果。ログの <code>*.jsonl</code> は除く）、xlsx、グラフの JSON、BRA-DB の登録パッケージ、版の記録（manifest）</td></tr>
-    <tr><td>変更できないこと</td><td>ファイルを先に、manifest を最後に、上書きできない方法で書く。manifest がある版だけが存在し、置き換えられない。同じジョブで凍結をもう一度行うと、既存の版を返す。別のジョブが作った同じ番号の版には触れず、そのことを記録する。凍結に失敗しても記録するだけで、ジョブは失敗にしない。版のファイルは、S3 のバケットのポリシーでだれも削除できない</td></tr>
+    <tr><td>変更できないこと</td><td>ファイルを先に、manifest を最後に書く。上書きできない方法で書くのは manifest だけで、manifest がある版だけが存在し、置き換えられない。同じジョブで凍結をもう一度行うと、既存の版を返す。別のジョブが作った同じ番号の版には触れず、そのことを記録する。凍結に失敗しても記録するだけで、ジョブは失敗にしない。版のファイルは、S3 のバケットのポリシーでだれも削除できない</td></tr>
     <tr><td>生成条件</td><td>版の記録には、その版を作った条件を残す：アプリのバージョンと git commit、指示書と JSON Schema のハッシュ、モデル、推論の強さ、調査モード、固定した Canon の rev、HCD の検査が従った SABRA の境界とそのバージョン、検査規則の水準、CSV の形式、ミッションから作ったときはそのミッション。仮説モードでは、根拠のモード・仮説の範囲・上限・仮説の件数も残す（3.12）</td></tr>
     <tr><td>内容のハッシュ</td><td>5 つの CSV（Project・References・Circuits・Connections・FRG）から計算する。BRA-DB に入るのはこの 5 つなので、データが同じならファイルの名前や詰め方によらず同じハッシュになる</td></tr>
-    <tr><td>親との差分</td><td>表ごとに、追加・削除・変更したレコードの数を要約して残す。親の版のファイルがなければ要約はない</td></tr>
+    <tr><td>親との差分</td><td>表ごとに、追加・削除・変更したレコードの数を要約して残す。親の版がないときと、親が別のプロジェクトの版のとき（複製したプロジェクトの最初の版）は要約はない</td></tr>
     <tr><td>登録パッケージ</td><td>5 つの CSV がそろうときだけ作る。BRA-DB の登録だけが読む内部のもので、ダウンロードには出さない（第 7 部）</td></tr>
   </tbody>
 </table>
@@ -296,14 +297,14 @@
 <h3>実装</h3>
 <ul>
   <li>版の番号はプロジェクトの <code>revision</code> です。ほかの場所の番号は、複製元の <code>clonedFrom.revision</code>、Canon の <code>projectRevision</code>、解説記事の <code>sourceRevision</code> です。</li>
-  <li>保存先は S3 のプロジェクトの接頭辞の下の <code>revisions/{n}/</code> です。<code>files/</code>（ワークスペース）、<code>output/*.xlsx</code>、<code>graph/*.json</code>、<code>bradb/</code>（登録パッケージ）、<code>manifest.json</code>（<code>BraVersionManifest</code>）を置きます。書き込みは条件付きの put（<code>If-None-Match: *</code>）です。バケットのポリシーは <code>users/*/*/revisions/*</code> の削除をすべての主体に禁じます。番号の衝突は <code>sys.versionConflict</code>、凍結の失敗は <code>sys.versionFailed</code> として記録します。</li>
-  <li>manifest の中身：版 ID、親、由来（<code>job</code> / <code>baseline</code>）、作成時刻、Contributor、ジョブ（ID・種類・指示）、生成条件、各ファイルの SHA-256 と大きさ、内容のハッシュ、親との差分の要約（親にスナップショットがなければ null）。生成条件は、アプリのバージョンと git commit、<code>prompts/</code> と <code>HARNESS_SCHEMAS</code> の SHA-256、モデル、推論の強さ、調査モード、固定した Canon の rev、SABRA の境界（<code>neocortex</code> / <code>legacy</code>）と RCS が返した境界の版、検査の規則 <code>harnessRules</code>（規則のないプロジェクトは 0）、Project.csv の CSV の形式、ミッションから作ったときの <code>planId</code> です。</li>
+  <li>保存先は S3 のプロジェクトの接頭辞の下の <code>revisions/{n}/</code> です。<code>files/</code>（ワークスペース）、<code>output/*.xlsx</code>、<code>graph/*.json</code>、<code>bradb/</code>（登録パッケージ）、<code>manifest.json</code>（<code>BraVersionManifest</code>）を置きます。<code>files/</code> と <code>bradb/</code> は条件なしの put で書き、<code>manifest.json</code> だけを条件付きの put（<code>If-None-Match: *</code>）で書きます。バケットのポリシーは <code>users/*/*/revisions/*</code> の削除をすべての主体に禁じます。番号の衝突は <code>sys.versionConflict</code>、凍結の失敗は <code>sys.versionFailed</code> として記録します。</li>
+  <li>manifest の中身：版 ID、親、由来（<code>job</code> / <code>baseline</code>）、作成時刻、Contributor、ジョブ（ID・種類・指示）、生成条件、各ファイルの SHA-256 と大きさ、内容のハッシュ、親との差分の要約（親の版がないときと、親が別のプロジェクトの版のときは null）。生成条件は、アプリのバージョンと git commit、<code>prompts/</code> と <code>HARNESS_SCHEMAS</code> の SHA-256、モデル、推論の強さ、調査モード、固定した Canon の rev、SABRA の境界（<code>neocortex</code> / <code>legacy</code>）と RCS が返した境界の版、検査の規則 <code>harnessRules</code>（規則のないプロジェクトは 0）、Project.csv の CSV の形式、ミッションから作ったときの <code>planId</code> です。</li>
   <li>内容のハッシュ <code>contentSha256</code> は、<code>Project.csv</code>・<code>References.csv</code>・<code>Circuits.csv</code>・<code>Connections.csv</code>・<code>FRG.csv</code> の順に <code>&lt;CSV 名&gt;\t&lt;その SHA-256&gt;\n</code> を並べた文字列の SHA-256 です。ないファイルは <code>-</code> とします。</li>
   <li>登録パッケージは、BRA-DB のインポートが読む名前の CSV（<code>&lt;ProjectID&gt;_project.csv</code>、<code>_references.csv</code>、<code>_circuits.csv</code>、<code>_connections.csv</code>、<code>_frg.csv</code>）と <code>manifest.json</code>（<code>BradbPackageManifest</code>）です。manifest の欄は、<code>projectId</code>・<code>versionId</code>・<code>version</code>・<code>parentVersionId</code>・<code>contentSha256</code>・各ファイルのハッシュ・<code>braVersion</code>（CSV の形式）・<code>cobracGenerated: true</code>・<code>importType: "cobrac"</code>・Contributor・生成条件 <code>provenance</code>・<code>import.replace</code> / <code>import.allowShrink</code> です。<code>replace</code> は親が同じプロジェクトの版のとき true、<code>allowShrink</code> は変更が Circuits か Connections のレコードを減らすとき true です。対象は BRA-DB のスキーマ v4.6、インポート v3.10 以降です。</li>
   <li>DynamoDB には版の要約（<code>BraVersionSummary</code>：番号、ID、親の ID、由来、作成時刻、内容のハッシュ、アプリのバージョン、git commit、差分の要約、パッケージの有無、記録している版では仮説の数）を持ちます。その版を作ったジョブの <code>Jobs.braVersion</code> と、最新の版を表すプロジェクトの <code>Projects.latestVersion</code> です。テーブルとインデックスは増やさず、既存の項目の属性として持ちます。</li>
   <li>API：<code>GET /projects/{id}/versions</code>（一覧）、<code>…/versions/{n}</code>（manifest とファイル）、<code>…/versions/{n}/diff?base=</code>（差分）。表のビューアは凍結したファイルを <code>GET /projects/{id}/artifacts/text</code> で読みます。<code>GET /projects/{id}/artifacts/download</code> は <code>revisions/</code> の下のキーを拒みます。差分の計算は <code>diffBraCsvs</code> です。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>jobVersions.ts</code>、<code>packages/api/src/routes/projects.ts</code>（版のルート）</p>
+<p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>jobVersions.ts</code>・<code>index.ts</code>・<code>steps.ts</code>（<code>csvComplete</code>）、<code>packages/api/src/routes/projects.ts</code>（版のルート）</p>
 
 <h2 id="s4-6">4.6 公開・複製・共同編集</h2>
 <p>プロジェクトは所有者だけのものですが、所有者は 2 つの方法でほかの利用者と共有できます。プロジェクトを公開して閲覧と複製を許す方法と、Canon に共同編集者を加える方法です。Canon の公開と、Canon から Canon への PR は 5.11 に記載しています。BRAES で採録されたプロジェクトには、管理者が「BRAES採録済み」のマークを付けます。</p>
@@ -329,9 +330,9 @@
 <table class="compact">
   <thead><tr><th style="width:18%">項目</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td>新しいプロジェクト</td><td>新しい Project ID。名前は元の名前に「 (clone)」を付けたもの。Contributor は元のまま。状態は完了。調査モード、SABRA の境界、検査の規則、仮説モードの設定を引き継ぐ。複製元の ID・その改訂番号・所有者の <code>userKey</code>・名前・時刻を記録する</td></tr>
+    <tr><td>新しいプロジェクト</td><td>新しい Project ID。名前は元の名前に「 (clone)」を付けたもの。Contributor は元のまま。状態は完了。調査モード、SABRA の境界、検査の規則、仮説モードの設定を引き継ぐ。モデルは複製した人の既定にする。複製元の ID・その改訂番号・所有者の <code>userKey</code>・名前・時刻を記録する</td></tr>
     <tr><td>コピーするもの</td><td>作業ディレクトリのデータ（HCD・FRG・CSV のデータ、検査結果、レポート、判断ログ）、グラフの JSON、解説記事とその図。フォルダ名と、テキストファイルの中の元の Project ID は、語単位で新しい ID に書き換える</td></tr>
-    <tr><td>コピーしないもの</td><td>エージェント欄の履歴、ジョブ、メッセージ、使用量、グラフの配置、参考資料、BRA の xlsx。xlsx は元の ID を含むので、xlsx の段階を未実行にしておき、フォローアップで作り直す</td></tr>
+    <tr><td>コピーしないもの</td><td>エージェント欄の履歴、ジョブ、メッセージ、使用量、グラフの配置、参考資料、BRA の xlsx、BRAES の Project ID（3.13）。xlsx は元の ID を含むので、xlsx の段階を未実行にしておき、フォローアップで作り直す。作り直すまで BRAES 提出セットもダウンロードできない</td></tr>
     <tr><td>複製の数</td><td>元の所有者には、プロジェクト画面と公開ライブラリで複製の数だけが見える。だれが複製したかは見えない</td></tr>
   </tbody>
 </table>
@@ -342,7 +343,7 @@
 <ul>
   <li>付け外しできるのはサイトの管理者だけです。管理画面の全プロジェクトの一覧と、管理者が開けるプロジェクトの画面の名前の横から操作します。外すときは確認を出します。</li>
   <li>付けられるのは、成果物があり、削除されていないプロジェクトです。付けると、付けた管理者、日時、そのときの版の番号を記録します。すでに付いているプロジェクトに付け直しても、最初の記録を保ちます。</li>
-  <li>マークは、プロジェクト画面の名前の横、「プロジェクト」の一覧、管理画面、公開ライブラリと公開プロジェクトの画面に、緑の「BRAES採録済み」として出ます。マークの説明（ツールチップ）には、付けた日時と版を示し、その後に新しい版ができていればそのことも示します。</li>
+  <li>マークは、プロジェクト画面の名前の横、「プロジェクト」の一覧、管理画面、公開ライブラリと公開プロジェクトの画面に、緑の「BRAES採録済み」として出ます。マークの説明（ツールチップ）には、付けた日時と、そのときの版を示します。その後に新しい版ができていれば、そのことも示します。公開ライブラリと公開プロジェクトの画面では日時だけを示します。版が 0 のときに付けたマークも、日時だけを示します。</li>
   <li>マークはプロジェクトにだけ付きます。複製やチームへのコピーで作ったプロジェクトには引き継ぎません。プロジェクトを更新しても、マークは外れません。</li>
 </ul>
 
@@ -357,10 +358,10 @@
 <h3>実装</h3>
 <ul>
   <li>公開の切り替えは <code>PUT /projects/{id}/visibility</code> です。公開できる ID かどうかは <code>isPublishableProjectId</code>（<code>PROJECT_ID_REGEX</code>）で判定します。公開したプロジェクトは Catalog テーブルに <code>kind = project</code> のレコードを持ち、非公開にするか削除するとレコードを消します。一覧と閲覧のたびに、プロジェクトそのものの状態を検査し直します。閲覧の API は <code>/public/projects/{id}</code> です。</li>
-  <li>BRAES採録済みのマークは <code>ProjectRecord.braesAccepted</code>（<code>{ acceptedAt, acceptedBy, revision }</code>。無いか null なら付いていない）で、<code>PUT /admin/projects/{userId}/{id}/braes</code> が付け外しします。公開ライブラリには日時だけを <code>braesAcceptedAt</code> として渡します。</li>
+  <li>BRAES採録済みのマークは <code>ProjectRecord.braesAccepted</code>（<code>{ acceptedAt, acceptedBy, revision }</code>。無いか null なら付いていない）で、<code>PUT /admin/projects/{userId}/{id}/braes</code> が付け外しします。公開ライブラリと公開プロジェクトの画面には日時だけを <code>braesAcceptedAt</code> として渡します。</li>
   <li>複製は <code>POST /public/projects/{id}/clone</code> です。新しいプロジェクトの保存先は <code>users/&lt;複製した人&gt;/&lt;新しい ID&gt;/</code>、複製元の記録は <code>clonedFrom</code> です。引き継ぐ設定は <code>sabraBoundary</code>、<code>harnessRules</code>、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> などです。複製の数は Catalog テーブルの <code>clones</code> のレコードに数えます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/routes/public.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/public.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code>、<code>packages/web/src/components/BraesBadge.tsx</code></p>
 
 <h2 id="s4-7">4.7 使用量と費用の表示</h2>
 <p>ジョブごとに、モデルが使ったトークンの量（<b>使用量</b>）と、そこから計算した推定費用を記録し、画面に表示します。費用は単価表から計算した推定値で、実際の請求額の正本は OpenAI と Anthropic のダッシュボードです。測り方と単価表は 9.10 にあります。</p>
@@ -400,21 +401,21 @@
     <tr><td>作成</td><td>だれでもサイドバー上部の作業場所の切り替えから「チームを作る」でチームを作れる。作った人がチーム管理者になる。チーム名は 80 字まで</td></tr>
     <tr><td>役割</td><td>チーム管理者とメンバーの 2 つ。チーム管理者は、メンバーの役割の変更・メンバーを外すこと・招待リンクの作成と無効化・招待メールの送信・チームの API キーの登録と削除・チーム名の変更・予算と上限と使えるモデルの設定・チームの削除ができる。メンバーは、チームの作業場所でプロジェクト・ミッション・Canon を作って実行できる。チームには常に 1 人以上のチーム管理者がいる（最後の管理者は抜けられず、メンバーにも変えられない）。チーム管理者はサイト管理者（4.1）とは別の役割である</td></tr>
     <tr><td>作業場所</td><td>サイドバー上部で「個人の作業場所」と所属するチームを切り替える。チームの作業場所では、チーム名の下にジョブを実行するキー（チームの予算か自分のキー）を出し、横のアイコンからチームのページを開く。選んだ作業場所はブラウザに保存する。履歴・プロジェクト一覧・ミッション・Canon の一覧は、選んだ作業場所のものだけを出す。新しく作るプロジェクト・ミッション・Canon は、選んだ作業場所に属する。作ったものの所有者は作った人のままである</td></tr>
-    <tr><td>どのキーで動くか</td><td>チームの作業場所のジョブは、モデルの提供元のチームのキーがあればそれで実行する（利用者自身のキーより優先する）。その提供元のチームのキーがなければ、個人の作業場所と同じ規則（4.1）で利用者自身のキーかデフォルトの API キーで実行する。チームを抜けた人のプロジェクトは、以後は本人のキーで実行する。ワーカーは起動のたびに判定し直すので、キーの削除やメンバーを外したことは次の起動から効く</td></tr>
+    <tr><td>どのキーで動くか</td><td>チームの作業場所のジョブは、チームの予算が「利用中」で、モデルの提供元のチームのキーがあり、そのモデルがチームで使えるなら、チームのキーで実行する（利用者自身のキーより優先する）。そうでなければ、個人の作業場所と同じ規則（4.1）で利用者自身のキーかデフォルトの API キーで実行する。チームを抜けた人のプロジェクトは、以後は本人のキーで実行する。ワーカーは起動のたびに判定し直す。チームのキーで実行待ちになったジョブは、起動時にチームのキーを使えなくなっていれば（予算の終了・停止、メンバーからの除外、キーの削除、モデルの制限）、本人のキーに切り替えずに失敗にし、お知らせ「チームの予算が終了した（または止められた）ため開始しませんでした。…」を出す。作った人が「続きからリトライ」を押すと、その時点の規則で選んだキーで実行する</td></tr>
     <tr><td>招待リンク</td><td>チームごとに有効な招待リンクは 1 つで、URL・QR コード・メールのどれで伝えても同じリンクである。有効期限と人数の上限を任意で付けられる。リンクを開いた人は、サインイン（アカウントがなければサインアップ）するとメンバーとして参加する。サインインの前でもチーム名とリンクの状態は見られる。新しいリンクを作るか無効にすると、それまでのリンクでは参加できない。状態は「有効」「期限切れ」「上限に達しました」「無効」のどれか</td></tr>
     <tr><td>招待メール</td><td>チーム管理者は、チームのページから招待リンクをメールで送れる。アカウントのないアドレスにも送れる。1 回に 50 件まで。文面は日本語と英語を 1 通に入れ、有効期限は日本時間で書く。送った招待は、アドレス・日時と参加済みかどうかをチームのページに出す（最新の 200 件）</td></tr>
     <tr><td>費用</td><td>チームのキーで実行したジョブは、キーの種類 <code>team</code> とチームを記録する。チームのページは、チームのキーで実行したジョブの費用を、今月（UTC）と合計で出す。チーム管理者にはチーム全体と各メンバーの費用を、メンバーには自分の分だけを見せる</td></tr>
     <tr><td>見え方</td><td>チームのページはメンバーだけが開ける（ほかの人には 404）。メンバーのメールアドレス・招待リンク・送った招待は、チーム管理者にだけ見せる。チームのキーは、チーム管理者にも末尾 4 文字と登録日時しか見せない</td></tr>
-    <tr><td>チーム内の共有</td><td>チームの作業場所のプロジェクト・ミッション・Canon は、メンバー全員が一覧で見て開ける。編集・実行・承認ができるのは、作った人とチーム管理者である。ほかのメンバーには「閲覧のみ」と出し、操作の部品を出さない。チーム管理者がほかのメンバーのプロジェクトやミッションを実行するときは、チームの予算でだけ実行でき、記録上は作った人の実行になる。ミッションの削除と Canon の共同編集者の管理は作った人だけ、公開はチーム管理者だけができる。チームの作業場所の Canon には、メンバーなら自分のプロジェクトを加えられる。「すべてそろえる」はほかのメンバーのプロジェクトを飛ばす</td></tr>
-    <tr><td>コピー</td><td>プロジェクトは「コピー」で、個人の作業場所か入っているチームの作業場所に複製を作れる（移動はしない）。複製の所有者はコピーした人で、元のプロジェクトはそのまま残る。見られるプロジェクトならだれのものでもコピーできる</td></tr>
-    <tr><td>予算の期間</td><td>チーム管理者は、チームのページの「予算」で予算の開始日時と終了日時を決める（どちらも任意）。状態は「未設定」「開始前」「有効」「終了」「停止中」のどれか。チームのキーで実行するのは「有効」のときだけで、それ以外のときは各自のキーで実行する。終了の 3 日前から、チームの作業場所の上部に終わる日時を知らせる帯を出し、終わったあとは終わったことと各自のキーで続けられることを、キーの設定へのリンクと一緒に出す</td></tr>
-    <tr><td>予算の終わり</td><td>予算が終わるか「予算を止める」を押すと、チームのキーで動いているジョブを止め、チームの実行中のミッションを一時停止する（理由は「チームの予算が終わりました」）。止めたプロジェクトは作業場所と会話を残し、作った人が自分のキーで「続きからリトライ」で再開できる。キーがなければキーの設定へのリンクを出す。期間の終わりは janitor が 5 分ごとに確かめ、1 回の終わりにつき 1 回だけ止める。チーム管理者は「予算を再開する」で再開できる。サイト管理者が止めた予算は、サイト管理者だけが再開できる</td></tr>
-    <tr><td>支出の上限</td><td>チーム管理者は、チーム全体と 1 人あたりの月の上限（USD、UTC の月）を決められる。上限に達すると、チームのキーでの新しい実行を 403「チームの今月の上限に達しました」で止め、ミッションは理由「チームの上限」で一時停止する。人数の上限のない招待リンクを作ったとき、上限をまだ決めていなければ、1 人あたりの上限を $5 にする。チームのページの上部に、自分の今月の残りを出す</td></tr>
-    <tr><td>使えるモデル</td><td>チーム管理者は、チームのキーで使えるモデルを選べる（選ばなければ全部）。チームの作業場所のモデルの一覧は、チームのキーで使えるモデルに絞る。チームのキーで使えないモデルを選んだジョブは、各自のキーで実行する</td></tr>
+    <tr><td>チーム内の共有</td><td>チームの作業場所のプロジェクト・ミッション・Canon は、メンバー全員が一覧で見て開ける。編集・実行・承認ができるのは、作った人とチーム管理者である。ほかのメンバーには「閲覧のみ」と出し、操作の部品を出さない。チーム管理者がほかのメンバーのプロジェクトやミッションを実行するときは、チームの予算でだけ実行でき、記録上は作った人の実行になる。ミッションの削除と Canon の共同編集者を外すことは作った人だけができ（共同編集者は自分で抜けられる）、公開はチーム管理者だけができる。チームの Canon では、チーム管理者は共同編集者と同じく審査し、設定の変更、参加プロジェクトの取り外し、共同編集者の追加、Canon の削除もできる。メンバーは、閲覧、自分のプロジェクトの追加と取り外し、すべての PR へのコメントができる。「すべてそろえる」はほかのメンバーのプロジェクトを飛ばす</td></tr>
+    <tr><td>コピー</td><td>成果物のあるプロジェクトは「コピー」で、個人の作業場所か入っているチームの作業場所に複製を作れる（移動はしない。成果物がなければ 400「成果物ができてからコピーできます」）。作り方は公開プロジェクトの複製（4.6）と同じで、成果物のファイルはコピーし、会話はコピーしない。複製の所有者はコピーした人で、元のプロジェクトはそのまま残る。見られるプロジェクトならだれのものでもコピーできる</td></tr>
+    <tr><td>予算の期間</td><td>チーム管理者は、チームのページの「予算」で予算の開始日時と終了日時を決める（どちらも任意）。状態は「API キーが未登録です」（チームのキーがない）「開始前」「利用中」「終了しました」「停止中」のどれか。チームのキーで実行するのは「利用中」のときだけで、それ以外のときは各自のキーで実行する。チームの作業場所の上部には、終了の 3 日前から終わる日時を知らせる帯を出し、終了後と停止中は、ここでのジョブが各自のキーで動くことを知らせる帯を出す。帯にはチームのページへのリンクを付ける</td></tr>
+    <tr><td>予算の終わり</td><td>予算が終わるか「予算を止める」を押すと、チームのキーで動いているジョブを止め、チームの実行中のミッションを一時停止する（画面では「一時停止中: チームの予算が終了した（または止められた）ためです。再開すると、ジョブはご自身のキーで実行します。」）。止めたプロジェクトは作業場所と会話を残し、お知らせ「チームの予算が終了した（または止められた）ため停止しました。…」を出す。作った人は自分のキーで「続きからリトライ」を押して再開でき、キーがなければリトライの横にキーの設定へのリンクを出す。Canon の AI レビューと計画用のジョブは中止にする。期間の終わりは janitor が 5 分ごとに確かめ、1 回の終わりにつき 1 回だけ止める。チーム管理者は「予算を再開する」で再開できる。サイト管理者が止めた予算は、サイト管理者だけが再開できる</td></tr>
+    <tr><td>支出の上限</td><td>チーム管理者は、チーム全体と 1 人あたりの月の上限（USD、UTC の月。0〜1,000,000）を決められる。今月の費用が上限以上になると、チームのキーでの新しい実行を 403「チームの今月の利用上限に達しました。チーム管理者にご相談ください」（1 人あたりの上限では「このチームでのあなたの今月の利用上限に達しました。チーム管理者にご相談ください」）で止め、ミッションは理由「チームの上限」で一時停止する。実行中のジョブは最後まで進む。人数の上限のない招待リンクを作ったとき、上限をまだ決めていなければ、1 人あたりの上限を $5 にする。チームのページの上部には、チーム管理者にはチーム全体の、メンバーには自分の、今月の上限と残りを出す</td></tr>
+    <tr><td>使えるモデル</td><td>チーム管理者は、チームのキーで使えるモデルを選べる（選ばなければ全部）。予算が「利用中」でその提供元のチームのキーがある間は、チームの作業場所のモデルの一覧をチームが許すモデルに絞る。許されないモデルを指定した実行は 403「このモデル（…）は利用できません」で止める。既定のモデルや既存のプロジェクトのモデルが許されないときは、チームが許す最初のモデル（非推奨でないものを優先）に置き換える（4.1 の「選んでいないモデルの置き換え」）</td></tr>
     <tr><td>費用の内訳</td><td>チーム管理者には、チームのキーの今月の費用を、メンバーごとと、プロジェクトごとに出す</td></tr>
     <tr><td>招待リンクの期限</td><td>予算に終了日時があれば、招待リンクの有効期限の初期値を予算の終わりにする</td></tr>
     <tr><td>チームの削除</td><td>チーム管理者はチームを削除できる。削除すると、まず予算の終わりと同じくジョブを止めてミッションを一時停止し、チームの作業場所のプロジェクト・ミッション・Canon をそれぞれ作った人の個人の作業場所に戻し、メンバーを外し、招待リンクを無効にする。ジョブの記録はチームを残す（チームが払った記録）</td></tr>
-    <tr><td>サイト管理者</td><td>管理画面の「チーム」で、すべてのチームの人数・予算の状態・今月の費用を見られる。チームにデフォルトの API キー（WBAI のキー）を割り当てて外せる。チームの予算を止めて再開できる</td></tr>
+    <tr><td>サイト管理者</td><td>管理画面の「チーム」で、すべてのチームの人数・管理者のメールアドレス・キーの状態・予算の状態・今月と合計の費用を見られる。チームにデフォルトの API キー（WBAI のキー）を提供元ごとに割り当てて外せる。割り当てると、その提供元のチームのキーを置き換える（チーム管理者が登録したキーは消える）。デフォルトの API キーがない提供元には割り当てられず（400）、割り当てたキーはデフォルトの API キーが登録されている間だけ使える。チームの予算を止めて再開できる</td></tr>
   </tbody>
 </table>
 <h3>実装</h3>
@@ -425,7 +426,7 @@
   <li>招待リンクの使用回数は、有効期限・上限・無効化を条件にした更新で数えるので、上限を超えて参加することはありません。</li>
   <li>Projects・Jobs・Plans・Canons の各テーブルに GSI <code>team-index</code>（キーは <code>teamId</code> と <code>createdAt</code>）があります。<code>teamId</code> は条件付きの書き込みでだけ付けるので、疎な索引です。チームの作業場所の一覧、月の費用、予算の終わりで止めるジョブとミッションは、この索引で引きます。Canon とミッションの索引に載るのはメタの項目だけです。</li>
   <li>ほかのメンバーのプロジェクトは、ID の予約（Catalog の <code>kind: "id"</code>）から所有者を引き、チームの項目で役割を確かめて開きます。応答の <code>access</code>（<code>owner</code> / <code>admin</code> / <code>member</code>）で画面の操作を切り替えます。WebSocket の購読は、チームのメンバーならほかのメンバーのプロジェクトにもでき、接続に <code>ownerUserId</code> を持ちます。</li>
-  <li>予算はチームの項目の <code>budget</code>（<code>startsAt</code>・<code>endsAt</code>・<code>stoppedAt</code>・<code>stoppedBySiteAdmin</code>・<code>haltedAt</code>）、上限は <code>limits</code>（<code>teamMonthlyUsd</code>・<code>memberMonthlyUsd</code>）、使えるモデルは <code>allowedModels</code> です。デフォルトの API キーを割り当てたキーは <code>useDefault</code> を持ち、ワーカーはデフォルトの API キーのコンテキストで復号します。ワーカーは、<code>keySource: "team"</code> のジョブの予算が有効でなくなっていれば、そのジョブを失敗にします。</li>
+  <li>予算はチームの項目の <code>budget</code>（<code>startsAt</code>・<code>endsAt</code>・<code>stoppedAt</code>・<code>stoppedBySiteAdmin</code>・<code>haltedAt</code>）、上限は <code>limits</code>（<code>monthUsd</code>・<code>memberMonthUsd</code>）、使えるモデルは <code>allowedModels</code> です。デフォルトの API キーを割り当てたキーは <code>useDefault</code> を持ち、ワーカーはデフォルトの API キーのコンテキストで復号します。ワーカーは、<code>keySource: "team"</code> のジョブの起動時に <code>usesTeamKey</code> が偽なら、本人のキーに切り替えずにそのジョブを失敗にします（<code>planRunKey</code> の <code>expectTeam</code>。お知らせは <code>sys.teamBudgetEnded</code>）。予算の終わりで止めたプロジェクトのお知らせは <code>sys.teamBudgetStopped</code>、一時停止の理由は <code>team_budget</code>（上限では <code>team_limit</code>）です。チームが許すモデルは <code>modelPolicyOf</code> の <code>teamModels</code> で絞ります。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/team.ts</code>・<code>orgKey.ts</code>、<code>packages/api/src/routes/teams.ts</code>・<code>lib/teams.ts</code>・<code>lib/teamEmails.ts</code>・<code>lib/teamBudget.ts</code>・<code>lib/runs.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/src/runKey.ts</code>、<code>packages/web/src/pages/TeamPage.tsx</code>・<code>JoinPage.tsx</code>・<code>components/WorkspaceSwitcher.tsx</code>・<code>TeamBudgetBanner.tsx</code>・<code>CopyProjectButton.tsx</code></p>
+<p class="src">典拠：<code>packages/shared/src/team.ts</code>・<code>orgKey.ts</code>、<code>packages/api/src/routes/teams.ts</code>・<code>lib/teams.ts</code>・<code>lib/teamEmails.ts</code>・<code>lib/teamBudget.ts</code>・<code>lib/runs.ts</code>・<code>routes/canons.ts</code>・<code>routes/admin.ts</code>・<code>routes/projects.ts</code>（コピー）、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>index.ts</code>、<code>packages/web/src/i18n/teams.ts</code>、<code>packages/web/src/pages/TeamPage.tsx</code>・<code>JoinPage.tsx</code>・<code>components/WorkspaceSwitcher.tsx</code>・<code>TeamBudgetBanner.tsx</code>・<code>CopyProjectButton.tsx</code></p>
 </section>

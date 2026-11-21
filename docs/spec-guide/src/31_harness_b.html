@@ -1,7 +1,7 @@
 <section class="pharness">
 <h2 id="s3-7">3.7 調査ステップ</h2>
 <p><b>調査モード</b>は、HCD を作る前に文献を調べるかどうかを決めるプロジェクトの設定です。作成画面のモデルのメニューにあるスイッチで選び、<b>既定はオン</b>です。設定はプロジェクトに保存され、各ジョブは実行したときの値を記録します。作成後は変えられず、フォローアップとリトライも同じ設定で動きます。プロジェクトのヘッダーには「調査モード: オン／オフ」と表示されます。</p>
-<p>調査モードがオンのとき、HCD 段階の前に、エージェントが調査するターンが入り、ワーカーがその結果を検査します。これを<b>調査ステップ</b>と呼びます。ジョブの段階としては数えないため、画面に出る段階の並び（HCD → FRG → CSV → xlsx）は変わりません。オフにすると、調査ステップと調査モード用の指示書（後述）はなくなりますが、文献のツール（後述）はそのまま使えます。</p>
+<p>調査モードがオンのとき、HCD 段階の前に、エージェントが調査するターンが入り、ワーカーがその結果を検査します。これを<b>調査ステップ</b>と呼びます。ジョブの段階としては数えませんが、画面の段階の進捗では HCD の前に「調査」のチップを出します（4.4）。オフにすると、調査ステップと調査モード用の指示書（後述）はなくなりますが、文献のツール（後述）はそのまま使えます。</p>
 
 <h3>エージェントの作業</h3>
 <p>調査の単位は、ROI の主な入力・出力・内部投射の<b>候補</b>です。エージェントは調査の指示書に従って総説を入口にし、候補ごとに領域名の同義語、種、追跡法を変えて検索します。論文の要旨か全文を読み、支持の強さを判断し、調べても見つからなかったものを区別します。結果は <code>research.json</code> だけに書きます。書く内容は次のとおりです。</p>
@@ -46,7 +46,7 @@
 </table>
 
 <h3>文献のツール</h3>
-<p>文献のツール（<code>lit</code>）は、ワーカーと同じコンテナで動く MCP サーバーで、Codex がエージェントのツールとして起動します。PMID の確認や原文の引用にも使うため、調査モードの有無にかかわらず、<b>すべての BRA の実行</b>で使えます。Web 検索もオンのままです。</p>
+<p>文献のツール（<code>lit</code>）は、ワーカーと同じコンテナで動く MCP サーバーで、Codex か Claude Agent SDK がエージェントのツールとして起動します。PMID の確認や原文の引用にも使うため、調査モードの有無にかかわらず、<b>すべての BRA の実行</b>で使えます。Web 検索もオンのままです。</p>
 <table class="compact">
   <thead><tr><th style="width:30%">ツール</th><th>返すもの</th></tr></thead>
   <tbody>
@@ -63,10 +63,11 @@
   <li>調査の結果をもとに BIF と接続を作ります。支持された証拠とトレーサー研究を優先し、弱い証拠はそうと明示し、根拠があれば細胞種や層の UC を作ります。</li>
   <li>引用は、実際に読んだ文から取ります。</li>
   <li>不足は Limitations に書きます。</li>
+  <li><code>supported</code> と <code>weak</code> の候補は、すべて BIF のどこかの行に載せ、その ID を行の <code>candidateIds</code> に書きます。HCD に入れない候補は、<code>modelled: false</code> と理由（<code>reason</code>）を持つ行にします。</li>
   <li>FRG 段階では、理論と計算モデルを調べます。</li>
   <li>フォローアップでは、新しく加える主張を調べます。</li>
 </ul>
-<p>HCD と FRG の検査は、調査モードの有無で変わりません。</p>
+<p>HCD と FRG の検査は、調査モードの有無でほぼ変わりません。違いは 2 点です。水準 3 のプロジェクトでは、HCD の検査が候補と BIF の対応を確かめます（QC-01-10、3.8）。また仮説モードのプロジェクトでは、調査モードのとき、各仮説に <code>research.json</code> の候補の ID が必要です（3.12）。</p>
 
 <h3>調査の記録</h3>
 <p>調査ステップが終わると、ワーカーは次の値を <code>research_check.json</code> の測定値とジョブの記録に残し、画面に要約を出します。</p>
@@ -172,7 +173,7 @@
     <tr><td>ペア（pairs）</td><td>接続のあるすべての組（<code>pair</code> / <code>reciprocal</code>）</td></tr>
   </tbody>
 </table>
-<p>すべての接続には符号（興奮・抑制・修飾）を付けます。符号は接続のコメントから、コメントになければ送り手の伝達物質から決めます。エージェントはそれぞれの候補を、Output Semantics、機能項目、符号、文献に照らして解釈します。</p>
+<p>すべての接続には符号（興奮・抑制・修飾・不明）を付けます。符号は接続のコメントから、コメントになければ送り手の Modulation Type と伝達物質から決めます。どちらからも決まらなければ不明とし、候補の表示では興奮と同じ → で示します。エージェントはそれぞれの候補を、Output Semantics、機能項目、符号、文献に照らして解釈します。</p>
 
 <h3>8 つの手順</h3>
 <ol class="steps">
@@ -198,7 +199,7 @@
 
 <h3>GN が表すもの</h3>
 <p>GN の意味は、UC の機能を並べたものにとどまりません。GN は、<b>UC と、その間の接続による相互作用が実現する計算</b>を表します。GN が UC の機能に加えるのは、それらの相互作用、つまりインターフェースから除いた内部の辺が計算するものです。GN の Output Semantics は、GN の外へ出力する UC の値からワーカーが導きます。</p>
-<p>新しいプロジェクト（検査規則の水準 2）では、GN に次の規則が適用されます。既存のプロジェクトの検査は、作成時の世代のまま変わりません。世代 1 以下のプロジェクトの GN の規則は付録 C にまとめています。</p>
+<p>検査規則の水準が 2 以上のプロジェクト（新しいプロジェクトを含む）では、GN に次の規則が適用されます。既存のプロジェクトの検査は、作成時の世代のまま変わりません。世代 1 以下のプロジェクトの GN の規則は付録 C にまとめています。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">規則</th><th>内容</th></tr></thead>
   <tbody>
@@ -272,7 +273,8 @@
 <ul>
   <li><b>引用の検査</b>：プログラムによる検査で、外部には問い合わせません。<code>uc.json</code>・<code>connections.json</code>・<code>frg.json</code>・<code>report.md</code> の自由な文章に書いた <code>[Author, Year]</code> は、すべて <code>references.json</code> の Reference ID でなければなりません。空白や大文字・小文字だけが違う場合は、正確に書くよう求めます。すべての文献は、レポートの <code>## References</code> 以外のどこかで引用されている必要があります。2 つの Reference ID が同じ DOI / PMID を持つことはできません。</li>
   <li><b>照会</b>：ネットワークを使う照合です。DOI は Crossref で照会し、Crossref になければ doi.org の内容交渉（CSL JSON。DataCite・mEDRA・JaLC）で照会します。PMID は PubMed（NCBI E-utilities の <code>esummary</code>）で照会します。</li>
-  <li><b>一致の条件</b>：次の 3 点を確認します。記録に Reference ID の筆頭著者がいること（後ろの著者ならそう報告します。記録の著者名に文字化けした文字 U+FFFD があれば、そこは 1〜2 文字のどの文字とも一致するとみなします）。出版年が ±1 年以内であること（オンライン版と印刷版の差を考えるため）。タイトルがあれば、語の重なりで似ていること。DOI と PMID の両方があれば、PubMed の DOI が同じでなければなりません。雑誌の違いは注記だけにします。識別子のない文献は、Crossref の検索でタイトル・筆頭著者・年が同じ論文が見つかれば、その DOI を提案します。</li>
+  <li><b>種の照合（QC-02-12）</b>：PubMed の記録と一致した文献は、PubMed の <code>efetch</code> で MeSH の記述子も読みます。そのうち種を表すもの（<code>Rats, Wistar</code> などの系統を含む）を、<code>reference_check.json</code> の <code>species</code> に残します。この照会は水準によらず行い、失敗したものは次の検査で再試行します。水準 3 では、仮説でなく文献を 1 つだけ引く接続について、Taxon をその文献の種と比べます。<code>species</code> が空の文献を引く接続は比べません。<code>(Mixed)</code> はつねに通り、<code>Rodent</code> は齧歯類の種があれば通ります。文献にない種を Taxon に書いたときは、直す値を添えて差し戻します。<code>(No description)</code> のときも、MeSH から Taxon の値が 1 つに決まれば、その値を添えて差し戻します。決め方は、ヒトと動物があれば動物、マウスとラットなら <code>Rodent</code>、それ以外で複数なら <code>(Mixed)</code> です。Taxon の値にない種（フェレット、スナネズミ、コウモリなど）だけなら <code>(No description)</code> のままとし、その名前が <code>comment</code> にないときに差し戻します。接続は HCD のデータなので、この問題は HCD 段階で返し、<code>reference_check.json</code> の <code>problems</code> にも載せます。</li>
+  <li><b>一致の条件</b>：次の 3 点を確認します。記録に Reference ID の筆頭著者がいること（後ろの著者ならそう報告します。記録の著者名に文字化けした文字 U+FFFD があれば、そこは 0〜2 文字のどの文字とも一致するとみなします。何も入らない場合も一致です）。出版年が ±1 年以内であること（オンライン版と印刷版の差を考えるため）。タイトルがあれば、語の重なりで似ていること。DOI と PMID の両方があれば、PubMed の DOI が同じでなければなりません。雑誌の違いは注記だけにします。識別子のない文献は、Crossref の検索でタイトル・筆頭著者・年が同じ論文が見つかれば、その DOI を提案します。</li>
   <li><b>状態</b>：照合の結果は、<code>verified</code>、<code>mismatch</code>、<code>not_found</code>、<code>invalid</code>（DOI / PMID の形でない）、<code>no_identifier</code>、<code>unverified</code>（照会に失敗）のいずれかです。<code>mismatch</code>・<code>not_found</code>・<code>invalid</code> と DOI の提案を問題として返します。段階が受理されたとき、画面に短い要約を出します。</li>
   <li><b>受け持ち</b>：FRG 段階は、<code>frg.json</code> と、レポートの <code>## FRG</code>、そこだけで引用された文献を受け持ちます。それ以外は HCD 段階が受け持ち、HCD の問題を FRG 段階で重ねて送ることはしません。</li>
   <li><b>障害のとき</b>：照会できなかった文献は <code>unverified</code> とし、問題にはしません。外部の障害で段階を止めないためです。結果は実行中キャッシュし、失敗したものは次の検査で再試行します。</li>
@@ -300,19 +302,19 @@
 <ul>
   <li>自動修正は <code>packages/shared/src/autofix.ts</code> の <code>autoFixFiles</code> で、ワーカーの <code>applyAutoFixes</code> が直前の文献・引用・Canon の検査結果を渡して呼びます。翻訳は 1 回に 200 件までです。</li>
   <li>段階ごとの修正の上限はワーカーの環境変数 <code>MAX_NUDGES</code>（既定 3）で決まります。致命的な問題と警告の扱いは <code>runPhases</code> の <code>fatal</code> と <code>onWarn</code> です。</li>
-  <li>引用の検査は <code>checkCitations</code>、文献の照会はワーカーの <code>ReferenceVerifier</code> で、結果は <code>reference_check.json</code> に書きます。引用文の照合はワーカーの <code>QuoteVerifier</code> と <code>packages/shared/src/quotes.ts</code> で、結果は <code>quote_check.json</code> に書きます。一致のしきい値は <code>QUOTE_MATCH_THRESHOLD</code> です。</li>
+  <li>引用の検査は <code>checkCitations</code>、文献の照会はワーカーの <code>ReferenceVerifier</code> で、結果は <code>reference_check.json</code> に書きます。種の照合は <code>packages/shared/src/taxon.ts</code> の <code>taxonProblems</code> で、MeSH の記述子はワーカーの <code>lookupMeshSpecies</code> が読みます。引用文の照合はワーカーの <code>QuoteVerifier</code> と <code>packages/shared/src/quotes.ts</code> で、結果は <code>quote_check.json</code> に書きます。一致のしきい値は <code>QUOTE_MATCH_THRESHOLD</code> です。</li>
   <li>文献の照会：1 要求のタイムアウトは 10 秒で、タイムアウト・ネットワークエラー・429・5xx のときは 2 回まで再試行します。<code>Retry-After</code> には 10 秒まで従います。3 件続けて失敗した相手は 5 分飛ばし、1 回の検査で照会に使う時間は最大 3 分です。PubMed への要求は毎秒 3 件（API キーがあれば 10 件）になるよう間を空けます。</li>
   <li>引用文の本文は、Europe PMC の <code>search</code>（<code>resultType=core</code>）で記録を得て、要旨は PubMed の <code>efetch</code>、Crossref の <code>abstract</code> からも取ります。要求は文献の照会と同じ HTTP クライアントを通り、1 回の検査で最大 2 分、同時に 3 本までです。各論文は実行ごとに 1 回だけ取得します。</li>
   <li>設定はワーカーの環境変数で、CDK では設定しません。どれもなくても動きます。
     <ul>
       <li><code>REFERENCE_LOOKUP=off</code>：文献の照会を止めます。引用の検査は残ります。</li>
       <li><code>CROSSREF_MAILTO</code>：Crossref の polite pool に伝える連絡先です。</li>
-      <li><code>NCBI_API_KEY</code>：PubMed の速度を上げます。Secrets Manager に保存し、ワーカーのコンテナの <code>secrets</code> に加えます。ワーカーはこの値をエージェントの Codex のプロセスからは隠します。</li>
+      <li><code>NCBI_API_KEY</code>：PubMed の速度を上げます。Secrets Manager に保存し、ワーカーのコンテナの <code>secrets</code> に加えます。ワーカーはこの値を、エージェントを動かす Codex や Claude Agent SDK のプロセスからは隠します。</li>
       <li><code>QUOTE_CHECK=off</code>：引用文の照合を止めます。このとき <code>quote_check.json</code> は <code>lookup: "off"</code> になります。</li>
     </ul>
   </li>
 </ul>
-<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>：<code>maxNudges</code>・<code>fatal</code>・<code>onWarn</code>、<code>applyAutoFixes</code>）、<code>packages/shared/src/autofix.ts</code>、<code>packages/worker/src/env.ts</code>、<code>packages/shared/src/harness.ts</code>（<code>checkCitations</code>）、<code>quotes.ts</code>、<code>packages/worker/src/references.ts</code>・<code>quotes.ts</code></p>
+<p class="src">典拠：<code>packages/worker/src/pipeline.ts</code>（<code>runPhases</code>：<code>maxNudges</code>・<code>fatal</code>・<code>onWarn</code>、<code>applyAutoFixes</code>）、<code>packages/shared/src/autofix.ts</code>、<code>packages/worker/src/env.ts</code>、<code>packages/shared/src/harness.ts</code>（<code>checkCitations</code>）、<code>quotes.ts</code>・<code>taxon.ts</code>（<code>taxonProblems</code>）、<code>packages/worker/src/references.ts</code>（<code>lookupMeshSpecies</code>）・<code>quotes.ts</code></p>
 
 <h2 id="s3-11">3.11 HCD と FRG の調整</h2>
 <p>HCD と FRG は別々の段階で作りますが、両者は同じ回路を別の側から記述したものであるため、食い違いが生じえます。FRG の指示書は、FRG と HCD が食い違うときに関連するファイルを直すようエージェントに求めます。そのため HCD のファイルは、HCD 段階が終わった後でも変わることがあります。ワーカーは、変わったファイルを検査し直す仕組みと、両者の整合を計算して 1 回だけ調整を依頼する仕組みを持ちます。</p>

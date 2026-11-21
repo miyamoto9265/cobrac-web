@@ -59,6 +59,7 @@ function promptSources() {
 <tr><td><code>{BUDGET_MINUTES}</code></td><td>調査の時間予算。標準 ${minutes} 分（環境変数 <code>RESEARCH_TIME_BUDGET_MIN</code> で変更可）</td></tr>
 <tr><td><code>{SCOPES}</code> / <code>{MAX_SHARE}</code> / <code>{RESEARCH_MODE}</code></td><td><code>packages/worker/src/hypothesisRules.ts</code> がプロジェクトの許可範囲・仮説率の上限・調査モードの有無を埋める</td></tr>
 <tr><td><code>{LANG}</code> / <code>{NAME}</code> / <code>{REV}</code> / <code>{BRA_MODEL}</code></td><td>解説記事ジョブで、記事の言語・プロジェクト名・データの版・BRA を作ったモデルを埋める</td></tr>
+<tr><td><code>{LOCALE}</code> / <code>{FIGLANG}</code> / <code>{FIGURES}</code></td><td>解説記事ジョブで、記事の言語コード（<code>ja</code> など）・図の中の言語（Japanese か English）・記事に載せる図の一覧を埋める</td></tr>
 </tbody></table>`;
   const sections = PROMPT_SOURCES.map(([path, title], i) => {
     const text = readFileSync(join(repoRoot, path), "utf8");

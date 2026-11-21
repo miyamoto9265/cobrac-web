@@ -46,12 +46,12 @@
 
 <h2 id="s3-3">3.3 エージェントとワーカー</h2>
 <h3>エージェント</h3>
-<p>本書で「エージェント」と記すときは、BRA を作る CoBRAC エージェントを指します。中身は OpenAI の言語モデルで、モデルと推論の強さ（reasoning effort）はプロジェクトごとに選びます（4.2）。モデルは OpenAI の <b>Codex</b>（Codex SDK と Codex CLI）を通して動きます。Codex は、モデルにシェルでのファイルの読み書き、MCP のツール、Web 検索を使わせ、会話の履歴とその自動の圧縮を管理する実行環境です。推論そのものは、コンテナの外にある OpenAI API で行われます。Anthropic の Claude のモデルを選んだプロジェクトでは、Claude Agent SDK が Codex と同じ役目を果たし、推論は Anthropic API で行われます。ハーネスと指示書は同じです（8.4）。</p>
+<p>本書で「エージェント」と記すときは、BRA を作る CoBRAC エージェントを指します。中身は言語モデルで、モデルと推論の強さ（reasoning effort）はプロジェクトごとに選びます。モデルの提供元は OpenAI・Anthropic・DeepSeek の 3 つで、既定は Anthropic の Claude のモデルです（4.2）。OpenAI のモデルは、OpenAI の <b>Codex</b>（Codex SDK と Codex CLI）を通して動きます。Codex は、モデルにシェルでのファイルの読み書き、MCP のツール、Web 検索を使わせ、会話の履歴とその自動の圧縮を管理する実行環境です。このとき推論は、コンテナの外にある OpenAI API で行われます。Claude と DeepSeek のモデルでは、Claude Agent SDK が Codex と同じ役目を果たします。推論は、Claude では Anthropic API、DeepSeek では DeepSeek の Anthropic 互換 API で行われます。ハーネスと指示書は同じです（8.4）。</p>
 <p>エージェントは、自分から作業を始めたり、段階を進めたりはしません。ワーカーから依頼文を 1 つ受け取ると、それに応える 1 回の<b>ターン</b>の中で、文献を検索し、原文を読み、ファイルを編集します。ターンの中ではツールを何度でも呼べます。ターンの最後に終了の JSON を返して止まり、次の依頼を待ちます。</p>
-<p>1 つのプロジェクトでは、調査・HCD・FRG・修正・調整のすべてのターンが、同じ<b>会話（Codex のスレッド）</b>で続きます。質問への回答、リトライ、完成後のフォローアップも、同じ会話を再開して行います（3.6）。会話が OpenAI の 1 回のリクエストの上限を超えたときだけ、ワーカーが新しい会話に切り替えます。そのときは、プロジェクトのファイルと判断の記録を読んで続けるよう、エージェントに指示します（8.4）。</p>
+<p>1 つのプロジェクトでは、調査・HCD・FRG・修正・調整のすべてのターンが、同じ<b>会話</b>で続きます。会話は、Codex ではスレッド、Claude Agent SDK ではセッションです。質問への回答、リトライ、完成後のフォローアップも、同じ会話を再開して行います（3.6）。ワーカーが新しい会話に切り替えるのは、次の 4 つの場合です。会話が 1 回のリクエストの上限を超えたとき、保存した会話が 128 MB を超えて再開できないとき、保存した会話の状態が見つからないとき、プロジェクトのモデルの提供元が変わったときです。どの場合も、新しい会話の依頼文にはプロジェクトの情報と仕様を加えます。リクエストの上限を超えたときは、さらに、プロジェクトのファイルと判断の記録を読んで続けるようエージェントに指示します（8.4）。</p>
 
 <h3>ワーカー</h3>
-<p><b>ワーカー</b>は、ジョブごとに AWS Fargate で起動する TypeScript（Node.js）のプログラムです。基本は Spot で起動し、起動できないときは On-Demand を使います。ワーカーには LLM が含まれず、次に何をするかはすべて決まったコードで決めます。中心にあるのは次のループです。</p>
+<p><b>ワーカー</b>は、ジョブごとに AWS Fargate で起動する TypeScript（Node.js）のプログラムです。基本は Spot で起動し、起動できないときは On-Demand を使います。ワーカーには LLM が含まれず、次に何をするかはすべて決まったコードで決めます。例外は、検査の自動修正で英語でない値を英訳するときだけです。このときワーカーは、同じモデルを別の会話で、推論の強さを low にして呼びます（3.10）。中心にあるのは次のループです。</p>
 <ol class="steps">
   <li>段階の依頼文を組み立ててエージェントに送る</li>
   <li>ターンの終了を待つ</li>
@@ -59,7 +59,7 @@
   <li>問題があれば問題の一覧を付けて修正を依頼し、なければ次の段階へ進む</li>
 </ol>
 <p><b>ハーネス</b>は、このワーカーのプログラムに、エージェントへ渡す指示書（付録 B）、JSON Schema、検査、出力への変換を合わせた全体の呼び名です。LLM はハーネスに含まれません。ハーネスが動かす対象です。</p>
-<p>エージェントの Codex のプロセスは、ワーカーが同じコンテナの中で子プロセスとして起動します。そのため「ワーカーの中でエージェントが動く」と表現することがありますが、これは動く場所を述べたものにすぎません。ワーカーが推論するという意味ではありません。</p>
+<p>エージェントの Codex または Claude Agent SDK のプロセスは、ワーカーが同じコンテナの中で子プロセスとして起動します。そのため「ワーカーの中でエージェントが動く」と表現することがありますが、これは動く場所を述べたものにすぎません。ワーカーが推論するという意味ではありません。</p>
 
 <h3>登場するものの一覧</h3>
 <table class="compact">
@@ -68,7 +68,7 @@
     <tr><td>利用者</td><td>人</td><td>画面</td><td>ROI・TLF・指示・参考資料を送る。質問に答える。Canon への取り込みを承認する</td><td>入力、回答、承認</td></tr>
     <tr><td>API / dispatcher / janitor</td><td>プログラム</td><td>AWS Lambda</td><td>API はプロジェクトとジョブを記録し、SQS に実行を依頼する。dispatcher は同時実行数を見てワーカーを起動する。janitor はハートビートが途絶えたジョブを回復する（8.3）</td><td>ジョブの記録、ワーカーの起動</td></tr>
     <tr><td>ワーカー</td><td>プログラム（LLM なし）</td><td>Fargate</td><td>段階の制御、依頼文の組み立て、検査、CSV・xlsx・グラフへの変換、保存と再開</td><td>依頼文、検査結果のファイル、CSV・xlsx・グラフ、版</td></tr>
-    <tr><td>エージェント</td><td><b>LLM</b></td><td>推論は OpenAI API、ツールの実行は Fargate の中</td><td>文献を調べ、ROI・UC・接続・機能の分解を判断し、ファイルに書く</td><td>データ JSON、<code>report.md</code>、<code>decision_log.md</code>、ターン終了の JSON</td></tr>
+    <tr><td>エージェント</td><td><b>LLM</b></td><td>推論は提供元の API（OpenAI・Anthropic・DeepSeek）、ツールの実行は Fargate の中</td><td>文献を調べ、ROI・UC・接続・機能の分解を判断し、ファイルに書く</td><td>データ JSON、<code>report.md</code>、<code>decision_log.md</code>、ターン終了の JSON</td></tr>
     <tr><td><code>lit</code></td><td>プログラム（エージェントのツール）</td><td>Fargate の中の MCP サーバー</td><td>エージェントの求めに応じて PubMed と Europe PMC を検索し、要旨・全文・該当する文を返す</td><td>検索結果と原文の一部</td></tr>
     <tr><td>RCS</td><td>外部サービス（エージェントのツール）</td><td>別システムの MCP サーバー</td><td>領域名から SABRA の単位の候補を返す。ワーカーも命名の照合に使う</td><td>候補の一覧</td></tr>
     <tr><td>Crossref / PubMed / Europe PMC など</td><td>外部サービス</td><td>インターネット</td><td>ワーカーが文献の実在と引用文を照合するときに問い合わせる</td><td>書誌、要旨、全文</td></tr>
@@ -77,23 +77,23 @@
 </table>
 <p><code>lit</code> と RCS は、エージェントが呼ぶ<b>ツール</b>です。候補や原文を返すだけで、どれを採るかは判断しません。採るかどうかを決めてファイルに書くのはエージェントで、呼び出しを記録するのはワーカーです。</p>
 <p>利用者の参考資料は、ワーカーが PDF・Office のファイル・URL から文字を取り出して <code>materials/</code> に置きます。エージェントはそれを、利用者の意図を知るために読みます。参考資料は、照合済みの文献の代わりにはなりません。Canon は複数の BRA でそろえる回路の定義を固定したもので、ワーカーが制約として依頼文に加えます（第 5 部）。</p>
-<figure data-figure="harness-current-architecture.ja.svg"><figcaption><b>図 3.2</b>　登場するものと受け渡し。推論するのは紫のエージェントだけで、青のワーカーは決まった手順のプログラム</figcaption></figure>
+<figure data-figure="harness-current-architecture.ja.svg"><figcaption><b>図 3.2</b>　登場するものと受け渡し。推論するのは、自動修正の英訳を除けば紫のエージェントだけで、青のワーカーは決まった手順のプログラム</figcaption></figure>
 
 <h3>BRA 以外の LLM ジョブ</h3>
 <p>アプリには、BRA を作るジョブのほかに、LLM を使うジョブが 3 種類あります。どれも同じワーカーのプログラムが別の実行モード（3.6）で起動し、<b>BRA の会話とは別の新しい会話</b>で LLM を呼びます。これらの LLM は BRA を作ったエージェントの会話を引き継がず、ワーカーが用意したファイルや JSON だけを受け取ります。</p>
 <table class="compact">
   <thead><tr><th style="width:16%">ジョブ</th><th>LLM の役割</th><th style="width:18%">使えるツール</th><th style="width:15%">LLM が出すもの</th><th style="width:22%">結果の扱い</th></tr></thead>
   <tbody>
-    <tr><td>解説記事</td><td>完成した BRA の成果物だけを読み、指定された言語で解説記事を書く（3.14）</td><td>シェル（成果物の読み取り）。Web 検索・RCS・<code>lit</code> はなし</td><td>記事の Markdown。図を最大 2 枚足せる</td><td>ワーカーが形式を検査して修正を依頼し、公開する</td></tr>
-    <tr><td>Canon の AI レビュー</td><td>Canon への PR を読み、所見を出す（5.8）</td><td>なし</td><td>所見の JSON。判断のジョブは判定も返す</td><td>人が承認か却下かを判断する。AI レビューは承認の代わりにならない。自律実行のミッションが push した PR だけは、判断のジョブの判定をオーケストレーターが反映する（6.8）</td></tr>
-    <tr><td>オーケストレーターのミッション</td><td>ミッションの方針、プロジェクト（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、プロジェクトの質問への回答と、要対応・要判断のプロジェクトの解決も行う（第 6 部、6.8）</td><td>下書きと再計画では RCS、添付資料の読み取り。回答と解決ではなし</td><td>ミッションの JSON</td><td>ワーカーが形を検査し、ミッションランナーが順序を計算して適用する</td></tr>
+    <tr><td>解説記事</td><td>完成した BRA の成果物だけを読み、指定された言語で解説記事を書く（3.14）</td><td>シェルとファイルの操作。指示書では、既存のファイルは変えず、記事のファイルだけを書くとする。Web 検索・RCS・<code>lit</code> はなし</td><td>記事の Markdown。図を最大 2 枚足せる</td><td>ワーカーが形式を検査して修正を依頼し、公開する</td></tr>
+    <tr><td>Canon の AI レビュー</td><td>Canon への PR を読み、所見を出す（5.8）</td><td>シェルとファイルの操作。指示書ではどちらも使わないとする。Web 検索・RCS・<code>lit</code> はなし</td><td>所見の JSON。判断のジョブは判定も返す</td><td>人が承認か却下かを判断する。AI レビューは承認の代わりにならない。自律実行のミッションが push した PR だけは、判断のジョブの判定をオーケストレーターが反映する（6.8）</td></tr>
+    <tr><td>オーケストレーターのミッション</td><td>ミッションの方針、プロジェクト（ROI × TLF）、依存関係、アンカーを下書きし、バッチの後に変更を提案する。自律実行では、プロジェクトの質問への回答と、要対応・要判断のプロジェクトの解決も行う（第 6 部、6.8）</td><td>シェルとファイルの操作。下書きと再計画では RCS も使え、添付資料を読む。回答と解決の指示書ではツールを使わないとする。Web 検索・<code>lit</code> はなし</td><td>ミッションの JSON</td><td>ワーカーが形を検査し、ミッションランナーが順序を計算して適用する</td></tr>
   </tbody>
 </table>
 <p>解説記事は、1 回のターンの後に検査と修正のターンを続けます。AI レビューとミッションは 1 回のターンで、返答が決められた形でないときだけ、もう 1 回依頼します。どのジョブの使用量も、BRA のジョブと同じ単価表で費用に換算します（9.10）。</p>
 
 <h3>実装</h3>
-<p>ワーカーは <code>packages/worker</code> にあり、段階のループは <code>pipeline.ts</code> の <code>runPhases</code> です。会話は <code>codexThreadId</code> としてプロジェクトに記録します。JSON Schema の定義は <code>HARNESS_SCHEMAS</code>、指示書は <code>prompts/</code> にあります。BRA 以外のジョブの入口は <code>index.ts</code> の <code>articleMain</code>・<code>canonReviewMain</code>・<code>planJobMain</code> です。</p>
-<p class="src">典拠：<code>packages/worker/src/index.ts</code>（実行モード・ターン、<code>articleJob</code>）・<code>canonReviewJob.ts</code>・<code>planJobMain.ts</code>、<code>codex.ts</code>（Codex の起動と設定）、<code>pipeline.ts</code>（段階のループ）、<code>litMcp.ts</code>、<code>rcs.ts</code>、<code>materials.ts</code>、<code>article.ts</code>、<code>canonReview.ts</code>、<code>planJob.ts</code>、<code>prompts/article.md</code>、<code>prompts/plan.md</code></p>
+<p>ワーカーは <code>packages/worker</code> にあり、段階のループは <code>pipeline.ts</code> の <code>runPhases</code> です。会話は <code>codexThreadId</code> としてプロジェクトに記録します。JSON Schema の定義は <code>HARNESS_SCHEMAS</code>、指示書は <code>prompts/</code> にあります。BRA 以外のジョブの入口は、<code>index.ts</code> の <code>articleJob</code>、<code>canonReviewJob.ts</code> の <code>canonReviewJob</code>、<code>planJobMain.ts</code> の <code>planJobMain</code> です。どのジョブも <code>openThread</code> に <code>webSearch: false</code> を渡して会話を開きます。英訳の呼び出しは <code>index.ts</code> の <code>translateTexts</code> です。</p>
+<p class="src">典拠：<code>packages/worker/src/index.ts</code>（実行モード・ターン、<code>articleJob</code>）・<code>canonReviewJob.ts</code>・<code>planJobMain.ts</code>、<code>codex.ts</code>（Codex の起動と設定、<code>createEngine</code>・<code>openThread</code>）、<code>claude.ts</code>（Claude Agent SDK）、<code>guards.ts</code>（<code>THREAD_RESUME_MAX_BYTES</code>）、<code>packages/shared/src/provider.ts</code>、<code>pipeline.ts</code>（段階のループ）、<code>litMcp.ts</code>、<code>rcs.ts</code>、<code>materials.ts</code>、<code>article.ts</code>、<code>canonReview.ts</code>、<code>planJob.ts</code>、<code>prompts/article.md</code>、<code>prompts/plan.md</code></p>
 
 <h2 id="s3-4">3.4 ターンとファイルの受け渡し</h2>
 <p>ワーカーとエージェントの間で、会話のメッセージとして行き来するものは 2 つだけです。ワーカーからの<b>依頼文</b>と、エージェントからの<b>ターン終了の JSON</b> です。作業の中身は、すべて<b>作業ディレクトリ</b>のファイルで受け渡します。作業ディレクトリはワーカーのディスク上の <code>/work</code> で、中心はプロジェクトフォルダ <code>/work/&lt;ProjectID&gt;/</code> です。</p>
@@ -110,7 +110,7 @@
 </ol>
 <div class="box note">
   <div class="h">レート制限とターンの失敗</div>
-  <p>OpenAI のレート制限に当たったとき、まず Codex 自身が再接続を試みます。それでもターンが失敗した場合は、ワーカーが一定時間待ってから、同じ会話でターンを再試行します。1 回のリクエストが大きすぎるときや、利用枠・請求の問題は、待っても解消しないため再試行しません。会話が大きすぎるときだけ、新しい会話に切り替えて続けます。回数と待ち時間は 8.4 に記載しています。</p>
+  <p>OpenAI のレート制限に当たったとき、まず Codex 自身が再接続を試みます。それでもターンが失敗した場合は、ワーカーが一定時間待ってから、同じ会話でターンを再試行します。1 回のリクエストが大きすぎるときや、利用枠・請求の問題は、待っても解消しないため再試行しません。このうちリクエストが大きすぎるときは、新しい会話に切り替えて続けます（3.3）。回数と待ち時間は 8.4 に記載しています。</p>
 </div>
 
 <h3>受け渡しの経路</h3>
@@ -160,7 +160,7 @@
 <p class="src">典拠：<code>prompts/AGENTS.md</code>「Workspace」、<code>packages/worker/src/codex.ts</code>（<code>runTurn</code>・<code>RATE_LIMIT_TURN_RETRIES</code>・<code>isRequestTooLarge</code>）、<code>packages/shared/src/harness.ts</code>（<code>TURN_OUTPUT_SCHEMA</code>・<code>PROJECT_FILES</code>・<code>HCD_FILES</code>・<code>FRG_FILES</code>・<code>HARNESS_SCHEMAS</code>）、<code>packages/worker/src/steps.ts</code></p>
 
 <h2 id="s3-5">3.5 依頼文の組み立て</h2>
-<p>ワーカーは作業ディレクトリに、共通の規則を書いた <code>AGENTS.md</code> と <code>schemas/</code> を用意します。<code>AGENTS.md</code> は作業ディレクトリの直下に置かれ、Codex が自動で読み込みます。</p>
+<p>ワーカーは作業ディレクトリに、共通の規則を書いた <code>AGENTS.md</code> と <code>schemas/</code> を用意します。<code>AGENTS.md</code> は作業ディレクトリの直下に置かれ、Codex が自動で読み込みます。Claude Agent SDK では、ワーカーがその内容をシステムプロンプトに加えます。</p>
 <p>ターンごとの依頼文は、次の 3 つを <code>---</code> の区切りで連結したものです。</p>
 <ul>
   <li>利用者にも画面に表示する短い依頼</li>
@@ -236,7 +236,7 @@ Fix them in the files and finish with status "done".</code></pre>
 <p>BRA を作るジョブは、最初の作成のほかに、質問への回答、完成後のフォローアップ（画面では「追加の指示」）、リトライでも起動します。どれも同じプロジェクトのファイルと同じ会話から続きます。本節では、それぞれの動きと、ワーカーの動き方を決める実行モードを説明しています。ターンの制御の詳細と、ターンが失敗したときの扱いは 8.4 に記載しています。</p>
 
 <h3>質問</h3>
-<p>利用者の判断が必要だと<b>エージェントが判断した</b>とき、エージェントはターンの最後に <code>status: "question"</code> を返します。それを受けて<b>ワーカーが</b>作業ファイルと Codex の会話を S3 に保存し、ジョブとプロジェクトを「回答待ち」にして終了します。回答を待つ間は Fargate を動かし続けないため、その間のワーカーの費用はかかりません。</p>
+<p>利用者の判断が必要だと<b>エージェントが判断した</b>とき、エージェントはターンの最後に <code>status: "question"</code> を返します。それを受けて<b>ワーカーが</b>作業ファイルと会話を S3 に保存し、ジョブとプロジェクトを「回答待ち」にして終了します。回答を待つ間は Fargate を動かし続けないため、その間のワーカーの費用はかかりません。</p>
 <p>利用者が回答すると、API が同じジョブに回答を記録して、ジョブを待ち行列に戻します。新しいワーカーが作業ディレクトリと会話を復元し、回答を依頼文にして同じ会話を再開します。</p>
 
 <h3>フォローアップ</h3>
@@ -255,9 +255,9 @@ Fix them in the files and finish with status "done".</code></pre>
     <tr><td><code>resume</code></td><td>質問への回答</td><td>回答を渡し、現在の段階を続ける</td></tr>
     <tr><td><code>followup</code></td><td>完成後のフォローアップ</td><td>指示を適用し、HCD と FRG を検査し直し、CSV と xlsx を作り直す。どの段階も受理済みにしないで始める</td></tr>
     <tr><td><code>retry</code></td><td>失敗・中止の後に利用者が行うリトライ、または止まったジョブの自動の再開（8.3）</td><td>まだ受理していない最初の段階から続ける。既存の成果物は残す</td></tr>
-    <tr><td><code>article</code></td><td>完成した BRA への解説記事の作成の依頼（付録 A）</td><td>新しい会話で、解説記事の指示書に従って書く。Web 検索と RCS は使わず、作業ディレクトリは読むだけ（3.14）。止まったジョブは、同じモードで自動的に実行し直す</td></tr>
+    <tr><td><code>article</code></td><td>完成した BRA への解説記事の作成の依頼（付録 A）</td><td>新しい会話で、解説記事の指示書に従って書く。Web 検索と RCS は使わない。指示書では、既存のファイルは変えず、記事のファイルだけを書くとする（3.14）。止まったジョブは、同じモードで自動的に実行し直す</td></tr>
     <tr><td><code>canon-review</code></td><td>Canon の PR への AI レビューの依頼。ジョブが指すのは Canon で、プロジェクトには触れない</td><td>新しい会話で PR の材料を読み、所見を JSON で返す。自律実行のミッションの判断のジョブは、判定も返す（5.8、6.8）。止まったジョブは失敗にするだけ</td></tr>
-    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、ミッションの各プロジェクトについての判断。ミッションランナーが、枠が空いたときだけ積む。ジョブが指すのはミッション</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 件を超える下書きは 25 分（6.4）。各プロジェクトについての判断（回答と解決）はツールなしで、上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
+    <tr><td><code>plan</code></td><td>オーケストレーターの下書き・再計画と、ミッションの各プロジェクトについての判断。ミッションランナーが、枠が空いたときだけ積む。ジョブが指すのはミッション</td><td>新しい会話で、決められた形の JSON で返す。読めない返答なら 1 回だけ依頼し直す。下書きと再計画は RCS を使え、Web 検索と <code>lit</code> は使わない。下書きと再計画の時間の上限は 7 分で、xlsx や PDF を読む下書きと、20 件を超える下書きは 25 分（6.4）。各プロジェクトについての判断（回答と解決）は RCS を使わず、指示書ではツールを使わないとする。上限は 5 分（6.8）。止まったジョブは失敗にするだけ</td></tr>
   </tbody>
 </table>
 

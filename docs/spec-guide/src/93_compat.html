@@ -82,18 +82,19 @@
 
 <h2 id="sc-3">C.3 検査規則</h2>
 <h3>検査規則の水準</h3>
-<p><code>harnessRules</code> は、プロジェクトに保存される検査規則の水準です。新しいプロジェクトは、v0.25.0 から 1、v0.28.0 から 2（現行）を持ちます。それより前のプロジェクトは値を持たず、0 として扱います。</p>
+<p><code>harnessRules</code> は、プロジェクトに保存される検査規則の水準です。新しいプロジェクトは、v0.25.0 から 1、v0.28.0 から 2、v0.59.0 から 3（現行）を持ちます。それより前のプロジェクトは値を持たず、0 として扱います。</p>
 <table class="compact">
   <thead><tr><th style="width:12%">値</th><th style="width:22%">作られた時期</th><th>検査の内容</th></tr></thead>
   <tbody>
     <tr><td>0（値なし）</td><td>v0.25.0 より前</td><td>ROI 規則も GN 規則も付かない従来の検査。<code>meta.json</code> に ROI の要素と左右の項目はない</td></tr>
     <tr><td>1</td><td>v0.25.0〜v0.27.x</td><td>HCD の仕様の後ろに <code>HCD_roi_rules.md</code> が付き、ROI 規則を検査する（3.8）。<code>meta.json</code> に <code>roiElements[]</code>・<code>roiSide</code>・<code>roiSideSource</code> を書く。GN 規則は付かない</td></tr>
-    <tr><td>2</td><td>v0.28.0 以降</td><td>ROI 規則に加え、FRG の仕様の後ろに <code>FRG_gn_rules.md</code> が付き、GN 規則を検査する（3.9）。<code>motifNote</code> は 3〜4 UC の GN だけに書く</td></tr>
+    <tr><td>2</td><td>v0.28.0〜v0.58.x</td><td>ROI 規則に加え、FRG の仕様の後ろに <code>FRG_gn_rules.md</code> が付き、GN 規則を検査する（3.9）。<code>motifNote</code> は 3〜4 UC の GN だけに書く</td></tr>
+    <tr><td>3</td><td>v0.59.0 以降</td><td>水準 2 の検査に加え、BIF の各行の <code>modelled</code> と <code>reason</code>（QC-03-43）、<code>modelled</code> が <code>true</code> の行の文献を引く接続（QC-03-44）、調査モードでの <code>candidateIds</code>（QC-01-10）、接続の Taxon と MeSH の種の照合（QC-02-12）を検査する（3.8、3.10）。BIF の行き先と種の指示は HCD の仕様と調査モードの指示書にあり、水準によらず付く。水準 2 以下では、エージェントが書いても検査しない</td></tr>
   </tbody>
 </table>
 <p>値が 0 か 1 のプロジェクトでは、GN の規則が次のように現行と異なります。</p>
 <table class="compact">
-  <thead><tr><th style="width:24%">規則</th><th style="width:36%">値 0〜1</th><th>値 2（現行）</th></tr></thead>
+  <thead><tr><th style="width:24%">規則</th><th style="width:36%">値 0〜1</th><th>値 2 以上（現行）</th></tr></thead>
   <tbody>
     <tr><td>GN の子の UC 数</td><td>最大 2</td><td>最大 2。3〜4 は <code>motifNote</code> があるときだけ。5 以上はエラー</td></tr>
     <tr><td>GN の UC の連結</td><td>整合チェック X4 の警告として記録する。任意の ROI の UC を通る経路でよい</td><td>FRG の検査でエラーにする。X4 は算出しない</td></tr>
@@ -101,7 +102,7 @@
     <tr><td>UC の親の GN</td><td>最大 2</td><td>同じ</td></tr>
   </tbody>
 </table>
-<p>FRG の基本仕様 <code>FRG.md</code> には「最大 2 UC」の制約が残っています。値 2 のプロジェクトでは、後ろに付く <code>FRG_gn_rules.md</code> がこの制約を置き換えます。値 0〜1 のプロジェクトでは、基本仕様の制約がそのまま効きます。</p>
+<p>FRG の基本仕様 <code>FRG.md</code> には「最大 2 UC」の制約が残っています。値 2 以上のプロジェクトでは、後ろに付く <code>FRG_gn_rules.md</code> がこの制約を置き換えます。値 0〜1 のプロジェクトでは、基本仕様の制約がそのまま効きます。</p>
 
 <h3>CSV 形式のバージョン</h3>
 <p><code>Project.csv</code> の BRA version は、v0.10.0 から <code>CoBRAC-v1-1</code> です。<code>CoBRAC-v1-0</code> からの列の変更は末尾への追加だけで、v1-0 のすべての列の位置は変わりません。追加した列は次のとおりです。</p>
@@ -121,7 +122,7 @@
     <tr><td>UC とその中のより細かい UC が両方 UC（両側と片側を含む）</td><td>127</td><td><code>cobrac:nested-uc</code>（Master の 127 は「Uniform の未記載」）</td></tr>
     <tr><td>送り手が Uniform でない</td><td>205（Master にない）</td><td><b>203</b></td></tr>
     <tr><td>Collection の Sub-Circuits が未記載</td><td>128（Master では別の意味）</td><td><b>120</b></td></tr>
-    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>128 に含めていた</td><td><b>121</b></td></tr>
+    <tr><td>Sub-Circuits に未定義の Circuit ID</td><td>—</td><td><b>121</b></td></tr>
     <tr><td>UC に Sub-Circuits がある</td><td>129（Master にない）</td><td><code>cobrac:uc-no-sub-circuits</code></td></tr>
     <tr><td>Collection の Source of ID が <code>collection</code> でない</td><td>108</td><td><code>cobrac:collection-source</code></td></tr>
     <tr><td>Collection が接続の受け手</td><td>—</td><td><code>cobrac:collection-end</code></td></tr>
@@ -132,7 +133,7 @@
 
 <h3>Canon の制約の強さ</h3>
 <p>v0.12.0 には、Canon ごとの <code>constraintMode</code>（<code>strict</code> / <code>advisory</code>。画面では「助言（警告だけ）」）がありました。現在は廃止され、すべての Canon が同じ方法で検査されます（5.5）。古いリクエストがこの値を送ってきても受け付けて無視します。保存済みの値は項目に残りますが、読みません。</p>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>checkFrg</code>）、<code>packages/shared/src/cross.ts</code>（<code>harnessRules</code> が 2 未満のときだけ X4）、<code>prompts/phases/HCD_roi_rules.md</code>・<code>FRG_gn_rules.md</code>、<code>packages/shared/src/bra.ts</code>、<code>scripts/bra-appendix-d.mjs</code>、<code>packages/shared/src/canon.ts</code>（<code>constraintMode</code>）</p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>checkFrg</code>、<code>HARNESS_RULES = 3</code>、水準 3 で <code>bifCoverageProblems</code>）、<code>packages/worker/src/pipeline.ts</code>（水準 3 で <code>taxonProblems</code>）、<code>prompts/phases/HCD.md</code>・<code>prompts/research_mode.md</code>、<code>packages/shared/src/cross.ts</code>（<code>harnessRules</code> が 2 未満のときだけ X4）、<code>prompts/phases/HCD_roi_rules.md</code>・<code>FRG_gn_rules.md</code>、<code>packages/shared/src/bra.ts</code>、<code>scripts/bra-appendix-d.mjs</code>、<code>packages/shared/src/canon.ts</code>（<code>constraintMode</code>）</p>
 
 <h2 id="sc-4">C.4 ID と名前</h2>
 <h3>以前の形の ID</h3>
@@ -201,7 +202,7 @@
     <tr><td>Projects</td><td><code>sabraBoundary</code></td><td>v0.24.0</td><td>以前の境界で検査する（C.2）</td></tr>
     <tr><td>Projects</td><td><code>harnessRules</code></td><td>v0.25.0</td><td>0 として扱い、ROI 規則も GN 規則も付けない（C.3）</td></tr>
     <tr><td>Projects</td><td><code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code></td><td>v0.32.0</td><td><code>evidenceMode</code> がなければ <code>strict</code> と同じで、文献の裏付けだけを使う。上限がなければ 20%（<code>DEFAULT_HYPOTHESIS_MAX_SHARE</code>）</td></tr>
-    <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
+    <tr><td>Jobs</td><td><code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>）</td><td>v0.19.0</td><td>利用者自身のキーで動いたものとみなす</td></tr>
     <tr><td>Messages</td><td><code>userId</code></td><td>v0.7</td><td>そのジョブの所有者で絞り込む。WebSocket の配信も同じく判断する</td></tr>
     <tr><td>Plans</td><td><code>orchestratorModel</code></td><td>v0.37.0</td><td>プロジェクトのモデルをオーケストレーターにも使う（<code>orchestratorModelOf</code>）</td></tr>
   </tbody>

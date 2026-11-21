@@ -1044,8 +1044,9 @@ export async function advancePlan(planId: string, now = Date.now()): Promise<Adv
       if (capped && !inFlight) {
         await pauseFor(plan, "cost_limit");
         result.pausedReason = "cost_limit";
-      } else if (cs && !cs.canon && candidates.length) {
-        // the Canon was deleted: a new row could not join it, so nothing starts until the owner resolves it
+      } else if (cs && !cs.canon && (candidates.length || rows.some(canonMissing))) {
+        // the Canon was deleted: a new row could not join it, and rows it left without a pull request to wait for are the
+        // owner's to decide, so nothing starts until the owner resolves it
         await pauseFor(plan, "canon_missing");
         result.pausedReason = "canon_missing";
       } else if (candidates.length || replanWaits || reviewsWanted.length || answers.length || rowJobs.length) {

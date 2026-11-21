@@ -513,7 +513,25 @@ describe("plans with a Canon: seeds, pushes and reviews", () => {
     finish(planId, "a", own(1));
     await advancePlan(planId);
     expect(rowOf(planId, "a")).toMatchObject({ state: "decision", decisionReason: "push_failed", lastError: "The plan's Canon was not found." });
+    // the owner decides: the plan pauses even though no new row would start
+    expect(planOf(planId)).toMatchObject({ status: "PAUSED", pausedReason: "canon_missing" });
+  });
+
+  it("pauses for the owner when only rows waiting for approval are left as the Canon is deleted", async () => {
+    await setLimits(8, 8);
+    const canon = await newCanon(A, "Language");
+    const planId = await newPlan([{ roi: "a" }]);
+    await json(call(A, "PUT", `/plans/${planId}`, { canon: { mode: "existing", canonId: canon.canonId } }));
+    await json(call(A, "POST", `/plans/${planId}/confirm`, {}));
+    finish(planId, "a", own(1));
+    await advancePlan(planId);
+    expect(rowOf(planId, "a")).toMatchObject({ state: "review", prNo: 1 });
     expect(planOf(planId).status).toBe("RUNNING");
+    await json(call(A, "DELETE", `/canons/${canon.canonId}`));
+    const r = await advancePlan(planId);
+    expect(rowOf(planId, "a")).toMatchObject({ state: "decision", decisionReason: "push_failed", lastError: "The plan's Canon was not found." });
+    expect(planOf(planId)).toMatchObject({ status: "PAUSED", pausedReason: "canon_missing" });
+    expect(r.pausedReason).toBe("canon_missing");
   });
 
   it("leaves plans without a Canon as they were: no Canon reads, no pushes", async () => {

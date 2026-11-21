@@ -59,7 +59,7 @@ describe("QC-02-12 taxon against MeSH", () => {
   });
 });
 
-describe("QC-03-42 / QC-03-43 / QC-01-10 BIF coverage", () => {
+describe("QC-03-43 / QC-03-44 / QC-01-10 BIF coverage", () => {
   const bif = (x: Partial<BifRow>): BifRow => ({ sender: "SPON", receiver: "IC", comment: "", referenceIds: ["[Saldaña, 2009]"], ...x });
   const conns = [conn("Rat", "[Kelly, 1998]")];
 

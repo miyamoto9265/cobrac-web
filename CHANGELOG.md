@@ -20,6 +20,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Removed
 - The "CSV set (xlsx)" download button on a project's header (CoBRAC's CSV files in one workbook). Use "BRA data (xlsx)", or the BRAES set for the converter CSVs
 
+### Fixed
+- Autonomous missions: projects that cannot start because the mission's cost limit is reached now show "Cost limit" instead of "Starts next"
+- When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
+- Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
+
 ## [0.58.0] - 2026-11-15
 
 ### Added

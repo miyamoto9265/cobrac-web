@@ -194,7 +194,7 @@ SELECT * FROM cypher('bradb_graph', $$
 <p class="src">典拠：<code>packages/infra/bradb/sql/</code>（<code>cobrac.current_versions</code>）</p>
 
 <h2 id="s7-6">7.6 AWS の構成と費用</h2>
-<p>BRA-DB は、CoBRAC 本体とは別のスタックと専用の VPC で動きます。リージョンは東京（ap-northeast-1）です。インターネットからの通信を受けるものはありません。BRA-DB を作らない設定でデプロイした環境では、API は「この環境には BRA-DB がありません」と答えます。</p>
+<p>BRA-DB は、CoBRAC 本体とは別のスタックと専用の VPC で動きます。リージョンは東京（ap-northeast-1）です。インターネットからの通信を受けるものはありません。BRA-DB を作らない設定でデプロイした環境では、状態を取得すると BRA-DB がないことだけが返り、画面に BRA-DB の欄は出ません。登録を求めると、API は「この環境には BRA-DB がありません」と答えます。</p>
 <figure>
 <svg viewBox="0 0 680 330" xmlns="http://www.w3.org/2000/svg" font-family="Noto Sans JP, sans-serif">
   <defs><marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#475569"/></marker></defs>
@@ -306,5 +306,5 @@ SELECT * FROM cypher('bradb_graph', $$
 
 <h3>実装</h3>
 <p>スタックは <code>BraDb</code> で、synth のときに <code>COBRAC_BRADB=false</code> にすると作られません。起動スクリプトは <code>packages/infra/bradb/bootstrap.sh</code> です。</p>
-<p class="src">典拠：スタック <code>packages/infra/lib/bradb-stack.ts</code>、起動スクリプト <code>packages/infra/bradb/bootstrap.sh</code>、SQL <code>packages/infra/bradb/sql/</code>、Lambda <code>packages/api/src/handlers/bradbImport.ts</code>。AWS の構成の全体は第 8 部、費用の全体は 9.9</p>
+<p class="src">典拠：スタック <code>packages/infra/lib/bradb-stack.ts</code>、起動スクリプト <code>packages/infra/bradb/bootstrap.sh</code>、SQL <code>packages/infra/bradb/sql/</code>、Lambda <code>packages/api/src/handlers/bradbImport.ts</code>、BRA-DB のない環境の応答 <code>packages/api/src/routes/projects.ts</code>・<code>packages/web/src/components/workspace/BradbPanel.tsx</code>。AWS の構成の全体は第 8 部、費用の全体は 9.9</p>
 </section>

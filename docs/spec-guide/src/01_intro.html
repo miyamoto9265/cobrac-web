@@ -49,7 +49,7 @@
 <table class="compact">
   <thead><tr><th style="width:22%">担い手</th><th style="width:12%">種類</th><th>すること</th><th style="width:16%">詳しくは</th></tr></thead>
   <tbody>
-    <tr><td>利用者・所有者・共同編集者・管理者</td><td>人</td><td>ROI と TLF、指示、参考資料を送る。エージェントの質問に答える。Canon の PR を承認する。ミッションを作る。管理者は利用者と API キーと上限を管理する</td><td>第 4 部、5.8、第 6 部</td></tr>
+    <tr><td>利用者・所有者・共同編集者・管理者・チーム管理者</td><td>人</td><td>ROI と TLF、指示、参考資料を送る。エージェントの質問に答える。Canon の PR を承認する。ミッションを作る。管理者は利用者と API キーと上限を管理し、BRAES で採録されたプロジェクトに「BRAES採録済み」のマークを付ける（4.6）。チーム管理者はチームのキーと予算・上限を管理する（4.8）</td><td>第 4 部、5.8、第 6 部</td></tr>
     <tr><td>CoBRAC エージェント</td><td>LLM</td><td>文献を調べ、ROI・回路・接続・機能の分解を判断して、データのファイルと説明を書く</td><td>第 3 部</td></tr>
     <tr><td>ワーカー</td><td>プログラム</td><td>ジョブごとに起動し、段階を進め、エージェントに依頼文を渡し、返ってきたファイルを検査して直させる。CSV・xlsx・グラフ・版を作る</td><td>第 3 部、8.4</td></tr>
     <tr><td>API・dispatcher・janitor・ミッションランナーなど</td><td>プログラム</td><td>プロジェクトとジョブを記録し、ワーカーを起動し、止まったジョブを回復し、ミッションを進める</td><td>8.2、8.3</td></tr>
@@ -61,12 +61,14 @@
   <thead><tr><th style="width:26%">LLM の仕事</th><th style="width:26%">ジョブ</th><th style="width:30%">使えるツール</th><th>詳しくは</th></tr></thead>
   <tbody>
     <tr><td>BRA を作る（CoBRAC エージェント）</td><td><code>initial</code>・<code>followup</code>（回答後の再開とリトライもこの会話を続ける）</td><td>Web 検索、<code>lit</code>、RCS、作業ディレクトリでのコマンド</td><td>第 3 部</td></tr>
-    <tr><td>解説記事を書く</td><td><code>article</code></td><td>成果物を読むシェルだけ</td><td>3.14</td></tr>
-    <tr><td>Canon の PR の AI レビューと判断</td><td><code>canon-review</code>（所見を出す <code>assist</code> と、自律実行で判断する <code>decide</code>）</td><td>なし</td><td>5.8、6.8</td></tr>
-    <tr><td>ミッションの下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>下書きと再計画では RCS と添付資料の読み取り。回答と解決ではなし</td><td>6.4、6.6、6.8</td></tr>
+    <tr><td>解説記事を書く</td><td><code>article</code></td><td>作業ディレクトリでのコマンドとファイル操作</td><td>3.14</td></tr>
+    <tr><td>Canon の PR の AI レビューと判断</td><td><code>canon-review</code>（所見を出す <code>assist</code> と、自律実行で判断する <code>decide</code>）</td><td>作業ディレクトリでのコマンドとファイル操作</td><td>5.8、6.8</td></tr>
+    <tr><td>ミッションの下書き・再計画・回答・解決</td><td><code>plan</code>（<code>draft</code>・<code>replan</code>・<code>answer</code>・<code>resolve</code>）</td><td>作業ディレクトリでのコマンドとファイル操作。下書きと再計画では RCS と添付資料も使う</td><td>6.4、6.6、6.8</td></tr>
+    <tr><td>オーケストレーターとの対話</td><td><code>plan</code>（<code>chat</code>）</td><td>作業ディレクトリでのコマンドとファイル操作。プロジェクトを追加できる段階では RCS も使う</td><td>6.13</td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code>・<code>claude.ts</code></p>
+<p>BRA を作るジョブのほかは、Web 検索と <code>lit</code> を使えません。コマンドとファイル操作はどのジョブでも使えます。回答と解決の指示書はツールを使わないよう求めていますが、仕組みとしては止めていません。</p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>JobType</code>・<code>planJobKind</code>・<code>reviewKind</code>）、<code>packages/worker/src/index.ts</code>、<code>codex.ts</code>・<code>claude.ts</code>（<code>openThread</code>）、<code>canonReviewJob.ts</code>、<code>planJobMain.ts</code>、<code>prompts/orchestrator.md</code>・<code>plan-chat.md</code>、<code>packages/shared/src/team.ts</code>、<code>packages/api/src/routes/admin.ts</code></p>
 
 <h2 id="s0-3">0.3 用語</h2>
 <p>本書で使う主な用語を次に示します。各部に固有の細かい用語は、その部で定義しています。</p>
@@ -90,12 +92,12 @@
     <tr><td>ワーカー</td><td>ジョブごとに AWS Fargate で動く TypeScript のプログラム</td></tr>
     <tr><td>ハーネス</td><td>エージェントを決まった手順で動かし、成果物を検査して直させる仕組みの全体。ワーカーのプログラム、指示書、JSON Schema、検査、変換からなる（第 3 部）</td></tr>
     <tr><td>プロジェクト</td><td>BRA を 1 つ作る単位。ID はシステムが付け（<code>p</code> + 7 文字）、変えず、再利用しない。名前は自由に変えられる（4.3）</td></tr>
-    <tr><td>ジョブ</td><td>ワーカーの 1 回の実行。BRA の作成（初回・フォローアップ・回答後の再開・リトライ）のほか、解説記事、AI レビュー、計画用のジョブがある</td></tr>
+    <tr><td>ジョブ</td><td>ワーカーが実行する仕事の単位。BRA の作成（初回・フォローアップ・リトライ）のほか、解説記事、AI レビュー、計画用のジョブがある。回答後の再開は新しいジョブを作らず、同じジョブをワーカーが起動し直して続ける</td></tr>
     <tr><td>段階</td><td>BRA のジョブの区切り。HCD、FRG、CSV、xlsx の順に進む。調査モードでは、HCD の前に調査ステップが入る（3.7）</td></tr>
     <tr><td>ターン</td><td>エージェントが依頼文を 1 つ受け取ってから、終了の JSON（<code>status</code> は <code>done</code> か <code>question</code>）を返すまでの作業</td></tr>
     <tr><td>会話</td><td>ターンの履歴（Codex のスレッド、Claude のモデルでは Claude Code のセッション）。BRA を作る会話は、1 つのプロジェクトに 1 つ</td></tr>
     <tr><td>依頼文 / 指示書</td><td>ワーカーがターンごとにエージェントに渡す文 / その元になる <code>prompts/</code> のファイル（付録 B）</td></tr>
-    <tr><td>作業ディレクトリ</td><td>ワーカーのディスク上の <code>/work</code>。プロジェクトフォルダ（<code>/work/&lt;ProjectID&gt;/</code>）と、ワーカーが置く <code>AGENTS.md</code>・<code>schemas/</code>・<code>materials/</code>・<code>canon/</code> を含み、S3 に保存される</td></tr>
+    <tr><td>作業ディレクトリ</td><td>ワーカーのディスク上の <code>/work</code>。プロジェクトフォルダ（<code>/work/&lt;ProjectID&gt;/</code>）と、ワーカーが置く <code>AGENTS.md</code>・<code>schemas/</code>・<code>materials/</code>・<code>canon/</code> を含む。S3 に保存するのはプロジェクトフォルダと会話だけで、ワーカーが置くものは実行のたびに置き直す</td></tr>
     <tr><td>検査 / 照合</td><td>プログラムが規則に照らして判定すること / Crossref や PubMed などの外部のデータや文献の原文と突き合わせること</td></tr>
     <tr><td>受理</td><td>段階の成果物が検査に通り、次の段階に進めること</td></tr>
     <tr><td>修正依頼</td><td>検査で見つかった問題をエージェントに返して直させる依頼。そのためのターンが修正ターン</td></tr>
@@ -103,6 +105,9 @@
     <tr><td>リトライ</td><td>失敗または中止したジョブを、前回の成果物から再開するジョブ（画面の「続きからリトライ」）。API の呼び出しなどを自動でやり直すことは「再試行」と呼んで区別する</td></tr>
     <tr><td>推論の強さ</td><td>モデルの reasoning effort（画面では「Reasoning effort」）</td></tr>
     <tr><td>デフォルトの API キー</td><td>組織の OpenAI API キー（Claude のモデルにはデフォルトの Anthropic API キー、DeepSeek のモデルにはデフォルトの DeepSeek API キー）。管理者が利用承認した利用者は、自分のキーがなくてもこのキーでジョブを実行できる（4.1）</td></tr>
+    <tr><td>チーム / チーム管理者</td><td>チームの API キー（チームの予算）でメンバーがジョブを実行できるようにする利用者の集まり / チームのメンバー・招待・キー・予算と上限・使えるモデルを管理し、チームを削除できる役割。サイト管理者とは別の役割で、本書で単に「管理者」というときはサイト管理者を指す（4.8）</td></tr>
+    <tr><td>作業場所</td><td>プロジェクト・ミッション・Canon を置く場所。「個人の作業場所」と、所属するチームごとの「チームの作業場所」がある（4.8）</td></tr>
+    <tr><td>チームの予算</td><td>チームの API キー（チーム管理者が登録したキー、またはサイト管理者が割り当てたデフォルトの API キー）と、それを使える期間。月の支出の上限は、予算とは別に決める。予算が「利用中」の間だけ、チームの作業場所のジョブはチームのキーで動く（4.8）</td></tr>
     <tr><td>使用量</td><td>ジョブが使ったトークンの量。費用はここから計算する（4.7、9.10）</td></tr>
     <tr><td>版</td><td>完了したジョブの結果を凍結したもの。ID は <code>&lt;ProjectID&gt;@v&lt;n&gt;</code>（4.5）。アプリのバージョンとは別</td></tr>
     <tr><td>Canon / rev</td><td>回路の定義をそろえるプロジェクトのまとまり / Canon の中身の版。PR を承認するたびに 1 つ進み、rev 0 は空の Canon（第 5 部）</td></tr>
@@ -110,7 +115,7 @@
     <tr><td>ミッション / 計画</td><td>オーケストレーターに目標と費用の上限を渡して任せる 1 回分の仕事 / ミッションの中身としてオーケストレーターが書くプロジェクト・バッチ・方針。計画用のジョブ（下書き・再計画）が書き、所有者が「開始」を押すと実行が始まる（第 6 部）。データとコードの名前は <code>plan</code></td></tr>
     <tr><td>ミッション / プロジェクト / バッチ</td><td>オーケストレーターの単位。ミッションは作るプロジェクト（ROI × TLF）の一覧で、各プロジェクトはバッチに分けられる。手動の順序のミッションはバッチごとに実行される（第 6 部）</td></tr>
     <tr><td>フロー実行 / レーン</td><td>自動の順序のミッションの進め方。プロジェクトは依存・基準プロジェクト・重なりの条件を満たした時点で空いた枠から始まり、バッチは始める順の目安になる / 依存と回路の重なりでつながるプロジェクトのまとまり。表示のためのもの（6.5）</td></tr>
-    <tr><td>自律実行</td><td>新しいミッションの既定。確定・回答・PR の判断などを、オーケストレーターが人の代わりに行う。自律実行を切ったミッションを「人が対応するミッション」と呼ぶ（6.8、6.9）</td></tr>
+    <tr><td>自律実行</td><td>新しいミッションの既定。所有者が「開始」を押したあと、質問への回答・PR の判断・要対応と要判断のプロジェクトの扱い・再計画の提案の承認を、オーケストレーターが人の代わりに行う。開始は自律実行でも所有者だけが行う。自律実行を切ったミッションを「人が対応するミッション」と呼ぶ（6.8、6.9）</td></tr>
   </tbody>
 </table>
 
