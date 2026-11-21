@@ -84,7 +84,7 @@ export const zh: Record<MessageKey, string> = {
   "settings.profileSaved": "个人资料已保存",
   "settings.defaults": "默认模型 / 推理强度",
   "settings.defaultsHelp":
-    "新建项目的初始值。可在创建页面按项目更改。未设置时使用 Codex 默认值（或部署环境配置）。",
+    "新建项目的初始值。在创建页面或计划中选择模型后，下次会以该模型为初始值。未设置时使用应用默认值。",
   "settings.defaultsSaved": "默认模型设置已保存",
   "settings.password": "更改密码",
   "settings.currentPassword": "当前密码",

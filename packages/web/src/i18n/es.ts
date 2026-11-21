@@ -84,7 +84,7 @@ export const es: Record<MessageKey, string> = {
   "settings.profileSaved": "Perfil guardado",
   "settings.defaults": "Modelo / esfuerzo de razonamiento predeterminados",
   "settings.defaultsHelp":
-    "Valores iniciales para proyectos nuevos. Puedes cambiarlos por proyecto en la pantalla de creación. Si no se definen, se usan los valores predeterminados de Codex (o el entorno de implementación).",
+    "Valores iniciales para proyectos nuevos. Si eliges un modelo en la pantalla de creación o en una misión, será el valor inicial la próxima vez. Si no se definen, se usa el valor predeterminado de la app.",
   "settings.defaultsSaved": "Configuración de modelo predeterminada guardada",
   "settings.password": "Cambiar contraseña",
   "settings.currentPassword": "Contraseña actual",

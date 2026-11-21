@@ -84,7 +84,7 @@ export const pt: Record<MessageKey, string> = {
   "settings.profileSaved": "Perfil salvo",
   "settings.defaults": "Modelo / esforço de raciocínio padrão",
   "settings.defaultsHelp":
-    "Valores iniciais para novos projetos. Você pode alterá-los por projeto na tela de criação. Se não forem definidos, usam-se os padrões do Codex (ou o ambiente de implantação).",
+    "Valores iniciais para novos projetos. O modelo escolhido na tela de criação ou em uma missão passa a ser o valor inicial da próxima vez. Se não forem definidos, usa-se o padrão do app.",
   "settings.defaultsSaved": "Configurações de modelo padrão salvas",
   "settings.password": "Alterar senha",
   "settings.currentPassword": "Senha atual",

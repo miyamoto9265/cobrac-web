@@ -82,7 +82,7 @@ export const en = {
   "settings.profileSaved": "Profile saved",
   "settings.defaults": "Default model / reasoning effort",
   "settings.defaultsHelp":
-    "Initial values for new projects. You can change them per project on the create screen. If unset, Codex defaults (or the deployment env) are used.",
+    "Initial values for new projects. When you pick a model on the create screen or in a mission, it becomes the initial value next time. If unset, the app default is used.",
   "settings.defaultsSaved": "Default model settings saved",
   "settings.password": "Change password",
   "settings.currentPassword": "Current password",

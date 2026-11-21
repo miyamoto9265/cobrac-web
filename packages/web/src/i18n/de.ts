@@ -84,7 +84,7 @@ export const de: Record<MessageKey, string> = {
   "settings.profileSaved": "Profil gespeichert",
   "settings.defaults": "Standardmodell / Reasoning-Aufwand",
   "settings.defaultsHelp":
-    "Anfangswerte für neue Projekte. Sie können sie pro Projekt auf dem Erstellungsbildschirm ändern. Wenn nichts festgelegt ist, gelten die Codex-Standards (oder die Deployment-Umgebung).",
+    "Anfangswerte für neue Projekte. Wenn Sie auf dem Erstellungsbildschirm oder in einer Mission ein Modell wählen, wird es beim nächsten Mal der Anfangswert. Wenn nichts festgelegt ist, gilt der App-Standard.",
   "settings.defaultsSaved": "Standardmodelleinstellungen gespeichert",
   "settings.password": "Passwort ändern",
   "settings.currentPassword": "Aktuelles Passwort",

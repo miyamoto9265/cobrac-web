@@ -169,6 +169,7 @@ import {
 import { actorName } from "../lib/canonReview.js";
 import { applyProjectCanon, resolveProjectCanon } from "./canons.js";
 import { copyProject } from "./public.js";
+import { rememberChoice } from "../lib/rememberedModels.js";
 import type { ApiEnv } from "./env.js";
 
 export const projectsApi = new Hono<ApiEnv>();
@@ -330,8 +331,9 @@ projectsApi.post("/projects", async (c) => {
   // Always persist a concrete model so usage can be priced (project → user default → env → DEFAULT_CODEX_MODEL)
   const chosen = "model" in body ? normModel(body.model) : null;
   if (chosen) requireModel(policy, chosen);
+  // an explicit null is 「既定」 picked on the create screen: the app default, not the user's remembered model
   const model =
-    chosen || implicitModel(policy, u.defaultModel || deploymentDefaultModel());
+    chosen || implicitModel(policy, ("model" in body ? null : u.defaultModel) || deploymentDefaultModel());
   let reasoningEffort: ReasoningEffort | null =
     u.defaultReasoningEffort ?? null;
   if ("reasoningEffort" in body) {
@@ -380,6 +382,8 @@ projectsApi.post("/projects", async (c) => {
         }
       : undefined,
   });
+  // the next project starts from what was picked here (「既定」 included)
+  await rememberChoice(u, { ...("model" in body ? { model: chosen } : {}), ...("reasoningEffort" in body ? { reasoningEffort } : {}) });
   return c.json(project, 201);
 });
 

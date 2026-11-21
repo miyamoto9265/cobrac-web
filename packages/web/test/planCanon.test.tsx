@@ -28,7 +28,7 @@ const api = vi.hoisted(() => ({
   planAction: vi.fn(),
 }));
 vi.mock("../src/lib/api", () => ({ api, ApiError: class extends Error {} }));
-vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice", role: "user" } }) }));
+vi.mock("../src/lib/auth", () => ({ useAuth: () => ({ me: { userId: "alice", role: "user" } }), useOptionalAuth: () => null }));
 
 const { I18nProvider } = await import("../src/i18n");
 const { PlanDetailPage } = await import("../src/pages/PlanDetailPage");

@@ -449,3 +449,34 @@ describe("dispatcher", () => {
     expect(runTask).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("remembered models", () => {
+  const me = () => fake.items("users").find((x) => x.userId === A.sub) as Record<string, unknown>;
+
+  it("remembers the model and effort picked on the project create screen (「既定」 too) for the next project", async () => {
+    user(A, { anthropicKeyRegistered: true });
+    await json(call(A, "POST", "/projects", { roi: "STG", tlf: "hearing", model: "claude-opus-5-5", reasoningEffort: "high" }));
+    expect(me()).toMatchObject({ defaultModel: "claude-opus-5-5", defaultReasoningEffort: "high" });
+    const next = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "IFG", tlf: "speech" }));
+    expect(next).toMatchObject({ model: "claude-opus-5-5", reasoningEffort: "high" });
+    // a deprecated model is remembered too: the user picked it
+    await json(call(A, "POST", "/projects", { roi: "AG", tlf: "reading", model: "claude-haiku-5-5", reasoningEffort: null }));
+    expect(me()).toMatchObject({ defaultModel: "claude-haiku-5-5", defaultReasoningEffort: null });
+    await json(call(A, "POST", "/projects", { roi: "V1", tlf: "vision", model: null }));
+    expect(me().defaultModel).toBeNull();
+  });
+
+  it("starts a new mission from the models picked on the last mission, and shares the agents' model with projects", async () => {
+    user(A, { anthropicKeyRegistered: true });
+    const first = await newPlan([{ roi: "STG", tlf: "hearing" }]);
+    expect(planOf(first).settings).toMatchObject({ model: null, modelChosen: false, orchestratorModel: null, orchestratorModelChosen: false });
+    await json(call(A, "PUT", `/plans/${first}`, { settings: { model: "claude-fable-5-1", orchestratorModel: "claude-sonnet-5-5" } }));
+    expect(me()).toMatchObject({ defaultModel: "claude-fable-5-1", defaultOrchestratorModel: "claude-sonnet-5-5" });
+    const second = await newPlan([{ roi: "IFG", tlf: "speech" }]);
+    expect(planOf(second).settings).toMatchObject({ model: "claude-fable-5-1", modelChosen: true, orchestratorModel: "claude-sonnet-5-5", orchestratorModelChosen: true });
+    // a remembered model this workspace's keys cannot run is left to the app default
+    user(A, { defaultModel: "gpt-6-sol", defaultOrchestratorModel: "claude-sonnet-5-5" });
+    const third = await newPlan([{ roi: "AG", tlf: "reading" }]);
+    expect(planOf(third).settings).toMatchObject({ model: "gpt-6-sol", modelChosen: true, orchestratorModel: null, orchestratorModelChosen: false });
+  });
+});

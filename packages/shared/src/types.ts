@@ -49,6 +49,8 @@ export interface UserRecord {
   /** Defaults applied to new projects (null/undefined = Codex default) */
   defaultModel?: string | null;
   defaultReasoningEffort?: ReasoningEffort | null;
+  /** The Orchestrator's model for new missions (null/undefined = the app default, Opus 5.5). Like `defaultModel`, it is the user's last pick. */
+  defaultOrchestratorModel?: string | null;
   /** Approval to run jobs with the default API key when the user has no key of their own (absent / null: not approved) */
   orgAccess?: OrgAccess | null;
   /** Canons of other users where this user is a co-editor (kept in step with their `EDITOR#` items) */
