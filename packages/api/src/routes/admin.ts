@@ -9,6 +9,8 @@ import type {
   UserRecord,
   ConcurrencySettingRecord,
   UpdateConcurrencyRequest,
+  SetBraesAcceptedRequest,
+  ProjectRecord,
 } from "@cobrac/shared";
 import {
   CONCURRENCY_CATALOG_KEY,
@@ -19,6 +21,7 @@ import {
   MODEL_PROVIDERS,
   nowIso,
   SPEC_PDF_NAME,
+  isProjectDeleted,
 } from "@cobrac/shared";
 import { toPublicUser } from "../lib/auth.js";
 import { bad, notFound } from "../lib/http.js";
@@ -29,6 +32,7 @@ import { specLinks } from "../lib/spec.js";
 import {
   getProject,
   getUser,
+  updateProject,
   listAllJobs,
   listAllProjects,
   listUsers,
@@ -164,6 +168,22 @@ adminApi.post("/admin/projects/:userId/:id/cancel", async (c) => {
   if (!p) throw notFound();
   await stopProject(p, "admin");
   return c.json({ ok: true });
+});
+
+// 「BRAES採録済み」: an interim, per-project mark set by site admins for projects whose BRA data BRAES has accepted.
+adminApi.put("/admin/projects/:userId/:id/braes", async (c) => {
+  const me = c.get("user");
+  requireAdmin(me);
+  const p = await getProject(c.req.param("userId"), c.req.param("id"));
+  if (!p || isProjectDeleted(p)) throw notFound();
+  const body = (await c.req.json().catch(() => ({}))) as Partial<SetBraesAcceptedRequest>;
+  if (typeof body.accepted !== "boolean") throw bad("accepted は true か false です");
+  if (body.accepted && !p.hasArtifacts) throw bad("成果物のないプロジェクトには付けられません");
+  const braesAccepted: ProjectRecord["braesAccepted"] = body.accepted
+    ? (p.braesAccepted ?? { acceptedAt: nowIso(), acceptedBy: me.userId, revision: p.revision ?? 0 })
+    : null;
+  await updateProject(p.userId, p.projectId, { braesAccepted });
+  return c.json({ braesAccepted });
 });
 
 // --- teams ----------------------------------------------------------------------

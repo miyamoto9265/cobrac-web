@@ -5,6 +5,7 @@ import type { PublicCanonSummary, PublicProjectSummary } from "@cobrac/shared";
 import { HelpLink, HelpTip } from "../components/HelpTip";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
+import { BraesBadge } from "../components/BraesBadge";
 import { fmtDate } from "../lib/format";
 
 export const publicProjectPath = (id: string) => `/explore/projects/${encodeURIComponent(id)}`;
@@ -64,6 +65,11 @@ export function ExplorePage() {
               <Link to={publicProjectPath(p.projectId)} className="block h-full rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 coarse:p-4">
                 <div className="break-words font-medium text-blue-700">{p.name}</div>
                 <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+                {p.braesAcceptedAt && (
+                  <div className="mt-1">
+                    <BraesBadge accepted={{ acceptedAt: p.braesAcceptedAt }} plain />
+                  </div>
+                )}
                 <div className="mt-1 break-words text-xs text-slate-600">{[p.roi, p.tlf].filter((x) => x?.trim()).join(" · ")}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[11px] text-slate-500">
                   <span>{p.contributor}</span>

@@ -77,6 +77,7 @@ async function publicProjectSummary(p: ProjectRecord, cloneCount: number): Promi
     publishedAt: p.publishedAt ?? p.updatedAt,
     updatedAt: p.updatedAt,
     cloneCount,
+    ...(p.braesAccepted ? { braesAcceptedAt: p.braesAccepted.acceptedAt } : {}),
   };
 }
 
