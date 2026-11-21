@@ -4,12 +4,13 @@ import type { PlanDetailResponse, PlanRecord, UpdatePlanRequest } from "@cobrac/
 import { AUTONOMOUS_DEFAULT_MAX_COST_USD, AUTONOMOUS_MAX_COST_RANGE, orchestratorModelOf } from "@cobrac/shared";
 import { useT } from "../../i18n";
 import { api } from "../../lib/api";
+import { useOptionalAuth } from "../../lib/auth";
 import { inputCls } from "../../pages/CanonsPage";
 import { HelpTip } from "../HelpTip";
 import { ModelSelect } from "../ModelSelect";
 import { CanonSection, type CanonFlush } from "./CanonSection";
 
-type SaveSettings = (b: NonNullable<UpdatePlanRequest["settings"]>) => void;
+type SaveSettings = (b: NonNullable<UpdatePlanRequest["settings"]>, then?: () => void) => void;
 
 /** A checkbox drawn as a switch (`role="switch"`); its label and description sit next to it. */
 const switchCls =
@@ -74,6 +75,7 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
   const t = useT();
   const s = d.plan.settings;
   const o = orchestratorModelOf(s);
+  const auth = useOptionalAuth();
   // the models and effort are shown from local state and saved after a pause, so typing a custom model ID is not interrupted
   const [choice, setChoice] = useState({ model: s.modelChosen ? s.model : null, effort: s.reasoningEffort, orchestratorModel: o.chosen ? o.model : null });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,7 +83,8 @@ function Models({ d, save }: { d: PlanDetailResponse; save: SaveSettings }) {
   const choose = (v: typeof choice) => {
     setChoice(v);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort, orchestratorModel: v.orchestratorModel }), 600);
+    // the server also remembers them as the user's defaults: refresh `me` so the next create screen starts from them
+    timer.current = setTimeout(() => save({ model: v.model, reasoningEffort: v.effort, orchestratorModel: v.orchestratorModel }, () => void auth?.refreshMe().catch(() => undefined)), 600);
   };
   return (
     // compact: three small pickers in one row, not wider than they need to be
@@ -124,7 +127,7 @@ export function DraftHow({ d, onChanged, onSaved, onError, flushRef }: { d: Plan
   const t = useT();
   const id = useId();
   const { plan } = d;
-  const save: SaveSettings = (b) => void api.updatePlan(plan.planId, { settings: b }).then(onChanged).catch(onError);
+  const save: SaveSettings = (b, then) => void api.updatePlan(plan.planId, { settings: b }).then(() => (onChanged(), then?.())).catch(onError);
   return (
     <section aria-labelledby={`${id}-h`} className="grid gap-6 rounded-xl border border-slate-200 bg-white p-4 sm:p-6" data-testid="plan-settings">
       <h2 id={`${id}-h`} className="flex items-center gap-1 text-base font-semibold sm:text-lg">

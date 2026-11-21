@@ -85,7 +85,7 @@ export const zhTw: Record<MessageKey, string> = {
   "settings.profileSaved": "個人資料已儲存",
   "settings.defaults": "預設模型 / 推理強度",
   "settings.defaultsHelp":
-    "新專案的初始值。可在建立畫面依專案更改。未設定時使用 Codex 預設值（或部署環境設定）。",
+    "新專案的初始值。在建立畫面或計畫中選擇模型後，下次會以該模型為初始值。未設定時使用應用程式預設值。",
   "settings.defaultsSaved": "預設模型設定已儲存",
   "settings.password": "變更密碼",
   "settings.currentPassword": "目前密碼",

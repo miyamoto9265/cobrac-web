@@ -181,7 +181,10 @@ describe("default API key", () => {
     expect((await json<ProjectRecord>(create(ALICE, { model: "gpt-6-astra" }))).model).toBe("gpt-6-astra");
     // deprecated models are still allowed when chosen
     expect((await json<ProjectRecord>(create(ALICE, { model: "gpt-6-luna" }))).model).toBe("gpt-6-luna");
+    // a deprecated model the user picked is remembered for the next project
+    expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-luna");
     // the app default (Sonnet 5.5) needs an Anthropic key: the fallback is gpt-6-sol, not a deprecated model
+    expect((await json<ProjectRecord>(create(ALICE, { model: null }))).model).toBe("gpt-6-sol");
     expect((await json<ProjectRecord>(create(ALICE))).model).toBe("gpt-6-sol");
     fake.put("projects", completed(ALICE.sub, "ua11ce00-90", "gpt-6-sol"));
     expect((await call(ALICE, "POST", "/projects/ua11ce00-90/followup", { instruction: "more" })).status).toBe(200);

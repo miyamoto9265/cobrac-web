@@ -85,7 +85,7 @@ export const ja: Record<MessageKey, string> = {
   "settings.profileSaved": "プロフィールを保存しました",
   "settings.defaults": "既定のモデル / reasoning effort",
   "settings.defaultsHelp":
-    "新規プロジェクト作成時の初期値です。プロジェクトごとに作成画面で変更できます。未設定の場合は Codex の既定（またはデプロイ時の環境設定）が使われます。",
+    "新しいプロジェクトの初期値です。作成画面やミッションでモデルを選ぶと、次回からはそのモデルが初期値になります。未設定の場合はアプリの既定が使われます。",
   "settings.defaultsSaved": "既定のモデル設定を保存しました",
   "settings.password": "パスワード変更",
   "settings.currentPassword": "現在のパスワード",

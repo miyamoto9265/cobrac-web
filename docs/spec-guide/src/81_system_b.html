@@ -21,7 +21,7 @@
 <table class="compact">
   <thead><tr><th style="width:12%">テーブル</th><th style="width:15%">PK / SK</th><th>主な属性</th></tr></thead>
   <tbody>
-    <tr><td>Users</td><td><code>userId</code>（Cognito の sub）/ —</td><td>email、displayName（80 字）、contributorName（120 字）、role、disabled、<code>userKey</code>、<code>projectSeq</code> / <code>canonSeq</code>（古い形式の ID の最後の番号。もう進めない。付録 C）、<code>defaultCanonId</code>、encryptedApiKey（API は返さない）、apiKeyRegistered、apiKeyLast4、availableModels、defaultModel、defaultReasoningEffort、<code>orgAccess</code>（<code>{ tier, approvedAt, approvedBy }</code>。4.1）、<code>editorCanons</code>（共同編集者として入っている、ほかの利用者の Canon）、作成と更新の時刻</td></tr>
+    <tr><td>Users</td><td><code>userId</code>（Cognito の sub）/ —</td><td>email、displayName（80 字）、contributorName（120 字）、role、disabled、<code>userKey</code>、<code>projectSeq</code> / <code>canonSeq</code>（古い形式の ID の最後の番号。もう進めない。付録 C）、<code>defaultCanonId</code>、encryptedApiKey（API は返さない）、apiKeyRegistered、apiKeyLast4、availableModels、defaultModel、defaultReasoningEffort、<code>defaultOrchestratorModel</code>（ミッションのオーケストレーターのモデルの既定）、<code>orgAccess</code>（<code>{ tier, approvedAt, approvedBy }</code>。4.1）、<code>editorCanons</code>（共同編集者として入っている、ほかの利用者の Canon）、作成と更新の時刻</td></tr>
     <tr><td>Projects</td><td><code>userId</code> / <code>projectId</code></td><td>
       <ul>
         <li>名前と ID：name、nameSource（<code>provisional</code> / <code>auto</code> / <code>user</code>）、<code>legacyId</code>（移行前の ID。C.4）</li>

@@ -25,7 +25,7 @@ export function ChatPage() {
 function NewProject() {
   const { t, locale } = useI18n();
   const navigate = useNavigate();
-  const { me } = useAuth();
+  const { me, refreshMe } = useAuth();
   const [roi, setRoi] = useState("");
   const [tlf, setTlf] = useState("");
   const [attachments, setAttachments] = useState<AttachmentState>(EMPTY_ATTACHMENTS);
@@ -54,6 +54,8 @@ function NewProject() {
         canon: canonRequest(canon),
         ...(run.hypothesis ? { hypothesis: createRequestOf(run.hypothesis) } : {}),
       });
+      // the server remembered the model and effort picked here: the next new project starts from them
+      void refreshMe().catch(() => undefined);
       navigate(`/projects/${encodeURIComponent(p.projectId)}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));

@@ -85,7 +85,7 @@ export const ko: Record<MessageKey, string> = {
   "settings.profileSaved": "프로필을 저장했습니다",
   "settings.defaults": "기본 모델 / Reasoning effort",
   "settings.defaultsHelp":
-    "새 프로젝트의 초기값입니다. 만들기 화면에서 프로젝트마다 변경할 수 있습니다. 설정하지 않으면 Codex 기본값(또는 배포 환경 설정)이 사용됩니다.",
+    "새 프로젝트의 초기값입니다. 만들기 화면이나 미션에서 모델을 고르면 다음부터 그 모델이 초기값이 됩니다. 설정하지 않으면 앱 기본값이 사용됩니다.",
   "settings.defaultsSaved": "기본 모델 설정을 저장했습니다",
   "settings.password": "비밀번호 변경",
   "settings.currentPassword": "현재 비밀번호",
