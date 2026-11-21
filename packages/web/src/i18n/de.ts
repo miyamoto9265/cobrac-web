@@ -32,6 +32,7 @@ export const de: Record<MessageKey, string> = {
   "nav.newProject": "Neues Projekt",
   "nav.history": "Verlauf",
   "nav.seeAll": "Alle anzeigen",
+  "nav.resizeSidebar": "Seitenleiste anpassen",
   "nav.noProjects": "Noch keine Projekte",
   "nav.settings": "Einstellungen",
   "nav.spec": "Spezifikation",

@@ -32,6 +32,7 @@ export const zh: Record<MessageKey, string> = {
   "nav.newProject": "新建项目",
   "nav.history": "历史记录",
   "nav.seeAll": "查看全部",
+  "nav.resizeSidebar": "调整侧边栏宽度",
   "nav.noProjects": "还没有项目",
   "nav.settings": "设置",
   "nav.spec": "规格说明书",

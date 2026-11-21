@@ -32,6 +32,7 @@ export const ja: Record<MessageKey, string> = {
   "nav.newProject": "新規プロジェクト",
   "nav.history": "履歴",
   "nav.seeAll": "すべて表示",
+  "nav.resizeSidebar": "サイドバーの幅を変える",
   "nav.noProjects": "まだプロジェクトがありません",
   "nav.settings": "設定",
   "nav.spec": "仕様書",
