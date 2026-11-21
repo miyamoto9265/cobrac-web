@@ -98,7 +98,7 @@ Each output appears in its tab when its step is done.
 - **Tables**: the five CSV files as tables; the raw files can be downloaded.
 - **Report and decision log**: the agent's report of the work, and what it decided and why.
 - **BRA xlsx**: when the data is complete, the header has the download buttons "BRA data (xlsx)" (the official Template-v2-3 format) and "CSV set (xlsx)" (CoBRAC's CSV files in one workbook). "BRA data (xlsx)" is the one you normally use.
-- **BRAES set**: downloads, as a zip, the files the BRAES submission form asks for (BRA data, BIF / HCD / FRG images, and a note of the values to enter in the form). You are asked for the BRAES Project ID (e.g. YT20Oculomotor); check the proposal and press "Download". The images can be opened and adjusted in draw.io.
+- **BRAES set**: downloads, as a zip, the files the BRAES submission form asks for (BRA data, BIF / HCD / FRG images, and a note of the values to enter in the form). The BRA data comes as CSVs for the BRA Data Converter: put the CSV folder on Google Drive, convert it with the converter, and attach the spreadsheet it makes to the form. You are asked for the BRAES Project ID (e.g. YT20Oculomotor); check the proposal and press "Download". The images can be opened and adjusted in draw.io.
 
 ### Versions
 

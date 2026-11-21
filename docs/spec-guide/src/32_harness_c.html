@@ -167,7 +167,7 @@
   <caption>BRAES 提出セットの中身（<code>{ID}_BRAES/</code> の下）</caption>
   <thead><tr><th style="width:28%">ファイル</th><th>内容</th></tr></thead>
   <tbody>
-    <tr><td><code>{ID}.bra.xlsx</code></td><td>Template-v2-3 の BRA データ。Project ID の欄（Project の B2、各シートの Project ID 列、ROI の Circuit ID）に BRAES 用の ID を書く</td></tr>
+    <tr><td><code>{ID}_csv/</code></td><td>BRA データを、BRA Data Converter（小野寺さんの GAS「BRA Data Converter to v2-3」）が CSV モードで読む 5 つの CSV にしたもの（<code>{ID}_project.csv</code>・<code>_references.csv</code>・<code>_circuits.csv</code>・<code>_connections.csv</code>・<code>_frg.csv</code>）。値は上の Template-v2-3 の書き出しと同じで、Project ID の欄に BRAES 用の ID を書く。下の表を参照</td></tr>
     <tr><td><code>{ID}BIF.xml</code></td><td>BIF 画像。回路を四角、Collection をその UC を囲む四角、ROI を破線の括弧で描く。接続は興奮性を黒、抑制性を青（終点は四角）、修飾性を緑の矢印にし、記録から読み取れないものは灰色にする。仮説だけの接続は点線。同じ種類の相互の接続は両矢印にする</td></tr>
     <tr><td><code>{ID}HCD.xml</code></td><td>HCD 画像。ROI の UC ごとに、その回路の上に楕円を置き、ROI の UC どうしの接続を白い矢印で描く</td></tr>
     <tr><td><code>{ID}FRG.xml</code></td><td>FRG 画像。ノードを Node ID の入った角丸の四角にし、ノードから下位ノードへ 2 pt の矢印を描く</td></tr>
@@ -175,10 +175,20 @@
     <tr><td><code>submission-form.txt</code></td><td>投稿フォームの質問の順に、記入する値（著者名、Project ID、添付するファイル名、FRG の有無など）と、出す前の確認事項。利用者の言語が日本語なら日本語、それ以外は英語</td></tr>
   </tbody>
 </table>
+<p>BRA データを xlsx でなく CSV で渡すのは、Template-v2-3 の Google スプレッドシートにある数式・WholeBIF の取り込み（IMPORTRANGE）・入力規則を確実に残すためです。コンバーターは Google 版 Template-v2-3 のコピーを作り、CSV の見出しと同じ名前の列にデータを書き込みます。利用者は <code>{ID}_csv</code> フォルダを Google ドライブに置き、コンバーターの folder ID にそのフォルダを指定して実行し、できたスプレッドシートを <code>{ID}.bra</code> としてフォームに添付します。</p>
+<table class="compact">
+  <caption>コンバーター用 CSV の形</caption>
+  <thead><tr><th style="width:22%">ファイル</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>{ID}_project.csv</code></td><td>1 行目が見出し、2 行目が Contributor・Project ID・List of contributors・Description・BRA version（<code>Template-v2-3.bra</code>）。5〜8 行目の B 列が References・Circuits・Connections・FRG の Review End Line（レコード数 + 1。コンバーターは行の位置で読むので、間の行も空にしない）</td></tr>
+    <tr><td>ほかの 4 つ</td><td>1 行目が見出しで、2 行目からレコード。見出しはコンバーターの TargetItems シート（Template-v2-3.bra の列）にある項目名。Circuits には DHBA: name と Lv.2〜14 も入れる（TargetItems にまだないので、今はコンバーターが読み飛ばす）。数式の列（Reference ID など）は入れない</td></tr>
+  </tbody>
+</table>
+<p>コンバーターは、WholeBIF の取り込みより上の入力欄（References 28、Circuits 30、Connections 79 レコード）までしか書き込みません。これを超えるときは、記入メモに注意書きを入れます。</p>
 <p>FRG のないデータでは、HCD 画像と FRG 画像を入れません。図は draw.io の XML（圧縮しない <code>mxfile</code>）で、回路の配置はグラフの画面で利用者が並べた位置（<code>graph/{hcd|frg}.layout.json</code>）に従います。並べていない回路は画面と同じ dagre で配置し、ROI の UC をひとまとまりにします。</p>
 <p>BRAES の Project ID は「イニシャル（大文字 5 字まで）＋西暦の下 2 桁＋英語の題名（UpperCamelCase、30 字まで）」です（例：<code>YT20Oculomotor</code>）。CoBRAC の Project ID（<code>p7m2q9xa</code>）はこの形ではないので、ダウンロードのときに入力してもらいます。入力欄には、保存済みの ID か、作成者名の頭文字・作成した年・プロジェクト名（ラテン文字がなければ ROI と TLF）から作った案を入れておきます。ダウンロードした ID はプロジェクトの <code>braesProjectId</code> に保存し、次回の案にします（保存するのは所有者とチーム管理者のときだけ）。WholeBIF で使われていないかは確かめません。</p>
 <p>BRAES の仕様は CoBRAC に合わせて変わる可能性があるため、この形式は暫定です。</p>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>braes.ts</code>（<code>buildBraesBundle</code>）、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>（<code>buildCsvs</code>・<code>buildProjectCsv</code>）、<code>braTemplate.ts</code>、<code>braes.ts</code>（<code>buildBraesBundle</code>）・<code>braTemplate.ts</code>（<code>buildConverterCsvs</code>）、<code>xlsxSheet.ts</code>、<code>graph.ts</code>（<code>buildGraphs</code>）、<code>prompts/csv_to_excel.py</code>、<code>packages/worker/src/finalize.ts</code>・<code>bibliography.ts</code></p>
 
 <h2 id="s3-14">3.14 解説記事</h2>
 <p>解説記事は、完成した BRA を、それを作っていない読者に説明する記事です。利用者の求めに応じて作ります。BRA を作る段階の 1 つではなく、BRA の会話とは別の新しい会話で動く LLM のジョブです。</p>
