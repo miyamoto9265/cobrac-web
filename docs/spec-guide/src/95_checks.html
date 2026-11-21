@@ -104,7 +104,7 @@
     <tr><td>QC-02-12</td><td>接続の種（Taxon）が、文献に PubMed が付けた MeSH の種と合う。MeSH が選択肢の種を挙げるのに <code>(No description)</code> にしていない。選択肢にない種は <code>comment</code> に書いてある（水準 3）</td><td>CoBRAC</td><td>差し戻し</td></tr>
   </tbody>
 </table>
-<p>QC-02-04 と QC-02-09 は、照会先に届かないときや本文を取得できないときは未照合として通します（3.10）。QC-02-12 も、PMID がない文献と、MeSH の種がまだ付いていない文献は検査しません。QC-02-11 は BRA 12（URL の形）のために確保している番号で、検査はまだありません。</p>
+<p>QC-02-04 と QC-02-09 は、照会先に届かないときや本文を取得できないときは未照合として通します（3.10）。QC-02-12 は HCD の段階で返します。PMID がない文献、照会できなかったか一致しなかった文献、Canon で照合済みの文献、MeSH の種がまだ付いていない文献は検査しません。仮説の接続、引く文献が 1 つでない接続、Taxon が <code>(Mixed)</code> の接続も検査しません。QC-02-11 は BRA 12（URL の形）のために確保している番号で、検査はまだありません。</p>
 
 <h2 id="se-4">E.4 HCD</h2>
 <table class="compact">
@@ -150,9 +150,9 @@
     <tr><td>QC-03-38</td><td>左右の指定と UC の左右が合う</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-40</td><td>ROI の外（<code>noROI(input)</code> か <code>noROI(input,output)</code>）から ROI の UC に入る接続が 1 つ以上ある</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-41</td><td>Implementation の左辺は UC 自身で、右辺は Interface の入力（と UC 自身）だけを使う</td><td>Master 462 の一部</td><td>差し戻し</td></tr>
-    <tr><td>QC-03-42</td><td>BIF の各行に <code>modelled</code> があり、<code>false</code> の行には <code>reason</code> がある（水準 3）</td><td>CoBRAC</td><td>差し戻し</td></tr>
-    <tr><td>QC-03-43</td><td><code>modelled</code> が <code>true</code> の BIF の行には、その行の文献を引く接続がある（水準 3）</td><td>CoBRAC</td><td>差し戻し</td></tr>
     <tr><td>QC-03-42</td><td>HCD が 1 つにつながっている。ROI の UC を含む部分から切り離された UC がない</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-43</td><td>BIF の各行に <code>modelled</code> があり、<code>false</code> の行には <code>reason</code> がある（水準 3）</td><td>CoBRAC</td><td>差し戻し</td></tr>
+    <tr><td>QC-03-44</td><td><code>modelled</code> が <code>true</code> の BIF の行には、その行の文献を引く接続がある（水準 3）</td><td>CoBRAC</td><td>差し戻し</td></tr>
   </tbody>
 </table>
 <p>QC-03-39 は、Source of ID や Reference ID が <code>makeshift</code> のときに編集者へ知らせる検査（Master 109 / 254）のために確保した番号で、検査はまだありません。</p>
@@ -259,5 +259,5 @@
   </tbody>
 </table>
 <p>このほか、109 / 254（<code>makeshift</code> の通知）には、まだ検査がありません。</p>
-<p class="src">典拠：<code>packages/shared/src/harness.ts</code>・<code>projectId.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>cross.ts</code>・<code>canonConstraints.ts</code>・<code>autofix.ts</code>（<code>AUTO_FIX_CODES</code>）・<code>braTemplate.ts</code>、<code>packages/worker/src/pipeline.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>、<code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code></p>
+<p class="src">典拠：<code>packages/shared/src/harness.ts</code>・<code>projectId.ts</code>・<code>taxon.ts</code>・<code>research.ts</code>・<code>hypothesis.ts</code>・<code>cross.ts</code>・<code>canonConstraints.ts</code>・<code>autofix.ts</code>（<code>AUTO_FIX_CODES</code>）・<code>braTemplate.ts</code>、<code>packages/worker/src/pipeline.ts</code>・<code>references.ts</code>・<code>quotes.ts</code>、<code>docs/bra/BRA-data-Error-code-List-Master.xlsx</code></p>
 </section>

@@ -37,7 +37,7 @@
     <tr><td>優先順位</td><td>利用者自身のキーは、デフォルトの API キーより常に優先される（チームの作業場所では、チームのキーがさらに優先される。4.8）。承認済みの利用者が後で自分のキーを登録すると以後は自分のキーで実行し、削除するとデフォルトの API キーに戻る。管理者の個人のキーは、その管理者自身のジョブにだけ使う</td></tr>
     <tr><td>ジョブの開始時の判定</td><td>ジョブを始めるすべての依頼（作成・フォローアップ・リトライ・回答・解説記事）で、API が使うキーとモデルを決める。解説記事では記事に選んだモデルも判定する。使えるキーがない場合は 400。自分のキーがなく、承認とデフォルトの API キーの登録もそろっていない場合がこれに当たる。利用者がこのジョブのために選んだモデルの提供元のキーがない場合は 403（4.2）</td></tr>
     <tr><td>選んでいないモデルの置き換え</td><td>利用者がこのジョブで選んでいないモデルを利用者のキーで使えないときは、失敗させずに使えるモデルに置き換える（4.2 の「モデルの決め方」）。対象は、保存した既定のモデル、デプロイの既定、複製に与える既定、以前に別のキーで作ったプロジェクトのモデル。そうしたプロジェクトにフォローアップ・リトライ・回答を送ると、プロジェクトのモデルを以後も置き換えたモデルに移し、通常の「Model: …」のお知らせを出す。モデルを選ばない解説記事は置き換えたモデルで実行し、プロジェクトのモデルは変えない</td></tr>
-    <tr><td>モデルの選択欄</td><td>キーで使えないモデルは既定のモデルとして保存できない。承認した利用者には、デフォルトのキーのモデルをすべて返す。使えなくなった保存済みの既定は「デフォルト」と表示し、プロジェクトのヘッダーには次のジョブで使うモデルを出す</td></tr>
+    <tr><td>モデルの選択欄</td><td>設定画面では、キーで使えないモデルを既定のモデルとして保存できない（<code>PUT /users/me</code> は 403）。作成画面とミッションの下書きで選んだモデルも既定に残る（4.2 の「選んだモデルを覚える」）。作成画面はその作業場所のキーで検査し、下書きは保存の時点では検査しない。そのため、チームの作業場所で選んだモデルや下書きで選んだモデルが、ほかの作業場所では使えない既定になることがある。承認した利用者には、デフォルトのキーのモデルをすべて返す。使えない保存済みの既定は「デフォルト」と表示し、プロジェクトのヘッダーには次のジョブで使うモデルを出す</td></tr>
     <tr><td>画面の言葉づかい</td><td>「デフォルトの API キー」は管理画面にだけ出し、管理者以外には見せない。承認済みの利用者にとっては組織のキーで動くのが通常の状態で、自分のキーは任意の追加である。設定画面の「API キー」の欄は、提供元（OpenAI・Anthropic・DeepSeek）ごとに 1 つの欄で、名前・状態・ボタンだけを並べる。説明は名前の横の (?) に出す。承認済みの利用者への状態は次のどれか：「登録は不要です」（組織のキーで実行）、「自分のキー（…xxxx）」、「管理者にお問い合わせください」（OpenAI で組織のキーが登録されていない）、「キーを登録してください」（Anthropic・DeepSeek で組織のキーが登録されていない）。入力欄は「登録」か「変更」を押したときだけ、その欄の下に開く。承認されていない利用者には「未登録」か「登録済み（…xxxx）」を出す。モデルの欄には、キーについての注記を出さない。API のエラーとワーカーのお知らせは「管理者に利用の承認を依頼してください」「いまはジョブを実行できません」「このモデル（…）は利用できません」とだけ伝える</td></tr>
     <tr><td>取り消し</td><td>ワーカーは起動のたびに、もう一度判定する。対象は新しいジョブ・回答・リトライ・中断後の再開。承認がない、デフォルトの API キーがない、のどちらかに当たればジョブを失敗にし、お知らせを出す。実行中のターンは止めない</td></tr>
     <tr><td>利用額</td><td>ジョブには、自分のキー・デフォルトの API キー・チームのキー（4.8）のどれで実行したかを記録する。管理画面は、デフォルトの API キーで実行したジョブを利用者ごとに合計し、各利用者の横に出す（4.7）。デフォルトの API キーには、アプリの支出の上限がない（上限は自律実行のミッションの費用の上限とチームの月の上限だけ）ので、デフォルトの API キーを発行した OpenAI のプロジェクトに予算を設定する</td></tr>
@@ -81,7 +81,7 @@
   <li>DeepSeek のキー：個人のキーは <code>Users.encryptedDeepseekKey</code>（暗号化コンテキスト <code>{ userId, purpose: "deepseek-api-key" }</code>）、デフォルトのキーは Catalog の <code>id: "default-deepseek-key"</code>（<code>{ purpose: "deepseek-api-key", scope: "default" }</code>）に保存します。有効性の検査は DeepSeek の <code>/models</code> で行います。ワーカーのお知らせは <code>sys.noDeepseekKey</code> です。</li>
   <li>キーを守る仕組み：<code>shell_environment_policy</code> が <code>CODEX_API_KEY</code>・<code>OPENAI_API_KEY</code> をコマンドの環境から除きます。エージェントは自分の Fargate タスクの中で Codex のプロセスと同じ OS ユーザーとして動きますが、<code>node</code>・Codex・git の実行ファイルは実行専用で、そのプロセスはダンプできません。そのため <code>/proc/&lt;pid&gt;/environ</code> からキーを読めません。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>、<code>packages/web/src/i18n/claude.ts</code>・<code>apiKeys.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/auth.ts</code>・<code>orgKey.ts</code>・<code>runs.ts</code>・<code>routes/users.ts</code>、<code>packages/shared/src/orgKey.ts</code>・<code>provider.ts</code>、<code>packages/worker/src/runKey.ts</code>・<code>codex.ts</code>、<code>packages/web/src/i18n/claude.ts</code>・<code>apiKeys.ts</code></p>
 
 <h2 id="s4-2">4.2 プロジェクトの作成と設定</h2>
 <p>プロジェクトは「新規プロジェクト」の画面で作ります。入力欄は ROI（対象の脳領域）と TLF（その領域が担う機能）の 2 つの欄を上下に組にしたもので、どちらか一方だけでも作れます。足りない側はエージェントが調べて補います。ROI の欄に Brainnetome（BNA）の略称か領域名を打つと、BNA の領域が候補に出ます。空の欄には ROI と TLF の例が順に表示され、「例を使う」で両方の欄に入ります。操作の詳細は利用マニュアルにあります。</p>
@@ -102,7 +102,7 @@
 <p>エージェントを動かすモデルと、<b>推論の強さ</b>（reasoning effort）は、次の規則で決まります。モデルは OpenAI のモデルのほかに、Anthropic の Claude のモデルと DeepSeek のモデルも選べます。</p>
 <ul>
   <li><b>モデルの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、アプリの既定（<code>claude-sonnet-5-5</code>）の順に、最初に値があるものを使います。利用者のキーでアプリの既定を使えないときは、OpenAI のキーがあれば <code>gpt-6-sol</code>、Claude のキーだけなら <code>claude-sonnet-5-5</code>、DeepSeek のキーだけなら <code>deepseek-flash</code> を使います（<code>allowedDefaultModel</code>）。非推奨のモデルには、ほかに使えるモデルがないときにしか置き換えません。モデルを持たない古いプロジェクトとジョブは、以前のアプリの既定（<code>gpt-6-luna</code>）のまま動きます。プロジェクトを作るとき、API は必ず具体的なモデル名を決めて保存します。費用を計算できるようにするためで、「Codex の既定」のような不明な値は残しません。</li>
-  <li><b>選んだモデルを覚える</b>：作成画面は、利用者の既定のモデルと推論の強さを選んだ状態で開きます。プロジェクトを作ると、作成画面で選んだモデルと推論の強さが利用者の既定として保存され、次のプロジェクトはそこから始まります（<code>rememberChoice</code>）。作成画面で「デフォルト」を選ぶと、そのプロジェクトはアプリの既定のモデルで作り、利用者の既定も「デフォルト」に戻ります。非推奨のモデルも、利用者が選んだものなので覚えます。ミッションで選んだエージェントのモデルも同じ既定に保存します（6.9）。設定画面の「既定のモデル」は、この値を表示し、直接変えることもできます。</li>
+  <li><b>選んだモデルを覚える</b>：作成画面は、利用者の既定のモデルと推論の強さを選んだ状態で開きます。プロジェクトを作ると、作成画面で選んだモデルと推論の強さが利用者の既定として保存され、次のプロジェクトはそこから始まります（<code>rememberChoice</code>）。作成画面で「デフォルト」を選ぶと、利用者の既定は使わず、デプロイの既定（なければアプリの既定）のモデルでプロジェクトを作ります。キーで使えないモデルは、上の規則で置き換えます。利用者の既定も「デフォルト」に戻ります。非推奨のモデルも、利用者が選んだものなので覚えます。ミッションで選んだエージェントのモデルも同じ既定に保存します（6.9）。設定画面の「既定のモデル」は、この値を表示し、直接変えることもできます。保存するのは依頼で送った項目だけで、値が変わらなければ書き込みません。既定の保存に失敗しても、プロジェクトの作成やミッションの設定の変更は失敗せず、既定は前の値のまま残ります。</li>
   <li><b>非推奨のモデル</b>：<code>gpt-6-luna</code>・<code>gpt-5.6-luna</code>・<code>claude-haiku-5-5</code>・<code>deepseek-flash</code>（DeepSeek のすべてのモデル）は非推奨です（<code>isDeprecatedModel</code>）。選ぶことはでき、すでに使っているプロジェクトや保存済みの既定もそのまま動きます。<code>/users/me/models</code> はこれらを一覧の最後に並べ、選択欄は「（非推奨）」を付けて出します。アプリが既定や置き換えでこれらを選ぶことはありません。Claude Code の小さな裏方の呼び出しには、引き続き <code>claude-haiku-5-5</code>・<code>deepseek-flash</code> を使います（9.5）。</li>
   <li><b>推論の強さの決め方</b>：プロジェクトの設定、利用者の既定、デプロイの既定、Codex の既定の順です。値は <code>minimal</code>・<code>low</code>・<code>medium</code>・<code>high</code>・<code>xhigh</code>・<code>max</code>・<code>ultra</code>・<code>persistent</code> のどれかで、画面は <code>high</code> を推奨として示します。</li>
   <li><b>選べるモデル</b>：API キーを登録するとき、そのキーで使える GPT-5.6 と GPT-6 の文章のモデルを保存します。日付付きのスナップショットと、音声・画像・検索などの派生モデルは除きます。デフォルトの API キーの利用者には、デフォルトの API キーのモデルを出します。モデルは作成と設定の画面で選べます。</li>
@@ -140,7 +140,7 @@
   <li>ワーカーは実行のたびに <code>attachments/</code> を <code>/work/materials/</code> にコピーします。最初の実行で、PDF の本文（<code>pdftotext</code>）、Office の本文（DOCX・PPTX・XLSX の共有文字列）、URL の中身を抜き出します。URL の中身は、HTML なら本文、PDF なら本文付きのファイル、画像ならその画像です。取得は 10 MB・20 秒・リダイレクト 5 回までで、経由するすべての遷移先が公開アドレスでなければなりません。結果は <code>manifest.json</code> とともに <code>attachments/derived/</code> に保存します。</li>
   <li><code>materials/INDEX.md</code> が各項目の元・本文・状態を並べ、依頼文の先頭に <code>Reference materials:</code> の 1 文が付きます。資料の扱いは <code>prompts/AGENTS.md</code> がエージェントに伝えます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>・<code>provider.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/runs.ts</code>・<code>rememberedModels.ts</code>・<code>app.ts</code>・<code>lib/aws.ts</code>、<code>packages/worker/src/codex.ts</code>・<code>materials.ts</code>、<code>packages/shared/src/types.ts</code>（<code>filterCodexModels</code>・<code>fixTurnEffort</code>）・<code>research.ts</code>・<code>pricing.ts</code>・<code>attachments.ts</code>・<code>provider.ts</code>、<code>packages/web/src/pages/ChatPage.tsx</code></p>
 
 <h2 id="s4-3">4.3 プロジェクトの ID・名前・削除</h2>
 <h3>ID の形式</h3>
@@ -200,13 +200,13 @@
 <h2 id="s4-4">4.4 画面</h2>
 <p>本書の画面の名前は、サイドバーと利用マニュアルの表記と一致しています。サイドバーの上には「＋ ミッション」（新規ミッション、6.3）と「＋ プロジェクト」（新規プロジェクト）が同じ幅で並び、その下に「履歴」、下部に「ミッション」「Canon」「公開ライブラリ」「利用マニュアル」が並び、管理者にはさらに「管理」が出ます。「ミッション」はミッションの一覧（6.10）、「Canon」は Canon の一覧（5.1）を開きます。「ミッション」の横には、所有者の操作を待っているもの（6.10 の「あなたの番」）の件数が黄色の丸で出ます。ミッションの画面を開いているあいだは「ミッション」が選ばれた状態になります。「履歴」は自分のプロジェクトとミッションの履歴で、見出しの横の「すべて表示」でプロジェクト一覧が開きます。ミッションが作ったプロジェクトはミッションごとに 1 件にまとまり、プロジェクトがまだないミッション（下書き）も作った時刻の位置に出ます。</p>
 <p>履歴の各項目には、ポインターを合わせると（タッチの端末では常に）アーカイブのボタンが出ます。アーカイブは項目を履歴から隠すだけで、実行・Canon・公開には影響しません。ミッションをアーカイブすると、そのプロジェクトもまとめて隠れます。アーカイブしたものはサイドバーに出ません。プロジェクト一覧とミッションの一覧には残り、薄く表示され「アーカイブ済み」の印が付いて、それぞれの並びの末尾に置かれます。プロジェクト一覧では各項目のボタンでアーカイブ・復元できます。ミッションはそのページの見出しのボタンでアーカイブ・復元します。</p>
-<p>「仕様書」は、管理画面の上部にあるボタンから開きます。「設定」と「ログアウト」は、その下にあるメールアドレスの横のアイコンから開きます。サイドバーの下端にはアプリのバージョンが出ており、押すとリリースノートが開きます。いま開いている画面に当たる項目（履歴の項目と下部のリンク）は、背景を明るくし、左端に青い線を付けて示します。アプリ名の横の「アルファ版」の印は、押すかポインターを合わせると説明が出ます。PC の幅（1024px 以上）では、サイドバーの右端をドラッグして幅を 208〜480px のあいだで変えられます。右端にキーボードで移ると左右の矢印キーで 16px ずつ（Shift で 64px ずつ）変わり、Enter かダブルクリックで標準の 256px に戻ります。幅はブラウザごとに保存します（<code>localStorage</code> の <code>cobrac-sidebar-width</code>）。履歴の一覧は、ブラウザ標準のスクロールバーを出さず、暗い色の細いつまみだけを出します。スマホのドロワーの幅は変わりません。</p>
+<p>「仕様書」は、管理画面の上部にあるボタンから開きます。「設定」と「ログアウト」は、その下にあるメールアドレスの横のアイコンから開きます。サイドバーの下端にはアプリのバージョンが出ており、押すとリリースノートが開きます。いま開いている画面に当たる項目（履歴の項目と下部のリンク）は、背景を明るくし、左端に青い線を付けて示します。アプリ名の横の「アルファ版」の印は、押すかポインターを合わせると説明が出ます。PC の幅（1024px 以上）では、サイドバーの右端をドラッグして幅を 208〜480px のあいだで変えられます。右端にキーボードで移ると左右の矢印キーで 16px ずつ（Shift で 64px ずつ）変わります。Home で最小の 208px、End で最大の 480px になり、Enter かダブルクリックで標準の 256px に戻ります。幅はブラウザごとに <code>localStorage</code> の <code>cobrac-sidebar-width</code> に保存し、標準の幅のときはこのキーを消します。履歴の一覧は、ブラウザ標準のスクロールバーを出さず、暗い色の細いつまみだけを出します。スマホのドロワーの幅は変わりません。</p>
 <table class="compact">
   <thead><tr><th style="width:24%">パス</th><th style="width:17%">画面</th><th>内容</th></tr></thead>
   <tbody>
     <tr><td><code>/login</code></td><td>ログイン</td><td>ログイン、サインアップ、確認コード、パスワードの再設定</td></tr>
     <tr><td><code>/chat</code></td><td>新規プロジェクト</td><td>ROI と TLF の入力欄と、任意の設定（4.2）</td></tr>
-    <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG・xlsx、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
+    <tr><td><code>/projects</code></td><td>プロジェクト一覧</td><td>検索と状態の絞り込み、HCD・FRG を開くリンク、CoBRAC 形式の xlsx（3.13。<code>output/{id}.bra.xlsx</code>）のダウンロード（ファイルの名前は 4.3）、全プロジェクトの費用の合計、削除（確認付き）</td></tr>
     <tr><td><code>/projects/:id/:view</code></td><td>プロジェクト画面</td><td>中央に成果物、右に「エージェント」欄（下記）。<code>/projects/:id</code> は最初にあるタブを開き、まだ何もなければ空の状態を出す</td></tr>
     <tr><td><code>/plans/new</code>・<code>/plans/:planId/:view?</code></td><td>新規ミッション・ミッション</td><td>新しいミッションの作成画面（6.3）と、ミッションの画面（6.10。<code>:view</code> はタブ）。<code>/plans</code> は <code>/missions</code> へ転送する</td></tr>
     <tr><td><code>/missions</code></td><td>ミッション</td><td>あなたの番と、ミッションの一覧（6.10）</td></tr>
@@ -264,9 +264,10 @@
   <li>利用マニュアルは <code>docs/manual/&lt;言語&gt;.md</code>（現在は ja と en）と <code>docs/manual/figures/</code> の SVG を、ビルド時に取り込みます。言語は <code>?lang=</code> か画面の切り替えで選べます。「ガイド」のリンクは <code>lib/help.ts</code> が持ち、リンク先のアンカーがどの言語にもあることをテストで検査します。リリースノートは <code>CHANGELOG.md</code> をビルド時に取り込みます。仕様書のリンクは <code>GET /admin/spec</code> が返します。</li>
   <li>位置表示と種類の色は <code>components/Trail.tsx</code>（<code>Trail</code>・<code>trailSteps</code>・<code>KIND</code>）です。プロジェクトの画面は、Canon とミッションの名前を一覧（<code>GET /canons</code>・<code>GET /plans</code>）から引きます。サイドバーの履歴の Canon の名前は <code>planCanonName</code> が決めます。</li>
   <li>段階の進捗は <code>stepStates</code> と <code>activeStage</code> から描きます。エージェント欄の依頼の区画は <code>meta.kind</code> で分けます。「?」のヘルプは <code>HelpTip</code> です。</li>
+  <li>サイドバーの幅の規則（最小・標準・最大、キー操作、保存）は <code>lib/sidebarWidth.ts</code> が持ち、<code>test/sidebarWidth.test.ts</code> で検査します。</li>
   <li>グラフの URL のクエリ：<code>?node=</code> は回路か Collection を選び、<code>?gn=</code> は FRG のグループの下の UC を強調し、<code>?motif=M1</code> はモチーフを強調します（<code>?gn=</code> に代わる）。表データの <code>?file=</code> は選んだファイルを保ちます。</li>
 </ul>
-<p class="src">典拠：<code>packages/web/src/App.tsx</code>・<code>components/Layout.tsx</code>・<code>BraesDownloadButton.tsx</code>・<code>pages/*.tsx</code>・<code>lib/help.ts</code>、<code>docs/manual/ja.md</code></p>
+<p class="src">典拠：<code>packages/web/src/App.tsx</code>・<code>components/Layout.tsx</code>・<code>BraesDownloadButton.tsx</code>・<code>pages/*.tsx</code>・<code>lib/help.ts</code>・<code>lib/sidebarWidth.ts</code>、<code>docs/manual/ja.md</code></p>
 
 <h2 id="s4-5">4.5 版</h2>
 <p>BRA のジョブ（初回・フォローアップ・リトライ）が完了したとき、5 つの CSV（下の表の「内容のハッシュ」）がすべてそろっていれば、ワーカーは結果を変更できない<b>版</b>として凍結します。そろっていなければ版を作らず、プロジェクトの改訂番号だけを 1 つ進めます。凍結はジョブを完了にする前に行います。作業用のファイルは実行のたびに上書きされるので、プロジェクトの履歴は版が担います。BRA-DB への登録は、必ず版から行います（第 7 部）。</p>

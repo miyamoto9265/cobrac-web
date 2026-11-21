@@ -99,7 +99,7 @@ export const REPORT_SECTIONS = { HCD: "## HCD", FRG: "## FRG" } as const;
  * sides (`roiSide`), and a quote that supports several connections is warned about. From 2: the UCs of a GN are
  * connected among themselves by ROI-internal connections, and a GN may hold 3-4 UCs that form a motif when its
  * `motifNote` says why (below 2 a GN holds at most 2 UCs and `motifNote` is not read). From 3: every BIF entry says
- * whether the HCD models it (`modelled`, with a `reason` when not; QC-03-42, QC-03-43), research-mode projects list
+ * whether the HCD models it (`modelled`, with a `reason` when not; QC-03-43, QC-03-44), research-mode projects list
  * every supported or weak research candidate on a BIF entry (`candidateIds`; QC-01-10), and each connection's Taxon is
  * compared with the PubMed MeSH species of its paper (QC-02-12).
  */
@@ -599,8 +599,8 @@ function sameSet(a: string[], b: string[]): boolean {
 const BIF_CANDIDATE_STATUSES: ReadonlySet<string> = new Set(["supported", "weak"]);
 
 /**
- * Harness rules 3: what became of each surveyed projection. QC-03-42: every BIF entry says whether the HCD models it,
- * and why not when it does not. QC-03-43: a modelled entry has a UC connection citing one of its papers. QC-01-10
+ * Harness rules 3: what became of each surveyed projection. QC-03-43: every BIF entry says whether the HCD models it,
+ * and why not when it does not. QC-03-44: a modelled entry has a UC connection citing one of its papers. QC-01-10
  * (research mode): every supported or weak research candidate is listed on a BIF entry, and the listed IDs exist.
  */
 export function bifCoverageProblems(bif: readonly BifRow[], connections: readonly ConnRow[], candidates: ReadonlyMap<string, string> | null): string[] {
