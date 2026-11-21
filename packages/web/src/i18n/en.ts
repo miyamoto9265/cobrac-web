@@ -30,6 +30,7 @@ export const en = {
   "nav.newProject": "New project",
   "nav.history": "History",
   "nav.seeAll": "See all",
+  "nav.resizeSidebar": "Resize sidebar",
   "nav.noProjects": "No projects yet",
   "nav.settings": "Settings",
   "nav.spec": "Specification",

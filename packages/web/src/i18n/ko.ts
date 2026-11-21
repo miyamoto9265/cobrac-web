@@ -32,6 +32,7 @@ export const ko: Record<MessageKey, string> = {
   "nav.newProject": "새 프로젝트",
   "nav.history": "기록",
   "nav.seeAll": "모두 보기",
+  "nav.resizeSidebar": "사이드바 너비 조정",
   "nav.noProjects": "아직 프로젝트가 없습니다",
   "nav.settings": "설정",
   "nav.spec": "사양서",
