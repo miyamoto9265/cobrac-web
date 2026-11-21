@@ -8,6 +8,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
 import { type MessageKey, useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
+import { BraesBadge } from "../components/BraesBadge";
 import { useAuth } from "../lib/auth";
 import { fmtDate, isActive } from "../lib/format";
 import { BELOW_XL, useMediaQuery } from "../lib/useMediaQuery";
@@ -171,6 +172,21 @@ export function AdminPage() {
         </span>
       )}
       <div className="font-mono text-[11px] text-slate-400">{p.projectId}</div>
+      {!p.deletedAt && (
+        <div className="mt-0.5">
+          <BraesBadge
+            accepted={p.braesAccepted}
+            revision={p.revision}
+            compact
+            admin={{
+              userId: p.userId,
+              projectId: p.projectId,
+              canMark: p.hasArtifacts,
+              onChange: (v) => setProjects((prev) => prev.map((x) => (x.userId === p.userId && x.projectId === p.projectId ? { ...x, braesAccepted: v } : x))),
+            }}
+          />
+        </div>
+      )}
     </>
   );
   const modelsOf = (p: ProjectRecord) => (p.usedModels?.length ? p.usedModels : [p.model ?? "—"]).join(", ");

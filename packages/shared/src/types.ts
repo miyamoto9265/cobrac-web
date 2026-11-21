@@ -150,6 +150,20 @@ export type StepState = "pending" | "running" | "done";
 /** What the running job is doing: the research step, a workflow step, or the HCD ↔ FRG adjustment turn */
 export type PipelineStage = "RESEARCH" | WorkflowStep | "ADJUST";
 
+/** A project's 「BRAES採録済み」 mark (ProjectRecord.braesAccepted). */
+export interface BraesAcceptance {
+  acceptedAt: string;
+  /** userId of the admin who set it */
+  acceptedBy: string;
+  /** Version (ProjectRecord.revision) current when the mark was set; 0 when the project had none */
+  revision: number;
+}
+
+/** Body of `PUT /admin/projects/{userId}/{id}/braes`. */
+export interface SetBraesAcceptedRequest {
+  accepted: boolean;
+}
+
 export interface ProjectRecord {
   userId: string;
   /**
@@ -167,6 +181,12 @@ export interface ProjectRecord {
   latestVersion?: BraVersionSummary | null;
   /** The version BRA-DB holds (last successful registration from CoBRAC); absent when never registered */
   bradb?: { versionId: string; version: number; contentSha256: string; registeredAt: string; registrationId: number } | null;
+  /**
+   * Mark set by a site admin once the project's BRA data has been accepted (採録) in BRAES: who, when, and the
+   * version that was current then (the mark stays when the project is revised later). Absent / null = not marked.
+   * Only admins set or clear it (`PUT /admin/projects/{userId}/{id}/braes`); clones and copies never carry it.
+   */
+  braesAccepted?: BraesAcceptance | null;
   /** Project ID before the migration to `<userKey>-<seq>` */
   legacyId?: string;
   roi: string;

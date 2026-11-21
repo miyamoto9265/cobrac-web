@@ -68,6 +68,8 @@ export interface PublicProjectSummary {
   publishedAt: string;
   updatedAt: string;
   cloneCount: number;
+  /** Set when a site admin has marked the project as accepted in BRAES */
+  braesAcceptedAt?: string | null;
 }
 
 export interface PublicProjectDetail extends PublicProjectSummary {

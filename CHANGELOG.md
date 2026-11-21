@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- "Accepted in BRAES" mark: site admins can mark a project whose BRA data BRAES has accepted (for now an admin checks this and marks each project by hand). The green mark shows beside the project's name on its page, in the project list, on the admin page and in the public library; its tooltip says when it was set and for which version. Admins set or remove it from the admin page's project list or beside the project's name. Clones and copies do not carry it
+
 ## [0.58.0] - 2026-11-15
 
 ### Added

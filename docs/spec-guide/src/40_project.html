@@ -16,7 +16,7 @@
   <thead><tr><th style="width:14%">役割</th><th style="width:30%">付き方</th><th>できること</th></tr></thead>
   <tbody>
     <tr><td>一般の利用者</td><td>サインアップしたときの既定</td><td>自分のプロジェクトの作成・実行・閲覧・ダウンロード。API キーの登録と設定の変更。Canon とミッションの作成と操作（第 5 部・第 6 部）。公開ライブラリの閲覧と複製</td></tr>
-    <tr><td>管理者</td><td>管理者のグループに属するか、管理者として登録されたメールアドレスで API にアクセスしたとき。アクセスのたびに判定し、昇格だけを行う</td><td>一般の利用者のすべての操作に加えて、全利用者の一覧、利用者の無効化と役割の変更、デフォルトの API キーの登録・置き換え・削除、利用者の利用承認、全プロジェクトとデフォルトの API キーの利用額の閲覧、実行中のジョブの強制停止、同時実行数の設定、仕様書の閲覧</td></tr>
+    <tr><td>管理者</td><td>管理者のグループに属するか、管理者として登録されたメールアドレスで API にアクセスしたとき。アクセスのたびに判定し、昇格だけを行う</td><td>一般の利用者のすべての操作に加えて、全利用者の一覧、利用者の無効化と役割の変更、デフォルトの API キーの登録・置き換え・削除、利用者の利用承認、全プロジェクトとデフォルトの API キーの利用額の閲覧、実行中のジョブの強制停止、同時実行数の設定、仕様書の閲覧、BRAES採録済みのマークの付け外し（4.6）</td></tr>
   </tbody>
 </table>
 <ul>
@@ -215,7 +215,7 @@
     <tr><td><code>/manual</code></td><td>利用マニュアル</td><td>ログインした全員が読める。現在は日本語と英語があり、UI の言語で開く。その言語の版がなければ英語に注記を付けて出す。目次と見出しのアンカー付き。画面の「?」の横にある「ガイド」のリンクは、該当する節を開く</td></tr>
     <tr><td><code>/releases</code></td><td>リリースノート</td><td>アプリのバージョンごとの変更を、目次付きで全員に見せる</td></tr>
     <tr><td><code>/docs</code></td><td>仕様書（管理者だけ）</td><td>本書の PDF を、短時間だけ有効なリンクで開く。管理者以外は利用マニュアルに送られる</td></tr>
-    <tr><td><code>/admin</code></td><td>管理（管理者だけ）</td><td>デフォルトの API キー（登録・置き換え・削除。末尾 4 文字と日付だけを表示）、同時実行数（全体と 1 人あたり、1〜16。空欄はデプロイ時の値。8.3）、利用者（利用承認と利用額）、全プロジェクト（削除済みを含む。強制停止）</td></tr>
+    <tr><td><code>/admin</code></td><td>管理（管理者だけ）</td><td>デフォルトの API キー（登録・置き換え・削除。末尾 4 文字と日付だけを表示）、同時実行数（全体と 1 人あたり、1〜16。空欄はデプロイ時の値。8.3）、利用者（利用承認と利用額）、全プロジェクト（削除済みを含む。強制停止、BRAES採録済みのマークの付け外し）</td></tr>
   </tbody>
 </table>
 
@@ -305,7 +305,7 @@
 <p class="src">典拠：<code>packages/shared/src/braVersion.ts</code>、<code>packages/worker/src/versions.ts</code>・<code>jobVersions.ts</code>、<code>packages/api/src/routes/projects.ts</code>（版のルート）</p>
 
 <h2 id="s4-6">4.6 公開・複製・共同編集</h2>
-<p>プロジェクトは所有者だけのものですが、所有者は 2 つの方法でほかの利用者と共有できます。プロジェクトを公開して閲覧と複製を許す方法と、Canon に共同編集者を加える方法です。Canon の公開と、Canon から Canon への PR は 5.11 に記載しています。</p>
+<p>プロジェクトは所有者だけのものですが、所有者は 2 つの方法でほかの利用者と共有できます。プロジェクトを公開して閲覧と複製を許す方法と、Canon に共同編集者を加える方法です。Canon の公開と、Canon から Canon への PR は 5.11 に記載しています。BRAES で採録されたプロジェクトには、管理者が「BRAES採録済み」のマークを付けます。</p>
 
 <h3>公開</h3>
 <ul>
@@ -336,6 +336,15 @@
 </table>
 <p class="small">複製したプロジェクトでは、最初の版の親は、コピー元の公開プロジェクトの版です（4.5）。</p>
 
+<h3>BRAES採録済みのマーク</h3>
+<p>BRAES（BRA データの査読・公開の仕組み）で採録されたプロジェクトには、管理者が「BRAES採録済み」のマークを付けます。採録されたかどうかを CoBRAC が BRAES から読み取る仕組みはまだないため、当面は管理者が確かめてプロジェクトごとに付ける暫定の運用です。</p>
+<ul>
+  <li>付け外しできるのはサイトの管理者だけです。管理画面の全プロジェクトの一覧と、管理者が開けるプロジェクトの画面の名前の横から操作します。外すときは確認を出します。</li>
+  <li>付けられるのは、成果物があり、削除されていないプロジェクトです。付けると、付けた管理者、日時、そのときの版の番号を記録します。すでに付いているプロジェクトに付け直しても、最初の記録を保ちます。</li>
+  <li>マークは、プロジェクト画面の名前の横、「プロジェクト」の一覧、管理画面、公開ライブラリと公開プロジェクトの画面に、緑の「BRAES採録済み」として出ます。マークの説明（ツールチップ）には、付けた日時と版を示し、その後に新しい版ができていればそのことも示します。</li>
+  <li>マークはプロジェクトにだけ付きます。複製やチームへのコピーで作ったプロジェクトには引き継ぎません。プロジェクトを更新しても、マークは外れません。</li>
+</ul>
+
 <h3>Canon の共同編集者</h3>
 <ul>
   <li>所有者は、既存のアカウントのメールアドレスを指定して共同編集者を加えます。API は登録済みの利用者からそのアドレスを探すので、所有者には、そのアドレスのアカウントがあるかどうかが分かります。</li>
@@ -347,6 +356,7 @@
 <h3>実装</h3>
 <ul>
   <li>公開の切り替えは <code>PUT /projects/{id}/visibility</code> です。公開できる ID かどうかは <code>isPublishableProjectId</code>（<code>PROJECT_ID_REGEX</code>）で判定します。公開したプロジェクトは Catalog テーブルに <code>kind = project</code> のレコードを持ち、非公開にするか削除するとレコードを消します。一覧と閲覧のたびに、プロジェクトそのものの状態を検査し直します。閲覧の API は <code>/public/projects/{id}</code> です。</li>
+  <li>BRAES採録済みのマークは <code>ProjectRecord.braesAccepted</code>（<code>{ acceptedAt, acceptedBy, revision }</code>。無いか null なら付いていない）で、<code>PUT /admin/projects/{userId}/{id}/braes</code> が付け外しします。公開ライブラリには日時だけを <code>braesAcceptedAt</code> として渡します。</li>
   <li>複製は <code>POST /public/projects/{id}/clone</code> です。新しいプロジェクトの保存先は <code>users/&lt;複製した人&gt;/&lt;新しい ID&gt;/</code>、複製元の記録は <code>clonedFrom</code> です。引き継ぐ設定は <code>sabraBoundary</code>、<code>harnessRules</code>、<code>evidenceMode</code>・<code>hypothesisScopes</code>・<code>hypothesisMaxShare</code> などです。複製の数は Catalog テーブルの <code>clones</code> のレコードに数えます。</li>
 </ul>
 <p class="src">典拠：<code>packages/api/src/routes/public.ts</code>（公開・複製のルート）、<code>packages/shared/src/publish.ts</code></p>
