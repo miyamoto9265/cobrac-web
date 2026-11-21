@@ -39,6 +39,7 @@
     <tr><td>レポートと判断ログ（Markdown）</td><td>エージェント</td><td>3.13</td></tr>
     <tr><td>5 つの CSV</td><td>ワーカーが JSON から作る。エージェントは CSV を書かない</td><td>3.13</td></tr>
     <tr><td>xlsx（CoBRAC の形式と、公式テンプレート Template-v2-3 の形式の 2 つ）</td><td>ワーカー</td><td>3.13</td></tr>
+    <tr><td>BRAES 提出セット（zip。任意）</td><td>API。利用者がダウンロードするときに、BRA データとグラフから作る。LLM を使わない</td><td>3.13</td></tr>
     <tr><td>HCD と FRG のグラフ</td><td>ワーカー。LLM を使わない</td><td>3.13・8.7</td></tr>
     <tr><td>版（変わらないコピー）</td><td>ワーカーがジョブの完了時に凍結する</td><td>4.5</td></tr>
     <tr><td>解説記事（任意）</td><td>LLM が記事を書く別のジョブ</td><td>3.14</td></tr>
@@ -59,12 +60,13 @@
     <tr><td>5 つの CSV</td><td><code>workspace/&lt;ProjectID&gt;_CSV/</code></td></tr>
     <tr><td>CoBRAC の xlsx（<code>csv_to_excel.py</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.bra.xlsx</code></td></tr>
     <tr><td>公式テンプレートの xlsx（<code>buildTemplateXlsx()</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.template-v2-3.bra.xlsx</code></td></tr>
+    <tr><td>BRAES 提出セット（<code>buildBraesBundle()</code> が作る）</td><td><code>output/&lt;ProjectID&gt;.braes.zip</code></td></tr>
     <tr><td>グラフの JSON（<code>buildGraphs()</code> が作る）</td><td><code>graph/hcd.json</code>・<code>graph/frg.json</code></td></tr>
     <tr><td>版</td><td><code>revisions/&lt;n&gt;/</code></td></tr>
     <tr><td>解説記事</td><td><code>article/</code></td></tr>
   </tbody>
 </table>
-<p class="src">典拠：<code>README.md</code>、<code>packages/worker/src/finalize.ts</code>、<code>packages/shared/src/harness.ts</code> ほか</p>
+<p class="src">典拠：<code>README.md</code>、<code>packages/worker/src/finalize.ts</code>、<code>packages/shared/src/harness.ts</code>・<code>braes.ts</code>、<code>packages/api/src/routes/projects.ts</code> ほか</p>
 
 <h2 id="s1-2">1.2 BRA ができるまでの流れ</h2>
 <p>プロジェクトを作ると、ワーカーのジョブが 1 つ登録されます。ジョブは、ワーカーの 1 回の実行のことです。利用者から見ると、BRA は次の順に作られます。</p>

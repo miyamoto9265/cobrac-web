@@ -165,6 +165,7 @@
       <li>所有者の削除されていないプロジェクト（新しい順に最大 300 件。成果物があって完了したものには、完成の印を付ける）</li>
       <li>所有者の Canon とその粒度方針（最大 50 件）、実効の同時実行数</li>
       <li>API が読まなかった添付ファイル（下書きだけ。再計画には添付を渡さない）</li>
+      <li>オーケストレーターとの対話（下書きだけ、6.13）。失敗した返事を除いた新しいメッセージ 30 件を、古い順に渡します。1 件は 2000 字までに切り詰めます。オーケストレーターは、所有者が対話で頼んだことを、下書きの前の質問への回答と同じく下書きに反映します。</li>
     </ul></li>
 </ol>
 
@@ -285,5 +286,5 @@
   <li><b>検査</b>：<code>parsePlanResult</code>。入力のプロジェクトは <code>ref</code>、新しいプロジェクトは <code>id</code> で受け取る。アンカーの正規化は <code>normalizePlanAnchor</code>（<code>HOMBA:&lt;id&gt;</code>、<code>BNA:&lt;l&gt;-&lt;r&gt;</code>、<code>BNAG:&lt;L2&gt;</code>）。上限は <code>MAX_ROW_ANCHORS</code>（40）・<code>MAX_PLAN_UNREAD</code>（200）・<code>MAX_PLAN_PROPOSALS</code>（30）。提案の種類は <code>add</code> / <code>remove</code> / <code>policy</code>。ランナーの再検査は <code>readPlanResult</code>。</li>
   <li><b>適用</b>：アンカーの出所は <code>anchorsSource: "predicted"</code>。既存のプロジェクトは結果の <code>existingProjectId</code>、なければ <code>matchExistingProject</code>。並べ方は <code>orderDraft</code> で、<code>ordering: "auto"</code> にする。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/planJob.ts</code>、<code>packages/api/src/lib/planJobs.ts</code>・<code>planRunner.ts</code>・<code>planOps.ts</code>、<code>packages/worker/src/planJob.ts</code>、<code>packages/web/src/components/plan/PlanDraft.tsx</code>、<code>prompts/plan.md</code></p>
+<p class="src">典拠：<code>packages/shared/src/planJob.ts</code>・<code>planChat.ts</code>（<code>planChatHistory</code>）、<code>packages/api/src/lib/planJobs.ts</code>・<code>planRunner.ts</code>・<code>planOps.ts</code>、<code>packages/worker/src/planJob.ts</code>、<code>packages/web/src/components/plan/PlanDraft.tsx</code>、<code>prompts/plan.md</code></p>
 </section>

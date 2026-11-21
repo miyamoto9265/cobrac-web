@@ -332,7 +332,7 @@
 <h3>変更の依頼・コメント・履歴</h3>
 <ul>
   <li><b>変更の依頼</b>：PR は開いたまま、変更を依頼された状態とそのメモを持ちます。送った側が新しく push すると、新しい PR が古い PR を置き換えます。</li>
-  <li><b>コメント</b>：所有者、共同編集者、PR を送った人が書けます。PR 全体か、差分の 1 項目に付けられます。</li>
+  <li><b>コメント</b>：所有者、共同編集者、PR を送った人（チームの Canon ではチームのメンバーも）が書けます。PR 全体か、差分の 1 項目に付けられます。</li>
   <li><b>履歴</b>：push、置き換え、判定のし直し（承認のときに新しい最新の rev に対して判定し直したこと）、コメント、変更の依頼、承認（rev と衝突の選択付き）、却下、取り下げ、AI レビューの依頼を、追記専用で残します。AI レビューが終わったことは、そのジョブの記録から読みます。</li>
 </ul>
 <h3>AI レビューのジョブ</h3>
@@ -360,6 +360,7 @@
     <tr><td>管理者</td><td>閲覧だけ</td></tr>
   </tbody>
 </table>
+<p>チームの作業場所の Canon（4.8）では、チーム管理者が共同編集者と同じく審査します。また、所有者と同じく、設定、参加プロジェクトの管理、共同編集者の追加、Canon の削除を行えます。共同編集者を外せるのは、所有者と本人だけです。公開と PR の受け付けの設定は、チーム管理者だけが行えます。所有者でも、チーム管理者でなければ設定できません。チームのメンバーは、閲覧、自分のプロジェクトの追加と取り外し、そのプロジェクトからの push、すべての PR へのコメントができます。審査と管理の操作は 403 になります。</p>
 <h3>判断の記録</h3>
 <ul>
   <li><b>承認は 1 人で足ります。</b>PR は承認の一覧を持ち、将来は Canon ごとに必要な承認の数を設定できる構造です。現在は設定も表示もできず、1 として扱います。</li>
@@ -378,7 +379,7 @@
   <li>判断の記録は、PR の <code>approvals</code>（<code>{ userId, name, at }</code>）、<code>decidedBy</code> / <code>decidedByName</code> / <code>decidedAt</code>、<code>reviewedBy</code> / <code>reviewedByName</code> / <code>reviewedAt</code>、rev（<code>REV#</code>）の <code>approvedBy</code> / <code>approvedByName</code> / <code>approvedAt</code> です。必要な承認の数は将来の <code>requiredApprovals</code>（未設定 = 1）です。</li>
   <li>オーケストレーターによる判断では、表示名を <code>aiActorName</code> が作り、<code>via = { kind: "ai", jobId, model }</code> を PR の <code>decidedVia</code>、承認の <code>approvals[].via</code>、履歴の <code>via: "ai"</code>、rev の <code>approvedVia</code> に残します。承認・却下・変更の依頼は、人と同じ関数（<code>approvePullRequest</code>・<code>rejectPullRequest</code>・<code>requestPrChanges</code>）を所有者として呼びます。</li>
 </ul>
-<p class="src">典拠：<code>packages/api/src/routes/canons.ts</code>（Canon の PR のルート）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code>（<code>applyDecision</code>）、<code>packages/shared/src/canon.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>・<code>canonAiDecision.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/routes/canons.ts</code>（Canon の PR のルート、<code>canonRoleOf</code>・<code>loadCanon</code>）、<code>packages/api/src/routes/public.ts</code>（<code>requirePublisher</code>）、<code>packages/api/src/lib/canonOps.ts</code>・<code>canonReview.ts</code>・<code>planRunner.ts</code>（<code>applyDecision</code>）、<code>packages/shared/src/canon.ts</code>・<code>canonReview.ts</code>・<code>canonAiReview.ts</code>・<code>canonAiDecision.ts</code>、<code>packages/worker/src/canonReview.ts</code></p>
 
 <h2 id="s5-9">5.9 rev への追従</h2>
 <p>プロジェクトのヘッダーには、所属する Canon と、従っている rev が出ます（例「rev 1（最新 2）」）。API は、固定した rev と最新の rev を、そのプロジェクトが使う定義について比べ、次のどれかの状態を返します。</p>

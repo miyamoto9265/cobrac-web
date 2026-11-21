@@ -7,12 +7,12 @@
   <thead><tr><th style="width:14%">テーブル</th><th style="width:36%">キーと索引</th><th style="width:12%">削除方針</th><th>主な中身</th></tr></thead>
   <tbody>
     <tr><td><code>Users</code></td><td><code>userId</code>。GSI <code>userKey-index</code>（キーだけ）</td><td>RETAIN</td><td>プロフィール、API キーの暗号文、デフォルトの API キーの利用承認</td></tr>
-    <tr><td><code>Projects</code></td><td><code>userId</code> + <code>projectId</code>。Streams（新しい項目）</td><td>RETAIN</td><td>プロジェクトのメタデータと質問文</td></tr>
-    <tr><td><code>Jobs</code></td><td><code>projectId</code> + <code>jobId</code>。GSI <code>status-index</code>（<code>status</code> + <code>createdAt</code>）</td><td>RETAIN</td><td>実行の状態、使用量、推定費用</td></tr>
+    <tr><td><code>Projects</code></td><td><code>userId</code> + <code>projectId</code>。GSI <code>team-index</code>。Streams（新しい項目）</td><td>RETAIN</td><td>プロジェクトのメタデータと質問文</td></tr>
+    <tr><td><code>Jobs</code></td><td><code>projectId</code> + <code>jobId</code>。GSI <code>status-index</code>（<code>status</code> + <code>createdAt</code>）と <code>team-index</code></td><td>RETAIN</td><td>実行の状態、使用量、推定費用</td></tr>
     <tr><td><code>Messages</code></td><td><code>projectId</code> + <code>sk</code>。Streams（新しい項目）</td><td>RETAIN</td><td>エージェント欄の全文（1 件 60,000 字で切る）</td></tr>
-    <tr><td><code>Canons</code></td><td><code>canonId</code> + <code>sk</code>。GSI <code>owner-index</code></td><td>RETAIN</td><td>Canon（第 5 部）</td></tr>
+    <tr><td><code>Canons</code></td><td><code>canonId</code> + <code>sk</code>。GSI <code>owner-index</code> と <code>team-index</code></td><td>RETAIN</td><td>Canon（第 5 部）</td></tr>
     <tr><td><code>Catalog</code></td><td><code>kind</code> + <code>id</code></td><td>RETAIN</td><td>公開の一覧、複製の数、ID の予約、設定</td></tr>
-    <tr><td><code>Plans</code></td><td><code>planId</code> + <code>sk</code>。GSI <code>owner-index</code> と <code>status-index</code></td><td>RETAIN</td><td>オーケストレーターのミッション（第 6 部）</td></tr>
+    <tr><td><code>Plans</code></td><td><code>planId</code> + <code>sk</code>。GSI <code>owner-index</code>・<code>status-index</code>・<code>team-index</code></td><td>RETAIN</td><td>オーケストレーターのミッション（第 6 部）</td></tr>
     <tr><td><code>WsConnections</code></td><td><code>connectionId</code> + <code>projectId</code>。GSI <code>project-index</code>。TTL</td><td>DESTROY</td><td>WebSocket の接続（約 2 時間 10 分で消える）</td></tr>
   </tbody>
 </table>
@@ -29,11 +29,11 @@
         <li>実行の状態：status、currentStep、stepStates、<code>activeStage</code>（実行中のジョブの段階：<code>RESEARCH</code>、段階の名前、調整のターンの <code>ADJUST</code>）、activeJobId、codexThreadId、pendingQuestion、hasArtifacts、errorMessage、completedAt</li>
         <li>版と登録：<code>revision</code>（<code>COMPLETED</code> になったジョブの数 = 現在の版の番号）、<code>latestVersion</code>（最新の凍結した版の要約。4.5）、<code>bradb</code>（BRA-DB に最後に登録した版）</li>
         <li>費用：<code>usage</code>・<code>costUsd</code>・<code>usedModels</code>（全ジョブの合計）</li>
-        <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>archivedAt</code>（アーカイブ。サイドバーの履歴から隠すだけ）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作ったミッション）、<code>teamId</code>（プロジェクトを置いたチームの作業場所。4.8）</li>
+        <li>そのほか：<code>articleJob</code>（最後の解説記事の依頼）、<code>deletedAt</code>・<code>deletedBy</code>（論理削除）、<code>archivedAt</code>（アーカイブ。サイドバーの履歴から隠すだけ）、<code>canonId</code>・<code>canonRevision</code>（従う Canon と固定した rev）、<code>visibility</code>・<code>publishedAt</code>・<code>clonedFrom</code>（4.6）、<code>planId</code>（このプロジェクトを作ったミッション）、<code>teamId</code>（プロジェクトを置いたチームの作業場所。4.8）、<code>braesProjectId</code>（BRAES 提出セットで最後に使った BRAES 用の Project ID。3.13）、<code>braesAccepted</code>（「BRAES採録済み」のマーク <code>{ acceptedAt, acceptedBy, revision }</code>。値がないか null のときはマークなし。4.6）</li>
       </ul></td></tr>
-    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> はミッションの ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>。値がないときは付録 C）、<code>teamId</code>（キーを使ったチーム。4.8）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code> / <code>answer</code> / <code>resolve</code>）、<code>planRowId</code>（<code>answer</code>・<code>resolve</code> が扱う行。6.8）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（ツールごとの文献検索の成功と失敗の数）、<code>researchStep</code>（調査ステップの記録。3.7）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
+    <tr><td>Jobs</td><td><code>projectId</code>（<code>canon-review</code> は Canon の ID、<code>plan</code> はミッションの ID）/ <code>jobId</code></td><td>userId、type、status、<code>keySource</code>（<code>own</code> / <code>org</code> / <code>team</code>。値がないときは付録 C）、<code>teamId</code>（キーを使ったチーム。4.8）、instruction、pendingAnswer、<code>locale</code>（返答の言語）、<code>articleLocale</code>（記事の言語）、<code>reviewPrNo</code>・<code>reviewLocale</code>（AI レビュー）、<code>planJobKind</code>（<code>draft</code> / <code>replan</code> / <code>answer</code> / <code>resolve</code> / <code>chat</code>。<code>chat</code> はオーケストレーターとの対話。6.13）、<code>planRowId</code>（<code>answer</code>・<code>resolve</code> が扱う行。6.8）、ecsTaskArn、retryCount、lastHeartbeat、startedAt、endedAt、errorMessage、<code>model</code>・<code>reasoningEffort</code>・<code>researchMode</code>、<code>usage</code>・<code>costUsd</code>、<code>searches</code>（ツールごとの文献検索の成功と失敗の数）、<code>researchStep</code>（調査ステップの記録。3.7）、<code>braVersion</code>（凍結した版の要約）、<code>planId</code>、<code>hypothesisScopeId</code>（そのジョブが足した仮説の範囲）</td></tr>
     <tr><td>Messages</td><td><code>projectId</code> / <code>{ISO 時刻}#{seq}</code></td><td>userId、jobId、role（<code>user</code> / <code>agent</code> / <code>system</code>）、type（<code>prompt</code>・<code>agent_message</code>・<code>reasoning</code>・<code>command</code>・<code>file_change</code>・<code>web_search</code>・<code>todo</code>・<code>question</code>・<code>status</code>・<code>error</code>・<code>artifact</code>）、content、step、meta</td></tr>
-    <tr><td>WsConnections</td><td><code>connectionId</code> / <code>projectId</code>（<code>_</code> は接続そのものの記録）</td><td>userId、<code>ttl</code>（接続から 2 時間 10 分。API Gateway の接続の上限が 2 時間のため）</td></tr>
+    <tr><td>WsConnections</td><td><code>connectionId</code> / <code>projectId</code>（<code>_</code> は接続そのものの記録）</td><td>userId、<code>ownerUserId</code>（ほかのメンバーのプロジェクトを購読したときの、プロジェクトの所有者。4.8）、<code>ttl</code>（接続から 2 時間 10 分。API Gateway の接続の上限が 2 時間のため）</td></tr>
     <tr><td>Catalog</td><td><code>kind</code> / <code>id</code></td><td>
       <ul>
         <li><code>project</code>・<code>canon</code>：公開中の項目（ownerUserId、name、publishedAt など。4.6、5.11）</li>
@@ -44,7 +44,7 @@
         <li><code>config</code> / <code>default-api-key</code>・<code>default-anthropic-key</code>・<code>default-deepseek-key</code>：提供元ごとのデフォルトの API キー（encryptedApiKey、last4、availableModels、updatedAt、updatedBy）</li>
         <li><code>config</code> / <code>concurrency</code>：管理画面で設定した同時実行数（maxConcurrentJobs、maxConcurrentJobsPerUser、updatedAt、updatedBy。8.3）</li>
       </ul></td></tr>
-    <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト、PR とその履歴、rev、送った PR、共同編集者（第 5 部）</td></tr>
+    <tr><td>Canons</td><td><code>canonId</code> / <code>META</code>・<code>MEMBER#{projectId}</code>・<code>PR#{000001}</code>・<code>PEV#…</code>・<code>REV#{000001}</code>・<code>OUT#…</code>・<code>EDITOR#{userId}</code></td><td>Canon の設定、参加プロジェクト（<code>MEMBER#</code> の <code>projectOwnerId</code> はプロジェクトの所有者で、値がないときは Canon の所有者）、PR とその履歴、rev、送った PR、共同編集者（第 5 部）</td></tr>
     <tr><td>Plans</td><td><code>planId</code> / <code>META</code>・<code>ROW#{rowId}</code>・<code>EVT#{at}#{nonce}</code>・<code>PROP#{proposalId}</code></td><td>ミッションの設定と状態（<code>META</code> の <code>archivedAt</code> はアーカイブ）、プロジェクト、履歴、再計画の提案（6.12）</td></tr>
   </tbody>
 </table>
@@ -56,6 +56,7 @@
   <li>Users の <code>userKey-index</code>（キーだけ）：<code>userKey</code> を発行するときの重複の検査と、<code>userKey</code> から利用者を検索するのに使います。ランダムな ID の所有者は、プロジェクトの <code>userId</code> か、Catalog の <code>id</code> のレコードの <code>ownerUserId</code> で分かります。</li>
   <li>Canons の <code>owner-index</code>（ownerUserId + createdAt）：所有者の Canon の一覧を作ります。<code>META</code> の項目だけがキーを持つ疎な索引です。</li>
   <li>Plans の <code>owner-index</code>（ownerUserId + createdAt）と <code>status-index</code>（status + createdAt）：所有者のミッションの一覧と、ミッションランナーが進める下書き中・実行中・一時停止中のミッションを探します。どちらも <code>META</code> だけの疎な索引です。</li>
+  <li>Projects・Jobs・Plans・Canons の <code>team-index</code>（teamId + createdAt）：チームの作業場所の項目を引きます。<code>teamId</code> を持つ項目だけが載る疎な索引です（4.8）。</li>
   <li>Streams：Projects と Messages の <code>NEW_IMAGE</code> を broadcaster に渡します。</li>
 </ul>
 
@@ -67,9 +68,9 @@
 <ul>
   <li>ジョブは <code>userId</code> で絞ります。</li>
   <li>メッセージは <code>userId</code> で絞ります（<code>userId</code> を持たない古いメッセージの扱いは C.6）。</li>
-  <li>WebSocket の配信は、所有者の接続にだけ送ります。</li>
+  <li>WebSocket の配信は、所有者の接続と、そのプロジェクトを購読したチームのメンバーの接続（<code>ownerUserId</code> が所有者のもの）にだけ送ります。</li>
 </ul>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/shared/src/types.ts</code>・<code>harness.ts</code>（<code>HARNESS_RULES</code>）・<code>publish.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>・<code>team.ts</code>・<code>orgKey.ts</code>、<code>packages/api/src/lib/runs.ts</code>・<code>planRunner.ts</code>・<code>canonOps.ts</code>（role が <code>user</code> のメッセージ）、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/worker/src/db.ts</code>（メッセージの長さ）、<code>packages/api/src/handlers/ws.ts</code>（TTL）</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/shared/src/types.ts</code>・<code>harness.ts</code>（<code>HARNESS_RULES</code>）・<code>publish.ts</code>・<code>canon.ts</code>・<code>plan.ts</code>・<code>team.ts</code>・<code>orgKey.ts</code>、<code>packages/api/src/lib/runs.ts</code>・<code>planRunner.ts</code>・<code>canonOps.ts</code>（role が <code>user</code> のメッセージ）、<code>packages/api/src/lib/ownership.ts</code>・<code>catalog.ts</code>、<code>packages/worker/src/db.ts</code>（メッセージの長さ）、<code>packages/api/src/handlers/ws.ts</code>（TTL、<code>ownerUserId</code>）・<code>lib/teams.ts</code>（<code>team-index</code>）・<code>planChat.ts</code>（<code>chat</code>）</p>
 
 <h2 id="s8-6">8.6 S3 の成果物</h2>
 <h3>バケットの設定</h3>

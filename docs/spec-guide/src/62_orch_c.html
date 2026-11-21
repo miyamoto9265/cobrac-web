@@ -243,7 +243,7 @@
   <li><b>CSV の読み込み</b>：自動の順序の下書きでは、全体を並べ直して自動の順序のままにします。手動の順序の下書きでは、プロジェクトを末尾に足します。</li>
   <li><b>既存のプロジェクト</b>：同じ ROI × TLF で、完成して成果物のある自分のプロジェクトがあれば、プロジェクトに「既存」とリンクが付きます。比べるときは大文字と小文字、空白を区別せず、削除したプロジェクトは数えません。既存のプロジェクトは最後のバッチに並び、確定すると作らずに完了になります。見積もりにも費用にも入りません。確定までにそのプロジェクトを削除したときは、プロジェクトは作られます。同じ ROI × TLF でまだ完成していないプロジェクトがあるときは、注意とリンクが出るだけで、確定すると別に作ります。</li>
   <li><b>作り直す</b>：既存のプロジェクトがあっても作りたいプロジェクトは、編集画面で「作り直す」に印を付けて保存します。既存のプロジェクトは外れ、新しく作られます。この選択はプロジェクトに残るので、下書きを作り直しても「既存」に戻りません。印を外して保存すると元に戻ります。</li>
-  <li><b>設定</b>：オーケストレーターのモデルは、計画用のジョブ（下書き・再計画・プロジェクトのジョブ）と、ミッションの PR の AI レビュー・判断のジョブに使います（6.11）。エージェントのモデルと推論の強さは各プロジェクトの BRA に使います。調査モードの既定はオンです。「デフォルト」を選ぶと、確定時に次のモデルに決まります。オーケストレーターは <code>claude-opus-5-5</code>、エージェントは設定のデフォルトのモデル（なければ <code>claude-sonnet-5-5</code>）です。キーでそのモデルを使えないときは、使えるモデルに置き換えます（4.2）。選択欄の「デフォルト」には、それぞれの既定のモデル名を出します。<b>方針</b>はオーケストレーターが書くもので、所有者は編集できません。</li>
+  <li><b>設定</b>：オーケストレーターのモデルは、計画用のジョブ（下書き・再計画・プロジェクトのジョブ・対話のジョブ）と、ミッションの PR の AI レビュー・判断のジョブに使います（6.11）。エージェントのモデルと推論の強さは各プロジェクトの BRA に使います。調査モードの既定はオンです。「デフォルト」を選ぶと、確定時に次のモデルに決まります。オーケストレーターは <code>claude-opus-5-5</code>、エージェントは設定のデフォルトのモデル（なければ <code>claude-sonnet-5-5</code>）です。キーでそのモデルを使えないときは、使えるモデルに置き換えます（4.2）。選択欄の「デフォルト」には、それぞれの既定のモデル名を出します。<b>方針</b>はオーケストレーターが書くもので、所有者は編集できません。</li>
   <li><b>Canon</b>：「なし」「既存の Canon」「新しい Canon」から選びます。既存の Canon は自分が所有するものだけで、共同編集者として参加している Canon は選べません。新しい Canon の名前の初期値はミッションの名前です（6.7）。</li>
 </ul>
 
@@ -352,7 +352,7 @@
 <h2 id="s6-11">6.11 同時実行数・モデル・費用</h2>
 <ul>
   <li><b>同時実行数</b>：管理者が管理画面で、全体の上限と 1 人あたりの上限を 1〜16 で設定します。ミッションの実効の同時実行数は、この 2 つの小さい方です。フロー実行のミッションでは、オーケストレーター自身の AI のジョブはその 3 分の 1 までです（6.6）。設定の保存先と読み方、OpenAI の TPM との関係は 8.3 に記載しています。</li>
-  <li><b>2 種類のモデル</b>：<b>オーケストレーターのモデル</b>は、計画用のジョブ（下書き・再計画・プロジェクトのジョブ）と、ミッションの PR の AI レビュー・判断のジョブに使います。<b>エージェントのモデル</b>と推論の強さは、各プロジェクトの BRA に使います。どちらも確定時に固定されます（6.9）。計画用のジョブは推論の強さ <code>medium</code> の短い 1 ターンなので、プロジェクトに比べれば費用はわずかです。</li>
+  <li><b>2 種類のモデル</b>：<b>オーケストレーターのモデル</b>は、計画用のジョブ（下書き・再計画・プロジェクトのジョブ・対話のジョブ）と、ミッションの PR の AI レビュー・判断のジョブに使います。<b>エージェントのモデル</b>と推論の強さは、各プロジェクトの BRA に使います。どちらも確定時に固定されます（6.9）。計画用のジョブは推論の強さ <code>medium</code> の短い 1 ターンなので、プロジェクトに比べれば費用はわずかです。</li>
   <li><b>見積もりと実績</b>：見積もりは確定時に保存します（6.9）。ミッションの画面には「これまで」として、確定からの経過時間（完了・中止まで）と、費用の合計が出ます。費用は、プロジェクト・計画用のジョブ・ミッションの PR の AI レビューを合わせたもので、うち計画用のジョブの費用を別に示します。既存のもので済んだプロジェクトは数えません。</li>
   <li><b>費用の記録</b>：下書き・再計画・プロジェクトのジョブ・AI レビュー・判断のジョブ・Canon に合わせた更新は、すべて通常のジョブです。枠が空いたときだけ積み、枠より先には積みません。どれも同時実行数の枠を 1 つ使い、所有者のキー（またはデフォルトの API キー。チームの作業場所でチームのキーが使えるときはチームのキー。4.8）で実行され、使用量と推定費用がジョブに記録されます。取り消し・時間切れのジョブも、それまでに使った分が記録されます。API とランナーは API キーを復号しません。</li>
   <li><b>費用の上限</b>：自律実行のミッションの費用の上限は 6.8 に記載しています。</li>
@@ -360,7 +360,7 @@
 </ul>
 <h3>実装</h3>
 <p>ジョブの種類は <code>plan</code>（計画用のジョブ）、<code>canon-review</code>（AI レビューと判断）、<code>followup</code>（Canon に合わせた更新）です。計画用のジョブはプロジェクトのないモード（<code>isProjectlessMode</code>）で、<code>projectId</code> にはミッション ID を入れます。</p>
-<p class="src">典拠：<code>packages/api/src/lib/concurrency.ts</code>・<code>planJobs.ts</code>・<code>planCost.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/plan.ts</code></p>
+<p class="src">典拠：<code>packages/api/src/lib/concurrency.ts</code>・<code>planJobs.ts</code>・<code>planCost.ts</code>・<code>planChat.ts</code>・<code>runs.ts</code>、<code>packages/shared/src/plan.ts</code></p>
 
 <h2 id="s6-12">6.12 データ・状態・排他制御</h2>
 <p class="small">本節は開発者向けであり、ミッションのデータの形、ミッションとプロジェクトの状態、同時に操作されたときの守り方をまとめています。</p>
@@ -373,10 +373,10 @@
     <tr><td><code>ROW#&lt;rowId&gt;</code></td><td>順番、バッチ、ROI・TLF（各 300 字）、理由（1000 字）、優先度（−1000〜1000）、出所（<code>csv</code> と何件目か / <code>manual</code> / <code>llm</code>）、状態、アンカーとその出所（<code>predicted</code> / <code>used</code>）、依存 <code>dependsOn</code>、基準プロジェクト <code>seed</code>、既存のプロジェクト <code>existing</code>、「作り直す」<code>rebuild</code>、<code>projectId</code>、ジョブ、自動の試行回数、要対応・要判断の理由、最後のエラー、Canon 関連（<code>prNo</code>・<code>canonRevision</code>・<code>conform</code>・<code>conformAttempts</code>・<code>aiReview</code>）、時刻。自律実行ではスキップの理由 <code>autoSkip</code>、自動回答の回数 <code>autoAnswers</code>、判断のジョブの回数 <code>decideAttempts</code>、次のフォローアップ <code>followup</code>（<code>fix</code> / <code>changes</code> と本文）、プロジェクトのジョブ <code>rowJob</code>、最後の解決 <code>aiResolution</code></td></tr>
     <tr><td><code>EVT#&lt;at&gt;#&lt;nonce&gt;</code></td><td>履歴（種類、時刻、<code>by</code> = 利用者か <code>runner</code>、<code>rowId</code>、Project ID、詳細）。種類は <code>created</code>・<code>rows_changed</code>・<code>confirmed</code>・<code>wave_started</code>、プロジェクトの <code>row_started</code>・<code>row_question</code>・<code>row_resumed</code>・<code>row_done</code>・<code>row_retry</code>・<code>row_attention</code>・<code>row_skipped</code>・<code>row_cancelled</code>、ミッションの <code>paused</code>・<code>resumed</code>・<code>cancelled</code>・<code>completed</code>、下書きの <code>draft_requested</code>・<code>draft_applied</code>・<code>draft_failed</code>・<code>draft_cancelled</code>・<code>draft_asked</code>・<code>draft_answered</code>、順序と再計画の <code>ordered</code>・<code>replanned</code>・<code>replan_failed</code>・<code>proposals_received</code>・<code>proposal_accepted</code>・<code>proposal_rejected</code>、Canon の <code>canon_created</code>・<code>row_pushed</code>・<code>row_conform</code>・<code>row_decision</code>・<code>row_resolved</code>・<code>row_ai_review</code>、自律実行の <code>row_auto_skipped</code>・<code>row_auto_answered</code>・<code>row_ai_resolved</code>・<code>row_ai_decided</code>・<code>cost_limit_reached</code>・<code>cost_limit_raised</code>、対話の <code>chat_applied</code></td></tr>
     <tr><td><code>MSG#&lt;at&gt;#&lt;id&gt;</code></td><td>オーケストレーターとの対話のメッセージ（6.13）。役割 <code>user</code> / <code>orchestrator</code>、本文、書いた人、時刻。オーケストレーターの返事は、ジョブ ID、行った操作の結果 <code>outcomes</code>、元に戻せるか <code>undoable</code> と戻した時刻 <code>undoneAt</code>、失敗 <code>failed</code> を持つ</td></tr>
-    <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）</td></tr>
+    <tr><td><code>PROP#&lt;id&gt;</code></td><td>再計画の提案（<code>add</code> / <code>remove</code> / <code>policy</code>、理由、状態 <code>open</code> / <code>accepted</code> / <code>rejected</code> / <code>stale</code>）。対話で頼まれた実行中の変更も、理由 <code>chat</code> の提案として記録する（6.13）</td></tr>
   </tbody>
 </table>
-<p class="small">ID：ミッションは <code>n</code> + 7 文字の小文字 Crockford base32 です（<code>PLAN_ID_REGEX</code>、例 <code>n4h8w2rk</code>）。Project・Canon の ID と同じく Catalog に予約され（<code>kind = id</code>、<code>type = plan</code>）、再利用されません。<code>PROJECT_ID_REGEX</code> とも <code>CANON_ID_REGEX</code> とも一致しません。プロジェクトはミッションの中で <code>r</code> + 7、提案は <code>q</code> + 7 です。1 つのミッションのプロジェクトは 200 件までです。<code>META</code> にはこのほか、確定・完了・中止の時刻、新しい Canon の名前（<code>canonNew</code>）、最後に並べ直したバッチ（<code>lastReplanWave</code>）、実行の仕方 <code>scheduling</code>（<code>flow</code> / <code>waves</code>、6.5）、フロー実行で前回の再計画を求めたときの完了数（<code>replanDone</code>）を持ちます。</p>
+<p class="small">ID：ミッションは <code>n</code> + 7 文字の小文字 Crockford base32 です（<code>PLAN_ID_REGEX</code>、例 <code>n4h8w2rk</code>）。Project・Canon の ID と同じく Catalog に予約され（<code>kind = id</code>、<code>type = plan</code>）、再利用されません。<code>PROJECT_ID_REGEX</code> とも <code>CANON_ID_REGEX</code> とも一致しません。プロジェクトはミッションの中で <code>r</code> + 7、提案は <code>q</code> + 7 です（対話から作る提案は <code>p_&lt;ジョブ ID から job_ を除いた部分&gt;_&lt;操作の番号&gt;</code>）。1 つのミッションのプロジェクトは 200 件までです。<code>META</code> にはこのほか、確定・完了・中止の時刻、新しい Canon の名前（<code>canonNew</code>）、最後に並べ直したバッチ（<code>lastReplanWave</code>）、実行の仕方 <code>scheduling</code>（<code>flow</code> / <code>waves</code>、6.5）、フロー実行で前回の再計画を求めたときの完了数（<code>replanDone</code>）を持ちます。</p>
 
 <h3>ミッションの状態</h3>
 <figure>
@@ -465,7 +465,7 @@
     </ul></li>
 </ul>
 <p class="small">ミッションランナーの AWS の権限は 9.1 に記載しています。概要は次のとおりです。Plans・Users・Projects・Jobs・Messages・Canons テーブルの読み書き、Catalog の <code>config</code> の読み取りと ID の予約、S3 の <code>plans/*</code> と <code>canons/*</code> の読み書き、push と完成したプロジェクトの <code>uc.json</code> のための <code>users/*/workspace/*</code> の読み取りです。KMS の権限はなく、API キーを復号できません。</p>
-<p class="src">典拠：共有 <code>packages/shared/src/plan.ts</code>（状態・見積もり・push の結果）・<code>planOrder.ts</code>（アンカーと順序）・<code>planJob.ts</code>（入力・スキーマ・検査・プロンプト）／ API <code>packages/api/src/lib/plans.ts</code>（<code>withPlanLease</code>・<code>planLeaseWait</code>）・<code>planOps.ts</code>・<code>planRunner.ts</code>・<code>planJobs.ts</code>・<code>runs.ts</code>・<code>concurrency.ts</code>・<code>canonOps.ts</code>・<code>teamBudget.ts</code>、<code>handlers/planRunner.ts</code> ／ ワーカー <code>packages/worker/src/planJob.ts</code> ／ 指示書 <code>prompts/plan.md</code> ／ 画面 <code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code></p>
+<p class="src">典拠：共有 <code>packages/shared/src/plan.ts</code>（状態・見積もり・push の結果）・<code>planOrder.ts</code>（アンカーと順序）・<code>planJob.ts</code>（入力・スキーマ・検査・プロンプト）／ API <code>packages/api/src/lib/plans.ts</code>（<code>withPlanLease</code>・<code>planLeaseWait</code>）・<code>planOps.ts</code>・<code>planRunner.ts</code>・<code>planJobs.ts</code>・<code>planChat.ts</code>（<code>applyAsProposal</code>）・<code>runs.ts</code>・<code>concurrency.ts</code>・<code>canonOps.ts</code>・<code>teamBudget.ts</code>、<code>handlers/planRunner.ts</code> ／ ワーカー <code>packages/worker/src/planJob.ts</code> ／ 指示書 <code>prompts/plan.md</code> ／ 画面 <code>packages/web/src/pages/PlansPage.tsx</code>・<code>PlanDetailPage.tsx</code></p>
 <h2 id="s6-13">6.13 オーケストレーターとの対話</h2>
 <p>所有者は、ミッションの画面の右のパネルで、同僚に話すようにオーケストレーターとやり取りできます。質問すれば答え、変更を頼めばその操作を行い、行った結果を返事の下に並べます。下書きのあいだも、実行中も、終わったあとも使えます。ミッションの開始と中止は所有者のボタンだけで行い、オーケストレーターは行いません。</p>
 
@@ -483,10 +483,10 @@
 <h3>画面</h3>
 <ul>
   <li><b>パネル</b>：見出しは「オーケストレーター」です。実行中のミッションでは、上に「対応が必要」なもの（6.10）、その下に会話が並びます。幅 1280px 以上では右に並べ、それより狭い画面では見出しやタブの横のボタンで重ねて開きます。</li>
-  <li><b>会話</b>：所有者のメッセージは右の青い吹き出し、オーケストレーターの返事は左に出ます。返事の下には、行った操作が 1 行ずつ「追加: speech production · left IFG」のように並び、できなかった操作には × と理由が付きます。下書きの前の質問（6.4）と回答、ミッションの主な出来事（下書きの適用・開始・一時停止・再開・完了・再計画・提案の反映・費用の上限）も時刻順に挟みます。</li>
+  <li><b>会話</b>：所有者のメッセージは右の青い吹き出し、オーケストレーターの返事は左に出ます。返事の下には、行った操作が 1 行ずつ「追加: speech production · left IFG」のように並び、できなかった操作には × と理由が付きます。下書きの前の質問（6.4）と回答、ミッションの主な出来事（下書きの適用・開始・一時停止・再開・中止・完了・再計画・提案の反映・費用の上限への到達と引き上げ）も時刻順に挟みます。</li>
   <li><b>入力</b>：Enter で送り、Shift+Enter で改行します。日本語の変換を確定する Enter では送りません。返事を書いているあいだは「オーケストレーターがお返事を書いています…」と出ます。下書きのジョブの実行中に書いたメッセージには、下書きができてから返事をします。返事は 1〜2 分ほどかかり、費用はミッションの費用（計画用のジョブ）に入ります。</li>
   <li><b>下書きの前の質問</b>：オーケストレーターが下書きの前に質問しているあいだ（6.4）は、パネルにも質問が出ます。下書きの画面の欄で答えても、パネルに自由に書いても答えになります。パネルに書いたときは、その会話を回答として下書きのジョブに渡します。</li>
-  <li><b>元に戻す</b>：計画中の返事が下書きを変えたときは、返事の下に「元に戻す」が出ます。戻すと、その返事の前のプロジェクト・方針・順序の種類に戻ります。戻せるのは、まだ戻していない変更のうち新しいものからです。</li>
+  <li><b>元に戻す</b>：計画中の返事が下書きを変えたときは、返事の下に「元に戻す」が出ます。戻すと、その返事の前のプロジェクト・方針・順序の種類に戻ります。プロジェクトは返事の前の状態で丸ごと置き換えるので、返事のあとに手で直した部分も戻ります。戻せるのは、まだ戻していない変更のうち新しいものからです。</li>
   <li><b>見るだけの人</b>：チームのミッションを見るだけのメンバーは会話を読めますが、書けません。書けるのは作成者とチーム管理者です。</li>
 </ul>
 
@@ -495,7 +495,7 @@
   <li><b>書く</b>：<code>POST /plans/{id}/chat</code> <code>{ text, locale }</code> でメッセージを保存します（4000 字まで。空は 400）。下書きの前の質問を待っているときは、そのまま回答として下書きを依頼し直します。それ以外は、ミッションの <code>chat</code> を待機中（<code>waiting</code>）にし、ランナーを 1 回すぐに動かします。</li>
   <li><b>ジョブを積む</b>：ランナーは、ジョブの枠が空いていれば対話のジョブ（<code>plan</code> のジョブ、<code>planJobKind: "chat"</code>）を積みます。1 つのミッションで同時に動く対話のジョブは 1 件です。下書きのジョブの実行中（<code>DRAFTING</code>）は積みません。入力は、段階、いま使える操作、ミッションの要約（方針・順序・自律実行・費用・Canon・状態ごとの件数）、全プロジェクト、会話（新しい 30 件）、最近の出来事（40 件）です。</li>
   <li><b>返事を書く</b>：ワーカーが指示書 <code>plan-chat.md</code>（付録 B.13）とオーケストレーターのモデルで返事を書きます。プロジェクトを追加できる段階では RCS でアンカーを調べられます。出力は <code>{ reply, actions }</code> の JSON です。打ち切りは 6 分です。</li>
-  <li><b>行う</b>：ランナーは返事を入力と照らして検査し直します。使えない段階の操作、知らないプロジェクト、状態の合わない操作、同じプロジェクトへの 2 つ目の操作、ほかの操作と一緒の作り直しは除きます。そのうえで、ミッションのリースを返してから操作を順に行い、返事と結果を会話に書きます。計画中の変更はリースの中で下書きに直接反映し、変更前の状態を S3 に残します。実行中のプロジェクトの追加・削除と方針の変更は、再計画の提案と同じ仕組みで反映します（理由 <code>chat</code>）。リトライ・スキップ・判断・一時停止・再開は、画面のボタンと同じ関数で行います。</li>
+  <li><b>行う</b>：ランナーは返事を入力と照らして検査し直します。使えない段階の操作、知らないプロジェクト、状態の合わない操作、同じプロジェクトへの 2 つ目の操作、ほかの操作と一緒の作り直し、30 件を超えた分の操作は除きます。返事の本文は 6000 字で切ります。そのうえで、ミッションのリースを返してから操作を順に行い、返事と結果を会話に書きます。計画中の変更はリースの中で下書きに直接反映し、変更前の状態を S3 に残します。実行中のプロジェクトの追加・削除と方針の変更は、再計画の提案と同じ仕組みで反映します（理由 <code>chat</code>）。リトライ・スキップ・判断・一時停止・再開は、画面のボタンと同じ関数で行います。</li>
   <li><b>続き</b>：ジョブの実行中に所有者が書いたメッセージがあれば、次のジョブを積みます。ジョブが失敗したときは、失敗の返事を会話に残します。</li>
 </ol>
 

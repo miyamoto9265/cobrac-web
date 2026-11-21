@@ -57,8 +57,8 @@
   <li>HCD・FRG の JSON のデータファイル、レポートと判断ログ（Markdown）、CSV、xlsx、グラフの JSON</li>
   <li>Codex の会話の状態</li>
 </ul>
-<p>オーケストレーターのミッション（名前、目標、手入力または資料から読んだプロジェクトの ROI・TLF・理由、履歴）は、所有者の userId のもとで <code>Plans</code> テーブルに保存します。読めるのは所有者と、チームの作業場所のミッションならそのチームのメンバーです（ほかの利用者には 404）。アップロードした資料は、成果物バケットの <code>plans/{planId}/attachments/files/</code> に移して残し、ミッションの <code>attachments</code> に記録します。計画用のジョブはこのファイルを読みます。下書きの間に所有者が外した資料は、ミッションの一覧から外します。API には <code>plans/</code> を消す権限がないので（9.1）、バケットのファイルは残ります。</p>
-<p>これらは個人情報ではありませんが、未発表の研究上の仮説や文献のメモを含むことがあります。<b>ほかの利用者には見えません</b>。管理者はプロジェクトの一覧を見てジョブを強制停止できますが、成果物の本体を返す API は所有者だけが呼べます。</p>
+<p>オーケストレーターのミッション（名前、目標、手入力または資料から読んだプロジェクトの ROI・TLF・理由、履歴、オーケストレーターとの対話のメッセージ）は、所有者の userId のもとで <code>Plans</code> テーブルに保存します。対話のメッセージは、所有者の書いた本文が 4,000 字まで、返事が 6,000 字までです（6.13）。読めるのは所有者と、チームの作業場所のミッションならそのチームのメンバーです（ほかの利用者には 404）。アップロードした資料は、成果物バケットの <code>plans/{planId}/attachments/files/</code> に移して残し、ミッションの <code>attachments</code> に記録します。計画用のジョブはこのファイルを読みます。下書きの間に所有者が外した資料は、ミッションの一覧から外します。API には <code>plans/</code> を消す権限がないので（9.1）、バケットのファイルは残ります。対話の返事が下書きを変えたときは、元に戻すための変更前のプロジェクトと方針を <code>plans/{planId}/chat/{jobId}.json</code> に残します。</p>
+<p>これらは個人情報ではありませんが、未発表の研究上の仮説や文献のメモを含むことがあります。<b>ほかの利用者には見えません</b>。管理者ができるのは、プロジェクトの一覧の表示、ジョブの強制停止、BRAES採録済みのマークの付け外し（4.6）で、成果物の本体を返す API を呼べるのは所有者だけです。マークには付けた管理者の userId を記録し、プロジェクトを見られる人への応答にはこの userId も含みます。公開ライブラリに渡すのは日時だけです。</p>
 <h3>集めないもの・返さないもの</h3>
 <ul>
   <li>支払いの情報、住所、電話番号、生年月日は集めません。</li>
@@ -71,8 +71,8 @@
   <tbody>
     <tr><td>ブラウザ</td><td>Amplify が保持する ID・アクセス・リフレッシュトークン</td></tr>
     <tr><td>Cognito ユーザープール</td><td>メールアドレス、パスワードのハッシュ、確認の状態、グループ</td></tr>
-    <tr><td>DynamoDB</td><td><code>Users</code>（プロフィールと API キーの暗号文）、<code>Projects</code>（メタデータと質問文）、<code>Jobs</code>（実行の状態とトークンの使用量）、<code>Messages</code>（チャットの全文。1 件 60,000 字で切る）、<code>Plans</code>（ミッションの名前・目標・プロジェクト・資料の一覧・履歴）、<code>Canons</code>・<code>Catalog</code>、<code>WsConnections</code>（接続 ID。約 2 時間 10 分で消える）</td></tr>
-    <tr><td>S3 成果物バケット</td><td><code>users/{userId}/{projectId}/</code> の <code>workspace</code>・<code>thread</code>・<code>output</code>・<code>graph</code>・<code>article</code>・<code>attachments</code>。版の <code>revisions/{n}/</code>（削除しない）。作成前の参考資料の <code>staging/{userId}/</code>（1 日で消える）。ミッションの資料の <code>plans/{planId}/attachments/</code></td></tr>
+    <tr><td>DynamoDB</td><td><code>Users</code>（プロフィールと API キーの暗号文）、<code>Projects</code>（メタデータと質問文）、<code>Jobs</code>（実行の状態とトークンの使用量）、<code>Messages</code>（チャットの全文。1 件 60,000 字で切る）、<code>Plans</code>（ミッションの名前・目標・プロジェクト・資料の一覧・履歴・対話のメッセージ）、<code>Canons</code>・<code>Catalog</code>、<code>WsConnections</code>（接続 ID。約 2 時間 10 分で消える）</td></tr>
+    <tr><td>S3 成果物バケット</td><td><code>users/{userId}/{projectId}/</code> の <code>workspace</code>・<code>thread</code>・<code>output</code>・<code>graph</code>・<code>article</code>・<code>attachments</code>。版の <code>revisions/{n}/</code>（削除しない）。作成前の参考資料の <code>staging/{userId}/</code>（1 日で消える）。ミッションの資料の <code>plans/{planId}/attachments/</code>。対話の返事を元に戻すための <code>plans/{planId}/chat/</code></td></tr>
     <tr><td>BRA-DB（<code>BraDb</code> の VPC の EC2。暗号化した EBS）</td><td>登録した版：5 つの CSV の内容、Contributor 名、Project ID、ROI・TLF。登録ごとに版 ID、内容のハッシュ、生成条件、登録した人の名前</td></tr>
     <tr><td>CloudWatch Logs（14 日）</td><td>Lambda の標準出力（エラーのメッセージ。キーは出力しない実装）、ワーカーのログ（コマンドの出力の一部は <code>Messages</code> にも残る）</td></tr>
     <tr><td>OpenAI</td><td>プロンプト、作業ディレクトリのファイル、Web 検索。OpenAI の規約に従う（9.6）</td></tr>
@@ -87,7 +87,7 @@
   <li>物理的に消す API はありません。必要なら管理者が AWS で直接消します。ただし版（<code>revisions/</code>）は、バケットポリシーがすべての主体に削除を禁じているので、先にポリシーを変えない限り消せません。</li>
   <li>API キーを削除すると、<code>encryptedApiKey</code> を消して <code>apiKeyRegistered=false</code> にします。過去の暗号文は KMS 側には残りますが、どこからも参照されません。</li>
 </ul>
-<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/routes/users.ts</code>・<code>projects.ts</code>（<code>/users/me</code>・プロジェクトの削除）、<code>packages/api/src/lib/auth.ts</code>・<code>planOps.ts</code>（ミッションの資料）、<code>packages/infra/lib/cobrac-stack.ts</code></p>
+<p class="src">典拠：<code>packages/shared/src/types.ts</code>（<code>UserRecord</code>）、<code>packages/shared/src/orgKey.ts</code>、<code>packages/api/src/routes/users.ts</code>・<code>projects.ts</code>（<code>/users/me</code>・プロジェクトの削除）・<code>admin.ts</code>（BRAES採録済みのマーク）・<code>public.ts</code>、<code>packages/api/src/lib/auth.ts</code>・<code>planOps.ts</code>（ミッションの資料）・<code>planChat.ts</code>（対話のメッセージ）、<code>packages/shared/src/planChat.ts</code>（<code>PLAN_CHAT_LIMITS</code>・<code>planChatUndoKey</code>）、<code>packages/infra/lib/cobrac-stack.ts</code></p>
 
 <h2 id="s9-3">9.3 暗号化と API キー</h2>
 <h3>通信の暗号化</h3>
@@ -267,7 +267,7 @@
 </table>
 <p>保持期間は、ログが 14 日、メッセージと成果物は無期限です（9.2）。</p>
 <h3>監査</h3>
-<p>管理者の操作（無効化、強制停止）を記録する専用の監査テーブルはありません。<code>Jobs</code> と <code>Messages</code> のシステムのレコードが記録の代わりになります。AWS の操作については CloudTrail の証跡を作っていないので、管理イベントは既定の 90 日間のイベント履歴で追います。CI のデプロイのセッション名は <code>GitHubActions-cobrac-web-&lt;run_id&gt;</code>、Cursor の Cloud Agent のセッション名は <code>cursor-cloud-agent</code> なので、これで主体を見分けられます。検索のコマンドは <code>docs/ops/README.md</code> にあります。</p>
+<p>管理者の操作（無効化、強制停止）を記録する専用の監査テーブルはありません。<code>Jobs</code> と <code>Messages</code> のシステムのレコードが記録の代わりになります。BRAES採録済みのマークは、付けた管理者と日時をプロジェクトの <code>braesAccepted</code> に残しますが、マークを外すとこの記録も消え、外した操作はどこにも記録されません。AWS の操作については CloudTrail の証跡を作っていないので、管理イベントは既定の 90 日間のイベント履歴で追います。CI のデプロイのセッション名は <code>GitHubActions-cobrac-web-&lt;run_id&gt;</code>、Cursor の Cloud Agent のセッション名は <code>cursor-cloud-agent</code> なので、これで主体を見分けられます。検索のコマンドは <code>docs/ops/README.md</code> にあります。</p>
 <h3>脅威と対策</h3>
 <table class="compact">
   <thead><tr><th style="width:20%">脅威</th><th>対策</th><th style="width:30%">残るリスク</th></tr></thead>
@@ -292,7 +292,7 @@
   <li>CI のデプロイは <code>main</code> に限った GitHub OIDC のロールを使い、GitHub にもコーディングエージェントにも長期の AWS のキーを置きません（<code>docs/ops/README.md</code>）。</li>
 </ol>
 <p>本番向けにさらに足せるものとして、CORS のオリジンの制限、PITR、S3 の SSE-KMS、アクセスログがあります。どれもまだ実装していません。</p>
-<p class="src">典拠：<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/worker/src/db.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>、<code>.gitignore</code>、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code>（CloudTrail）</p>
+<p class="src">典拠：<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/routes/admin.ts</code>（BRAES採録済みのマーク）、<code>packages/worker/src/db.ts</code>、<code>packages/infra/lib/cobrac-stack.ts</code>、<code>.gitignore</code>、<code>miyamoto9265/wbai-repos</code> の <code>docs/cloud-operations.md</code>（CloudTrail）</p>
 
 <h2 id="s9-8">9.8 監視と緊急停止</h2>
 <h3>監視</h3>
@@ -337,7 +337,7 @@
     <tr><td>チャットの購読</td><td>WebSocket の接続時間とメッセージ、Streams の Lambda</td></tr>
     <tr><td>ジョブの実行</td><td><b>Fargate の CPU とメモリの時間</b>、ENI とパブリック IP、ワーカーの CloudWatch、S3 の PUT、DynamoDB の書き込み</td></tr>
     <tr><td>質問への回答待ち</td><td>Fargate は止まる。S3 と DynamoDB の保存だけ</td></tr>
-    <tr><td>オーケストレーターの下書き・再計画</td><td>計画用のジョブの Fargate タスク 1 つ、小さな S3 のオブジェクト、DynamoDB の書き込み。タスクは 1 ターンで、返答が読めなければもう 1 ターン動く。最長 7 分（長い資料の下書きは 25 分）なので、Spot でせいぜい 1 セント程度</td></tr>
+    <tr><td>オーケストレーターの下書き・再計画・対話</td><td>計画用のジョブの Fargate タスク 1 つ、小さな S3 のオブジェクト、DynamoDB の書き込み。タスクは 1 ターンで、返答が読めなければもう 1 ターン動く。最長 7 分（長い資料の下書きは 25 分、対話は 6 分）なので、Spot でせいぜい 1 セント程度</td></tr>
     <tr><td>Canon のあるミッション</td><td>新しい種類のジョブはない。本体のプロジェクトの PR ごとに通常の AI レビューのジョブ（<code>canon-review</code>）が 1 つ、Canon が先に進んで衝突したプロジェクトには Canon に合わせるフォローアップのジョブが最大 2 つ（自律実行のミッションでは、Canon が先に進んでいない衝突にも送る。Canon に合わせるもの・修正・変更の依頼を合わせて最大 3 つ）。push は小さな S3 のオブジェクトとミッションランナーの DynamoDB の書き込み</td></tr>
     <tr><td><code>cdk deploy</code></td><td>CodeBuild（イメージを作り直すとき）、ECR への push、CloudFront の無効化、Lambda の更新</td></tr>
   </tbody>
@@ -413,7 +413,8 @@
   <li>所有者がジョブを動かせなくなったミッションは、プロジェクトを次々に失敗させずに自分で一時停止します。キーがない、アカウントが無効、選んだモデルが許されなくなった、の場合です。</li>
   <li>自律実行のミッションは、ミッションの費用の上限に達すると新しいプロジェクトを始めません（6.8）。</li>
   <li>下書きと再計画の計画用のジョブも、プロジェクトと同じく空きがあるときだけ積み、両方の上限に数えます。再計画はバッチごとに最大 1 回、ミッションあたり約 10 回まで（<code>MAX_REPLAN_JOBS</code>）です。1 回目は最初のバッチが終わった後、以降は前回からプロジェクトの 10 分の 1 が終わるごとに行います。再計画するのは自動の順序のミッションだけで、一時停止中は動かしません。</li>
-  <li>ワーカーは計画用のジョブを 7 分（長い資料の下書きは 25 分）で打ち切ります。janitor は、ハートビートが途絶えたものと 24 時間キューにあるものを失敗にし、リトライしません。ミッションランナーが 1 ステップで読む <code>uc.json</code> は 20 件までです。</li>
+  <li>オーケストレーターとの対話のジョブも、空きがあるときだけ積み、両方の上限に数えます。1 つのミッションで同時に動くのは 1 件で、実行中に書かれたメッセージには、次のジョブがまとめて答えます。ワーカーは 6 分で打ち切ります。費用はミッションの費用に入ります（6.13）。</li>
+  <li>ワーカーは下書きと再計画のジョブを 7 分（長い資料の下書きは 25 分）で打ち切ります。janitor は、ハートビートが途絶えたものと 24 時間キューにあるものを失敗にし、リトライしません。ミッションランナーが 1 ステップで読む <code>uc.json</code> は 20 件までです。</li>
   <li>Canon のあるミッションでは、本体のプロジェクトの PR の AI レビューと Canon に合わせるフォローアップ（1 件あたり最大 2 回、<code>MAX_CONFORM_FOLLOWUPS</code>。自律実行のミッションでは修正と変更の依頼も合わせて最大 3 回、<code>AUTONOMOUS_MAX_FOLLOWUPS</code>）は、所有者のキーかデフォルトの API キー（チームのミッションでは、使えるときはチームのキー）で動く通常のジョブです。プロジェクトと同じ空きの判定を通り、両方の上限に数え、ほかのジョブと同じく課金されます。基準プロジェクトは AI レビューを受けません。</li>
   <li>Canon に合わせるフォローアップは、PR がまだ開いているときだけ送ります（ミッションランナーが直前に読み直します）。そのため、すでに承認・却下された PR に有料のフォローアップを使うことはありません。</li>
   <li>ミッションの PR が 20 件承認を待っている間は、新しいバッチを始めません（<code>PLAN_MAX_WAITING_PRS</code>）。放置されたミッションは、審査者の仕事を積み上げずに止まります。</li>
@@ -430,7 +431,7 @@
   </tbody>
 </table>
 <p>現在の安さは、<b>使わないときにワーカーを止めること</b>と、<b>NAT を置かないこと</b>に支えられています。</p>
-<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（オーケストレーターの上限）、<code>packages/shared/src/plan.ts</code>（<code>MAX_CONFORM_FOLLOWUPS</code>・<code>AUTONOMOUS_MAX_FOLLOWUPS</code>・<code>PLAN_MAX_WAITING_PRS</code>）、<code>planOrder.ts</code>（<code>MAX_REPLAN_JOBS</code>）、<code>planJob.ts</code>（<code>PLAN_JOB_TIME_BUDGET_MS</code>）</p>
+<p class="src">典拠：<code>packages/infra/lib/cobrac-stack.ts</code>、<code>packages/api/src/handlers/janitor.ts</code>、<code>packages/api/src/lib/planRunner.ts</code>（オーケストレーターの上限）、<code>packages/shared/src/plan.ts</code>（<code>MAX_CONFORM_FOLLOWUPS</code>・<code>AUTONOMOUS_MAX_FOLLOWUPS</code>・<code>PLAN_MAX_WAITING_PRS</code>）、<code>planOrder.ts</code>（<code>MAX_REPLAN_JOBS</code>）、<code>planJob.ts</code>（<code>PLAN_JOB_TIME_BUDGET_MS</code>）、<code>planChat.ts</code>（<code>PLAN_CHAT_TIME_BUDGET_MS</code>）、<code>packages/api/src/lib/planChat.ts</code>（<code>stepChat</code>）、<code>planCost.ts</code></p>
 
 <h2 id="s9-10">9.10 モデルの利用料と記録</h2>
 <h3>だれが払うか</h3>
