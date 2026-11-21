@@ -24,6 +24,10 @@ import type {
   FollowupRequest,
   JobRecord,
   ProjectRecord,
+  BraesBundleRequest,
+  BraesBundleResponse,
+  HcdGraph,
+  FrgGraph,
   EdgeStyle,
   GraphLayout,
   ListArticlesResponse,
@@ -58,6 +62,10 @@ import {
   PROJECT_FILES,
   braDownloadFileName,
   buildTemplateXlsx,
+  buildBraesBundle,
+  parseCsv,
+  braesBundleFileNames,
+  isBraesProjectId,
   isOfferedModel,
   isArticleStale,
   isProjectIdLike,
@@ -507,6 +515,25 @@ projectsApi.get("/projects/:id/artifacts/download", async (c) => {
  * The BRA data in the official Template-v2-3.bra workbook. The worker writes it at the end of every job; projects
  * finished before that (or whose file is older than the CoBRAC xlsx) get it built here from the workspace files.
  */
+/** The Template-v2-3 workbook built from the workspace files, with `braProjectId` in its Project ID cells. */
+async function buildProjectTemplateXlsx(p: ProjectRecord, braProjectId: string): Promise<Uint8Array> {
+  const P = p.projectId;
+  const text = (rel: string) => getObjectText(p.userId, P, "workspace/" + rel);
+  const csv: Record<string, string | null> = {};
+  for (const f of CSV_FILE_NAMES) csv[f] = await text(`${P}_CSV/${f}`);
+  const input = templateInputFromFiles(
+    {
+      csv,
+      referencesJson: await text(`${P}_HCD/${HCD_FILES.references}`),
+      referenceCheckJson: await text(PROJECT_FILES.referenceCheck),
+      bibliographyJson: await text(`${P}_CSV/${BIBLIOGRAPHY_FILE}`),
+    },
+    { projectId: braProjectId, contributor: p.contributor, roi: p.roi },
+  );
+  if (!input) throw notFound();
+  return buildTemplateXlsx(await loadBraTemplate(), input).bytes;
+}
+
 projectsApi.get("/projects/:id/artifacts/template-xlsx", async (c) => {
   const u = c.get("user");
   const p = await loadProject(u, c.req.param("id"), "read");
@@ -517,25 +544,55 @@ projectsApi.get("/projects/:id/artifacts/template-xlsx", async (c) => {
   const key = templateXlsxKey(P);
   const current = items.find((a) => a.key === key);
   if (!current || current.lastModified < bra.lastModified) {
-    const ws = "workspace/";
-    const text = (rel: string) => getObjectText(p.userId, P, ws + rel);
-    const csv: Record<string, string | null> = {};
-    for (const f of CSV_FILE_NAMES) csv[f] = await text(`${P}_CSV/${f}`);
-    const input = templateInputFromFiles(
-      {
-        csv,
-        referencesJson: await text(`${P}_HCD/${HCD_FILES.references}`),
-        referenceCheckJson: await text(PROJECT_FILES.referenceCheck),
-        bibliographyJson: await text(`${P}_CSV/${BIBLIOGRAPHY_FILE}`),
-      },
-      { projectId: P, contributor: p.contributor, roi: p.roi },
-    );
-    if (!input) throw notFound();
-    const r = buildTemplateXlsx(await loadBraTemplate(), input);
-    await putObjectBytes(p.userId, P, key, r.bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    await putObjectBytes(p.userId, P, key, await buildProjectTemplateXlsx(p, P), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
   const url = await presignDownload(p.userId, P, key, templateDownloadFileName(projectDisplayName(p), P));
   return c.json({ url, expiresIn: 900 });
+});
+
+/**
+ * The BRAES submission set (braes.ts): the Template-v2-3 workbook with the BRAES Project ID, the BIF / HCD / FRG images
+ * as draw.io XML and the values for the submission form, in one zip. The BRAES Project ID given is saved on the
+ * project (owner and managers), so the next download proposes it again.
+ */
+projectsApi.post("/projects/:id/artifacts/braes", async (c) => {
+  const u = c.get("user");
+  const p = await loadProject(u, c.req.param("id"), "read");
+  const body = (await c.req.json().catch(() => ({}))) as Partial<BraesBundleRequest>;
+  const id = typeof body.braesProjectId === "string" ? body.braesProjectId.trim() : "";
+  if (!isBraesProjectId(id)) throw bad("invalid BRAES Project ID");
+  const P = p.projectId;
+  const items = await listArtifacts(p.userId, P);
+  if (!items.some((a) => a.key === `output/${P}.bra.xlsx`)) throw notFound();
+  const json = async <T>(rel: string): Promise<T | null> => {
+    const t = await getObjectText(p.userId, P, rel);
+    if (t === null) return null;
+    try {
+      return JSON.parse(t) as T;
+    } catch {
+      return null;
+    }
+  };
+  const hcd = await json<HcdGraph>("graph/hcd.json");
+  const frg = await json<FrgGraph>("graph/frg.json");
+  if (!hcd || !frg) throw notFound();
+  const description = await getObjectText(p.userId, P, `workspace/${P}_CSV/Project.csv`).then((t) => (t ? (parseCsv(t)[1]?.[3] ?? "") : ""));
+  const zip = buildBraesBundle({
+    braesProjectId: id,
+    xlsx: await buildProjectTemplateXlsx(p, id),
+    hcd,
+    frg,
+    layouts: { hcd: await json<GraphLayout>("graph/hcd.layout.json"), frg: await json<GraphLayout>("graph/frg.layout.json") },
+    form: { contributor: p.contributor, description, cobrac: { projectId: P, name: projectDisplayName(p), version: p.revision } },
+    locale: readLocale(body.locale) === "ja" ? "ja" : "en",
+  });
+  const key = `output/${P}.braes.zip`;
+  await putObjectBytes(p.userId, P, key, zip, "application/zip");
+  const canSave = p.userId === u.userId || (!!p.teamId && (await teamItemAccess(u, p.userId, p.teamId)) === "admin");
+  if (id !== p.braesProjectId && canSave) await updateProject(p.userId, P, { braesProjectId: id });
+  const name = braesBundleFileNames(id).zip;
+  const url = await presignDownload(p.userId, P, key, { ascii: name, utf8: name });
+  return c.json({ url, expiresIn: 900, braesProjectId: id } satisfies BraesBundleResponse);
 });
 
 projectsApi.get("/projects/:id/artifacts/text", async (c) => {

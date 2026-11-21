@@ -278,6 +278,48 @@ describe("project IDs", () => {
     expect((await call(B, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx")).status).toBe(404);
   }, 30_000);
 
+  it("builds the BRAES submission set with the BRAES Project ID and saves the ID on the project", async () => {
+    seedLegacyCollision();
+    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR learning", nameSource: "user" });
+    const aws = await import("../src/lib/aws.js");
+    const shared = await import("@cobrac/shared");
+    const { readFileSync } = await import("node:fs");
+    const fixture = (f: string) => readFileSync(new URL(`../../shared/test/fixtures/${f}`, import.meta.url), "utf8");
+    const project = "Contributor,Project ID,List of contributors,Description,BRA version\nalice,u7m2q9xa-2,alice,VOR circuit,CoBRAC-v1-0\n";
+    const graphs = shared.buildGraphs("u7m2q9xa-2", { circuitsCsv: fixture("Circuits.csv"), connectionsCsv: fixture("Connections.csv"), frgCsv: fixture("FRG.csv") });
+    const bra = { key: "output/u7m2q9xa-2.bra.xlsx", name: "u7m2q9xa-2.bra.xlsx", size: 1, lastModified: "2026-09-02T00:00:00.000Z", category: "output" as const };
+    vi.mocked(aws.listArtifacts).mockResolvedValue([bra]);
+    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => {
+      if (key === "graph/hcd.json") return JSON.stringify(graphs.hcd);
+      if (key === "graph/frg.json") return JSON.stringify(graphs.frg);
+      const m = /^workspace\/u7m2q9xa-2_CSV\/(\w+)\.csv$/.exec(key);
+      return m ? (m[1] === "Project" ? project : fixture(`${m[1]}.csv`)) : null;
+    });
+    try {
+      expect((await call(A, "POST", "/projects/u7m2q9xa-2/artifacts/braes", { braesProjectId: "u7m2q9xa-2" })).status).toBe(400);
+      expect((await call(B, "POST", "/projects/u7m2q9xa-2/artifacts/braes", { braesProjectId: "AL26VorLearning" })).status).toBe(404);
+      const r = await json<{ url: string; braesProjectId: string }>(call(A, "POST", "/projects/u7m2q9xa-2/artifacts/braes", { braesProjectId: " AL26VorLearning ", locale: "ja" }));
+      expect(r).toMatchObject({ url: "https://signed.example/x", braesProjectId: "AL26VorLearning" });
+      const [, , key, body, type] = vi.mocked(aws.putObjectBytes).mock.calls.at(-1)!;
+      expect([key, type]).toEqual(["output/u7m2q9xa-2.braes.zip", "application/zip"]);
+      const files = (await import("fflate")).unzipSync(body as Uint8Array);
+      const dir = "AL26VorLearning_BRAES/";
+      expect(Object.keys(files).sort()).toEqual(["AL26VorLearning.bra.xlsx", "AL26VorLearning.drawio", "AL26VorLearningBIF.xml", "AL26VorLearningFRG.xml", "AL26VorLearningHCD.xml", "submission-form.txt"].map((f) => dir + f));
+      // the BRAES Project ID replaces the CoBRAC one in the BRA data
+      expect(shared.readTemplateSheet(files[`${dir}AL26VorLearning.bra.xlsx`], "Project").get("B2")!.text).toBe("AL26VorLearning");
+      const form = new TextDecoder().decode(files[`${dir}submission-form.txt`]);
+      expect(form).toContain("Q2  Project ID: AL26VorLearning");
+      expect(form).toContain("VOR circuit");
+      expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.braes.zip", { ascii: "AL26VorLearning_BRAES.zip", utf8: "AL26VorLearning_BRAES.zip" });
+      expect(fake.items("projects").find((p) => p.projectId === "u7m2q9xa-2" && p.userId === A.sub)!.braesProjectId).toBe("AL26VorLearning");
+    } finally {
+      vi.mocked(aws.listArtifacts).mockReset();
+      vi.mocked(aws.listArtifacts).mockResolvedValue([]);
+      vi.mocked(aws.getObjectText).mockReset();
+      vi.mocked(aws.getObjectText).mockResolvedValue(null);
+    }
+  }, 30_000);
+
   it("returns the report text for the viewer and refuses non-text keys", async () => {
     seedLegacyCollision();
     fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR", nameSource: "user" });
