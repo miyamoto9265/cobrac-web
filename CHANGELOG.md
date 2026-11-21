@@ -17,6 +17,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 - Harness checks for new projects (harness rules 3): each connection's species (Taxon) is compared with the species PubMed indexes its paper with (MeSH). A connection marked "(No description)" whose paper names a listed species, or a species the paper does not study, goes back to the agent; a species the list lacks (ferret, gerbil, bat) stays "(No description)" and must be named in the comment
 - Every BIF entry now says whether the HCD models it, and why not when it does not; in research mode every supported or weak survey candidate must appear on a BIF entry. Projections the survey found but the HCD leaves out are kept with their reason instead of disappearing. Existing projects keep their rules
 
+### Removed
+- The "CSV set (xlsx)" download button on a project's header (CoBRAC's CSV files in one workbook). Use "BRA data (xlsx)", or the BRAES set for the converter CSVs
+
 ## [0.58.0] - 2026-11-15
 
 ### Added
