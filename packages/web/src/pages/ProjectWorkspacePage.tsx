@@ -6,6 +6,7 @@ import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, reso
 import { CanonBadge } from "../components/CanonBadge";
 import { Trail, trailSteps, useAboveNames } from "../components/Trail";
 import { VisibilityToggle } from "../components/VisibilityToggle";
+import { BraesDownloadButton } from "../components/BraesDownloadButton";
 import { CanonPushButton } from "../components/CanonPushButton";
 import { DeleteProjectButton } from "../components/DeleteProject";
 import { CopyProjectButton } from "../components/CopyProjectButton";
@@ -14,6 +15,7 @@ import { DocViewer } from "../components/DocViewer";
 import { PipelineProgress } from "../components/PipelineProgress";
 import { ProjectTitle } from "../components/ProjectTitle";
 import { HypothesisBadge } from "../components/hypothesis/HypothesisInfo";
+import { BraesBadge } from "../components/BraesBadge";
 import { StatusBadge } from "../components/StatusBadge";
 import { UsageBadge } from "../components/UsageBadge";
 import { useModelList } from "../components/ModelSelect";
@@ -275,6 +277,11 @@ function Workspace({ projectId }: { projectId: string }) {
             <ProjectTitle project={project} readOnly={!canManage} onRenamed={(p) => setProject((prev) => (prev ? { ...prev, ...p } : p))} />
             <StatusBadge status={project.status} />
             <HypothesisBadge project={project} />
+            <BraesBadge
+              accepted={project.braesAccepted}
+              revision={project.revision}
+              admin={me?.role === "admin" ? { userId: project.userId, projectId: project.projectId, canMark: project.hasArtifacts, onChange: (v) => setProject((prev) => (prev ? { ...prev, braesAccepted: v } : prev)) } : undefined}
+            />
             <div className="flex flex-wrap items-center gap-2 max-sm:w-full sm:ml-auto sm:justify-end">
               <button type="button" onClick={() => setShowDetails((v) => !v)} aria-expanded={showDetails} className={`${btn} border-slate-300 text-slate-600 hover:bg-slate-50 lg:hidden`}>
                 {t("ws.details")} {showDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
@@ -314,6 +321,9 @@ function Workspace({ projectId }: { projectId: string }) {
                 >
                   <FileSpreadsheet size={14} /> {t("ws.csvXlsx")}
                 </button>
+              )}
+              {available.xlsx && available.hcd && available.frg && (
+                <BraesDownloadButton project={project} onSaved={(braesProjectId) => setProject((prev) => (prev && canManage ? { ...prev, braesProjectId } : prev))} />
               )}
               <CopyProjectButton project={project} own={isOwner} />
               {canManage && <VisibilityToggle

@@ -16,10 +16,12 @@ import { MISSIONS_CATALOG, type MissionsKey } from "./missions";
 import { MISSION_CREATE_CATALOG, type MissionCreateKey } from "./missionCreate";
 import { TEAMS_CATALOG, type TeamsKey } from "./teams";
 import { PLAN_CHAT_CATALOG, type PlanChatKey } from "./planChat";
+import { BRAES_CATALOG, type BraesKey } from "./braes";
+import { BRAES_SET_CATALOG, type BraesSetKey } from "./braesSet";
 import { ja } from "./ja";
 
-/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts, canonIssues.ts, planFlow.ts, planAsk.ts, claude.ts, apiKeys.ts, planPolicy.ts, workerGuard.ts, missions.ts, missionCreate.ts, teams.ts) */
-export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey | CanonIssuesKey | PlanFlowKey | PlanAskKey | ClaudeKey | ApiKeysKey | PlanPolicyKey | WorkerGuardKey | MissionsKey | MissionCreateKey | TeamsKey | PlanChatKey;
+/** Keys of the main catalogs and of the catalogs kept apart (hypothesis.ts, autonomous.ts, planDraft.ts, canonView.ts, canonIssues.ts, planFlow.ts, planAsk.ts, claude.ts, apiKeys.ts, planPolicy.ts, workerGuard.ts, missions.ts, missionCreate.ts, teams.ts, planChat.ts, braes.ts, braesSet.ts) */
+export type MessageKey = BaseMessageKey | HypothesisKey | AutonomousKey | PlanDraftKey | CanonViewKey | CanonIssuesKey | PlanFlowKey | PlanAskKey | ClaudeKey | ApiKeysKey | PlanPolicyKey | WorkerGuardKey | MissionsKey | MissionCreateKey | TeamsKey | PlanChatKey | BraesKey | BraesSetKey;
 
 export type Locale = UiLocale;
 
@@ -58,7 +60,7 @@ const LAZY_BASE: Record<Exclude<Locale, "en" | "ja">, () => Promise<BaseCatalog>
 };
 
 function catalogOf(l: Locale, base: BaseCatalog): Catalog {
-  return { ...base, ...HYPOTHESIS_CATALOG[l], ...AUTONOMOUS_CATALOG[l], ...PLAN_DRAFT_CATALOG[l], ...CANON_VIEW_CATALOG[l], ...CANON_ISSUES_CATALOG[l], ...PLAN_FLOW_CATALOG[l], ...PLAN_ASK_CATALOG[l], ...CLAUDE_CATALOG[l], ...API_KEYS_CATALOG[l], ...PLAN_POLICY_CATALOG[l], ...WORKER_GUARD_CATALOG[l], ...MISSIONS_CATALOG[l], ...MISSION_CREATE_CATALOG[l], ...TEAMS_CATALOG[l], ...PLAN_CHAT_CATALOG[l] };
+  return { ...base, ...HYPOTHESIS_CATALOG[l], ...AUTONOMOUS_CATALOG[l], ...PLAN_DRAFT_CATALOG[l], ...CANON_VIEW_CATALOG[l], ...CANON_ISSUES_CATALOG[l], ...PLAN_FLOW_CATALOG[l], ...PLAN_ASK_CATALOG[l], ...CLAUDE_CATALOG[l], ...API_KEYS_CATALOG[l], ...PLAN_POLICY_CATALOG[l], ...WORKER_GUARD_CATALOG[l], ...MISSIONS_CATALOG[l], ...MISSION_CREATE_CATALOG[l], ...TEAMS_CATALOG[l], ...PLAN_CHAT_CATALOG[l], ...BRAES_CATALOG[l], ...BRAES_SET_CATALOG[l] };
 }
 
 /** Catalogs ready to use (English and Japanese from the start, the others once loaded). */

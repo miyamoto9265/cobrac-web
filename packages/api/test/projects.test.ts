@@ -1,14 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeleteProjectResponse, JobRecord, MessageRecord, ProjectRecord, UpdateProjectResponse, UsageSummary } from "@cobrac/shared";
-import { HARNESS_RULES, PROJECT_ID_REGEX, RANDOM_PROJECT_ID_REGEX, USER_KEY_REGEX } from "@cobrac/shared";
+import type {
+  DeleteProjectResponse,
+  JobRecord,
+  MessageRecord,
+  ProjectRecord,
+  UpdateProjectResponse,
+  UsageSummary,
+} from "@cobrac/shared";
+import {
+  HARNESS_RULES,
+  PROJECT_ID_REGEX,
+  RANDOM_PROJECT_ID_REGEX,
+  USER_KEY_REGEX,
+} from "@cobrac/shared";
 
-vi.mock("@aws-sdk/lib-dynamodb", async () => (await import("./fakeDdb.js")).libDynamodbMock);
+vi.mock(
+  "@aws-sdk/lib-dynamodb",
+  async () => (await import("./fakeDdb.js")).libDynamodbMock,
+);
 
-const posted = vi.hoisted(() => [] as { connectionId: string; data: { type: string; projectId: string } }[]);
+const posted = vi.hoisted(
+  () =>
+    [] as { connectionId: string; data: { type: string; projectId: string } }[],
+);
 vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
   ApiGatewayManagementApiClient: class {
     async send(cmd: { input: { ConnectionId: string; Data: Buffer } }) {
-      posted.push({ connectionId: cmd.input.ConnectionId, data: JSON.parse(cmd.input.Data.toString()) });
+      posted.push({
+        connectionId: cmd.input.ConnectionId,
+        data: JSON.parse(cmd.input.Data.toString()),
+      });
     }
   },
   PostToConnectionCommand: class {
@@ -18,7 +39,10 @@ vi.mock("@aws-sdk/client-apigatewaymanagementapi", () => ({
 
 const presign = vi.hoisted(() => vi.fn(async () => "https://signed.example/x"));
 vi.hoisted(() => {
-  process.env.BRA_TEMPLATE_PATH = new URL("../../../prompts/templates/Template-v2-3.bra.xlsx", import.meta.url).pathname;
+  process.env.BRA_TEMPLATE_PATH = new URL(
+    "../../../prompts/templates/Template-v2-3.bra.xlsx",
+    import.meta.url,
+  ).pathname;
 });
 vi.mock("../src/lib/aws.js", () => ({
   presignDownload: presign,
@@ -30,8 +54,13 @@ vi.mock("../src/lib/aws.js", () => ({
   deleteObject: vi.fn(async () => undefined),
   encryptApiKey: vi.fn(async () => "enc"),
   stopEcsTask: vi.fn(async () => undefined),
-  presignUpload: vi.fn(async (key: string) => ({ url: "https://bucket.s3.example/", fields: { key } })),
-  headStaging: vi.fn(async (): Promise<{ size: number } | null> => ({ size: 1000 })),
+  presignUpload: vi.fn(async (key: string) => ({
+    url: "https://bucket.s3.example/",
+    fields: { key },
+  })),
+  headStaging: vi.fn(
+    async (): Promise<{ size: number } | null> => ({ size: 1000 }),
+  ),
   moveStagingToProject: vi.fn(async () => undefined),
 }));
 
@@ -47,7 +76,11 @@ function call(who: typeof A, method: string, path: string, body?: unknown) {
   const event = { requestContext: { authorizer: { jwt: { claims: who } } } };
   return app.request(
     path,
-    { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined },
+    {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    },
     { event, lambdaContext: {} },
   );
 }
@@ -73,7 +106,12 @@ function legacyProject(userId: string, usage: number): ProjectRecord {
     pendingQuestion: null,
     hasArtifacts: true,
     errorMessage: null,
-    usage: { inputTokens: usage, cachedInputTokens: 0, outputTokens: usage, reasoningOutputTokens: 0 },
+    usage: {
+      inputTokens: usage,
+      cachedInputTokens: 0,
+      outputTokens: usage,
+      reasoningOutputTokens: 0,
+    },
     costUsd: usage / 1000,
     createdAt: now,
     updatedAt: now,
@@ -98,12 +136,27 @@ function job(userId: string, jobId: string, tokens: number): JobRecord {
     createdAt: now,
     updatedAt: now,
     model: "gpt-5.6",
-    usage: { inputTokens: tokens, cachedInputTokens: 0, outputTokens: tokens, reasoningOutputTokens: 0 },
+    usage: {
+      inputTokens: tokens,
+      cachedInputTokens: 0,
+      outputTokens: tokens,
+      reasoningOutputTokens: 0,
+    },
     costUsd: tokens / 1000,
   };
 }
 function message(jobId: string, content: string, sk: string): MessageRecord {
-  return { projectId: "VOR", sk, messageId: `m_${sk}`, jobId, role: "agent", type: "agent_message", content, step: null, createdAt: now };
+  return {
+    projectId: "VOR",
+    sk,
+    messageId: `m_${sk}`,
+    jobId,
+    role: "agent",
+    type: "agent_message",
+    content,
+    step: null,
+    createdAt: now,
+  };
 }
 
 /** Alice and Bob both own a legacy project "VOR"; its jobs and (pre-v0.7, userId-less) messages share one partition. */
@@ -112,7 +165,18 @@ function seedLegacyCollision() {
     [A, "u7m2q9xa"],
     [B, "u3k8d0hn"],
   ] as const) {
-    fake.put("users", { userId: who.sub, email: who.email, displayName: who.sub, contributorName: who.sub, role: "user", disabled: false, apiKeyRegistered: true, userKey: key, createdAt: now, updatedAt: now });
+    fake.put("users", {
+      userId: who.sub,
+      email: who.email,
+      displayName: who.sub,
+      contributorName: who.sub,
+      role: "user",
+      disabled: false,
+      apiKeyRegistered: true,
+      userKey: key,
+      createdAt: now,
+      updatedAt: now,
+    });
   }
   fake.put("projects", legacyProject(A.sub, 100));
   fake.put("projects", legacyProject(B.sub, 7));
@@ -135,13 +199,39 @@ describe("project IDs", () => {
     expect(me.userKey).toMatch(USER_KEY_REGEX);
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
     await json(call(B, "GET", "/users/me"));
-    fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, apiKeyRegistered: true });
+    fake.put("users", {
+      ...fake.items("users").find((u) => u.userId === B.sub)!,
+      apiKeyRegistered: true,
+    });
 
-    const a1 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
+    const a1 = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "Cerebellum flocculus",
+        tlf: "VOR learning",
+      }),
+    );
     // name and contributor are no longer taken from the create request
-    const a2 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning", name: "  小脳片葉の   VOR 学習 ", contributor: "someone else" }));
-    const b1 = await json<ProjectRecord>(call(B, "POST", "/projects", { roi: "Cerebellum flocculus", tlf: "VOR learning" }));
-    const a3 = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "小脳", tlf: "VOR", name: "VOR in 小脳" }));
+    const a2 = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "Cerebellum flocculus",
+        tlf: "VOR learning",
+        name: "  小脳片葉の   VOR 学習 ",
+        contributor: "someone else",
+      }),
+    );
+    const b1 = await json<ProjectRecord>(
+      call(B, "POST", "/projects", {
+        roi: "Cerebellum flocculus",
+        tlf: "VOR learning",
+      }),
+    );
+    const a3 = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "小脳",
+        tlf: "VOR",
+        name: "VOR in 小脳",
+      }),
+    );
 
     const ids = [a1, a2, b1, a3].map((p) => p.projectId);
     for (const id of ids) {
@@ -151,13 +241,27 @@ describe("project IDs", () => {
       expect(id).not.toContain(me.userKey);
     }
     expect(new Set(ids).size).toBe(4);
-    expect(a1).toMatchObject({ userId: A.sub, name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", revision: 0 });
+    expect(a1).toMatchObject({
+      userId: A.sub,
+      name: "VOR learning in Cerebellum flocculus",
+      nameSource: "provisional",
+      revision: 0,
+    });
     expect(b1.userId).toBe(B.sub);
-    expect(a2).toMatchObject({ name: "VOR learning in Cerebellum flocculus", nameSource: "provisional", contributor: "alice" });
-    expect(a3).toMatchObject({ name: "VOR in 小脳", nameSource: "provisional" });
+    expect(a2).toMatchObject({
+      name: "VOR learning in Cerebellum flocculus",
+      nameSource: "provisional",
+      contributor: "alice",
+    });
+    expect(a3).toMatchObject({
+      name: "VOR in 小脳",
+      nameSource: "provisional",
+    });
     // each ID is reserved once in the Catalog table; the per-user counter is no longer used
     const reservations = fake.items("catalog").filter((r) => r.kind === "id");
-    expect(reservations.map((r) => [r.id, r.type, r.ownerUserId]).sort()).toEqual(
+    expect(
+      reservations.map((r) => [r.id, r.type, r.ownerUserId]).sort(),
+    ).toEqual(
       [
         [a1.projectId, "project", A.sub],
         [a2.projectId, "project", A.sub],
@@ -165,159 +269,536 @@ describe("project IDs", () => {
         [b1.projectId, "project", B.sub],
       ].sort(),
     );
-    expect(fake.items("users").find((u) => u.userId === A.sub)!.projectSeq).toBeUndefined();
+    expect(
+      fake.items("users").find((u) => u.userId === A.sub)!.projectSeq,
+    ).toBeUndefined();
     expect(fake.items("messages").every((m) => m.userId)).toBe(true);
   });
 
   it("draws the ID again when the reservation finds it taken", async () => {
-    fake.put("catalog", { kind: "id", id: "p0000000", type: "project", ownerUserId: B.sub, createdAt: now });
+    fake.put("catalog", {
+      kind: "id",
+      id: "p0000000",
+      type: "project",
+      ownerUserId: B.sub,
+      createdAt: now,
+    });
     const drawn = ["p0000000", "p0000000", "p7m2q9xa"];
     const id = await reserveNewId("project", A.sub, () => drawn.shift()!);
     expect(id).toBe("p7m2q9xa");
     expect(drawn).toEqual([]);
-    expect(fake.items("catalog").find((r) => r.id === "p0000000")!.ownerUserId).toBe(B.sub);
-    await expect(reserveNewId("project", A.sub, () => "p0000000")).rejects.toThrow(/unique project ID/);
+    expect(
+      fake.items("catalog").find((r) => r.id === "p0000000")!.ownerUserId,
+    ).toBe(B.sub);
+    await expect(
+      reserveNewId("project", A.sub, () => "p0000000"),
+    ).rejects.toThrow(/unique project ID/);
   });
 
   it("gives a new project of a user without a key a random ID", async () => {
-    fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, createdAt: now, updatedAt: now });
-    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
+    fake.put("users", {
+      userId: A.sub,
+      email: A.email,
+      displayName: "a",
+      contributorName: "a",
+      role: "user",
+      disabled: false,
+      apiKeyRegistered: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const p = await json<ProjectRecord>(
+      call(A, "POST", "/projects", { roi: "x", tlf: "y" }),
+    );
     expect(p.projectId).toMatch(RANDOM_PROJECT_ID_REGEX);
   });
 
   it("keeps `<userKey>-<seq>` projects working next to random ones and lists them by creation time", async () => {
-    fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "a", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", projectSeq: 2, createdAt: now, updatedAt: now });
-    const old = (id: string, createdAt: string, updatedAt: string) => ({ ...legacyProject(A.sub, 1), projectId: id, name: id, nameSource: "user", createdAt, updatedAt });
-    fake.put("projects", old("u7m2q9xa-1", "2026-09-01T00:00:00.000Z", "2026-09-30T00:00:00.000Z"));
-    fake.put("projects", old("u7m2q9xa-2", "2026-09-02T00:00:00.000Z", "2026-09-02T00:00:00.000Z"));
-    fake.put("projects", old("pzzzzzzz", "2026-09-03T00:00:00.000Z", "2026-09-03T00:00:00.000Z"));
-    fake.put("projects", old("p0000001", "2026-09-04T00:00:00.000Z", "2026-09-04T00:00:00.000Z"));
-    const list = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", "/projects"));
-    expect(list.items.map((p) => p.projectId)).toEqual(["p0000001", "pzzzzzzz", "u7m2q9xa-2", "u7m2q9xa-1"]);
+    fake.put("users", {
+      userId: A.sub,
+      email: A.email,
+      displayName: "a",
+      contributorName: "a",
+      role: "user",
+      disabled: false,
+      apiKeyRegistered: true,
+      userKey: "u7m2q9xa",
+      projectSeq: 2,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const old = (id: string, createdAt: string, updatedAt: string) => ({
+      ...legacyProject(A.sub, 1),
+      projectId: id,
+      name: id,
+      nameSource: "user",
+      createdAt,
+      updatedAt,
+    });
+    fake.put(
+      "projects",
+      old("u7m2q9xa-1", "2026-09-01T00:00:00.000Z", "2026-09-30T00:00:00.000Z"),
+    );
+    fake.put(
+      "projects",
+      old("u7m2q9xa-2", "2026-09-02T00:00:00.000Z", "2026-09-02T00:00:00.000Z"),
+    );
+    fake.put(
+      "projects",
+      old("pzzzzzzz", "2026-09-03T00:00:00.000Z", "2026-09-03T00:00:00.000Z"),
+    );
+    fake.put(
+      "projects",
+      old("p0000001", "2026-09-04T00:00:00.000Z", "2026-09-04T00:00:00.000Z"),
+    );
+    const list = await json<{
+      items: ProjectRecord[];
+      nextCursor: string | null;
+    }>(call(A, "GET", "/projects"));
+    expect(list.items.map((p) => p.projectId)).toEqual([
+      "p0000001",
+      "pzzzzzzz",
+      "u7m2q9xa-2",
+      "u7m2q9xa-1",
+    ]);
     expect(list.nextCursor).toBeNull();
-    const page1 = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", "/projects?limit=3"));
-    expect(page1.items.map((p) => p.projectId)).toEqual(["p0000001", "pzzzzzzz", "u7m2q9xa-2"]);
-    const page2 = await json<{ items: ProjectRecord[]; nextCursor: string | null }>(call(A, "GET", `/projects?limit=3&cursor=${page1.nextCursor}`));
+    const page1 = await json<{
+      items: ProjectRecord[];
+      nextCursor: string | null;
+    }>(call(A, "GET", "/projects?limit=3"));
+    expect(page1.items.map((p) => p.projectId)).toEqual([
+      "p0000001",
+      "pzzzzzzz",
+      "u7m2q9xa-2",
+    ]);
+    const page2 = await json<{
+      items: ProjectRecord[];
+      nextCursor: string | null;
+    }>(call(A, "GET", `/projects?limit=3&cursor=${page1.nextCursor}`));
     expect(page2.items.map((p) => p.projectId)).toEqual(["u7m2q9xa-1"]);
     expect(page2.nextCursor).toBeNull();
-    for (const id of ["u7m2q9xa-1", "pzzzzzzz"]) expect((await json<ProjectRecord>(call(A, "GET", `/projects/${id}`))).projectId).toBe(id);
-    const created = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
+    for (const id of ["u7m2q9xa-1", "pzzzzzzz"])
+      expect(
+        (await json<ProjectRecord>(call(A, "GET", `/projects/${id}`)))
+          .projectId,
+      ).toBe(id);
+    const created = await json<ProjectRecord>(
+      call(A, "POST", "/projects", { roi: "x", tlf: "y" }),
+    );
     expect(created.projectId).toMatch(RANDOM_PROJECT_ID_REGEX);
     expect(fake.items("users")[0].projectSeq).toBe(2);
   });
 
   it("renames with normalisation, marks the name as the user's and warns about duplicates", async () => {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-1", name: "Fear conditioning", nameSource: "auto" });
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "Other", nameSource: "auto" });
-    fake.put("projects", { ...legacyProject(B.sub, 1), projectId: "u3k8d0hn-1", name: "fear  CONDITIONING", nameSource: "auto" });
-    const r = await json<UpdateProjectResponse>(call(A, "PUT", "/projects/u7m2q9xa-2", { name: " FEAR   conditioning " }));
-    expect(r.project).toMatchObject({ projectId: "u7m2q9xa-2", name: "FEAR conditioning", nameSource: "user" });
-    expect(r.duplicates).toEqual([{ projectId: "u7m2q9xa-1", name: "Fear conditioning" }]);
-    expect((await call(A, "PUT", "/projects/u7m2q9xa-2", { name: "a\nb" })).status).toBe(400);
-    expect((await call(A, "PUT", "/projects/u7m2q9xa-2", { name: "x".repeat(201) })).status).toBe(400);
-    expect((await call(B, "PUT", "/projects/u7m2q9xa-2", { name: "steal" })).status).toBe(404);
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-1",
+      name: "Fear conditioning",
+      nameSource: "auto",
+    });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-2",
+      name: "Other",
+      nameSource: "auto",
+    });
+    fake.put("projects", {
+      ...legacyProject(B.sub, 1),
+      projectId: "u3k8d0hn-1",
+      name: "fear  CONDITIONING",
+      nameSource: "auto",
+    });
+    const r = await json<UpdateProjectResponse>(
+      call(A, "PUT", "/projects/u7m2q9xa-2", { name: " FEAR   conditioning " }),
+    );
+    expect(r.project).toMatchObject({
+      projectId: "u7m2q9xa-2",
+      name: "FEAR conditioning",
+      nameSource: "user",
+    });
+    expect(r.duplicates).toEqual([
+      { projectId: "u7m2q9xa-1", name: "Fear conditioning" },
+    ]);
+    expect(
+      (await call(A, "PUT", "/projects/u7m2q9xa-2", { name: "a\nb" })).status,
+    ).toBe(400);
+    expect(
+      (await call(A, "PUT", "/projects/u7m2q9xa-2", { name: "x".repeat(201) }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await call(B, "PUT", "/projects/u7m2q9xa-2", { name: "steal" })).status,
+    ).toBe(404);
   });
 
   it("resolves legacy IDs to the migrated ID for redirects", async () => {
     seedLegacyCollision();
     fake.table("projects").clear();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-3", legacyId: "VOR", name: "VOR", nameSource: "user" });
-    expect(await json(call(A, "GET", "/projects/resolve/VOR"))).toEqual({ projectId: "u7m2q9xa-3" });
-    expect(await json(call(A, "GET", "/projects/resolve/u7m2q9xa-3"))).toEqual({ projectId: "u7m2q9xa-3" });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-3",
+      legacyId: "VOR",
+      name: "VOR",
+      nameSource: "user",
+    });
+    expect(await json(call(A, "GET", "/projects/resolve/VOR"))).toEqual({
+      projectId: "u7m2q9xa-3",
+    });
+    expect(await json(call(A, "GET", "/projects/resolve/u7m2q9xa-3"))).toEqual({
+      projectId: "u7m2q9xa-3",
+    });
     expect((await call(B, "GET", "/projects/resolve/VOR")).status).toBe(404);
     expect((await call(A, "GET", "/projects/resolve/..%2Fx")).status).toBe(404);
   });
 
   it("downloads the xlsx as {name}_{ID}.bra.xlsx", async () => {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "小脳片葉の VOR 学習 / 再実行", nameSource: "user" });
-    await json(call(A, "GET", `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.bra.xlsx", {
-      ascii: "u7m2q9xa-2.bra.xlsx",
-      utf8: "小脳片葉の_VOR_学習_再実行_u7m2q9xa-2.bra.xlsx",
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-2",
+      name: "小脳片葉の VOR 学習 / 再実行",
+      nameSource: "user",
     });
-    await json(call(A, "GET", `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv")}`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv", undefined);
+    await json(
+      call(
+        A,
+        "GET",
+        `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`,
+      ),
+    );
+    expect(presign).toHaveBeenLastCalledWith(
+      A.sub,
+      "u7m2q9xa-2",
+      "output/u7m2q9xa-2.bra.xlsx",
+      {
+        ascii: "u7m2q9xa-2.bra.xlsx",
+        utf8: "小脳片葉の_VOR_学習_再実行_u7m2q9xa-2.bra.xlsx",
+      },
+    );
+    await json(
+      call(
+        A,
+        "GET",
+        `/projects/u7m2q9xa-2/artifacts/download?key=${encodeURIComponent("u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv")}`,
+      ),
+    );
+    expect(presign).toHaveBeenLastCalledWith(
+      A.sub,
+      "u7m2q9xa-2",
+      "u7m2q9xa-2/u7m2q9xa-2_CSV/FRG.csv",
+      undefined,
+    );
   });
 
   it("builds the Template-v2-3 workbook on demand from the workspace CSVs, and reuses a current one", async () => {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR learning", nameSource: "user" });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-2",
+      name: "VOR learning",
+      nameSource: "user",
+    });
     const aws = await import("../src/lib/aws.js");
     const { readFileSync } = await import("node:fs");
-    const fixture = (f: string) => readFileSync(new URL(`../../shared/test/fixtures/${f}`, import.meta.url), "utf8");
-    const project = "Contributor,Project ID,List of contributors,Description,BRA version\nalice,u7m2q9xa-2,alice,VOR,CoBRAC-v1-0\n";
-    const bra = { key: "output/u7m2q9xa-2.bra.xlsx", name: "u7m2q9xa-2.bra.xlsx", size: 1, lastModified: "2026-09-02T00:00:00.000Z", category: "output" as const };
+    const fixture = (f: string) =>
+      readFileSync(
+        new URL(`../../shared/test/fixtures/${f}`, import.meta.url),
+        "utf8",
+      );
+    const project =
+      "Contributor,Project ID,List of contributors,Description,BRA version\nalice,u7m2q9xa-2,alice,VOR,CoBRAC-v1-0\n";
+    const bra = {
+      key: "output/u7m2q9xa-2.bra.xlsx",
+      name: "u7m2q9xa-2.bra.xlsx",
+      size: 1,
+      lastModified: "2026-09-02T00:00:00.000Z",
+      category: "output" as const,
+    };
     vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra]);
     vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => {
       const m = /^workspace\/u7m2q9xa-2_CSV\/(\w+)\.csv$/.exec(key);
       return m ? (m[1] === "Project" ? project : fixture(`${m[1]}.csv`)) : null;
     });
-    const r = await json<{ url: string }>(call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"));
+    const r = await json<{ url: string }>(
+      call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"),
+    );
     vi.mocked(aws.getObjectText).mockReset();
     vi.mocked(aws.getObjectText).mockResolvedValue(null);
     expect(r.url).toBe("https://signed.example/x");
-    const [, , key, body, type] = vi.mocked(aws.putObjectBytes).mock.calls.at(-1)!;
+    const [, , key, body, type] = vi
+      .mocked(aws.putObjectBytes)
+      .mock.calls.at(-1)!;
     expect(key).toBe("output/u7m2q9xa-2.template-v2-3.bra.xlsx");
-    expect(type).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    expect(type).toBe(
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
     const { readTemplateSheet } = await import("@cobrac/shared");
-    expect(readTemplateSheet(body as Uint8Array, "Circuits").get("A2")!.text).toBe("ROI_u7m2q9xa-2");
-    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "output/u7m2q9xa-2.template-v2-3.bra.xlsx", {
-      ascii: "u7m2q9xa-2.template-v2-3.bra.xlsx",
-      utf8: "VOR_learning_u7m2q9xa-2.template-v2-3.bra.xlsx",
-    });
+    expect(
+      readTemplateSheet(body as Uint8Array, "Circuits").get("A2")!.text,
+    ).toBe("ROI_u7m2q9xa-2");
+    expect(presign).toHaveBeenLastCalledWith(
+      A.sub,
+      "u7m2q9xa-2",
+      "output/u7m2q9xa-2.template-v2-3.bra.xlsx",
+      {
+        ascii: "u7m2q9xa-2.template-v2-3.bra.xlsx",
+        utf8: "VOR_learning_u7m2q9xa-2.template-v2-3.bra.xlsx",
+      },
+    );
 
     const puts = vi.mocked(aws.putObjectBytes).mock.calls.length;
-    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([bra, { ...bra, key: "output/u7m2q9xa-2.template-v2-3.bra.xlsx", lastModified: "2026-09-03T00:00:00.000Z" }]);
+    vi.mocked(aws.listArtifacts).mockResolvedValueOnce([
+      bra,
+      {
+        ...bra,
+        key: "output/u7m2q9xa-2.template-v2-3.bra.xlsx",
+        lastModified: "2026-09-03T00:00:00.000Z",
+      },
+    ]);
     await json(call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"));
     expect(vi.mocked(aws.putObjectBytes).mock.calls.length).toBe(puts);
 
     vi.mocked(aws.listArtifacts).mockResolvedValueOnce([]);
-    expect((await call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx")).status).toBe(404);
-    expect((await call(B, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx")).status).toBe(404);
+    expect(
+      (await call(A, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"))
+        .status,
+    ).toBe(404);
+    expect(
+      (await call(B, "GET", "/projects/u7m2q9xa-2/artifacts/template-xlsx"))
+        .status,
+    ).toBe(404);
+  }, 30_000);
+
+  it("builds the BRAES submission set with the BRAES Project ID and saves the ID on the project", async () => {
+    seedLegacyCollision();
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-2",
+      name: "VOR learning",
+      nameSource: "user",
+    });
+    const aws = await import("../src/lib/aws.js");
+    const shared = await import("@cobrac/shared");
+    const { readFileSync } = await import("node:fs");
+    const fixture = (f: string) =>
+      readFileSync(
+        new URL(`../../shared/test/fixtures/${f}`, import.meta.url),
+        "utf8",
+      );
+    const project =
+      "Contributor,Project ID,List of contributors,Description,BRA version\nalice,u7m2q9xa-2,alice,VOR circuit,CoBRAC-v1-0\n";
+    const graphs = shared.buildGraphs("u7m2q9xa-2", {
+      circuitsCsv: fixture("Circuits.csv"),
+      connectionsCsv: fixture("Connections.csv"),
+      frgCsv: fixture("FRG.csv"),
+    });
+    const bra = {
+      key: "output/u7m2q9xa-2.bra.xlsx",
+      name: "u7m2q9xa-2.bra.xlsx",
+      size: 1,
+      lastModified: "2026-09-02T00:00:00.000Z",
+      category: "output" as const,
+    };
+    vi.mocked(aws.listArtifacts).mockResolvedValue([bra]);
+    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => {
+      if (key === "graph/hcd.json") return JSON.stringify(graphs.hcd);
+      if (key === "graph/frg.json") return JSON.stringify(graphs.frg);
+      const m = /^workspace\/u7m2q9xa-2_CSV\/(\w+)\.csv$/.exec(key);
+      return m ? (m[1] === "Project" ? project : fixture(`${m[1]}.csv`)) : null;
+    });
+    try {
+      expect(
+        (
+          await call(A, "POST", "/projects/u7m2q9xa-2/artifacts/braes", {
+            braesProjectId: "u7m2q9xa-2",
+          })
+        ).status,
+      ).toBe(400);
+      expect(
+        (
+          await call(B, "POST", "/projects/u7m2q9xa-2/artifacts/braes", {
+            braesProjectId: "AL26VorLearning",
+          })
+        ).status,
+      ).toBe(404);
+      const r = await json<{ url: string; braesProjectId: string }>(
+        call(A, "POST", "/projects/u7m2q9xa-2/artifacts/braes", {
+          braesProjectId: " AL26VorLearning ",
+          locale: "ja",
+        }),
+      );
+      expect(r).toMatchObject({
+        url: "https://signed.example/x",
+        braesProjectId: "AL26VorLearning",
+      });
+      const [, , key, body, type] = vi
+        .mocked(aws.putObjectBytes)
+        .mock.calls.at(-1)!;
+      expect([key, type]).toEqual([
+        "output/u7m2q9xa-2.braes.zip",
+        "application/zip",
+      ]);
+      const files = (await import("fflate")).unzipSync(body as Uint8Array);
+      const dir = "AL26VorLearning_BRAES/";
+      const csvs = [
+        "project",
+        "references",
+        "circuits",
+        "connections",
+        "frg",
+      ].map((s) => `AL26VorLearning_csv/AL26VorLearning_${s}.csv`);
+      expect(Object.keys(files).sort()).toEqual(
+        [
+          ...csvs,
+          "AL26VorLearning.drawio",
+          "AL26VorLearningBIF.xml",
+          "AL26VorLearningFRG.xml",
+          "AL26VorLearningHCD.xml",
+          "submission-form.txt",
+        ]
+          .map((f) => dir + f)
+          .sort(),
+      );
+      // the BRAES Project ID replaces the CoBRAC one in the BRA data
+      expect(
+        shared
+          .parseCsv(new TextDecoder().decode(files[`${dir}${csvs[0]}`]))[1]
+          .slice(1, 2),
+      ).toEqual(["AL26VorLearning"]);
+      const form = new TextDecoder().decode(files[`${dir}submission-form.txt`]);
+      expect(form).toContain("Q2  Project ID: AL26VorLearning");
+      expect(form).toContain("VOR circuit");
+      expect(presign).toHaveBeenLastCalledWith(
+        A.sub,
+        "u7m2q9xa-2",
+        "output/u7m2q9xa-2.braes.zip",
+        {
+          ascii: "AL26VorLearning_BRAES.zip",
+          utf8: "AL26VorLearning_BRAES.zip",
+        },
+      );
+      expect(
+        fake
+          .items("projects")
+          .find((p) => p.projectId === "u7m2q9xa-2" && p.userId === A.sub)!
+          .braesProjectId,
+      ).toBe("AL26VorLearning");
+    } finally {
+      vi.mocked(aws.listArtifacts).mockReset();
+      vi.mocked(aws.listArtifacts).mockResolvedValue([]);
+      vi.mocked(aws.getObjectText).mockReset();
+      vi.mocked(aws.getObjectText).mockResolvedValue(null);
+    }
   }, 30_000);
 
   it("returns the report text for the viewer and refuses non-text keys", async () => {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-2", name: "VOR", nameSource: "user" });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-2",
+      name: "VOR",
+      nameSource: "user",
+    });
     const aws = await import("../src/lib/aws.js");
     vi.mocked(aws.getObjectText).mockResolvedValueOnce("# Report\n\n## HCD\n");
-    const r = await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`);
+    const r = await call(
+      A,
+      "GET",
+      `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`,
+    );
     expect(r.status).toBe(200);
     expect(await r.text()).toBe("# Report\n\n## HCD\n");
-    expect(aws.getObjectText).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-2", "workspace/report.md");
-    expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`)).status).toBe(400);
-    expect((await call(A, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("../x.md")}`)).status).toBe(400);
-    expect((await call(B, "GET", `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`)).status).toBe(404);
+    expect(aws.getObjectText).toHaveBeenLastCalledWith(
+      A.sub,
+      "u7m2q9xa-2",
+      "workspace/report.md",
+    );
+    expect(
+      (
+        await call(
+          A,
+          "GET",
+          `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("output/u7m2q9xa-2.bra.xlsx")}`,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call(
+          A,
+          "GET",
+          `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("../x.md")}`,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call(
+          B,
+          "GET",
+          `/projects/u7m2q9xa-2/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`,
+        )
+      ).status,
+    ).toBe(404);
   });
 });
 
 describe("archive", () => {
   const ID = "u7m2q9xa-3";
-  const stored = () => fake.items("projects").find((p) => p.projectId === ID && p.userId === A.sub)!;
+  const stored = () =>
+    fake
+      .items("projects")
+      .find((p) => p.projectId === ID && p.userId === A.sub)!;
   function seed(status: ProjectRecord["status"]) {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 5), projectId: ID, name: "Saccade", nameSource: "user", status });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 5),
+      projectId: ID,
+      name: "Saccade",
+      nameSource: "user",
+      status,
+    });
   }
 
   it("archives and restores the owner's project, running or not, without touching anything else", async () => {
     seed("RUNNING");
-    const r = await json<{ projectId: string; archivedAt: string | null }>(call(A, "PUT", `/projects/${ID}/archive`, { archived: true }));
+    const r = await json<{ projectId: string; archivedAt: string | null }>(
+      call(A, "PUT", `/projects/${ID}/archive`, { archived: true }),
+    );
     expect(r.archivedAt).toEqual(expect.any(String));
-    expect(stored()).toMatchObject({ archivedAt: r.archivedAt, status: "RUNNING", name: "Saccade" });
+    expect(stored()).toMatchObject({
+      archivedAt: r.archivedAt,
+      status: "RUNNING",
+      name: "Saccade",
+    });
     // archiving again keeps the first time; the list still has it (the sidebar hides it)
-    expect((await json<{ archivedAt: string }>(call(A, "PUT", `/projects/${ID}/archive`, { archived: true }))).archivedAt).toBe(r.archivedAt);
-    const list = await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects"));
-    expect(list.items.find((p) => p.projectId === ID)?.archivedAt).toBe(r.archivedAt);
+    expect(
+      (
+        await json<{ archivedAt: string }>(
+          call(A, "PUT", `/projects/${ID}/archive`, { archived: true }),
+        )
+      ).archivedAt,
+    ).toBe(r.archivedAt);
+    const list = await json<{ items: ProjectRecord[] }>(
+      call(A, "GET", "/projects"),
+    );
+    expect(list.items.find((p) => p.projectId === ID)?.archivedAt).toBe(
+      r.archivedAt,
+    );
     await json(call(A, "PUT", `/projects/${ID}/archive`, { archived: false }));
     expect(stored().archivedAt).toBeNull();
   });
 
   it("refuses other users and a body without `archived`", async () => {
     seed("COMPLETED");
-    expect((await call(B, "PUT", `/projects/${ID}/archive`, { archived: true })).status).toBe(404);
-    expect((await call(A, "PUT", `/projects/${ID}/archive`, {})).status).toBe(400);
+    expect(
+      (await call(B, "PUT", `/projects/${ID}/archive`, { archived: true }))
+        .status,
+    ).toBe(404);
+    expect((await call(A, "PUT", `/projects/${ID}/archive`, {})).status).toBe(
+      400,
+    );
     expect(stored().archivedAt).toBeUndefined();
   });
 });
@@ -326,18 +807,38 @@ describe("soft delete", () => {
   const ID = "u7m2q9xa-2";
   function seed(status: ProjectRecord["status"] = "COMPLETED") {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 5), projectId: ID, name: "Fear conditioning", nameSource: "user", status });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 5),
+      projectId: ID,
+      name: "Fear conditioning",
+      nameSource: "user",
+      status,
+    });
     fake.put("jobs", { ...job(A.sub, "job_a2", 5), projectId: ID });
-    fake.put("messages", { ...message("job_a2", "kept", "5"), projectId: ID, userId: A.sub });
+    fake.put("messages", {
+      ...message("job_a2", "kept", "5"),
+      projectId: ID,
+      userId: A.sub,
+    });
   }
-  const stored = () => fake.items("projects").find((p) => p.projectId === ID && p.userId === A.sub)!;
+  const stored = () =>
+    fake
+      .items("projects")
+      .find((p) => p.projectId === ID && p.userId === A.sub)!;
 
   it("flags the owner's project and keeps every item", async () => {
     seed();
     vi.clearAllMocks();
-    const r = await json<DeleteProjectResponse>(call(A, "DELETE", `/projects/${ID}`));
+    const r = await json<DeleteProjectResponse>(
+      call(A, "DELETE", `/projects/${ID}`),
+    );
     expect(r.projectId).toBe(ID);
-    expect(stored()).toMatchObject({ deletedAt: r.deletedAt, deletedBy: A.sub, status: "COMPLETED", name: "Fear conditioning" });
+    expect(stored()).toMatchObject({
+      deletedAt: r.deletedAt,
+      deletedBy: A.sub,
+      status: "COMPLETED",
+      name: "Fear conditioning",
+    });
     expect(fake.items("jobs").some((j) => j.projectId === ID)).toBe(true);
     expect(fake.items("messages").some((m) => m.projectId === ID)).toBe(true);
     const aws = await import("../src/lib/aws.js");
@@ -350,11 +851,20 @@ describe("soft delete", () => {
     expect(stored().deletedAt).toBeUndefined();
     // Bob's own legacy "VOR" is a different item than Alice's
     await json(call(B, "DELETE", "/projects/VOR"));
-    expect(fake.items("projects").find((p) => p.projectId === "VOR" && p.userId === A.sub)!.deletedAt).toBeUndefined();
+    expect(
+      fake
+        .items("projects")
+        .find((p) => p.projectId === "VOR" && p.userId === A.sub)!.deletedAt,
+    ).toBeUndefined();
   });
 
   it("blocks deletion while a job is in flight", async () => {
-    for (const status of ["QUEUED", "RUNNING", "WAITING_USER_INPUT", "FINALIZING"] as const) {
+    for (const status of [
+      "QUEUED",
+      "RUNNING",
+      "WAITING_USER_INPUT",
+      "FINALIZING",
+    ] as const) {
       fake.tables.clear();
       seed(status);
       expect((await call(A, "DELETE", `/projects/${ID}`)).status).toBe(409);
@@ -369,12 +879,29 @@ describe("soft delete", () => {
 
   it("hides the project from every owner path", async () => {
     seed();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-3", legacyId: "OLD", name: "fear conditioning", nameSource: "user" });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-3",
+      legacyId: "OLD",
+      name: "fear conditioning",
+      nameSource: "user",
+    });
     await json(call(A, "DELETE", `/projects/${ID}`));
 
-    const list = await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects"));
-    expect(list.items.map((p) => p.projectId).sort()).toEqual(["VOR", "u7m2q9xa-3"]);
-    expect((await json<{ items: ProjectRecord[] }>(call(A, "GET", "/projects?q=fear"))).items.map((p) => p.projectId)).toEqual(["u7m2q9xa-3"]);
+    const list = await json<{ items: ProjectRecord[] }>(
+      call(A, "GET", "/projects"),
+    );
+    expect(list.items.map((p) => p.projectId).sort()).toEqual([
+      "VOR",
+      "u7m2q9xa-3",
+    ]);
+    expect(
+      (
+        await json<{ items: ProjectRecord[] }>(
+          call(A, "GET", "/projects?q=fear"),
+        )
+      ).items.map((p) => p.projectId),
+    ).toEqual(["u7m2q9xa-3"]);
 
     const key = encodeURIComponent(`output/${ID}.bra.xlsx`);
     for (const [method, path, body] of [
@@ -389,25 +916,40 @@ describe("soft delete", () => {
       ["POST", `/projects/${ID}/answer`, { answer: "a" }],
       ["GET", `/projects/${ID}/artifacts`],
       ["GET", `/projects/${ID}/artifacts/download?key=${key}`],
-      ["GET", `/projects/${ID}/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`],
+      [
+        "GET",
+        `/projects/${ID}/artifacts/text?key=${encodeURIComponent("workspace/report.md")}`,
+      ],
       ["GET", `/projects/${ID}/graph/hcd`],
       ["GET", `/projects/${ID}/graph/frg/layout`],
       ["PUT", `/projects/${ID}/graph/frg/layout`, { positions: {} }],
       ["DELETE", `/projects/${ID}/graph/frg/layout`],
     ] as const) {
-      expect([method, path, (await call(A, method, path, body)).status]).toEqual([method, path, 404]);
+      expect([
+        method,
+        path,
+        (await call(A, method, path, body)).status,
+      ]).toEqual([method, path, 404]);
     }
     expect(presign).not.toHaveBeenCalled();
 
     // A live project with the same name is no longer reported as a duplicate of the deleted one
-    const r = await json<UpdateProjectResponse>(call(A, "PUT", "/projects/u7m2q9xa-3", { name: "Fear Conditioning" }));
+    const r = await json<UpdateProjectResponse>(
+      call(A, "PUT", "/projects/u7m2q9xa-3", { name: "Fear Conditioning" }),
+    );
     expect(r.duplicates).toEqual([]);
   });
 
   it("does not resolve a deleted project's legacy ID", async () => {
     seedLegacyCollision();
     fake.table("projects").clear();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: "u7m2q9xa-3", legacyId: "VOR", name: "VOR", nameSource: "user" });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: "u7m2q9xa-3",
+      legacyId: "VOR",
+      name: "VOR",
+      nameSource: "user",
+    });
     await json(call(A, "DELETE", "/projects/u7m2q9xa-3"));
     expect((await call(A, "GET", "/projects/resolve/VOR")).status).toBe(404);
   });
@@ -417,32 +959,72 @@ describe("soft delete", () => {
     await json(call(A, "DELETE", `/projects/${ID}`));
     const s = await json<UsageSummary>(call(A, "GET", "/users/me/usage"));
     expect(s.totals.inputTokens).toBe(105);
-    expect(s.byProject.find((p) => p.projectId === ID)).toMatchObject({ deleted: true });
-    expect(s.byProject.find((p) => p.projectId === "VOR")!.deleted).toBeUndefined();
+    expect(s.byProject.find((p) => p.projectId === ID)).toMatchObject({
+      deleted: true,
+    });
+    expect(
+      s.byProject.find((p) => p.projectId === "VOR")!.deleted,
+    ).toBeUndefined();
   });
 
   it("lists deleted projects for admins with the flag, and admin only", async () => {
     seed();
     await json(call(A, "DELETE", `/projects/${ID}`));
     expect((await call(A, "GET", "/admin/projects")).status).toBe(403);
+    fake.put("users", {
+      ...fake.items("users").find((u) => u.userId === B.sub)!,
+      role: "admin",
+    });
+    const r = await json<{ items: ProjectRecord[] }>(
+      call(B, "GET", "/admin/projects"),
+    );
+    expect(r.items.find((p) => p.projectId === ID)).toMatchObject({
+      deletedBy: A.sub,
+      deletedAt: expect.any(String),
+    });
+  });
+
+  it("lets only site admins set and clear the BRAES mark, keeping the first one", async () => {
+    seed();
+    fake.put("projects", { ...stored(), revision: 3 });
+    const path = `/admin/projects/${A.sub}/${ID}/braes`;
+    expect((await call(A, "PUT", path, { accepted: true })).status).toBe(403);
     fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, role: "admin" });
-    const r = await json<{ items: ProjectRecord[] }>(call(B, "GET", "/admin/projects"));
-    expect(r.items.find((p) => p.projectId === ID)).toMatchObject({ deletedBy: A.sub, deletedAt: expect.any(String) });
+    expect((await call(B, "PUT", path, { accepted: "yes" })).status).toBe(400);
+    const r = await json<{ braesAccepted: ProjectRecord["braesAccepted"] }>(call(B, "PUT", path, { accepted: true }));
+    expect(r.braesAccepted).toEqual({ acceptedAt: expect.any(String), acceptedBy: B.sub, revision: 3 });
+    expect(stored().braesAccepted).toEqual(r.braesAccepted);
+    // setting it again keeps who and when; the owner sees it on the project
+    expect((await json<typeof r>(call(B, "PUT", path, { accepted: true }))).braesAccepted).toEqual(r.braesAccepted);
+    expect((await json<ProjectRecord>(call(A, "GET", `/projects/${ID}`))).braesAccepted).toEqual(r.braesAccepted);
+    await json(call(B, "PUT", path, { accepted: false }));
+    expect(stored().braesAccepted).toBeNull();
+    // a project without outputs, or a deleted one, cannot be marked
+    fake.put("projects", { ...stored(), hasArtifacts: false });
+    expect((await call(B, "PUT", path, { accepted: true })).status).toBe(400);
+    await json(call(A, "DELETE", `/projects/${ID}`));
+    expect((await call(B, "PUT", path, { accepted: true })).status).toBe(404);
   });
 });
 
 describe("legacy Project IDs shared by two users (project-index cross-talk)", () => {
   it("returns only the caller's messages", async () => {
     seedLegacyCollision();
-    const a = await json<{ items: MessageRecord[] }>(call(A, "GET", "/projects/VOR/messages"));
-    const b = await json<{ items: MessageRecord[] }>(call(B, "GET", "/projects/VOR/messages"));
+    const a = await json<{ items: MessageRecord[] }>(
+      call(A, "GET", "/projects/VOR/messages"),
+    );
+    const b = await json<{ items: MessageRecord[] }>(
+      call(B, "GET", "/projects/VOR/messages"),
+    );
     expect(a.items.map((m) => m.content)).toEqual(["alice secret"]);
     expect(b.items.map((m) => m.content)).toEqual(["bob secret", "bob new"]);
   });
 
   it("returns only the caller's jobs", async () => {
     seedLegacyCollision();
-    const p = await json<{ jobs: JobRecord[] }>(call(A, "GET", "/projects/VOR"));
+    const p = await json<{ jobs: JobRecord[] }>(
+      call(A, "GET", "/projects/VOR"),
+    );
     expect(p.jobs.map((j) => j.jobId)).toEqual(["job_a"]);
   });
 
@@ -450,13 +1032,29 @@ describe("legacy Project IDs shared by two users (project-index cross-talk)", ()
     seedLegacyCollision();
     const s = await json<UsageSummary>(call(A, "GET", "/users/me/usage"));
     expect(s.totals.inputTokens).toBe(100);
-    expect(s.byModel).toEqual([expect.objectContaining({ model: "gpt-5.6", jobs: 1, usage: expect.objectContaining({ inputTokens: 100 }) })]);
+    expect(s.byModel).toEqual([
+      expect.objectContaining({
+        model: "gpt-5.6",
+        jobs: 1,
+        usage: expect.objectContaining({ inputTokens: 100 }),
+      }),
+    ]);
   });
 
   it("broadcasts messages and project updates only to the owner's connections", async () => {
     seedLegacyCollision();
-    fake.put("ws", { connectionId: "conn-a", projectId: "VOR", userId: A.sub, ttl: 1 });
-    fake.put("ws", { connectionId: "conn-b", projectId: "VOR", userId: B.sub, ttl: 1 });
+    fake.put("ws", {
+      connectionId: "conn-a",
+      projectId: "VOR",
+      userId: A.sub,
+      ttl: 1,
+    });
+    fake.put("ws", {
+      connectionId: "conn-b",
+      projectId: "VOR",
+      userId: B.sub,
+      ttl: 1,
+    });
     const { marshall } = await import("@aws-sdk/util-dynamodb");
     const rec = (table: string, item: object) => ({
       eventName: "INSERT",
@@ -466,19 +1064,31 @@ describe("legacy Project IDs shared by two users (project-index cross-talk)", ()
     await broadcast({
       Records: [
         rec("messages", message("job_a", "alice live", "9")),
-        rec("messages", { ...message("job_b", "bob live", "10"), userId: B.sub }),
+        rec("messages", {
+          ...message("job_b", "bob live", "10"),
+          userId: B.sub,
+        }),
         rec("projects", { ...legacyProject(B.sub, 7), status: "RUNNING" }),
       ],
     } as never);
-    const to = (c: string) => posted.filter((p) => p.connectionId === c).map((p) => p.data.type + ":" + JSON.stringify(p.data).includes("alice"));
+    const to = (c: string) =>
+      posted
+        .filter((p) => p.connectionId === c)
+        .map(
+          (p) => p.data.type + ":" + JSON.stringify(p.data).includes("alice"),
+        );
     expect(to("conn-a")).toEqual(["message:true"]);
     expect(to("conn-b")).toEqual(["message:false", "project:false"]);
   });
 });
 
 describe("reply language (web UI locale)", () => {
-  const jobsOf = (projectId: string) => fake.items("jobs").filter((j) => j.projectId === projectId) as unknown as JobRecord[];
-  const latestJob = (projectId: string) => jobsOf(projectId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
+  const jobsOf = (projectId: string) =>
+    fake
+      .items("jobs")
+      .filter((j) => j.projectId === projectId) as unknown as JobRecord[];
+  const latestJob = (projectId: string) =>
+    jobsOf(projectId).sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))[0];
   const setStatus = (projectId: string, status: ProjectRecord["status"]) => {
     const p = fake.items("projects").find((x) => x.projectId === projectId)!;
     fake.put("projects", { ...p, status });
@@ -488,30 +1098,73 @@ describe("reply language (web UI locale)", () => {
     await json(call(A, "GET", "/users/me"));
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
 
-    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning", locale: "ja" }));
+    const p = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "flocculus",
+        tlf: "VOR learning",
+        locale: "ja",
+      }),
+    );
     expect(latestJob(p.projectId).locale).toBe("ja");
-    expect((await call(A, "POST", "/projects", { roi: "x", tlf: "y", locale: "xx" })).status).toBe(400);
-    const plain = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "x", tlf: "y" }));
+    expect(
+      (await call(A, "POST", "/projects", { roi: "x", tlf: "y", locale: "xx" }))
+        .status,
+    ).toBe(400);
+    const plain = await json<ProjectRecord>(
+      call(A, "POST", "/projects", { roi: "x", tlf: "y" }),
+    );
     expect(latestJob(plain.projectId).locale).toBeNull();
 
     setStatus(p.projectId, "WAITING_USER_INPUT");
-    expect((await call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "yes", locale: 5 })).status).toBe(400);
-    await json(call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "yes", locale: "de" }));
-    expect(latestJob(p.projectId)).toMatchObject({ pendingAnswer: "yes", locale: "de" });
+    expect(
+      (
+        await call(A, "POST", `/projects/${p.projectId}/answer`, {
+          answer: "yes",
+          locale: 5,
+        })
+      ).status,
+    ).toBe(400);
+    await json(
+      call(A, "POST", `/projects/${p.projectId}/answer`, {
+        answer: "yes",
+        locale: "de",
+      }),
+    );
+    expect(latestJob(p.projectId)).toMatchObject({
+      pendingAnswer: "yes",
+      locale: "de",
+    });
     setStatus(p.projectId, "WAITING_USER_INPUT");
-    await json(call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "again" }));
+    await json(
+      call(A, "POST", `/projects/${p.projectId}/answer`, { answer: "again" }),
+    );
     expect(latestJob(p.projectId).locale).toBe("de");
 
     setStatus(p.projectId, "COMPLETED");
-    const f = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/followup`, { instruction: "add a UC", locale: "zhTw" }));
-    expect(jobsOf(p.projectId).find((j) => j.jobId === f.jobId)!.locale).toBe("zhTw");
+    const f = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${p.projectId}/followup`, {
+        instruction: "add a UC",
+        locale: "zhTw",
+      }),
+    );
+    expect(jobsOf(p.projectId).find((j) => j.jobId === f.jobId)!.locale).toBe(
+      "zhTw",
+    );
 
     setStatus(p.projectId, "FAILED");
-    const r1 = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/retry`));
-    expect(jobsOf(p.projectId).find((j) => j.jobId === r1.jobId)!.locale).toBe("zhTw");
+    const r1 = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${p.projectId}/retry`),
+    );
+    expect(jobsOf(p.projectId).find((j) => j.jobId === r1.jobId)!.locale).toBe(
+      "zhTw",
+    );
     setStatus(p.projectId, "FAILED");
-    const r2 = await json<{ jobId: string }>(call(A, "POST", `/projects/${p.projectId}/retry`, { locale: "en" }));
-    expect(jobsOf(p.projectId).find((j) => j.jobId === r2.jobId)!.locale).toBe("en");
+    const r2 = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${p.projectId}/retry`, { locale: "en" }),
+    );
+    expect(jobsOf(p.projectId).find((j) => j.jobId === r2.jobId)!.locale).toBe(
+      "en",
+    );
   });
 });
 
@@ -520,17 +1173,39 @@ describe("research mode", () => {
     await json(call(A, "GET", "/users/me"));
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
 
-    const on = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning" }));
-    const off = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning", researchMode: false }));
+    const on = await json<ProjectRecord>(
+      call(A, "POST", "/projects", { roi: "flocculus", tlf: "VOR learning" }),
+    );
+    const off = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "flocculus",
+        tlf: "VOR learning",
+        researchMode: false,
+      }),
+    );
     expect(on.researchMode).toBe(true);
     expect(off.researchMode).toBe(false);
-    const stored = (id: string) => fake.items("projects").find((p) => p.projectId === id) as unknown as ProjectRecord;
+    const stored = (id: string) =>
+      fake
+        .items("projects")
+        .find((p) => p.projectId === id) as unknown as ProjectRecord;
     expect(stored(on.projectId).researchMode).toBe(true);
     expect(stored(off.projectId).researchMode).toBe(false);
-    const notices = (id: string) => (fake.items("messages") as unknown as MessageRecord[]).filter((m) => m.projectId === id).map((m) => m.meta?.i18n);
+    const notices = (id: string) =>
+      (fake.items("messages") as unknown as MessageRecord[])
+        .filter((m) => m.projectId === id)
+        .map((m) => m.meta?.i18n);
     expect(notices(on.projectId)).toContain("sys.researchOn");
     expect(notices(off.projectId)).toContain("sys.researchOff");
-    expect((await call(A, "POST", "/projects", { roi: "x", tlf: "y", researchMode: "yes" })).status).toBe(400);
+    expect(
+      (
+        await call(A, "POST", "/projects", {
+          roi: "x",
+          tlf: "y",
+          researchMode: "yes",
+        })
+      ).status,
+    ).toBe(400);
   });
 });
 
@@ -538,9 +1213,20 @@ describe("SABRA boundary", () => {
   it("is set to neocortex on new projects (older projects have none and keep their BNA anchors)", async () => {
     await json(call(A, "GET", "/users/me"));
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
-    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "nucleus accumbens", tlf: "reward learning" }));
+    const p = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "nucleus accumbens",
+        tlf: "reward learning",
+      }),
+    );
     expect(p.sabraBoundary).toBe("neocortex");
-    expect((fake.items("projects").find((x) => x.projectId === p.projectId) as unknown as ProjectRecord).sabraBoundary).toBe("neocortex");
+    expect(
+      (
+        fake
+          .items("projects")
+          .find((x) => x.projectId === p.projectId) as unknown as ProjectRecord
+      ).sabraBoundary,
+    ).toBe("neocortex");
   });
 });
 
@@ -548,9 +1234,20 @@ describe("harness rules", () => {
   it("are set to the current rule set on new projects (older projects have none and are checked as before)", async () => {
     await json(call(A, "GET", "/users/me"));
     fake.put("users", { ...fake.items("users")[0], apiKeyRegistered: true });
-    const p = await json<ProjectRecord>(call(A, "POST", "/projects", { roi: "visual word form area", tlf: "reading" }));
+    const p = await json<ProjectRecord>(
+      call(A, "POST", "/projects", {
+        roi: "visual word form area",
+        tlf: "reading",
+      }),
+    );
     expect(p.harnessRules).toBe(HARNESS_RULES);
-    expect((fake.items("projects").find((x) => x.projectId === p.projectId) as unknown as ProjectRecord).harnessRules).toBe(HARNESS_RULES);
+    expect(
+      (
+        fake
+          .items("projects")
+          .find((x) => x.projectId === p.projectId) as unknown as ProjectRecord
+      ).harnessRules,
+    ).toBe(HARNESS_RULES);
   });
 });
 
@@ -558,7 +1255,14 @@ describe("explanatory articles", () => {
   const P = "u7m2q9xa-5";
   async function seed(extra: Partial<ProjectRecord> = {}) {
     seedLegacyCollision();
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: P, name: "報酬 学習", nameSource: "user", revision: 2, ...extra });
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: P,
+      name: "報酬 学習",
+      nameSource: "user",
+      revision: 2,
+      ...extra,
+    });
     const aws = await import("../src/lib/aws.js");
     vi.mocked(aws.enqueueRun).mockClear();
     return aws;
@@ -566,64 +1270,176 @@ describe("explanatory articles", () => {
 
   it("queues an article job for finished BRA data only, without touching the steps", async () => {
     const aws = await seed();
-    const r = await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" });
+    const r = await call(A, "POST", `/projects/${P}/articles`, {
+      locale: "ja",
+    });
     expect(r.status).toBe(202);
     const { jobId } = (await r.json()) as { jobId: string };
     const job = fake.items("jobs").find((j) => j.jobId === jobId)!;
-    expect(job).toMatchObject({ type: "article", status: "QUEUED", articleLocale: "ja" });
+    expect(job).toMatchObject({
+      type: "article",
+      status: "QUEUED",
+      articleLocale: "ja",
+    });
     const p = fake.items("projects").find((x) => x.projectId === P)!;
-    expect(p).toMatchObject({ status: "QUEUED", activeJobId: jobId, articleJob: { jobId, locale: "ja", status: "QUEUED" }, stepStates: { XLSX: "done" } });
-    expect(aws.enqueueRun).toHaveBeenLastCalledWith({ version: 1, userId: A.sub, projectId: P, jobId, mode: "article" });
+    expect(p).toMatchObject({
+      status: "QUEUED",
+      activeJobId: jobId,
+      articleJob: { jobId, locale: "ja", status: "QUEUED" },
+      stepStates: { XLSX: "done" },
+    });
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith({
+      version: 1,
+      userId: A.sub,
+      projectId: P,
+      jobId,
+      mode: "article",
+    });
 
-    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(400); // busy now
-    await seed({ status: "COMPLETED", stepStates: { HCD: "done", FRG: "done", CSV: "done", XLSX: "pending" } });
-    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(400);
+    expect(
+      (await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" }))
+        .status,
+    ).toBe(400); // busy now
+    await seed({
+      status: "COMPLETED",
+      stepStates: { HCD: "done", FRG: "done", CSV: "done", XLSX: "pending" },
+    });
+    expect(
+      (await call(A, "POST", `/projects/${P}/articles`, { locale: "ja" }))
+        .status,
+    ).toBe(400);
     await seed();
-    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja-JP" })).status).toBe(400);
-    expect((await call(B, "POST", `/projects/${P}/articles`, { locale: "ja" })).status).toBe(404);
+    expect(
+      (await call(A, "POST", `/projects/${P}/articles`, { locale: "ja-JP" }))
+        .status,
+    ).toBe(400);
+    expect(
+      (await call(B, "POST", `/projects/${P}/articles`, { locale: "ja" }))
+        .status,
+    ).toBe(404);
   });
 
   it("uses the model chosen for the article, or the project's when none is chosen", async () => {
     await seed();
-    const first = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "ja" }));
-    expect(fake.items("jobs").find((j) => j.jobId === first.jobId)).toMatchObject({ model: null });
+    const first = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${P}/articles`, { locale: "ja" }),
+    );
+    expect(
+      fake.items("jobs").find((j) => j.jobId === first.jobId),
+    ).toMatchObject({ model: null });
     await seed();
-    const chosen = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "gpt-6-sol" }));
-    expect(fake.items("jobs").find((j) => j.jobId === chosen.jobId)).toMatchObject({ model: "gpt-6-sol" });
+    const chosen = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${P}/articles`, {
+        locale: "ja",
+        model: "gpt-6-sol",
+      }),
+    );
+    expect(
+      fake.items("jobs").find((j) => j.jobId === chosen.jobId),
+    ).toMatchObject({ model: "gpt-6-sol" });
     await seed();
-    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "text-embedding-3" })).status).toBe(400);
-    expect((await call(A, "POST", `/projects/${P}/articles`, { locale: "ja", model: "bad model" })).status).toBe(400);
+    expect(
+      (
+        await call(A, "POST", `/projects/${P}/articles`, {
+          locale: "ja",
+          model: "text-embedding-3",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await call(A, "POST", `/projects/${P}/articles`, {
+          locale: "ja",
+          model: "bad model",
+        })
+      ).status,
+    ).toBe(400);
   });
 
   it("serves article figures as text and nothing else outside the text types", async () => {
     const aws = await seed();
     vi.mocked(aws.getObjectText).mockResolvedValueOnce("<svg/>");
-    const ok = await call(A, "GET", `/projects/${P}/artifacts/text?key=${encodeURIComponent("article/ja/figures/circuit.narrow.svg")}`);
+    const ok = await call(
+      A,
+      "GET",
+      `/projects/${P}/artifacts/text?key=${encodeURIComponent("article/ja/figures/circuit.narrow.svg")}`,
+    );
     expect(ok.status).toBe(200);
     expect(await ok.text()).toBe("<svg/>");
-    expect((await call(A, "GET", `/projects/${P}/artifacts/text?key=${encodeURIComponent("workspace/x.svg")}`)).status).toBe(400);
+    expect(
+      (
+        await call(
+          A,
+          "GET",
+          `/projects/${P}/artifacts/text?key=${encodeURIComponent("workspace/x.svg")}`,
+        )
+      ).status,
+    ).toBe(400);
   });
 
   it("cancelling an article job leaves the project completed", async () => {
     await seed();
-    const { jobId } = await json<{ jobId: string }>(call(A, "POST", `/projects/${P}/articles`, { locale: "en" }));
+    const { jobId } = await json<{ jobId: string }>(
+      call(A, "POST", `/projects/${P}/articles`, { locale: "en" }),
+    );
     await json(call(A, "POST", `/projects/${P}/cancel`));
     const p = fake.items("projects").find((x) => x.projectId === P)!;
-    expect(p).toMatchObject({ status: "COMPLETED", activeJobId: null, articleJob: { jobId, status: "CANCELLED" } });
-    expect(fake.items("jobs").find((j) => j.jobId === jobId)!.status).toBe("CANCELLED");
+    expect(p).toMatchObject({
+      status: "COMPLETED",
+      activeJobId: null,
+      articleJob: { jobId, status: "CANCELLED" },
+    });
+    expect(fake.items("jobs").find((j) => j.jobId === jobId)!.status).toBe(
+      "CANCELLED",
+    );
   });
 
   it("lists articles with their metadata and a stale flag, and names downloads", async () => {
     const aws = await seed();
     vi.mocked(aws.listArtifacts).mockResolvedValueOnce([
-      { key: "article/ja.md", name: "ja.md", size: 10, lastModified: now, category: "article" },
-      { key: "article/en.md", name: "en.md", size: 10, lastModified: now, category: "article" },
-      { key: "output/x.bra.xlsx", name: "x.bra.xlsx", size: 10, lastModified: now, category: "output" },
+      {
+        key: "article/ja.md",
+        name: "ja.md",
+        size: 10,
+        lastModified: now,
+        category: "article",
+      },
+      {
+        key: "article/en.md",
+        name: "en.md",
+        size: 10,
+        lastModified: now,
+        category: "article",
+      },
+      {
+        key: "output/x.bra.xlsx",
+        name: "x.bra.xlsx",
+        size: 10,
+        lastModified: now,
+        category: "output",
+      },
     ]);
     const meta = (locale: string, sourceRevision: number) =>
-      JSON.stringify({ locale, language: locale, title: "T", createdAt: now, sourceRevision, jobId: "job_x", model: "gpt-5.6", citedReferences: ["[A, 2000]"] });
-    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) => (key === "article/ja.json" ? meta("ja", 2) : key === "article/en.json" ? meta("en", 1) : null));
-    const r = await json<{ items: { locale: string; stale: boolean; key: string }[] }>(call(A, "GET", `/projects/${P}/articles`));
+      JSON.stringify({
+        locale,
+        language: locale,
+        title: "T",
+        createdAt: now,
+        sourceRevision,
+        jobId: "job_x",
+        model: "gpt-5.6",
+        citedReferences: ["[A, 2000]"],
+      });
+    vi.mocked(aws.getObjectText).mockImplementation(async (_u, _p, key) =>
+      key === "article/ja.json"
+        ? meta("ja", 2)
+        : key === "article/en.json"
+          ? meta("en", 1)
+          : null,
+    );
+    const r = await json<{
+      items: { locale: string; stale: boolean; key: string }[];
+    }>(call(A, "GET", `/projects/${P}/articles`));
     vi.mocked(aws.getObjectText).mockReset();
     vi.mocked(aws.getObjectText).mockResolvedValue(null);
     expect(r.items.map((a) => [a.locale, a.stale, a.key])).toEqual([
@@ -631,18 +1447,46 @@ describe("explanatory articles", () => {
       ["en", true, "article/en.md"],
     ]);
 
-    await json(call(A, "GET", `/projects/${P}/artifacts/download?key=${encodeURIComponent("article/ja.md")}`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, P, "article/ja.md", { ascii: `${P}.article.ja.md`, utf8: `報酬_学習_${P}.article.ja.md` });
+    await json(
+      call(
+        A,
+        "GET",
+        `/projects/${P}/artifacts/download?key=${encodeURIComponent("article/ja.md")}`,
+      ),
+    );
+    expect(presign).toHaveBeenLastCalledWith(A.sub, P, "article/ja.md", {
+      ascii: `${P}.article.ja.md`,
+      utf8: `報酬_学習_${P}.article.ja.md`,
+    });
   });
 
   it("retries the last BRA job, not an article job", async () => {
     const aws = await seed({ status: "FAILED" });
-    fake.put("jobs", { ...job(A.sub, "job_f", 1), projectId: P, type: "followup", instruction: "add X", status: "FAILED", createdAt: "2026-09-02T00:00:00.000Z" });
-    fake.put("jobs", { ...job(A.sub, "job_art", 1), projectId: P, type: "article", articleLocale: "ja", createdAt: "2026-09-03T00:00:00.000Z" });
+    fake.put("jobs", {
+      ...job(A.sub, "job_f", 1),
+      projectId: P,
+      type: "followup",
+      instruction: "add X",
+      status: "FAILED",
+      createdAt: "2026-09-02T00:00:00.000Z",
+    });
+    fake.put("jobs", {
+      ...job(A.sub, "job_art", 1),
+      projectId: P,
+      type: "article",
+      articleLocale: "ja",
+      createdAt: "2026-09-03T00:00:00.000Z",
+    });
     await json(call(A, "POST", `/projects/${P}/retry`));
-    const retried = fake.items("jobs").filter((j) => j.projectId === P && j.status === "QUEUED");
-    expect(retried).toEqual([expect.objectContaining({ type: "followup", instruction: "add X" })]);
-    expect(aws.enqueueRun).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "retry" }));
+    const retried = fake
+      .items("jobs")
+      .filter((j) => j.projectId === P && j.status === "QUEUED");
+    expect(retried).toEqual([
+      expect.objectContaining({ type: "followup", instruction: "add X" }),
+    ]);
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith(
+      expect.objectContaining({ mode: "retry" }),
+    );
   });
 });
 
@@ -652,36 +1496,110 @@ describe("janitor and article jobs", () => {
     const aws = await import("../src/lib/aws.js");
     vi.mocked(aws.enqueueRun).mockClear();
     const P = "u7m2q9xa-6";
-    const stalled = { ...job(A.sub, "job_art", 1), projectId: P, type: "article" as const, articleLocale: "ko" as const, status: "RUNNING" as const, lastHeartbeat: now };
-    fake.put("projects", { ...legacyProject(A.sub, 1), projectId: P, status: "RUNNING", activeJobId: "job_art" });
+    const stalled = {
+      ...job(A.sub, "job_art", 1),
+      projectId: P,
+      type: "article" as const,
+      articleLocale: "ko" as const,
+      status: "RUNNING" as const,
+      lastHeartbeat: now,
+    };
+    fake.put("projects", {
+      ...legacyProject(A.sub, 1),
+      projectId: P,
+      status: "RUNNING",
+      activeJobId: "job_art",
+    });
     fake.put("jobs", stalled);
     await janitor();
-    const next = fake.items("jobs").find((j) => j.projectId === P && j.status === "QUEUED")!;
-    expect(next).toMatchObject({ type: "article", articleLocale: "ko", retryCount: 1 });
-    expect(aws.enqueueRun).toHaveBeenLastCalledWith(expect.objectContaining({ jobId: next.jobId, mode: "article" }));
-    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject({ status: "QUEUED", articleJob: { jobId: next.jobId, locale: "ko", status: "QUEUED" } });
+    const next = fake
+      .items("jobs")
+      .find((j) => j.projectId === P && j.status === "QUEUED")!;
+    expect(next).toMatchObject({
+      type: "article",
+      articleLocale: "ko",
+      retryCount: 1,
+    });
+    expect(aws.enqueueRun).toHaveBeenLastCalledWith(
+      expect.objectContaining({ jobId: next.jobId, mode: "article" }),
+    );
+    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject(
+      {
+        status: "QUEUED",
+        articleJob: { jobId: next.jobId, locale: "ko", status: "QUEUED" },
+      },
+    );
 
-    fake.put("jobs", { ...next, status: "RUNNING", lastHeartbeat: now, retryCount: 5 });
+    fake.put("jobs", {
+      ...next,
+      status: "RUNNING",
+      lastHeartbeat: now,
+      retryCount: 5,
+    });
     await janitor();
-    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject({ status: "COMPLETED", activeJobId: null, errorMessage: null, articleJob: { status: "FAILED" } });
+    expect(fake.items("projects").find((x) => x.projectId === P)).toMatchObject(
+      {
+        status: "COMPLETED",
+        activeJobId: null,
+        errorMessage: null,
+        articleJob: { status: "FAILED" },
+      },
+    );
   });
 });
 
 describe("reference materials", () => {
   const seedUser = () =>
-    fake.put("users", { userId: A.sub, email: A.email, displayName: "a", contributorName: "Alice A.", role: "user", disabled: false, apiKeyRegistered: true, userKey: "u7m2q9xa", createdAt: now, updatedAt: now });
+    fake.put("users", {
+      userId: A.sub,
+      email: A.email,
+      displayName: "a",
+      contributorName: "Alice A.",
+      role: "user",
+      disabled: false,
+      apiKeyRegistered: true,
+      userKey: "u7m2q9xa",
+      createdAt: now,
+      updatedAt: now,
+    });
 
   it("presigns uploads only for accepted types and sizes, into the caller's staging area", async () => {
     seedUser();
     const aws = await import("../src/lib/aws.js");
     vi.mocked(aws.presignUpload).mockClear();
-    const r = await json<{ uploadId: string; contentType: string; fields: { key: string } }>(call(A, "POST", "/uploads", { name: "Ito 1982 (review).PDF", size: 1234 }));
+    const r = await json<{
+      uploadId: string;
+      contentType: string;
+      fields: { key: string };
+    }>(
+      call(A, "POST", "/uploads", {
+        name: "Ito 1982 (review).PDF",
+        size: 1234,
+      }),
+    );
     expect(r.uploadId).toMatch(/^up_[a-z0-9]{32}$/);
     expect(r.contentType).toBe("application/pdf");
-    expect(vi.mocked(aws.presignUpload).mock.calls[0]).toEqual([`staging/${A.sub}/${r.uploadId}/Ito_1982_review_.pdf`, "application/pdf", 20 * 1024 * 1024, 900]);
-    expect((await call(A, "POST", "/uploads", { name: "run.exe", size: 10 })).status).toBe(400);
-    expect((await call(A, "POST", "/uploads", { name: "big.pdf", size: 21 * 1024 * 1024 })).status).toBe(400);
-    expect((await call(A, "POST", "/uploads", { name: "empty.png", size: 0 })).status).toBe(400);
+    expect(vi.mocked(aws.presignUpload).mock.calls[0]).toEqual([
+      `staging/${A.sub}/${r.uploadId}/Ito_1982_review_.pdf`,
+      "application/pdf",
+      20 * 1024 * 1024,
+      900,
+    ]);
+    expect(
+      (await call(A, "POST", "/uploads", { name: "run.exe", size: 10 })).status,
+    ).toBe(400);
+    expect(
+      (
+        await call(A, "POST", "/uploads", {
+          name: "big.pdf",
+          size: 21 * 1024 * 1024,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await call(A, "POST", "/uploads", { name: "empty.png", size: 0 }))
+        .status,
+    ).toBe(400);
   });
 
   it("moves staged files into the project and stores files and URLs on the record", async () => {
@@ -695,16 +1613,39 @@ describe("reference materials", () => {
         roi: "flocculus",
         tlf: "VOR",
         attachments: [{ uploadId: up, name: "図1 flocculus.png" }],
-        urls: ["https://example.org/paper#section", " ", "https://example.org/paper"],
+        urls: [
+          "https://example.org/paper#section",
+          " ",
+          "https://example.org/paper",
+        ],
       }),
     );
-    expect(p).toMatchObject({ contributor: "Alice A.", nameSource: "provisional" });
+    expect(p).toMatchObject({
+      contributor: "Alice A.",
+      nameSource: "provisional",
+    });
     expect(p.attachments).toEqual([
-      { kind: "file", id: "f1", name: "図1 flocculus.png", key: "attachments/files/01-図1_flocculus.png", size: 1000, contentType: "image/png" },
+      {
+        kind: "file",
+        id: "f1",
+        name: "図1 flocculus.png",
+        key: "attachments/files/01-図1_flocculus.png",
+        size: 1000,
+        contentType: "image/png",
+      },
       { kind: "url", id: "u1", url: "https://example.org/paper" },
     ]);
-    expect(vi.mocked(aws.moveStagingToProject)).toHaveBeenCalledWith(`staging/${A.sub}/${up}/図1_flocculus.png`, A.sub, p.projectId, "attachments/files/01-図1_flocculus.png", "image/png");
-    expect(fake.items("projects").find((x) => x.projectId === p.projectId)!.attachments).toHaveLength(2);
+    expect(vi.mocked(aws.moveStagingToProject)).toHaveBeenCalledWith(
+      `staging/${A.sub}/${up}/図1_flocculus.png`,
+      A.sub,
+      p.projectId,
+      "attachments/files/01-図1_flocculus.png",
+      "image/png",
+    );
+    expect(
+      fake.items("projects").find((x) => x.projectId === p.projectId)!
+        .attachments,
+    ).toHaveLength(2);
     expect(vi.mocked(aws.enqueueRun)).toHaveBeenCalledTimes(1);
   });
 
@@ -712,20 +1653,56 @@ describe("reference materials", () => {
     seedUser();
     const aws = await import("../src/lib/aws.js");
     const up = "up_" + "b".repeat(32);
-    const post = (body: Record<string, unknown>) => call(A, "POST", "/projects", { roi: "x", tlf: "y", ...body });
+    const post = (body: Record<string, unknown>) =>
+      call(A, "POST", "/projects", { roi: "x", tlf: "y", ...body });
     vi.mocked(aws.headStaging).mockResolvedValueOnce(null);
-    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status).toBe(400);
-    vi.mocked(aws.headStaging).mockResolvedValueOnce({ size: 30 * 1024 * 1024 });
-    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status).toBe(400);
-    expect((await post({ attachments: [{ uploadId: "../other", name: "a.pdf" }] })).status).toBe(400);
-    expect((await post({ attachments: [{ uploadId: up, name: "a.pdf" }, { uploadId: up, name: "a.pdf" }] })).status).toBe(400);
-    expect((await post({ attachments: [{ uploadId: up, name: "a.zip" }] })).status).toBe(400);
+    expect(
+      (await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status,
+    ).toBe(400);
+    vi.mocked(aws.headStaging).mockResolvedValueOnce({
+      size: 30 * 1024 * 1024,
+    });
+    expect(
+      (await post({ attachments: [{ uploadId: up, name: "a.pdf" }] })).status,
+    ).toBe(400);
+    expect(
+      (await post({ attachments: [{ uploadId: "../other", name: "a.pdf" }] }))
+        .status,
+    ).toBe(400);
+    expect(
+      (
+        await post({
+          attachments: [
+            { uploadId: up, name: "a.pdf" },
+            { uploadId: up, name: "a.pdf" },
+          ],
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await post({ attachments: [{ uploadId: up, name: "a.zip" }] })).status,
+    ).toBe(400);
     expect((await post({ urls: ["javascript:alert(1)"] })).status).toBe(400);
-    expect((await post({ urls: ["http://169.254.169.254/latest/meta-data/"] })).status).toBe(400);
+    expect(
+      (await post({ urls: ["http://169.254.169.254/latest/meta-data/"] }))
+        .status,
+    ).toBe(400);
     expect((await post({ urls: ["http://localhost:8080/"] })).status).toBe(400);
-    expect((await post({ urls: Array.from({ length: 21 }, (_, i) => `https://example.org/${i}`) })).status).toBe(400);
+    expect(
+      (
+        await post({
+          urls: Array.from(
+            { length: 21 },
+            (_, i) => `https://example.org/${i}`,
+          ),
+        })
+      ).status,
+    ).toBe(400);
     vi.mocked(aws.headStaging).mockResolvedValue({ size: 6 * 1024 * 1024 });
-    const nine = Array.from({ length: 9 }, (_, i) => ({ uploadId: `up_${String(i).repeat(32)}`, name: `${i}.pdf` }));
+    const nine = Array.from({ length: 9 }, (_, i) => ({
+      uploadId: `up_${String(i).repeat(32)}`,
+      name: `${i}.pdf`,
+    }));
     expect((await post({ attachments: nine })).status).toBe(400);
     vi.mocked(aws.headStaging).mockResolvedValue({ size: 1000 });
     expect(fake.items("projects")).toHaveLength(0);
@@ -736,9 +1713,29 @@ describe("reference materials", () => {
     fake.put("projects", {
       ...legacyProject(A.sub, 1),
       projectId: "u7m2q9xa-4",
-      attachments: [{ kind: "file", id: "f1", name: "論文 A.pdf", key: "attachments/files/01-論文_A.pdf", size: 5, contentType: "application/pdf" }],
+      attachments: [
+        {
+          kind: "file",
+          id: "f1",
+          name: "論文 A.pdf",
+          key: "attachments/files/01-論文_A.pdf",
+          size: 5,
+          contentType: "application/pdf",
+        },
+      ],
     });
-    await json(call(A, "GET", `/projects/u7m2q9xa-4/artifacts/download?key=${encodeURIComponent("attachments/files/01-論文_A.pdf")}`));
-    expect(presign).toHaveBeenLastCalledWith(A.sub, "u7m2q9xa-4", "attachments/files/01-論文_A.pdf", { ascii: "論文_A.pdf", utf8: "論文 A.pdf" });
+    await json(
+      call(
+        A,
+        "GET",
+        `/projects/u7m2q9xa-4/artifacts/download?key=${encodeURIComponent("attachments/files/01-論文_A.pdf")}`,
+      ),
+    );
+    expect(presign).toHaveBeenLastCalledWith(
+      A.sub,
+      "u7m2q9xa-4",
+      "attachments/files/01-論文_A.pdf",
+      { ascii: "論文_A.pdf", utf8: "論文 A.pdf" },
+    );
   });
 });

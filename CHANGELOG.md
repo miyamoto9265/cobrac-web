@@ -5,10 +5,13 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- "BRAES set" on a project's header downloads, as one zip, the files the BRAES submission form asks for: the BRA data with a BRAES Project ID as the five CSVs the BRA Data Converter reads (it writes them into a Google copy of Template-v2-3, so the sheet's formulas and WholeBIF import stay), the BIF, HCD and FRG images as draw.io XML (drawn as the BRAES design guide asks: circuits as rectangles, the ROI in a bracket, excitatory / inhibitory / modulatory connections in black / blue / green, HCD components as ellipses with white arrows, FRG nodes as rounded rectangles), a draw.io file with the BIF, Semi-Transparent and HCD layers for editing, and a note of the values to enter in the form, question by question. The images follow the arrangement on the graph screens. The BRAES Project ID (initial + year + RunningTitle, e.g. YT20Oculomotor) is asked for at download, with a proposal from the contributor's initials, the year and the project name, and is saved with the project. The format is provisional while BRAES itself may change
+- "Accepted in BRAES" mark: site admins can mark a project whose BRA data BRAES has accepted (for now an admin checks this and marks each project by hand). The green mark shows beside the project's name on its page, in the project list, on the admin page and in the public library; its tooltip says when it was set and for which version. Admins set or remove it from the admin page's project list or beside the project's name. Clones and copies do not carry it
+
 ### Fixed
 - Autonomous missions: projects that cannot start because the mission's cost limit is reached now show "Cost limit" instead of "Starts next"
 - When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
-- CI and deploy: the jobs that build the specification PDF run on Ubuntu 24.04, because GitHub's ubuntu-latest (26.04) has no Chromium for Playwright 1.56
 - Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
 
 ## [0.58.0] - 2026-11-15
