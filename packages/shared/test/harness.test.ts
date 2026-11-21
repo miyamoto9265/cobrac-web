@@ -74,7 +74,7 @@ const conn = (sender: string, receiver: string, comment: string, ref = "[Ito, 19
   pointersOnFigure: "Figure 1b",
 });
 const CONN = {
-  bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"] }],
+  bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"], modelled: true }],
   connections: [
     conn("VN", "GC(granule)", "mossy fibres"),
     conn("VN", "IO", "slip", "[Lisberger, 1994]"),
@@ -797,5 +797,20 @@ describe("harness rules 1: ROI elements, ROI side, reused quotes", () => {
     ]);
     c.connections[2].pointersOnFigure = "Fig. 2";
     expect(checkHcd({ ...NEW, connections: j(c) }, RULES).warnings).toEqual([]);
+  });
+});
+
+describe("harness rules 3: BIF coverage", () => {
+  it("asks for modelled on BIF entries only from rules 3", () => {
+    const c = structuredClone(CONN);
+    delete (c.bif[0] as { modelled?: boolean }).modelled;
+    const files = { ...HCD, connections: j(c) };
+    expect(checkHcd(files, { harnessRules: 2 }).errors.join("\n")).not.toMatch(/has no "modelled"/);
+    expect(checkHcd(files, { harnessRules: 3 }).errors.join("\n")).toMatch(/bif vestibular nerve -> granule cell layer has no "modelled"/);
+  });
+
+  it("research mode lists the candidates no BIF entry names", () => {
+    const errors = checkHcd(HCD, { harnessRules: 3, researchCandidates: new Map([["C1", "supported"]]) }).errors.join("\n");
+    expect(errors).toMatch(/research candidates C1 \(supported\) are on no BIF entry/);
   });
 });

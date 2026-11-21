@@ -70,6 +70,7 @@ import {
   nowIso,
   orchestratorModelOf,
   overlapsOf,
+  policyAllows,
   parsePlanRowsCsv,
   planAttachmentTypeOf,
   PLAN_MAX_WAITING_PRS,
@@ -120,6 +121,7 @@ import {
 } from "./plans.js";
 import { deploymentDefaultModel, implicitModel, orchestratorDefaultModel, isEffort, normModel, readLocale, requireModel, requireRunKey, runPolicy, stopProject, usesTeamKeys, type StagedAttachment } from "./runs.js";
 import { inSpace, itemTeam, requestedTeam, teamItemAccess } from "./teams.js";
+import { rememberChoice } from "./rememberedModels.js";
 import { safeKeySegments } from "./s3Keys.js";
 
 const conflict = (message: string) => new HTTPException(409, { message });
@@ -332,11 +334,16 @@ export async function createPlan(u: UserRecord, body: CreatePlanRequest): Promis
   ];
   const projects = typed.length ? await listUserProjects(u.userId) : [];
   const rows: PlanRowRecord[] = typed.map((t, i) => setMatch(newRow(planId, i, t.row, t.source, t.sourceRow, now), projects));
+  // the models the user picked last time (project create screen, a mission draft), when this workspace's keys run them
+  const policy = await runPolicy(u, team);
+  const remembered = (m: string | null | undefined) => (m && policyAllows(policy, m) ? m : null);
+  const agentsModel = remembered(u.defaultModel);
+  const orchestratorModel = remembered(u.defaultOrchestratorModel);
   const settings: PlanSettings = {
-    model: null,
-    modelChosen: false,
-    orchestratorModel: null,
-    orchestratorModelChosen: false,
+    model: agentsModel,
+    modelChosen: !!agentsModel,
+    orchestratorModel,
+    orchestratorModelChosen: !!orchestratorModel,
     reasoningEffort: u.defaultReasoningEffort ?? null,
     researchMode: true,
     locale: null,
@@ -423,6 +430,14 @@ export async function updatePlanFields(u: UserRecord, plan: PlanRecord, body: Up
       values.settings = settings;
     }
     if (!(await updatePlan(plan.planId, values, { status: fresh.status }))) throw conflict(STATUS_CHANGED);
+    // the next mission (and the agents' model: the next project too) starts from what was picked here
+    const s = body.settings;
+    if (s && values.settings)
+      await rememberChoice(u, {
+        ...("model" in s ? { model: values.settings.model } : {}),
+        ...("reasoningEffort" in s ? { reasoningEffort: values.settings.reasoningEffort } : {}),
+        ...("orchestratorModel" in s ? { orchestratorModel: values.settings.orchestratorModel } : {}),
+      });
     return { ...fresh, ...values, updatedAt: nowIso() };
   });
 }

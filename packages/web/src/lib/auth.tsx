@@ -143,3 +143,8 @@ export function useAuth(): AuthState {
   if (!v) throw new Error("useAuth outside provider");
   return v;
 }
+
+/** `useAuth` for components also rendered outside the provider (in tests): null there. */
+export function useOptionalAuth(): AuthState | null {
+  return useContext(Ctx);
+}

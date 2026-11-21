@@ -193,6 +193,8 @@ export interface RefCheck {
   notes: string[];
   /** A DOI found by searching the title, for references without one */
   suggestion?: { doi: string; title: string; firstAuthor: string; year: number | null };
+  /** Species among the paper's PubMed MeSH descriptors (QC-02-12); absent when it has no PMID or was not indexed */
+  species?: string[];
 }
 
 /** Statuses sent back to the agent as problems to fix */

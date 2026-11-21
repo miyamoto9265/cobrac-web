@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { RefRow } from "@cobrac/shared";
-import { ReferenceVerifier, type VerifierOptions } from "../src/references.js";
+import { ReferenceVerifier, meshSpeciesOf, type VerifierOptions } from "../src/references.js";
 import { CROSSREF, DOI_ORG, EUTILS, HABER_WORK, SCHULTZ_PUBMED, SCHULTZ_WORK, mockLiterature, type Failure, type LiteratureData } from "./mockLiterature.js";
 
 const DATA: LiteratureData = {
@@ -132,5 +132,16 @@ describe("reference verifier", () => {
     const keyed = setup(undefined, { ncbiApiKey: "k" });
     await keyed.v.verify([ref("[A, 1997]", "N/A", { pmid: "1" })]);
     expect(keyed.calls[0]).toMatch(/&api_key=k$/);
+  });
+});
+
+describe("MeSH species (QC-02-12)", () => {
+  it("records the species among the MeSH descriptors of a PubMed record", async () => {
+    const xml = `<PubmedArticleSet><MeshHeadingList><MeshHeading><DescriptorName UI="D000818">Animals</DescriptorName></MeshHeading><MeshHeading><DescriptorName UI="D002415" MajorTopicYN="N">Cats</DescriptorName></MeshHeading><MeshHeading><DescriptorName UI="D007245">Inferior Colliculi</DescriptorName></MeshHeading></MeshHeadingList></PubmedArticleSet>`;
+    expect(meshSpeciesOf(xml)).toEqual(["Cats"]);
+    const { v } = setup(undefined, {}, { ...DATA, pubmedXml: { "9054347": xml.replace("Cats", "Macaca mulatta") } });
+    const [r] = await v.verify([ref("[Schultz et al., 1997]", SCHULTZ_WORK.DOI, { title: "A neural substrate of prediction and reward", pmid: "9054347" })]);
+    expect(r.status).toBe("verified");
+    expect(r.species).toEqual(["Macaca mulatta"]);
   });
 });

@@ -98,9 +98,12 @@ export const REPORT_SECTIONS = { HCD: "## HCD", FRG: "## FRG" } as const;
  * ROI-internal UC of its own (`roiElements`), the ROI's side is declared and a side the user did not give means both
  * sides (`roiSide`), and a quote that supports several connections is warned about. From 2: the UCs of a GN are
  * connected among themselves by ROI-internal connections, and a GN may hold 3-4 UCs that form a motif when its
- * `motifNote` says why (below 2 a GN holds at most 2 UCs and `motifNote` is not read).
+ * `motifNote` says why (below 2 a GN holds at most 2 UCs and `motifNote` is not read). From 3: every BIF entry says
+ * whether the HCD models it (`modelled`, with a `reason` when not; QC-03-42, QC-03-43), research-mode projects list
+ * every supported or weak research candidate on a BIF entry (`candidateIds`; QC-01-10), and each connection's Taxon is
+ * compared with the PubMed MeSH species of its paper (QC-02-12).
  */
-export const HARNESS_RULES = 2;
+export const HARNESS_RULES = 3;
 
 export const ROI_SIDES = ["both", "left", "right"] as const;
 export type RoiSide = (typeof ROI_SIDES)[number];
@@ -183,6 +186,12 @@ export interface BifRow {
   receiver: string;
   comment: string;
   referenceIds: string[];
+  /** Harness rules 3: whether the HCD models the projection (null when the file does not say) */
+  modelled?: boolean | null;
+  /** Why it is not modelled */
+  reason?: string;
+  /** Research mode: the research.json candidates it comes from */
+  candidateIds?: string[];
 }
 
 export interface ConnRow {
@@ -411,6 +420,10 @@ export const HARNESS_SCHEMAS: Record<string, JsonSchema> = {
         receiver: nonEmpty("Receiving tissue"),
         comment: str("Outside-ROI note, strength, excitatory/inhibitory nature"),
         referenceIds: refIds("Supporting Reference IDs"),
+      }, {
+        modelled: { type: "boolean", description: "Whether the HCD models this projection as UC connections (true: at least one connection cites one of its references; false: say why in reason)" },
+        reason: str("Why the projection is not modelled (required when modelled is false): e.g. weak evidence, outside the TLF, no SABRA anchor"),
+        candidateIds: { type: "array", items: { type: "string", minLength: 1 }, description: "Research mode: IDs of the research.json candidates this projection comes from (every supported or weak candidate is listed by at least one BIF entry)" },
       }),
     },
     connections: {
@@ -582,6 +595,41 @@ function sameSet(a: string[], b: string[]): boolean {
 
 // --- HCD -----------------------------------------------------------------------------------------------------------
 
+/** Research candidate statuses that must reach the BIF (QC-01-10): the survey found evidence for them. */
+const BIF_CANDIDATE_STATUSES: ReadonlySet<string> = new Set(["supported", "weak"]);
+
+/**
+ * Harness rules 3: what became of each surveyed projection. QC-03-42: every BIF entry says whether the HCD models it,
+ * and why not when it does not. QC-03-43: a modelled entry has a UC connection citing one of its papers. QC-01-10
+ * (research mode): every supported or weak research candidate is listed on a BIF entry, and the listed IDs exist.
+ */
+export function bifCoverageProblems(bif: readonly BifRow[], connections: readonly ConnRow[], candidates: ReadonlyMap<string, string> | null): string[] {
+  const out: string[] = [];
+  const cited = new Set(connections.flatMap((c) => c.referenceIds));
+  for (const b of bif) {
+    const where = `connections.json: bif ${b.sender} -> ${b.receiver}`;
+    if (typeof b.modelled !== "boolean") {
+      out.push(`${where} has no "modelled": set true when UC connections model this projection, or false with a "reason" (e.g. weak evidence, outside the TLF, no SABRA anchor).`);
+    } else if (!b.modelled && !b.reason) {
+      out.push(`${where} is not modelled ("modelled": false) but has no "reason"; say why the HCD leaves it out.`);
+    } else if (b.modelled && !b.referenceIds.some((r) => cited.has(r))) {
+      out.push(`${where} is "modelled": true, but no connection in connections.json cites ${b.referenceIds.join(", ")}; add the UC connections it supports, or set "modelled": false with a "reason".`);
+    }
+    if (candidates) {
+      const unknown = (b.candidateIds ?? []).filter((id) => !candidates.has(id));
+      if (unknown.length) out.push(`${where} lists candidateIds ${unknown.join(", ")}, which research.json does not have.`);
+    }
+  }
+  if (candidates) {
+    const listed = new Set(bif.flatMap((b) => b.candidateIds ?? []));
+    const missing = [...candidates].filter(([id, st]) => BIF_CANDIDATE_STATUSES.has(st) && !listed.has(id)).map(([id, st]) => `${id} (${st})`);
+    if (missing.length) {
+      out.push(`connections.json: the research candidates ${missing.join(", ")} are on no BIF entry; list each in "candidateIds" of the BIF entry it became, and add a BIF entry with "modelled": false and a "reason" for a candidate the HCD leaves out.`);
+    }
+  }
+  return out;
+}
+
 export interface CheckHcdOptions {
   /** RCS facts for HOMBA anchors; without an entry the anchor-abbreviation and official-name checks of that UC are skipped. */
   sabra?: SabraLookup;
@@ -598,6 +646,11 @@ export interface CheckHcdOptions {
    * rejected and nothing else changes; `hypothesis`: hypotheses inside the scopes are read and checked.
    */
   evidence?: EvidenceOptions;
+  /**
+   * Research mode: the candidates of research.json with their status (`researchCandidateStatuses`). With harness rules
+   * 3, every supported or weak candidate must be listed on a BIF entry (QC-01-10). Absent or null: not checked.
+   */
+  researchCandidates?: ReadonlyMap<string, string> | null;
 }
 
 /** `[U.<id>]` references in free text (bare Circuit IDs). */
@@ -739,6 +792,9 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     receiver: s(b.receiver),
     comment: s(b.comment),
     referenceIds: strings(b.referenceIds),
+    ...(typeof b.modelled === "boolean" ? { modelled: b.modelled } : {}),
+    ...(s(b.reason) ? { reason: s(b.reason) } : {}),
+    ...(strings(b.candidateIds).length ? { candidateIds: strings(b.candidateIds) } : {}),
   }));
   for (const b of bif) checkRefs(`connections.json: bif ${b.sender} -> ${b.receiver}`, b.referenceIds);
   const connItems = items(connJson, "connections");
@@ -883,6 +939,7 @@ export function checkHcd(files: HcdInputs, opts: CheckHcdOptions = {}): CheckRes
     if (meta) errors.push(...roiProblems(meta, ucs, collections, files.decisionLog ?? ""));
     warnings.push(...reusedQuoteWarnings(connections));
   }
+  if ((opts.harnessRules ?? 0) >= 3 && !fatal) errors.push(...bifCoverageProblems(bif, connections, opts.researchCandidates ?? null));
 
   return { model: fatal ? null : { meta, refs, ucs, collections, bif, connections }, errors: [...new Set(errors)], warnings, fatal };
 }

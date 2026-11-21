@@ -815,7 +815,7 @@ describe("strict invariance", () => {
       ],
     }),
     connections: j({
-      bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"] }],
+      bif: [{ sender: "vestibular nerve", receiver: "granule cell layer", comment: "mossy fibres", referenceIds: ["[Ito, 1982]"], modelled: true }],
       connections: [
         conn("VN", "GC(granule)", "mossy fibres"),
         conn("VN", "IO", "slip", "[Lisberger, 1994]"),

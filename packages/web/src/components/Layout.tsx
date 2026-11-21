@@ -1,5 +1,5 @@
 import { Archive, BookMarked, BrainCircuit, Globe, Layers, ListPlus, LogOut, Menu, MessageSquarePlus, Plus, Settings, Shield, X, type LucideIcon } from "lucide-react";
-import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
@@ -16,6 +16,7 @@ import { KIND } from "./Trail";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { TeamBudgetBanner } from "./TeamBudgetBanner";
 import { useWorkspace } from "../lib/workspace";
+import { SIDEBAR_WIDTH, useSidebarWidth } from "../lib/sidebarWidth";
 
 export function Layout() {
   const t = useT();
@@ -26,6 +27,8 @@ export function Layout() {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   // Below lg the sidebar is an off-canvas drawer.
   const [navOpen, setNavOpen] = useState(false);
+  // At lg and up the sidebar's width follows its resize handle.
+  const sidebar = useSidebarWidth();
 
   // null until the first list arrives: rows of deleted plans are hidden only once the live plans are known
   const [plans, setPlans] = useState<Record<string, PlanSummary> | null>(null);
@@ -88,9 +91,10 @@ export function Layout() {
     <div className="flex h-full">
       {navOpen && <div className="fixed inset-0 z-40 bg-slate-900/50 motion-safe:animate-fade-in lg:hidden" onClick={() => setNavOpen(false)} aria-hidden />}
       <aside
-        className={`theme-static fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0 lg:shadow-none dark:border-r dark:border-slate-800 ${
+        className={`theme-static fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-slate-900 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-slate-100 shadow-xl transition-[transform,visibility] duration-200 lg:relative lg:z-auto lg:shrink-0 lg:w-[var(--sidebar-w)] lg:max-w-none lg:translate-x-0 lg:shadow-none dark:border-r dark:border-slate-800 ${
           navOpen ? "translate-x-0" : "-translate-x-full max-lg:invisible"
         }`}
+        style={{ "--sidebar-w": `${sidebar.width}px` } as CSSProperties}
       >
         <div className="flex h-14 shrink-0 items-center gap-1.5 pl-3 pr-1 lg:gap-2 lg:pl-4 lg:pr-3">
           <Link to="/chat" className="flex min-w-0 items-center gap-1.5 rounded-lg lg:gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
@@ -138,7 +142,7 @@ export function Layout() {
             {t("nav.seeAll")}
           </Link>
         </div>
-        <nav className="relative flex-1 overflow-y-auto px-2 pt-1">
+        <nav className="sidebar-scroll relative flex-1 overflow-y-auto px-2 pt-1">
           {current.length === 0 && <div className="px-3 py-2 text-xs text-slate-500">{t("nav.noProjects")}</div>}
           {current.map((e) => (
             <HistoryRow key={entryKey(e)} e={e} plans={plans} canonNames={canonNames} onArchive={archive} />
@@ -198,6 +202,27 @@ export function Layout() {
               <LogOut size={16} aria-hidden />
             </button>
           </div>
+        </div>
+        {/* drag the right edge to widen or narrow the sidebar; arrow keys do the same, Enter or a double click restores it */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t("nav.resizeSidebar")}
+          aria-valuemin={SIDEBAR_WIDTH.min}
+          aria-valuemax={SIDEBAR_WIDTH.max}
+          aria-valuenow={sidebar.width}
+          title={t("nav.resizeSidebar")}
+          tabIndex={0}
+          data-testid="sidebar-resize"
+          {...sidebar.handleProps}
+          className="group absolute inset-y-0 -right-1.5 z-10 hidden w-3 cursor-col-resize touch-none focus:outline-none lg:block"
+        >
+          <span
+            className={`absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors duration-150 ${
+              sidebar.dragging ? "bg-blue-500" : "bg-transparent group-hover:bg-blue-400 group-focus-visible:bg-blue-500"
+            }`}
+            aria-hidden
+          />
         </div>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">

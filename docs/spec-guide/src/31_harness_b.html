@@ -110,7 +110,7 @@
 <p>UC の粒度と、領域を分けたときの Collection の扱いは 2.9 にまとめています。</p>
 
 <h3>ROI の規則</h3>
-<p>新しいプロジェクトは、検査規則の水準（<code>harnessRules</code>）として 2 を持ちます。複製したプロジェクトは元の値を引き継ぎます。この規則のもとでは、HCD の依頼文の後ろに ROI の規則の指示書が付き、HCD の検査に次の規則が加わります。値を持たない古いプロジェクトの扱いは付録 C にまとめています。</p>
+<p>新しいプロジェクトは、検査規則の水準（<code>harnessRules</code>）として 3 を持ちます。複製したプロジェクトは元の値を引き継ぎます。この規則のもとでは、HCD の依頼文の後ろに ROI の規則の指示書が付き、HCD の検査に次の規則が加わります。値を持たない古いプロジェクトの扱いは付録 C にまとめています。</p>
 <table class="compact">
   <thead><tr><th style="width:18%">規則</th><th>内容</th></tr></thead>
   <tbody>
@@ -118,6 +118,7 @@
     <tr><td>領域の数</td><td><code>roi</code> が挙げる領域の数は要素の数を超えない。括弧の外のコンマ・セミコロン・<code>and</code>・<code>&amp;</code>・<code>+</code> で区切って数え、左右を表す語だけのものは数えない</td></tr>
     <tr><td>ROI の左右</td><td><code>roiSide</code>（<code>both</code> / <code>left</code> / <code>right</code>）と <code>roiSideSource</code> を書く。後者は、利用者の ROI か指示が左右を指定していれば <code>user</code>、それ以外は <code>assumed</code>。<code>assumed</code> なら <code>both</code> でなければならず、判断ログに両側である旨（"bilateral" など）を書く</td></tr>
     <tr><td>左右と UC</td><td><code>both</code> では、<code>side</code> facet を持つ ROI 内部の UC に反対側の対が要る（または facet を外す）。<code>left</code> / <code>right</code> では反対側の ROI 内部の UC を置かない。機能が側性化しているだけでは片側に限定しない</td></tr>
+    <tr><td>BIF の行き先（水準 3）</td><td>BIF の各行に <code>modelled</code> を書く。UC の接続にしたなら <code>true</code>、HCD に入れないなら <code>false</code> とし、理由を <code>reason</code> に書く。<code>true</code> の行は、その行の文献を引く接続が 1 本以上要る。調査モードでは、行がどの調査の候補から来たかを <code>candidateIds</code> に書き、<code>supported</code> と <code>weak</code> の候補はすべてどこかの行に載せる。調べたのに HCD に入れなかった投射と、その理由が残る（QC-01-10、QC-03-42、QC-03-43）</td></tr>
     <tr><td>引用の使い回し</td><td>警告だけ。同じ原文の引用（と同じ図、または図なし）が異なる回路の接続を支えている場合に記録する。エージェントには返さず、引用の照合の記録（<code>quote_check.json</code> の <code>reused</code>）と画面に出す</td></tr>
   </tbody>
 </table>
@@ -129,7 +130,7 @@
   <tbody>
     <tr><td><code>senderRelation</code> / <code>receiverRelation</code></td><td><code>&lt;UC&gt; &lt;関係&gt; &lt;論文中の回路&gt;</code> と読む。UC が論文の粗い回路の一部なら <code>&lt;</code>、UC が論文の細かい回路を含むなら <code>&gt;</code>、同じなら <code>=</code>。Circuit ID と同じ表記を書くのは <code>=</code> のときだけ</td></tr>
     <tr><td><code>senderInLiterature</code> / <code>receiverInLiterature</code></td><td>論文が実際に使う領域名。粗い領域の証拠を細かい UC に使う場合も、粒度の違いを明示する</td></tr>
-    <tr><td><code>taxon</code> / <code>measurementMethod</code></td><td>その論文の種（10 値）と測定法（21 値）を、BRA の選択肢で記録</td></tr>
+    <tr><td><code>taxon</code> / <code>measurementMethod</code></td><td>その論文の種（10 値）と測定法（21 値）を、BRA の選択肢で記録。水準 3 では、種を PubMed がその論文に付けた MeSH の種と照合する（QC-02-12）。選択肢にない種（フェレット、スナネズミ、コウモリなど）は <code>(No description)</code> とし、種の名前を <code>comment</code> に書く</td></tr>
     <tr><td><code>pointersOnLiterature</code></td><td>この投射を述べる原文をそのまま引用したもの。最低 10 語。要約や、ページ・節の番号では始めない</td></tr>
     <tr><td><code>pointersOnFigure</code></td><td><code>Fig. 3B</code> などの図番号。CSV では <code>Figure 3b</code> を <code>Fig. 3B</code> に正規化する。原文の引用と図番号の少なくとも一方が必要</td></tr>
   </tbody>

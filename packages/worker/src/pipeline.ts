@@ -49,6 +49,7 @@ import {
   schemaFileName,
   summarizeQuoteChecks,
   summarizeRefChecks,
+  taxonProblems,
   validateJsonSchema,
 } from "@cobrac/shared";
 import { existsSync, readFileSync } from "node:fs";
@@ -214,6 +215,7 @@ async function checkHcdWithRcs(paths: ProjectPaths, deps: CheckDeps) {
     ...(deps.sabraBoundary ? { sabraBoundary: deps.sabraBoundary, boundaryExempt: deps.canon ? canonDescriptorKeys(deps.canon.snapshot) : undefined } : {}),
     ...(deps.harnessRules ? { harnessRules: deps.harnessRules } : {}),
     ...(isHypothesisMode(deps.evidence) ? { evidence: hypothesisCheckOptions(paths, deps.evidence!) } : {}),
+    ...(deps.evidence?.researchMode ? { researchCandidates: researchCandidateStatuses(readText(paths.research)) } : {}),
   };
   const first = checkHcd(files, boundary);
   const ids = first.model ? hombaAnchorIds([...first.model.ucs, ...first.model.collections].map((u) => u.descriptor).filter(Boolean)) : [];
@@ -499,6 +501,9 @@ async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: 
     const msg = refCheckMessage(c);
     if (msg && inPhase(frgOnly.has(c.id))) errors.push(msg);
   }
+  // QC-02-12: connections are HCD data, so their Taxon is answered in the HCD phase
+  const taxa = (deps.harnessRules ?? 0) >= 3 && ctx.hcd ? taxonProblems(ctx.hcd.connections, checks) : [];
+  if (phase === "HCD") errors.push(...taxa);
 
   const report: ReferenceReport = {
     checkedAt: new Date().toISOString(),
@@ -507,7 +512,7 @@ async function checkReferences(phase: "HCD" | "FRG", paths: ProjectPaths, deps: 
     summary: checks.length ? summarizeRefChecks(checks) : null,
     references: checks,
     citedAt: Object.fromEntries(citations.citedAt),
-    problems: [...citations.problems.map((p) => p.message), ...checks.map(refCheckMessage).filter((m): m is string => !!m)],
+    problems: [...citations.problems.map((p) => p.message), ...checks.map(refCheckMessage).filter((m): m is string => !!m), ...taxa],
   };
   ctx.references = report;
   try {

@@ -7,7 +7,7 @@
  * `unverified`, and after repeated failures a host is skipped for a while.
  */
 import type { RefCheck, RefRecord, RefRow } from "@cobrac/shared";
-import { compareWithRecord, normalizeDoi, normalizePmid, parseRefId, recordSummary, titlesMatch } from "@cobrac/shared";
+import { compareWithRecord, isMeshSpecies, normalizeDoi, normalizePmid, parseRefId, recordSummary, titlesMatch } from "@cobrac/shared";
 import { LiteratureHttp, type HttpResult, type LiteratureHttpOptions } from "./http.js";
 
 export interface VerifierOptions extends LiteratureHttpOptions {
@@ -28,6 +28,8 @@ export class ReferenceVerifier {
   private readonly http: LiteratureHttp;
   /** Found / not-found lookups by identifier; failures are retried on the next call */
   private readonly cache = new Map<string, Lookup>();
+  /** MeSH species by PMID (QC-02-12); failures are retried on the next call */
+  private readonly meshCache = new Map<string, string[]>();
   private deadline = Infinity;
 
   constructor(opts: VerifierOptions = {}) {
@@ -94,6 +96,10 @@ export class ReferenceVerifier {
     if (doiN.doi && pub?.doi && pub.doi !== doiN.doi) c.problems.push(`PMID ${pmidN.pmid} belongs to DOI ${pub.doi}, not ${doiN.doi}`);
     if (c.status === "not_found") return c;
     if (c.problems.length) return { ...c, status: "mismatch" };
+    if (pub && pmidN.pmid) {
+      const species = await this.lookupMeshSpecies(pmidN.pmid);
+      if (species?.length) c.species = species;
+    }
     const failed = lookups.filter((l) => l.r.kind === "error");
     if (failed.length) {
       c.notes.push(...failed.map((l) => `${l.label} could not be looked up (${(l.r as { reason: string }).reason})`));
@@ -142,6 +148,18 @@ export class ReferenceVerifier {
     });
   }
 
+  /** Species among the MeSH descriptors of a PubMed record (efetch XML); null when the lookup failed. */
+  private async lookupMeshSpecies(pmid: string): Promise<string[] | null> {
+    const hit = this.meshCache.get(pmid);
+    if (hit) return hit;
+    const key = this.o.ncbiApiKey ? `&api_key=${encodeURIComponent(this.o.ncbiApiKey)}` : "";
+    const r = await this.http.ncbi(() => this.http.getText(`${this.o.eutilsUrl}/efetch.fcgi?db=pubmed&retmode=xml&id=${pmid}${key}`, this.deadline));
+    if (r.kind !== "ok") return r.kind === "missing" ? [] : null;
+    const species = meshSpeciesOf(r.body);
+    this.meshCache.set(pmid, species);
+    return species;
+  }
+
   private async searchTitle(ref: RefRow): Promise<RefCheck["suggestion"] | undefined> {
     const { author, year } = parseRefId(ref.id);
     const q = [ref.title, author].filter(Boolean).join(" ");
@@ -167,6 +185,16 @@ export class ReferenceVerifier {
   private getJson(url: string, headers: Record<string, string> = {}): Promise<HttpResult<unknown>> {
     return this.http.getJson(url, this.deadline, headers);
   }
+}
+
+/** MeSH descriptor names of a PubMed efetch XML record that are species (`isMeshSpecies`), in record order. */
+export function meshSpeciesOf(xml: string): string[] {
+  const out: string[] = [];
+  for (const m of xml.matchAll(/<DescriptorName\b[^>]*>([^<]+)<\/DescriptorName>/g)) {
+    const name = m[1].replace(/&amp;/g, "&").trim();
+    if (isMeshSpecies(name) && !out.includes(name)) out.push(name);
+  }
+  return out;
 }
 
 const encodeDoi = (doi: string) => doi.split("/").map(encodeURIComponent).join("/");

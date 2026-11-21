@@ -1,8 +1,8 @@
-import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileSpreadsheet, FileText, FolderOpen, GitFork, History, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
+import { BookOpen, Bot, ChevronDown, ChevronUp, Download, FileText, FolderOpen, GitFork, History, Network, NotebookPen, Paperclip, RotateCcw, Square, Table2, type LucideIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ArtifactInfo, JobRecord, MessageRecord, ProjectRecord, TeamAccess, WsServerEvent } from "@cobrac/shared";
-import { PROJECT_FILES, braDownloadFileName, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
+import { PROJECT_FILES, formatUsd, projectDisplayName, resolveSystemMessage, templateDownloadFileName, TEMPLATE_XLSX_SUFFIX } from "@cobrac/shared";
 import { CanonBadge } from "../components/CanonBadge";
 import { Trail, trailSteps, useAboveNames } from "../components/Trail";
 import { VisibilityToggle } from "../components/VisibilityToggle";
@@ -207,10 +207,6 @@ function Workspace({ projectId }: { projectId: string }) {
   const canManage = access.access !== "member";
   // in a team's workspace without a usable budget, a creator without a key of their own cannot resume
   const noKey = !me?.keySource && !me?.claudeKeySource && !me?.deepseekKeySource;
-  const download = async (key: string) => {
-    const { url } = await api.downloadUrl(projectId, key);
-    window.location.href = url;
-  };
   const downloadTemplate = async () => {
     setTemplateBusy(true);
     try {
@@ -310,16 +306,6 @@ function Workspace({ projectId }: { projectId: string }) {
                   className="flex items-center gap-1 rounded-md bg-emerald-700 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-50 coarse:min-h-11"
                 >
                   <Download size={14} /> {t("ws.braXlsx")}
-                </button>
-              )}
-              {available.xlsx && (
-                <button
-                  data-testid="xlsx-download"
-                  onClick={() => void download(available.xlsx!.key)}
-                  title={`${t("ws.xlsxTip")}: ${braDownloadFileName(projectDisplayName(project), project.projectId).utf8}`}
-                  className="flex items-center gap-1 rounded-md border border-emerald-600 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 coarse:min-h-11"
-                >
-                  <FileSpreadsheet size={14} /> {t("ws.csvXlsx")}
                 </button>
               )}
               {available.xlsx && available.hcd && available.frg && (
