@@ -8,6 +8,7 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 ### Fixed
 - Autonomous missions: projects that cannot start because the mission's cost limit is reached now show "Cost limit" instead of "Starts next"
 - When a mission's Canon is deleted or no longer belongs to the owner, the mission now pauses ("Canon not found") and waits for the owner even when only projects waiting for approval are left; those projects now appear in "Your turn"
+- CI and deploy: the jobs that build the specification PDF run on Ubuntu 24.04, because GitHub's ubuntu-latest (26.04) has no Chromium for Playwright 1.56
 - Specification: about 60 passages that no longer matched the app were corrected (default model, team keys, Canon revisions created by issues, when stages and missions stop, screen labels, API messages and more)
 
 ## [0.58.0] - 2026-11-15

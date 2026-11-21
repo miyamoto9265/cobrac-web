@@ -51,7 +51,7 @@ jobs:
   deploy:
     needs: plan
     if: needs.plan.outputs.deploy == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # Playwright 1.56 has no Chromium for ubuntu-latest (26.04); see .github/actions/spec-tools
     timeout-minutes: 60
     permissions:
       contents: read
