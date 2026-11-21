@@ -208,6 +208,7 @@
     <tr><td>GET・PUT</td><td><code>/admin/concurrency</code></td><td>同時実行数 <code>{ maxConcurrentJobs, maxConcurrentJobsPerUser, effective, setting, deployment, min, max }</code> / <code>{ maxConcurrentJobs?, maxConcurrentJobsPerUser? }</code>。それぞれ 1〜16 の整数で、null はデプロイ時の値に戻す。ほかの値は 400。dispatcher とミッションランナーは 30 秒以内に読み直す（8.3）</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/projects</code></td><td>全利用者のプロジェクト。削除したものも <code>deletedAt</code>・<code>deletedBy</code> 付きで返す</td><td>管理者</td></tr>
     <tr><td>POST</td><td><code>/admin/projects/{userId}/{id}/cancel</code></td><td>強制停止</td><td>管理者</td></tr>
+    <tr><td>PUT</td><td><code>/admin/projects/{userId}/{id}/braes</code></td><td><code>{ accepted }</code>（true か false）で BRAES採録済みのマークを付け外しし、<code>{ braesAccepted }</code> を返す。成果物のないプロジェクトに付けるのは 400、削除済みと存在しないものは 404。付いているものに付け直しても最初の記録を保つ（4.6）</td><td>管理者</td></tr>
     <tr><td>GET</td><td><code>/admin/spec</code></td><td>この仕様書（PDF）を開くための、短時間だけ有効なリンク</td><td>管理者</td></tr>
   </tbody>
 </table>

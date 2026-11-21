@@ -6,6 +6,7 @@ import { HelpTip } from "../components/HelpTip";
 import { Markdown } from "../components/Markdown";
 import { useI18n, useT } from "../i18n";
 import { api } from "../lib/api";
+import { BraesBadge } from "../components/BraesBadge";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged } from "../lib/projectList";
 import { primaryBtn } from "./CanonsPage";
@@ -81,6 +82,11 @@ export function PublicProjectPage() {
             <div className="min-w-0 flex-1">
               <h1 className="break-words text-xl font-semibold">{p.name}</h1>
               <div className="font-mono text-xs text-slate-400">{p.projectId}</div>
+              {p.braesAcceptedAt && (
+                <div className="mt-1">
+                  <BraesBadge accepted={{ acceptedAt: p.braesAcceptedAt }} />
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <button type="button" disabled={busy} onClick={() => void clone()} className={primaryBtn} data-testid="clone-project">

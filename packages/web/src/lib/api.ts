@@ -40,6 +40,7 @@ import type {
   ListMessagesResponse,
   ListProjectsResponse,
   ProjectRecord,
+  SetBraesAcceptedRequest,
   GraphLayout,
   ReasoningEffort,
   ListCanonsResponse,
@@ -350,6 +351,8 @@ export const api = {
   adminSpec: () => request<SpecResponse>("GET", "/admin/spec"),
   adminProjects: () => request<{ items: ProjectRecord[] }>("GET", "/admin/projects"),
   adminCancel: (userId: string, id: string) => request<{ ok: true }>("POST", `/admin/projects/${userId}/${encodeURIComponent(id)}/cancel`),
+  setBraesAccepted: (userId: string, id: string, accepted: boolean) =>
+    request<{ braesAccepted: ProjectRecord["braesAccepted"] }>("PUT", `/admin/projects/${encodeURIComponent(userId)}/${encodeURIComponent(id)}/braes`, { accepted } satisfies SetBraesAcceptedRequest),
 };
 
 /** Send one file to S3 with the presigned POST from `api.createUpload`; `onProgress` gets 0..1. */

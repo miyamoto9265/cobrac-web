@@ -9,6 +9,7 @@ import { HypothesisBadge } from "../components/hypothesis/HypothesisInfo";
 import { UsageBadge } from "../components/UsageBadge";
 import { useI18n, useT, type MessageKey } from "../i18n";
 import { api } from "../lib/api";
+import { BraesBadge } from "../components/BraesBadge";
 import { fmtDate } from "../lib/format";
 import { notifyProjectsChanged, removeOptimistically } from "../lib/projectList";
 
@@ -198,6 +199,7 @@ export function ProjectsPage() {
                 <span className="block font-mono text-[11px] font-normal text-slate-400">{p.projectId}</span>
               </Link>
               <HypothesisBadge project={p} className="ml-auto" />
+              <BraesBadge accepted={p.braesAccepted} revision={p.revision} />
               {p.archivedAt && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500" data-testid="project-archived">{t("cm.archived")}</span>}
               <StatusBadge status={p.status} />
             </div>
@@ -259,7 +261,10 @@ export function ProjectsPage() {
                     {projectDisplayName(p)}
                   </Link>
                   <div className="whitespace-nowrap font-mono text-[11px] text-slate-400">{p.projectId}</div>
-                  <HypothesisBadge project={p} className="mt-0.5" />
+                  <span className="flex flex-wrap items-center gap-1 empty:hidden">
+                    <HypothesisBadge project={p} className="mt-0.5" />
+                    <BraesBadge accepted={p.braesAccepted} revision={p.revision} />
+                  </span>
                 </td>
                 <td className="px-4 py-2">
                   <div className="max-w-[12rem] truncate" title={p.roi}>

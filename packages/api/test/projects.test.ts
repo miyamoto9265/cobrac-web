@@ -983,6 +983,28 @@ describe("soft delete", () => {
       deletedAt: expect.any(String),
     });
   });
+
+  it("lets only site admins set and clear the BRAES mark, keeping the first one", async () => {
+    seed();
+    fake.put("projects", { ...stored(), revision: 3 });
+    const path = `/admin/projects/${A.sub}/${ID}/braes`;
+    expect((await call(A, "PUT", path, { accepted: true })).status).toBe(403);
+    fake.put("users", { ...fake.items("users").find((u) => u.userId === B.sub)!, role: "admin" });
+    expect((await call(B, "PUT", path, { accepted: "yes" })).status).toBe(400);
+    const r = await json<{ braesAccepted: ProjectRecord["braesAccepted"] }>(call(B, "PUT", path, { accepted: true }));
+    expect(r.braesAccepted).toEqual({ acceptedAt: expect.any(String), acceptedBy: B.sub, revision: 3 });
+    expect(stored().braesAccepted).toEqual(r.braesAccepted);
+    // setting it again keeps who and when; the owner sees it on the project
+    expect((await json<typeof r>(call(B, "PUT", path, { accepted: true }))).braesAccepted).toEqual(r.braesAccepted);
+    expect((await json<ProjectRecord>(call(A, "GET", `/projects/${ID}`))).braesAccepted).toEqual(r.braesAccepted);
+    await json(call(B, "PUT", path, { accepted: false }));
+    expect(stored().braesAccepted).toBeNull();
+    // a project without outputs, or a deleted one, cannot be marked
+    fake.put("projects", { ...stored(), hasArtifacts: false });
+    expect((await call(B, "PUT", path, { accepted: true })).status).toBe(400);
+    await json(call(A, "DELETE", `/projects/${ID}`));
+    expect((await call(B, "PUT", path, { accepted: true })).status).toBe(404);
+  });
 });
 
 describe("legacy Project IDs shared by two users (project-index cross-talk)", () => {
