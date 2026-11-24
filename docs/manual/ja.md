@@ -313,3 +313,14 @@ PR の承認や衝突、質問にご自身で対応したいときは、下書�
 ### 結果を直したい
 
 完了したプロジェクトなら、エージェント欄から追加の指示を送ります。最初からやり直す場合は、新しいプロジェクトを作ってください。
+
+## データの出典
+
+CoBRAC は、脳領域の名前と ID に Allen Institute の HOMBA（Harmonized Ontology of Mammalian Brain Anatomy）を使っています。UC のアンカー（`HOMBA:12261` など）、DHBA の名前と略語、領域の階層は HOMBA によるものです。HOMBA は [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.ja) で提供されています。CoBRAC は HOMBA を ROSETTA Candidate Search（RCS）を通して引いています。RCS は表記の誤りを直し、細かい区分と検索用の別名を独自に足しています。これらの変更は Allen Institute によるものではありません。
+
+成果物を論文や発表で使ったり、ほかの人に渡したりするときは、HOMBA の出典を書いてください。
+
+- 出典: [HOMBA ontology（CCF-MAP）](https://alleninstitute.github.io/CCF-MAP/docs/HOMBA_ontology_v1.html)、[Allen Brain Knowledge Platform](https://knowledge.brain-map.org/data/4OGSMDGXKB34DVKGTJW)（RRID:SCR_027628）
+- 論文: Ding, S.-L., Bhandiwad, A. A., Rosen, B. Q., Seeman, S. C., et al. (2026). Harmonized brain ontology and 3D atlases for human, macaque, and marmoset basal ganglia. *Cell*, 189(23). https://doi.org/10.1016/j.cell.2026.10.033
+
+サイドバーの一番下の「出典」から、いつでもこの節を開けます。

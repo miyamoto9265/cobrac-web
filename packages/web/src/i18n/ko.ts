@@ -37,6 +37,8 @@ export const ko: Record<MessageKey, string> = {
   "nav.settings": "설정",
   "nav.spec": "사양서",
   "nav.manual": "사용 설명서",
+  "nav.credits": "출처",
+  "nav.creditsTip": "HOMBA(Allen Institute, CC BY 4.0) 등 CoBRAC이 사용하는 데이터의 출처와 라이선스",
   "nav.admin": "관리",
   "nav.signOut": "로그아웃",
   "nav.openMenu": "메뉴 열기",

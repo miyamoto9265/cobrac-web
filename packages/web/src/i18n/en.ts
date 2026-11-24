@@ -35,6 +35,8 @@ export const en = {
   "nav.settings": "Settings",
   "nav.spec": "Specification",
   "nav.manual": "User manual",
+  "nav.credits": "Credits",
+  "nav.creditsTip": "Sources and licenses of the data CoBRAC uses, such as HOMBA (Allen Institute, CC BY 4.0)",
   "nav.admin": "Admin",
   "nav.signOut": "Sign out",
   "nav.openMenu": "Open menu",

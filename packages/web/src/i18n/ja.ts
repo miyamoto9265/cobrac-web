@@ -37,6 +37,8 @@ export const ja: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.spec": "仕様書",
   "nav.manual": "利用マニュアル",
+  "nav.credits": "出典",
+  "nav.creditsTip": "HOMBA（Allen Institute、CC BY 4.0）など、CoBRAC が使うデータの出典とライセンス",
   "nav.admin": "管理",
   "nav.signOut": "ログアウト",
   "nav.openMenu": "メニューを開く",
