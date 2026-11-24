@@ -5,6 +5,9 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+### Added
+- Data credits: "Credits" beside the version at the bottom of the sidebar opens the new "Data sources" section of the user manual. It says that UC anchors (`HOMBA:<id>`), DHBA names and the region hierarchy come from the Allen Institute's HOMBA, licensed under CC BY 4.0, what RCS changes, and how to cite it. The repository has the same notice in `NOTICE.md` and `README.md`
+
 ## [0.59.1] - 2026-11-24
 
 ### Changed

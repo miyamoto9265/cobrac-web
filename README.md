@@ -136,6 +136,15 @@ file in full, so it follows prompt changes by itself. Figures are generated with
 `npm run docs:figures`. Structure and writing rules are in `docs/spec-guide/README.md`; release, deploy and
 emergency procedures are in `docs/ops/README.md`. The PDF is bundled with the API Lambda and served to admins by `GET /admin/spec`.
 
+## Data credits and licenses
+
+CoBRAC names brain regions with **HOMBA** (Harmonized Ontology of Mammalian Brain Anatomy) from the Allen Institute,
+licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). UC anchors (`HOMBA:<id>`), DHBA names and
+acronyms, and the region hierarchy in prompts, tests, fixtures and generated BRA data come from HOMBA, read through
+ROSETTA Candidate Search (RCS), which corrects some typos and adds its own subdivisions and aliases. See
+[`NOTICE.md`](NOTICE.md) for the source, citation and changes. In the app, "Credits" at the bottom of the sidebar opens
+the user manual's "Data sources" section.
+
 ## Operations notes
 
 - Worker logs: CloudFormation output `WorkerLogGroup` (CloudWatch Logs).

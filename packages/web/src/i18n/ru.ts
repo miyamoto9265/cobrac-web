@@ -37,6 +37,8 @@ export const ru: Record<MessageKey, string> = {
   "nav.settings": "Настройки",
   "nav.spec": "Спецификация",
   "nav.manual": "Руководство пользователя",
+  "nav.credits": "Источники",
+  "nav.creditsTip": "Источники и лицензии данных, которые использует CoBRAC, например HOMBA (Allen Institute, CC BY 4.0)",
   "nav.admin": "Админ",
   "nav.signOut": "Выйти",
   "nav.openMenu": "Открыть меню",

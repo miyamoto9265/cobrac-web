@@ -16,9 +16,10 @@ export const HELP_ANCHORS: Record<string, Record<ManualLang, string>> = {
   push: { ja: "push-と審査", en: "push-and-review" },
   public: { ja: "公開と複製", en: "publishing-and-cloning" },
   planner: { ja: "cobrac-オーケストレーター", en: "cobrac-orchestrator" },
+  credits: { ja: "データの出典", en: "data-sources" },
 } satisfies Record<string, Record<ManualLang, string>>;
 
-export type HelpSection = "research" | "canon" | "create" | "rules" | "follow" | "push" | "public" | "planner";
+export type HelpSection = "research" | "canon" | "create" | "rules" | "follow" | "push" | "public" | "planner" | "credits";
 
 /** `/manual#<anchor>`: the manual opens in the UI language, or in English when it is not written in that language yet. */
 export function helpDocPath(locale: string, section: HelpSection): string {

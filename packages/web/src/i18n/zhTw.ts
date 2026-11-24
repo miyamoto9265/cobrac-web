@@ -37,6 +37,8 @@ export const zhTw: Record<MessageKey, string> = {
   "nav.settings": "設定",
   "nav.spec": "規格說明書",
   "nav.manual": "使用手冊",
+  "nav.credits": "來源",
+  "nav.creditsTip": "CoBRAC 使用的資料（如 HOMBA，Allen Institute，CC BY 4.0）的來源與授權",
   "nav.admin": "管理",
   "nav.signOut": "登出",
   "nav.openMenu": "開啟選單",

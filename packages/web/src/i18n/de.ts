@@ -37,6 +37,8 @@ export const de: Record<MessageKey, string> = {
   "nav.settings": "Einstellungen",
   "nav.spec": "Spezifikation",
   "nav.manual": "Benutzerhandbuch",
+  "nav.credits": "Quellen",
+  "nav.creditsTip": "Quellen und Lizenzen der Daten, die CoBRAC nutzt, z. B. HOMBA (Allen Institute, CC BY 4.0)",
   "nav.admin": "Admin",
   "nav.signOut": "Abmelden",
   "nav.openMenu": "Menü öffnen",

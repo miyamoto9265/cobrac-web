@@ -3,7 +3,8 @@ import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { PlanSummary, ProjectRecord, ProjectStatus } from "@cobrac/shared";
 import { projectDisplayName } from "@cobrac/shared";
-import { LanguageSelect, useT, type MessageKey } from "../i18n";
+import { LanguageSelect, useI18n, useT, type MessageKey } from "../i18n";
+import { helpDocPath } from "../lib/help";
 import { api, getWorkspaceTeam } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { MISSIONS_PATH, NEW_PLAN_PATH } from "../lib/plan";
@@ -20,6 +21,7 @@ import { SIDEBAR_WIDTH, useSidebarWidth } from "../lib/sidebarWidth";
 
 export function Layout() {
   const t = useT();
+  const { locale } = useI18n();
   const { me, doSignOut } = useAuth();
   const { teamId } = useWorkspace();
   const navigate = useNavigate();
@@ -178,9 +180,15 @@ export function Layout() {
               <span className="block truncate text-xs leading-tight text-slate-300" title={me?.email}>
                 {me?.email}
               </span>
-              <Link to="/releases" className="block truncate font-mono text-[10px] leading-tight text-slate-500 hover:text-slate-300 coarse:py-1" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
-                {APP_VERSION_LABEL}
-              </Link>
+              <span className="flex min-w-0 items-baseline gap-1.5 text-[10px] leading-tight">
+                <Link to="/releases" className="min-w-0 truncate font-mono text-slate-500 hover:text-slate-300 coarse:py-1" title={APP_BUILD_TIME ? `build ${APP_BUILD_TIME}` : undefined}>
+                  {APP_VERSION_LABEL}
+                </Link>
+                {/* HOMBA (CC BY 4.0) terms appear on most pages, so the credit is one click away from every page */}
+                <Link to={helpDocPath(locale, "credits")} data-testid="nav-credits" className="shrink-0 text-slate-500 hover:text-slate-300 coarse:py-1" title={t("nav.creditsTip")}>
+                  {t("nav.credits")}
+                </Link>
+              </span>
             </span>
             <NavLink
               to="/settings"

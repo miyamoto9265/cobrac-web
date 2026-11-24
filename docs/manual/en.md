@@ -313,3 +313,14 @@ Press the usage in the header for the tokens and estimated cost of each job. "Pr
 ### I want to change the result
 
 On a completed project, send a follow-up instruction from the Agent panel. To start over, create a new project.
+
+## Data sources
+
+CoBRAC names brain regions with the Allen Institute's HOMBA (Harmonized Ontology of Mammalian Brain Anatomy). UC anchors (such as `HOMBA:12261`), DHBA names and acronyms, and the region hierarchy come from HOMBA. HOMBA is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). CoBRAC reads HOMBA through ROSETTA Candidate Search (RCS). RCS corrects some typos and adds its own subdivisions and search aliases. These changes are not made by the Allen Institute.
+
+When you use the outputs in a paper or a talk, or share them with others, credit HOMBA.
+
+- Source: [HOMBA ontology (CCF-MAP)](https://alleninstitute.github.io/CCF-MAP/docs/HOMBA_ontology_v1.html), [Allen Brain Knowledge Platform](https://knowledge.brain-map.org/data/4OGSMDGXKB34DVKGTJW) (RRID:SCR_027628)
+- Paper: Ding, S.-L., Bhandiwad, A. A., Rosen, B. Q., Seeman, S. C., et al. (2026). Harmonized brain ontology and 3D atlases for human, macaque, and marmoset basal ganglia. *Cell*, 189(23). https://doi.org/10.1016/j.cell.2026.10.033
+
+You can open this section at any time from "Credits" at the bottom of the sidebar.
