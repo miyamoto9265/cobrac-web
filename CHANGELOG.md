@@ -5,6 +5,11 @@ Accumulate changes under `[Unreleased]`, then finalize the version in a release 
 
 ## [Unreleased]
 
+## [0.59.1] - 2026-11-24
+
+### Changed
+- User manual: new "Teams" section (workspaces, invites, the team's budget, what members can see and do), the "Accepted in BRAES" mark, and the model and reasoning effort being remembered as your next defaults (the old text said the defaults came from Settings only)
+
 ## [0.59.0] - 2026-11-21
 
 ### Added
