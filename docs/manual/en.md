@@ -13,6 +13,7 @@ Enter an ROI (region of interest) and a TLF (top-level function) and run: an AI 
 - **CSV and BRA xlsx**: the data for submission, built from the HCD and the FRG. The xlsx comes in two formats: CoBRAC's own and the official Template-v2-3.
 - When the agent needs a decision it asks you a question, and continues once you answer. After completion you can change the result with follow-up instructions.
 - One run takes from tens of minutes to a few hours and costs OpenAI usage ([costs](#where-do-i-see-the-cost)).
+- To work with others on a shared budget, create a [team](#teams).
 - To build many projects, start a mission with the [CoBRAC Orchestrator](#cobrac-orchestrator); it plans them and builds them in turn for you.
 
 ## Getting started
@@ -50,7 +51,7 @@ The project gets a name automatically; you can change it on the project page.
 ### Research mode and models
 
 - **Research mode** (on by default): before the HCD, the agent surveys PubMed and Europe PMC in depth. When off, the run is faster and cheaper but the survey is shallower. It cannot be changed after creation.
-- **Model and reasoning effort**: the defaults come from Settings. High reasoning effort is recommended.
+- **Model and reasoning effort**: the model and reasoning effort you pick on the create screen, and the agent model you pick in a mission, are remembered and become the starting values of your next project or mission. Choosing "Default" goes back to the app's default. The remembered values also show under "Default model / reasoning effort" in Settings, where you can change them. High reasoning effort is recommended.
 
 ## The project page and the agent
 
@@ -99,6 +100,7 @@ Each output appears in its tab when its step is done.
 - **Report and decision log**: the agent's report of the work, and what it decided and why.
 - **BRA xlsx**: when the data is complete, the header has the download button "BRA data (xlsx)" (the official Template-v2-3 format).
 - **BRAES set**: downloads, as a zip, the files the BRAES submission form asks for (BRA data, BIF / HCD / FRG images, and a note of the values to enter in the form). The BRA data comes as CSVs for the BRA Data Converter: put the CSV folder on Google Drive, convert it with the converter, and attach the spreadsheet it makes to the form. You are asked for the BRAES Project ID (e.g. YT20Oculomotor); check the proposal and press "Download". The images can be opened and adjusted in draw.io.
+- **Accepted in BRAES**: a project whose BRA data BRAES has accepted has a green "Accepted in BRAES" mark next to its name. For now, a site admin checks the acceptance and sets the mark on each project by hand. Point at the mark to see when it was set and for which version. The mark shows on the project page, in the project list and in the public library. Clones and copies do not carry it.
 
 ### Versions
 
@@ -245,6 +247,38 @@ To handle pull requests, conflicts and questions yourself, turn on "Handle pull 
 - Anyone signed in can see public items in the "Public library". The agent's log, costs and e-mail addresses are not shown.
 - "Clone" copies a public project into a new private project of yours. The original does not change.
 - Other users can send PRs to a public Canon. Only the owner approves.
+
+## Teams
+
+A **team** lets several people work on the same API keys (the team's budget). A team has its own **workspace**, and everyone in the team can see the projects, missions and Canons made in it. Your personal workspace stays as it is, and you can belong to several teams.
+
+### Create a team and switch workspaces
+
+- Open the workspace switcher at the top of the sidebar, press "Create a team" and enter a name. The person who creates the team becomes its admin.
+- The same switcher moves between your personal workspace and a team's workspace. Under the team's name, "On the team's budget" or "On your own key" tells you which key runs the jobs in that workspace.
+- The icon next to the team's name opens the team page.
+
+### Invite members
+
+- On the team page, press "Make a link" on the "Invite" tab to make an invite link. You can set an expiry and a limit on the number of people. Share the link as a URL, a QR code or an e-mail; e-mails can go to addresses without an account too.
+- Anyone who opens the link and signs in (or signs up) joins as a member.
+- "Make a new link" or "Disable the link" stops the old link.
+- On "Members", an admin can change a member's role (admin or member) or remove a member. A team always keeps at least one admin. A member can leave with "Leave the team"; what they made stays.
+
+### The team's budget
+
+- An admin registers the team's API keys on the team page's "Settings" tab. Members cannot see the keys themselves. A model whose provider has no team key runs on each person's own key.
+- On "Budget", an admin sets the budget period (start and end), monthly limits (for the whole team and for each member) and which models the team's keys run. Months are calendar months (UTC), counted with estimated costs. When a limit is reached, no new job starts on the team's keys that month.
+- The team's keys are used only during the budget period. Outside it, jobs run on each person's own key.
+- When the budget ends or an admin presses "Stop the budget", jobs on the team's keys stop and the team's missions pause. Each project keeps its work, and its creator continues it on their own key with "Retry from where it left off". From three days before the end, and after it, a banner at the top of the team's workspace says so. "Use the budget again" restarts it.
+- The team page shows what is left of your month. Admins also see the cost per member and per project.
+
+### What you can see and do in a team
+
+- Other members' projects and missions open view only ("…'s project (view only)" at the top). Only the creator and the team's admins can run or change them. When an admin runs another member's project or mission, it runs on the team's budget only.
+- Members can send their own projects to the team's Canons and comment on PRs.
+- "Copy" on a project makes a copy of its finished data in your personal workspace or in another team you belong to. The original stays as it is.
+- An admin can delete the team. Its jobs on the team's keys stop, its missions pause, and every project, mission and Canon goes back to its creator's personal workspace. This cannot be undone.
 
 ## Settings
 
